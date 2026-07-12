@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics | FileCheck %s
+// RUN: weft-opt %s --split-input-file --verify-diagnostics | FileCheck %s
 
 // N2 plugin RAPID-ADD: the FIFTH IME execution op — the SLIDING-WINDOW int8->int32
 // `vmadot1` MAC (Xsmti8i32mm_slide, K1's SECOND IME1 sub-extension). A is read from
@@ -11,19 +11,19 @@
 // the SAME mnemonic-generic verifier (verifyIMEMACBoundary) and the SAME
 // spacemit.ime capability fact as the other four — the cheapness IS the N2 thesis.
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @ime_mma_slide_valid
-  tcrv.exec.kernel @ime_mma_slide_valid {
-    tcrv.exec.capability @spacemit_ime {
+  // CHECK-LABEL: weft.exec.kernel @ime_mma_slide_valid
+  weft.exec.kernel @ime_mma_slide_valid {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available"
     }
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {
       origin = "ime-plugin",
       requires = [@spacemit_ime]
     } {
     }
-    // CHECK: tcrv_ime.mma_slide {accum_bits = 32 : i64
+    // CHECK: weft_ime.mma_slide {accum_bits = 32 : i64
     // CHECK-SAME: available_harts = "0-3"
     // CHECK-SAME: elem_in_bits = 8 : i64
     // CHECK-SAME: ime_op = "vmadot1"
@@ -37,7 +37,7 @@ module {
     // CHECK-SAME: slide = 1 : i64
     // CHECK-SAME: source_kernel = "ime_mma_slide_valid"
     // CHECK-SAME: status = "role-op-boundary"
-    tcrv_ime.mma_slide {
+    weft_ime.mma_slide {
       origin = "ime-plugin",
       required_capabilities = [@spacemit_ime],
       role = "direct variant",
@@ -61,14 +61,14 @@ module {
 // slide=2 round-trips with the matching `vmadot2` mnemonic (the slide stride is
 // the load-bearing window FACT; the expected mnemonic is selected from it).
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @ime_mma_slide2_valid
-  tcrv.exec.kernel @ime_mma_slide2_valid {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
-    // CHECK: tcrv_ime.mma_slide
+  // CHECK-LABEL: weft.exec.kernel @ime_mma_slide2_valid
+  weft.exec.kernel @ime_mma_slide2_valid {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    // CHECK: weft_ime.mma_slide
     // CHECK-SAME: ime_op = "vmadot2"
     // CHECK-SAME: slide = 2 : i64
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide2_valid", ime_op = "vmadot2", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 2 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide2_valid", ime_op = "vmadot2", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 2 : i64, available_harts = "0-3"}
   }
 }
 
@@ -78,23 +78,23 @@ module {
 // is rejected. This is the load-bearing negative: the slide stride is a derived
 // FACT with a closed envelope, not an open integer.
 module {
-  tcrv.exec.kernel @ime_mma_slide_bad_slide {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_slide_bad_slide {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{slide must be in {1,2,3} (vmadot1/vmadot2/vmadot3)}}
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_bad_slide", ime_op = "vmadot1", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 4 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_bad_slide", ime_op = "vmadot1", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 4 : i64, available_harts = "0-3"}
   }
 }
 
 // -----
 
-// Fail-closed (I7): slide=0 is the NON-slide tcrv.ime.mma, not this op — rejected.
+// Fail-closed (I7): slide=0 is the NON-slide weft.ime.mma, not this op — rejected.
 module {
-  tcrv.exec.kernel @ime_mma_slide_zero {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_slide_zero {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{slide must be in {1,2,3} (vmadot1/vmadot2/vmadot3)}}
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_zero", ime_op = "vmadot1", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 0 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_zero", ime_op = "vmadot1", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 0 : i64, available_harts = "0-3"}
   }
 }
 
@@ -104,11 +104,11 @@ module {
 // the non-slide `vmadot` is rejected — the ops are distinguished by the admitted
 // instruction, not a renamed op.
 module {
-  tcrv.exec.kernel @ime_mma_slide_wrong_op {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_slide_wrong_op {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{ime_op must be 'vmadot1'}}
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_wrong_op", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 1 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_wrong_op", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 1 : i64, available_harts = "0-3"}
   }
 }
 
@@ -117,11 +117,11 @@ module {
 // Fail-closed (I7): slide=2 with the slide-1 mnemonic `vmadot1` is rejected — the
 // expected mnemonic is selected from the slide stride.
 module {
-  tcrv.exec.kernel @ime_mma_slide_op_mismatch {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_slide_op_mismatch {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{ime_op must be 'vmadot2'}}
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_op_mismatch", ime_op = "vmadot1", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 2 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_op_mismatch", ime_op = "vmadot1", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 2 : i64, available_harts = "0-3"}
   }
 }
 
@@ -130,11 +130,11 @@ module {
 // Fail-closed (I7): the IME1 vmadot1 consumes int8 inputs; an out-of-envelope
 // element width is rejected.
 module {
-  tcrv.exec.kernel @ime_mma_slide_wrong_elem {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_slide_wrong_elem {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{elem_in_bits must be 8 (IME1 vmadot1 consumes int8 inputs)}}
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_wrong_elem", ime_op = "vmadot1", elem_in_bits = 16 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 1 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_wrong_elem", ime_op = "vmadot1", elem_in_bits = 16 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 1 : i64, available_harts = "0-3"}
   }
 }
 
@@ -143,10 +143,10 @@ module {
 // The slide op is an IME EXECUTION boundary, not a high-level matmul/tile op:
 // generic tensor/tile/benchmark or unknown attributes are rejected.
 module {
-  tcrv.exec.kernel @ime_mma_slide_unknown_attr {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_slide_unknown_attr {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot1_mma_slide_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{does not accept generic tensor/tile/benchmark or unknown attribute 'layout'}}
-    tcrv_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_unknown_attr", ime_op = "vmadot1", layout = "generic_tile", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 1 : i64, available_harts = "0-3"}
+    weft_ime.mma_slide {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot1_mma_slide_slice, source_kernel = "ime_mma_slide_unknown_attr", ime_op = "vmadot1", layout = "generic_tile", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, slide = 1 : i64, available_harts = "0-3"}
   }
 }

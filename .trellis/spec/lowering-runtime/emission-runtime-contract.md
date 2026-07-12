@@ -2,7 +2,7 @@
 
 ## Scope
 
-This contract defines how selected TianChen-RV variants become emitted code,
+This contract defines how selected Weft-RV variants become emitted code,
 runtime ABI surfaces, target artifacts, and evidence. It applies identically to
 every extension family — RVV, IME, Offload, TensorExtLite, Template/Toy, scalar
 fallback, and future families.
@@ -10,12 +10,12 @@ fallback, and future families.
 Emission is not a metadata state machine. The executable authority chain is:
 
 ```text
-tcrv.exec envelope
+weft.exec envelope
   -> selected extension variant
   -> typed extension-family body or selected boundary
   -> origin plugin legality / optional selected-body realization
   -> origin plugin route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
   -> common EmitC materializer
   -> C/C++ or equivalent backend representation
   -> target artifact
@@ -23,7 +23,7 @@ tcrv.exec envelope
 ```
 
 For the current RVV mainline, the selected body is a typed low-level
-`tcrv_rvv` body and the origin plugin is the RVV plugin.
+`weft_rvv` body and the origin plugin is the RVV plugin.
 
 ## Non-Authority Rule
 
@@ -53,18 +53,18 @@ typed/realized RVV body:
 
 ```text
 selected RVV variant
-  -> typed tcrv_rvv body
+  -> typed weft_rvv body
   -> RVV plugin legality
   -> optional RVV selected-body realization
-  -> RVV plugin-built TCRVEmitCLowerableRoute
+  -> RVV plugin-built WEFTEmitCLowerableRoute
   -> common EmitC materialization
   -> target export packaging
 ```
 
 RVV dtype/config/operation facts must be structural in the typed
-`tcrv_rvv` body or consumed into the realized body before route construction.
+`weft_rvv` body or consumed into the realized body before route construction.
 They must not be recovered from `RVVI32M1*` metadata, `rvv-i32m1` route ids,
-`tcrv_rvv.i32_*` helper names, C ABI spellings, exact `__riscv_*_i32m1`
+`weft_rvv.i32_*` helper names, C ABI spellings, exact `__riscv_*_i32m1`
 spellings, source-front-door patterns, descriptor residue, artifact names, or
 test names.
 
@@ -72,7 +72,7 @@ test names.
 
 There is no supported explicit typed RVV `i32m1` legacy route-table object
 plan. All legacy `i32m1` route-table cases must be unsupported/fail-closed
-unless already rewritten onto the corrected generic typed `tcrv_rvv` surface.
+unless already rewritten onto the corrected generic typed `weft_rvv` surface.
 
 Forbidden current-positive outputs include:
 
@@ -80,7 +80,7 @@ Forbidden current-positive outputs include:
 rvv-i32m1-* materialized EmitC object/header/bundle plans
 RVVI32M1* route tables as executable compatibility route
 artifact kind: riscv-elf-relocatable-object for legacy i32m1 route-table cases
-positive target export from !tcrv_rvv.i32m1 or tcrv_rvv.i32_* helper families
+positive target export from !weft_rvv.i32m1 or weft_rvv.i32_* helper families
 ```
 
 Legacy terms may remain only in clearly labeled fail-closed inventory,
@@ -89,7 +89,7 @@ migration notes.
 
 ## Emission Diagnostics
 
-`tcrv.exec.diagnostic {reason = "emission_plan"}` is emitted as a
+`weft.exec.diagnostic {reason = "emission_plan"}` is emitted as a
 non-authoritative mirror after plugin route/provider decisions. It is never a
 route INPUT; but when target-artifact export runs, exactly one emission-plan
 diagnostic per selected path is a REQUIRED deterministic mirror (见 Candidate
@@ -118,7 +118,7 @@ and `lowering_pipeline` must exactly mirror already-made plugin decisions.
 ## Target Artifact Export
 
 Target artifact export consumes materialized EmitC produced from a
-`TCRVEmitCLowerableRoute`. Metadata is an exact mirror of that route and the
+`WEFTEmitCLowerableRoute`. Metadata is an exact mirror of that route and the
 selected variant.
 
 Export must fail closed when:
@@ -126,7 +126,7 @@ Export must fail closed when:
 - no selected extension variant exists;
 - no typed/selected extension body exists;
 - plugin legality rejects the body;
-- route provider does not return `TCRVEmitCLowerableRoute`;
+- route provider does not return `WEFTEmitCLowerableRoute`;
 - common EmitC materialization fails;
 - only emission-plan metadata, selected-path metadata, route ids, or manifests
   exist;
@@ -143,7 +143,7 @@ metadata, artifact names, or family records.
 ### 1. Scope / Trigger
 
 Use this contract when target artifact export consumes selected-path
-`tcrv.exec` surfaces and their emission-plan diagnostics. It applies to static
+`weft.exec` surfaces and their emission-plan diagnostics. It applies to static
 selected variants, selected dispatch cases, dispatch fallbacks, and
 fallback-only selections.
 
@@ -152,7 +152,7 @@ fallback-only selections.
 The target export collector consumes:
 
 ```text
-tcrv.exec.dispatch / selected diagnostic marker
+weft.exec.dispatch / selected diagnostic marker
 emission_plan diagnostic keyed by selected variant symbol + selected path role
 status = supported | unsupported
 origin
@@ -234,7 +234,7 @@ selected paths all unsupported
 
 ## Runtime ABI Boundary
 
-`tcrv.exec.mem_window` and `tcrv.exec.runtime_param` declare ABI roles and C
+`weft.exec.mem_window` and `weft.exec.runtime_param` declare ABI roles and C
 export spelling. The selected extension body must explicitly import and consume
 those values.
 
@@ -242,7 +242,7 @@ Correct:
 
 ```text
 mem_window/runtime_param declare lhs/rhs/out/n roles
--> tcrv_rvv body imports those ABI values
+-> weft_rvv body imports those ABI values
 -> typed loads/stores/control/dataflow consume them
 -> RVV provider maps body + ABI roles to emitted C/C++
 ```
@@ -259,7 +259,7 @@ Source-front-door and source-artifact bundle flows are disabled by default and
 fail closed (见 core-invariants I7); they are not a buildable future deliverable.
 
 Source-only RVV inputs must fail closed unless they already materialize a
-corrected typed `tcrv_rvv` body through an explicit opt-in path over an existing
+corrected typed `weft_rvv` body through an explicit opt-in path over an existing
 mature route. Positive RVV generated artifact tests must not start from
 source-front-door metadata.
 
@@ -269,7 +269,7 @@ route authority.
 ## Family Export Gate
 
 A family exports only via a typed extension body + plugin-built
-`TCRVEmitCLowerableRoute` + materialized EmitC; absent these it fails closed
+`WEFTEmitCLowerableRoute` + materialized EmitC; absent these it fails closed
 (I7). This gate applies identically to every family. RVV is the first and
 broadest realized family; scalar fallback has no active executable body or route
 (unsupported diagnostics only); any family without a real producer route fails
@@ -325,7 +325,7 @@ production dispatch path that emits a whole (super-)block / repacked GEVM/GEMM
 body **without** going through the front door's typed region. Repack examples are
 the `emitRepackGem{v,m}<fmt>` entries in `kBlockDotKernels`
 (`RVVToEmitC.cpp`); the front-door counterpart is
-`lowerToRepackGem{v,m} -> tcrv_rvv.typed_repack_gem{v,m}_loop_body`
+`lowerToRepackGem{v,m} -> weft_rvv.typed_repack_gem{v,m}_loop_body`
 (`RVVLowerQuantContraction.cpp`), constructed at this cut for q4_0 only. A direct
 emitter is **transitional scaffolding**: it dispatch-wires a format (feeds
 `C_dispatch`, never `C_construct`) and is honestly labeled `dispatch-wired`
@@ -435,7 +435,7 @@ that is then reconstructed and retested, not to an opaque one-off helper.
 Good:
 
 ```text
-typed tcrv_rvv body
+typed weft_rvv body
   -> RVV legality
   -> realized body if needed
   -> provider-built route

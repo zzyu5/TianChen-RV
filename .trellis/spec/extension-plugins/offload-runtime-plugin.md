@@ -3,7 +3,7 @@
 ## Role
 
 Runtime offload plugin represents the Offload extension family: RISC-V host
-plus external or SoC accelerator execution inside the unified TCRV system.
+plus external or SoC accelerator execution inside the unified WEFT system.
 
 For Sophgo-like environments, execution usually uses:
 
@@ -49,7 +49,7 @@ handoff kind: runtime-offload
 
 The previous descriptor artifact route has been deleted. The current first
 slice may still materialize capability-gated metadata and a selected
-`tcrv_offload.lowering_boundary`, but emission planning must fail closed as
+`weft_offload.lowering_boundary`, but emission planning must fail closed as
 unsupported until future executable Offload lowering is rebuilt through the
 common extension family ops -> EmitC -> runtime C ABI route.
 
@@ -77,7 +77,7 @@ properties.
 
 The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`) and plugin-owned discardable string metadata
-`tcrv_offload.runtime_abi` plus `tcrv_offload.handoff_kind` on the materialized
+`weft_offload.runtime_abi` plus `weft_offload.handoff_kind` on the materialized
 variant. Plugin legality checks that the selected variant requires an exact or
 relation-provider capability satisfying `offload.runtime`, that the provider
 remains available, and that the plugin-owned variant metadata matches the
@@ -90,9 +90,9 @@ target exporter bundle contributions. Public artifact and bundle front doors
 therefore fail closed when the selected path is Offload-only. This is an
 intentional deletion gap, not permission to restore a metadata artifact path.
 
-## Why It Belongs In TianChen-RV
+## Why It Belongs In Weft-RV
 
-TianChen-RV is a capability-driven execution layer. RISC-V AI systems may include CPU extensions and accelerator runtimes:
+Weft-RV is a capability-driven execution layer. RISC-V AI systems may include CPU extensions and accelerator runtimes:
 
 ```text
 RISC-V CPU + RVV
@@ -128,7 +128,7 @@ compiled artifact format
 Reference attribute:
 
 ```mlir
-#tcrv.accel<"sophgo.runtime",
+#weft.accel<"sophgo.runtime",
             kind = "policy",
             subclass = "runtime-offload",
             mode = "pcie",
@@ -142,19 +142,19 @@ Reference attribute:
 Architectural family:
 
 ```text
-tcrv.offload
+weft.offload
 ```
 
 Concrete MLIR namespace:
 
 ```text
-tcrv_offload
+weft_offload
 ```
 
 Legacy/no-active-route first-slice op shape, for stale input validation only:
 
 ```mlir
-tcrv_offload.lowering_boundary {
+weft_offload.lowering_boundary {
   source_kernel = "kernel_symbol",
   selected_variant = @offload_runtime_first_slice,
   origin = "offload-plugin",
@@ -181,24 +181,24 @@ future runtime C ABI lowering path is specified and implemented.
 Future types may include:
 
 ```text
-!tcrv.offload.buffer<device, dtype, shape>
-!tcrv.offload.event
-!tcrv.offload.handle
-!tcrv.offload.runtime
+!weft.offload.buffer<device, dtype, shape>
+!weft.offload.event
+!weft.offload.handle
+!weft.offload.runtime
 ```
 
 Future ops may include:
 
 ```text
-tcrv.offload.bind
-tcrv.offload.alloc
-tcrv.offload.copy_to_device
-tcrv.offload.copy_from_device
-tcrv.offload.async_call
-tcrv.offload.call
-tcrv.offload.wait
-tcrv.offload.release
-tcrv.offload.shape_guard
+weft.offload.bind
+weft.offload.alloc
+weft.offload.copy_to_device
+weft.offload.copy_from_device
+weft.offload.async_call
+weft.offload.call
+weft.offload.wait
+weft.offload.release
+weft.offload.shape_guard
 ```
 
 ## Variant Generation Scope

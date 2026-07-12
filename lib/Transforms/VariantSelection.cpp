@@ -1,8 +1,8 @@
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/Transforms/VariantSelection.h"
 
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Support/DeclaredInstanceHash.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Support/DeclaredInstanceHash.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -21,10 +21,10 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_SELECTVARIANTS
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -57,18 +57,18 @@ constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
     "preference_tie_break");
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 constexpr llvm::StringLiteral kRuntimeGuardPolicy("capability_dispatch_guard");
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
+using weft::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRankingEntry;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRankingEntry;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 struct RequirementLegality {
   bool available = false;
@@ -79,7 +79,7 @@ struct RequirementLegality {
 llvm::Error makeSelectionError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV variant selection failed";
+  stream << "Weft-RV variant selection failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -94,7 +94,7 @@ llvm::Error makeSelectionError(KernelOp kernel, VariantOp variant,
                                llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV variant selection failed";
+  stream << "Weft-RV variant selection failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -603,7 +603,7 @@ llvm::Error materializeMissingFallbackCoverageDiagnostic(
       kMessageAttrName,
       builder.getStringAttr(
           "no plugin-provided conservative fallback candidate is available; "
-          "tcrv.exec.dispatch fallback is not invented"));
+          "weft.exec.dispatch fallback is not invented"));
   state.addAttribute(kSeverityAttrName, builder.getStringAttr("warning"));
   state.addAttribute(kStatusAttrName, builder.getStringAttr("missing"));
   state.addAttribute(kTargetAttrName,
@@ -639,7 +639,7 @@ public:
       attributionFile.emplace(attributionJsonl, ec, llvm::sys::fs::OF_Text);
       if (ec) {
         getOperation()->emitError()
-            << "TianChen-RV variant selection could not open attribution JSONL "
+            << "Weft-RV variant selection could not open attribution JSONL "
                "output file '"
             << attributionJsonl << "': " << ec.message();
         signalPassFailure();
@@ -727,7 +727,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
     KernelOp kernel, const TargetCapabilitySet &capabilities,
     const ExtensionPluginRegistry &registry) {
   if (!kernel)
-    return makeSelectionError(kernel, "requires a tcrv.exec.kernel");
+    return makeSelectionError(kernel, "requires a weft.exec.kernel");
 
   if (!hasKernelBody(kernel))
     return makeSelectionError(kernel,
@@ -786,7 +786,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
     return makeSelectionError(
         kernel,
         "no plugin-provided conflict-free conservative fallback candidate is "
-        "available; cannot materialize tcrv.exec.dispatch without inventing an "
+        "available; cannot materialize weft.exec.dispatch without inventing an "
         "implicit fallback");
 
   if (!selectedIndex)
@@ -821,7 +821,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
     return makeSelectionError(
         kernel,
         "no plugin-provided conflict-free conservative fallback candidate is "
-        "available; cannot materialize tcrv.exec.dispatch without inventing an "
+        "available; cannot materialize weft.exec.dispatch without inventing an "
         "implicit fallback");
 
   for (std::size_t index = 0; index < plan.rankedVariants.size(); ++index) {
@@ -851,7 +851,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
 llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
     KernelOp kernel, const ExtensionPluginRegistry &registry) {
   if (!kernel)
-    return makeSelectionError(kernel, "requires a tcrv.exec.kernel");
+    return makeSelectionError(kernel, "requires a weft.exec.kernel");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -869,7 +869,7 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
   KernelOp kernel = plan.kernel;
   if (!kernel)
     return makeSelectionError(kernel,
-                              "requires a tcrv.exec.kernel for dispatch "
+                              "requires a weft.exec.kernel for dispatch "
                               "materialization");
 
   if (!hasKernelBody(kernel))
@@ -885,7 +885,7 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
   if (hasDirectDispatch(kernel))
     return makeSelectionError(
         kernel,
-        "kernel already contains a direct tcrv.exec.dispatch; selection "
+        "kernel already contains a direct weft.exec.dispatch; selection "
         "materialization refuses to create a competing dispatch");
 
   const VariantSelectionCase *fallbackCase =
@@ -959,7 +959,7 @@ llvm::Error materializeSelectedVariantMarker(
   KernelOp kernel = plan.kernel;
   if (!kernel)
     return makeSelectionError(kernel,
-                              "requires a tcrv.exec.kernel for selected-path "
+                              "requires a weft.exec.kernel for selected-path "
                               "marker materialization");
 
   if (!hasKernelBody(kernel))
@@ -977,7 +977,7 @@ llvm::Error materializeSelectedVariantMarker(
   if (hasDirectDispatch(kernel))
     return makeSelectionError(
         kernel,
-        "kernel already contains a direct tcrv.exec.dispatch; selected-path "
+        "kernel already contains a direct weft.exec.dispatch; selected-path "
         "marker materialization refuses to create a competing selected surface");
 
   VariantOp selectedVariant = plan.selectedVariant ? plan.selectedVariant
@@ -1152,4 +1152,4 @@ createSelectVariantsPass(const ExtensionPluginRegistry &registry) {
   return std::make_unique<SelectVariantsPass>(registry);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

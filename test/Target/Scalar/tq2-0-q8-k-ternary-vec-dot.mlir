@@ -1,14 +1,14 @@
-// RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: tcrv-opt %s --tcrv-check-capability-requires --tcrv-materialize-plugin-variants --tcrv-verify-plugin-variant-legality --tcrv-select-variants | tcrv-translate --tcrv-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="tcrv_rvv"
-// RUN: tcrv-translate --tcrv-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="tcrv_rvv"
-// RUN: tcrv-translate --tcrv-scalar-emitc-to-cpp %s | diff %S/tq2-0-q8-k-ternary-vec-dot.golden.c -
+// RUN: weft-translate --help | FileCheck %s --check-prefix=HELP
+// RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
+// RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
+// RUN: weft-translate --weft-scalar-emitc-to-cpp %s | diff %S/tq2-0-q8-k-ternary-vec-dot.golden.c -
 
 // X-SCALAR family #3: a REAL ternary 2-bit vec_dot scalar kernel (replaces the
 // tracer-bullet trivial compute op). A hand-written portable-scalar
-// tcrv_scalar.tq2_0_q8_k_vec_dot boundary flows through the generic
+// weft_scalar.tq2_0_q8_k_vec_dot boundary flows through the generic
 // capability/variant planning passes and then the scalar backend emission
 // driver lowers it to a standalone EmitC module that the
-// --tcrv-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
+// --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
 // `ggml_vec_dot_tq2_0_q8_K` contraction as nested C loops. NO __riscv_
 // intrinsics, NO XOR-popcount codebook, NO vector machinery -- the ternary
 // weight is decoded `(((qs >> shift) & 3) - 1)` and multiply-accumulated
@@ -25,18 +25,18 @@
 // The last RUN is a strict byte-exact gate versus the captured golden C
 // (the ggml scalar ternary reference), sibling tq2-0-q8-k-ternary-vec-dot.golden.c.
 //
-// NOTE: --tcrv-materialize-emission-plans is intentionally NOT in the pipe (the
+// NOTE: --weft-materialize-emission-plans is intentionally NOT in the pipe (the
 // scalar plugin's emission-readiness still fail-closes as Unsupported, locked by
 // test/Plugin/ScalarExtensionPluginTest.cpp); the translate route lowers the
 // selected typed body directly through the shared backend-emission registry.
 
-// HELP: --tcrv-scalar-emitc-to-cpp
+// HELP: --weft-scalar-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter
 
 module {
-  tcrv.exec.kernel @tq2_0_kernel {
-    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
-    tcrv_scalar.tq2_0_q8_k_vec_dot {
+  weft.exec.kernel @tq2_0_kernel {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft_scalar.tq2_0_q8_k_vec_dot {
       source_kernel = "tq2_0_kernel",
       selected_variant = @scalar_fallback_first_slice,
       qk = 256 : i64,
@@ -50,8 +50,8 @@ module {
 }
 
 // SOURCE: #include <stdint.h>
-// SOURCE: extern "C" void tcrv_emitc_tq2_0_kernel_scalar_fallback_first_slice(int v{{[0-9]+}}, float* v{{[0-9]+}}, const uint8_t* v{{[0-9]+}}, const int8_t* v{{[0-9]+}})
-// SOURCE: tcrv_emitc.route_source_op=tcrv_scalar.tq2_0_q8_k_vec_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+// SOURCE: extern "C" void weft_emitc_tq2_0_kernel_scalar_fallback_first_slice(int v{{[0-9]+}}, float* v{{[0-9]+}}, const uint8_t* v{{[0-9]+}}, const int8_t* v{{[0-9]+}})
+// SOURCE: weft_emitc.route_source_op=weft_scalar.tq2_0_q8_k_vec_dot role=compute op_interface=WEFTEmitCLowerableOpInterface
 
 // super-block count nb = (size_t)n / 256  (qk attribute).
 // SOURCE: size_t v[[N:[0-9]+]] = (size_t) v{{[0-9]+}};

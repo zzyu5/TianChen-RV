@@ -21,10 +21,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -33,14 +33,14 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
-using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
-using tianchenrv::plugin::rvv::RVVVersion;
-using tianchenrv::plugin::rvv::buildRVVTargetCapabilitiesFromProbeFacts;
-using tianchenrv::plugin::rvv::deriveRVVVersion;
-using tianchenrv::plugin::rvv::getRVVPreferredCapabilitySymbol;
-using tianchenrv::plugin::rvv::stringifyRVVVersion;
-using tianchenrv::support::CapabilityDescriptor;
-using tianchenrv::support::TargetCapabilitySet;
+using weft::plugin::rvv::RVVProbeCapabilityFacts;
+using weft::plugin::rvv::RVVVersion;
+using weft::plugin::rvv::buildRVVTargetCapabilitiesFromProbeFacts;
+using weft::plugin::rvv::deriveRVVVersion;
+using weft::plugin::rvv::getRVVPreferredCapabilitySymbol;
+using weft::plugin::rvv::stringifyRVVVersion;
+using weft::support::CapabilityDescriptor;
+using weft::support::TargetCapabilitySet;
 
 namespace {
 
@@ -72,10 +72,10 @@ const CapabilityDescriptor *lookupRVV(const TargetCapabilitySet &capabilities) {
 }
 
 // The probe->capability builder mints CapabilityRelationsAttr (the hart-count
-// `provides`) from the context, so the TCRV Exec dialect must be loaded.
+// `provides`) from the context, so the WEFT Exec dialect must be loaded.
 void loadDialects(mlir::MLIRContext &context) {
   mlir::DialectRegistry registry;
-  tianchenrv::registerAllDialects(registry);
+  weft::registerAllDialects(registry);
   context.appendDialectRegistry(registry);
   context.loadAllAvailableDialects();
 }

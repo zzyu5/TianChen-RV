@@ -71,7 +71,7 @@ def _drop_kind_enum_member(schema_path: Path) -> str:
 
 def redteam_report_gate(check) -> None:
     """[S-6] content red-team in a hermetic temp copy (never touches the real tree)."""
-    tmp = Path(tempfile.mkdtemp(prefix="tcrv-redteam-schema-gate-"))
+    tmp = Path(tempfile.mkdtemp(prefix="weft-redteam-schema-gate-"))
     try:
         tmp_script = tmp / ".trellis" / "scripts" / "check_schema_gate.py"
         tmp_schema = tmp / SCHEMA_REL

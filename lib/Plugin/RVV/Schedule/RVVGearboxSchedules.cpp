@@ -1,10 +1,10 @@
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -22,67 +22,67 @@
 #include <memory>
 #include <optional>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZERVVGEARBOXSCHEDULES
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32DestLMUL;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32DestSEW;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32CandidateSet;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32LegalityScope;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32Operation;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32ScheduleID;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedCandidate;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectionReason;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32Selector;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SourceLMUL;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SourceSEW;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32Unroll;
-using tianchenrv::plugin::rvv::kRVVGearboxCandidateSetAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedVLPolicy;
-using tianchenrv::plugin::rvv::kRVVGearboxConsumerScope;
-using tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxProducerScope;
-using tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN;
-using tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxSelectedCandidateAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxSelectionReasonAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxSourceSEWAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxStaticPassSource;
-using tianchenrv::plugin::rvv::kRVVGearboxUnrollAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxVLPolicyAttrName;
-using tianchenrv::tcrv::rvv::DequantizeOp;
-using tianchenrv::tcrv::rvv::GearboxCrossRegionHandoffOp;
-using tianchenrv::tcrv::rvv::LoadOp;
-using tianchenrv::tcrv::rvv::CompareOp;
-using tianchenrv::tcrv::rvv::RuntimeABIValueOp;
-using tianchenrv::tcrv::rvv::SelectOp;
-using tianchenrv::tcrv::rvv::SetVLOp;
-using tianchenrv::tcrv::rvv::SplatOp;
-using tianchenrv::tcrv::rvv::StandaloneReduceOp;
-using tianchenrv::tcrv::rvv::StoreOp;
-using tianchenrv::tcrv::rvv::
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32DestLMUL;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32DestSEW;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32CandidateSet;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32LegalityScope;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32Operation;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32ScheduleID;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedCandidate;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectionReason;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32Selector;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32SourceLMUL;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32SourceSEW;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32Unroll;
+using weft::plugin::rvv::kRVVGearboxCandidateSetAttrName;
+using weft::plugin::rvv::kRVVGearboxDestLMULAttrName;
+using weft::plugin::rvv::kRVVGearboxDestSEWAttrName;
+using weft::plugin::rvv::kRVVGearboxLegalityScopeAttrName;
+using weft::plugin::rvv::kRVVGearboxOperationAttrName;
+using weft::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedVLPolicy;
+using weft::plugin::rvv::kRVVGearboxConsumerScope;
+using weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+using weft::plugin::rvv::kRVVGearboxProducerScope;
+using weft::plugin::rvv::kRVVGearboxProducerScopeAttrName;
+using weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
+using weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceN;
+using weft::plugin::rvv::kRVVGearboxScheduleIDAttrName;
+using weft::plugin::rvv::kRVVGearboxSelectedCandidateAttrName;
+using weft::plugin::rvv::kRVVGearboxSelectionReasonAttrName;
+using weft::plugin::rvv::kRVVGearboxSelectorAttrName;
+using weft::plugin::rvv::kRVVGearboxSourceAttrName;
+using weft::plugin::rvv::kRVVGearboxSourceLMULAttrName;
+using weft::plugin::rvv::kRVVGearboxSourceSEWAttrName;
+using weft::plugin::rvv::kRVVGearboxStaticPassSource;
+using weft::plugin::rvv::kRVVGearboxUnrollAttrName;
+using weft::plugin::rvv::kRVVGearboxVLPolicyAttrName;
+using weft::rvv::DequantizeOp;
+using weft::rvv::GearboxCrossRegionHandoffOp;
+using weft::rvv::LoadOp;
+using weft::rvv::CompareOp;
+using weft::rvv::RuntimeABIValueOp;
+using weft::rvv::SelectOp;
+using weft::rvv::SetVLOp;
+using weft::rvv::SplatOp;
+using weft::rvv::StandaloneReduceOp;
+using weft::rvv::StoreOp;
+using weft::rvv::
     TypedWideningProductReduceDequantClampF32BodyOp;
-using tianchenrv::tcrv::rvv::
+using weft::rvv::
     TypedWideningProductReduceDequantClampF32PreRealizedBodyOp;
-using tianchenrv::tcrv::rvv::
+using weft::rvv::
     TypedWideningProductReduceDequantizePreRealizedBodyOp;
-using tianchenrv::tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp;
-using tianchenrv::tcrv::rvv::VectorType;
-using tianchenrv::tcrv::rvv::WithVLOp;
-using tianchenrv::tcrv::rvv::WideningProductOp;
+using weft::rvv::TypedWideningDotReducePreRealizedBodyOp;
+using weft::rvv::VectorType;
+using weft::rvv::WithVLOp;
+using weft::rvv::WideningProductOp;
 
 constexpr llvm::StringLiteral kDequantizationKind("i32_to_f32_scaled");
 constexpr llvm::StringLiteral kDequantizationRelation(
@@ -137,7 +137,7 @@ mlir::LogicalResult requireRuntimeABIValue(RuntimeABIValueOp value,
   if (!value)
     return anchor->emitError()
            << "RVV Gearbox schedule derivation for " << context
-           << " requires a visible tcrv_rvv.runtime_abi_value";
+           << " requires a visible weft_rvv.runtime_abi_value";
   if (value.getRole() != role || value.getCName() != cName)
     return anchor->emitError()
            << "RVV Gearbox schedule derivation for " << context
@@ -191,10 +191,10 @@ mlir::LogicalResult requireIntegerAttr(mlir::Operation *op,
 // budget-driven (N1/N3) instead of pinned to the default.
 std::int64_t resolveGearboxVectorRegisterBudget(mlir::Operation *op) {
   if (auto attr = op->getAttrOfType<mlir::IntegerAttr>(
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceVectorRegisterBudgetAttrName))
     return attr.getInt();
-  return tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget;
+  return weft::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget;
 }
 
 mlir::LogicalResult materializeGearboxAttrs(mlir::Operation *op,
@@ -276,7 +276,7 @@ mlir::LogicalResult requireVectorType(mlir::Value value,
   if (!vectorType)
     return anchor->emitError()
            << "RVV Gearbox schedule derivation for " << context
-           << " requires a typed !tcrv_rvv.vector value";
+           << " requires a typed !weft_rvv.vector value";
   if (vectorType.getElementType() != elementType || vectorType.getLmul() != lmul)
     return anchor->emitError()
            << "RVV Gearbox schedule derivation for " << context
@@ -285,22 +285,22 @@ mlir::LogicalResult requireVectorType(mlir::Value value,
 }
 
 llvm::StringRef
-stringifyGearboxTailPolicy(tianchenrv::tcrv::rvv::TailPolicy policy) {
+stringifyGearboxTailPolicy(weft::rvv::TailPolicy policy) {
   switch (policy) {
-  case tianchenrv::tcrv::rvv::TailPolicy::Agnostic:
+  case weft::rvv::TailPolicy::Agnostic:
     return "agnostic";
-  case tianchenrv::tcrv::rvv::TailPolicy::Undisturbed:
+  case weft::rvv::TailPolicy::Undisturbed:
     return "undisturbed";
   }
   return "";
 }
 
 llvm::StringRef
-stringifyGearboxMaskPolicy(tianchenrv::tcrv::rvv::MaskPolicy policy) {
+stringifyGearboxMaskPolicy(weft::rvv::MaskPolicy policy) {
   switch (policy) {
-  case tianchenrv::tcrv::rvv::MaskPolicy::Agnostic:
+  case weft::rvv::MaskPolicy::Agnostic:
     return "agnostic";
-  case tianchenrv::tcrv::rvv::MaskPolicy::Undisturbed:
+  case weft::rvv::MaskPolicy::Undisturbed:
     return "undisturbed";
   }
   return "";
@@ -327,12 +327,12 @@ mlir::LogicalResult requireLowPrecisionProductDequantShape(
             "f32m1 result";
 }
 
-std::optional<tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind>
+std::optional<weft::plugin::rvv::RVVSelectedBodyOperationKind>
 getLowPrecisionGearboxSelectedBodyOperation(
-    tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceOperation
+    weft::plugin::rvv::RVVLowPrecisionContractionResourceOperation
         operation) {
-  using tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceOperation;
-  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using weft::plugin::rvv::RVVLowPrecisionContractionResourceOperation;
+  using weft::plugin::rvv::RVVSelectedBodyOperationKind;
 
   switch (operation) {
   case RVVLowPrecisionContractionResourceOperation::
@@ -371,11 +371,11 @@ mlir::LogicalResult requireLowPrecisionPrimitiveIntegerField(
 
 mlir::LogicalResult validateLowPrecisionResourceCandidatePrimitiveSurface(
     mlir::Operation *op,
-    tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceOperation
+    weft::plugin::rvv::RVVLowPrecisionContractionResourceOperation
         operation,
-    const tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceCandidate
+    const weft::plugin::rvv::RVVLowPrecisionContractionResourceCandidate
         &candidate) {
-  using namespace tianchenrv::plugin::rvv;
+  using namespace weft::plugin::rvv;
 
   std::optional<RVVSelectedBodyOperationKind> selectedBodyOperation =
       getLowPrecisionGearboxSelectedBodyOperation(operation);
@@ -532,7 +532,7 @@ mlir::LogicalResult validateLowPrecisionResourceCandidatePrimitiveSurface(
 
 mlir::LogicalResult materializeLowPrecisionResourceAttrs(
     mlir::Operation *op, mlir::OpBuilder &builder,
-    tianchenrv::tcrv::rvv::PolicyAttr policy, std::int64_t sourceSEW,
+    weft::rvv::PolicyAttr policy, std::int64_t sourceSEW,
     llvm::StringRef sourceLMUL, std::int64_t productSEW,
     llvm::StringRef productLMUL, std::int64_t resultSEW,
     llvm::StringRef resultLMUL, llvm::StringRef memoryForm) {
@@ -545,7 +545,7 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           resultLMUL, memoryForm)))
     return mlir::failure();
 
-  using namespace tianchenrv::plugin::rvv;
+  using namespace weft::plugin::rvv;
   std::optional<RVVLowPrecisionContractionResourceOperation> operation =
       getRVVLowPrecisionResourceOperationForMemoryForm(memoryForm);
   if (!operation)
@@ -1235,9 +1235,9 @@ mlir::LogicalResult materializeDeferredWideBudgetForDotReduceBody(
   mlir::OpBuilder builder(body.getContext());
   return requireIntegerAttr(
       body.getOperation(), builder,
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
-      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget);
+      weft::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget);
 }
 
 // N3 Win-C: stamp the reduction-STRUCTURE body fact on the same narrow i16mf2
@@ -1257,17 +1257,17 @@ mlir::LogicalResult materializeReductionStructureForDotReduceBody(
   // silently dropped just because no body in this module matches the i16mf2->
   // i32m1 strip the structure axis serves.
   if (reductionStructure !=
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceReductionStructureDeferredAccumulate &&
       reductionStructure !=
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceReductionStructurePerIteration)
     return body->emitError()
            << "RVV Gearbox reduction-structure option must be '"
-           << tianchenrv::plugin::rvv::
+           << weft::plugin::rvv::
                   kRVVLowPrecisionResourceReductionStructureDeferredAccumulate
            << "' or '"
-           << tianchenrv::plugin::rvv::
+           << weft::plugin::rvv::
                   kRVVLowPrecisionResourceReductionStructurePerIteration
            << "', got '" << reductionStructure << "'";
   // Only stamp the recognized fact onto the narrow i16mf2 signed dot-reduce
@@ -1278,7 +1278,7 @@ mlir::LogicalResult materializeReductionStructureForDotReduceBody(
   mlir::OpBuilder builder(body.getContext());
   return requireStringAttr(
       body.getOperation(), builder,
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           kRVVLowPrecisionResourceReductionStructureAttrName,
       reductionStructure);
 }
@@ -1375,8 +1375,8 @@ materializeLowPrecisionResourceForProductDequantClampBody(BodyOp body) {
 mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
                                                       DequantizeOp dequantize) {
   SetVLOp setvl = withVL.getVl().getDefiningOp<SetVLOp>();
-  tianchenrv::tcrv::rvv::RVVConfigContractDiagnostic config =
-      tianchenrv::tcrv::rvv::validateRVVSelectedBodyM1ConfigVLContract(setvl,
+  weft::rvv::RVVConfigContractDiagnostic config =
+      weft::rvv::validateRVVSelectedBodyM1ConfigVLContract(setvl,
                                                                        withVL);
   if (!config.ok)
     return withVL->emitError()
@@ -1412,7 +1412,7 @@ mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
       sourceLoad.getVl() != withVL.getVl())
     return dequantize->emitError()
            << "RVV Gearbox schedule derivation requires the dequant source to "
-              "come from one same-scope tcrv_rvv.load";
+              "come from one same-scope weft_rvv.load";
 
   if (mlir::failed(requireRuntimeABIValue(
           sourceLoad.getBuffer().getDefiningOp<RuntimeABIValueOp>(), sourceLoad,
@@ -1435,7 +1435,7 @@ mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
     if (!candidate || use.getOperandNumber() != 1)
       return dequantize->emitError()
              << "RVV Gearbox schedule derivation requires the dequant result "
-                "to feed only the result operand of tcrv_rvv.store";
+                "to feed only the result operand of weft_rvv.store";
     if (store)
       return dequantize->emitError()
              << "RVV Gearbox schedule derivation requires exactly one "
@@ -1446,7 +1446,7 @@ mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
       store.getVl() != withVL.getVl())
     return dequantize->emitError()
            << "RVV Gearbox schedule derivation requires one same-scope "
-              "tcrv_rvv.store of the dequant result";
+              "weft_rvv.store of the dequant result";
 
   if (mlir::failed(requireRuntimeABIValue(
           store.getBuffer().getDefiningOp<RuntimeABIValueOp>(), store,
@@ -1462,8 +1462,8 @@ validateLowPrecisionProductDequantGearboxBody(
     bool &usesProductReductionDequantClamp) {
   usesProductReductionDequantClamp = false;
   SetVLOp setvl = withVL.getVl().getDefiningOp<SetVLOp>();
-  tianchenrv::tcrv::rvv::RVVConfigContractDiagnostic config =
-      tianchenrv::tcrv::rvv::validateRVVSelectedBodyM1ConfigVLContract(setvl,
+  weft::rvv::RVVConfigContractDiagnostic config =
+      weft::rvv::validateRVVSelectedBodyM1ConfigVLContract(setvl,
                                                                        withVL);
   if (!config.ok)
     return withVL->emitError()
@@ -1477,11 +1477,11 @@ validateLowPrecisionProductDequantGearboxBody(
     return dequantize->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires dequantize source from one provider-collected "
-              "tcrv_rvv.gearbox_cross_region_handoff";
+              "weft_rvv.gearbox_cross_region_handoff";
   if (handoff.getVl() != withVL.getVl() || handoff.getRuntimeAvl() != setvl.getAvl())
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires tcrv_rvv.gearbox_cross_region_handoff to consume the "
+              "requires weft_rvv.gearbox_cross_region_handoff to consume the "
               "active with_vl token and runtime AVL";
   auto producerWithVL =
       llvm::dyn_cast_or_null<WithVLOp>(handoff->getParentOp());
@@ -1489,7 +1489,7 @@ validateLowPrecisionProductDequantGearboxBody(
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires handoff to be nested directly in a producer "
-              "tcrv_rvv.with_vl";
+              "weft_rvv.with_vl";
   if (producerWithVL == withVL)
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
@@ -1497,11 +1497,11 @@ validateLowPrecisionProductDequantGearboxBody(
   if (!producerWithVL->isProperAncestor(withVL.getOperation()))
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires producer tcrv_rvv.with_vl to enclose the consumer "
-              "tcrv_rvv.with_vl scope";
+              "requires producer weft_rvv.with_vl to enclose the consumer "
+              "weft_rvv.with_vl scope";
 
-  tianchenrv::tcrv::rvv::RVVConfigContractDiagnostic producerConfig =
-      tianchenrv::tcrv::rvv::validateRVVSelectedBodyM1ConfigVLContract(
+  weft::rvv::RVVConfigContractDiagnostic producerConfig =
+      weft::rvv::validateRVVSelectedBodyM1ConfigVLContract(
           setvl, producerWithVL);
   if (!producerConfig.ok)
     return producerWithVL->emitError()
@@ -1515,7 +1515,7 @@ validateLowPrecisionProductDequantGearboxBody(
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires handoff input from one producer-scope "
-              "tcrv_rvv.standalone_reduce";
+              "weft_rvv.standalone_reduce";
 
   WideningProductOp product =
       reduce.getInput().getDefiningOp<WideningProductOp>();
@@ -1524,7 +1524,7 @@ validateLowPrecisionProductDequantGearboxBody(
     return reduce->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires standalone_reduce input from one producer-scope "
-              "tcrv_rvv.widening_product";
+              "weft_rvv.widening_product";
 
   auto *context = withVL.getContext();
   if (mlir::failed(requireVectorType(product.getLhs(), product, "lhs source",
@@ -1579,15 +1579,15 @@ validateLowPrecisionProductDequantGearboxBody(
            << kDequantizationRelation << "', and the active with_vl token";
   const llvm::StringRef resourceDecision = handoff.getResourceDecision();
   const bool hasSupportedLowPrecisionDecision =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           isRVVLowPrecisionResourceSupportedRealizationDecision(
               resourceDecision);
   const std::int64_t expectedLowPrecisionRegionCount =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
               resourceDecision);
   const llvm::StringRef expectedLowPrecisionFromPhase =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
               resourceDecision);
   if (handoff.getContract() != kLowPrecisionCrossRegionHandoffContract ||
@@ -1596,21 +1596,21 @@ validateLowPrecisionProductDequantGearboxBody(
       static_cast<std::int64_t>(handoff.getRegionCount()) !=
           expectedLowPrecisionRegionCount ||
       handoff.getRuntimeAvlSource() !=
-          tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN ||
+          weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceN ||
       !hasSupportedLowPrecisionDecision ||
       handoff.getProducerScope() !=
-          tianchenrv::plugin::rvv::kRVVGearboxProducerScope ||
+          weft::plugin::rvv::kRVVGearboxProducerScope ||
       handoff.getConsumerScope() !=
-          tianchenrv::plugin::rvv::kRVVGearboxConsumerScope ||
+          weft::plugin::rvv::kRVVGearboxConsumerScope ||
       handoff.getProducerScope() == handoff.getConsumerScope())
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires tcrv_rvv.gearbox_cross_region_handoff to carry the "
+              "requires weft_rvv.gearbox_cross_region_handoff to carry the "
               "RVV-owned product/reduction-to-dequant contract, phases, "
               "region count, runtime AVL source, resource decision, and "
               "distinct producer/consumer scopes";
 
-  if (!tianchenrv::plugin::rvv::isRVVLowPrecisionResourceCandidateSetMember(
+  if (!weft::plugin::rvv::isRVVLowPrecisionResourceCandidateSetMember(
           handoff.getResourceCandidateSet(),
           handoff.getResourceSelectedCandidate()))
     return handoff->emitError()
@@ -1618,7 +1618,7 @@ validateLowPrecisionProductDequantGearboxBody(
               "requires handoff resource_selected_candidate to belong to the "
               "provider-owned resource_candidate_set";
   const llvm::StringRef expectedDecisionFromCandidate =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionContractionResourceRealizationDecision(
               handoff.getResourceSelectedCandidate());
   if (expectedDecisionFromCandidate.empty() ||
@@ -1628,25 +1628,25 @@ validateLowPrecisionProductDequantGearboxBody(
               "requires handoff resource_decision to match the selected "
               "resource candidate";
   const bool isPackedI4Resource =
-      tianchenrv::plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+      weft::plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           handoff.getResourceSelectedCandidate());
   const llvm::StringRef expectedOperandForm =
       isPackedI4Resource
-          ? llvm::StringRef(tianchenrv::plugin::rvv::
+          ? llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceOperandFormPackedI4Nibbles)
-          : llvm::StringRef(tianchenrv::plugin::rvv::
+          : llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceOperandFormUnpackedByte);
   const llvm::StringRef expectedPackingLayout =
       isPackedI4Resource
-          ? llvm::StringRef(tianchenrv::plugin::rvv::
+          ? llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles)
-          : llvm::StringRef(tianchenrv::plugin::rvv::
+          : llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourcePackingLayoutByte);
   const llvm::StringRef expectedUnpackIntent =
       isPackedI4Resource
-          ? llvm::StringRef(tianchenrv::plugin::rvv::
+          ? llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles)
-          : llvm::StringRef(tianchenrv::plugin::rvv::
+          : llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceUnpackIntentNone);
   if (handoff.getOperandForm() != expectedOperandForm ||
       handoff.getPackingLayout() != expectedPackingLayout ||
@@ -1684,27 +1684,27 @@ validateLowPrecisionProductDequantGearboxBody(
   };
   if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
           "packed_load_unpack_contract",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4LoadUnpackContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
           "packed_storage_load",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4StorageLoad)))
     return mlir::failure();
   if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
           "packed_unpack_plan",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4UnpackPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
           "packed_unpacked_source",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4UnpackedSource)))
     return mlir::failure();
 
   if (static_cast<std::int64_t>(handoff.getPeakLiveVectorGroups()) !=
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
               handoff.getResourceSelectedCandidate()))
     return handoff->emitError()
@@ -1712,7 +1712,7 @@ validateLowPrecisionProductDequantGearboxBody(
               "requires handoff peak_live_vector_groups to match the "
               "selected resource candidate";
   if (static_cast<std::int64_t>(handoff.getVectorRegisterBudget()) !=
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceVectorRegisterBudget ||
       handoff.getPeakLiveVectorGroups() > handoff.getVectorRegisterBudget())
     return handoff->emitError()
@@ -1720,11 +1720,11 @@ validateLowPrecisionProductDequantGearboxBody(
               "requires handoff vector_register_budget to contain the "
               "selected peak live vector-group estimate";
   if (static_cast<std::int64_t>(handoff.getProductRegionIndex()) !=
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
                   handoff.getResourceDecision()) ||
       static_cast<std::int64_t>(handoff.getDequantRegionIndex()) !=
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
                   handoff.getResourceDecision()) ||
       handoff.getProductRegionIndex() <= 0 ||
@@ -1736,7 +1736,7 @@ validateLowPrecisionProductDequantGearboxBody(
               "selected resource decision and realized region count";
 
   const bool isDequantClampResource =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           isRVVLowPrecisionResourceDequantClampCandidateID(
               handoff.getResourceSelectedCandidate());
   auto requireOptionalClampStringFact =
@@ -1793,25 +1793,25 @@ validateLowPrecisionProductDequantGearboxBody(
   };
   if (mlir::failed(requireOptionalClampIntegerFact(
           "clamp_region_index",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampRegionIndexForCandidate(
                   handoff.getResourceSelectedCandidate()))))
     return mlir::failure();
   if (mlir::failed(requireOptionalClampStringFact(
           "clamp_phase",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampPhaseForCandidate(
                   handoff.getResourceSelectedCandidate()))))
     return mlir::failure();
   if (mlir::failed(requireOptionalClampStringFact(
           "clamp_compare_select_phase",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
                   handoff.getResourceSelectedCandidate()))))
     return mlir::failure();
   if (mlir::failed(requireOptionalClampStringFact(
           "clamp_select_layout",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
                   handoff.getResourceSelectedCandidate()))))
     return mlir::failure();
@@ -1823,57 +1823,57 @@ validateLowPrecisionProductDequantGearboxBody(
       return mlir::success();
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires tcrv_rvv.gearbox_cross_region_handoff primitive-chain "
+              "requires weft_rvv.gearbox_cross_region_handoff primitive-chain "
               "fact '"
            << field << "' to match provider-owned low-precision resource "
            << "fact '" << expected << "' but found '" << actual << "'";
   };
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_chain_contract", handoff.getPrimitiveChainContract(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveChainContract)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_chain_kind", handoff.getPrimitiveChainKind(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveChainKind)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_source_signedness", handoff.getPrimitiveSourceSignedness(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceSourceSignednessSigned)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_source_load", handoff.getPrimitiveSourceLoad(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveSourceLoad)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_source_extension", handoff.getPrimitiveSourceExtension(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveSourceExtension)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "widening_product_multiplicand_roles",
           handoff.getWideningProductMultiplicandRoles(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceWideningProductMultiplicandRoles)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "widening_product_extension_policy",
           handoff.getWideningProductExtensionPolicy(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "widening_product_candidate_fact",
           handoff.getWideningProductCandidateFact(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceWideningProductCandidateFact)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "reduction_candidate_fact", handoff.getReductionCandidateFact(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceReductionCandidateFact)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
@@ -1889,19 +1889,19 @@ validateLowPrecisionProductDequantGearboxBody(
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_widening_product_intrinsic",
           handoff.getPrimitiveWideningProductIntrinsic(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_reduction_intrinsic",
           handoff.getPrimitiveReductionIntrinsic(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveReductionIntrinsic)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_scalar_seed_splat_intrinsic",
           handoff.getPrimitiveScalarSeedSplatIntrinsic(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
@@ -1915,7 +1915,7 @@ validateLowPrecisionProductDequantGearboxBody(
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_reduction_store_vl",
           handoff.getPrimitiveReductionStoreVl(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveReductionStoreVL)))
     return mlir::failure();
 
@@ -1951,53 +1951,53 @@ validateLowPrecisionProductDequantGearboxBody(
   };
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_plan_contract",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationPlanContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_plan",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_statement_strategy",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_vector_budget",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_schedule_contract",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationScheduleContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_unpack_plan",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_product_plan",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationProductPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_reduction_plan",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationReductionPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionRemediationPlanFact(
           "remediation_vl_plan",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
 
-  const tianchenrv::plugin::rvv::
+  const weft::plugin::rvv::
       RVVLowPrecisionPackedI4StableResourceScheduleFacts stableScheduleFacts =
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
   auto requireOptionalResourceScheduleFact =
       [&](llvm::StringRef attrName,
@@ -2131,27 +2131,27 @@ validateLowPrecisionProductDequantGearboxBody(
   };
   if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "performance_admission_decision",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_contract",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_decision",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_blocker",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_reopen_requirement",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)))
     return mlir::failure();
 
@@ -2196,7 +2196,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return dequantize->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires the dequantized f32 value to feed the value "
-                "operand of tcrv_rvv.store";
+                "operand of weft_rvv.store";
     if (directStore)
       return dequantize->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
@@ -2296,7 +2296,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return upperSelect->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires the upper-clamped value to feed only the value "
-                "operand of tcrv_rvv.store";
+                "operand of weft_rvv.store";
     if (clampStore)
       return upperSelect->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
@@ -2335,7 +2335,7 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
             withVL, dequantize, usesProductReductionDequantClamp)))
       return mlir::failure();
     mlir::OpBuilder builder(withVL.getContext());
-    std::optional<tianchenrv::tcrv::rvv::PolicyAttr> policy =
+    std::optional<weft::rvv::PolicyAttr> policy =
         withVL.getPolicy();
     if (!policy)
       return withVL->emitError()
@@ -2348,7 +2348,7 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
     if (!producerWithVL)
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
-                "requires handoff producer tcrv_rvv.with_vl";
+                "requires handoff producer weft_rvv.with_vl";
     llvm::StringRef lowPrecisionMemoryForm =
         usesProductReductionDequantClamp
             ? llvm::StringRef(kLowPrecisionProductDequantClampMemoryForm)
@@ -2466,4 +2466,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeRVVGearboxSchedulesPass() {
   return std::make_unique<MaterializeRVVGearboxSchedulesPass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

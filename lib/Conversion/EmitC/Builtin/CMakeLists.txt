@@ -1,14 +1,14 @@
-add_mlir_library(TianChenRVConversionEmitCBuiltin
+add_mlir_library(WeftConversionEmitCBuiltin
   BuiltinBackendEmitters.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVConversionRVV
-  TianChenRVIMEBackendEmitter
-  TianChenRVToyBackendEmitter
-  TianChenRVTemplateBackendEmitter
-  TianChenRVTensorExtLiteBackendEmitter
-  TianChenRVScalarBackendEmitter
+  WeftConversionEmitC
+  WeftConversionRVV
+  WeftIMEBackendEmitter
+  WeftToyBackendEmitter
+  WeftTemplateBackendEmitter
+  WeftTensorExtLiteBackendEmitter
+  WeftScalarBackendEmitter
   MLIRIR
   MLIRSupport
 )

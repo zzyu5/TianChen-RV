@@ -1,13 +1,13 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/Passes.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/BuiltinExtensionPlugins.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/Passes.h"
+#include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -29,22 +29,22 @@
 #include <optional>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionBundleRegistry;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::transforms::VariantSelectionKind;
-using tianchenrv::transforms::VariantSelectionPlan;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionBundleRegistry;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantProposalRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::transforms::VariantSelectionKind;
+using weft::transforms::VariantSelectionPlan;
 
 namespace {
 
@@ -305,46 +305,46 @@ std::optional<double> getFloatAttr(mlir::Operation *operation,
 int runStaticAndTieSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @static_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @static_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @expensive_first attributes {
+    weft.exec.variant @expensive_first attributes {
       origin = "expensive",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @cheap_second attributes {
+    weft.exec.variant @cheap_second attributes {
       origin = "cheap",
       requires = [@generic_base]
     } {
     }
   }
 
-  tcrv.exec.kernel @tie_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @tie_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @tie_a attributes {
+    weft.exec.variant @tie_a attributes {
       origin = "tie-a",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @tie_b attributes {
+    weft.exec.variant @tie_b attributes {
       origin = "tie-b",
       requires = [@generic_base]
     } {
     }
   }
 
-  tcrv.exec.kernel @fallback_only_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @fallback_only_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-	    tcrv.exec.variant @only_path attributes {
+	    weft.exec.variant @only_path attributes {
 	      fallback_role = "conservative",
 	      origin = "only",
 	      requires = [@generic_base]
@@ -352,17 +352,17 @@ module {
     }
   }
 
-  tcrv.exec.kernel @no_preference_tie_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @no_preference_tie_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @no_pref_a attributes {
+    weft.exec.variant @no_pref_a attributes {
       origin = "no-pref-a",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @no_pref_b attributes {
+    weft.exec.variant @no_pref_b attributes {
       origin = "no-pref-b",
       requires = [@generic_base]
     } {
@@ -405,7 +405,7 @@ module {
   KernelOp staticKernel = findKernel(*module, "static_anchor");
   TargetCapabilitySet staticCapabilities =
       TargetCapabilitySet::buildFromKernel(staticKernel);
-  auto staticPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto staticPlanOrError = weft::transforms::planKernelVariantSelection(
       staticKernel, staticCapabilities, registry);
   if (!staticPlanOrError)
     return fail("static selection failed: " +
@@ -426,7 +426,7 @@ module {
   KernelOp tieKernel = findKernel(*module, "tie_anchor");
   TargetCapabilitySet tieCapabilities =
       TargetCapabilitySet::buildFromKernel(tieKernel);
-  auto tiePlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto tiePlanOrError = weft::transforms::planKernelVariantSelection(
       tieKernel, tieCapabilities, registry);
   if (!tiePlanOrError)
     return fail("tie selection failed: " +
@@ -448,7 +448,7 @@ module {
   TargetCapabilitySet fallbackOnlyCapabilities =
       TargetCapabilitySet::buildFromKernel(fallbackOnlyKernel);
   auto fallbackOnlyPlanOrError =
-      tianchenrv::transforms::planKernelVariantSelection(
+      weft::transforms::planKernelVariantSelection(
           fallbackOnlyKernel, fallbackOnlyCapabilities, registry);
   if (!fallbackOnlyPlanOrError)
     return fail("fallback-only selection failed: " +
@@ -466,7 +466,7 @@ module {
 
   KernelOp noPreferenceKernel = findKernel(*module, "no_preference_tie_anchor");
   auto noPreferencePlanOrError =
-      tianchenrv::transforms::planKernelVariantSelection(
+      weft::transforms::planKernelVariantSelection(
           noPreferenceKernel,
           TargetCapabilitySet::buildFromKernel(noPreferenceKernel), registry);
   if (!noPreferencePlanOrError)
@@ -484,7 +484,7 @@ module {
     return result;
 
   mlir::PassManager passManager(&context);
-  passManager.addPass(tianchenrv::transforms::createSelectVariantsPass(registry));
+  passManager.addPass(weft::transforms::createSelectVariantsPass(registry));
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "selection pass materializes selected-path markers"))
@@ -548,7 +548,7 @@ module {
 
   mlir::PassManager rerunPassManager(&context);
   rerunPassManager.addPass(
-      tianchenrv::transforms::createSelectVariantsPass(registry));
+      weft::transforms::createSelectVariantsPass(registry));
   if (int result =
           expect(mlir::succeeded(rerunPassManager.run(*module)),
                  "selection pass selected-path markers are idempotent"))
@@ -565,18 +565,18 @@ module {
 int runFallbackRoleTieBreakTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @fallback_tie_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @fallback_tie_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @fallback_ir_first attributes {
+    weft.exec.variant @fallback_ir_first attributes {
       fallback_role = "conservative",
       origin = "fallback-tie",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @non_fallback_ir_second attributes {
+    weft.exec.variant @non_fallback_ir_second attributes {
       origin = "non-fallback-tie",
       policy = "opaque_non_fallback_tie",
       requires = [@generic_base]
@@ -601,7 +601,7 @@ module {
     return result;
 
   KernelOp kernel = findKernel(*module, "fallback_tie_anchor");
-  auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto planOrError = weft::transforms::planKernelVariantSelection(
       kernel, TargetCapabilitySet::buildFromKernel(kernel), registry);
   if (!planOrError)
     return fail("fallback tie selection failed: " +
@@ -627,27 +627,27 @@ int runRuntimeDispatchPlanningAndMaterializationTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @runtime_anchor attributes {} {
-    tcrv.exec.capability @generic_probe {
+  weft.exec.kernel @runtime_anchor attributes {} {
+    weft.exec.capability @generic_probe {
       id = "generic.probe",
       kind = "runtime",
       status = "missing"
     }
-    tcrv.exec.capability @generic_baseline_a {
+    weft.exec.capability @generic_baseline_a {
       id = "generic.baseline.a",
       kind = "toolchain"
     }
-    tcrv.exec.capability @generic_baseline_b {
+    weft.exec.capability @generic_baseline_b {
       id = "generic.baseline.b",
       kind = "toolchain"
     }
-	    tcrv.exec.variant @expensive_ir_first_fallback attributes {
+	    weft.exec.variant @expensive_ir_first_fallback attributes {
 	      fallback_role = "conservative",
 	      origin = "expensive-fallback",
 	      requires = [@generic_baseline_a]
     } {
     }
-    tcrv.exec.variant @guarded_fast attributes {
+    weft.exec.variant @guarded_fast attributes {
       condition = "opaque(condition:fast)",
       guard = "opaque_guard_fast",
       origin = "guarded-fast",
@@ -655,19 +655,19 @@ module {
       requires = [@generic_probe]
     } {
     }
-    tcrv.exec.variant @guarded_tie_a attributes {
+    weft.exec.variant @guarded_tie_a attributes {
       guard = "opaque_guard_tie_a",
       origin = "guarded-tie-a",
       requires = [@generic_probe]
     } {
     }
-    tcrv.exec.variant @guarded_tie_b attributes {
+    weft.exec.variant @guarded_tie_b attributes {
       policy = "opaque_policy_tie_b",
       origin = "guarded-tie-b",
       requires = [@generic_probe]
     } {
     }
-	    tcrv.exec.variant @cheap_ranked_fallback attributes {
+	    weft.exec.variant @cheap_ranked_fallback attributes {
 	      fallback_role = "conservative",
 	      origin = "cheap-fallback",
 	      requires = [@generic_baseline_b]
@@ -706,7 +706,7 @@ module {
   KernelOp kernel = findKernel(*module, "runtime_anchor");
   unsigned variantsBefore = countDirectVariants(kernel);
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto planOrError = weft::transforms::planKernelVariantSelection(
       kernel, capabilities, registry);
   if (!planOrError)
     return fail("runtime dispatch planning failed: " +
@@ -738,7 +738,7 @@ module {
   // fallbacks chosen by capability-blind constant-score ordering => reason
   // "static_order"; `prior`/`measured` are reserved and never emitted today).
   std::string dispatchRecord =
-      tianchenrv::transforms::buildSelectionAttributionRecord(
+      weft::transforms::buildSelectionAttributionRecord(
           plan, capabilities, /*noTimestamp=*/true);
   if (int result =
           expect(dispatchRecord.find("\"requires_runtime_guard\":true") !=
@@ -760,7 +760,7 @@ module {
   mlir::OpBuilder builder(&context);
   DispatchOp createdDispatch;
   if (int result =
-          expectSuccess(tianchenrv::transforms::materializeRuntimeDispatchPlan(
+          expectSuccess(weft::transforms::materializeRuntimeDispatchPlan(
                             builder, plan, &createdDispatch),
                         "materialize runtime dispatch plan"))
     return result;
@@ -855,7 +855,7 @@ module {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckCapabilityRequiresPass());
+      weft::transforms::createCheckCapabilityRequiresPass());
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "check-capability-requires accepts guarded dispatch and available fallback"))
@@ -867,29 +867,29 @@ module {
 int runInjectedRegistrySelectionPassTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @pass_injected_registry attributes {} {
-    tcrv.exec.capability @runtime_probe {
+  weft.exec.kernel @pass_injected_registry attributes {} {
+    weft.exec.capability @runtime_probe {
       id = "runtime.probe",
       kind = "runtime-offload",
       status = "missing"
     }
-    tcrv.exec.capability @generic_base {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @guarded_fast attributes {
+    weft.exec.variant @guarded_fast attributes {
       condition = "runtime_probe_available",
       origin = "guarded-fast",
       requires = [@runtime_probe]
     } {
     }
-	    tcrv.exec.variant @portable_fallback attributes {
+	    weft.exec.variant @portable_fallback attributes {
 	      fallback_role = "conservative",
 	      origin = "portable-fallback",
 	      requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @available_slow attributes {
+    weft.exec.variant @available_slow attributes {
       origin = "available-slow",
       requires = [@generic_base]
     } {
@@ -923,8 +923,8 @@ module {
     return result;
 
   mlir::PassManager passManager(&context);
-  passManager.addPass(tianchenrv::transforms::createSelectVariantsPass(registry));
-  passManager.addPass(tianchenrv::transforms::createCheckCapabilityRequiresPass());
+  passManager.addPass(weft::transforms::createSelectVariantsPass(registry));
+  passManager.addPass(weft::transforms::createCheckCapabilityRequiresPass());
   if (int result = expect(mlir::succeeded(passManager.run(*module)),
                           "injected registry selection pass succeeds"))
     return result;
@@ -979,30 +979,30 @@ module {
 int runConflictAwareRuntimeDispatchSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @conflict_dispatch_anchor attributes {} {
-    tcrv.exec.capability @fast_runtime {
+  weft.exec.kernel @conflict_dispatch_anchor attributes {} {
+    weft.exec.capability @fast_runtime {
       id = "generic.fast.runtime",
       kind = "runtime",
-      relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_fast_runtime"]>,
+      relations = #weft.capability_relations<conflicts = ["build.policy.disable_fast_runtime"]>,
       status = "available"
     }
-    tcrv.exec.capability @disable_fast_profile {
+    weft.exec.capability @disable_fast_profile {
       id = "generic.build.profile",
       kind = "build-policy",
-      relations = #tcrv.capability_relations<provides = ["build.policy.disable_fast_runtime"]>,
+      relations = #weft.capability_relations<provides = ["build.policy.disable_fast_runtime"]>,
       status = "available"
     }
-    tcrv.exec.capability @baseline_capability {
+    weft.exec.capability @baseline_capability {
       id = "generic.baseline",
       kind = "toolchain",
       status = "available"
     }
-    tcrv.exec.variant @conflicting_fast attributes {
+    weft.exec.variant @conflicting_fast attributes {
       origin = "conflicting-fast",
       requires = [@fast_runtime]
     } {
     }
-    tcrv.exec.variant @portable_fallback attributes {
+    weft.exec.variant @portable_fallback attributes {
       fallback_role = "conservative",
       origin = "portable-fallback",
       requires = [@baseline_capability]
@@ -1028,7 +1028,7 @@ module {
 
   KernelOp kernel = findKernel(*module, "conflict_dispatch_anchor");
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto planOrError = weft::transforms::planKernelVariantSelection(
       kernel, capabilities, registry);
   if (!planOrError)
     return fail("conflict-aware runtime dispatch planning failed: " +
@@ -1056,7 +1056,7 @@ module {
   // exercises the "conflicting" keys_evaluated verdict (available-but-conflicting
   // capability) alongside a guarded case (requires_runtime_guard=true).
   std::string dispatchRecord =
-      tianchenrv::transforms::buildSelectionAttributionRecord(
+      weft::transforms::buildSelectionAttributionRecord(
           plan, capabilities, /*noTimestamp=*/true);
   if (int result =
           expect(dispatchRecord.find("\"requires_runtime_guard\":true") !=
@@ -1072,7 +1072,7 @@ module {
   mlir::OpBuilder builder(&context);
   DispatchOp createdDispatch;
   if (int result =
-          expectSuccess(tianchenrv::transforms::materializeRuntimeDispatchPlan(
+          expectSuccess(weft::transforms::materializeRuntimeDispatchPlan(
                             builder, plan, &createdDispatch),
                         "materialize conflict-aware runtime dispatch"))
     return result;
@@ -1112,7 +1112,7 @@ module {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckCapabilityRequiresPass());
+      weft::transforms::createCheckCapabilityRequiresPass());
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "check-capability-requires accepts conflict-aware dispatch"))
@@ -1124,100 +1124,100 @@ module {
 int runBuiltinRVVScalarFallbackSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @rvv_plus_scalar attributes {} {
-    tcrv.exec.capability @rvv {
+  weft.exec.kernel @rvv_plus_scalar attributes {} {
+    weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
-    tcrv.exec.capability @rvv_hart_count {
+    weft.exec.capability @rvv_hart_count {
       id = "rvv.hart_count",
       kind = "uarch",
       count = 64 : i64,
       status = "available"
     }
-    tcrv.exec.capability @rvv_probe_compile_run {
+    weft.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
       selected_march = "rv64gcv",
       status = "available"
     }
-    tcrv.exec.capability @scalar_fallback {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @rvv_typed_body attributes {
+    weft.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>
     } {
       %runtime_n = "builtin.unrealized_conversion_cast"() : () -> index
-      %vl = tcrv_rvv.setvl %runtime_n {
+      %vl = weft_rvv.setvl %runtime_n {
         lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
-      } : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {
+      } : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
       } {
-      } : !tcrv_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 
-  tcrv.exec.kernel @scalar_only attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @scalar_only attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
   }
 
-  tcrv.exec.kernel @rvv_only attributes {} {
-    tcrv.exec.capability @rvv {
+  weft.exec.kernel @rvv_only attributes {} {
+    weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
-    tcrv.exec.capability @rvv_hart_count {
+    weft.exec.capability @rvv_hart_count {
       id = "rvv.hart_count",
       kind = "uarch",
       count = 64 : i64,
       status = "available"
     }
-    tcrv.exec.capability @rvv_probe_compile_run {
+    weft.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
       selected_march = "rv64gcv",
       status = "available"
     }
-    tcrv.exec.variant @rvv_typed_body attributes {
+    weft.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>
     } {
       %runtime_n = "builtin.unrealized_conversion_cast"() : () -> index
-      %vl = tcrv_rvv.setvl %runtime_n {
+      %vl = weft_rvv.setvl %runtime_n {
         lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
-      } : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {
+      } : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
       } {
-      } : !tcrv_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1231,14 +1231,14 @@ module {
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(
-              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+              weft::plugin::registerBuiltinExtensionBundlePlugins(
                   bundles, registry),
               "register built-in extension bundle frontdoor for RVV and "
               "scalar fallback plugins"))
     return result;
   ExtensionPluginRegistry scalarMaterializationRegistry;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerScalarExtensionPlugin(
+          weft::plugin::registerScalarExtensionPlugin(
               scalarMaterializationRegistry),
           "register scalar fallback plugin for explicit typed RVV fixture"))
     return result;
@@ -1252,7 +1252,7 @@ module {
                                           rvvScalarKernel,
                                           rvvScalarCapabilities);
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, scalarMaterializationRegistry, rvvScalarRequest,
               &materializedVariants),
           "materialize scalar fallback beside explicit typed RVV body"))
@@ -1266,23 +1266,23 @@ module {
   VariantOp rvvVariant = findDirectVariant(rvvScalarKernel, "rvv_typed_body");
   VariantOp scalarVariant =
       findDirectVariant(rvvScalarKernel,
-                        tianchenrv::plugin::scalar::
+                        weft::plugin::scalar::
                             getScalarFallbackFirstSliceVariantName());
   if (int result = expect(rvvVariant && scalarVariant,
                           "materialized RVV and scalar variants are present"))
     return result;
   if (int result =
           expect(getStringAttr(rvvVariant.getOperation(), "origin") ==
-                         tianchenrv::plugin::rvv::getRVVExtensionPluginName() &&
+                         weft::plugin::rvv::getRVVExtensionPluginName() &&
                      getStringAttr(scalarVariant.getOperation(), "origin") ==
-                         tianchenrv::plugin::scalar::
+                         weft::plugin::scalar::
                              getScalarExtensionPluginName(),
                  "materialized variants preserve plugin origins"))
     return result;
   if (int result =
           expect(getStringAttr(scalarVariant.getOperation(),
-                               tianchenrv::plugin::kVariantFallbackRoleAttrName) ==
-                     tianchenrv::plugin::kConservativeFallbackRoleValue,
+                               weft::plugin::kVariantFallbackRoleAttrName) ==
+                     weft::plugin::kConservativeFallbackRoleValue,
                  "scalar fallback proposal materializes generic fallback role"))
     return result;
   if (int result = expectSuccess(
@@ -1292,7 +1292,7 @@ module {
     return result;
 
   auto rvvScalarPlanOrError =
-      tianchenrv::transforms::planKernelVariantSelection(
+      weft::transforms::planKernelVariantSelection(
           rvvScalarKernel, rvvScalarCapabilities, registry);
   if (!rvvScalarPlanOrError)
     return fail("RVV plus scalar selection failed: " +
@@ -1321,7 +1321,7 @@ module {
     return result;
   DiagnosticOp rvvScalarMarker;
   if (int result =
-          expectSuccess(tianchenrv::transforms::materializeSelectedVariantMarker(
+          expectSuccess(weft::transforms::materializeSelectedVariantMarker(
                             builder, rvvScalarPlan, &rvvScalarMarker),
                         "materialize RVV/scalar selected marker"))
     return result;
@@ -1346,7 +1346,7 @@ module {
                                            scalarOnlyKernel,
                                            scalarOnlyCapabilities);
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, scalarMaterializationRegistry, scalarOnlyRequest,
               &scalarOnlyVariants),
           "materialize scalar-only fallback proposal"))
@@ -1356,7 +1356,7 @@ module {
                  "scalar-only capability materializes one fallback variant"))
     return result;
   auto scalarOnlyPlanOrError =
-      tianchenrv::transforms::planKernelVariantSelection(
+      weft::transforms::planKernelVariantSelection(
           scalarOnlyKernel, scalarOnlyCapabilities, registry);
   if (!scalarOnlyPlanOrError)
     return fail("scalar-only selection failed: " +
@@ -1379,7 +1379,7 @@ module {
                  "RVV-only typed body keeps one explicit RVV variant without "
                  "no-body synthesis"))
     return result;
-  auto rvvOnlyPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto rvvOnlyPlanOrError = weft::transforms::planKernelVariantSelection(
       rvvOnlyKernel, rvvOnlyCapabilities, registry);
   if (!rvvOnlyPlanOrError)
     return fail("RVV-only selection failed: " +
@@ -1394,7 +1394,7 @@ module {
     return result;
   DiagnosticOp rvvOnlyMarker;
   if (int result =
-          expectSuccess(tianchenrv::transforms::materializeSelectedVariantMarker(
+          expectSuccess(weft::transforms::materializeSelectedVariantMarker(
                             builder, rvvOnlyPlan, &rvvOnlyMarker),
                         "materialize RVV-only selected marker"))
     return result;
@@ -1418,20 +1418,20 @@ module {
 int runNoViableAndUnavailableNegativeTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @empty_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @empty_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
   }
 
-  tcrv.exec.kernel @no_fallback_anchor attributes {} {
-    tcrv.exec.capability @generic_probe {
+  weft.exec.kernel @no_fallback_anchor attributes {} {
+    weft.exec.capability @generic_probe {
       id = "generic.probe",
       kind = "runtime",
       status = "missing"
     }
-    tcrv.exec.variant @guarded_only attributes {
+    weft.exec.variant @guarded_only attributes {
       condition = "opaque_runtime_probe",
       origin = "guarded-only",
       requires = [@generic_probe]
@@ -1439,37 +1439,37 @@ module {
     }
   }
 
-  tcrv.exec.kernel @unguarded_unavailable_anchor attributes {} {
-    tcrv.exec.capability @generic_missing {
+  weft.exec.kernel @unguarded_unavailable_anchor attributes {} {
+    weft.exec.capability @generic_missing {
       id = "generic.missing",
       kind = "runtime",
       status = "missing"
     }
-    tcrv.exec.capability @generic_base {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-	    tcrv.exec.variant @unguarded_unavailable attributes {
+	    weft.exec.variant @unguarded_unavailable attributes {
 	      origin = "unguarded-unavailable",
 	      requires = [@generic_missing]
 	    } {
 	    }
 	  }
 
-  tcrv.exec.kernel @conflict_without_fallback_anchor attributes {} {
-    tcrv.exec.capability @fast_runtime {
+  weft.exec.kernel @conflict_without_fallback_anchor attributes {} {
+    weft.exec.capability @fast_runtime {
       id = "generic.fast.runtime",
       kind = "runtime",
-      relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_fast_runtime"]>,
+      relations = #weft.capability_relations<conflicts = ["build.policy.disable_fast_runtime"]>,
       status = "available"
     }
-    tcrv.exec.capability @disable_fast_profile {
+    weft.exec.capability @disable_fast_profile {
       id = "generic.build.profile",
       kind = "build-policy",
-      relations = #tcrv.capability_relations<provides = ["build.policy.disable_fast_runtime"]>,
+      relations = #weft.capability_relations<provides = ["build.policy.disable_fast_runtime"]>,
       status = "available"
     }
-    tcrv.exec.variant @conflicting_only attributes {
+    weft.exec.variant @conflicting_only attributes {
       origin = "conflicting-only",
       requires = [@fast_runtime]
     } {
@@ -1501,7 +1501,7 @@ module {
     return result;
 
   KernelOp emptyKernel = findKernel(*module, "empty_anchor");
-  auto emptyPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto emptyPlanOrError = weft::transforms::planKernelVariantSelection(
       emptyKernel, TargetCapabilitySet::buildFromKernel(emptyKernel), registry);
   if (!emptyPlanOrError)
     return fail("empty kernel selection failed: " +
@@ -1513,7 +1513,7 @@ module {
 
   KernelOp noFallbackKernel = findKernel(*module, "no_fallback_anchor");
   if (int result = expectPlanErrorContains(
-          tianchenrv::transforms::planKernelVariantSelection(
+          weft::transforms::planKernelVariantSelection(
               noFallbackKernel,
               TargetCapabilitySet::buildFromKernel(noFallbackKernel), registry),
           {"no plugin-provided conflict-free conservative fallback candidate",
@@ -1523,7 +1523,7 @@ module {
   KernelOp unguardedKernel =
       findKernel(*module, "unguarded_unavailable_anchor");
   if (int result = expectPlanErrorContains(
-          tianchenrv::transforms::planKernelVariantSelection(
+          weft::transforms::planKernelVariantSelection(
               unguardedKernel,
               TargetCapabilitySet::buildFromKernel(unguardedKernel), registry),
           {"no plugin-provided conflict-free conservative fallback candidate",
@@ -1533,7 +1533,7 @@ module {
   KernelOp conflictWithoutFallbackKernel =
       findKernel(*module, "conflict_without_fallback_anchor");
   if (int result = expectPlanErrorContains(
-          tianchenrv::transforms::planKernelVariantSelection(
+          weft::transforms::planKernelVariantSelection(
               conflictWithoutFallbackKernel,
               TargetCapabilitySet::buildFromKernel(conflictWithoutFallbackKernel),
               registry),
@@ -1547,40 +1547,40 @@ module {
 int runMaterializationNegativeTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @existing_dispatch_anchor attributes {} {
-    tcrv.exec.capability @generic_probe {
+  weft.exec.kernel @existing_dispatch_anchor attributes {} {
+    weft.exec.capability @generic_probe {
       id = "generic.probe",
       kind = "runtime",
       status = "missing"
     }
-    tcrv.exec.capability @generic_base {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @guarded_path attributes {
+    weft.exec.variant @guarded_path attributes {
       policy = "opaque_runtime_policy",
       origin = "guarded",
       requires = [@generic_probe]
     } {
     }
-	    tcrv.exec.variant @fallback_path attributes {
+	    weft.exec.variant @fallback_path attributes {
 	      fallback_role = "conservative",
 	      origin = "fallback",
 	      requires = [@generic_base]
 	    } {
     }
-    tcrv.exec.dispatch attributes {} {
-      tcrv.exec.case @guarded_path {policy = "preexisting_policy"}
-      tcrv.exec.fallback @fallback_path
+    weft.exec.dispatch attributes {} {
+      weft.exec.case @guarded_path {policy = "preexisting_policy"}
+      weft.exec.fallback @fallback_path
     }
   }
 
-  tcrv.exec.kernel @other_anchor attributes {} {
-    tcrv.exec.capability @generic_other {
+  weft.exec.kernel @other_anchor attributes {} {
+    weft.exec.capability @generic_other {
       id = "generic.other",
       kind = "toolchain"
     }
-    tcrv.exec.variant @other_path attributes {
+    weft.exec.variant @other_path attributes {
       policy = "opaque_other_policy",
       origin = "other",
       requires = [@generic_other]
@@ -1608,7 +1608,7 @@ module {
     return result;
 
   KernelOp kernel = findKernel(*module, "existing_dispatch_anchor");
-  auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto planOrError = weft::transforms::planKernelVariantSelection(
       kernel, TargetCapabilitySet::buildFromKernel(kernel), registry);
   if (!planOrError)
     return fail("existing dispatch planning failed: " +
@@ -1616,9 +1616,9 @@ module {
 
   mlir::OpBuilder builder(&context);
   if (int result = expectErrorContains(
-          tianchenrv::transforms::materializeRuntimeDispatchPlan(
+          weft::transforms::materializeRuntimeDispatchPlan(
               builder, *planOrError),
-          {"already contains a direct tcrv.exec.dispatch",
+          {"already contains a direct weft.exec.dispatch",
            "existing_dispatch_anchor"}))
     return result;
 
@@ -1633,15 +1633,15 @@ module {
   otherEstimate.setOriginPlugin("other");
   otherEstimate.setVariantSymbol("other_path");
   crossKernelPlan.rankedVariants.push_back(
-      tianchenrv::transforms::VariantSelectionCase{
+      weft::transforms::VariantSelectionCase{
           crossKernelPlan.fallback, otherEstimate, 0, true, true, true, false});
   crossKernelPlan.dispatchCases.push_back(
-      tianchenrv::transforms::VariantSelectionCase{
+      weft::transforms::VariantSelectionCase{
           findDirectVariant(kernel, "guarded_path"),
           VariantCostEstimate(), 0, false, false, true, true});
 
   if (int result = expectErrorContains(
-          tianchenrv::transforms::materializeRuntimeDispatchPlan(
+          weft::transforms::materializeRuntimeDispatchPlan(
               builder, crossKernelPlan),
           {"dispatch case variant is not a direct child",
            "other_anchor", "guarded_path"}))
@@ -1650,9 +1650,9 @@ module {
   VariantSelectionPlan missingKernelPlan;
   missingKernelPlan.kind = VariantSelectionKind::RuntimeDispatch;
   if (int result = expectErrorContains(
-          tianchenrv::transforms::materializeRuntimeDispatchPlan(
+          weft::transforms::materializeRuntimeDispatchPlan(
               builder, missingKernelPlan),
-          {"requires a tcrv.exec.kernel", "<missing>"}))
+          {"requires a weft.exec.kernel", "<missing>"}))
     return result;
 
   return 0;
@@ -1661,27 +1661,27 @@ module {
 int runCostFailurePropagationTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @cost_failure_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @cost_failure_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @unknown_origin attributes {
+    weft.exec.variant @unknown_origin attributes {
       origin = "missing-plugin",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @disabled_origin attributes {
+    weft.exec.variant @disabled_origin attributes {
       origin = "disabled",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @failing_origin attributes {
+    weft.exec.variant @failing_origin attributes {
       origin = "failing",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @invalid_origin attributes {
+    weft.exec.variant @invalid_origin attributes {
       origin = "invalid",
       requires = [@generic_base]
     } {
@@ -1700,7 +1700,7 @@ module {
   {
     ExtensionPluginRegistry registry;
     if (int result = expectPlanErrorContains(
-            tianchenrv::transforms::planKernelVariantSelection(
+            weft::transforms::planKernelVariantSelection(
                 kernel, capabilities, registry),
             {"unknown origin plugin 'missing-plugin'", "unknown_origin",
              "cost_failure_anchor"}))
@@ -1718,7 +1718,7 @@ module {
             expectSuccess(registry.registerPlugin(disabled), "register disabled"))
       return result;
     if (int result = expectPlanErrorContains(
-            tianchenrv::transforms::planKernelVariantSelection(
+            weft::transforms::planKernelVariantSelection(
                 kernel, capabilities, registry),
             {"origin plugin 'disabled' is disabled", "unknown_origin",
              "cost_failure_anchor"}))
@@ -1737,7 +1737,7 @@ module {
             expectSuccess(registry.registerPlugin(failing), "register failing"))
       return result;
     if (int result = expectPlanErrorContains(
-            tianchenrv::transforms::planKernelVariantSelection(
+            weft::transforms::planKernelVariantSelection(
                 kernel, capabilities, registry),
             {"origin plugin 'failing' failed cost estimate", "unknown_origin",
              "cost_failure_anchor", "plugin-local selection cost failed"}))
@@ -1757,7 +1757,7 @@ module {
             expectSuccess(registry.registerPlugin(invalid), "register invalid"))
       return result;
     if (int result = expectPlanErrorContains(
-            tianchenrv::transforms::planKernelVariantSelection(
+            weft::transforms::planKernelVariantSelection(
                 kernel, capabilities, registry),
             {"produced invalid cost estimate", "score is missing",
              "unknown_origin", "cost_failure_anchor"}))
@@ -1772,9 +1772,9 @@ module {
             expectSuccess(registry.registerPlugin(disabled), "register disabled"))
       return result;
     if (int result = expectPlanErrorContains(
-            tianchenrv::transforms::planKernelVariantSelection(
+            weft::transforms::planKernelVariantSelection(
                 KernelOp(), registry),
-            {"requires a tcrv.exec.kernel", "<missing>"}))
+            {"requires a weft.exec.kernel", "<missing>"}))
       return result;
   }
 
@@ -1784,7 +1784,7 @@ module {
 // [SEL-2] cross-paradigm silent-misfire FALSIFIER + capability-prior commit-timing lock
 // (G4 IME campaign M0, 实验总纲 T4b persistent negative control).
 //
-// Reproduces — as a regression guard that runs every check-tianchenrv — the
+// Reproduces — as a regression guard that runs every check-weft — the
 // "matrix/vector co-bid silent misfire" the exec-level capability prior closes:
 //
 //   * BAD config (capability-BLIND constant scores == the pre-SEL-1-T5 IME plugin:
@@ -1815,17 +1815,17 @@ module {
 int runSel2CrossParadigmMisfireFalsifierTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @gemm_cobid attributes {} {
-    tcrv.exec.capability @compute_base {
+  weft.exec.kernel @gemm_cobid attributes {} {
+    weft.exec.capability @compute_base {
       id = "compute.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @vector_paradigm_body attributes {
+    weft.exec.variant @vector_paradigm_body attributes {
       origin = "vector-paradigm",
       requires = [@compute_base]
     } {
     }
-    tcrv.exec.variant @matrix_paradigm_body attributes {
+    weft.exec.variant @matrix_paradigm_body attributes {
       origin = "matrix-paradigm",
       requires = [@compute_base]
     } {
@@ -1861,7 +1861,7 @@ module {
                                  "register blind matrix constant"))
     return result;
 
-  auto blindPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto blindPlanOrError = weft::transforms::planKernelVariantSelection(
       gemmKernel, capabilities, blindRegistry);
   if (!blindPlanOrError)
     return fail("blind-config selection failed: " +
@@ -1886,7 +1886,7 @@ module {
                                  "register derived matrix prior"))
     return result;
 
-  auto derivedPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto derivedPlanOrError = weft::transforms::planKernelVariantSelection(
       gemmKernel, capabilities, derivedRegistry);
   if (!derivedPlanOrError)
     return fail("derived-config selection failed: " +
@@ -1915,7 +1915,7 @@ module {
   mlir::OpBuilder builder(&context);
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, derivedPlan, &marker),
           "materialize the capability-prior-committed selected marker"))
     return result;
@@ -1988,17 +1988,17 @@ int runT4bFourConfigSelectorAblationTest(mlir::MLIRContext &context) {
   // decides an equal-score PARITY (cell (c)).
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @paradigm_cobid attributes {} {
-    tcrv.exec.capability @compute_base {
+  weft.exec.kernel @paradigm_cobid attributes {} {
+    weft.exec.capability @compute_base {
       id = "compute.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @vector_paradigm_body attributes {
+    weft.exec.variant @vector_paradigm_body attributes {
       origin = "vector-paradigm",
       requires = [@compute_base]
     } {
     }
-    tcrv.exec.variant @matrix_paradigm_body attributes {
+    weft.exec.variant @matrix_paradigm_body attributes {
       origin = "matrix-paradigm",
       requires = [@compute_base]
     } {
@@ -2037,7 +2037,7 @@ module {
     if (int result = expectSuccess(registry.registerPlugin(matrix),
                                    llvm::Twine(label) + ": register matrix"))
       return result;
-    auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+    auto planOrError = weft::transforms::planKernelVariantSelection(
         kernel, capabilities, registry);
     if (!planOrError)
       return fail(llvm::Twine(label) + " selection failed: " +
@@ -2187,7 +2187,7 @@ module {
           expectSuccess(decodeRegistry.registerPlugin(decodeMatrixParity),
                         "register decode-parity matrix"))
     return result;
-  auto decodePlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+  auto decodePlanOrError = weft::transforms::planKernelVariantSelection(
       kernel, capabilities, decodeRegistry);
   if (!decodePlanOrError)
     return fail("decode-parity selection failed: " +
@@ -2196,7 +2196,7 @@ module {
   mlir::OpBuilder builder(&context);
   DiagnosticOp decodeMarker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, decodePlan, &decodeMarker),
           "materialize the derived decode-parity committed marker"))
     return result;
@@ -2222,17 +2222,17 @@ module {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
   ExtensionBundleRegistry dialectBundles;
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
           expectSuccess(
-              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+              weft::plugin::registerBuiltinExtensionBundlePlugins(
                   dialectBundles, dialectPlugins),
               "register built-in extension bundle frontdoor for plugin "
               "dialects"))
     return result;
-  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  weft::registerPluginDialects(dialectPlugins, dialectRegistry);
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

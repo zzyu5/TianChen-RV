@@ -14,12 +14,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -32,12 +32,12 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningMAccPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedWideningMAccPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV widening macc realization requires a pre-realized "
@@ -45,7 +45,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening macc realization requires a "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening macc body must be a direct child "
@@ -91,30 +91,30 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
         "pre-realized RVV selected widening macc config/relation must match "
         "op_kind 'signed_widening_macc_add' with supported source, "
         "accumulator/result, and provider-derived relation facts");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening macc body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(), "pre-realized RVV widening macc lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(), "pre-realized RVV widening macc rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(), "pre-realized RVV widening macc accumulator operand",
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(), "pre-realized RVV widening macc out operand",
           support::RuntimeABIParameterRole::OutputBuffer);
@@ -128,7 +128,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
         "pre-realized RVV selected widening macc body requires lhs/rhs "
         "const int16_t *, accumulator const int32_t *, and out int32_t * "
         "runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(), "pre-realized RVV widening macc runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -137,9 +137,9 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::WideningMAccOp,
-              tcrv::rvv::StoreOp>(variant, body.getOperation(),
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::WideningMAccOp,
+              weft::rvv::StoreOp>(variant, body.getOperation(),
                                   "widening macc"))
     return error;
   return requireContractionSelectedVariantRequires(variant,
@@ -148,8 +148,8 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
 
 llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedWideningDotReducePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV widening dot-product reduction realization requires a "
@@ -157,7 +157,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening dot-product reduction realization "
-        "requires a selected tcrv.exec.variant");
+        "requires a selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening dot-product reduction body must "
@@ -211,26 +211,26 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
         "config/relation must match op_kind "
         "'signed_widening_dot_reduce_add' with supported source, "
         "accumulator/result, and provider-derived relation facts");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening dot-product reduction body "
         "requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV widening dot-product reduction lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV widening dot-product reduction rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV widening dot-product reduction accumulator seed "
@@ -238,7 +238,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV widening dot-product reduction out operand",
@@ -253,7 +253,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
         "pre-realized RVV selected widening dot-product reduction body "
         "requires lhs/rhs const int16_t *, accumulator seed const int32_t *, "
         "and out int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV widening dot-product reduction runtime n/AVL "
@@ -264,9 +264,9 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::WideningDotReduceOp,
-              tcrv::rvv::StoreOp>(variant, body.getOperation(),
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::WideningDotReduceOp,
+              weft::rvv::StoreOp>(variant, body.getOperation(),
                                   "widening dot-product reduction"))
     return error;
   return requireContractionSelectedVariantRequires(
@@ -275,8 +275,8 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
 
 llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV strided-input widening dot-product reduction realization "
@@ -285,7 +285,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-input widening dot-product "
-        "reduction realization requires a selected tcrv.exec.variant");
+        "reduction realization requires a selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-input widening dot-product reduction "
@@ -343,12 +343,12 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
         "config/relation must match op_kind 'signed_widening_dot_reduce_add' "
         "with supported source, accumulator/result, and provider-derived "
         "relation facts");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-input widening dot-product reduction "
         "body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV strided-input widening dot-product reduction lhs "
@@ -356,7 +356,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV strided-input widening dot-product reduction rhs "
@@ -364,7 +364,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV strided-input widening dot-product reduction "
@@ -372,7 +372,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV strided-input widening dot-product reduction out "
@@ -388,7 +388,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
         "pre-realized RVV selected strided-input widening dot-product reduction "
         "body requires lhs/rhs const int16_t *, accumulator seed const int32_t *, "
         "and out int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV strided-input widening dot-product reduction "
@@ -396,7 +396,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhsStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhsStride =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhsStride(),
           "pre-realized RVV strided-input widening dot-product reduction lhs "
@@ -404,7 +404,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::LHSInputStride);
   if (!lhsStride)
     return lhsStride.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsStride =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhsStride(),
           "pre-realized RVV strided-input widening dot-product reduction rhs "
@@ -415,9 +415,9 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::StridedLoadOp, tcrv::rvv::WideningDotReduceOp,
-              tcrv::rvv::StoreOp>(variant, body.getOperation(),
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::StridedLoadOp, weft::rvv::WideningDotReduceOp,
+              weft::rvv::StoreOp>(variant, body.getOperation(),
                                   "strided-input widening dot-product "
                                   "reduction"))
     return error;
@@ -427,8 +427,8 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask widening dot-product reduction "
@@ -437,7 +437,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction realization requires a selected tcrv.exec.variant");
+        "reduction realization requires a selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask widening dot-product "
@@ -510,12 +510,12 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
         "reduction config/relation must match op_kind "
         "'signed_masked_widening_dot_reduce_add' with supported compare, "
         "dot source, accumulator/result, and provider-derived relation facts");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask widening dot-product "
         "reduction body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLHS =
       requirePreRealizedContractionRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -523,7 +523,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLHS)
     return compareLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRHS =
       requirePreRealizedContractionRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -531,7 +531,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRHS)
     return compareRHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -539,7 +539,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
           support::RuntimeABIParameterRole::DotLHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -547,7 +547,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
           support::RuntimeABIParameterRole::DotRHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -555,7 +555,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -574,7 +574,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
         "reduction body requires compare lhs/rhs const int32_t *, dot "
         "lhs/rhs const int16_t *, accumulator seed const int32_t *, and out "
         "int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask widening dot-product reduction "
@@ -585,10 +585,10 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::CompareOp,
-              tcrv::rvv::MaskedWideningDotReduceOp,
-              tcrv::rvv::StoreOp>(variant, body.getOperation(),
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::CompareOp,
+              weft::rvv::MaskedWideningDotReduceOp,
+              weft::rvv::StoreOp>(variant, body.getOperation(),
                                   "computed-mask widening dot-product "
                                   "reduction"))
     return error;
@@ -599,9 +599,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
 llvm::Error
 validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::
+    weft::rvv::
         TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask strided-input widening dot-product "
@@ -611,7 +611,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-input widening "
         "dot-product reduction realization requires a selected "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-input widening "
@@ -693,13 +693,13 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
         "dot-product reduction config/relation must match op_kind "
         "'signed_masked_widening_dot_reduce_add' with supported compare, dot "
         "source, accumulator/result, and provider-derived relation facts");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-input widening "
         "dot-product reduction body requires tail agnostic, mask agnostic "
         "policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLHS =
       requirePreRealizedContractionRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -707,7 +707,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLHS)
     return compareLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRHS =
       requirePreRealizedContractionRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -715,7 +715,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRHS)
     return compareRHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -723,7 +723,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::DotLHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -731,7 +731,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::DotRHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -739,7 +739,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -758,7 +758,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
         "dot-product reduction body requires compare lhs/rhs const int32_t *, "
         "dot lhs/rhs const int16_t *, accumulator seed const int32_t *, and "
         "out int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -766,7 +766,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhsStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhsStride =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhsStride(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -774,7 +774,7 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
           support::RuntimeABIParameterRole::LHSInputStride);
   if (!lhsStride)
     return lhsStride.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsStride =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhsStride(),
           "pre-realized RVV computed-mask strided-input widening "
@@ -785,11 +785,11 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::StridedLoadOp,
-              tcrv::rvv::CompareOp,
-              tcrv::rvv::MaskedWideningDotReduceOp,
-              tcrv::rvv::StoreOp>(variant, body.getOperation(),
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::StridedLoadOp,
+              weft::rvv::CompareOp,
+              weft::rvv::MaskedWideningDotReduceOp,
+              weft::rvv::StoreOp>(variant, body.getOperation(),
                                   "computed-mask strided-input widening "
                                   "dot-product reduction"))
     return error;
@@ -799,8 +799,8 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
 
 llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningProductReducePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedWideningProductReducePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV widening product reduction realization requires a "
@@ -808,7 +808,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction realization "
-        "requires a selected tcrv.exec.variant");
+        "requires a selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction body must be a "
@@ -860,33 +860,33 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
         "LMUL mf4, product SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, "
         "and provider-derived signed or unsigned product and reduction "
         "relations");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV widening product reduction lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV widening product reduction rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV widening product reduction accumulator seed operand",
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV widening product reduction out operand",
@@ -915,7 +915,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
         expectedInputCType + ", accumulator seed " +
         expectedAccumulatorCType + ", and out " + expectedOutputCType +
         " runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV widening product reduction runtime n/AVL operand",
@@ -925,9 +925,9 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::WideningProductOp,
-              tcrv::rvv::StandaloneReduceOp, tcrv::rvv::StoreOp>(
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::WideningProductOp,
+              weft::rvv::StandaloneReduceOp, weft::rvv::StoreOp>(
               variant, body.getOperation(), "widening product reduction"))
     return error;
   return requireContractionSelectedVariantRequires(
@@ -936,8 +936,8 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
 
 llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV widening product reduction dequantization realization "
@@ -945,7 +945,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
-        "dequantization realization requires a selected tcrv.exec.variant");
+        "dequantization realization requires a selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
@@ -1007,12 +1007,12 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
         "'widening_product_reduce_dequantize_f32' with source SEW8 LMUL mf4, "
         "product SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
         "provider-derived product, reduction, and dequantization relations");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
         "dequantization body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV widening product reduction dequantization lhs "
@@ -1020,7 +1020,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV widening product reduction dequantization rhs "
@@ -1028,7 +1028,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV widening product reduction dequantization "
@@ -1036,7 +1036,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> scale =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> scale =
       requirePreRealizedContractionRuntimeABIValue(
           body.getScale(),
           "pre-realized RVV widening product reduction dequantization "
@@ -1044,7 +1044,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
           support::RuntimeABIParameterRole::DequantScaleValue);
   if (!scale)
     return scale.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV widening product reduction dequantization f32 "
@@ -1062,7 +1062,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
         "dequantization body requires lhs/rhs const int8_t *, accumulator "
         "seed/carry const int32_t *, runtime scale float, and out float * "
         "runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV widening product reduction dequantization runtime "
@@ -1073,11 +1073,11 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::WideningProductOp,
-              tcrv::rvv::StandaloneReduceOp,
-              tcrv::rvv::GearboxCrossRegionHandoffOp,
-              tcrv::rvv::DequantizeOp, tcrv::rvv::StoreOp>(
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::WideningProductOp,
+              weft::rvv::StandaloneReduceOp,
+              weft::rvv::GearboxCrossRegionHandoffOp,
+              weft::rvv::DequantizeOp, weft::rvv::StoreOp>(
               variant, body.getOperation(),
               "widening product reduction dequantization"))
     return error;
@@ -1089,7 +1089,7 @@ template <typename BodyOp>
 llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
     const VariantLoweringBoundaryRequest &request, BodyOp body,
     llvm::StringRef bodyKind) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV widening product reduction dequant-clamp "
@@ -1098,7 +1098,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
-        "dequant-clamp realization requires a selected tcrv.exec.variant");
+        "dequant-clamp realization requires a selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction dequant-clamp "
@@ -1172,12 +1172,12 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
         "'widening_product_reduce_dequant_clamp_f32' with source SEW8 LMUL "
         "mf4, product SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
         "provider-derived product, reduction, and dequantization relations");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction dequant-clamp "
         "body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV widening product reduction dequant-clamp lhs "
@@ -1185,7 +1185,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedContractionRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV widening product reduction dequant-clamp rhs "
@@ -1193,7 +1193,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedContractionRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV widening product reduction dequant-clamp "
@@ -1201,7 +1201,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> scale =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> scale =
       requirePreRealizedContractionRuntimeABIValue(
           body.getScale(),
           "pre-realized RVV widening product reduction dequant-clamp runtime "
@@ -1209,7 +1209,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
           support::RuntimeABIParameterRole::DequantScaleValue);
   if (!scale)
     return scale.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lower =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lower =
       requirePreRealizedContractionRuntimeABIValue(
           body.getLowerBound(),
           "pre-realized RVV widening product reduction dequant-clamp lower "
@@ -1217,7 +1217,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
           support::RuntimeABIParameterRole::LowerBoundScalarValue);
   if (!lower)
     return lower.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> upper =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> upper =
       requirePreRealizedContractionRuntimeABIValue(
           body.getUpperBound(),
           "pre-realized RVV widening product reduction dequant-clamp upper "
@@ -1225,7 +1225,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
           support::RuntimeABIParameterRole::UpperBoundScalarValue);
   if (!upper)
     return upper.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedContractionRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV widening product reduction dequant-clamp f32 out "
@@ -1245,7 +1245,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
         "body requires lhs/rhs const int8_t *, accumulator seed/carry const "
         "int32_t *, runtime scale/lower/upper float, and out float * runtime "
         "ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),
           "pre-realized RVV widening product reduction dequant-clamp runtime "
@@ -1256,11 +1256,11 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
 
   if (llvm::Error error =
           rejectMixedPreRealizedContractionBody<
-              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-              tcrv::rvv::LoadOp, tcrv::rvv::WideningProductOp,
-              tcrv::rvv::StandaloneReduceOp, tcrv::rvv::DequantizeOp,
-              tcrv::rvv::SplatOp, tcrv::rvv::CompareOp,
-              tcrv::rvv::SelectOp, tcrv::rvv::StoreOp>(
+              weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+              weft::rvv::LoadOp, weft::rvv::WideningProductOp,
+              weft::rvv::StandaloneReduceOp, weft::rvv::DequantizeOp,
+              weft::rvv::SplatOp, weft::rvv::CompareOp,
+              weft::rvv::SelectOp, weft::rvv::StoreOp>(
               variant, body.getOperation(),
               "widening product reduction dequant-clamp"))
     return error;
@@ -1271,7 +1271,7 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
 llvm::Error
 validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::
+    weft::rvv::
         TypedWideningProductReduceDequantClampF32PreRealizedBodyOp body) {
   return validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
       request, body, "pre-realized");
@@ -1279,9 +1279,9 @@ validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
 
 llvm::Error validateExplicitRVVSelectedWideningProductReduceDequantClampF32Body(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp body) {
+    weft::rvv::TypedWideningProductReduceDequantClampF32BodyOp body) {
   return validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
       request, body, "explicit");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

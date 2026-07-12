@@ -1,6 +1,6 @@
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Support/CapabilityModel.h"
 
-#include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
+#include "Weft/Dialect/Exec/IR/CapabilityProviderComposition.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -17,7 +17,7 @@
 #include <optional>
 #include <utility>
 
-namespace tianchenrv::support {
+namespace weft::support {
 namespace {
 
 constexpr llvm::StringLiteral kRelationsAttrName("relations");
@@ -28,7 +28,7 @@ constexpr llvm::StringLiteral kTargetHartCountCapabilityID(
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
 
 llvm::Error makeCapabilitySetError(llvm::Twine message);
-std::string makeKernelExtractionContext(tcrv::exec::KernelOp kernel);
+std::string makeKernelExtractionContext(weft::exec::KernelOp kernel);
 
 llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
@@ -110,7 +110,7 @@ bool relationListContains(llvm::ArrayRef<mlir::StringAttr> ids,
   });
 }
 
-mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
+mlir::Operation *findModuleLevelSymbol(weft::exec::KernelOp kernel,
                                        llvm::StringRef symbolName) {
   auto module = kernel ? kernel->getParentOfType<mlir::ModuleOp>()
                        : mlir::ModuleOp();
@@ -126,43 +126,43 @@ mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
   return nullptr;
 }
 
-llvm::Expected<tcrv::exec::TargetOp>
-getReferencedModuleTargetProvider(tcrv::exec::KernelOp kernel) {
+llvm::Expected<weft::exec::TargetOp>
+getReferencedModuleTargetProvider(weft::exec::KernelOp kernel) {
   if (!kernel)
-    return tcrv::exec::TargetOp();
+    return weft::exec::TargetOp();
 
   mlir::Attribute rawTargetAttr = kernel->getAttr("target");
   if (!rawTargetAttr)
-    return tcrv::exec::TargetOp();
+    return weft::exec::TargetOp();
 
   auto targetAttr = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(rawTargetAttr);
   if (!targetAttr)
     return makeCapabilitySetError(
-        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        llvm::Twine("Weft-RV TargetCapabilitySet ") +
         makeKernelExtractionContext(kernel) +
         " rejected malformed kernel target attribute; expected a module-level "
-        "tcrv.exec.target symbol reference");
+        "weft.exec.target symbol reference");
 
   mlir::Operation *resolved =
       findModuleLevelSymbol(kernel, targetAttr.getValue());
   if (!resolved)
     return makeCapabilitySetError(
-        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        llvm::Twine("Weft-RV TargetCapabilitySet ") +
         makeKernelExtractionContext(kernel) +
         " rejected unknown module-level target @" + targetAttr.getValue());
 
-  auto target = llvm::dyn_cast<tcrv::exec::TargetOp>(resolved);
+  auto target = llvm::dyn_cast<weft::exec::TargetOp>(resolved);
   if (!target)
     return makeCapabilitySetError(
-        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        llvm::Twine("Weft-RV TargetCapabilitySet ") +
         makeKernelExtractionContext(kernel) + " rejected target @" +
         targetAttr.getValue() +
         " because it resolves to a module-level symbol that is not a "
-        "tcrv.exec.target");
+        "weft.exec.target");
 
-  if (!tcrv::exec::isCapabilityProviderTarget(target))
+  if (!weft::exec::isCapabilityProviderTarget(target))
     return makeCapabilitySetError(
-        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        llvm::Twine("Weft-RV TargetCapabilitySet ") +
         makeKernelExtractionContext(kernel) + " rejected target @" +
         targetAttr.getValue() +
         " because it lacks capability-provider id/kind identity");
@@ -179,7 +179,7 @@ CapabilityDescriptor makeDescriptor(mlir::Operation *op,
       symbolName, id, kind, status,
       TargetCapabilitySet::availabilityFromStatus(status),
       collectCapabilityProperties(op),
-      op->getAttrOfType<tcrv::exec::CapabilityRelationsAttr>(
+      op->getAttrOfType<weft::exec::CapabilityRelationsAttr>(
           kRelationsAttrName));
 }
 
@@ -188,7 +188,7 @@ llvm::Error makeCapabilitySetError(llvm::Twine message) {
       message, llvm::errc::invalid_argument);
 }
 
-std::string makeKernelExtractionContext(tcrv::exec::KernelOp kernel) {
+std::string makeKernelExtractionContext(weft::exec::KernelOp kernel) {
   if (!kernel)
     return "kernel extraction from <missing kernel>";
 
@@ -212,7 +212,7 @@ CapabilityDescriptor::CapabilityDescriptor(
     llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,
     llvm::StringRef status, CapabilityAvailability availability,
     std::map<std::string, std::string> properties,
-    tcrv::exec::CapabilityRelationsAttr relations)
+    weft::exec::CapabilityRelationsAttr relations)
     : symbolName(symbolName.str()), id(id.str()), kind(kind.str()),
       status(status.str()), availability(availability),
       properties(std::move(properties)), relations(relations) {}
@@ -242,19 +242,19 @@ bool CapabilityDescriptor::satisfiesID(llvm::StringRef capabilityID) const {
 }
 
 llvm::Expected<TargetCapabilitySet>
-TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
+TargetCapabilitySet::buildFromKernelChecked(weft::exec::KernelOp kernel) {
   TargetCapabilitySet capabilitySet;
   if (!kernel || kernel.getBody().empty())
     return capabilitySet;
 
   std::string constructionContext = makeKernelExtractionContext(kernel);
-  llvm::Expected<tcrv::exec::TargetOp> referencedTarget =
+  llvm::Expected<weft::exec::TargetOp> referencedTarget =
       getReferencedModuleTargetProvider(kernel);
   if (!referencedTarget)
     return referencedTarget.takeError();
 
   if (*referencedTarget) {
-    tcrv::exec::TargetOp target = *referencedTarget;
+    weft::exec::TargetOp target = *referencedTarget;
     if (llvm::Error error = capabilitySet.tryAddCapability(
             makeDescriptor(target.getOperation(), target.getSymName(),
                            getStringAttr(target.getOperation(), "id"),
@@ -263,23 +263,23 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
       return std::move(error);
 
     llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> composedProviders =
-        tcrv::exec::collectComposedModuleCapabilityProviders(target);
+        weft::exec::collectComposedModuleCapabilityProviders(target);
     if (!composedProviders)
       return composedProviders.takeError();
     for (mlir::Operation *provider : *composedProviders) {
       if (llvm::Error error = capabilitySet.tryAddCapability(
               makeDescriptor(provider,
-                             tcrv::exec::getCapabilityProviderSymbolName(
+                             weft::exec::getCapabilityProviderSymbolName(
                                  provider),
-                             tcrv::exec::getCapabilityProviderID(provider),
-                             tcrv::exec::getCapabilityProviderKind(provider)),
+                             weft::exec::getCapabilityProviderID(provider),
+                             weft::exec::getCapabilityProviderKind(provider)),
               constructionContext))
         return std::move(error);
     }
   }
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    if (auto capability = llvm::dyn_cast<tcrv::exec::CapabilityOp>(op)) {
+    if (auto capability = llvm::dyn_cast<weft::exec::CapabilityOp>(op)) {
       if (llvm::Error error = capabilitySet.tryAddCapability(
               makeDescriptor(capability.getOperation(), capability.getSymName(),
                              capability.getId().value_or(""),
@@ -289,8 +289,8 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
       continue;
     }
 
-    if (auto target = llvm::dyn_cast<tcrv::exec::TargetOp>(op)) {
-      if (!tcrv::exec::isCapabilityProviderTarget(target))
+    if (auto target = llvm::dyn_cast<weft::exec::TargetOp>(op)) {
+      if (!weft::exec::isCapabilityProviderTarget(target))
         continue;
 
       if (llvm::Error error = capabilitySet.tryAddCapability(
@@ -302,16 +302,16 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
 
       llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>>
           composedProviders =
-              tcrv::exec::collectComposedModuleCapabilityProviders(target);
+              weft::exec::collectComposedModuleCapabilityProviders(target);
       if (!composedProviders)
         return composedProviders.takeError();
       for (mlir::Operation *provider : *composedProviders) {
         if (llvm::Error error = capabilitySet.tryAddCapability(
                 makeDescriptor(provider,
-                               tcrv::exec::getCapabilityProviderSymbolName(
+                               weft::exec::getCapabilityProviderSymbolName(
                                    provider),
-                               tcrv::exec::getCapabilityProviderID(provider),
-                               tcrv::exec::getCapabilityProviderKind(provider)),
+                               weft::exec::getCapabilityProviderID(provider),
+                               weft::exec::getCapabilityProviderKind(provider)),
                 constructionContext))
           return std::move(error);
       }
@@ -322,7 +322,7 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
 }
 
 TargetCapabilitySet
-TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp kernel) {
+TargetCapabilitySet::buildFromKernel(weft::exec::KernelOp kernel) {
   llvm::Expected<TargetCapabilitySet> capabilities =
       buildFromKernelChecked(kernel);
   return llvm::cantFail(std::move(capabilities));
@@ -553,11 +553,11 @@ bool TargetCapabilitySet::isUnavailableStatus(llvm::StringRef status) {
   // verifier rejects any unrecognized status, so on those ops this never sees
   // an unknown value; for any other (legacy/synthetic) caller an unrecognized
   // status remains non-unavailable, preserving the prior default.
-  std::optional<tcrv::exec::CapabilityStatus> typed =
-      tcrv::exec::symbolizeCapabilityStatus(status.trim());
+  std::optional<weft::exec::CapabilityStatus> typed =
+      weft::exec::symbolizeCapabilityStatus(status.trim());
   if (!typed)
     return false;
-  return *typed != tcrv::exec::CapabilityStatus::Available;
+  return *typed != weft::exec::CapabilityStatus::Available;
 }
 
 llvm::Error TargetCapabilitySet::tryAddCapability(
@@ -566,7 +566,7 @@ llvm::Error TargetCapabilitySet::tryAddCapability(
   if (auto it = bySymbolName.find(symbolName); it != bySymbolName.end()) {
     const CapabilityDescriptor &existing = capabilities[it->second];
     return makeCapabilitySetError(
-        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        llvm::Twine("Weft-RV TargetCapabilitySet ") +
         constructionContext + " rejected duplicate capability symbol @" +
         symbolName + " for id \"" + descriptor.getID() +
         "\"; existing id \"" + existing.getID() + "\"");
@@ -576,7 +576,7 @@ llvm::Error TargetCapabilitySet::tryAddCapability(
   if (auto it = byID.find(id); it != byID.end()) {
     const CapabilityDescriptor &existing = capabilities[it->second];
     return makeCapabilitySetError(
-        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        llvm::Twine("Weft-RV TargetCapabilitySet ") +
         constructionContext + " rejected duplicate capability id \"" + id +
         "\" for symbol @" + symbolName + "; existing symbol @" +
         existing.getSymbolName());
@@ -597,4 +597,4 @@ void TargetCapabilitySet::addCapability(CapabilityDescriptor descriptor) {
   }
 }
 
-} // namespace tianchenrv::support
+} // namespace weft::support

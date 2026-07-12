@@ -1,8 +1,8 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=PURE
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=PURE
 
 // option-2 stage-C1b: the ISOLATED bit-exact PACKER. The single typed op
-// tcrv_rvv.pack_q4_0_to_q4_0x16 lowers to ggml's make_block_q4_0x16 PACK
+// weft_rvv.pack_q4_0_to_q4_0x16 lowers to ggml's make_block_q4_0x16 PACK
 // (plain block_q4_0 stride 18 -> block_q4_0x16 stride 288) as a PURE scalar
 // byte gather + ^0x88 XOR (the live blck_size_interleave==1 branch): NO vl/LMUL,
 // NO vector intrinsics on the pack data path, NO fp arithmetic. It is the
@@ -14,25 +14,25 @@
 // every value is a NODE, NO emitc.verbatim with C control flow.
 
 module {
-  tcrv.exec.kernel @ggml_pack_q4_0_to_q4_0x16_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_pack_q4_0_to_q4_0x16 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %nblocks = tcrv_rvv.runtime_abi_value {c_name = "nblocks", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nblocks", role = "runtime-element-count"} : index
-      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-plain-src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "q4x16-dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %nblocks {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_pack_q4_0_to_q4_0x16, sew = 32 : i64, source_kernel = "ggml_pack_q4_0_to_q4_0x16_kernel", status = "selected-lowering-boundary"} {
-        %p = tcrv_rvv.pack_q4_0_to_q4_0x16 %src, %dst, %nblocks, %vl {kind = "ggml_pack_q4_0_to_q4_0x16", qk = 32 : i64, src_block_stride = 18 : i64, dst_block_stride = 288 : i64, src_quant_byte_offset = 2 : i64, dst_quant_byte_offset = 32 : i64, weight_interleave = 16 : i64, xor_mask = 136 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @ggml_pack_q4_0_to_q4_0x16_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_pack_q4_0_to_q4_0x16 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %nblocks = weft_rvv.runtime_abi_value {c_name = "nblocks", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nblocks", role = "runtime-element-count"} : index
+      %src = weft_rvv.runtime_abi_value {c_name = "src", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-plain-src", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %dst = weft_rvv.runtime_abi_value {c_name = "dst", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "q4x16-dst", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %nblocks {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_pack_q4_0_to_q4_0x16, sew = 32 : i64, source_kernel = "ggml_pack_q4_0_to_q4_0x16_kernel", status = "selected-lowering-boundary"} {
+        %p = weft_rvv.pack_q4_0_to_q4_0x16 %src, %dst, %nblocks, %vl {kind = "ggml_pack_q4_0_to_q4_0x16", qk = 32 : i64, src_block_stride = 18 : i64, dst_block_stride = 288 : i64, src_quant_byte_offset = 2 : i64, dst_quant_byte_offset = 32 : i64, weight_interleave = 16 : i64, xor_mask = 136 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.pack_q4_0_to_q4_0x16 %
+// CHECK-NOT: weft_rvv.pack_q4_0_to_q4_0x16 %
 // CHECK-NOT: unrealized_conversion_cast
 // The emitted pack function. ABI follows the runtime_abi_value definition order
 // (nblocks: size_t, src: const uint8_t*, dst: uint8_t*).
-// CHECK: emitc.func @tcrv_emitc_ggml_pack_q4_0_to_q4_0x16_kernel_ggml_pack_q4_0_to_q4_0x16(%arg0: !emitc.opaque<"size_t">, %arg1: !emitc.ptr<!emitc.opaque<"const uint8_t">>, %arg2: !emitc.ptr<!emitc.opaque<"uint8_t">>)
+// CHECK: emitc.func @weft_emitc_ggml_pack_q4_0_to_q4_0x16_kernel_ggml_pack_q4_0_to_q4_0x16(%arg0: !emitc.opaque<"size_t">, %arg1: !emitc.ptr<!emitc.opaque<"const uint8_t">>, %arg2: !emitc.ptr<!emitc.opaque<"uint8_t">>)
 // The outer pack-block loop over nblocks (%arg0).
 // CHECK: for %[[B:.*]] = %{{.*}} to %arg0 step
 // Per-block source/dest bases: b * (16*18) and b * 288 (== 288 each).

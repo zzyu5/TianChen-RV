@@ -1,10 +1,10 @@
-#include "TianChenRV/Target/Template/TemplateTargetSupportBundle.h"
+#include "Weft/Target/Template/TemplateTargetSupportBundle.h"
 
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
-#include "TianChenRV/Plugin/Template/TemplateEmitCRouteProvider.h"
-#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
-#include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateEmitCRouteProvider.h"
+#include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
+#include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -19,11 +19,11 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::target::template_ext {
+namespace weft::target::template_ext {
 namespace {
 
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 
 struct ScopedTempPath {
@@ -47,7 +47,7 @@ getTemplateRoute() {
 
 llvm::Error makeTemplateTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Template materialized EmitC target artifact "
+      llvm::Twine("Weft-RV Template materialized EmitC target artifact "
                   "bridge failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -126,8 +126,8 @@ getTemplateArtifactAdapterConfig() {
   config.headerArtifactKind = route.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;
   config.headerGuard =
-      "TIANCHENRV_TEMPLATE_MATERIALIZED_EMITC_HEADER_H";
-  config.evidencePrefix = "tianchenrv.template";
+      "WEFT_TEMPLATE_MATERIALIZED_EMITC_HEADER_H";
+  config.evidencePrefix = "weft.template";
   config.includes = kHeaderIncludes;
   config.selectedVariant = manifest.family.firstSliceVariantName;
   config.emissionKind = route.emissionKind;
@@ -164,7 +164,7 @@ llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
   int sourceFD = -1;
   ScopedTempPath sourcePath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-template-materialized-emitc", "cpp", sourceFD,
+          "weft-template-materialized-emitc", "cpp", sourceFD,
           sourcePath.path))
     return makeTemplateTargetRouteError(
         llvm::Twine("failed to create temporary C++ source: ") +
@@ -186,7 +186,7 @@ llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
   int stderrFD = -1;
   ScopedTempPath stderrPath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-template-materialized-emitc-clangxx", "stderr", stderrFD,
+          "weft-template-materialized-emitc-clangxx", "stderr", stderrFD,
           stderrPath.path))
     return makeTemplateTargetRouteError(
         llvm::Twine("failed to create temporary clang++ stderr file: ") +
@@ -319,4 +319,4 @@ llvm::Error registerTemplateTargetSupportTargetTranslateRoutes(
       exportTemplateEmitCToCpp));
 }
 
-} // namespace tianchenrv::target::template_ext
+} // namespace weft::target::template_ext

@@ -1,22 +1,22 @@
-// RUN: not tcrv-opt %s --split-input-file --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not weft-opt %s --split-input-file --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=CHECK
 
 module {
-  tcrv.exec.kernel @offload_selected_missing_boundary {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @offload_selected_missing_boundary {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.variant @offload_runtime_first_slice attributes {
+    weft.exec.variant @offload_runtime_first_slice attributes {
       origin = "offload-plugin",
       requires = [@offload_runtime],
-      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
-      tcrv_offload.handoff_kind = "runtime-offload"
+      weft_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      weft_offload.handoff_kind = "runtime-offload"
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "static variant selected by generic cost and capability planning",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -33,21 +33,21 @@ module {
 // -----
 
 module {
-  tcrv.exec.kernel @offload_selected_missing_runtime_abi {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @offload_selected_missing_runtime_abi {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.variant @offload_runtime_first_slice attributes {
+    weft.exec.variant @offload_runtime_first_slice attributes {
       origin = "offload-plugin",
       requires = [@offload_runtime],
-      tcrv_offload.handoff_kind = "runtime-offload"
+      weft_offload.handoff_kind = "runtime-offload"
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "static variant selected by generic cost and capability planning",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -55,7 +55,7 @@ module {
       status = "selected",
       target = @offload_runtime_first_slice
     }
-    tcrv_offload.lowering_boundary {
+    weft_offload.lowering_boundary {
       handoff_kind = "runtime-offload",
       origin = "offload-plugin",
       required_capabilities = [@offload_runtime],
@@ -69,27 +69,27 @@ module {
 }
 
 // CHECK: selected runtime-offload variant @offload_runtime_first_slice failed plugin legality before emission planning
-// CHECK-SAME: tcrv_offload.runtime_abi
+// CHECK-SAME: weft_offload.runtime_abi
 
 // -----
 
 module {
-  tcrv.exec.kernel @offload_custom_isa_misclassification {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @offload_custom_isa_misclassification {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "custom-isa",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.variant @offload_runtime_first_slice attributes {
+    weft.exec.variant @offload_runtime_first_slice attributes {
       origin = "offload-plugin",
       requires = [@offload_runtime],
-      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
-      tcrv_offload.handoff_kind = "runtime-offload"
+      weft_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      weft_offload.handoff_kind = "runtime-offload"
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "static variant selected by generic cost and capability planning",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -97,7 +97,7 @@ module {
       status = "selected",
       target = @offload_runtime_first_slice
     }
-    tcrv_offload.lowering_boundary {
+    weft_offload.lowering_boundary {
       handoff_kind = "runtime-offload",
       origin = "offload-plugin",
       required_capabilities = [@offload_runtime],
@@ -116,15 +116,15 @@ module {
 // -----
 
 module {
-  tcrv.exec.kernel @unknown_offload_origin_generic_registry_failure {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @unknown_offload_origin_generic_registry_failure {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.variant @foreign_offload attributes {
+    weft.exec.variant @foreign_offload attributes {
       origin = "offload-unregistered-plugin",
       requires = [@offload_runtime]
     } {
@@ -132,6 +132,6 @@ module {
   }
 }
 
-// CHECK: TianChen-RV variant emission plan collection failed
+// CHECK: Weft-RV variant emission plan collection failed
 // CHECK-SAME: variant @foreign_offload
 // CHECK: unknown origin plugin 'offload-unregistered-plugin'

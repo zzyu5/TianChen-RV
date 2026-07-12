@@ -1,6 +1,6 @@
-# TianChen-RV MLIR Trellis Specs
+# Weft-RV MLIR Trellis Specs
 
-`.trellis/spec/` 是 TianChen-RV MLIR 的**长期规范（durable spec）**：约束设计、代码、实验解释和 agent 接手方式。
+`.trellis/spec/` 是 Weft-RV MLIR 的**长期规范（durable spec）**：约束设计、代码、实验解释和 agent 接手方式。
 
 规范只描述**稳定契约**。当前进度、stage 编号、候选算子名（如某个 `*_i32_to_f32`）、measurement 状态、campaign / gate 记录、journal/session 引用——这些都**不是 spec**，属于 `tasks/`、`workspace/` journal、`artifacts/`。看到旧 spec 里夹带这类内容，按状态清除，不要当契约维护。
 
@@ -8,9 +8,9 @@
 
 ## 项目定位
 
-TianChen-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行层软件栈之参考模板（reference template）**——为碎片化硬件生态（RISC-V 是极端案例：VLEN 任意、扩展组合爆炸、厂商专有单元各异）给出一个可复制的**栈组织方式**（接入成本可预期 + 正确性机检 + 选择可归因），而不是又一个手写库。**RISC-V 量化 LLM 推理是该模板的首个高性能实例**：真硅上打赢手写出货物是模板质量的证明书，不是定位本身（主角 = 可扩展性；性能 = 证据）。
+Weft-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行层软件栈之参考模板（reference template）**——为碎片化硬件生态（RISC-V 是极端案例：VLEN 任意、扩展组合爆炸、厂商专有单元各异）给出一个可复制的**栈组织方式**（接入成本可预期 + 正确性机检 + 选择可归因），而不是又一个手写库。**RISC-V 量化 LLM 推理是该模板的首个高性能实例**：真硅上打赢手写出货物是模板质量的证明书，不是定位本身（主角 = 可扩展性；性能 = 证据）。
 
-> **定位沿革（2026-07-10 定位升级 · 用户裁定）**：主角从"高性能 RISC-V 算子编译器"换位为"可扩展执行层软件栈参考模板"。旧句存档："TianChen-RV 是 high-level MLIR 之后的能力驱动统一 RISC-V 执行层。" 三贡献 C1/C2/C3′ 编号与数值不变，仅叙事主次升级；详见 [`docs/canon/TianChen-RV_定位-v2.md`](../../docs/canon/TianChen-RV_定位-v2.md)。
+> **定位沿革（2026-07-10 定位升级 · 用户裁定）**：主角从"高性能 RISC-V 算子编译器"换位为"可扩展执行层软件栈参考模板"。旧句存档："Weft-RV 是 high-level MLIR 之后的能力驱动统一 RISC-V 执行层。" 三贡献 C1/C2/C3′ 编号与数值不变，仅叙事主次升级；详见 [`docs/canon/Weft-RV_定位-v2.md`](../../docs/canon/Weft-RV_定位-v2.md)。
 
 作为软件栈，它是 high-level MLIR 之后的能力驱动统一 RISC-V 执行层：把 RISC-V 的目标能力（ISA 扩展、VLEN/uarch、toolchain、runtime/offload）建成 first-class、可查询、可验证、可参与 pass 决策的 MLIR 对象，并用这些能力对象：
 
@@ -58,7 +58,7 @@ TianChen-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执�
 |---|---|
 | [architecture](./architecture/index.md) | 系统定位、核心不变量、研究边界、禁止误写的方向 |
 | [capability-model](./capability-model/index.md) | target capability object、关系、profile、verifier 输入 |
-| [core-dialect](./core-dialect/index.md) | `tcrv.exec` core dialect 的长期契约 |
+| [core-dialect](./core-dialect/index.md) | `weft.exec` core dialect 的长期契约 |
 | [plugin-protocol](./plugin-protocol/index.md) | extension plugin registry / interface / locality 规则 |
 | [extension-plugins](./extension-plugins/index.md) | RVV、IME、runtime offload、scalar fallback、future plugin 边界 |
 | [variant-pipeline](./variant-pipeline/index.md) | variant generation、legality、selection、dispatch、tuning（Gearbox） |
@@ -71,7 +71,7 @@ TianChen-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执�
 ## 最高优先不变量（完整列表见 core-invariants）
 
 - Capability 是系统第一对象，是可被 C++ pass 查询的 MLIR 对象，不是字符串 metadata。
-- `tcrv.exec` 只承载 execution envelope；compute 语义属于 extension family。
+- `weft.exec` 只承载 execution envelope；compute 语义属于 extension family。
 - Common pass 只经 interface / registry 调用插件，绝不按 family 名分支。
 - Metadata（diagnostics / manifest / route id / dashboard）永远是 mirror，绝不是 route / dtype / compute / 进度 / 证据的 authority。
 - Primary stack 是 C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck；Python 只做 tooling，绝不实现 core IR / pass / capability model。

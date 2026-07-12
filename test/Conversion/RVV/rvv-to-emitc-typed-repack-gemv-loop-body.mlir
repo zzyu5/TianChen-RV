@@ -1,17 +1,17 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/kind = "typed_repack_gemv_loop_body"/kind = "plain_repack_loop"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed 's/fold_model = "lane_wise_vector_scale"/fold_model = "unsupported_fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
-// RUN: sed 's/half_lanes = 16 : i64/half_lanes = 12 : i64/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADHALF
-// RUN: sed 's/repack_lane_wise_q4_x_i8_dot %vx/repack_lane_wise_q4_x_i8_dot %vy/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADBASE
-// RUN: sed 's/repack_dual_fp16_scale_fold %vx/repack_dual_fp16_scale_fold %vy/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLDBASE
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/kind = "typed_repack_gemv_loop_body"/kind = "plain_repack_loop"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed 's/fold_model = "lane_wise_vector_scale"/fold_model = "unsupported_fold"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
+// RUN: sed 's/half_lanes = 16 : i64/half_lanes = 12 : i64/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADHALF
+// RUN: sed 's/repack_lane_wise_q4_x_i8_dot %vx/repack_lane_wise_q4_x_i8_dot %vy/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADBASE
+// RUN: sed 's/repack_dual_fp16_scale_fold %vx/repack_dual_fp16_scale_fold %vy/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLDBASE
 
 // M-FLAT REPACK loop-scaffold milestone 3 (numHalves==1 arm) -- the q4_0 16x1-
 // REPACKED GEVM's per-block LANE-WISE integer CORE *and* its dual-fp16 per-strip
 // scale FOLD are now BOTH carried IN-REGION (the M2 loop-carried fold stub is
-// gone). The region-carrying tcrv_rvv.typed_repack_gemv_loop_body holds the
-// integer-core BRICK tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the per-block seed
+// gone). The region-carrying weft_rvv.typed_repack_gemv_loop_body holds the
+// integer-core BRICK weft_rvv.repack_lane_wise_q4_x_i8_dot (the per-block seed
 // i16 lo/hi -> nibble-step vwmacc loop -> lo/hi vwadd combine) FOLLOWED BY the
-// scale-fold BRICK tcrv_rvv.repack_dual_fp16_scale_fold (per-strip vle16 weight
+// scale-fold BRICK weft_rvv.repack_dual_fp16_scale_fold (per-strip vle16 weight
 // scale -> ONE _Float16 activation scale -> vfwmul/vfcvt/vfmacc into the f32
 // accumulator), both addressed off the block_index induction variable. The
 // lowering GATES the emit on BOTH bricks' block_index-tied anti-bypass (block_index
@@ -37,35 +37,35 @@
 // rvv), not tested here.
 
 module {
-  tcrv.exec.kernel @rvv_typed_repack_gemv_loop_body_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_typed_repack_gemv_loop_body attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:nc", role = "destination-byte-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_typed_repack_gemv_loop_body, sew = 32 : i64, source_kernel = "rvv_typed_repack_gemv_loop_body_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 16 : i64, fold_model = "lane_wise_vector_scale"} {
-        ^bb0(%block_index: index, %acc: !tcrv_rvv.vector<f32, "m2">):
+  weft.exec.kernel @rvv_typed_repack_gemv_loop_body_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @rvv_typed_repack_gemv_loop_body attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_typed_repack_gemv_loop_body, sew = 32 : i64, source_kernel = "rvv_typed_repack_gemv_loop_body_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 16 : i64, fold_model = "lane_wise_vector_scale"} {
+        ^bb0(%block_index: index, %acc: !weft_rvv.vector<f32, "m2">):
           // M3 region body: the block_index-tied integer CORE brick (per-block
           // lane-wise nibble dot -> per-strip i32 sumi), THEN the dual-fp16 per-
           // strip scale FOLD brick that consumes the integer brick's sumi AND the
           // loop-carried acc and produces the folded-out acc_next the yield names
           // (the M2 loop-carried stub is gone -- the fold now mutates the acc).
-          %sumi = tcrv_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %block_index : index {kind = "repack_lane_wise_q4_x_i8_dot", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
-          %acc_next = tcrv_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi, %acc, %vl block %block_index : index {kind = "repack_dual_fp16_scale_fold", weight_scale_byte_offset = 0 : i64, activation_scale_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          tcrv_rvv.typed_repack_gemv_loop_yield %acc_next : !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
-      } : !tcrv_rvv.vl
+          %sumi = weft_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %block_index : index {kind = "repack_lane_wise_q4_x_i8_dot", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">
+          %acc_next = weft_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi, %acc, %vl block %block_index : index {kind = "repack_dual_fp16_scale_fold", weight_scale_byte_offset = 0 : i64, activation_scale_byte_offset = 0 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          weft_rvv.typed_repack_gemv_loop_yield %acc_next : !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_rvv_typed_repack_gemv_loop_body_kernel_rvv_typed_repack_gemv_loop_body(
+// CHECK: emitc.func @weft_emitc_rvv_typed_repack_gemv_loop_body_kernel_rvv_typed_repack_gemv_loop_body(
 
 // nb = n / QK; nc_groups = nc / weight_interleave (the two structural divides).
 // CHECK: %[[NB:.*]] = div %{{.*}}, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
@@ -132,5 +132,5 @@ module {
 // BADKIND: currently supports only kind "typed_repack_gemv_loop_body"
 // BADFOLD: currently supports only fold_model "lane_wise_vector_scale"
 // BADHALF: requires half_lanes in {8, 16} dividing weight_interleave
-// BADBASE: failed to legalize operation 'tcrv.exec.variant'
-// BADFOLDBASE: failed to legalize operation 'tcrv.exec.variant'
+// BADBASE: failed to legalize operation 'weft.exec.variant'
+// BADFOLDBASE: failed to legalize operation 'weft.exec.variant'

@@ -1,31 +1,31 @@
-// RUN: not tcrv-translate --tcrv-rvv-emitc-to-cpp %s 2>&1 | FileCheck %s --implicit-check-not="#include <riscv_vector.h>"
+// RUN: not weft-translate --weft-rvv-emitc-to-cpp %s 2>&1 | FileCheck %s --implicit-check-not="#include <riscv_vector.h>"
 
 module {
-  tcrv.exec.kernel @rvv_missing_selected_boundary_attrs_kernel {
-    tcrv.exec.capability @rvv {
+  weft.exec.kernel @rvv_missing_selected_boundary_attrs_kernel {
+    weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_i32_add attributes {
+    weft.exec.variant @rvv_i32_add attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>
     } {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {
         lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
-      } : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {
+      } : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
       } {
-      } : !tcrv_rvv.vl
+      } : !weft_rvv.vl
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       reason = "variant-selected",
       message = "selected stale RVV route",
       severity = "note",
@@ -33,10 +33,10 @@ module {
       target = @rvv_i32_add,
       selection_kind = "static-variant"
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       artifact_kind = "riscv-elf-relocatable-object",
       emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
-      lowering_boundary = "tcrv_rvv.with_vl",
+      lowering_boundary = "weft_rvv.with_vl",
       lowering_pipeline = "rvv-generic-typed-body-emitc-route-family",
       message = "stale RVV plan missing selected-boundary attrs",
       origin = "rvv-plugin",

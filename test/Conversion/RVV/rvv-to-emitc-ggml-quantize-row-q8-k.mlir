@@ -1,9 +1,9 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
 // The COMPLETE ggml `quantize_row_q8_K` RVV-path forward-pass op (the f32 ->
 // block_q8_K K-quant ACTIVATION QUANTIZER; riscv/quants.c) as STRUCTURED emitc
 // IR (I5; ZERO raw() strings). The heaviest quantizer: the single typed op
-// tcrv_rvv.quantize_row_q8_K lowers to a QK_K=256 super-block loop (nb = n/256)
+// weft_rvv.quantize_row_q8_K lowers to a QK_K=256 super-block loop (nb = n/256)
 // whose body (1) folds a min AND max over an e32m8 strip loop
 // (vfmax_vv/vfmin_vv seeded -/+inf) then vfredmax/vfredmin to scalars, (2)
 // computes amax via fabsf and the symmetric iscale = -127/(|max|>|min|?max:min),
@@ -20,26 +20,26 @@
 // DISPATCH-WIRED ([L-6] wiring != construction).
 
 module {
-  tcrv.exec.kernel @quantize_row_q8_K_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @quantize_row_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @quantize_row_q8_K, sew = 32 : i64, source_kernel = "quantize_row_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %q = tcrv_rvv.quantize_row_q8_K %x, %vy, %n, %vl {kind = "ggml_quantize_row_q8_K", qk = 256 : i64, block_stride = 292 : i64, scale_byte_offset = 0 : i64, quant_byte_offset = 4 : i64, bsums_byte_offset = 260 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @quantize_row_q8_K_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @quantize_row_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @quantize_row_q8_K, sew = 32 : i64, source_kernel = "quantize_row_q8_K_kernel", status = "selected-lowering-boundary"} {
+        %q = weft_rvv.quantize_row_q8_K %x, %vy, %n, %vl {kind = "ggml_quantize_row_q8_K", qk = 256 : i64, block_stride = 292 : i64, scale_byte_offset = 0 : i64, quant_byte_offset = 4 : i64, bsums_byte_offset = 260 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_quantize_row_q8_K_kernel_quantize_row_q8_K(
-// FRONT-DOOR CONSTRUCTED: the abstract tcrv_rvv.quantize_row_q8_K went THROUGH the
-// typed tcrv_rvv.typed_quantize_row_loop_body region (the provenance token proves it).
-// CHECK: route_source_op=tcrv_rvv.typed_quantize_row_loop_body
+// CHECK: emitc.func @weft_emitc_quantize_row_q8_K_kernel_quantize_row_q8_K(
+// FRONT-DOOR CONSTRUCTED: the abstract weft_rvv.quantize_row_q8_K went THROUGH the
+// typed weft_rvv.typed_quantize_row_loop_body region (the provenance token proves it).
+// CHECK: route_source_op=weft_rvv.typed_quantize_row_loop_body
 // The super-block count nb = n / 256, the shared e32m8 vlmax, and the loop.
 // CHECK: div {{.*}}, %{{.*}}
 // CHECK: call_opaque "__riscv_vsetvlmax_e32m8"

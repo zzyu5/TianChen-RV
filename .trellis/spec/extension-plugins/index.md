@@ -1,8 +1,8 @@
 # Extension Plugin Specs
 
-This layer defines planned TCRV extension families and their plugin boundaries.
+This layer defines planned WEFT extension families and their plugin boundaries.
 RVV, IME, TensorExt, Offload, scalar fallback, and future vendor/custom
-families are parts of one unified TCRV RISC-V MLIR system, not independent
+families are parts of one unified WEFT RISC-V MLIR system, not independent
 backend dialects.
 
 ## Pre-Development Checklist
@@ -10,10 +10,10 @@ backend dialects.
 - [ ] Is the target plugin classified correctly as ISA-vector, matrix-like ISA extension, runtime-offload, or future custom plugin?
 - [ ] Are extension family ops execution ops, not high-level tensor ops?
 - [ ] Does the plugin declare capability, legality, tuning, cost, and emission behavior?
-- [ ] Does the plugin rely on `tcrv.exec` for variant/dispatch/fallback structure?
-- [ ] Does the plugin use common TCRV interfaces and the common EmitC route where possible?
+- [ ] Does the plugin rely on `weft.exec` for variant/dispatch/fallback structure?
+- [ ] Does the plugin use common WEFT interfaces and the common EmitC route where possible?
 - [ ] Is the work advancing the real RVV trunk rather than a not-yet-built family? (见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md))
-- [ ] If this is RVV, does executable support start from typed `tcrv_rvv` body and plugin route provider rather than legacy `i32m1` route tables?
+- [ ] If this is RVV, does executable support start from typed `weft_rvv` body and plugin route provider rather than legacy `i32m1` route tables?
 - [ ] If this is scalar fallback, is there no active executable scalar body unless a later rebuild task adds one?
 - [ ] Are current hardware claims limited to verified environments?
 
@@ -31,8 +31,8 @@ backend dialects.
 
 - RVV is the first full plugin and the current real/mature mainline.
 - Legacy `RVVI32M1*` / `rvv-i32m1-*` executable routes fail closed; route
-  authority is the corrected typed `tcrv_rvv` surface (见 core-invariants I7).
-- Coverage and selected-body realization build on that typed `tcrv_rvv` surface.
+  authority is the corrected typed `weft_rvv` surface (见 core-invariants I7).
+- Coverage and selected-body realization build on that typed `weft_rvv` surface.
   For performance-sensitive RVV work, claim tuning or parity with handwritten
   kernels only with resource-aware selected-body realization or measured
   same-target evidence.

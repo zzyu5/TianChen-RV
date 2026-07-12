@@ -15,8 +15,8 @@
 
 #include "RVVEmitCRoutePlanningInternal.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
@@ -27,7 +27,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::StringRef internRVVSelectedBodyDerivedText(std::string text) {
   static llvm::StringSet<> textPool;
@@ -35,11 +35,11 @@ llvm::StringRef internRVVSelectedBodyDerivedText(std::string text) {
 }
 
 llvm::StringRef getRVVSelectedBodyIntegerElementTypeName(std::int64_t sew) {
-  if (sew == tcrv::rvv::getRVVSEW16Bits())
+  if (sew == weft::rvv::getRVVSEW16Bits())
     return "i16";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
     return "i32";
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
+  if (sew == weft::rvv::getRVVSEW64Bits())
     return "i64";
   return {};
 }
@@ -105,7 +105,7 @@ getRVVSelectedBodyUnsignedOutputPointerCType(std::int64_t sew) {
 }
 
 llvm::StringRef getRVVSelectedBodyFloatElementTypeName(std::int64_t sew) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
     return "f32";
   return {};
 }
@@ -135,7 +135,7 @@ llvm::StringRef getRVVSelectedBodyVectorTypeName(std::int64_t sew,
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
-      (llvm::Twine("!tcrv_rvv.vector<") + elementType + ", \"" + lmul +
+      (llvm::Twine("!weft_rvv.vector<") + elementType + ", \"" + lmul +
        "\">")
           .str());
 }
@@ -147,7 +147,7 @@ llvm::StringRef getRVVSelectedBodyUnsignedVectorTypeName(std::int64_t sew,
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
-      (llvm::Twine("!tcrv_rvv.vector<") + elementType + ", \"" + lmul +
+      (llvm::Twine("!weft_rvv.vector<") + elementType + ", \"" + lmul +
        "\">")
           .str());
 }
@@ -158,7 +158,7 @@ llvm::StringRef getRVVSelectedBodyFloatVectorTypeName(std::int64_t sew,
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
-      (llvm::Twine("!tcrv_rvv.vector<") + elementType + ", \"" + lmul +
+      (llvm::Twine("!weft_rvv.vector<") + elementType + ", \"" + lmul +
        "\">")
           .str());
 }
@@ -169,7 +169,7 @@ llvm::StringRef getRVVSelectedBodyMaskTypeName(std::int64_t sew,
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
-      (llvm::Twine("!tcrv_rvv.mask<") + elementType + ", \"" + lmul + "\">")
+      (llvm::Twine("!weft_rvv.mask<") + elementType + ", \"" + lmul + "\">")
           .str());
 }
 
@@ -179,7 +179,7 @@ llvm::StringRef getRVVSelectedBodyFloatMaskTypeName(std::int64_t sew,
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
-      (llvm::Twine("!tcrv_rvv.mask<") + elementType + ", \"" + lmul + "\">")
+      (llvm::Twine("!weft_rvv.mask<") + elementType + ", \"" + lmul + "\">")
           .str());
 }
 
@@ -212,11 +212,11 @@ std::optional<std::int64_t>
 getRVVSelectedBodyMaskBitWidth(std::int64_t sew, llvm::StringRef lmul) {
   if (sew <= 0)
     return std::nullopt;
-  if (lmul == tcrv::rvv::getRVVLMULM1())
+  if (lmul == weft::rvv::getRVVLMULM1())
     return sew;
-  if (lmul == tcrv::rvv::getRVVLMULM2())
+  if (lmul == weft::rvv::getRVVLMULM2())
     return sew / 2;
-  if (lmul == tcrv::rvv::getRVVLMULMF2())
+  if (lmul == weft::rvv::getRVVLMULMF2())
     return sew * 2;
   return std::nullopt;
 }
@@ -358,8 +358,8 @@ llvm::StringRef getRVVSelectedBodyStridedStoreIntrinsic(std::int64_t sew,
 
 bool hasRVVSelectedBodyI32M1IndexFacts(std::int64_t sew,
                                        llvm::StringRef lmul) {
-  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         lmul == tcrv::rvv::getRVVLMULM1();
+  return sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+         lmul == weft::rvv::getRVVLMULM1();
 }
 
 llvm::StringRef getRVVSelectedBodyIndexVectorTypeName(std::int64_t sew,
@@ -367,7 +367,7 @@ llvm::StringRef getRVVSelectedBodyIndexVectorTypeName(std::int64_t sew,
   if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
     return {};
   return internRVVSelectedBodyDerivedText(
-      (llvm::Twine("!tcrv_rvv.index_vector<i") + llvm::Twine(sew) + ", \"" +
+      (llvm::Twine("!weft_rvv.index_vector<i") + llvm::Twine(sew) + ", \"" +
        lmul + "\">")
           .str());
 }
@@ -661,81 +661,81 @@ llvm::StringRef getRVVSelectedBodyMaskAndIntrinsic(std::int64_t sew,
 
 bool isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      (lmul == tcrv::rvv::getRVVLMULM1() ||
-       lmul == tcrv::rvv::getRVVLMULM2()))
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == weft::rvv::getRVVLMULM1() ||
+       lmul == weft::rvv::getRVVLMULM2()))
     return true;
-  return sew == tcrv::rvv::getRVVSEW64Bits() &&
-         lmul == tcrv::rvv::getRVVLMULM1();
+  return sew == weft::rvv::getRVVSEW64Bits() &&
+         lmul == weft::rvv::getRVVLMULM1();
 }
 
 bool isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
-    return lmul == tcrv::rvv::getRVVLMULM1() ||
-           lmul == tcrv::rvv::getRVVLMULM2();
-  return sew == tcrv::rvv::getRVVSEW64Bits() &&
-         lmul == tcrv::rvv::getRVVLMULM1();
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
+    return lmul == weft::rvv::getRVVLMULM1() ||
+           lmul == weft::rvv::getRVVLMULM2();
+  return sew == weft::rvv::getRVVSEW64Bits() &&
+         lmul == weft::rvv::getRVVLMULM1();
 }
 
 bool isRVVSelectedBodyStandaloneReductionScalarChannelConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         (lmul == tcrv::rvv::getRVVLMULM1() ||
-          lmul == tcrv::rvv::getRVVLMULM2());
+  return sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == weft::rvv::getRVVLMULM1() ||
+          lmul == weft::rvv::getRVVLMULM2());
 }
 
 llvm::StringRef getRVVStandaloneReductionScalarResultVectorTypeName(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      (lmul == tcrv::rvv::getRVVLMULM1() ||
-       lmul == tcrv::rvv::getRVVLMULM2()))
-    return getRVVSelectedBodyVectorTypeName(sew, tcrv::rvv::getRVVLMULM1());
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return getRVVSelectedBodyVectorTypeName(sew, tcrv::rvv::getRVVLMULM1());
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == weft::rvv::getRVVLMULM1() ||
+       lmul == weft::rvv::getRVVLMULM2()))
+    return getRVVSelectedBodyVectorTypeName(sew, weft::rvv::getRVVLMULM1());
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
+      lmul == weft::rvv::getRVVLMULM1())
+    return getRVVSelectedBodyVectorTypeName(sew, weft::rvv::getRVVLMULM1());
   return {};
 }
 
 llvm::StringRef getRVVStandaloneReductionScalarResultVectorCType(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      (lmul == tcrv::rvv::getRVVLMULM1() ||
-       lmul == tcrv::rvv::getRVVLMULM2()))
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == weft::rvv::getRVVLMULM1() ||
+       lmul == weft::rvv::getRVVLMULM2()))
     return getRVVSelectedBodySignedVectorCType(
-        sew, tcrv::rvv::getRVVLMULM1());
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
+        sew, weft::rvv::getRVVLMULM1());
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
+      lmul == weft::rvv::getRVVLMULM1())
     return getRVVSelectedBodySignedVectorCType(
-        sew, tcrv::rvv::getRVVLMULM1());
+        sew, weft::rvv::getRVVLMULM1());
   return {};
 }
 
 llvm::StringRef getRVVStandaloneReductionScalarSeedSplatIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      (lmul == tcrv::rvv::getRVVLMULM1() ||
-       lmul == tcrv::rvv::getRVVLMULM2()))
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == weft::rvv::getRVVLMULM1() ||
+       lmul == weft::rvv::getRVVLMULM2()))
     return getRVVSelectedBodyScalarSplatIntrinsic(
-        sew, tcrv::rvv::getRVVLMULM1());
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
+        sew, weft::rvv::getRVVLMULM1());
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
+      lmul == weft::rvv::getRVVLMULM1())
     return getRVVSelectedBodyScalarSplatIntrinsic(
-        sew, tcrv::rvv::getRVVLMULM1());
+        sew, weft::rvv::getRVVLMULM1());
   return {};
 }
 
 llvm::StringRef getRVVStandaloneReductionScalarResultStoreIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      (lmul == tcrv::rvv::getRVVLMULM1() ||
-       lmul == tcrv::rvv::getRVVLMULM2()))
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == weft::rvv::getRVVLMULM1() ||
+       lmul == weft::rvv::getRVVLMULM2()))
     return getRVVSelectedBodyStoreIntrinsic(sew,
-                                            tcrv::rvv::getRVVLMULM1());
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
+                                            weft::rvv::getRVVLMULM1());
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
+      lmul == weft::rvv::getRVVLMULM1())
     return getRVVSelectedBodyStoreIntrinsic(sew,
-                                            tcrv::rvv::getRVVLMULM1());
+                                            weft::rvv::getRVVLMULM1());
   return {};
 }
 
@@ -779,4 +779,4 @@ llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryUnitStoreIntrinsic(
   return getRVVSelectedBodyStoreIntrinsic(sew, lmul);
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

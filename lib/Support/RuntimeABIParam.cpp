@@ -1,4 +1,4 @@
-#include "TianChenRV/Support/RuntimeABIParam.h"
+#include "Weft/Support/RuntimeABIParam.h"
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
@@ -7,11 +7,11 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::support {
+namespace weft::support {
 namespace {
 
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::RuntimeParamOp;
+using weft::exec::KernelOp;
+using weft::exec::RuntimeParamOp;
 
 llvm::Error makeRuntimeParamError(KernelOp kernel, llvm::Twine message) {
   std::string text;
@@ -48,7 +48,7 @@ llvm::Error requireAttrEquals(KernelOp kernel, RuntimeParamOp param,
   llvm::StringRef actual = getStringAttr(param.getOperation(), attrName);
   if (actual != expected)
     return makeRuntimeParamError(
-        kernel, llvm::Twine("tcrv.exec.runtime_param @") +
+        kernel, llvm::Twine("weft.exec.runtime_param @") +
                     param.getSymName() + " requires attribute '" + attrName +
                     "' = \"" + expected + "\" for ABI role '" +
                     getStringAttr(param.getOperation(),
@@ -61,7 +61,7 @@ llvm::Error validateParamAgainstSpec(KernelOp kernel, RuntimeParamOp param,
                                      const RuntimeABIParamSpec &spec) {
   if (!param)
     return makeRuntimeParamError(
-        kernel, llvm::Twine("requires exactly one tcrv.exec.runtime_param "
+        kernel, llvm::Twine("requires exactly one weft.exec.runtime_param "
                             "with ABI role '") +
                     getRoleName(spec) + "'");
 
@@ -105,7 +105,7 @@ llvm::Error findParamForSpec(KernelOp kernel, const RuntimeABIParamSpec &spec,
                              RuntimeParamOp &out) {
   if (!kernel || kernel.getBody().empty())
     return makeRuntimeParamError(
-        kernel, "requires a materialized tcrv.exec.kernel body");
+        kernel, "requires a materialized weft.exec.kernel body");
 
   unsigned count = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -124,7 +124,7 @@ llvm::Error findParamForSpec(KernelOp kernel, const RuntimeABIParamSpec &spec,
 
   if (count > 1)
     return makeRuntimeParamError(
-        kernel, llvm::Twine("requires exactly one tcrv.exec.runtime_param "
+        kernel, llvm::Twine("requires exactly one weft.exec.runtime_param "
                             "with ABI role '") +
                     getRoleName(spec) + "'; found duplicate runtime params");
 
@@ -166,7 +166,7 @@ llvm::Error ensureRuntimeABIParams(
     llvm::ArrayRef<RuntimeABIParamSpec> specs) {
   if (!kernel || kernel.getBody().empty())
     return makeRuntimeParamError(
-        kernel, "requires a materialized tcrv.exec.kernel body");
+        kernel, "requires a materialized weft.exec.kernel body");
 
   llvm::StringMap<mlir::Operation *> directSymbols;
   collectDirectKernelSymbols(kernel, directSymbols);
@@ -187,7 +187,7 @@ llvm::Error ensureRuntimeABIParams(
       return makeRuntimeParamError(
           kernel, llvm::Twine("direct symbol @") + spec.symbolName +
                       " already exists and cannot be reused for "
-                      "tcrv.exec.runtime_param ABI role '" +
+                      "weft.exec.runtime_param ABI role '" +
                       getRoleName(spec) + "'");
 
     RuntimeParamOp created = createParam(builder, kernel, spec);
@@ -202,7 +202,7 @@ llvm::Error ensureRuntimeABIParamsAllowingExistingCNames(
     llvm::ArrayRef<RuntimeABIParamSpec> specs) {
   if (!kernel || kernel.getBody().empty())
     return makeRuntimeParamError(
-        kernel, "requires a materialized tcrv.exec.kernel body");
+        kernel, "requires a materialized weft.exec.kernel body");
 
   llvm::StringMap<mlir::Operation *> directSymbols;
   collectDirectKernelSymbols(kernel, directSymbols);
@@ -225,7 +225,7 @@ llvm::Error ensureRuntimeABIParamsAllowingExistingCNames(
       return makeRuntimeParamError(
           kernel, llvm::Twine("direct symbol @") + spec.symbolName +
                       " already exists and cannot be reused for "
-                      "tcrv.exec.runtime_param ABI role '" +
+                      "weft.exec.runtime_param ABI role '" +
                       getRoleName(spec) + "'");
 
     RuntimeParamOp created = createParam(builder, kernel, spec);
@@ -244,7 +244,7 @@ llvm::Error collectRuntimeABIParams(
       return error;
     if (!param)
       return makeRuntimeParamError(
-          kernel, llvm::Twine("requires exactly one tcrv.exec.runtime_param "
+          kernel, llvm::Twine("requires exactly one weft.exec.runtime_param "
                               "with ABI role '") +
                       getRoleName(spec) + "'");
     if (llvm::Error error = validateParamAgainstSpec(kernel, param, spec))
@@ -260,4 +260,4 @@ llvm::Error validateRuntimeABIParams(
   return collectRuntimeABIParams(kernel, specs, ignored);
 }
 
-} // namespace tianchenrv::support
+} // namespace weft::support

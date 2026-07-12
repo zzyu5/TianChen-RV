@@ -13,12 +13,12 @@
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
@@ -33,7 +33,7 @@
 #include <optional>
 #include <string>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
 mlir::LogicalResult RuntimeABIValueOp::verify() {
   mlir::Operation *op = getOperation();
@@ -72,27 +72,27 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
            << "requires attribute '" << kCNameAttrName
            << "' to be a valid bounded C identifier";
 
-  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(getRole());
+  std::optional<weft::support::RuntimeABIParameterRole> parsedRole =
+      weft::support::symbolizeRuntimeABIParameterRole(getRole());
   if (!parsedRole)
     return emitOpError() << "attribute '" << kRoleAttrName
                          << "' must reference a supported runtime ABI "
                             "parameter role";
 
-  std::optional<tianchenrv::support::RuntimeABIParameterOwnership>
+  std::optional<weft::support::RuntimeABIParameterOwnership>
       parsedOwnership =
-          tianchenrv::support::symbolizeRuntimeABIParameterOwnership(
+          weft::support::symbolizeRuntimeABIParameterOwnership(
               getOwnership());
   if (!parsedOwnership)
     return emitOpError() << "attribute '" << kOwnershipAttrName
                          << "' must reference a supported runtime ABI "
                             "parameter ownership";
   if (*parsedOwnership !=
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned)
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned)
     return emitOpError()
            << "requires ownership '"
-           << tianchenrv::support::stringifyRuntimeABIParameterOwnership(
-                  tianchenrv::support::RuntimeABIParameterOwnership::
+           << weft::support::stringifyRuntimeABIParameterOwnership(
+                  weft::support::RuntimeABIParameterOwnership::
                       TargetExportABIOwned)
            << "' for the bounded RVV callable C ABI";
 
@@ -150,7 +150,7 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
 
   return emitOpError()
          << "requires buffer ABI value result to have "
-            "!tcrv_rvv.runtime_abi_value type";
+            "!weft_rvv.runtime_abi_value type";
 }
 
 mlir::LogicalResult SetVLOp::verify() {
@@ -167,7 +167,7 @@ mlir::LogicalResult SetVLOp::verify() {
     if (isForbiddenSetVLParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.setvl keeps VLEN/vlenb as target capability "
+             << "'; weft_rvv.setvl keeps VLEN/vlenb as target capability "
                 "facts, rejects deleted local element_count metadata, and "
                 "required_march/required_capabilities as selected-path "
                 "metadata";
@@ -191,7 +191,7 @@ mlir::LogicalResult SetVLOp::verify() {
     return emitOpError() << "requires exactly one VL result";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
-           << "requires result type to be !tcrv_rvv.vl";
+           << "requires result type to be !weft_rvv.vl";
 
   if (!isRVVFirstSliceDataflowConfig(static_cast<std::int64_t>(getSew()),
                                      getLmul()) &&
@@ -215,7 +215,7 @@ mlir::LogicalResult SetVLOp::verify() {
 
   if (!getPolicy())
     return emitOpError()
-           << "requires finite #tcrv_rvv.policy compile-time policy metadata";
+           << "requires finite #weft_rvv.policy compile-time policy metadata";
 
   return mlir::success();
 }
@@ -228,7 +228,7 @@ mlir::LogicalResult WithVLOp::verify() {
     if (isForbiddenWithVLParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.with_vl keeps VLEN/vlenb as target capability "
+             << "'; weft_rvv.with_vl keeps VLEN/vlenb as target capability "
                 "facts, rejects deleted local element_count metadata, "
                 "required_march/required_capabilities as selected-path "
                 "metadata, and AVL/VL as runtime SSA/control values";
@@ -248,7 +248,7 @@ mlir::LogicalResult WithVLOp::verify() {
     return emitOpError() << "requires exactly one runtime VL SSA operand";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+           << "requires runtime VL operand to have !weft_rvv.vl type";
 
   if (op->getNumRegions() != 1)
     return emitOpError() << "requires exactly one VL scope region";
@@ -259,7 +259,7 @@ mlir::LogicalResult WithVLOp::verify() {
   if (body.front().getNumArguments() != 0)
     return emitOpError()
            << "requires VL scope region to have no region arguments; the "
-              "consumed !tcrv_rvv.vl operand is the scope control value";
+              "consumed !weft_rvv.vl operand is the scope control value";
 
   auto sew = op->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   auto lmul = op->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
@@ -287,7 +287,7 @@ mlir::LogicalResult WithVLOp::verify() {
   auto policy = op->getAttrOfType<PolicyAttr>(kPolicyAttrName);
   if (op->hasAttr(kPolicyAttrName) && !policy)
     return emitOpError()
-           << "requires optional policy metadata to be #tcrv_rvv.policy";
+           << "requires optional policy metadata to be #weft_rvv.policy";
 
   // The optional structural 'unroll_factor' is the selected-body main-loop
   // unroll count carried op-intrinsically (like the bounded SEW/LMUL config),
@@ -303,15 +303,15 @@ mlir::LogicalResult WithVLOp::verify() {
     if (sew && static_cast<int64_t>(setvl.getSew()) != sew.getInt())
       return emitOpError()
              << "requires optional 'sew' metadata to match defining "
-                "tcrv_rvv.setvl";
+                "weft_rvv.setvl";
     if (lmul && setvl.getLmul() != lmul.getValue())
       return emitOpError()
              << "requires optional 'lmul' metadata to match defining "
-                "tcrv_rvv.setvl";
+                "weft_rvv.setvl";
     if (policy && setvl.getPolicy() != policy)
       return emitOpError()
              << "requires optional 'policy' metadata to match defining "
-                "tcrv_rvv.setvl";
+                "weft_rvv.setvl";
   }
 
   for (llvm::StringRef attrName :
@@ -332,8 +332,8 @@ mlir::LogicalResult WithVLOp::verify() {
       return load.emitOpError()
              << "requires SEW32 LMUL m1 i8mf4 product-reduction source "
                 "loads to feed the bounded signed "
-                "tcrv_rvv.widening_product -> "
-                "tcrv_rvv.standalone_reduce chain";
+                "weft_rvv.widening_product -> "
+                "weft_rvv.standalone_reduce chain";
   }
 
   return mlir::success();
@@ -348,7 +348,7 @@ mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
              << "'; vsetvl placement markers keep VLEN/vlenb as target "
-                "capability facts and consume the active !tcrv_rvv.vl token";
+                "capability facts and consume the active !weft_rvv.vl token";
 
     if (!isAllowedVSetVLRegionMarkerAttr(attrName))
       return emitOpError()
@@ -360,13 +360,13 @@ mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
 
   if (op->getNumOperands() != 1 || op->getNumResults() != 0)
     return emitOpError()
-           << "requires exactly one active !tcrv_rvv.vl operand and no "
+           << "requires exactly one active !weft_rvv.vl operand and no "
               "results";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+           << "requires runtime VL operand to have !weft_rvv.vl type";
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
 
@@ -379,21 +379,21 @@ mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
     return mlir::failure();
   auto planningContract =
       op->getAttrOfType<mlir::StringAttr>(kPlanningContractAttrName);
-  if (tianchenrv::plugin::rvv::
+  if (weft::plugin::rvv::
           isRVVLowPrecisionResourceSupportedRealizationDecision(
               getResourceDecision())) {
     if (!planningContract)
       return emitOpError()
              << "requires planning_contract '"
-             << tianchenrv::plugin::rvv::
+             << weft::plugin::rvv::
                     kRVVLowPrecisionResourcePlanningContract
              << "' from the selected low-precision resource plan";
     if (planningContract.getValue() !=
-        tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract)
+        weft::plugin::rvv::kRVVLowPrecisionResourcePlanningContract)
       return emitOpError()
              << "requires planning_contract to match the selected "
                 "low-precision resource planning contract '"
-             << tianchenrv::plugin::rvv::
+             << weft::plugin::rvv::
                     kRVVLowPrecisionResourcePlanningContract
              << "' but found '" << planningContract.getValue() << "'";
   }
@@ -436,19 +436,19 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one reduced i32 vector input, one active "
-              "!tcrv_rvv.vl operand, one runtime n/AVL operand, and one "
+              "!weft_rvv.vl operand, one runtime n/AVL operand, and one "
               "forwarded i32 vector result";
   if (!isGenericRVVVectorI32M1(getInput().getType()) ||
       !isGenericRVVVectorI32M1(getOutput().getType()))
     return emitOpError()
            << "requires input and output to have type "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded Gearbox "
+              "!weft_rvv.vector<i32, \"m1\"> for the bounded Gearbox "
               "product/reduction-to-dequant handoff";
   if (getInput().getType() != getOutput().getType())
     return emitOpError() << "requires output type to match input type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+           << "requires runtime VL operand to have !weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -460,21 +460,21 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   auto reduction = getInput().getDefiningOp<StandaloneReduceOp>();
   if (!reduction)
     return emitOpError()
-           << "requires input to be produced by tcrv_rvv.standalone_reduce "
+           << "requires input to be produced by weft_rvv.standalone_reduce "
               "inside the selected Gearbox product/reduction body";
   if (reduction.getKind() != "signed_widening_reduce_add")
     return emitOpError()
-           << "requires source-producing tcrv_rvv.standalone_reduce to use "
+           << "requires source-producing weft_rvv.standalone_reduce to use "
               "kind \"signed_widening_reduce_add\"";
   if (reduction.getVl() != getVl())
     return emitOpError()
-           << "requires source-producing tcrv_rvv.standalone_reduce to "
-              "consume the same !tcrv_rvv.vl token as the handoff";
+           << "requires source-producing weft_rvv.standalone_reduce to "
+              "consume the same !weft_rvv.vl token as the handoff";
   WithVLOp producerWithVL = *withVL;
   if (reduction->getParentOp() != producerWithVL.getOperation())
     return emitOpError()
-           << "requires source-producing tcrv_rvv.standalone_reduce to be "
-              "in the same producer tcrv_rvv.with_vl body as the handoff";
+           << "requires source-producing weft_rvv.standalone_reduce to be "
+              "in the same producer weft_rvv.with_vl body as the handoff";
   // The reduce input is either a plain widening product or the signed packed-i4
   // nibble-unpack widening product (the Stage-3 typed packed-i4 surface). Both
   // are bounded i8mf4 -> i16mf2 signed product chains feeding the i32 reduce.
@@ -497,9 +497,9 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     productKindOK = productKind == "signed_widening_product";
   } else {
     return emitOpError()
-           << "requires source-producing tcrv_rvv.standalone_reduce to "
-              "consume a bounded tcrv_rvv.widening_product or "
-              "tcrv_rvv.packed_i4_nibble_unpack_product result";
+           << "requires source-producing weft_rvv.standalone_reduce to "
+              "consume a bounded weft_rvv.widening_product or "
+              "weft_rvv.packed_i4_nibble_unpack_product result";
   }
   if (!productKindOK ||
       productRelation != "signed-i8mf4xi8mf4-to-i16mf2")
@@ -510,11 +510,11 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       productOp->getParentOp() != producerWithVL.getOperation())
     return emitOpError()
            << "requires source-producing product to be in "
-              "the same producer tcrv_rvv.with_vl body and consume the same "
-              "!tcrv_rvv.vl token as the handoff";
+              "the same producer weft_rvv.with_vl body and consume the same "
+              "!weft_rvv.vl token as the handoff";
 
   const bool hasSupportedResourceDecision =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           isRVVLowPrecisionResourceSupportedRealizationDecision(
               getResourceDecision());
   if (!hasSupportedResourceDecision)
@@ -522,22 +522,22 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
            << "requires resource_decision to match the RVV low-precision "
               "realization decision";
   const std::int64_t expectedProducerMarkerIndex =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
               getResourceDecision());
   const std::int64_t expectedConsumerMarkerIndex =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
               getResourceDecision());
   const llvm::StringRef expectedFromPhase =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
               getResourceDecision());
   const std::int64_t expectedRegionCount =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
               getResourceDecision());
-  if (!tianchenrv::plugin::rvv::isRVVLowPrecisionResourceCandidateSetMember(
+  if (!weft::plugin::rvv::isRVVLowPrecisionResourceCandidateSetMember(
           getResourceCandidateSet(), getResourceSelectedCandidate()))
     return emitOpError()
            << "requires resource_selected_candidate to belong to the "
@@ -562,18 +562,18 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (!planningContract)
     return emitOpError()
            << "requires planning_contract '"
-           << tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract
+           << weft::plugin::rvv::kRVVLowPrecisionResourcePlanningContract
            << "' from the selected low-precision resource plan";
   if (planningContract.getValue() !=
-      tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract)
+      weft::plugin::rvv::kRVVLowPrecisionResourcePlanningContract)
     return emitOpError()
            << "requires planning_contract to match the selected "
               "low-precision resource planning contract '"
-           << tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract
+           << weft::plugin::rvv::kRVVLowPrecisionResourcePlanningContract
            << "' but found '" << planningContract.getValue() << "'";
 
   const llvm::StringRef expectedDecisionFromCandidate =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionContractionResourceRealizationDecision(
               getResourceSelectedCandidate());
   if (expectedDecisionFromCandidate.empty() ||
@@ -583,36 +583,36 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               "low-precision resource candidate";
 
   const bool isPackedI4Resource =
-      tianchenrv::plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+      weft::plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           getResourceSelectedCandidate());
   const llvm::StringRef expectedOperandForm =
       isPackedI4Resource
-          ? llvm::StringRef(tianchenrv::plugin::rvv::
+          ? llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceOperandFormPackedI4Nibbles)
-          : llvm::StringRef(tianchenrv::plugin::rvv::
+          : llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceOperandFormUnpackedByte);
   const llvm::StringRef expectedPackingLayout =
       isPackedI4Resource
-          ? llvm::StringRef(tianchenrv::plugin::rvv::
+          ? llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles)
-          : llvm::StringRef(tianchenrv::plugin::rvv::
+          : llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourcePackingLayoutByte);
   const llvm::StringRef expectedUnpackIntent =
       isPackedI4Resource
-          ? llvm::StringRef(tianchenrv::plugin::rvv::
+          ? llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles)
-          : llvm::StringRef(tianchenrv::plugin::rvv::
+          : llvm::StringRef(weft::plugin::rvv::
                                 kRVVLowPrecisionResourceUnpackIntentNone);
   const std::int64_t expectedPeakLiveVectorGroups =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
               getResourceSelectedCandidate());
   const std::int64_t expectedProductRegionIndex =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
               getResourceDecision());
   const std::int64_t expectedDequantRegionIndex =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
               getResourceDecision());
 
@@ -628,7 +628,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
            << "requires peak_live_vector_groups to match the selected "
               "low-precision resource candidate";
   if (static_cast<std::int64_t>(getVectorRegisterBudget()) !=
-      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget)
+      weft::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget)
     return emitOpError()
            << "requires vector_register_budget to match the provider-owned "
               "low-precision resource budget";
@@ -683,21 +683,21 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   };
   if (mlir::failed(requireOptionalPackedI4ResourceCostStringFact(
           kResourceCostContractAttrName, "resource cost contract",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalPackedI4ResourceCostStringFact(
           kResourceCostModelAttrName, "resource cost model",
-          tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel)))
+          weft::plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel)))
     return mlir::failure();
   if (mlir::failed(requireOptionalPackedI4ResourceCostIntegerFact(
           kResourceCostLoopBodyStepsAttrName, "resource cost loop-body steps",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostLoopBodySteps)))
     return mlir::failure();
   if (mlir::failed(requireOptionalPackedI4ResourceCostStringFact(
           kResourceCostBlockerAttrName, "resource cost blocker",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostBlocker)))
     return mlir::failure();
   auto requireOptionalMeasurementDispositionAdmissionFact =
@@ -726,31 +726,31 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kPerformanceAdmissionDecisionAttrName,
           "performance admission decision",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionContractAttrName,
           "beyond-local repair admission contract",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionDecisionAttrName,
           "beyond-local repair admission decision",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionBlockerAttrName,
           "beyond-local repair admission blocker",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)))
     return mlir::failure();
   if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionReopenRequirementAttrName,
           "beyond-local repair admission reopen requirement",
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)))
     return mlir::failure();
 
@@ -767,7 +767,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               "region_count";
 
   const bool isDequantClampResource =
-      tianchenrv::plugin::rvv::
+      weft::plugin::rvv::
           isRVVLowPrecisionResourceDequantClampCandidateID(
               getResourceSelectedCandidate());
   auto requireOptionalClampStringFact =
@@ -816,25 +816,25 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   };
   if (mlir::failed(requireOptionalClampIntegerFact(
           kClampRegionIndexAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampRegionIndexForCandidate(
                   getResourceSelectedCandidate()))))
     return mlir::failure();
   if (mlir::failed(requireOptionalClampStringFact(
           kClampPhaseAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampPhaseForCandidate(
                   getResourceSelectedCandidate()))))
     return mlir::failure();
   if (mlir::failed(requireOptionalClampStringFact(
           kClampCompareSelectPhaseAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
                   getResourceSelectedCandidate()))))
     return mlir::failure();
   if (mlir::failed(requireOptionalClampStringFact(
           kClampSelectLayoutAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
                   getResourceSelectedCandidate()))))
     return mlir::failure();
@@ -867,47 +867,47 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   };
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationPlanContractAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationPlanContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationPlanAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationStatementStrategyAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationVectorBudgetAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationScheduleContractAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationScheduleContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationUnpackPlanAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationProductPlanAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationProductPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationReductionPlanAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationReductionPlan)))
     return mlir::failure();
   if (mlir::failed(requireOptionalRemediationFact(
           kRemediationVLPlanAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
   auto requireOptionalResourceScheduleFact =
@@ -934,25 +934,25 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   };
   if (mlir::failed(requireOptionalResourceScheduleFact(
           kScheduleDecisionContractAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceScheduleFact(
           kScheduleDecisionAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceScheduleFact(
           kScheduleDecisionReasonAttrName,
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
     return mlir::failure();
 
-  tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
-  tcrv::rvv::VSetVLRegionMarkerOp secondMarker;
+  weft::rvv::VSetVLRegionMarkerOp firstMarker;
+  weft::rvv::VSetVLRegionMarkerOp secondMarker;
   bool sawHandoff = false;
   auto markerMatchesHandoffPlanningContract =
-      [&](tcrv::rvv::VSetVLRegionMarkerOp marker) {
+      [&](weft::rvv::VSetVLRegionMarkerOp marker) {
         auto markerPlanningContract =
             marker->getAttrOfType<mlir::StringAttr>(kPlanningContractAttrName);
         return markerPlanningContract &&
@@ -963,7 +963,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       sawHandoff = true;
       continue;
     }
-    auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(&nested);
+    auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(&nested);
     if (!marker)
       continue;
     if (marker.getVl() != getVl() ||
@@ -971,8 +971,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
         marker.getResourceDecision() != getResourceDecision() ||
         !markerMatchesHandoffPlanningContract(marker))
       return emitOpError()
-             << "requires surrounding tcrv_rvv.vsetvl_region_marker ops to "
-                "consume the same !tcrv_rvv.vl token and carry matching "
+             << "requires surrounding weft_rvv.vsetvl_region_marker ops to "
+                "consume the same !weft_rvv.vl token and carry matching "
                 "region_count/resource_decision/planning_contract";
     if (!sawHandoff &&
         static_cast<std::int64_t>(marker.getRegionIndex()) ==
@@ -990,14 +990,14 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (!firstMarker)
     return emitOpError()
            << "requires a preceding " << expectedFromPhase
-           << " tcrv_rvv.vsetvl_region_marker in the producer scope with "
+           << " weft_rvv.vsetvl_region_marker in the producer scope with "
               "matching VL/resource facts";
   if (!secondMarker)
     if (mlir::failed(findNestedWithVLConsumerAfter(
             op, getVl(), [&](WithVLOp consumerWithVL) {
-              tcrv::rvv::VSetVLRegionMarkerOp nestedSecondMarker;
-              tcrv::rvv::DequantizeOp consumerDequantize;
-              tcrv::rvv::StoreOp consumerStore;
+              weft::rvv::VSetVLRegionMarkerOp nestedSecondMarker;
+              weft::rvv::DequantizeOp consumerDequantize;
+              weft::rvv::StoreOp consumerStore;
               auto valueUsesConsumerDequantize = [&](mlir::Value value) {
                 llvm::SmallVector<mlir::Value, 4> worklist{value};
                 llvm::SmallPtrSet<mlir::Value, 4> seen;
@@ -1006,13 +1006,13 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
                   if (!seen.insert(current).second)
                     continue;
                   if (auto dequantize =
-                          current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+                          current.getDefiningOp<weft::rvv::DequantizeOp>()) {
                     if (dequantize == consumerDequantize)
                       return true;
                     continue;
                   }
                   auto select =
-                      current.getDefiningOp<tcrv::rvv::SelectOp>();
+                      current.getDefiningOp<weft::rvv::SelectOp>();
                   if (!select ||
                       select->getParentOp() != consumerWithVL.getOperation() ||
                       select.getVl() != getVl())
@@ -1025,7 +1025,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               for (mlir::Operation &consumerNested :
                    consumerWithVL.getBody().front()) {
                 if (auto marker =
-                        llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(
+                        llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(
                             consumerNested)) {
                   if (marker.getVl() == getVl() &&
                       static_cast<std::int64_t>(marker.getRegionIndex()) ==
@@ -1038,14 +1038,14 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
                   continue;
                 }
                 if (auto dequantize =
-                        llvm::dyn_cast<tcrv::rvv::DequantizeOp>(
+                        llvm::dyn_cast<weft::rvv::DequantizeOp>(
                             consumerNested)) {
                   if (dequantize.getSource() == getOutput() &&
                       dequantize.getVl() == getVl())
                     consumerDequantize = dequantize;
                   continue;
                 }
-                if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(
+                if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(
                         consumerNested)) {
                   if (consumerDequantize &&
                       valueUsesConsumerDequantize(store.getValue()) &&
@@ -1060,10 +1060,10 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
             })))
       return emitOpError()
              << "requires a preceding " << expectedFromPhase
-             << " tcrv_rvv.vsetvl_region_marker in the producer scope and a "
-                "following dequant-store tcrv_rvv.vsetvl_region_marker plus "
+             << " weft_rvv.vsetvl_region_marker in the producer scope and a "
+                "following dequant-store weft_rvv.vsetvl_region_marker plus "
                 "handoff-consuming dequant/store chain in the consumer "
-                "tcrv_rvv.with_vl scope with matching VL/resource facts";
+                "weft_rvv.with_vl scope with matching VL/resource facts";
 
   if (getContract() !=
       "gearbox-product-reduce-to-dequant-cross-region-handoff.v1")
@@ -1083,15 +1083,15 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires runtime_avl_source 'runtime_abi:n'";
   if (getProducerScope() !=
-      tianchenrv::plugin::rvv::kRVVGearboxProducerScope)
+      weft::plugin::rvv::kRVVGearboxProducerScope)
     return emitOpError()
            << "requires producer_scope '"
-           << tianchenrv::plugin::rvv::kRVVGearboxProducerScope << "'";
+           << weft::plugin::rvv::kRVVGearboxProducerScope << "'";
   if (getConsumerScope() !=
-      tianchenrv::plugin::rvv::kRVVGearboxConsumerScope)
+      weft::plugin::rvv::kRVVGearboxConsumerScope)
     return emitOpError()
            << "requires consumer_scope '"
-           << tianchenrv::plugin::rvv::kRVVGearboxConsumerScope << "'";
+           << weft::plugin::rvv::kRVVGearboxConsumerScope << "'";
   if (getProducerScope() == getConsumerScope())
     return emitOpError()
            << "requires producer_scope and consumer_scope to be distinct "
@@ -1110,39 +1110,39 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   };
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveChainContractAttrName, getPrimitiveChainContract(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveChainContract)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveChainKindAttrName, getPrimitiveChainKind(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveChainKind)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveSourceSignednessAttrName, getPrimitiveSourceSignedness(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceSourceSignednessSigned)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveSourceLoadAttrName, getPrimitiveSourceLoad(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveSourceLoad)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveSourceExtensionAttrName, getPrimitiveSourceExtension(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveSourceExtension)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kWideningProductMultiplicandRolesAttrName,
           getWideningProductMultiplicandRoles(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceWideningProductMultiplicandRoles)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kWideningProductExtensionPolicyAttrName,
           getWideningProductExtensionPolicy(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
@@ -1153,30 +1153,30 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveWideningProductRelationAttrName,
           getPrimitiveWideningProductRelation(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveWideningProductRelation)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveProductReductionChainRelationAttrName,
           getPrimitiveProductReductionChainRelation(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveWideningProductIntrinsicAttrName,
           getPrimitiveWideningProductIntrinsic(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveReductionIntrinsicAttrName, getPrimitiveReductionIntrinsic(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveReductionIntrinsic)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveScalarSeedSplatIntrinsicAttrName,
           getPrimitiveScalarSeedSplatIntrinsic(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
@@ -1186,7 +1186,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveAccumulatorLayoutAttrName,
           getPrimitiveAccumulatorLayout(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveAccumulatorLayout)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
@@ -1195,12 +1195,12 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveResultLayoutAttrName, getPrimitiveResultLayout(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveResultLayout)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveReductionStoreVLAttrName, getPrimitiveReductionStoreVl(),
-          tianchenrv::plugin::rvv::
+          weft::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveReductionStoreVL)))
     return mlir::failure();
 
@@ -1304,7 +1304,7 @@ mlir::LogicalResult I32LoadOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i32_load keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.i32_load keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -1320,15 +1320,15 @@ mlir::LogicalResult I32LoadOp::verify() {
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one explicit input buffer ABI operand, one "
-              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+              "!weft_rvv.vl operand, and one bounded RVV i32 vector result";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "input buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -1348,7 +1348,7 @@ mlir::LogicalResult I32BroadcastLoadOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i32_broadcast_load keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.i32_broadcast_load keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -1364,14 +1364,14 @@ mlir::LogicalResult I32BroadcastLoadOp::verify() {
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one explicit RHS buffer ABI operand, one "
-              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+              "!weft_rvv.vl operand, and one bounded RVV i32 vector result";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "broadcast RHS buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))

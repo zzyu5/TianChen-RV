@@ -1,6 +1,6 @@
 # Implementation Stack Specs
 
-This layer defines the durable implementation stack for TianChen-RV MLIR.
+This layer defines the durable implementation stack for Weft-RV MLIR.
 
 ## Pre-Development Checklist
 
@@ -24,4 +24,4 @@ This layer defines the durable implementation stack for TianChen-RV MLIR.
 - Core compiler objects must not be modeled as Python dictionaries/classes as the implementation of record.
 - Python scripts may inspect, launch, parse, or orchestrate compiler runs; they may not become the compiler stack.
 - Any fallback caused by missing local MLIR/LLVM tools must be explicit diagnostics, not an alternate Python compiler implementation.
-- RVV route support must flow through typed `tcrv_rvv` bodies, plugin-owned selected-body realization/route provider, and common EmitC materialization; Python may only orchestrate or probe around that compiler path.
+- RVV route support must flow through typed `weft_rvv` bodies, plugin-owned selected-body realization/route provider, and common EmitC materialization; Python may only orchestrate or probe around that compiler path.

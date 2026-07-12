@@ -1,4 +1,4 @@
-# RUN: tianchenrv-rvv-dialect-test | FileCheck %s
+# RUN: weft-rvv-dialect-test | FileCheck %s
 
 # CHECK: RVV typed policy attribute round trip preserved
 # CHECK: RVV generic typed vector-add dataflow round trip preserved

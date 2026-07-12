@@ -1,6 +1,6 @@
 // END-TO-END production-export CLOSURE for the Track-B dequant front door: the
 // front door's OWN auto-constructed body now flows through the production export
-// pipeline (--tcrv-materialize-emission-plans), proving the front door stamps the
+// pipeline (--weft-materialize-emission-plans), proving the front door stamps the
 // N3 low_precision_resource.* facts the NON-deferred wide product-reduce-dequant
 // op-kind requires for route acceptance.
 //
@@ -11,8 +11,8 @@
 // runs the COMPILER's own front door, which must AUTO-construct the wide body AND
 // auto-stamp the resource facts (derived structurally from the realized i8m2/i16m4
 // strip, I5). Before the front-door fact-stamp, this exact chain failed
-// --tcrv-materialize-emission-plans with "requires ... resource fact
-// 'tcrv_rvv.low_precision_resource.candidate_set' before route acceptance"; the
+// --weft-materialize-emission-plans with "requires ... resource fact
+// 'weft_rvv.low_precision_resource.candidate_set' before route acceptance"; the
 // front door built the right body SHAPE but stamped ZERO resource facts.
 //
 // The CHAIN: generic vector source --auto-construct body + stamp facts-->
@@ -33,20 +33,20 @@
 // The front door's OWN output now exports: the PLAN carries the WIDE primitive
 // LMUL (source m2 / product m4 / accumulator m1) while the route identity stays
 // NARROW i8mf4-i16mf2.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
 // The exported EmitC emits the WIDE intrinsics (vsetvl_e8m2 / vle8_v_i8m2 /
 // vwmul_vv_i16m4 / vwredsum_vs_i16m4_i32m1), NOT the narrow i8mf4/i16mf2 forms.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 // PLAN-DAG: "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"
-// PLAN-DAG: "tcrv_rvv.low_precision_primitive.source_lmul", value = "m2"
-// PLAN-DAG: "tcrv_rvv.low_precision_primitive.product_lmul", value = "m4"
-// PLAN-DAG: "tcrv_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
+// PLAN-DAG: "weft_rvv.low_precision_primitive.source_lmul", value = "m2"
+// PLAN-DAG: "weft_rvv.low_precision_primitive.product_lmul", value = "m4"
+// PLAN-DAG: "weft_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
 // The route IDENTITY stays narrow (the wide strip is internal to the realized body).
-// PLAN-DAG: "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
+// PLAN-DAG: "weft_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
 
-// EMITC: emitc.func @tcrv_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
+// EMITC: emitc.func @weft_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
 // EMITC: call_opaque "__riscv_vsetvl_e8m2"
 // EMITC-NOT: call_opaque "__riscv_vsetvl_e8m1"
 // EMITC-NOT: call_opaque "__riscv_vsetvl_e8mf4"
@@ -65,20 +65,20 @@
 // (source m1 / product m2 / accumulator m1) while the route identity stays NARROW
 // i8mf4-i16mf2 (identical leaf profile to VLEN128 -- the wide strip is internal to
 // the realized body, the flip is capability-driven not a second hardcoded branch).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN256
 
 // The exported EmitC emits the m1/m2 WIDE intrinsics (vsetvl_e8m1 / vle8_v_i8m1 /
 // vwmul_vv_i16m2 / vwredsum_vs_i16m2_i32m1) -- ZERO narrow mf4/mf2 AND ZERO m2/m4.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 
 // PLAN256-DAG: "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"
-// PLAN256-DAG: "tcrv_rvv.low_precision_primitive.source_lmul", value = "m1"
-// PLAN256-DAG: "tcrv_rvv.low_precision_primitive.product_lmul", value = "m2"
-// PLAN256-DAG: "tcrv_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
+// PLAN256-DAG: "weft_rvv.low_precision_primitive.source_lmul", value = "m1"
+// PLAN256-DAG: "weft_rvv.low_precision_primitive.product_lmul", value = "m2"
+// PLAN256-DAG: "weft_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
 // The route IDENTITY stays narrow (the wide strip is internal to the realized body).
-// PLAN256-DAG: "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
+// PLAN256-DAG: "weft_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
 
-// EMITC256: emitc.func @tcrv_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
+// EMITC256: emitc.func @weft_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
 // EMITC256: call_opaque "__riscv_vsetvl_e8m1"
 // EMITC256-NOT: call_opaque "__riscv_vsetvl_e8m2"
 // EMITC256-NOT: call_opaque "__riscv_vsetvl_e8mf4"
@@ -95,7 +95,7 @@
 // EMITC256: call_opaque "__riscv_vse32_v_f32m1"
 // EMITC256: return
 
-module attributes {tcrv_rvv.source_front_door = "bounded_widening_dot_reduce_dequantize_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_dequantize_source"} {
   func.func @source_dequant_dot(%lhs: memref<?xi8>, %rhs: memref<?xi8>, %out: memref<?xf32>, %acc: memref<?xi32>, %scale: f32, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i8

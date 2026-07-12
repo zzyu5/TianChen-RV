@@ -3,20 +3,20 @@
 // The CERT-FD dequant首族 PRE-EMITC front door. See the header for the full WHY.
 //
 // In one line: it runs ONLY the CONSTRUCTION half of the streaming dequantize_row
-// front door (the shared byte-exact tcrv::rvv::constructTypedDequantizeRowLoopBody)
-// and STOPS at the realized typed region -- BEFORE --tcrv-rvv-lower-to-emitc -- so
+// front door (the shared byte-exact weft::rvv::constructTypedDequantizeRowLoopBody)
+// and STOPS at the realized typed region -- BEFORE --weft-rvv-lower-to-emitc -- so
 // the certification walker can walk (and hence machine-certify) the constructed
-// tcrv_rvv.typed_dequantize_row_loop_body region. NO emit here; the emit half
+// weft_rvv.typed_dequantize_row_loop_body region. NO emit here; the emit half
 // (emitTypedDequantizeRowLoopBody) is byte-exact-unchanged and consumes the region
-// when --tcrv-rvv-lower-to-emitc runs next. Numerical semantics: zero change.
+// when --weft-rvv-lower-to-emitc runs next. Numerical semantics: zero change.
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -28,10 +28,10 @@
 #include <memory>
 #include <optional>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftrvv = ::weft::rvv;
 
 class MaterializeRVVDequantizeRowStreamFrontDoorPass final
     : public mlir::PassWrapper<
@@ -41,20 +41,20 @@ public:
   MaterializeRVVDequantizeRowStreamFrontDoorPass() = default;
 
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-dequantize-row-stream-front-door";
+    return "weft-rvv-materialize-dequantize-row-stream-front-door";
   }
   llvm::StringRef getDescription() const final {
-    return "Pre-emitc CONSTRUCT the typed tcrv_rvv.typed_dequantize_row_loop_body "
+    return "Pre-emitc CONSTRUCT the typed weft_rvv.typed_dequantize_row_loop_body "
            "{ dequantize_row_decode_core; typed_dequantize_row_loop_yield } region "
-           "in place of each abstract tcrv_rvv.dequantize_row (one of the 24 "
-           "constructed streaming formats) and STOP before --tcrv-rvv-lower-to-emitc "
+           "in place of each abstract weft_rvv.dequantize_row (one of the 24 "
+           "constructed streaming formats) and STOP before --weft-rvv-lower-to-emitc "
            "so the realized region is walkable (the shared byte-exact construction; "
            "the emit half is unchanged). The whole dequantize_row spectrum is now "
            "front-door CONSTRUCTED (q1_0 was the last flat leaf flipped).";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<tcrvrvv::TCRVRVVDialect>();
+    registry.insert<weftrvv::WEFTRVVDialect>();
   }
 
   void runOnOperation() final {
@@ -63,16 +63,16 @@ public:
 
     // Collect first, then rewrite: constructTypedDequantizeRowLoopBody erases each
     // abstract op, so mutating during the walk would be unsafe.
-    llvm::SmallVector<tcrvrvv::GgmlDequantizeRowOp> deqOps;
+    llvm::SmallVector<weftrvv::GgmlDequantizeRowOp> deqOps;
     module.walk(
-        [&](tcrvrvv::GgmlDequantizeRowOp op) { deqOps.push_back(op); });
+        [&](weftrvv::GgmlDequantizeRowOp op) { deqOps.push_back(op); });
 
-    for (tcrvrvv::GgmlDequantizeRowOp deqOp : deqOps) {
-      std::optional<tcrvrvv::DequantizeRowStreamFacts> facts =
-          tcrvrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
+    for (weftrvv::GgmlDequantizeRowOp deqOp : deqOps) {
+      std::optional<weftrvv::DequantizeRowStreamFacts> facts =
+          weftrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
       if (!facts)
         continue; // unrecognized format: leave abstract (dispatch-wired monolith).
-      if (mlir::failed(tcrvrvv::constructTypedDequantizeRowLoopBody(
+      if (mlir::failed(weftrvv::constructTypedDequantizeRowLoopBody(
               rewriter, deqOp, *facts))) {
         deqOp.emitError()
             << "dequantize_row-stream front door failed to construct the typed "
@@ -96,11 +96,11 @@ llvm::Error registerRVVDequantizeRowStreamFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry & /*registry*/,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin, "tcrv-rvv-materialize-dequantize-row-stream-front-door",
+      ownerPlugin, "weft-rvv-materialize-dequantize-row-stream-front-door",
       "Pre-emitc construct the typed streaming dequantize_row loop-body region "
-      "(tcrv_rvv.typed_dequantize_row_loop_body { dequantize_row_decode_core; "
-      "yield }) in place of the abstract tcrv_rvv.dequantize_row so the realized "
-      "region is walkable before --tcrv-rvv-lower-to-emitc (the shared byte-exact "
+      "(weft_rvv.typed_dequantize_row_loop_body { dequantize_row_decode_core; "
+      "yield }) in place of the abstract weft_rvv.dequantize_row so the realized "
+      "region is walkable before --weft-rvv-lower-to-emitc (the shared byte-exact "
       "construction; the whole dequantize_row spectrum is front-door constructed)",
       [] { return createMaterializeRVVDequantizeRowStreamFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
@@ -108,4 +108,4 @@ llvm::Error registerRVVDequantizeRowStreamFrontDoorPasses(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

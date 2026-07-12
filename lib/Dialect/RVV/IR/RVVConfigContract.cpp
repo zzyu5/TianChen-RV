@@ -1,4 +1,4 @@
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
 
 #include "mlir/IR/Builders.h"
 #include "llvm/ADT/STLExtras.h"
@@ -9,7 +9,7 @@
 #include <string>
 #include <tuple>
 
-namespace tianchenrv::tcrv::rvv {
+namespace weft::rvv {
 namespace {
 
 constexpr std::int64_t kRVVFirstSliceSEWBits = 32;
@@ -59,9 +59,9 @@ constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeAVLABIParameter("n");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeAVLASource(
     "runtime_abi:n");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIOrder("lhs,rhs,out,n");
-constexpr llvm::StringLiteral kRVVSelectedBodyVLDefOpName("tcrv_rvv.setvl");
+constexpr llvm::StringLiteral kRVVSelectedBodyVLDefOpName("weft_rvv.setvl");
 constexpr llvm::StringLiteral kRVVSelectedBodyVLScopeOpName(
-    "tcrv_rvv.with_vl");
+    "weft_rvv.with_vl");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyVLUses("emitc_for,with_vl,load,(load|broadcast_load),"
                            "(binary|compare->select|reduce|macc|"
@@ -260,13 +260,13 @@ RVVConfigContractDiagnostic fail(llvm::Twine message) {
 
 llvm::Error makeArtifactMetadataError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV artifact metadata invalid: ") + message,
+      llvm::Twine("Weft-RV RVV artifact metadata invalid: ") + message,
       llvm::errc::invalid_argument);
 }
 
 llvm::Error makeRuntimeABIError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV selected-body runtime ABI contract "
+      llvm::Twine("Weft-RV RVV selected-body runtime ABI contract "
                   "invalid: ") +
           message,
       llvm::errc::invalid_argument);
@@ -483,10 +483,10 @@ RVVConfigContractDiagnostic
 validateRVVSelectedBodyConfigVLStructure(SetVLOp setvl, WithVLOp withVL) {
   if (!setvl)
     return fail("selected RVV body config/VL structure requires exactly one "
-                "tcrv_rvv.setvl op");
+                "weft_rvv.setvl op");
   if (!withVL)
     return fail("selected RVV body config/VL structure requires exactly one "
-                "tcrv_rvv.with_vl op");
+                "weft_rvv.with_vl op");
 
   RVVCompileTimeConfig setvlConfig = getRVVSetVLCompileTimeConfig(setvl);
 
@@ -494,16 +494,16 @@ validateRVVSelectedBodyConfigVLStructure(SetVLOp setvl, WithVLOp withVL) {
       getRVVWithVLCompileTimeConfig(withVL);
   if (!withVLConfig)
     return fail("selected RVV body config/VL structure requires "
-                "tcrv_rvv.with_vl to carry explicit SEW, LMUL, and policy "
+                "weft_rvv.with_vl to carry explicit SEW, LMUL, and policy "
                 "metadata");
 
   if (!areRVVCompileTimeConfigsEqual(setvlConfig, *withVLConfig))
     return fail("selected RVV body config/VL structure requires "
-                "tcrv_rvv.setvl and tcrv_rvv.with_vl metadata to match");
+                "weft_rvv.setvl and weft_rvv.with_vl metadata to match");
 
   if (withVL.getVl() != setvl.getVl())
     return fail("selected RVV body config/VL structure requires "
-                "tcrv_rvv.with_vl to consume the visible tcrv_rvv.setvl "
+                "weft_rvv.with_vl to consume the visible weft_rvv.setvl "
                 "result");
 
   return RVVConfigContractDiagnostic::success();
@@ -556,23 +556,23 @@ validateRVVSelectedBodyM1ConfigVLContract(SetVLOp setvl, WithVLOp withVL) {
   RVVCompileTimeConfig setvlConfig = getRVVSetVLCompileTimeConfig(setvl);
   if (!isRVVSelectedBodyM1Config(setvlConfig.sew, setvlConfig.lmul))
     return fail("selected RVV body compile-time config requires "
-                "tcrv_rvv.setvl SEW32 LMUL m1");
+                "weft_rvv.setvl SEW32 LMUL m1");
   if (!isRVVAgnosticPolicy(setvlConfig.policy))
     return fail("selected RVV body compile-time config requires "
-                "tcrv_rvv.setvl tail agnostic, mask agnostic policy");
+                "weft_rvv.setvl tail agnostic, mask agnostic policy");
 
   std::optional<RVVCompileTimeConfig> withVLConfig =
       getRVVWithVLCompileTimeConfig(withVL);
   if (!withVLConfig)
     return fail("selected RVV body compile-time config requires "
-                "tcrv_rvv.with_vl to carry explicit SEW, LMUL, and policy "
+                "weft_rvv.with_vl to carry explicit SEW, LMUL, and policy "
                 "metadata");
   if (!isRVVSelectedBodyM1Config(withVLConfig->sew, withVLConfig->lmul))
     return fail("selected RVV body compile-time config requires "
-                "tcrv_rvv.with_vl SEW32 LMUL m1");
+                "weft_rvv.with_vl SEW32 LMUL m1");
   if (!isRVVAgnosticPolicy(withVLConfig->policy))
     return fail("selected RVV body compile-time config requires "
-                "tcrv_rvv.with_vl tail agnostic, mask agnostic policy");
+                "weft_rvv.with_vl tail agnostic, mask agnostic policy");
 
   return RVVConfigContractDiagnostic::success();
 }
@@ -580,36 +580,36 @@ validateRVVSelectedBodyM1ConfigVLContract(SetVLOp setvl, WithVLOp withVL) {
 llvm::ArrayRef<support::ArtifactMetadataEntry>
 getRVVSelectedBodyConfigArtifactMetadata() {
   static const support::ArtifactMetadataEntry kMetadata[] = {
-      {"tcrv_rvv.config_contract",
+      {"weft_rvv.config_contract",
        kRVVSelectedBodyM1ConfigVLContract.configContractID},
-      {"tcrv_rvv.element_type", "i32"},
-      {"tcrv_rvv.sew", "32"},
-      {"tcrv_rvv.lmul", kRVVSelectedBodyM1ConfigVLContract.lmul},
-      {"tcrv_rvv.tail_policy", "agnostic"},
-      {"tcrv_rvv.mask_policy", "agnostic"},
-      {"tcrv_rvv.runtime_vl_contract",
+      {"weft_rvv.element_type", "i32"},
+      {"weft_rvv.sew", "32"},
+      {"weft_rvv.lmul", kRVVSelectedBodyM1ConfigVLContract.lmul},
+      {"weft_rvv.tail_policy", "agnostic"},
+      {"weft_rvv.mask_policy", "agnostic"},
+      {"weft_rvv.runtime_vl_contract",
        kRVVSelectedBodyM1ConfigVLContract.runtimeVLContractID},
-      {"tcrv_rvv.runtime_avl_source",
+      {"weft_rvv.runtime_avl_source",
        kRVVSelectedBodyM1ConfigVLContract.runtimeAVLASource},
-      {"tcrv_rvv.vl_def", kRVVSelectedBodyM1ConfigVLContract.vlDefOpName},
-      {"tcrv_rvv.vl_scope", kRVVSelectedBodyM1ConfigVLContract.vlScopeOpName},
-      {"tcrv_rvv.vl_uses", kRVVSelectedBodyM1ConfigVLContract.vlUses},
-      {"tcrv_rvv.runtime_abi_order",
+      {"weft_rvv.vl_def", kRVVSelectedBodyM1ConfigVLContract.vlDefOpName},
+      {"weft_rvv.vl_scope", kRVVSelectedBodyM1ConfigVLContract.vlScopeOpName},
+      {"weft_rvv.vl_uses", kRVVSelectedBodyM1ConfigVLContract.vlUses},
+      {"weft_rvv.runtime_abi_order",
        kRVVSelectedBodyM1ConfigVLContract.runtimeABIOrder},
-      {"tcrv_rvv.runtime_avl_abi_parameter",
+      {"weft_rvv.runtime_avl_abi_parameter",
        kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName},
-      {"tcrv_rvv.emitc_loop", kRVVSelectedBodyM1ConfigVLContract.emitCLoopKind},
-      {"tcrv_rvv.loop_induction",
+      {"weft_rvv.emitc_loop", kRVVSelectedBodyM1ConfigVLContract.emitCLoopKind},
+      {"weft_rvv.loop_induction",
        kRVVSelectedBodyM1ConfigVLContract.emitCLoopInductionName},
-      {"tcrv_rvv.loop_step",
+      {"weft_rvv.loop_step",
        kRVVSelectedBodyM1ConfigVLContract.emitCFullChunkVLName},
-      {"tcrv_rvv.remaining_avl",
+      {"weft_rvv.remaining_avl",
        kRVVSelectedBodyM1ConfigVLContract.remainingAVLMetadata},
-      {"tcrv_rvv.pointer_advance",
+      {"weft_rvv.pointer_advance",
        kRVVSelectedBodyM1ConfigVLContract.pointerAdvanceMetadata},
-      {"tcrv_rvv.bounded_slice",
+      {"weft_rvv.bounded_slice",
        kRVVSelectedBodyM1ConfigVLContract.boundedSlice},
-      {"tcrv_rvv.multi_vl", kRVVSelectedBodyM1ConfigVLContract.multiVL},
+      {"weft_rvv.multi_vl", kRVVSelectedBodyM1ConfigVLContract.multiVL},
   };
   return kMetadata;
 }
@@ -2070,4 +2070,4 @@ getRVVSelectedBodyEmitCRemainingAVLExpression(llvm::StringRef runtimeCountName,
   return (runtimeCountName + " - " + inductionName).str();
 }
 
-} // namespace tianchenrv::tcrv::rvv
+} // namespace weft::rvv

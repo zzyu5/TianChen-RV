@@ -1,11 +1,11 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
-#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Template/IR/TemplateDialect.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -22,26 +22,26 @@
 #include <string>
 #include <utility>
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalDecline;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::template_ext::ComputeSkeletonOp;
-using tianchenrv::tcrv::template_ext::LoweringBoundaryOp;
-using tianchenrv::transforms::VariantSelectionKind;
-using tianchenrv::transforms::VariantSelectionPlan;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalDecline;
+using weft::plugin::VariantProposalRequest;
+using weft::conversion::emitc::WEFTEmitCLowerableOpInterface;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::template_ext::ComputeSkeletonOp;
+using weft::template_ext::LoweringBoundaryOp;
+using weft::transforms::VariantSelectionKind;
+using weft::transforms::VariantSelectionPlan;
 
 namespace {
 
@@ -166,9 +166,9 @@ int expectProposalStringAttr(const VariantProposal &proposal,
 
 int runConstructionManifestTest() {
   const auto &manifest =
-      tianchenrv::plugin::template_ext::getTemplateConstructionManifest();
+      weft::plugin::template_ext::getTemplateConstructionManifest();
   if (int result = expectSuccess(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateConstructionManifest(manifest),
           "Template construction manifest verifies"))
     return result;
@@ -182,12 +182,12 @@ int runConstructionManifestTest() {
     return result;
   if (int result = expect(
           manifest.family.pluginName ==
-                  tianchenrv::plugin::template_ext::
+                  weft::plugin::template_ext::
                       getTemplateExtensionPluginName() &&
               manifest.family.capabilityID ==
-                  tianchenrv::plugin::template_ext::
+                  weft::plugin::template_ext::
                       getTemplateExtensionCapabilityID() &&
-              manifest.family.concreteNamespace == "tcrv_template",
+              manifest.family.concreteNamespace == "weft_template",
           "Template manifest family declaration agrees with plugin metadata"))
     return result;
   if (int result =
@@ -200,25 +200,25 @@ int runConstructionManifestTest() {
     return result;
   for (const auto &role : manifest.semanticRoles) {
     if (int result = expect(
-            role.commonInterfaces.contains("TCRVExtensionOpInterface") &&
-                role.commonInterfaces.contains("TCRVEmitCLowerableInterface"),
+            role.commonInterfaces.contains("WEFTExtensionOpInterface") &&
+                role.commonInterfaces.contains("WEFTEmitCLowerableInterface"),
             llvm::Twine("Template role realizes common interfaces: ") +
                 role.role))
       return result;
   }
   if (int result = expect(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               getTemplateConstructionInterfaceRealization()
-                  .contains("compute=TCRVExtensionOpInterface") &&
-              tianchenrv::plugin::template_ext::
+                  .contains("compute=WEFTExtensionOpInterface") &&
+              weft::plugin::template_ext::
                   getTemplateConstructionInterfaceRealization()
-                      .contains("TCRVComputeOpInterface"),
+                      .contains("WEFTComputeOpInterface"),
           "Template manifest exposes common-interface realization mapping"))
     return result;
   const auto &realization =
-      tianchenrv::plugin::template_ext::getTemplateTypedRoleGraphRealization();
+      weft::plugin::template_ext::getTemplateTypedRoleGraphRealization();
   if (int result = expectSuccess(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateTypedRoleGraphRealization(manifest, realization),
           "Template typed role graph realization verifies"))
     return result;
@@ -227,10 +227,10 @@ int runConstructionManifestTest() {
                      realization.roles[2].typedRoleID ==
                          "template.role.compute.compute_skeleton" &&
                      realization.roles[2].roleSpecificInterface ==
-                         "TCRVComputeOpInterface" &&
+                         "WEFTComputeOpInterface" &&
                      realization.roles[2].emitCLowerableInterface ==
-                         "TCRVEmitCLowerableInterface" &&
-                     tianchenrv::plugin::template_ext::
+                         "WEFTEmitCLowerableInterface" &&
+                     weft::plugin::template_ext::
                          getTemplateTypedRoleRealizationSummary()
                              .contains("compute:template.role.compute"),
                  "Template typed role realization exposes concrete compute role "
@@ -246,9 +246,9 @@ int runConstructionManifestTest() {
           "Template manifest exposes materialized EmitC route fields"))
     return result;
   const auto &route =
-      tianchenrv::plugin::template_ext::getTemplateEmitCConstructionRoute();
+      weft::plugin::template_ext::getTemplateEmitCConstructionRoute();
   if (int result = expectSuccess(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateEmitCConstructionRouteMapping(
                   route.routeID, route.emissionKind, route.artifactKind,
                   route.loweringBoundaryOpName, route.runtimeABI,
@@ -257,7 +257,7 @@ int runConstructionManifestTest() {
           "Template EmitC construction route mapping verifies"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateTargetArtifactBundleMapping(
                   route.headerRouteID, route.headerArtifactKind,
                   route.bundleComponentGroup, route.objectHandoffKind,
@@ -274,7 +274,7 @@ int runConstructionManifestTest() {
 }
 
 int runTypedRoleGraphValidationTest() {
-  namespace template_ext = tianchenrv::plugin::template_ext;
+  namespace template_ext = weft::plugin::template_ext;
   const auto &manifest = template_ext::getTemplateConstructionManifest();
   const auto &realization =
       template_ext::getTemplateTypedRoleGraphRealization();
@@ -334,7 +334,7 @@ int runTypedRoleGraphValidationTest() {
     template_ext::TemplateTypedRoleGraphRealization bad = realization;
     llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
         roles(realization.roles.begin(), realization.roles.end());
-    roles[2].operationName = "tcrv_template.stale_compute_skeleton";
+    roles[2].operationName = "weft_template.stale_compute_skeleton";
     bad.roles = roles;
 
     if (int result = expectErrorContains(
@@ -349,14 +349,14 @@ int runTypedRoleGraphValidationTest() {
     template_ext::TemplateTypedRoleGraphRealization bad = realization;
     llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
         roles(realization.roles.begin(), realization.roles.end());
-    roles[2].roleSpecificInterface = "TCRVMemoryOpInterface";
+    roles[2].roleSpecificInterface = "WEFTMemoryOpInterface";
     bad.roles = roles;
 
     if (int result = expectErrorContains(
             template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
                                                                   bad),
             {"typed role realization entry",
-             "role-specific common interface", "TCRVComputeOpInterface"}))
+             "role-specific common interface", "WEFTComputeOpInterface"}))
       return result;
   }
 
@@ -365,12 +365,12 @@ int runTypedRoleGraphValidationTest() {
     llvm::SmallVector<template_ext::TemplateConstructionSemanticRole, 4> roles(
         manifest.semanticRoles.begin(), manifest.semanticRoles.end());
     roles[2].commonInterfaces =
-        "TCRVExtensionOpInterface+TCRVEmitCLowerableInterface";
+        "WEFTExtensionOpInterface+WEFTEmitCLowerableInterface";
     bad.semanticRoles = roles;
 
     if (int result = expectErrorContains(
             template_ext::verifyTemplateConstructionManifest(bad),
-            {"semantic role 'compute'", "TCRVComputeOpInterface"}))
+            {"semantic role 'compute'", "WEFTComputeOpInterface"}))
       return result;
   }
 
@@ -380,25 +380,25 @@ int runTypedRoleGraphValidationTest() {
 int runTemplateComputeRoleOpInterfaceTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @template_compute_role_interface attributes {} {
-    tcrv.exec.capability @template_extension {
+  weft.exec.kernel @template_compute_role_interface attributes {} {
+    weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
       integration_contract = "template-zero-core-handoff.v1",
       handoff_kind = "template-extension-lowering-boundary"
     }
-    tcrv.exec.variant @template_zero_core_first_slice attributes {
+    weft.exec.variant @template_zero_core_first_slice attributes {
       origin = "template-plugin",
       requires = [@template_extension]
     } {
     }
-    tcrv_template.compute_skeleton {
+    weft_template.compute_skeleton {
       origin = "template-plugin",
       required_capabilities = [@template_extension],
       role = "direct variant",
       role_order = 2 : i64,
-      role_specific_interface = "TCRVComputeOpInterface",
+      role_specific_interface = "WEFTComputeOpInterface",
       selected_variant = @template_zero_core_first_slice,
       source_kernel = "template_compute_role_interface",
       source_role = "compute",
@@ -420,33 +420,33 @@ module {
   KernelOp kernel = findKernel(*module, "template_compute_role_interface");
   ComputeSkeletonOp compute = findTemplateComputeRoleOp(
       kernel,
-      tianchenrv::plugin::template_ext::
+      weft::plugin::template_ext::
           getTemplateExtensionFirstSliceVariantName());
   if (int result =
           expect(compute, "Template ODS compute role op is materialized"))
     return result;
 
   auto lowerable =
-      llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(compute.getOperation());
+      llvm::dyn_cast<WEFTEmitCLowerableOpInterface>(compute.getOperation());
   if (int result =
           expect(lowerable,
                  "Template compute role op implements "
-                 "TCRVEmitCLowerableOpInterface"))
+                 "WEFTEmitCLowerableOpInterface"))
     return result;
   if (int result =
-          expect(lowerable.getTCRVEmitCLowerableSourceOpName() ==
+          expect(lowerable.getWEFTEmitCLowerableSourceOpName() ==
                          ComputeSkeletonOp::getOperationName() &&
-                     lowerable.getTCRVEmitCLowerableSourceRole() == "compute",
+                     lowerable.getWEFTEmitCLowerableSourceRole() == "compute",
                  "Template compute role op exposes interface source op and "
                  "role"))
     return result;
 
   const auto &manifest =
-      tianchenrv::plugin::template_ext::getTemplateConstructionManifest();
+      weft::plugin::template_ext::getTemplateConstructionManifest();
   const auto &realization =
-      tianchenrv::plugin::template_ext::getTemplateTypedRoleGraphRealization();
+      weft::plugin::template_ext::getTemplateTypedRoleGraphRealization();
   if (int result = expectSuccess(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateComputeRoleOpInterface(manifest, realization,
                                                    compute.getOperation()),
           "Template construction validation accepts ODS compute role op"))
@@ -454,10 +454,10 @@ module {
 
   compute->setAttr("source_role", mlir::StringAttr::get(&context, "load"));
   if (int result = expectErrorContains(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateComputeRoleOpInterface(manifest, realization,
                                                   compute.getOperation()),
-          {"TCRVEmitCLowerableOpInterface source role", "compute"}))
+          {"WEFTEmitCLowerableOpInterface source role", "compute"}))
     return result;
   compute->setAttr("source_role", mlir::StringAttr::get(&context, "compute"));
 
@@ -465,7 +465,7 @@ module {
       "typed_role",
       mlir::StringAttr::get(&context, "template.role.compute.stale"));
   if (int result = expectErrorContains(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateComputeRoleOpInterface(manifest, realization,
                                                    compute.getOperation()),
           {"compute role op typed_role", "typed compute role realization"}))
@@ -476,10 +476,10 @@ module {
                             "template.role.compute.compute_skeleton"));
 
   if (int result = expectErrorContains(
-          tianchenrv::plugin::template_ext::
+          weft::plugin::template_ext::
               verifyTemplateComputeRoleOpInterface(
                   manifest, realization, kernel.getOperation()),
-          {"must implement TCRVEmitCLowerableOpInterface"}))
+          {"must implement WEFTEmitCLowerableOpInterface"}))
     return result;
 
   return 0;
@@ -488,32 +488,32 @@ module {
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTemplateExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerTemplateExtensionPlugin(registry),
                         "register Template plugin"))
     return result;
 
   const auto *plugin = registry.lookupPlugin(
-      tianchenrv::plugin::template_ext::getTemplateExtensionPluginName());
+      weft::plugin::template_ext::getTemplateExtensionPluginName());
   if (int result = expect(plugin, "registered Template plugin is visible"))
     return result;
   if (int result =
           expect(plugin->getVersion() ==
-                     tianchenrv::plugin::template_ext::getTemplateExtensionPluginVersion(),
+                     weft::plugin::template_ext::getTemplateExtensionPluginVersion(),
                  "Template plugin version is stable"))
     return result;
 
   const PluginCapability *capability = registry.lookupCapabilityByID(
-      tianchenrv::plugin::template_ext::getTemplateExtensionCapabilityID());
+      weft::plugin::template_ext::getTemplateExtensionCapabilityID());
   if (int result =
           expect(capability &&
                      capability->getKind() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionCapabilityKind(),
                  "Template extension capability metadata is registered"))
     return result;
 
   const auto &manifest =
-      tianchenrv::plugin::template_ext::getTemplateConstructionManifest();
+      weft::plugin::template_ext::getTemplateConstructionManifest();
   if (int result =
           expect(manifest.family.pluginName == plugin->getName() &&
                      manifest.family.capabilityID == capability->getID() &&
@@ -523,15 +523,15 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::registerTemplateExtensionPlugin(registry),
-      {"duplicate TianChen-RV extension plugin", "template-plugin"});
+      weft::plugin::registerTemplateExtensionPlugin(registry),
+      {"duplicate Weft-RV extension plugin", "template-plugin"});
 }
 
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @available_template attributes {} {
-    tcrv.exec.capability @template_extension {
+  weft.exec.kernel @available_template attributes {} {
+    weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
@@ -540,11 +540,11 @@ module {
     }
   }
 
-  tcrv.exec.kernel @missing_template attributes {} {
+  weft.exec.kernel @missing_template attributes {} {
   }
 
-  tcrv.exec.kernel @unavailable_template attributes {} {
-    tcrv.exec.capability @template_extension {
+  weft.exec.kernel @unavailable_template attributes {} {
+    weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
       status = "unavailable",
@@ -553,8 +553,8 @@ module {
     }
   }
 
-  tcrv.exec.kernel @malformed_template attributes {} {
-    tcrv.exec.capability @template_extension {
+  weft.exec.kernel @malformed_template attributes {} {
+    weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
@@ -580,7 +580,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTemplateExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerTemplateExtensionPlugin(registry),
                         "register Template plugin for proposal gating"))
     return result;
 
@@ -603,62 +603,62 @@ module {
   const VariantProposal &proposal = proposals.front();
   if (int result =
           expect(proposal.getVariantName() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionFirstSliceVariantName() &&
                      proposal.getOriginPlugin() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionPluginName() &&
                      proposal.getPolicy() ==
-                         tianchenrv::plugin::template_ext::getTemplateExtensionPolicy(),
+                         weft::plugin::template_ext::getTemplateExtensionPolicy(),
                  "Template proposal preserves stable generic metadata"))
     return result;
   if (int result =
           expect(proposal.getRequiredCapabilityIDs().size() == 1 &&
                      proposal.getRequiredCapabilityIDs().front() ==
-                         tianchenrv::plugin::template_ext::getTemplateExtensionCapabilityID(),
+                         weft::plugin::template_ext::getTemplateExtensionCapabilityID(),
                  "Template proposal requires template.extension capability id"))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, tianchenrv::plugin::template_ext::getTemplateIntegrationContractAttrName(),
-          tianchenrv::plugin::template_ext::getTemplateExpectedIntegrationContract()))
+          proposal, weft::plugin::template_ext::getTemplateIntegrationContractAttrName(),
+          weft::plugin::template_ext::getTemplateExpectedIntegrationContract()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, tianchenrv::plugin::template_ext::getTemplateHandoffKindAttrName(),
-          tianchenrv::plugin::template_ext::getTemplateExpectedHandoffKind()))
+          proposal, weft::plugin::template_ext::getTemplateHandoffKindAttrName(),
+          weft::plugin::template_ext::getTemplateExpectedHandoffKind()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.construction_protocol",
-          tianchenrv::plugin::template_ext::
+          proposal, "weft_template.construction_protocol",
+          weft::plugin::template_ext::
               getTemplateConstructionProtocolVersion()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.archetype",
-          tianchenrv::plugin::template_ext::
+          proposal, "weft_template.archetype",
+          weft::plugin::template_ext::
               getTemplateConstructionArchetype()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.semantic_role_graph",
-          tianchenrv::plugin::template_ext::
+          proposal, "weft_template.semantic_role_graph",
+          weft::plugin::template_ext::
               getTemplateConstructionSemanticRoleGraph()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.common_interface_realization",
-          tianchenrv::plugin::template_ext::
+          proposal, "weft_template.common_interface_realization",
+          weft::plugin::template_ext::
               getTemplateConstructionInterfaceRealization()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.typed_role_realization",
-          tianchenrv::plugin::template_ext::
+          proposal, "weft_template.typed_role_realization",
+          weft::plugin::template_ext::
               getTemplateTypedRoleRealizationSummary()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.emitc_route_mapping",
-          tianchenrv::plugin::template_ext::getTemplateConstructionManifest()
+          proposal, "weft_template.emitc_route_mapping",
+          weft::plugin::template_ext::getTemplateConstructionManifest()
               .emitcRoute.routeID))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_template.evidence_profile",
-          tianchenrv::plugin::template_ext::
+          proposal, "weft_template.evidence_profile",
+          weft::plugin::template_ext::
               getTemplateConstructionEvidenceProfile()))
     return result;
 
@@ -695,7 +695,7 @@ module {
     return result;
   return expect(proposals.empty() && declines.size() == 1 &&
                     declines.front().getPluginName() ==
-                        tianchenrv::plugin::template_ext::getTemplateExtensionPluginName() &&
+                        weft::plugin::template_ext::getTemplateExtensionPluginName() &&
                     declines.front().getReason().contains("integration_contract"),
                 "malformed Template capability records plugin-local decline");
 }
@@ -703,8 +703,8 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @template_extension_kernel attributes {} {
-    tcrv.exec.capability @template_extension {
+  weft.exec.kernel @template_extension_kernel attributes {} {
+    weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
@@ -725,7 +725,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTemplateExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerTemplateExtensionPlugin(registry),
                         "register Template plugin for pipeline hook"))
     return result;
 
@@ -734,7 +734,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize Template proposal"))
     return result;
@@ -745,45 +745,45 @@ module {
 
   VariantOp templateVariant = findVariant(
       kernel,
-      tianchenrv::plugin::template_ext::getTemplateExtensionFirstSliceVariantName());
+      weft::plugin::template_ext::getTemplateExtensionFirstSliceVariantName());
   if (int result = expect(templateVariant, "Template variant is materialized"))
     return result;
   if (int result =
           expect(templateVariant->getAttrOfType<mlir::StringAttr>("origin")
                          .getValue() ==
-                     tianchenrv::plugin::template_ext::getTemplateExtensionPluginName(),
+                     weft::plugin::template_ext::getTemplateExtensionPluginName(),
                  "Template variant has Template origin"))
     return result;
   if (int result =
           expect(templateVariant
                          ->getAttrOfType<mlir::StringAttr>(
-                             tianchenrv::plugin::template_ext::
+                             weft::plugin::template_ext::
                                  getTemplateIntegrationContractAttrName())
                          .getValue() ==
-                     tianchenrv::plugin::template_ext::getTemplateExpectedIntegrationContract(),
+                     weft::plugin::template_ext::getTemplateExpectedIntegrationContract(),
                  "Template variant carries integration contract metadata"))
     return result;
   if (int result =
           expect(templateVariant
                          ->getAttrOfType<mlir::StringAttr>(
-                             "tcrv_template.construction_protocol")
+                             "weft_template.construction_protocol")
                          .getValue() ==
-                     tianchenrv::plugin::template_ext::
+                     weft::plugin::template_ext::
                          getTemplateConstructionProtocolVersion() &&
                      templateVariant
                              ->getAttrOfType<mlir::StringAttr>(
-                                 "tcrv_template.semantic_role_graph")
+                                 "weft_template.semantic_role_graph")
                              .getValue() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateConstructionSemanticRoleGraph() &&
                      templateVariant
                              ->getAttrOfType<mlir::StringAttr>(
-                                 "tcrv_template.common_interface_realization")
+                                 "weft_template.common_interface_realization")
                              .getValue()
-                             .contains("TCRVComputeOpInterface") &&
+                             .contains("WEFTComputeOpInterface") &&
                      templateVariant
                              ->getAttrOfType<mlir::StringAttr>(
-                                 "tcrv_template.typed_role_realization")
+                                 "weft_template.typed_role_realization")
                              .getValue()
                              .contains("compute:template.role.compute"),
                  "Template variant carries code-consumed construction manifest "
@@ -809,14 +809,14 @@ module {
           expect(estimate.hasScore() && estimate.getScore() == 50.0 &&
                      estimate.hasExplicitPreference() &&
                      estimate.getOriginPlugin() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionPluginName() &&
                      estimate.getVariantSymbol() == templateVariant.getSymName(),
                  "Template cost metadata is plugin-owned"))
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("Template selection planning failed: " +
@@ -831,7 +831,7 @@ module {
 
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize Template selected marker"))
     return result;
@@ -839,7 +839,7 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          weft::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
           "materialize Template selected boundary"))
     return result;
@@ -863,7 +863,7 @@ module {
     return result;
   if (int result = expectSuccess(
           registry.validateSelectedLoweringBoundary(
-              tianchenrv::plugin::VariantLoweringBoundaryValidationRequest(
+              weft::plugin::VariantLoweringBoundaryValidationRequest(
                   templateVariant, kernel, capabilities,
                   VariantEmissionRole::DirectVariant,
                   computeRole.getOperation())),
@@ -879,11 +879,11 @@ module {
           "Template emission readiness is checked through route builder"))
     return result;
   const auto &constructionRoute =
-      tianchenrv::plugin::template_ext::getTemplateEmitCConstructionRoute();
+      weft::plugin::template_ext::getTemplateEmitCConstructionRoute();
   if (int result =
           expect(status.isSupported() &&
                      status.getOriginPlugin() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionPluginName() &&
                      status.getVariantSymbol() == templateVariant.getSymName() &&
                      status.getEmissionPath() == constructionRoute.routeID,
@@ -904,25 +904,25 @@ module {
   bool sawSourceInterfaceMetadata = false;
   for (const auto &metadata : emissionPlan.getArtifactMetadata()) {
     if (metadata.key ==
-            tianchenrv::plugin::template_ext::
+            weft::plugin::template_ext::
                 getTemplateEmitCRouteMappingMetadataName() &&
         metadata.value == constructionRoute.routeID)
       sawRouteMetadata = true;
     if (metadata.key ==
-            tianchenrv::plugin::template_ext::
+            weft::plugin::template_ext::
                 getTemplateSourceOpMetadataName() &&
         metadata.value == constructionRoute.loweringBoundaryOpName)
       sawSourceOpMetadata = true;
     if (metadata.key ==
-            tianchenrv::plugin::template_ext::
+            weft::plugin::template_ext::
                 getTemplateSourceOpInterfaceMetadataName() &&
-        metadata.value == "TCRVEmitCLowerableOpInterface")
+        metadata.value == "WEFTEmitCLowerableOpInterface")
       sawSourceInterfaceMetadata = true;
   }
   if (int result =
           expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
@@ -941,7 +941,7 @@ module {
                          constructionRoute.loweringBoundaryOpName &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
-                         tianchenrv::plugin::template_ext::
+                         weft::plugin::template_ext::
                              getTemplateExtensionPreferredCapabilitySymbol() &&
                      sawRouteMetadata && sawSourceOpMetadata &&
                      sawSourceInterfaceMetadata,
@@ -957,14 +957,14 @@ module {
 int main() {
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTemplateExtensionPlugin(
+          expectSuccess(weft::plugin::registerTemplateExtensionPlugin(
                             dialectPlugins),
                         "register Template plugin for dialect setup"))
     return result;
 
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
+  weft::registerPluginDialects(dialectPlugins, dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 

@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -11,14 +11,14 @@
 #include <cstdint>
 #include <optional>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -42,16 +42,16 @@ bool isPreRealizedWideningConversionSignature(
     llvm::StringRef sourceLMUL, std::int64_t destSEW,
     llvm::StringRef destLMUL, llvm::StringRef relation) {
   if (opKind == "widen_i32_to_i64")
-    return sourceSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-           sourceLMUL == tcrv::rvv::getRVVLMULM1() &&
-           destSEW == tcrv::rvv::getRVVSEW64Bits() &&
-           destLMUL == tcrv::rvv::getRVVLMULM2() &&
+    return sourceSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+           sourceLMUL == weft::rvv::getRVVLMULM1() &&
+           destSEW == weft::rvv::getRVVSEW64Bits() &&
+           destLMUL == weft::rvv::getRVVLMULM2() &&
            relation == "signed-i32m1-to-i64m2";
   if (opKind == "sign_extend_widen_vf2")
-    return sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-           sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-           destSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-           destLMUL == tcrv::rvv::getRVVLMULM1() &&
+    return sourceSEW == weft::rvv::getRVVSEW16Bits() &&
+           sourceLMUL == weft::rvv::getRVVLMULMF2() &&
+           destSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+           destLMUL == weft::rvv::getRVVLMULM1() &&
            relation == "signed-i16mf2-to-i32m1";
   return false;
 }
@@ -61,15 +61,15 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVPluginError(llvm::Twine(context) +
                               " must be defined by explicit "
-                              "tcrv_rvv.runtime_abi_value");
+                              "weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -87,8 +87,8 @@ requirePreRealizedRuntimeABIValue(
 
 llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningConversionPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedWideningConversionPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVPluginError(
         "selected RVV widening conversion realization requires a "
@@ -96,7 +96,7 @@ llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVPluginError(
         "pre-realized RVV selected widening conversion body must be a direct "
-        "child of the selected tcrv.exec.variant");
+        "child of the selected weft.exec.variant");
 
   if (!isPreRealizedWideningConversionOpKind(body.getOpKind()))
     return makeRVVPluginError(
@@ -122,24 +122,24 @@ llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
         "destination SEW64 LMUL m2, and relation 'signed-i32m1-to-i64m2', or "
         "op_kind 'sign_extend_widen_vf2' with source SEW16 LMUL mf2, "
         "destination SEW32 LMUL m1, and relation 'signed-i16mf2-to-i32m1'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected widening conversion body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedRuntimeABIValue(
           body.getLhs(), "pre-realized RVV widening conversion lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(), "pre-realized RVV widening conversion out operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(),
           "pre-realized RVV widening conversion runtime n/AVL operand",
@@ -149,10 +149,10 @@ llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
-                  tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp,
+                  weft::rvv::TypedWideningConversionPreRealizedBodyOp>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -174,23 +174,23 @@ llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
-                                     tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+                                     weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.setvl");
   state.addOperands(nValue);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   return builder.create(state);
 }
 
-tcrv::rvv::WithVLOp createRealizedWithVL(
+weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
     VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
-    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
@@ -207,7 +207,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
                      builder.getStringAttr(
                          rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -215,7 +215,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
   mlir::Type elementType = builder.getIntegerType(sew);
-  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+  return weft::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
 mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
@@ -223,7 +223,7 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Value buffer,
                                            mlir::Value vl, std::int64_t sew,
                                            llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.load");
+  mlir::OperationState state(loc, "weft_rvv.load");
   state.addOperands({buffer, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -238,16 +238,16 @@ llvm::Expected<mlir::Operation *> createRealizedGenericWideningConvert(
         "supports only op_kind 'widen_i32_to_i64' or "
         "'sign_extend_widen_vf2'");
 
-  mlir::OperationState state(loc, "tcrv_rvv.widening_convert");
+  mlir::OperationState state(loc, "weft_rvv.widening_convert");
   state.addOperands({source, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
   std::int64_t resultSEW =
       opKind == "sign_extend_widen_vf2"
-          ? tcrv::rvv::getRVVFirstSliceSEWBits()
-          : tcrv::rvv::getRVVSEW64Bits();
+          ? weft::rvv::getRVVFirstSliceSEWBits()
+          : weft::rvv::getRVVSEW64Bits();
   llvm::StringRef resultLMUL =
-      opKind == "sign_extend_widen_vf2" ? tcrv::rvv::getRVVLMULM1()
-                                        : tcrv::rvv::getRVVLMULM2();
+      opKind == "sign_extend_widen_vf2" ? weft::rvv::getRVVLMULM1()
+                                        : weft::rvv::getRVVLMULM2();
   state.addTypes(getGenericVectorType(builder, resultSEW, resultLMUL));
   return builder.create(state);
 }
@@ -255,7 +255,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericWideningConvert(
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.store");
+  mlir::OperationState state(loc, "weft_rvv.store");
   state.addOperands({out, value, vl});
   (void)builder.create(state);
 }
@@ -263,10 +263,10 @@ void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
 } // namespace
 
 bool isPreRealizedRVVWideningConversionOwnerOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
+  return llvm::isa<weft::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVWideningConversionOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   if (!bodyOp)
@@ -278,15 +278,15 @@ realizePreRealizedRVVWideningConversionOwner(
         "widening conversion selected-body realization owner received a body "
         "outside its RVV-owned realization family");
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
         "pre-realized RVV widening conversion selected-body realization "
         "requires materialized kernel and variant");
 
   auto conversionBody =
-      llvm::cast<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(bodyOp);
+      llvm::cast<weft::rvv::TypedWideningConversionPreRealizedBodyOp>(bodyOp);
   if (llvm::Error error =
           validatePreRealizedRVVSelectedWideningConversionBody(
               request, conversionBody))
@@ -298,11 +298,11 @@ realizePreRealizedRVVWideningConversionOwner(
   mlir::Location loc = conversionBody->getLoc();
   builder.setInsertionPoint(conversionBody.getOperation());
 
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(createRealizedSetVL(
       builder, loc, conversionBody.getN(),
       static_cast<std::int64_t>(conversionBody.getDestSew()),
       conversionBody.getDestLmul(), conversionBody.getPolicy()));
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires,
                            static_cast<std::int64_t>(
@@ -311,7 +311,7 @@ realizePreRealizedRVVWideningConversionOwner(
                            conversionBody.getPolicy());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+  auto lhsLoad = llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
       builder, loc, conversionBody.getLhs(), setvl.getVl(),
       static_cast<std::int64_t>(conversionBody.getSourceSew()),
       conversionBody.getSourceLmul()));
@@ -327,4 +327,4 @@ realizePreRealizedRVVWideningConversionOwner(
   return withVL;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

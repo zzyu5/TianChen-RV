@@ -3,8 +3,8 @@
 # harness for M-FLAT typed flat block-dot kernels.
 #
 # Pipeline (mirrors the gate4-*-ssh evidence flow):
-#   1. export the REAL RISC-V .o locally via tcrv-opt (front door + emission
-#      plans) | tcrv-translate --tcrv-export-target-artifact
+#   1. export the REAL RISC-V .o locally via weft-opt (front door + emission
+#      plans) | weft-translate --weft-export-target-artifact
 #   2. scp the .o + the C driver to the target board
 #   3. capture the board profile (uname / clang version / lscpu)
 #   4. compile the driver + .o on-board, TWICE:
@@ -15,7 +15,7 @@
 #
 # REUSE for the next flat格 (q4_0/q4_1/q5_0/q5_1): set the vars below.
 #   TEST_MLIR      : the *-full-pipeline-export-e2e.mlir for that格
-#   FRONT_DOOR_PASS: --tcrv-rvv-materialize-<格>-block-dot-source-front-door
+#   FRONT_DOOR_PASS: --weft-rvv-materialize-<格>-block-dot-source-front-door
 #   DRIVER         : the格's *_verify_driver.c (copy q8_0's, change decode+quant)
 #   OUT_SUBDIR     : experiments/<name>
 #   TARGETS        : ssh host aliases to run on (e.g. "rvv" or "rvv k1")
@@ -24,7 +24,7 @@ set -u
 # ---------------- configurable (q8_0 defaults) ----------------
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TEST_MLIR="${TEST_MLIR:-$REPO/test/Target/RVV/q8-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir}"
-FRONT_DOOR_PASS="${FRONT_DOOR_PASS:---tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door}"
+FRONT_DOOR_PASS="${FRONT_DOOR_PASS:---weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door}"
 DRIVER="${DRIVER:-$REPO/.trellis/scripts/ondevice/q8_0_verify_driver.c}"
 OUT_SUBDIR="${OUT_SUBDIR:-ondevice-q8_0}"
 TARGETS="${TARGETS:-rvv}"
@@ -34,15 +34,15 @@ DRV_N="${DRV_N:-4096}"
 DRV_TRIALS="${DRV_TRIALS:-256}"
 DRV_ITERS="${DRV_ITERS:-200000}"
 
-TCRV_OPT="$REPO/build/bin/tcrv-opt"
-TCRV_TR="$REPO/build/bin/tcrv-translate"
+WEFT_OPT="$REPO/build/bin/weft-opt"
+WEFT_TR="$REPO/build/bin/weft-translate"
 OUTDIR="$REPO/experiments/$OUT_SUBDIR"
 mkdir -p "$OUTDIR"
 
 echo "== step 1: export real RISC-V .o locally =="
 OBJ="$OUTDIR/kernel_${KERNEL_LABEL}.o"
-"$TCRV_OPT" "$TEST_MLIR" "$FRONT_DOOR_PASS" --tcrv-materialize-emission-plans 2>"$OUTDIR/export.err" \
-  | "$TCRV_TR" --tcrv-export-target-artifact > "$OBJ" 2>>"$OUTDIR/export.err"
+"$WEFT_OPT" "$TEST_MLIR" "$FRONT_DOOR_PASS" --weft-materialize-emission-plans 2>"$OUTDIR/export.err" \
+  | "$WEFT_TR" --weft-export-target-artifact > "$OBJ" 2>>"$OUTDIR/export.err"
 if [ ! -s "$OBJ" ]; then
   echo "FATAL: .o export failed; see $OUTDIR/export.err"; sed -n '1,20p' "$OUTDIR/export.err"; exit 1
 fi
@@ -56,7 +56,7 @@ for HOST in $TARGETS; do
   echo "======================================================================"
   echo "== target: ssh $HOST =="
   echo "======================================================================"
-  RDIR="/tmp/tcrv_ondevice_${OUT_SUBDIR}_$$"
+  RDIR="/tmp/weft_ondevice_${OUT_SUBDIR}_$$"
   HOUT="$OUTDIR/host_$HOST"
   mkdir -p "$HOUT"
 

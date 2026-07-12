@@ -2,7 +2,7 @@
 
 ## Role
 
-The scalar fallback plugin provides the portable fallback slot for TianChen-RV
+The scalar fallback plugin provides the portable fallback slot for Weft-RV
 execution variants. It is a coverage and correctness-oriented path used when a
 target profile explicitly exposes a fallback capability.
 
@@ -11,7 +11,7 @@ offload, or hardware-specific evidence.
 
 ## 与 [X-SCALAR] 独立家族的边界（勿混 —— 同名 "scalar"，实为两物）
 
-**本 fallback 插件 ≠ 科研总纲 [X-SCALAR]。** [X-SCALAR] 是 C1 广度见证的**向量缺席独立性能家族 #3**（owned 内核 = 三值 2-bit `vec_dot` 热性能路径；C2 第二数据点；须过 [F-6] 独立性 = 向量缺席实例下 `only_feasible` 且真实被选中）。本 fallback 插件是**可移植兜底覆盖槽**（correctness-only、非性能路径）。接 X1 pillar 的 agent **不得把 owned 性能内核塞进本 fallback 槽**：`tcrv_scalar` 命名空间保留的 "later scalar rebuild" **可作 [X-SCALAR] 的落点，但那是一个新的独立家族插件**（带 owned 内核 + 能力事实 + [P-2] 五件套），不是给本 fallback 槽加性能路径。
+**本 fallback 插件 ≠ 科研总纲 [X-SCALAR]。** [X-SCALAR] 是 C1 广度见证的**向量缺席独立性能家族 #3**（owned 内核 = 三值 2-bit `vec_dot` 热性能路径；C2 第二数据点；须过 [F-6] 独立性 = 向量缺席实例下 `only_feasible` 且真实被选中）。本 fallback 插件是**可移植兜底覆盖槽**（correctness-only、非性能路径）。接 X1 pillar 的 agent **不得把 owned 性能内核塞进本 fallback 槽**：`weft_scalar` 命名空间保留的 "later scalar rebuild" **可作 [X-SCALAR] 的落点，但那是一个新的独立家族插件**（带 owned 内核 + 能力事实 + [P-2] 五件套），不是给本 fallback 槽加性能路径。
 
 **[X-SCALAR] 设计护栏（耐久约束，非任务选择）:低比特量化点积数学不走 XOR-popcount** —— 三值/低比特走位域抽取 / base-3 拆包 / 查表 gather，`zbb` 的 `cpop` 在这些内核**无处落地**；owned 内核**不得按 popcount 模板设计**、不为其造 popcount 语料。X-SCALAR 家族契约（模板 / 落点）是 **M3+ gated**，待 X1 pillar 落地（字段级不在此重述）。
 
@@ -41,12 +41,12 @@ materialized requires form: requires = [@scalar_fallback] for an exact scalar
   `implies` id `scalar.fallback`
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
-deleted legacy selected-path element attr: tcrv_scalar.element_count
+deleted legacy selected-path element attr: weft_scalar.element_count
 ```
 
 The first-slice scalar plugin may propose `@scalar_fallback_first_slice` only
 when the request contains a real high-level MLIR operation, a
-`tcrv.exec.kernel`, and a `TargetCapabilitySet` where capability id
+`weft.exec.kernel`, and a `TargetCapabilitySet` where capability id
 `scalar.fallback` is available either as an exact capability id or through an
 explicit structured relation-provider capability whose `provides` or `implies`
 list satisfies id `scalar.fallback`. Missing or unavailable fallback capability
@@ -56,8 +56,8 @@ The default proposal for the scalar fallback source slice is descriptorless and
 must not derive a finite i32/i64 add/sub/mul family from frontend metadata,
 bridge metadata, default family tables, absent body state, or hand-authored
 microkernel names. There is no current typed scalar selected-path compute
-authority. Historical markers such as `tcrv_frontend_lowering` and
-`tcrv_scalar.element_count` are deleted-route residue only; the active scalar
+authority. Historical markers such as `weft_frontend_lowering` and
+`weft_scalar.element_count` are deleted-route residue only; the active scalar
 plugin does not consume them as proposal, legality, selection, or boundary
 authority.
 
@@ -66,8 +66,8 @@ authority.
 Scalar fallback is still capability-driven:
 
 - target profiles must declare `scalar.fallback` as a structured exact
-  `tcrv.exec.capability` or explicitly provide/imply it from a structured
-  capability-provider `tcrv.exec.target`;
+  `weft.exec.capability` or explicitly provide/imply it from a structured
+  capability-provider `weft.exec.target`;
 - generated variants must require that capability through `requires`;
 - plugin legality must reject variants with missing origin, missing fallback
   capability requirement, or unavailable fallback capability;
@@ -107,7 +107,7 @@ artifact kind: unsupported-emission-diagnostic
 ```
 
 This unsupported diagnostic/result records a missing rebuild route only.
-It does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
+It does not mean that Weft-RV emitted LLVM IR, generated an object, linked a
 runtime, executed a scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
 materialization.
@@ -120,7 +120,7 @@ route, it remains a conservative selection/fallback diagnostic surface only.
 ## Selected Lowering Boundary
 
 Scalar fallback currently has no active selected lowering-boundary operation.
-Generic fallback-only and dispatch-fallback paths may keep selected `tcrv.exec`
+Generic fallback-only and dispatch-fallback paths may keep selected `weft.exec`
 metadata, but they must not ask the scalar plugin to synthesize a scalar
 plugin-local boundary, runtime ABI operations, or a typed scalar microkernel
 from descriptorless no-body state, kernel frontend markers, bridge metadata, or
@@ -129,13 +129,13 @@ a default family.
 Architectural family:
 
 ```text
-tcrv.scalar
+weft.scalar
 ```
 
 Reserved MLIR namespace:
 
 ```text
-tcrv_scalar
+weft_scalar
 ```
 
 The reserved namespace is for a later scalar rebuild slice. It is not a current

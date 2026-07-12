@@ -1,14 +1,14 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
-#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Transforms/EmissionReadiness.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Dialect/Offload/IR/OffloadDialect.h"
+#include "Weft/Plugin/BuiltinExtensionPlugins.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/Offload/OffloadExtensionPlugin.h"
+#include "Weft/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
+#include "Weft/Transforms/EmissionReadiness.h"
+#include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -24,26 +24,26 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::ExtensionBundleRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::plugin::VariantLoweringBoundaryResult;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalDecline;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::offload::LoweringBoundaryOp;
-using tianchenrv::transforms::VariantSelectionKind;
-using tianchenrv::transforms::VariantSelectionPlan;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::ExtensionBundleRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::plugin::VariantLoweringBoundaryResult;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalDecline;
+using weft::plugin::VariantProposalRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::offload::LoweringBoundaryOp;
+using weft::transforms::VariantSelectionKind;
+using weft::transforms::VariantSelectionPlan;
 
 namespace {
 
@@ -154,35 +154,35 @@ int expectProposalStringAttr(const VariantProposal &proposal,
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerOffloadExtensionPlugin(
+          expectSuccess(weft::plugin::registerOffloadExtensionPlugin(
                             registry),
                         "register offload plugin"))
     return result;
 
   const auto *plugin = registry.lookupPlugin(
-      tianchenrv::plugin::offload::getOffloadExtensionPluginName());
+      weft::plugin::offload::getOffloadExtensionPluginName());
   if (int result = expect(plugin, "registered offload plugin is visible"))
     return result;
   if (int result =
           expect(plugin->getVersion() ==
-                     tianchenrv::plugin::offload::
+                     weft::plugin::offload::
                          getOffloadExtensionPluginVersion(),
                  "offload plugin version is stable"))
     return result;
 
   const PluginCapability *capability = registry.lookupCapabilityByID(
-      tianchenrv::plugin::offload::getOffloadRuntimeCapabilityID());
+      weft::plugin::offload::getOffloadRuntimeCapabilityID());
   if (int result =
           expect(capability &&
                      capability->getKind() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadRuntimeCapabilityKind(),
                  "offload runtime capability metadata is registered"))
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::registerOffloadExtensionPlugin(registry),
-      {"duplicate TianChen-RV extension plugin", "offload-plugin"});
+      weft::plugin::registerOffloadExtensionPlugin(registry),
+      {"duplicate Weft-RV extension plugin", "offload-plugin"});
 }
 
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
@@ -192,8 +192,8 @@ module {
     return
   }
 
-  tcrv.exec.kernel @available_offload attributes {} {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @available_offload attributes {} {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
@@ -202,11 +202,11 @@ module {
     }
   }
 
-  tcrv.exec.kernel @missing_offload attributes {} {
+  weft.exec.kernel @missing_offload attributes {} {
   }
 
-  tcrv.exec.kernel @malformed_offload attributes {} {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @malformed_offload attributes {} {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
@@ -215,8 +215,8 @@ module {
     }
   }
 
-  tcrv.exec.kernel @misclassified_custom_isa_offload attributes {} {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @misclassified_custom_isa_offload attributes {} {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "custom-isa",
       status = "available",
@@ -225,8 +225,8 @@ module {
     }
   }
 
-  tcrv.exec.kernel @vendor_string_only attributes {vendor_hint = "sophgo"} {
-    tcrv.exec.capability @vendor_runtime {
+  weft.exec.kernel @vendor_string_only attributes {vendor_hint = "sophgo"} {
+    weft.exec.capability @vendor_runtime {
       id = "sophgo.runtime",
       kind = "runtime-offload",
       status = "available",
@@ -255,7 +255,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerOffloadExtensionPlugin(
+          expectSuccess(weft::plugin::registerOffloadExtensionPlugin(
                             registry),
                         "register offload plugin for proposal gating"))
     return result;
@@ -278,32 +278,32 @@ module {
   const VariantProposal &proposal = proposals.front();
   if (int result =
           expect(proposal.getVariantName() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadRuntimeFirstSliceVariantName() &&
                      proposal.getOriginPlugin() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadExtensionPluginName() &&
                      proposal.getPolicy() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadFirstSlicePolicy(),
                  "offload proposal preserves stable generic metadata"))
     return result;
   if (int result =
           expect(proposal.getRequiredCapabilityIDs().size() == 1 &&
                      proposal.getRequiredCapabilityIDs().front() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadRuntimeCapabilityID(),
                  "offload proposal requires offload.runtime capability id"))
     return result;
   if (int result = expectProposalStringAttr(
           proposal,
-          tianchenrv::plugin::offload::getOffloadRuntimeABIAttrName(),
-          tianchenrv::plugin::offload::getOffloadExpectedRuntimeABI()))
+          weft::plugin::offload::getOffloadRuntimeABIAttrName(),
+          weft::plugin::offload::getOffloadExpectedRuntimeABI()))
     return result;
   if (int result = expectProposalStringAttr(
           proposal,
-          tianchenrv::plugin::offload::getOffloadHandoffKindAttrName(),
-          tianchenrv::plugin::offload::getOffloadExpectedHandoffKind()))
+          weft::plugin::offload::getOffloadHandoffKindAttrName(),
+          weft::plugin::offload::getOffloadExpectedHandoffKind()))
     return result;
 
   TargetCapabilitySet missingCapabilities =
@@ -336,7 +336,7 @@ module {
   if (int result =
           expect(proposals.empty() && declines.size() == 1 &&
                      declines.front().getPluginName() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadExtensionPluginName() &&
                      declines.front().getReason().contains("runtime_abi"),
                  "malformed offload capability records plugin-local decline"))
@@ -357,7 +357,7 @@ module {
   if (int result =
           expect(proposals.empty() && declines.size() == 1 &&
                      declines.front().getPluginName() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadExtensionPluginName() &&
                      declines.front().getReason().contains(
                          "kind must be 'runtime-offload'"),
@@ -388,20 +388,20 @@ module {
     return
   }
 
-  tcrv.exec.kernel @offload_plus_scalar attributes {} {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @offload_plus_scalar attributes {} {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.capability @scalar_fallback {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.mem_window @abi_lhs_input_buffer {
+    weft.exec.mem_window @abi_lhs_input_buffer {
       abi_role = "lhs-input-buffer",
       access = "read",
       binding = "kernel-argument",
@@ -410,7 +410,7 @@ module {
       ownership = "target-export-abi-owned",
       purpose = "runtime-abi-buffer"
     }
-    tcrv.exec.mem_window @abi_rhs_input_buffer {
+    weft.exec.mem_window @abi_rhs_input_buffer {
       abi_role = "rhs-input-buffer",
       access = "read",
       binding = "kernel-argument",
@@ -419,7 +419,7 @@ module {
       ownership = "target-export-abi-owned",
       purpose = "runtime-abi-buffer"
     }
-    tcrv.exec.mem_window @abi_output_buffer {
+    weft.exec.mem_window @abi_output_buffer {
       abi_role = "output-buffer",
       access = "write",
       binding = "kernel-argument",
@@ -428,7 +428,7 @@ module {
       ownership = "target-export-abi-owned",
       purpose = "runtime-abi-buffer"
     }
-    tcrv.exec.runtime_param @abi_runtime_element_count {
+    weft.exec.runtime_param @abi_runtime_element_count {
       abi_role = "runtime-element-count",
       c_name = "n",
       c_type = "size_t",
@@ -453,7 +453,7 @@ module {
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(
-              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+              weft::plugin::registerBuiltinExtensionBundlePlugins(
                   bundles, registry),
               "register built-in extension bundle frontdoor for offload "
               "materialization"))
@@ -465,7 +465,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 2> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize offload and scalar proposals"))
     return result;
@@ -475,10 +475,10 @@ module {
     return result;
 
   VariantOp offloadVariant = findVariant(
-      kernel, tianchenrv::plugin::offload::
+      kernel, weft::plugin::offload::
                   getOffloadRuntimeFirstSliceVariantName());
   VariantOp scalarVariant = findVariant(
-      kernel, tianchenrv::plugin::scalar::
+      kernel, weft::plugin::scalar::
                   getScalarFallbackFirstSliceVariantName());
   if (int result = expect(offloadVariant && scalarVariant,
                           "offload and scalar variants are materialized"))
@@ -487,17 +487,17 @@ module {
   if (int result =
           expect(offloadVariant->getAttrOfType<mlir::StringAttr>("origin")
                          .getValue() ==
-                     tianchenrv::plugin::offload::
+                     weft::plugin::offload::
                          getOffloadExtensionPluginName(),
                  "offload variant has offload origin"))
     return result;
   if (int result =
           expect(offloadVariant
                          ->getAttrOfType<mlir::StringAttr>(
-                             tianchenrv::plugin::offload::
+                             weft::plugin::offload::
                                  getOffloadRuntimeABIAttrName())
                          .getValue() ==
-                     tianchenrv::plugin::offload::
+                     weft::plugin::offload::
                          getOffloadExpectedRuntimeABI(),
                  "offload variant carries runtime ABI metadata"))
     return result;
@@ -522,14 +522,14 @@ module {
           expect(estimate.hasScore() && estimate.getScore() == 10.0 &&
                      estimate.hasExplicitPreference() &&
                      estimate.getOriginPlugin() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadExtensionPluginName() &&
                      estimate.getVariantSymbol() == offloadVariant.getSymName(),
                  "offload cost metadata is plugin-owned"))
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("offload selection planning failed: " +
@@ -546,7 +546,7 @@ module {
 
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize offload selected marker"))
     return result;
@@ -554,7 +554,7 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          weft::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
           "materialize offload and scalar selected boundaries"))
     return result;
@@ -590,7 +590,7 @@ module {
   if (int result =
           expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
@@ -602,14 +602,14 @@ module {
                          "no active executable lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
-                         tianchenrv::plugin::offload::
+                         weft::plugin::offload::
                              getOffloadRuntimePreferredCapabilitySymbol(),
                  "offload emission plan fails closed without executable target "
                  "route"))
     return result;
 
   if (int result = expectErrorContains(
-          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+          weft::transforms::materializeKernelEmissionPlanDiagnostics(
               kernel, capabilities, registry),
           {"requires one materialized plugin lowering boundary",
            "before emission planning"}))
@@ -624,47 +624,47 @@ module {
 int runLegalityRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @offload_custom_isa_misclassification_rejected {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @offload_custom_isa_misclassification_rejected {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "custom-isa",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.variant @offload_runtime_first_slice attributes {
+    weft.exec.variant @offload_runtime_first_slice attributes {
       origin = "offload-plugin",
       requires = [@offload_runtime],
-      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
-      tcrv_offload.handoff_kind = "runtime-offload"
+      weft_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      weft_offload.handoff_kind = "runtime-offload"
     } {
     }
   }
 
-  tcrv.exec.kernel @offload_legality_rejections attributes {} {
-    tcrv.exec.capability @offload_runtime {
+  weft.exec.kernel @offload_legality_rejections attributes {} {
+    weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
-    tcrv.exec.capability @scalar_fallback {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @missing_offload_requirement attributes {
+    weft.exec.variant @missing_offload_requirement attributes {
       origin = "offload-plugin",
       requires = [@scalar_fallback],
-      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
-      tcrv_offload.handoff_kind = "runtime-offload"
+      weft_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      weft_offload.handoff_kind = "runtime-offload"
     } {
     }
-    tcrv.exec.variant @missing_runtime_abi_metadata attributes {
+    weft.exec.variant @missing_runtime_abi_metadata attributes {
       origin = "offload-plugin",
       requires = [@offload_runtime],
-      tcrv_offload.handoff_kind = "runtime-offload"
+      weft_offload.handoff_kind = "runtime-offload"
     } {
     }
   }
@@ -691,7 +691,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerOffloadExtensionPlugin(
+          expectSuccess(weft::plugin::registerOffloadExtensionPlugin(
                             registry),
                         "register offload plugin for legality negatives"))
     return result;
@@ -700,7 +700,7 @@ module {
       TargetCapabilitySet::buildFromKernel(customISA);
   if (int result = expectErrorContains(
           registry.verifyVariantLegality(
-              tianchenrv::plugin::VariantLegalityRequest(
+              weft::plugin::VariantLegalityRequest(
                   customISAVariant, customISA, customISACapabilities)),
           {"runtime-offload", "kind must be 'runtime-offload'"}))
     return result;
@@ -708,7 +708,7 @@ module {
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
   if (int result = expectErrorContains(
           registry.verifyVariantLegality(
-              tianchenrv::plugin::VariantLegalityRequest(
+              weft::plugin::VariantLegalityRequest(
                   missingRequirement, kernel, capabilities)),
           {"runtime-offload", "must require capability id",
            "offload.runtime"}))
@@ -716,9 +716,9 @@ module {
 
   return expectErrorContains(
       registry.verifyVariantLegality(
-          tianchenrv::plugin::VariantLegalityRequest(missingABI, kernel,
+          weft::plugin::VariantLegalityRequest(missingABI, kernel,
                                                      capabilities)),
-      {"runtime-offload", "tcrv_offload.runtime_abi"});
+      {"runtime-offload", "weft_offload.runtime_abi"});
 }
 
 } // namespace
@@ -732,13 +732,13 @@ int main() {
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
           expectSuccess(
-              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+              weft::plugin::registerBuiltinExtensionBundlePlugins(
                   dialectBundles, dialectPlugins),
               "register built-in extension bundle frontdoor for dialect "
               "context"))
     return result;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
+  weft::registerPluginDialects(dialectPlugins, dialectRegistry);
   dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);

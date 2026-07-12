@@ -1,8 +1,8 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/EmissionReadiness.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/EmissionReadiness.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -20,23 +20,23 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 namespace {
-namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
+namespace execDiagnostic = weft::exec::diagnostic;
 
 enum class EmissionBehavior {
   Supported,
@@ -95,7 +95,7 @@ public:
     observedKernelSymbols.push_back(request.getKernel().getSymName().str());
     observedVariantSymbols.push_back(request.getVariant().getSymName().str());
     observedRoles.push_back(
-        tianchenrv::plugin::stringifyVariantEmissionRole(request.getRole())
+        weft::plugin::stringifyVariantEmissionRole(request.getRole())
             .str());
     observedCapabilityCounts.push_back(request.getCapabilities().size());
 
@@ -124,7 +124,7 @@ public:
     std::string path;
     llvm::raw_string_ostream stream(path);
     stream << name << "::emit::"
-           << tianchenrv::plugin::stringifyVariantEmissionRole(
+           << weft::plugin::stringifyVariantEmissionRole(
                   request.getRole())
            << "::" << request.getVariant().getSymName();
     stream.flush();
@@ -141,7 +141,7 @@ public:
     observedPlanVariantSymbols.push_back(
         request.getVariant().getSymName().str());
     observedPlanRoles.push_back(
-        tianchenrv::plugin::stringifyVariantEmissionRole(request.getRole())
+        weft::plugin::stringifyVariantEmissionRole(request.getRole())
             .str());
 
     if (planBehavior == EmissionPlanBehavior::PluginFailure)
@@ -368,7 +368,7 @@ int expectSupportedPlan(const VariantEmissionPlan &plan,
 
 void registerCoreDialects(mlir::MLIRContext &context) {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
   context.appendDialectRegistry(dialectRegistry);
   context.loadAllAvailableDialects();
 }
@@ -588,12 +588,12 @@ const char *getDirectKernelSource(llvm::StringRef kernelName = "direct") {
   (void)kernelName;
   return R"mlir(
 module {
-  tcrv.exec.kernel @direct {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @direct {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -689,17 +689,17 @@ int runRegistrySupportedEmissionPlanTest(mlir::MLIRContext &context) {
 int runInjectedDirectPassTest(mlir::MLIRContext &context) {
   const char *source = R"mlir(
 module {
-  tcrv.exec.kernel @direct_pass {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @direct_pass {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -720,7 +720,7 @@ module {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckEmissionPathsPass(registry));
+      weft::transforms::createCheckEmissionPathsPass(registry));
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "injected registry direct emission pass succeeds"))
@@ -736,22 +736,22 @@ module {
 int runSelectedMarkerPassTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @selected_marker {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @selected_marker {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "fast-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @slow attributes {
+    weft.exec.variant @slow attributes {
       origin = "slow-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "fast selected by generic selection marker",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -782,7 +782,7 @@ module {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckEmissionPathsPass(registry));
+      weft::transforms::createCheckEmissionPathsPass(registry));
   if (int result = expect(mlir::succeeded(passManager.run(*module)),
                           "selected marker emission pass succeeds"))
     return result;
@@ -808,32 +808,32 @@ module {
 int runInjectedDispatchPassTest(mlir::MLIRContext &context) {
   const char *source = R"mlir(
 module {
-  tcrv.exec.kernel @dispatch_pass {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @dispatch_pass {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base],
       policy = "fast_path"
     } {
     }
-    tcrv.exec.variant @medium attributes {
+    weft.exec.variant @medium attributes {
       origin = "mock-emitter",
       requires = [@base],
       policy = "medium_path"
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @fast {policy = "fast_path"}
-      tcrv.exec.case @medium {policy = "medium_path"}
-      tcrv.exec.fallback @fallback
+    weft.exec.dispatch {
+      weft.exec.case @fast {policy = "fast_path"}
+      weft.exec.case @medium {policy = "medium_path"}
+      weft.exec.fallback @fallback
     }
   }
 }
@@ -857,7 +857,7 @@ module {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckEmissionPathsPass(registry));
+      weft::transforms::createCheckEmissionPathsPass(registry));
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "injected registry dispatch emission pass succeeds"))
@@ -876,32 +876,32 @@ module {
 int runDispatchEmissionPlanCollectionTest(mlir::MLIRContext &context) {
   const char *source = R"mlir(
 module {
-  tcrv.exec.kernel @dispatch_plan {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @dispatch_plan {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base],
       policy = "fast_path"
     } {
     }
-    tcrv.exec.variant @medium attributes {
+    weft.exec.variant @medium attributes {
       origin = "mock-emitter",
       requires = [@base],
       policy = "medium_path"
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @fast {policy = "fast_path"}
-      tcrv.exec.case @medium {policy = "medium_path"}
-      tcrv.exec.fallback @fallback
+    weft.exec.dispatch {
+      weft.exec.case @fast {policy = "fast_path"}
+      weft.exec.case @medium {policy = "medium_path"}
+      weft.exec.fallback @fallback
     }
   }
 }
@@ -925,7 +925,7 @@ module {
 
   llvm::SmallVector<VariantEmissionPlan, 4> plans;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+          weft::transforms::collectKernelEmissionPlans(kernel, plans,
                                                              registry),
           "collect dispatch emission plans"))
     return result;
@@ -960,22 +960,22 @@ module {
 int runSelectedMarkerEmissionPlanCollectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @selected_plan {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @selected_plan {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @slow attributes {
+    weft.exec.variant @slow attributes {
       origin = "slow-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "fast selected by generic planner",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -1008,7 +1008,7 @@ module {
 
   llvm::SmallVector<VariantEmissionPlan, 2> plans;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+          weft::transforms::collectKernelEmissionPlans(kernel, plans,
                                                              registry),
           "collect selected marker emission plan"))
     return result;
@@ -1031,17 +1031,17 @@ int runConservativeDirectEmissionPlanCollectionTest(
     mlir::MLIRContext &context) {
   const char *source = R"mlir(
 module {
-  tcrv.exec.kernel @direct_plan {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @direct_plan {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1063,7 +1063,7 @@ module {
 
   llvm::SmallVector<VariantEmissionPlan, 2> plans;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+          weft::transforms::collectKernelEmissionPlans(kernel, plans,
                                                              registry),
           "collect conservative direct emission plans"))
     return result;
@@ -1082,22 +1082,22 @@ int runSelectedEmissionPlanMaterializationPassTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @materialize_selected {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @materialize_selected {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @slow attributes {
+    weft.exec.variant @slow attributes {
       origin = "slow-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "fast selected by generic planner",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -1129,7 +1129,7 @@ module {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createMaterializeEmissionPlansPass(registry));
+      weft::transforms::createMaterializeEmissionPlansPass(registry));
   if (int result = expect(mlir::succeeded(passManager.run(*module)),
                           "injected materialize emission plans pass succeeds"))
     return result;
@@ -1152,7 +1152,7 @@ module {
   llvm::raw_string_ostream stream(printed);
   module->print(stream);
   stream.flush();
-  return expect(llvm::StringRef(printed).contains("tcrv.exec.diagnostic") &&
+  return expect(llvm::StringRef(printed).contains("weft.exec.diagnostic") &&
                     llvm::StringRef(printed).contains("emission_kind") &&
                     llvm::StringRef(printed).contains("lowering_pipeline") &&
                     llvm::StringRef(printed).contains("runtime_abi") &&
@@ -1164,30 +1164,30 @@ int runDispatchEmissionPlanMaterializationOrderTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @materialize_dispatch {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @materialize_dispatch {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @medium attributes {
+    weft.exec.variant @medium attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.fallback @fallback
-      tcrv.exec.case @fast {policy = "fast_path"}
-      tcrv.exec.case @medium {policy = "medium_path"}
+    weft.exec.dispatch {
+      weft.exec.fallback @fallback
+      weft.exec.case @fast {policy = "fast_path"}
+      weft.exec.case @medium {policy = "medium_path"}
     }
   }
 }
@@ -1210,7 +1210,7 @@ module {
                           "dispatch case");
 
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+          weft::transforms::materializeKernelEmissionPlanDiagnostics(
               kernel, registry),
           "materialize dispatch emission plans"))
     return result;
@@ -1236,17 +1236,17 @@ int runConservativeEmissionPlanMaterializationTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @materialize_direct {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @materialize_direct {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1267,7 +1267,7 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+          weft::transforms::materializeKernelEmissionPlanDiagnostics(
               kernel, registry),
           "materialize conservative direct emission plans"))
     return result;
@@ -1305,7 +1305,7 @@ int expectMaterializationErrorLeavesDiagnosticCount(
                           "diagnostic count"))
     return result;
   if (int result = expectErrorContains(
-          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+          weft::transforms::materializeKernelEmissionPlanDiagnostics(
               kernel, registry),
           fragments))
     return result;
@@ -1368,23 +1368,23 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
   {
     constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @duplicate_selected_marker {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @duplicate_selected_marker {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {message = "fast", reason = "variant-selected", selection_kind = "static-variant", target = @fast}
-    tcrv.exec.diagnostic {message = "fallback", reason = "variant-selected", selection_kind = "fallback-only", target = @fallback}
+    weft.exec.diagnostic {message = "fast", reason = "variant-selected", selection_kind = "static-variant", target = @fast}
+    weft.exec.diagnostic {message = "fallback", reason = "variant-selected", selection_kind = "fallback-only", target = @fallback}
   }
 }
 )mlir";
@@ -1405,24 +1405,24 @@ module {
   {
     constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @missing_dispatch_target {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @missing_dispatch_target {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @fast {policy = "fast"}
-      tcrv.exec.fallback @fallback
+    weft.exec.dispatch {
+      weft.exec.case @fast {policy = "fast"}
+      weft.exec.fallback @fallback
     }
   }
 }
@@ -1446,10 +1446,10 @@ module {
                             "emission-plan diagnostics"))
       return result;
     if (int result = expectErrorContains(
-            tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+            weft::transforms::materializeKernelEmissionPlanDiagnostics(
                 kernel, registry),
             {"dispatch target @missing",
-             "does not resolve to a direct sibling tcrv.exec.variant"}))
+             "does not resolve to a direct sibling weft.exec.variant"}))
       return result;
     unsigned after = collectDirectEmissionPlanDiagnostics(kernel).size();
     if (int result = expect(after == before,
@@ -1464,28 +1464,28 @@ module {
   {
     constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @stale_boundary_with_existing_plan {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @stale_boundary_with_existing_plan {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @old_fast attributes {
+    weft.exec.variant @old_fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "fast selected by generic planner",
       reason = "variant-selected",
       selection_kind = "static-variant",
       target = @fast
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "stale mock boundary",
       origin = "mock-emitter",
       reason = "mock-lowering-boundary",
@@ -1495,7 +1495,7 @@ module {
       source_kernel = "stale_boundary_with_existing_plan",
       status = "no-active-route"
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "existing unsupported plan",
       origin = "mock-emitter",
       reason = "emission_plan",
@@ -1529,17 +1529,17 @@ module {
   {
     constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @preexisting_emission_plan {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @preexisting_emission_plan {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "existing unsupported plan",
       origin = "mock-emitter",
       reason = "emission_plan",
@@ -1588,7 +1588,7 @@ int runRegistryNegativeTests(mlir::MLIRContext &context) {
                 VariantEmissionRequest(VariantOp(), kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
                 status),
-            {"materialized tcrv.exec.variant", "kernel @direct"}))
+            {"materialized weft.exec.variant", "kernel @direct"}))
       return result;
   }
 
@@ -1611,20 +1611,20 @@ int runRegistryNegativeTests(mlir::MLIRContext &context) {
                                        VariantEmissionRole::DirectVariant),
                 status),
             {"variant @fast", "kernel <missing>",
-             "enclosing tcrv.exec.kernel"}))
+             "enclosing weft.exec.kernel"}))
       return result;
   }
 
   {
     const char *source = R"mlir(
 module {
-  tcrv.exec.kernel @left {
-    tcrv.exec.capability @base {id = "generic.base", kind = "generic"}
-    tcrv.exec.variant @fast attributes {origin = "mock-emitter", requires = [@base]} {
+  weft.exec.kernel @left {
+    weft.exec.capability @base {id = "generic.base", kind = "generic"}
+    weft.exec.variant @fast attributes {origin = "mock-emitter", requires = [@base]} {
     }
   }
-  tcrv.exec.kernel @right {
-    tcrv.exec.capability @base {id = "generic.base", kind = "generic"}
+  weft.exec.kernel @right {
+    weft.exec.capability @base {id = "generic.base", kind = "generic"}
   }
 }
 )mlir";
@@ -2037,7 +2037,7 @@ int expectStructuralErrorHasNoPluginCalls(
     return result;
 
   if (int result = expectErrorContains(
-          tianchenrv::transforms::checkKernelEmissionPaths(kernel, registry),
+          weft::transforms::checkKernelEmissionPaths(kernel, registry),
           fragments))
     return result;
 
@@ -2065,7 +2065,7 @@ int expectPlanStructuralErrorHasNoPluginCalls(
 
   llvm::SmallVector<VariantEmissionPlan, 4> plans;
   if (int result = expectErrorContains(
-          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+          weft::transforms::collectKernelEmissionPlans(kernel, plans,
                                                              registry),
           fragments))
     return result;
@@ -2078,24 +2078,24 @@ int expectPlanStructuralErrorHasNoPluginCalls(
 const char *getDispatchKernelSource() {
   return R"mlir(
 module {
-  tcrv.exec.kernel @dispatch_negative {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @dispatch_negative {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @fast
-      tcrv.exec.fallback @fallback
+    weft.exec.dispatch {
+      weft.exec.case @fast
+      weft.exec.fallback @fallback
     }
   }
 }
@@ -2105,22 +2105,22 @@ module {
 const char *getSelectedMarkerKernelSource() {
   return R"mlir(
 module {
-  tcrv.exec.kernel @dispatch_negative {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @dispatch_negative {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "fast selected by generic planner",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -2151,7 +2151,7 @@ int runStructuralDispatchNegativeTests(mlir::MLIRContext &context) {
                                   getSymbolRef(context, "does_not_exist"));
           },
           {"dispatch target @does_not_exist",
-           "does not resolve to a direct sibling tcrv.exec.variant"}))
+           "does not resolve to a direct sibling weft.exec.variant"}))
     return result;
 
   if (int result = expectStructuralErrorHasNoPluginCalls(
@@ -2161,34 +2161,34 @@ int runStructuralDispatchNegativeTests(mlir::MLIRContext &context) {
                 findFirstDispatchCase(findDirectDispatch(kernel));
             dispatchCase->setAttr("target", getSymbolRef(context, "base"));
           },
-          {"dispatch target @base", "not a tcrv.exec.variant"}))
+          {"dispatch target @base", "not a weft.exec.variant"}))
     return result;
 
   const char *nestedSource = R"mlir(
 module {
-  tcrv.exec.kernel @dispatch_negative {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @dispatch_negative {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @outer attributes {
+    weft.exec.variant @outer attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
-      tcrv.exec.variant @nested attributes {
+      weft.exec.variant @nested attributes {
         origin = "mock-emitter",
         requires = [@base]
       } {
       }
     }
-    tcrv.exec.variant @fallback attributes {
+    weft.exec.variant @fallback attributes {
       origin = "mock-emitter",
       requires = [@base]
     } {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @outer
-      tcrv.exec.fallback @fallback
+    weft.exec.dispatch {
+      weft.exec.case @outer
+      weft.exec.fallback @fallback
     }
   }
 }
@@ -2287,7 +2287,7 @@ int runEmissionPlanStructuralNegativeTests(mlir::MLIRContext &context) {
                                   getSymbolRef(context, "does_not_exist"));
           },
           {"dispatch target @does_not_exist",
-           "does not resolve to a direct sibling tcrv.exec.variant"}))
+           "does not resolve to a direct sibling weft.exec.variant"}))
     return result;
 
   if (int result = expectPlanStructuralErrorHasNoPluginCalls(

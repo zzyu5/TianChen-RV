@@ -4,19 +4,19 @@ add_subdirectory(RVV)
 add_subdirectory(Template)
 add_subdirectory(Scalar)
 
-add_mlir_library(TianChenRVTarget
+add_mlir_library(WeftTarget
   ConstructionTemplateArtifactAdapter.cpp
   EmissionManifest.cpp
   TargetArtifactExport.cpp
   TargetTranslateRegistration.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVConversionEmitCBuiltin
-  TianChenRVConversionRVV
-  TianChenRVExecDialect
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftConversionEmitCBuiltin
+  WeftConversionRVV
+  WeftExecDialect
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRSupport
   MLIRTargetCpp

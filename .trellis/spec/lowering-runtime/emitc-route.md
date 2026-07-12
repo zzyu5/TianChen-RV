@@ -4,7 +4,7 @@
 
 ```text
 selected typed extension body
-  -> 插件 route provider 建 TCRVEmitCLowerableRoute
+  -> 插件 route provider 建 WEFTEmitCLowerableRoute
   -> 公共 EmitC materializer
   -> MLIR EmitC ops -> C/C++ emitter
   -> target artifact
@@ -26,7 +26,7 @@ selected typed extension body
 
 对 RVV：C 向量类型串、intrinsic 名、header、ABI 映射、route payload、legality 全部 RVV-plugin-owned。公共代码可携带 plugin 预计算的串/payload 片段，但**不派生**它们。
 
-## `TCRVEmitCLowerableRoute`
+## `WEFTEmitCLowerableRoute`
 
 从 origin 插件/provider 传给公共 materialization 的契约对象。只暴露 materialization 所需的通用信息：origin plugin/family；selected variant 引用；typed/realized body 或 selected boundary 引用；provider-owned route payload；provider 输出的 headers/includes 与 runtime ABI bindings；EmitC 构造 hooks 或 payload；diagnostic mirrors。
 

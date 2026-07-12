@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s
+// RUN: not weft-opt %s --weft-disable-builtin-plugins --weft-source-artifact-front-door-pipeline 2>&1 | FileCheck %s
 
 module {
   func.func @rvv_source(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
@@ -17,4 +17,4 @@ module {
   }
 }
 
-// CHECK: TianChen-RV execution plan coherence check failed for kernel <missing>: requires at least one tcrv.exec.kernel
+// CHECK: Weft-RV execution plan coherence check failed for kernel <missing>: requires at least one weft.exec.kernel

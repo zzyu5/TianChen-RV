@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -11,14 +11,14 @@
 #include <cstdint>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -31,23 +31,23 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
-                                     tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+                                     weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.setvl");
   state.addOperands(nValue);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   return builder.create(state);
 }
 
-tcrv::rvv::WithVLOp createRealizedWithVL(
+weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
     VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
-    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
@@ -64,7 +64,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
                      builder.getStringAttr(
                          rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -72,20 +72,20 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
   mlir::Type elementType = builder.getIntegerType(sew);
-  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+  return weft::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
 mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
-  return tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
-                                  tcrv::rvv::getRVVLMULM1());
+  return weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+                                  weft::rvv::getRVVLMULM1());
 }
 
 mlir::Type getGenericMaskTypeForVector(mlir::OpBuilder &builder,
                                        mlir::Value vector) {
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(vector.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(vector.getType());
   if (!vectorType)
     return getStage1GenericMaskType(builder);
-  return tcrv::rvv::MaskType::get(builder.getContext(),
+  return weft::rvv::MaskType::get(builder.getContext(),
                                   vectorType.getElementType(),
                                   vectorType.getLmul());
 }
@@ -95,7 +95,7 @@ mlir::Type getGenericIndexVectorType(mlir::OpBuilder &builder,
                                      llvm::StringRef lmul) {
   mlir::Type elementType = indexEEW == 32 ? builder.getI32Type()
                                           : builder.getIntegerType(indexEEW);
-  return tcrv::rvv::IndexVectorType::get(builder.getContext(), elementType,
+  return weft::rvv::IndexVectorType::get(builder.getContext(), elementType,
                                          lmul);
 }
 
@@ -104,7 +104,7 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Value buffer,
                                            mlir::Value vl, std::int64_t sew,
                                            llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.load");
+  mlir::OperationState state(loc, "weft_rvv.load");
   state.addOperands({buffer, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -115,7 +115,7 @@ mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
                                             mlir::Value scalar,
                                             mlir::Value vl, std::int64_t sew,
                                             llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.splat");
+  mlir::OperationState state(loc, "weft_rvv.splat");
   state.addOperands({scalar, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -127,7 +127,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
                                               mlir::Value rhs,
                                               mlir::Value vl,
                                               llvm::StringRef kind) {
-  mlir::OperationState state(loc, "tcrv_rvv.compare");
+  mlir::OperationState state(loc, "weft_rvv.compare");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(kind));
   state.addTypes(getGenericMaskTypeForVector(builder, lhs));
@@ -140,7 +140,7 @@ mlir::Operation *createRealizedGenericIndexLoad(mlir::OpBuilder &builder,
                                                 mlir::Value vl,
                                                 std::int64_t indexEEW,
                                                 llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.index_load");
+  mlir::OperationState state(loc, "weft_rvv.index_load");
   state.addOperands({index, vl});
   state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
   state.addTypes(getGenericIndexVectorType(builder, indexEEW, lmul));
@@ -150,7 +150,7 @@ mlir::Operation *createRealizedGenericIndexLoad(mlir::OpBuilder &builder,
 llvm::Expected<mlir::Operation *> createRealizedGenericMaskedLoad(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
     mlir::Value mask, mlir::Value passthrough, mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_load");
+  mlir::OperationState state(loc, "weft_rvv.masked_load");
   state.addOperands({source, mask, passthrough, vl});
   state.addAttribute("memory_form",
                      builder.getStringAttr("masked-unit-load"));
@@ -165,7 +165,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedStridedLoad(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
     mlir::Value mask, mlir::Value passthrough, mlir::Value stride,
     mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_strided_load");
+  mlir::OperationState state(loc, "weft_rvv.masked_strided_load");
   state.addOperands({source, mask, passthrough, stride, vl});
   state.addAttribute("memory_form",
                      builder.getStringAttr("masked-strided-load"));
@@ -181,7 +181,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedIndexedLoad(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
     mlir::Value indices, mlir::Value mask, mlir::Value passthrough,
     mlir::Value vl, std::int64_t indexEEW, llvm::StringRef offsetUnit) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_load");
+  mlir::OperationState state(loc, "weft_rvv.masked_indexed_load");
   state.addOperands({source, indices, mask, passthrough, vl});
   state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
   state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
@@ -197,7 +197,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedIndexedLoad(
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.store");
+  mlir::OperationState state(loc, "weft_rvv.store");
   state.addOperands({out, value, vl});
   (void)builder.create(state);
 }
@@ -209,7 +209,7 @@ void createRealizedGenericMaskedStridedStore(mlir::OpBuilder &builder,
                                              mlir::Value value,
                                              mlir::Value stride,
                                              mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_strided_store");
+  mlir::OperationState state(loc, "weft_rvv.masked_strided_store");
   state.addOperands({out, mask, value, stride, vl});
   state.addAttribute("memory_form",
                      builder.getStringAttr("masked-strided-store"));
@@ -225,7 +225,7 @@ void createRealizedGenericMaskedIndexedStore(
     mlir::Value indices, mlir::Value mask, mlir::Value value, mlir::Value vl,
     std::int64_t indexEEW, llvm::StringRef offsetUnit,
     llvm::StringRef indexUniqueness) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_store");
+  mlir::OperationState state(loc, "weft_rvv.masked_indexed_store");
   state.addOperands({destination, indices, mask, value, vl});
   state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
   state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
@@ -240,17 +240,17 @@ void createRealizedGenericMaskedIndexedStore(
 }
 
 template <typename BodyOpT>
-tcrv::rvv::WithVLOp createComputedMaskMemoryWithVL(
+weft::rvv::WithVLOp createComputedMaskMemoryWithVL(
     const VariantLoweringBoundaryRequest &request, BodyOpT body,
     std::int64_t sew, llvm::StringRef lmul) {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = body->getLoc();
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   builder.setInsertionPoint(body.getOperation());
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
                           body.getPolicy()));
   return createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
@@ -259,36 +259,36 @@ tcrv::rvv::WithVLOp createComputedMaskMemoryWithVL(
 }
 
 template <typename BodyOpT>
-std::pair<tcrv::rvv::LoadOp, tcrv::rvv::LoadOp>
+std::pair<weft::rvv::LoadOp, weft::rvv::LoadOp>
 createComputedMaskMemoryCompareLoads(
     mlir::OpBuilder &builder, mlir::Location loc, BodyOpT body, mlir::Value vl,
     std::int64_t sew, llvm::StringRef lmul) {
   auto compareLhsLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, body.getCompareLhs(), vl, sew, lmul));
   auto compareRhsLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, body.getCompareRhs(), vl, sew, lmul));
   return {compareLhsLoad, compareRhsLoad};
 }
 
 template <typename BodyOpT>
-tcrv::rvv::CompareOp createComputedMaskMemoryCompareFromLoads(
+weft::rvv::CompareOp createComputedMaskMemoryCompareFromLoads(
     mlir::OpBuilder &builder, mlir::Location loc, BodyOpT body,
-    tcrv::rvv::LoadOp compareLhsLoad, tcrv::rvv::LoadOp compareRhsLoad,
+    weft::rvv::LoadOp compareLhsLoad, weft::rvv::LoadOp compareRhsLoad,
     mlir::Value vl) {
-  return llvm::cast<tcrv::rvv::CompareOp>(
+  return llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
                                    compareRhsLoad.getLoaded(), vl,
                                    body.getPredicateKind()));
 }
 
 template <typename BodyOpT>
-llvm::Expected<tcrv::rvv::WithVLOp> realizeComputedMaskMemoryLoadStore(
+llvm::Expected<weft::rvv::WithVLOp> realizeComputedMaskMemoryLoadStore(
     const VariantLoweringBoundaryRequest &request, BodyOpT body) {
   std::int64_t sew = static_cast<std::int64_t>(body.getSew());
   llvm::StringRef lmul = body.getLmul();
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createComputedMaskMemoryWithVL(request, body, sew, lmul);
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = body->getLoc();
@@ -298,7 +298,7 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizeComputedMaskMemoryLoadStore(
   auto compareLoads =
       createComputedMaskMemoryCompareLoads(builder, loc, body, vl, sew, lmul);
   auto oldDestinationLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, body.getDestination(), vl, sew, lmul));
   auto compare = createComputedMaskMemoryCompareFromLoads(
       builder, loc, body, compareLoads.first, compareLoads.second, vl);
@@ -317,19 +317,19 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizeComputedMaskMemoryLoadStore(
 } // namespace
 
 bool isPreRealizedRVVComputedMaskMemoryClusterOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp,
-                   tcrv::rvv::
+  return llvm::isa<weft::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
+                   weft::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
+                   weft::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
+                   weft::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp,
+                   weft::rvv::
                        TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp,
-                   tcrv::rvv::
+                   weft::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp,
+                   weft::rvv::
                        TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
       op);
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVComputedMaskMemoryOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   if (!bodyOp)
@@ -341,8 +341,8 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
         "computed-mask memory selected-body realization owner received a "
         "body outside its RVV-owned realization family");
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
         "pre-realized RVV computed-mask memory selected-body realization "
@@ -352,7 +352,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   mlir::OpBuilder::InsertionGuard guard(builder);
 
   if (auto body =
-          llvm::dyn_cast<tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(
+          llvm::dyn_cast<weft::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(
               bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskMemoryBody(request, body))
@@ -361,7 +361,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   }
 
   if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp>(bodyOp)) {
+          weft::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(request,
                                                                        body))
@@ -369,7 +369,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
 
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createComputedMaskMemoryWithVL(request, body, sew, lmul);
     mlir::Location loc = body->getLoc();
     mlir::Value vl = withVL.getVl();
@@ -378,7 +378,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     auto compareLoads = createComputedMaskMemoryCompareLoads(builder, loc, body,
                                                             vl, sew, lmul);
     auto sourceLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getSource(), vl, sew, lmul));
     auto compare = createComputedMaskMemoryCompareFromLoads(
         builder, loc, body, compareLoads.first, compareLoads.second, vl);
@@ -390,7 +390,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   }
 
   if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(bodyOp)) {
+          weft::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(request,
                                                                       body))
@@ -398,7 +398,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
 
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createComputedMaskMemoryWithVL(request, body, sew, lmul);
     mlir::Location loc = body->getLoc();
     mlir::Value vl = withVL.getVl();
@@ -407,7 +407,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     auto compareLoads = createComputedMaskMemoryCompareLoads(builder, loc, body,
                                                             vl, sew, lmul);
     auto oldDestinationLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getDestination(), vl, sew, lmul));
     auto compare = createComputedMaskMemoryCompareFromLoads(
         builder, loc, body, compareLoads.first, compareLoads.second, vl);
@@ -424,7 +424,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   }
 
   if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp>(bodyOp)) {
+          weft::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
                 request, body))
@@ -433,7 +433,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
     std::int64_t indexEEW = static_cast<std::int64_t>(body.getIndexEew());
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createComputedMaskMemoryWithVL(request, body, sew, lmul);
     mlir::Location loc = body->getLoc();
     mlir::Value vl = withVL.getVl();
@@ -442,10 +442,10 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     auto compareLoads = createComputedMaskMemoryCompareLoads(builder, loc, body,
                                                             vl, sew, lmul);
     auto oldDestinationLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getDestination(), vl, sew, lmul));
     auto indexLoad =
-        llvm::cast<tcrv::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
+        llvm::cast<weft::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
             builder, loc, body.getIndex(), vl, indexEEW, lmul));
     auto compare = createComputedMaskMemoryCompareFromLoads(
         builder, loc, body, compareLoads.first, compareLoads.second, vl);
@@ -463,7 +463,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   }
 
   if (auto body = llvm::dyn_cast<
-          tcrv::rvv::
+          weft::rvv::
               TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp>(
           bodyOp)) {
     if (llvm::Error error =
@@ -474,25 +474,25 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
     std::int64_t indexEEW = static_cast<std::int64_t>(body.getIndexEew());
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createComputedMaskMemoryWithVL(request, body, sew, lmul);
     mlir::Location loc = body->getLoc();
     mlir::Value vl = withVL.getVl();
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto lhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getLhs(), vl, sew, lmul));
     auto rhsScalarSplat =
-        llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+        llvm::cast<weft::rvv::SplatOp>(createRealizedGenericSplat(
             builder, loc, body.getRhsScalar(), vl, sew, lmul));
     auto oldDestinationLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getDestination(), vl, sew, lmul));
     auto indexLoad =
-        llvm::cast<tcrv::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
+        llvm::cast<weft::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
             builder, loc, body.getIndex(), vl, indexEEW, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+    auto compare = llvm::cast<weft::rvv::CompareOp>(
         createRealizedGenericCompare(builder, loc, lhsLoad.getLoaded(),
                                      rhsScalarSplat.getBroadcast(), vl,
                                      body.getPredicateKind()));
@@ -510,7 +510,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   }
 
   if (auto body =
-          llvm::dyn_cast<tcrv::rvv::
+          llvm::dyn_cast<weft::rvv::
                              TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
               bodyOp)) {
     if (llvm::Error error =
@@ -521,7 +521,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
     std::int64_t indexEEW = static_cast<std::int64_t>(body.getIndexEew());
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createComputedMaskMemoryWithVL(request, body, sew, lmul);
     mlir::Location loc = body->getLoc();
     mlir::Value vl = withVL.getVl();
@@ -530,10 +530,10 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     auto compareLoads = createComputedMaskMemoryCompareLoads(builder, loc, body,
                                                             vl, sew, lmul);
     auto sourceLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getSource(), vl, sew, lmul));
     auto indexLoad =
-        llvm::cast<tcrv::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
+        llvm::cast<weft::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
             builder, loc, body.getIndex(), vl, indexEEW, lmul));
     auto compare = createComputedMaskMemoryCompareFromLoads(
         builder, loc, body, compareLoads.first, compareLoads.second, vl);
@@ -546,7 +546,7 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
   }
 
   if (auto body = llvm::dyn_cast<
-          tcrv::rvv::
+          weft::rvv::
               TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
           bodyOp)) {
     if (llvm::Error error =
@@ -557,25 +557,25 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
     std::int64_t indexEEW = static_cast<std::int64_t>(body.getIndexEew());
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createComputedMaskMemoryWithVL(request, body, sew, lmul);
     mlir::Location loc = body->getLoc();
     mlir::Value vl = withVL.getVl();
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto lhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getLhs(), vl, sew, lmul));
     auto rhsScalarSplat =
-        llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+        llvm::cast<weft::rvv::SplatOp>(createRealizedGenericSplat(
             builder, loc, body.getRhsScalar(), vl, sew, lmul));
     auto sourceLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, body.getSource(), vl, sew, lmul));
     auto indexLoad =
-        llvm::cast<tcrv::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
+        llvm::cast<weft::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
             builder, loc, body.getIndex(), vl, indexEEW, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+    auto compare = llvm::cast<weft::rvv::CompareOp>(
         createRealizedGenericCompare(builder, loc, lhsLoad.getLoaded(),
                                      rhsScalarSplat.getBroadcast(), vl,
                                      body.getPredicateKind()));
@@ -592,4 +592,4 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
       "unsupported pre-realized body op");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

@@ -1,6 +1,6 @@
 {
   "$meta": {
-    "schema_version": "v1.0.0",
+    "schema_version": "v1.1.0",
     "rfc_id": "SCHEMA-RFC-0001",
     "declares": "target",
     "note": "Declares the TARGET six-item capability schema shape ([S-5]), NOT a snapshot of current code. The fields provenance/trust/subclass, the closed kind enum, namespaced-typed params, unified operand roles, and the serializable plugin signature are grep=0 in code today; code and schema.def are intentionally divergent, and that divergence is the tracked conformance gap the E4/E5/G6/P2 roadmap closes, not a v1 defect.",
@@ -8,7 +8,7 @@
       ".trellis/spec/capability-model/capability-contract.md#S-5",
       ".trellis/spec/architecture/core-invariants.md#S-5",
       ".trellis/spec/architecture/core-invariants.md#F-2prime",
-      "docs/TianChen-RV_科研目标总纲v2.md#S-5"
+      "docs/Weft-RV_科研目标总纲v2.md#S-5"
     ],
     "canon": "7d781994 (kind closed enum + subclass; profile = provider-only)"
   },
@@ -113,7 +113,7 @@
 
   "item_5_plugin_interface_signature": {
     "description": "[S-5] serializable projection of the ExtensionPlugin quasi-ABI signature (P-1 frozen; changes go through RFC, recorded as \"extension not modification\" when additive). Shallowest projection (Decision #4): ordered method name + arity + signature text of the 18 virtual member functions. The transitive request/result structs (VariantProposalRequest, VariantEmissionPlan, ...) are NOT serialized here (that is K-1's serialization effort). Plugin internal code is NOT in-shape.",
-    "source": "include/TianChenRV/Plugin/ExtensionPlugin.h",
+    "source": "include/Weft/Plugin/ExtensionPlugin.h",
     "virtual_destructor": "~ExtensionPlugin() = default (present; not counted among the 18 methods).",
     "method_count": 18,
     "pure_virtual_count": 3,
@@ -143,7 +143,7 @@
     "description": "[S-5] operand-role vocabulary. Decision #5: encoded as TWO ORTHOGONAL AXES, not unified by fiat. Axis A = ABI-signature slot (typed enum on the N-operand / ABI-slice route). Axis B = body-op semantic role (roles on RVVOps.td typed body ops + ConstructionProtocol). accumulator_role's value coincides with an ABI-slot spelling, but mask_role (\"predicate-mask-produced-by-compare\") is a body-construction role and is NOT an ABI-param slot at all — that non-coincidence is exactly why the two axes are kept distinct.",
     "axis_abi_signature_slot": {
       "kind": "typed enum",
-      "source": "include/TianChenRV/Support/RuntimeABI.h (RuntimeABIParameterRole)",
+      "source": "include/Weft/Support/RuntimeABI.h (RuntimeABIParameterRole)",
       "member_count": 28,
       "members": [
         "lhs-input-buffer",
@@ -179,7 +179,7 @@
     },
     "axis_body_op_semantic_role": {
       "kind": "named role attributes on typed body ops",
-      "source": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td + include/TianChenRV/Plugin/ConstructionProtocol.h",
+      "source": "include/Weft/Dialect/RVV/IR/RVVOps.td + include/Weft/Plugin/ConstructionProtocol.h",
       "role_attributes": [
         "accumulator_role",
         "mask_role",
@@ -205,7 +205,7 @@
       "plugin internal code (only the item-5 signature shape is in-shape)",
       "measurement library (cost lives there keyed by instance-hash; schema answers only can/what — [S-7])",
       "pattern-registry entries ([PAT-1] rows)",
-      "profiles (a tcrv.exec.target profile is a provider carrying provides with no capability-fact kind; it expands to a normalized fact set at load — content, not shape; declared-instance-hash is taken over the expanded set)"
+      "profiles (a weft.exec.target profile is a provider carrying provides with no capability-fact kind; it expands to a normalized fact set at load — content, not shape; declared-instance-hash is taken over the expanded set)"
     ]
   }
 }

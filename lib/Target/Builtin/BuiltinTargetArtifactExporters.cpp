@@ -1,8 +1,8 @@
-#include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
+#include "Weft/Target/BuiltinTargetArtifactExporters.h"
 
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "Weft/Target/TargetArtifactExport.h"
 
-namespace tianchenrv::target {
+namespace weft::target {
 
 llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry,
@@ -12,4 +12,4 @@ llvm::Error registerBuiltinTargetArtifactExporters(
       bundles, plugins, registry);
 }
 
-} // namespace tianchenrv::target
+} // namespace weft::target

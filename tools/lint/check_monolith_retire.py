@@ -28,7 +28,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ODS = os.path.join(REPO, "include/TianChenRV/Dialect/RVV/IR/RVVOps.td")
+ODS = os.path.join(REPO, "include/Weft/Dialect/RVV/IR/RVVOps.td")
 WHITELIST = os.path.join(REPO, "schema/monolith-retire-whitelist.v1.json")
 # .cpp files where a retired monolith verifier (dialect) or emitter (conversion) could
 # be left behind as a `#if 0` tomb. Scanned recursively for real preprocessor #if 0.
@@ -42,7 +42,7 @@ TOMB_SCAN_DIRS = [
 MONOLITH_MARKER = "Records the COMPLETE ggml `ggml_vec_dot_"
 
 RE_DEF = re.compile(r"^def\s+(\w+)\b")
-RE_MNEMONIC = re.compile(r'TCRVRVV_Op<"([^"]+)"')
+RE_MNEMONIC = re.compile(r'WEFTRVV_Op<"([^"]+)"')
 RE_IF0 = re.compile(r"^\s*#\s*if\s+0\b")
 RE_IFANY = re.compile(r"^\s*#\s*if(def|ndef)?\b")
 RE_ENDIF = re.compile(r"^\s*#\s*endif\b")
@@ -220,13 +220,13 @@ def run_self_test():
 
     # --- ODS monolith detector isolates monoliths from bricks/GEMM ---
     ods = (
-        'def GgmlBlockDotFooQ80Op\n    : TCRVRVV_Op<"foo_q8_0_block_dot", []> {\n'
+        'def GgmlBlockDotFooQ80Op\n    : WEFTRVV_Op<"foo_q8_0_block_dot", []> {\n'
         '  let description = [{ Records the COMPLETE ggml `ggml_vec_dot_foo_q8_0` '
         'block dot-product as ONE op. }];\n}\n'
-        'def GgmlBlockDotFooCoreOp\n    : TCRVRVV_Op<"foo_q8_0_core", []> {\n'
+        'def GgmlBlockDotFooCoreOp\n    : WEFTRVV_Op<"foo_q8_0_core", []> {\n'
         '  let description = [{ Records the INTEGER CORE of the ggml '
         '`ggml_vec_dot_foo_q8_0`. }];\n}\n'
-        'def GgmlGemmFooOp\n    : TCRVRVV_Op<"foo_gemm", []> {\n'
+        'def GgmlGemmFooOp\n    : WEFTRVV_Op<"foo_gemm", []> {\n'
         '  let description = [{ Records the COMPLETE ggml Foo GEMM as ONE. }];\n}\n')
     mono = extract_ods_monoliths(ods)
     check("detector picks the monolith only", mono == {"foo_q8_0_block_dot": "GgmlBlockDotFooQ80Op"})

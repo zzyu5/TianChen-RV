@@ -5,7 +5,7 @@
 // REJECT this (fail-closed, I7). Referenced via %S/Inputs by
 // rvv-codebook-gather-dot-source-front-door.mlir; not a standalone lit test
 // (Inputs/lit.local.cfg sets config.suffixes = []).
-module attributes {tcrv_rvv.source_front_door = "bounded_codebook_gather_dot_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_codebook_gather_dot_source"} {
   func.func @source_wrong_signature(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }

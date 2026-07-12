@@ -1,8 +1,8 @@
 #include "RVVToEmitCInternal.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
@@ -36,7 +36,7 @@ namespace detail {
 // ---------------------------------------------------------------------------
 
 // The fixed 2048-entry iq1_s TERNARY grid codebook as ONE `static const uint64_t
-// tcrv_iq1s_grid[2048]` verbatim decl (ggml's exact hex literals, `0x%016llxULL`).
+// weft_iq1s_grid[2048]` verbatim decl (ggml's exact hex literals, `0x%016llxULL`).
 // The ternary entries have the high bit set (e.g. 0xffffffffffffffff = all -1),
 // matching ggml's own `uint64_t iq1s_grid` type; read through a `(const int8_t *)`
 // byte cast at gather time each 0xff byte yields the signed ternary value -1,
@@ -44,7 +44,7 @@ namespace detail {
 void VariantToEmitCFunc::emitIQ1SGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     llvm::ArrayRef<int64_t> grid) const {
-  std::string decl = "static const uint64_t tcrv_iq1s_grid[2048] = {";
+  std::string decl = "static const uint64_t weft_iq1s_grid[2048] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -65,7 +65,7 @@ void VariantToEmitCFunc::emitIQ1SGridTableDecl(
 // monolith's `blockDot.getGrid()` decl.
 void VariantToEmitCFunc::emitIQ1SCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ1SGrid;
+  const auto &grid = weft::plugin::rvv::kIQ1SGrid;
   emitIQ1SGridTableDecl(rewriter, loc,
                         llvm::ArrayRef<int64_t>(grid.data(), grid.size()));
 }
@@ -405,7 +405,7 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
             return {idxBase, sizeLit(groupsPerSub)};
           });
 
-      // grid64 = (const int64_t *)tcrv_iq1s_grid;  (the u64 grid as int64 base for
+      // grid64 = (const int64_t *)weft_iq1s_grid;  (the u64 grid as int64 base for
       // the indexed gather -- exactly ggml's (const int64_t *)iq1s_grid.)
       mlir::Value grid64 =
           rewriter.create<emitc::CastOp>(loc, i64PtrType, gridArrayName)
@@ -568,13 +568,13 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
 // ---------------------------------------------------------------------------
 
 // The fixed 2048-entry iq1_m TERNARY grid codebook as ONE `static const uint64_t
-// tcrv_iq1m_grid[2048]` verbatim decl (ggml's exact hex literals, `0x%016llxULL`).
+// weft_iq1m_grid[2048]` verbatim decl (ggml's exact hex literals, `0x%016llxULL`).
 // SAME literals as iq1_s (the ternary grid is a shared ggml constant); only the decl
 // NAME differs so the two coexist.
 void VariantToEmitCFunc::emitIQ1MGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     llvm::ArrayRef<int64_t> grid) const {
-  std::string decl = "static const uint64_t tcrv_iq1m_grid[2048] = {";
+  std::string decl = "static const uint64_t weft_iq1m_grid[2048] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -594,13 +594,13 @@ void VariantToEmitCFunc::emitIQ1MGridTableDecl(
 // grid loop's decl is byte-identical to the monolith's `blockDot.getGrid()` decl.
 void VariantToEmitCFunc::emitIQ1MCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ1MGrid;
+  const auto &grid = weft::plugin::rvv::kIQ1MGrid;
   emitIQ1MGridTableDecl(rewriter, loc,
                         llvm::ArrayRef<int64_t>(grid.data(), grid.size()));
 }
 
 // The fixed 256-entry iq3_xxs GRID-of-4 codebook as ONE `static const uint32_t
-// tcrv_iq3xxs_grid[256]` verbatim decl (ggml's exact hex literals, `0x%08xU`). The
+// weft_iq3xxs_grid[256]` verbatim decl (ggml's exact hex literals, `0x%08xU`). The
 // byte-exact SHARED anchor kept across the iq3_xxs flip: the retired monolith
 // emitIQ3XXSQ8KBlockDot rendered its carried grid attr with this SAME format; the typed
 // grid loop lowering (the sole live caller) passes the canonical kIQ3XXSGrid so the
@@ -608,7 +608,7 @@ void VariantToEmitCFunc::emitIQ1MCanonicalGridTableDecl(
 void VariantToEmitCFunc::emitIQ3XXSGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     llvm::ArrayRef<int32_t> grid) const {
-  std::string decl = "static const uint32_t tcrv_iq3xxs_grid[256] = {";
+  std::string decl = "static const uint32_t weft_iq3xxs_grid[256] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -627,20 +627,20 @@ void VariantToEmitCFunc::emitIQ3XXSGridTableDecl(
 // the typed grid loop's decl is byte-identical to the retired monolith's grid decl.
 void VariantToEmitCFunc::emitIQ3XXSCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ3XXSGrid;
+  const auto &grid = weft::plugin::rvv::kIQ3XXSGrid;
   emitIQ3XXSGridTableDecl(rewriter, loc,
                           llvm::ArrayRef<int32_t>(grid.data(), grid.size()));
 }
 
 // The fixed 128-entry ksigns_iq2xs SIGN plane as ONE `static const uint8_t
-// tcrv_iq3xxs_ksigns[128]` verbatim decl (values reach 255, carried as i32 in the
+// weft_iq3xxs_ksigns[128]` verbatim decl (values reach 255, carried as i32 in the
 // canonical kIQ3XXSKsigns, masked & 0xff). The byte-exact SHARED anchor kept across the
 // iq3_xxs flip: the retired monolith rendered its carried ksigns attr identically; the
 // typed grid loop lowering passes kIQ3XXSKsigns so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ3XXSCanonicalKsignsTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &ksigns = tianchenrv::plugin::rvv::kIQ3XXSKsigns;
-  std::string decl = "static const uint8_t tcrv_iq3xxs_ksigns[128] = {";
+  const auto &ksigns = weft::plugin::rvv::kIQ3XXSKsigns;
+  std::string decl = "static const uint8_t weft_iq3xxs_ksigns[128] = {";
   for (size_t i = 0; i < ksigns.size(); ++i) {
     if (i)
       decl += ", ";
@@ -651,7 +651,7 @@ void VariantToEmitCFunc::emitIQ3XXSCanonicalKsignsTableDecl(
 }
 
 // The fixed 512-entry iq3_s GRID-of-4 codebook as ONE `static const uint32_t
-// tcrv_iq3s_grid[512]` verbatim decl (ggml's exact hex literals, `0x%08xU`). The
+// weft_iq3s_grid[512]` verbatim decl (ggml's exact hex literals, `0x%08xU`). The
 // byte-exact SHARED anchor kept across the iq3_s flip: the retired monolith
 // emitIQ3SQ8KBlockDot rendered its carried grid attr with this SAME format; the typed
 // grid loop lowering (the sole live caller) passes the canonical kIQ3SGrid so the
@@ -660,7 +660,7 @@ void VariantToEmitCFunc::emitIQ3XXSCanonicalKsignsTableDecl(
 void VariantToEmitCFunc::emitIQ3SGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     llvm::ArrayRef<int32_t> grid) const {
-  std::string decl = "static const uint32_t tcrv_iq3s_grid[512] = {";
+  std::string decl = "static const uint32_t weft_iq3s_grid[512] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -679,13 +679,13 @@ void VariantToEmitCFunc::emitIQ3SGridTableDecl(
 // the typed grid loop's decl is byte-identical to the retired monolith's grid decl.
 void VariantToEmitCFunc::emitIQ3SCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ3SGrid;
+  const auto &grid = weft::plugin::rvv::kIQ3SGrid;
   emitIQ3SGridTableDecl(rewriter, loc,
                         llvm::ArrayRef<int32_t>(grid.data(), grid.size()));
 }
 
 // The fixed 256-entry iq2_xxs GRID-of-8 codebook as ONE `static const int64_t
-// tcrv_iq2xxs_grid[256]` verbatim decl (ggml's exact uint64 literals rendered
+// weft_iq2xxs_grid[256]` verbatim decl (ggml's exact uint64 literals rendered
 // `0x%016llxULL` so the int64_t initializer carries the exact uint64 bit pattern; every
 // grid byte is <= 0x2b < 128 so reading it as int8 yields the identical numeric value as
 // ggml's uint8 read). The byte-exact SHARED anchor kept across the iq2_xxs flip: the
@@ -693,8 +693,8 @@ void VariantToEmitCFunc::emitIQ3SCanonicalGridTableDecl(
 // lowering passes the canonical kIQ2XXSGrid so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ2XXSCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ2XXSGrid;
-  std::string decl = "static const int64_t tcrv_iq2xxs_grid[256] = {";
+  const auto &grid = weft::plugin::rvv::kIQ2XXSGrid;
+  std::string decl = "static const int64_t weft_iq2xxs_grid[256] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -709,7 +709,7 @@ void VariantToEmitCFunc::emitIQ2XXSCanonicalGridTableDecl(
 }
 
 // The DERIVED keven_signs_q2xs signs64 SIGN plane as ONE `static const int8_t
-// tcrv_iq2xxs_signs64[1024]` verbatim decl (128 selectors * 8 +-1 bytes). This IS the
+// weft_iq2xxs_signs64[1024]` verbatim decl (128 selectors * 8 +-1 bytes). This IS the
 // signs64 sign-plane MECHANISM carried by op identity (NO op-attr extension): byte b of
 // selector j is `(ksigns_iq2xs[j] & (1<<b)) ? -1 : +1`, exactly the per-lane sign the
 // old scalar fold computed via vmv/vand/vmsne/vneg/vmerge, so gathering signs64[sel]
@@ -719,8 +719,8 @@ void VariantToEmitCFunc::emitIQ2XXSCanonicalGridTableDecl(
 // the canonical kIQ2XXSKsigns so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ2XXSCanonicalSigns64TableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &ksigns = tianchenrv::plugin::rvv::kIQ2XXSKsigns;
-  std::string decl = "static const int8_t tcrv_iq2xxs_signs64[1024] = {";
+  const auto &ksigns = weft::plugin::rvv::kIQ2XXSKsigns;
+  std::string decl = "static const int8_t weft_iq2xxs_signs64[1024] = {";
   for (size_t j = 0; j < ksigns.size(); ++j) {
     unsigned sel = static_cast<unsigned>(ksigns[j]) & 0xff;
     for (int b = 0; b < 8; ++b) {
@@ -734,7 +734,7 @@ void VariantToEmitCFunc::emitIQ2XXSCanonicalSigns64TableDecl(
 }
 
 // The fixed 512-entry iq2_xs GRID codebook as ONE `static const int64_t
-// tcrv_iq2xs_grid[512]` verbatim decl (ggml's exact uint64 hex literals rendered
+// weft_iq2xs_grid[512]` verbatim decl (ggml's exact uint64 hex literals rendered
 // `0x%016llxULL` so the int64_t initializer carries the exact uint64 bit pattern; every
 // grid byte is <= 0x2b < 128 so reading it as int8 yields the identical numeric value as
 // ggml's uint8 read). The byte-exact SHARED anchor kept across the iq2_xs flip: the retired
@@ -742,8 +742,8 @@ void VariantToEmitCFunc::emitIQ2XXSCanonicalSigns64TableDecl(
 // the canonical kIQ2XSGrid so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ2XSCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ2XSGrid;
-  std::string decl = "static const int64_t tcrv_iq2xs_grid[512] = {";
+  const auto &grid = weft::plugin::rvv::kIQ2XSGrid;
+  std::string decl = "static const int64_t weft_iq2xs_grid[512] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -758,7 +758,7 @@ void VariantToEmitCFunc::emitIQ2XSCanonicalGridTableDecl(
 }
 
 // The DERIVED keven_signs_q2xs signs64 SIGN plane as ONE `static const int8_t
-// tcrv_iq2xs_signs64[1024]` verbatim decl (128 selectors * 8 +-1 bytes). This IS the
+// weft_iq2xs_signs64[1024]` verbatim decl (128 selectors * 8 +-1 bytes). This IS the
 // signs64 sign-plane MECHANISM carried by op identity (NO op-attr extension): byte b of
 // selector j is `(ksigns_iq2xs[j] & (1<<b)) ? -1 : +1`, exactly the per-lane sign the old
 // scalar fold computed via vmv/vand/vmsne/vneg/vmerge, so gathering signs64[w>>9] reproduces
@@ -767,8 +767,8 @@ void VariantToEmitCFunc::emitIQ2XSCanonicalGridTableDecl(
 // loop lowering passes the canonical kIQ2XSKsigns so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ2XSCanonicalSigns64TableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &ksigns = tianchenrv::plugin::rvv::kIQ2XSKsigns;
-  std::string decl = "static const int8_t tcrv_iq2xs_signs64[1024] = {";
+  const auto &ksigns = weft::plugin::rvv::kIQ2XSKsigns;
+  std::string decl = "static const int8_t weft_iq2xs_signs64[1024] = {";
   for (size_t j = 0; j < ksigns.size(); ++j) {
     unsigned sel = static_cast<unsigned>(ksigns[j]) & 0xff;
     for (int b = 0; b < 8; ++b) {
@@ -782,7 +782,7 @@ void VariantToEmitCFunc::emitIQ2XSCanonicalSigns64TableDecl(
 }
 
 // The fixed 1024-entry iq2_s GRID codebook as ONE `static const int64_t
-// tcrv_iq2s_grid[1024]` verbatim decl (ggml's exact uint64 hex literals rendered
+// weft_iq2s_grid[1024]` verbatim decl (ggml's exact uint64 hex literals rendered
 // `0x%016llxULL` so the int64_t initializer carries the exact uint64 bit pattern; every
 // grid byte is <= 0x2b < 128 so reading it as int8 yields the identical numeric value as
 // ggml's uint8 read). The byte-exact SHARED anchor kept across the iq2_s flip: the retired
@@ -790,8 +790,8 @@ void VariantToEmitCFunc::emitIQ2XSCanonicalSigns64TableDecl(
 // the canonical kIQ2SGrid so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ2SCanonicalGridTableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  const auto &grid = tianchenrv::plugin::rvv::kIQ2SGrid;
-  std::string decl = "static const int64_t tcrv_iq2s_grid[1024] = {";
+  const auto &grid = weft::plugin::rvv::kIQ2SGrid;
+  std::string decl = "static const int64_t weft_iq2s_grid[1024] = {";
   for (size_t i = 0; i < grid.size(); ++i) {
     if (i)
       decl += ", ";
@@ -806,7 +806,7 @@ void VariantToEmitCFunc::emitIQ2SCanonicalGridTableDecl(
 }
 
 // The UNIVERSAL signs256 SIGN plane as ONE `static const int8_t
-// tcrv_iq2s_signs256[2048]` verbatim decl (256 sign-byte values * 8 +-1 bytes). iq2_s has
+// weft_iq2s_signs256[2048]` verbatim decl (256 sign-byte values * 8 +-1 bytes). iq2_s has
 // NO ksigns selector plane -- its signs are EXPLICIT bytes read straight from the sign
 // region at qs+32, so the gather is indexed by the raw 8-bit sign byte DIRECTLY (0..255):
 // byte b of sign byte v is `(v & (1<<b)) ? -1 : +1`, exactly the per-lane sign the old
@@ -816,7 +816,7 @@ void VariantToEmitCFunc::emitIQ2SCanonicalGridTableDecl(
 // universal), so the decl is byte-identical.
 void VariantToEmitCFunc::emitIQ2SCanonicalSigns256TableDecl(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
-  std::string decl = "static const int8_t tcrv_iq2s_signs256[2048] = {";
+  std::string decl = "static const int8_t weft_iq2s_signs256[2048] = {";
   for (int v = 0; v < 256; ++v) {
     for (int b = 0; b < 8; ++b) {
       if (v || b)
@@ -1523,19 +1523,19 @@ void VariantToEmitCFunc::emitIQ1MSuperBlockGridBody(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the tq2_0 ternary-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -1575,8 +1575,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
           loopBody, "tq2_0 super-block scalar-accumulator ternary ABI operand "
                     "unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -1981,19 +1981,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the tq1_0 ternary-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -2033,8 +2033,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
           loopBody, "tq1_0 super-block scalar-accumulator ternary ABI operand "
                     "unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -2509,4 +2509,4 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

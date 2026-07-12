@@ -1,7 +1,7 @@
 #include "RVVToEmitCInternal.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -17,7 +17,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
@@ -44,19 +44,19 @@ namespace detail {
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq4_xs codebook-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -95,8 +95,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
           loopBody, "iq4_xs super-block scalar-accumulator codebook ABI operand "
                     "unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -161,7 +161,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     // register is reused by every gather).
     llvm::ArrayRef<int8_t> codebook = coreOp.getCodebook();
     {
-      std::string decl = "static const int8_t tcrv_iq4_xs_kvalues[16] = {";
+      std::string decl = "static const int8_t weft_iq4_xs_kvalues[16] = {";
       for (size_t i = 0; i < codebook.size(); ++i) {
         if (i)
           decl += ", ";
@@ -187,7 +187,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_iq4_xs_kvalues, 16);  (the
+    // vint8m1_t values = __riscv_vle8_v_i8m1(weft_iq4_xs_kvalues, 16);  (the
     // codebook table broadcast into a vreg ONCE; reused by every gather).
     std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
     mlir::Value values = emitOpaqueCallBuilt(
@@ -195,7 +195,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
         [&](mlir::OpBuilder &b,
             mlir::Location l) -> llvm::SmallVector<mlir::Value> {
           mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
-              loc, i8PtrType, "tcrv_iq4_xs_kvalues");
+              loc, i8PtrType, "weft_iq4_xs_kvalues");
           return {tableName, sizeLit(codebook.size())};
         },
         llvm::StringRef("codebook_table_load"));
@@ -661,7 +661,7 @@ mlir::Value VariantToEmitCFunc::emitE8M0HalfScale(
 
 mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // Thin shim: mxfp4 codebook_gather_nibble / half-block / SumiTimesScales
     // (E8M0 weight scale, dual weight/activation quant offsets) instance of the
@@ -670,9 +670,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     // weight-scale source (E8M0 vs fp16) and the quant offsets differ, both
     // descriptor fields. Enforce the codebook I7 fail-closed anchor guard, derive
     // the descriptor + the scheduled BlockDotFacts, emit the shared body.
-    tcrvrvv::GgmlBlockDotMXFP4Q80Op blockDot;
+    weftrvv::GgmlBlockDotMXFP4Q80Op blockDot;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotMXFP4Q80Op>(op))
+      if (auto bd = llvm::dyn_cast<weftrvv::GgmlBlockDotMXFP4Q80Op>(op))
         blockDot = bd;
     }
     if (!blockDot)
@@ -713,8 +713,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
         deriveBlockDotFacts(blockDot, descriptor->defaultCoreLmul);
     return emitFlatBlockDot(rewriter, loc, weightBase, activationBase, output,
                             blockDot.getResult(), avlArg, sizeType, valueMap,
-                            blockDot.getTCRVEmitCLowerableSourceOpName(),
-                            blockDot.getTCRVEmitCLowerableSourceRole(), facts,
+                            blockDot.getWEFTEmitCLowerableSourceOpName(),
+                            blockDot.getWEFTEmitCLowerableSourceRole(), facts,
                             *descriptor);
   }
 
@@ -779,7 +779,7 @@ mlir::Value VariantToEmitCFunc::emitNVFP4BlockDotBodyShared(
     // `static const int8_t[16]` decl ONCE, then broadcast it into `values` via vle8
     // ONCE above the block loop (the gather table).
     {
-      std::string decl = "static const int8_t tcrv_nvfp4_kvalues[16] = {";
+      std::string decl = "static const int8_t weft_nvfp4_kvalues[16] = {";
       for (size_t i = 0; i < codebook.size(); ++i) {
         if (i)
           decl += ", ";
@@ -810,7 +810,7 @@ mlir::Value VariantToEmitCFunc::emitNVFP4BlockDotBodyShared(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_nvfp4_kvalues, 16);  (the FP4
+    // vint8m1_t values = __riscv_vle8_v_i8m1(weft_nvfp4_kvalues, 16);  (the FP4
     // codebook table broadcast into a vreg ONCE; reused by every gather).
     std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
     mlir::Value values = emitOpaqueCallBuilt(
@@ -818,7 +818,7 @@ mlir::Value VariantToEmitCFunc::emitNVFP4BlockDotBodyShared(
         [&](mlir::OpBuilder &b,
             mlir::Location l) -> llvm::SmallVector<mlir::Value> {
           mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
-              loc, i8PtrType, "tcrv_nvfp4_kvalues");
+              loc, i8PtrType, "weft_nvfp4_kvalues");
           return {tableName, sizeLit(codebook.size())};
         },
         llvm::StringRef("codebook_table_load"));
@@ -1210,4 +1210,4 @@ mlir::Value VariantToEmitCFunc::emitNVFP4BlockDotBodyShared(
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

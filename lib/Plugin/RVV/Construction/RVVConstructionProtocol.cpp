@@ -1,9 +1,9 @@
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Support/RuntimeABIContract.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Support/RuntimeABIContract.h"
 
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
@@ -17,10 +17,10 @@
 #include <tuple>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kProtocolVersion(
     "extension-family-construction-protocol.v1");
@@ -28,69 +28,69 @@ constexpr llvm::StringLiteral kArchetype("rvv-generic-typed-body");
 constexpr llvm::StringLiteral kSemanticRoleGraph(
     "runtime_abi->configure->scope->load->compute->store");
 constexpr llvm::StringLiteral kInterfaceRealization(
-    "runtime_abi=TCRVExtensionOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;configure=TCRVExtensionOpInterface+"
-    "TCRVConfigOpInterface+TCRVEmitCLowerableInterface;"
-    "scope=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-    "TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+"
-    "TCRVComputeOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface");
+    "runtime_abi=WEFTExtensionOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;configure=WEFTExtensionOpInterface+"
+    "WEFTConfigOpInterface+WEFTEmitCLowerableInterface;"
+    "scope=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+    "WEFTEmitCLowerableInterface;load=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;compute=WEFTExtensionOpInterface+"
+    "WEFTComputeOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;store=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
     "emitc_route_mapping|materialized_target_artifact|"
     "ssh_rvv_required_for_runtime_claims");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "runtime_abi:rvv.role.runtime_abi.runtime_abi_value:"
-    "tcrv_rvv.runtime_abi_value:TCRVResourceOpInterface:"
-    "TCRVEmitCLowerableInterface;"
-    "configure:rvv.role.configure.setvl:tcrv_rvv.setvl:"
-    "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
-    "scope:rvv.role.scope.with_vl:tcrv_rvv.with_vl:"
-    "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
-    "load:rvv.role.load.generic_load:tcrv_rvv.load|"
-    "tcrv_rvv.broadcast_load|tcrv_rvv.splat|tcrv_rvv.strided_load|"
-    "tcrv_rvv.index_load|tcrv_rvv.indexed_load|tcrv_rvv.mask_load|"
-    "tcrv_rvv.masked_load|tcrv_rvv.masked_strided_load|"
-    "tcrv_rvv.masked_indexed_load|tcrv_rvv.segment2_load|"
-    "tcrv_rvv.masked_segment2_load:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
-    "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
-    "tcrv_rvv.compare|tcrv_rvv.masked_binary|tcrv_rvv.select|"
-    "tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|"
-    "tcrv_rvv.masked_standalone_reduce|tcrv_rvv.macc|"
-    "tcrv_rvv.masked_macc|"
-    "tcrv_rvv.mask_and|"
-    "tcrv_rvv.widening_macc|tcrv_rvv.widening_product|"
-    "tcrv_rvv.widening_dot_reduce|"
-    "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
-    "tcrv_rvv.gearbox_cross_region_handoff|tcrv_rvv.dequantize|"
-    "tcrv_rvv.move|tcrv_rvv.masked_move:"
-    "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
-    "store:rvv.role.store.generic_store:tcrv_rvv.store|"
-    "tcrv_rvv.strided_store|tcrv_rvv.indexed_store|"
-    "tcrv_rvv.segment2_store|tcrv_rvv.masked_store|"
-    "tcrv_rvv.masked_strided_store|tcrv_rvv.masked_indexed_store|"
-    "tcrv_rvv.masked_segment2_store:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
+    "weft_rvv.runtime_abi_value:WEFTResourceOpInterface:"
+    "WEFTEmitCLowerableInterface;"
+    "configure:rvv.role.configure.setvl:weft_rvv.setvl:"
+    "WEFTConfigOpInterface:WEFTEmitCLowerableInterface;"
+    "scope:rvv.role.scope.with_vl:weft_rvv.with_vl:"
+    "WEFTConfigOpInterface:WEFTEmitCLowerableInterface;"
+    "load:rvv.role.load.generic_load:weft_rvv.load|"
+    "weft_rvv.broadcast_load|weft_rvv.splat|weft_rvv.strided_load|"
+    "weft_rvv.index_load|weft_rvv.indexed_load|weft_rvv.mask_load|"
+    "weft_rvv.masked_load|weft_rvv.masked_strided_load|"
+    "weft_rvv.masked_indexed_load|weft_rvv.segment2_load|"
+    "weft_rvv.masked_segment2_load:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;"
+    "compute:rvv.role.compute.generic_vector:weft_rvv.binary|"
+    "weft_rvv.compare|weft_rvv.masked_binary|weft_rvv.select|"
+    "weft_rvv.reduce|weft_rvv.standalone_reduce|"
+    "weft_rvv.masked_standalone_reduce|weft_rvv.macc|"
+    "weft_rvv.masked_macc|"
+    "weft_rvv.mask_and|"
+    "weft_rvv.widening_macc|weft_rvv.widening_product|"
+    "weft_rvv.widening_dot_reduce|"
+    "weft_rvv.masked_widening_dot_reduce|weft_rvv.widening_convert|"
+    "weft_rvv.gearbox_cross_region_handoff|weft_rvv.dequantize|"
+    "weft_rvv.move|weft_rvv.masked_move:"
+    "WEFTComputeOpInterface:WEFTEmitCLowerableInterface;"
+    "store:rvv.role.store.generic_store:weft_rvv.store|"
+    "weft_rvv.strided_store|weft_rvv.indexed_store|"
+    "weft_rvv.segment2_store|weft_rvv.masked_store|"
+    "weft_rvv.masked_strided_store|weft_rvv.masked_indexed_store|"
+    "weft_rvv.masked_segment2_store:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kInterfaceRealizationArtifactSummary(
     "runtime_abi/resource+emitc;configure/config+emitc;"
     "scope/config+emitc;load/memory+resource+emitc;"
     "compute/compute+resource+emitc;store/memory+resource+emitc");
 constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
-    "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
-    "scope:tcrv_rvv.with_vl;"
+    "runtime_abi:weft_rvv.runtime_abi_value;configure:weft_rvv.setvl;"
+    "scope:weft_rvv.with_vl;"
     "load:typed-load-family;compute:typed-compute-family;"
     "store:typed-store-family;"
     "exact-ops=rvv-construction-protocol-realizations");
 
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSourceOps(
-    "tcrv_rvv.runtime_abi_value->setvl->with_vl->"
+    "weft_rvv.runtime_abi_value->setvl->with_vl->"
     "load_family->compute_family->store_family;"
     "typed-op-detail=rvv_typed_role_realization");
 constexpr llvm::StringLiteral kSourceRoles(
@@ -181,7 +181,7 @@ constexpr llvm::StringLiteral kRVVSelectedBodyEmissionKind(
 constexpr llvm::StringLiteral kRVVSelectedBodyArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kRVVSelectedBodyLoweringBoundaryOpName(
-    "tcrv_rvv.with_vl");
+    "weft_rvv.with_vl");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIFamily(
     "rvv-generic-typed-body-callable-c-abi-family.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIKind(
@@ -197,29 +197,29 @@ constexpr llvm::StringLiteral kRVVMaterializedEmitCBundleComponentGroup(
 constexpr llvm::StringLiteral kRVVSelectedBodyObjectHandoffKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
 constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
-    "tcrv-rvv-emitc-to-cpp");
+    "weft-rvv-emitc-to-cpp");
 
 const RVVConstructionSemanticRole kSemanticRoles[] = {
-    {"runtime_abi", 0, "tcrv_rvv.runtime_abi_value",
-     "TCRVExtensionOpInterface+TCRVResourceOpInterface+"
-     "TCRVEmitCLowerableInterface",
+    {"runtime_abi", 0, "weft_rvv.runtime_abi_value",
+     "WEFTExtensionOpInterface+WEFTResourceOpInterface+"
+     "WEFTEmitCLowerableInterface",
      "bind explicit callable ABI values consumed by the RVV route"},
-    {"configure", 1, "tcrv_rvv.setvl",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
+    {"configure", 1, "weft_rvv.setvl",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
      "materialize runtime AVL to VL control for the selected RVV config"},
-    {"scope", 2, "tcrv_rvv.with_vl",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
+    {"scope", 2, "weft_rvv.with_vl",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
      "own the selected with_vl lowering boundary for the arithmetic body"},
     {"load", 3,
-     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
-     "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load|"
-     "tcrv_rvv.mask_load|tcrv_rvv.masked_load|"
-     "tcrv_rvv.masked_strided_load|tcrv_rvv.masked_indexed_load|"
-     "tcrv_rvv.segment2_load|tcrv_rvv.masked_segment2_load",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     "weft_rvv.load|weft_rvv.broadcast_load|weft_rvv.splat|"
+     "weft_rvv.strided_load|weft_rvv.index_load|weft_rvv.indexed_load|"
+     "weft_rvv.mask_load|weft_rvv.masked_load|"
+     "weft_rvv.masked_strided_load|weft_rvv.masked_indexed_load|"
+     "weft_rvv.segment2_load|weft_rvv.masked_segment2_load",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "load explicit ABI buffers into typed RVV vector dataflow values, "
      "broadcast the explicit RHS ABI buffer into a typed RVV dataflow value, "
      "splat an explicit RHS scalar ABI value into a typed RVV dataflow value, "
@@ -229,28 +229,28 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "load segment2 "
      "interleaved fields into typed RVV vector values"},
     {"compute", 4,
-     "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
-     "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|"
-     "tcrv_rvv.masked_standalone_reduce|tcrv_rvv.macc|"
-     "tcrv_rvv.masked_macc|"
-     "tcrv_rvv.mask_and|"
-     "tcrv_rvv.widening_macc|tcrv_rvv.widening_product|"
-     "tcrv_rvv.widening_dot_reduce|"
-     "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
-     "tcrv_rvv.gearbox_cross_region_handoff|tcrv_rvv.dequantize|"
-     "tcrv_rvv.move|tcrv_rvv.masked_move",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     "weft_rvv.binary|weft_rvv.compare|weft_rvv.masked_binary|"
+     "weft_rvv.select|weft_rvv.reduce|weft_rvv.standalone_reduce|"
+     "weft_rvv.masked_standalone_reduce|weft_rvv.macc|"
+     "weft_rvv.masked_macc|"
+     "weft_rvv.mask_and|"
+     "weft_rvv.widening_macc|weft_rvv.widening_product|"
+     "weft_rvv.widening_dot_reduce|"
+     "weft_rvv.masked_widening_dot_reduce|weft_rvv.widening_convert|"
+     "weft_rvv.gearbox_cross_region_handoff|weft_rvv.dequantize|"
+     "weft_rvv.move|weft_rvv.masked_move",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "perform the bounded generic RVV arithmetic, masked arithmetic, "
      "compare/select, reduction/accumulation, or multiply-accumulate compute "
      "operation, plus bounded typed masked load movement"},
     {"store", 5,
-     "tcrv_rvv.store|tcrv_rvv.strided_store|tcrv_rvv.indexed_store|"
-     "tcrv_rvv.segment2_store|tcrv_rvv.masked_store|"
-     "tcrv_rvv.masked_strided_store|tcrv_rvv.masked_indexed_store|"
-     "tcrv_rvv.masked_segment2_store",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     "weft_rvv.store|weft_rvv.strided_store|weft_rvv.indexed_store|"
+     "weft_rvv.segment2_store|weft_rvv.masked_store|"
+     "weft_rvv.masked_strided_store|weft_rvv.masked_indexed_store|"
+     "weft_rvv.masked_segment2_store",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "store the typed RVV arithmetic result through the output ABI buffer, "
      "optionally with an explicit runtime element stride or index vector"},
 };
@@ -260,8 +260,8 @@ const RVVConstructionManifest kManifest = {
     kArchetype,
     kSemanticRoleGraph,
     {"rvv",
-     "tcrv.rvv",
-     "tcrv_rvv",
+     "weft.rvv",
+     "weft_rvv",
      kRVVPluginName,
      kRVVCapabilityID,
      kRVVCapabilityKind,
@@ -281,67 +281,67 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"rvv.role.runtime_abi.runtime_abi_value",
      "runtime_abi",
      0,
-     "tcrv_rvv.runtime_abi_value",
-     "TCRVExtensionOpInterface+TCRVResourceOpInterface+"
-     "TCRVEmitCLowerableInterface",
-     "TCRVResourceOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_rvv.runtime_abi_value",
+     "WEFTExtensionOpInterface+WEFTResourceOpInterface+"
+     "WEFTEmitCLowerableInterface",
+     "WEFTResourceOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"rvv.role.configure.setvl",
      "configure",
      1,
-     "tcrv_rvv.setvl",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
-     "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_rvv.setvl",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
+     "WEFTConfigOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"rvv.role.scope.with_vl",
      "scope",
      2,
-     "tcrv_rvv.with_vl",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
-     "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_rvv.with_vl",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
+     "WEFTConfigOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"rvv.role.load.generic_load",
      "load",
      3,
-     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
-     "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load|"
-     "tcrv_rvv.mask_load|tcrv_rvv.masked_load|"
-     "tcrv_rvv.masked_strided_load|tcrv_rvv.masked_indexed_load|"
-     "tcrv_rvv.segment2_load|tcrv_rvv.masked_segment2_load",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_rvv.load|weft_rvv.broadcast_load|weft_rvv.splat|"
+     "weft_rvv.strided_load|weft_rvv.index_load|weft_rvv.indexed_load|"
+     "weft_rvv.mask_load|weft_rvv.masked_load|"
+     "weft_rvv.masked_strided_load|weft_rvv.masked_indexed_load|"
+     "weft_rvv.segment2_load|weft_rvv.masked_segment2_load",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"rvv.role.compute.generic_vector",
      "compute",
      4,
-     "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
-     "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|"
-     "tcrv_rvv.masked_standalone_reduce|tcrv_rvv.macc|"
-     "tcrv_rvv.masked_macc|"
-     "tcrv_rvv.mask_and|"
-     "tcrv_rvv.widening_macc|tcrv_rvv.widening_product|"
-     "tcrv_rvv.widening_dot_reduce|"
-     "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
-     "tcrv_rvv.gearbox_cross_region_handoff|tcrv_rvv.dequantize|"
-     "tcrv_rvv.move|tcrv_rvv.masked_move",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_rvv.binary|weft_rvv.compare|weft_rvv.masked_binary|"
+     "weft_rvv.select|weft_rvv.reduce|weft_rvv.standalone_reduce|"
+     "weft_rvv.masked_standalone_reduce|weft_rvv.macc|"
+     "weft_rvv.masked_macc|"
+     "weft_rvv.mask_and|"
+     "weft_rvv.widening_macc|weft_rvv.widening_product|"
+     "weft_rvv.widening_dot_reduce|"
+     "weft_rvv.masked_widening_dot_reduce|weft_rvv.widening_convert|"
+     "weft_rvv.gearbox_cross_region_handoff|weft_rvv.dequantize|"
+     "weft_rvv.move|weft_rvv.masked_move",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTComputeOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"rvv.role.store.generic_store",
      "store",
      5,
-     "tcrv_rvv.store|tcrv_rvv.strided_store|tcrv_rvv.indexed_store|"
-     "tcrv_rvv.segment2_store|tcrv_rvv.masked_store|"
-     "tcrv_rvv.masked_strided_store|tcrv_rvv.masked_indexed_store|"
-     "tcrv_rvv.masked_segment2_store",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_rvv.store|weft_rvv.strided_store|weft_rvv.indexed_store|"
+     "weft_rvv.segment2_store|weft_rvv.masked_store|"
+     "weft_rvv.masked_strided_store|weft_rvv.masked_indexed_store|"
+     "weft_rvv.masked_segment2_store",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
 };
 
 const RVVTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -356,407 +356,407 @@ const RVVTypedRoleGraphRealization kTypedRoleGraphRealization = {
 
 const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = {
     {"add",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-binary-add-emitc-route",
      "rvv-generic-binary-add-callable-c-abi.v1",
      "rvv-generic-binary-add-callable-c-abi"},
     {"sub",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-binary-sub-emitc-route",
      "rvv-generic-binary-sub-callable-c-abi.v1",
      "rvv-generic-binary-sub-callable-c-abi"},
     {"mul",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-binary-mul-emitc-route",
      "rvv-generic-binary-mul-callable-c-abi.v1",
      "rvv-generic-binary-mul-callable-c-abi"},
     {"cmp_select",
-     "tcrv_rvv.select",
+     "weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-cmp-select-emitc-route",
      "rvv-generic-cmp-select-callable-c-abi.v1",
      "rvv-generic-cmp-select-callable-c-abi"},
     {"computed_mask_select",
-     "tcrv_rvv.select",
+     "weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-mask-select-emitc-route",
      "rvv-generic-computed-mask-select-callable-c-abi.v1",
      "rvv-generic-computed-mask-select-callable-c-abi"},
     {"runtime_scalar_cmp_select",
-     "tcrv_rvv.select",
+     "weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-cmp-select-emitc-route",
      "rvv-generic-runtime-scalar-cmp-select-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-select-callable-c-abi"},
     {"runtime_scalar_dual_cmp_mask_and_select",
-     "tcrv_rvv.select",
+     "weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-emitc-route",
      "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi"},
     {"f32_clamp_select",
-     "tcrv_rvv.select",
+     "weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-f32-clamp-select-emitc-route",
      "rvv-generic-f32-clamp-select-callable-c-abi.v1",
      "rvv-generic-f32-clamp-select-callable-c-abi"},
     {"dequant_clamp_f32_epilogue",
-     "tcrv_rvv.select",
+     "weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-dequant-clamp-f32-epilogue-emitc-route",
      "rvv-generic-dequant-clamp-f32-epilogue-callable-c-abi.v1",
      "rvv-generic-dequant-clamp-f32-epilogue-callable-c-abi"},
     {"runtime_scalar_cmp_masked_store",
-     "tcrv_rvv.masked_store",
+     "weft_rvv.masked_store",
      "rvv.role.store.generic_store",
      "rvv-generic-runtime-scalar-cmp-masked-store-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi"},
     {"runtime_scalar_cmp_masked_load_store",
-     "tcrv_rvv.masked_load",
+     "weft_rvv.masked_load",
      "rvv.role.load.generic_load",
      "rvv-generic-runtime-scalar-cmp-masked-load-store-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-load-store-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-load-store-callable-c-abi"},
     {"reduce_add",
-     "tcrv_rvv.reduce",
+     "weft_rvv.reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-reduce-add-emitc-route",
      "rvv-generic-reduce-add-callable-c-abi.v1",
      "rvv-generic-reduce-add-callable-c-abi"},
     {"standalone_reduce_add",
-     "tcrv_rvv.standalone_reduce",
+     "weft_rvv.standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-standalone-reduce-add-emitc-route",
      "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-standalone-reduce-add-callable-c-abi"},
     {"standalone_reduce_min",
-     "tcrv_rvv.standalone_reduce",
+     "weft_rvv.standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-standalone-reduce-min-emitc-route",
      "rvv-generic-standalone-reduce-min-callable-c-abi.v1",
      "rvv-generic-standalone-reduce-min-callable-c-abi"},
     {"standalone_reduce_max",
-     "tcrv_rvv.standalone_reduce",
+     "weft_rvv.standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-standalone-reduce-max-emitc-route",
      "rvv-generic-standalone-reduce-max-callable-c-abi.v1",
      "rvv-generic-standalone-reduce-max-callable-c-abi"},
     {"widening_standalone_reduce_add",
-     "tcrv_rvv.standalone_reduce",
+     "weft_rvv.standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-standalone-reduce-add-emitc-route",
      "rvv-generic-widening-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-widening-standalone-reduce-add-callable-c-abi"},
     {"computed_mask_standalone_reduce_add",
-     "tcrv_rvv.masked_standalone_reduce",
+     "weft_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-mask-standalone-reduce-add-emitc-route",
      "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi"},
     {"computed_mask_standalone_reduce_min",
-     "tcrv_rvv.masked_standalone_reduce",
+     "weft_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-mask-standalone-reduce-min-emitc-route",
      "rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi.v1",
      "rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi"},
     {"computed_mask_standalone_reduce_max",
-     "tcrv_rvv.masked_standalone_reduce",
+     "weft_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-mask-standalone-reduce-max-emitc-route",
      "rvv-generic-computed-mask-standalone-reduce-max-callable-c-abi.v1",
      "rvv-generic-computed-mask-standalone-reduce-max-callable-c-abi"},
     {"runtime_scalar_cmp_masked_standalone_reduce_add",
-     "tcrv_rvv.masked_standalone_reduce",
+     "weft_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi"},
     {"runtime_scalar_cmp_masked_standalone_reduce_min",
-     "tcrv_rvv.masked_standalone_reduce",
+     "weft_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi"},
     {"runtime_scalar_cmp_masked_standalone_reduce_max",
-     "tcrv_rvv.masked_standalone_reduce",
+     "weft_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi"},
     {"masked_add",
-     "tcrv_rvv.masked_binary",
+     "weft_rvv.masked_binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-masked-add-emitc-route",
      "rvv-generic-masked-add-callable-c-abi.v1",
      "rvv-generic-masked-add-callable-c-abi"},
     {"masked_sub",
-     "tcrv_rvv.masked_binary",
+     "weft_rvv.masked_binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-masked-sub-emitc-route",
      "rvv-generic-masked-sub-callable-c-abi.v1",
      "rvv-generic-masked-sub-callable-c-abi"},
     {"masked_mul",
-     "tcrv_rvv.masked_binary",
+     "weft_rvv.masked_binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-masked-mul-emitc-route",
      "rvv-generic-masked-mul-callable-c-abi.v1",
      "rvv-generic-masked-mul-callable-c-abi"},
     {"macc_add",
-     "tcrv_rvv.macc",
+     "weft_rvv.macc",
      "rvv.role.compute.generic_vector",
      "rvv-generic-macc-add-emitc-route",
      "rvv-generic-macc-add-callable-c-abi.v1",
      "rvv-generic-macc-add-callable-c-abi"},
     {"scalar_broadcast_macc_add",
-     "tcrv_rvv.macc",
+     "weft_rvv.macc",
      "rvv.role.compute.generic_vector",
      "rvv-generic-scalar-broadcast-macc-add-emitc-route",
      "rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1",
      "rvv-generic-scalar-broadcast-macc-add-callable-c-abi"},
     {"computed_masked_macc_add",
-     "tcrv_rvv.masked_macc",
+     "weft_rvv.masked_macc",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-masked-macc-add-emitc-route",
      "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
      "rvv-generic-computed-masked-macc-add-callable-c-abi"},
     {"runtime_scalar_cmp_masked_macc_add",
-     "tcrv_rvv.masked_macc",
+     "weft_rvv.masked_macc",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-cmp-masked-macc-add-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi"},
     {"widening_macc_add",
-     "tcrv_rvv.widening_macc",
+     "weft_rvv.widening_macc",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-macc-add-emitc-route",
      "rvv-generic-widening-macc-add-callable-c-abi.v1",
      "rvv-generic-widening-macc-add-callable-c-abi"},
     {"widening_product",
-     "tcrv_rvv.widening_product",
+     "weft_rvv.widening_product",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-emitc-route",
      "rvv-generic-widening-product-callable-c-abi.v1",
      "rvv-generic-widening-product-callable-c-abi"},
     {"widening_product_reduce_add",
-     "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce",
+     "weft_rvv.widening_product+weft_rvv.standalone_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-reduce-add-emitc-route",
      "rvv-generic-widening-product-reduce-add-callable-c-abi.v1",
      "rvv-generic-widening-product-reduce-add-callable-c-abi"},
     {"widening_product_reduce_dequantize_f32",
-     "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-     "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize",
+     "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+     "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-reduce-dequantize-f32-emitc-route",
      "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1",
      "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi"},
     {"widening_product_reduce_dequant_clamp_f32",
-     "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-     "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+"
-     "tcrv_rvv.compare+tcrv_rvv.select",
+     "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+     "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+"
+     "weft_rvv.compare+weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route",
      "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
      "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi"},
     {"widening_dot_reduce_add",
-     "tcrv_rvv.widening_dot_reduce",
+     "weft_rvv.widening_dot_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-dot-reduce-add-emitc-route",
      "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
      "rvv-generic-widening-dot-reduce-add-callable-c-abi"},
     {"strided_input_widening_dot_reduce_add",
-     "tcrv_rvv.widening_dot_reduce",
+     "weft_rvv.widening_dot_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-strided-input-widening-dot-reduce-add-emitc-route",
      "rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
      "rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi"},
     {"computed_masked_widening_dot_reduce_add",
-     "tcrv_rvv.masked_widening_dot_reduce",
+     "weft_rvv.masked_widening_dot_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-masked-widening-dot-reduce-add-emitc-route",
      "rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1",
      "rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi"},
     {"computed_masked_strided_input_widening_dot_reduce_add",
-     "tcrv_rvv.masked_widening_dot_reduce",
+     "weft_rvv.masked_widening_dot_reduce",
      "rvv.role.compute.generic_vector",
      "rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-emitc-route",
      "rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
      "rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-callable-c-abi"},
     {"strided_add",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-strided-add-emitc-route",
      "rvv-generic-strided-add-callable-c-abi.v1",
      "rvv-generic-strided-add-callable-c-abi"},
     {"strided_load_unit_store",
-     "tcrv_rvv.move",
+     "weft_rvv.move",
      "rvv.role.compute.generic_vector",
      "rvv-generic-strided-load-unit-store-emitc-route",
      "rvv-generic-strided-load-unit-store-callable-c-abi.v1",
      "rvv-generic-strided-load-unit-store-callable-c-abi"},
     {"unit_load_strided_store",
-     "tcrv_rvv.move",
+     "weft_rvv.move",
      "rvv.role.compute.generic_vector",
      "rvv-generic-unit-load-strided-store-emitc-route",
      "rvv-generic-unit-load-strided-store-callable-c-abi.v1",
      "rvv-generic-unit-load-strided-store-callable-c-abi"},
     {"indexed_gather_unit_store",
-     "tcrv_rvv.move",
+     "weft_rvv.move",
      "rvv.role.compute.generic_vector",
      "rvv-generic-indexed-gather-unit-store-emitc-route",
      "rvv-generic-indexed-gather-unit-store-callable-c-abi.v1",
      "rvv-generic-indexed-gather-unit-store-callable-c-abi"},
     {"indexed_scatter_unit_load",
-     "tcrv_rvv.move",
+     "weft_rvv.move",
      "rvv.role.compute.generic_vector",
      "rvv-generic-indexed-scatter-unit-load-emitc-route",
      "rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1",
      "rvv-generic-indexed-scatter-unit-load-callable-c-abi"},
     {"masked_unit_load_store",
-     "tcrv_rvv.masked_load",
+     "weft_rvv.masked_load",
      "rvv.role.load.generic_load",
      "rvv-generic-masked-unit-load-store-emitc-route",
      "rvv-generic-masked-unit-load-store-callable-c-abi.v1",
      "rvv-generic-masked-unit-load-store-callable-c-abi"},
     {"masked_unit_store",
-     "tcrv_rvv.masked_store",
+     "weft_rvv.masked_store",
      "rvv.role.store.generic_store",
      "rvv-generic-masked-unit-store-emitc-route",
      "rvv-generic-masked-unit-store-callable-c-abi.v1",
      "rvv-generic-masked-unit-store-callable-c-abi"},
     {"computed_masked_unit_load_store",
-     "tcrv_rvv.masked_load",
+     "weft_rvv.masked_load",
      "rvv.role.load.generic_load",
      "rvv-generic-computed-masked-unit-load-store-emitc-route",
      "rvv-generic-computed-masked-unit-load-store-callable-c-abi.v1",
      "rvv-generic-computed-masked-unit-load-store-callable-c-abi"},
     {"computed_masked_strided_store",
-     "tcrv_rvv.masked_strided_store",
+     "weft_rvv.masked_strided_store",
      "rvv.role.store.generic_store",
      "rvv-generic-computed-masked-strided-store-emitc-route",
      "rvv-generic-computed-masked-strided-store-callable-c-abi.v1",
      "rvv-generic-computed-masked-strided-store-callable-c-abi"},
     {"computed_masked_strided_load_unit_store",
-     "tcrv_rvv.masked_strided_load",
+     "weft_rvv.masked_strided_load",
      "rvv.role.load.generic_load",
      "rvv-generic-computed-masked-strided-load-unit-store-emitc-route",
      "rvv-generic-computed-masked-strided-load-unit-store-callable-c-abi.v1",
      "rvv-generic-computed-masked-strided-load-unit-store-callable-c-abi"},
     {"computed_masked_indexed_gather_load_unit_store",
-     "tcrv_rvv.masked_indexed_load",
+     "weft_rvv.masked_indexed_load",
      "rvv.role.load.generic_load",
      "rvv-generic-computed-masked-indexed-gather-load-unit-store-emitc-route",
      "rvv-generic-computed-masked-indexed-gather-load-unit-store-callable-c-abi.v1",
      "rvv-generic-computed-masked-indexed-gather-load-unit-store-callable-c-abi"},
     {"runtime_scalar_cmp_masked_indexed_gather_load_unit_store",
-     "tcrv_rvv.masked_indexed_load",
+     "weft_rvv.masked_indexed_load",
      "rvv.role.load.generic_load",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-callable-c-abi"},
     {"computed_masked_indexed_scatter_store_unit_load",
-     "tcrv_rvv.masked_indexed_store",
+     "weft_rvv.masked_indexed_store",
      "rvv.role.store.generic_store",
      "rvv-generic-computed-masked-indexed-scatter-store-unit-load-emitc-route",
      "rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi.v1",
      "rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi"},
     {"runtime_scalar_cmp_masked_indexed_scatter_store_unit_load",
-     "tcrv_rvv.masked_indexed_store",
+     "weft_rvv.masked_indexed_store",
      "rvv.role.store.generic_store",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi"},
     {"runtime_scalar_cmp_masked_indexed_gather_macc_scatter",
-     "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
-     "tcrv_rvv.masked_indexed_store",
+     "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+"
+     "weft_rvv.masked_indexed_store",
      "rvv.role.compute.generic_vector",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-callable-c-abi"},
     {"computed_masked_segment2_load_unit_store",
-     "tcrv_rvv.masked_segment2_load",
+     "weft_rvv.masked_segment2_load",
      "rvv.role.load.generic_load",
      "rvv-generic-computed-masked-segment2-load-unit-store-emitc-route",
      "rvv-generic-computed-masked-segment2-load-unit-store-callable-c-abi.v1",
      "rvv-generic-computed-masked-segment2-load-unit-store-callable-c-abi"},
     {"runtime_scalar_cmp_masked_segment2_load_unit_store",
-     "tcrv_rvv.masked_segment2_load",
+     "weft_rvv.masked_segment2_load",
      "rvv.role.load.generic_load",
      "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-callable-c-abi"},
     {"computed_masked_segment2_store_unit_load",
-     "tcrv_rvv.masked_segment2_store",
+     "weft_rvv.masked_segment2_store",
      "rvv.role.store.generic_store",
      "rvv-generic-computed-masked-segment2-store-unit-load-emitc-route",
      "rvv-generic-computed-masked-segment2-store-unit-load-callable-c-abi.v1",
      "rvv-generic-computed-masked-segment2-store-unit-load-callable-c-abi"},
     {"runtime_scalar_cmp_masked_segment2_store_unit_load",
-     "tcrv_rvv.masked_segment2_store",
+     "weft_rvv.masked_segment2_store",
      "rvv.role.store.generic_store",
      "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-callable-c-abi"},
     {"computed_masked_segment2_update_unit_load",
-     "tcrv_rvv.masked_segment2_store",
+     "weft_rvv.masked_segment2_store",
      "rvv.role.store.generic_store",
      "rvv-generic-computed-masked-segment2-update-unit-load-emitc-route",
      "rvv-generic-computed-masked-segment2-update-unit-load-callable-c-abi.v1",
      "rvv-generic-computed-masked-segment2-update-unit-load-callable-c-abi"},
     {"segment2_deinterleave_unit_store",
-     "tcrv_rvv.move",
+     "weft_rvv.move",
      "rvv.role.compute.generic_vector",
      "rvv-generic-segment2-deinterleave-unit-store-emitc-route",
      "rvv-generic-segment2-deinterleave-unit-store-callable-c-abi.v1",
      "rvv-generic-segment2-deinterleave-unit-store-callable-c-abi"},
     {"segment2_interleave_unit_load",
-     "tcrv_rvv.segment2_store",
+     "weft_rvv.segment2_store",
      "rvv.role.store.generic_store",
      "rvv-generic-segment2-interleave-unit-load-emitc-route",
      "rvv-generic-segment2-interleave-unit-load-callable-c-abi.v1",
      "rvv-generic-segment2-interleave-unit-load-callable-c-abi"},
     {"scalar_broadcast_add",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-scalar-broadcast-add-emitc-route",
      "rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
      "rvv-generic-scalar-broadcast-add-callable-c-abi"},
     {"scalar_broadcast_sub",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-scalar-broadcast-sub-emitc-route",
      "rvv-generic-scalar-broadcast-sub-callable-c-abi.v1",
      "rvv-generic-scalar-broadcast-sub-callable-c-abi"},
     {"scalar_broadcast_mul",
-     "tcrv_rvv.binary",
+     "weft_rvv.binary",
      "rvv.role.compute.generic_vector",
      "rvv-generic-scalar-broadcast-mul-emitc-route",
      "rvv-generic-scalar-broadcast-mul-callable-c-abi.v1",
      "rvv-generic-scalar-broadcast-mul-callable-c-abi"},
     {"runtime_scalar_splat_store",
-     "tcrv_rvv.splat",
+     "weft_rvv.splat",
      "rvv.role.load.generic_load",
      "rvv-generic-runtime-scalar-splat-store-emitc-route",
      "rvv-generic-runtime-scalar-splat-store-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-splat-store-callable-c-abi"},
     {"widen_i32_to_i64",
-     "tcrv_rvv.widening_convert",
+     "weft_rvv.widening_convert",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widen-i32-to-i64-emitc-route",
      "rvv-generic-widen-i32-to-i64-callable-c-abi.v1",
      "rvv-generic-widen-i32-to-i64-callable-c-abi"},
     {"widen_i16_to_i32",
-     "tcrv_rvv.widening_convert",
+     "weft_rvv.widening_convert",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widen-i16-to-i32-emitc-route",
      "rvv-generic-widen-i16-to-i32-callable-c-abi.v1",
      "rvv-generic-widen-i16-to-i32-callable-c-abi"},
     {"dequantize_i32_to_f32",
-     "tcrv_rvv.dequantize",
+     "weft_rvv.dequantize",
      "rvv.role.compute.generic_vector",
      "rvv-generic-dequantize-i32-to-f32-emitc-route",
      "rvv-generic-dequantize-i32-to-f32-callable-c-abi.v1",
@@ -771,12 +771,12 @@ const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
     kRVVEmitCToCppRouteID};
 
 const construction::RoleExpectation kRoleExpectations[] = {
-    {"runtime_abi", "TCRVResourceOpInterface", true},
-    {"configure", "TCRVConfigOpInterface", false},
-    {"scope", "TCRVConfigOpInterface", false},
-    {"load", "TCRVMemoryOpInterface", true},
-    {"compute", "TCRVComputeOpInterface", true},
-    {"store", "TCRVMemoryOpInterface", true},
+    {"runtime_abi", "WEFTResourceOpInterface", true},
+    {"configure", "WEFTConfigOpInterface", false},
+    {"scope", "WEFTConfigOpInterface", false},
+    {"load", "WEFTMemoryOpInterface", true},
+    {"compute", "WEFTComputeOpInterface", true},
+    {"store", "WEFTMemoryOpInterface", true},
 };
 
 const llvm::StringRef kRequiredEvidence[] = {
@@ -790,7 +790,7 @@ const llvm::StringRef kRequiredEvidence[] = {
 
 llvm::Error makeRVVConstructionError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV construction protocol invalid: ") +
+      llvm::Twine("Weft-RV RVV construction protocol invalid: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -871,9 +871,9 @@ llvm::Error verifySelectedBodyRoutes() {
           llvm::Twine("duplicate EmitC route '") + route.emitCRouteID + "'");
     if (route.operationMnemonic ==
         "runtime_scalar_cmp_masked_indexed_gather_macc_scatter") {
-      if (route.typedComputeOpName != "tcrv_rvv.masked_indexed_load+"
-                                      "tcrv_rvv.masked_macc+"
-                                      "tcrv_rvv.masked_indexed_store" ||
+      if (route.typedComputeOpName != "weft_rvv.masked_indexed_load+"
+                                      "weft_rvv.masked_macc+"
+                                      "weft_rvv.masked_indexed_store" ||
           route.typedRoleID != "rvv.role.compute.generic_vector")
         return makeRVVConstructionError(
             "selected-body construction route "
@@ -1021,7 +1021,7 @@ buildExpectedConstructionArtifactMetadata(
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 buildExpectedRuntimeABIParameters() {
-  return tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
+  return weft::rvv::getRVVSelectedBodyRuntimeABIParameters();
 }
 
 llvm::Expected<const RVVSelectedBodyConstructionRoute *>
@@ -1078,35 +1078,35 @@ makeConstructionMetadataFactsForRoute(
 // and the `return steps;` so role indices and control flow are unchanged.
 void appendDequantizeI32ToF32RoleSteps(
     llvm::SmallVectorImpl<RVVSelectedBodyExecutableRoleStep> &steps) {
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "scale", 1});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "out", 2});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "n", 3});
-  steps.push_back({"configure", "tcrv_rvv.setvl",
-                   "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+  steps.push_back({"configure", "weft_rvv.setvl",
+                   "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                    4});
-  steps.push_back({"scope", "tcrv_rvv.with_vl",
-                   "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "with_vl", 5});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"scope", "weft_rvv.with_vl",
+                   "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "with_vl", 5});
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "lhs_load", 6});
-  steps.push_back({"compute", "tcrv_rvv.dequantize",
+  steps.push_back({"compute", "weft_rvv.dequantize",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "dequantize", 7});
-  steps.push_back({"store", "tcrv_rvv.store",
-                   "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                   "TCRVEmitCLowerableInterface", "store", 8});
+  steps.push_back({"store", "weft_rvv.store",
+                   "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                   "WEFTEmitCLowerableInterface", "store", 8});
 }
 
 void appendF32ClampSelectRoleSteps(
@@ -1114,54 +1114,54 @@ void appendF32ClampSelectRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_bound", 1});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_bound", 2});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "out", 3});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "n", 4});
-  steps.push_back({"configure", "tcrv_rvv.setvl",
-                   "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+  steps.push_back({"configure", "weft_rvv.setvl",
+                   "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                    5});
-  steps.push_back({"scope", "tcrv_rvv.with_vl",
-                   "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "with_vl", 6});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"scope", "weft_rvv.with_vl",
+                   "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "with_vl", 6});
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "input_load", 7});
-  steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_bound_splat", 8});
-  steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_bound_splat", 9});
-  steps.push_back({"compute", "tcrv_rvv.compare",
+  steps.push_back({"compute", "weft_rvv.compare",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_compare", 10});
   steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_select", 11});
-  steps.push_back({"compute", "tcrv_rvv.compare",
+  steps.push_back({"compute", "weft_rvv.compare",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_compare", 12});
   steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_select", 13});
-  steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "store", 14});
 }
 
@@ -1170,62 +1170,62 @@ void appendDequantClampF32EpilogueRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "scale", 1});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_bound", 2});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_bound", 3});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "out", 4});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "n", 5});
-  steps.push_back({"configure", "tcrv_rvv.setvl",
-                   "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+  steps.push_back({"configure", "weft_rvv.setvl",
+                   "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                    6});
-  steps.push_back({"scope", "tcrv_rvv.with_vl",
-                   "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "with_vl", 7});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"scope", "weft_rvv.with_vl",
+                   "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "with_vl", 7});
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "source_i32_load", 8});
-  steps.push_back({"compute", "tcrv_rvv.dequantize",
+  steps.push_back({"compute", "weft_rvv.dequantize",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "dequantize", 9});
-  steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_bound_splat", 10});
-  steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_bound_splat", 11});
-  steps.push_back({"compute", "tcrv_rvv.compare",
+  steps.push_back({"compute", "weft_rvv.compare",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_compare", 12});
   steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "lower_select", 13});
-  steps.push_back({"compute", "tcrv_rvv.compare",
+  steps.push_back({"compute", "weft_rvv.compare",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_compare", 14});
   steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "upper_select", 15});
-  steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "store", 16});
 }
 
@@ -1234,54 +1234,54 @@ void appendComputedMaskSelectRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "cmp_rhs", 1});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "true_value", 2});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "false_value", 3});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "out", 4});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "n", 5});
-  steps.push_back({"configure", "tcrv_rvv.setvl",
-                   "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+  steps.push_back({"configure", "weft_rvv.setvl",
+                   "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                    6});
-  steps.push_back({"scope", "tcrv_rvv.with_vl",
-                   "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                   "TCRVEmitCLowerableInterface", "with_vl", 7});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"scope", "weft_rvv.with_vl",
+                   "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                   "WEFTEmitCLowerableInterface", "with_vl", 7});
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "cmp_lhs_load", 8});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "cmp_rhs_load", 9});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "true_value_load", 10});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "false_value_load", 11});
-  steps.push_back({"compute", "tcrv_rvv.compare",
+  steps.push_back({"compute", "weft_rvv.compare",
                    "rvv.role.compute.generic_vector",
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    "compare_mask", 12});
   steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    route->operationMnemonic, 13});
-  steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "store", 14});
 }
 
@@ -1290,54 +1290,54 @@ void appendRuntimeScalarCompareSelectRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "true_value", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "false_value", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "true_value_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "false_value_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 12});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
-	    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "store", 14});
 }
 
@@ -1346,76 +1346,76 @@ void appendRuntimeScalarDualCompareMaskAndSelectRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "rhs_scalar_a", 1});
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "cmp_lhs_b", 2});
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "rhs_scalar_b", 3});
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "true_value", 4});
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "false_value", 5});
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "out", 6});
-	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
 	                     "rvv.role.runtime_abi.runtime_abi_value",
-	                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                     "n", 7});
-	    steps.push_back({"configure", "tcrv_rvv.setvl",
-	                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-	                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+	    steps.push_back({"configure", "weft_rvv.setvl",
+	                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+	                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
 	                     8});
-	    steps.push_back({"scope", "tcrv_rvv.with_vl",
-	                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-	                     "TCRVEmitCLowerableInterface", "with_vl", 9});
-	    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"scope", "weft_rvv.with_vl",
+	                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+	                     "WEFTEmitCLowerableInterface", "with_vl", 9});
+	    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "cmp_lhs_a_load", 10});
-	    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "rhs_scalar_a_splat", 11});
-	    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "cmp_lhs_b_load", 12});
-	    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "rhs_scalar_b_splat", 13});
-	    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "true_value_load", 14});
-	    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "false_value_load", 15});
-	    steps.push_back({"compute", "tcrv_rvv.compare",
+	    steps.push_back({"compute", "weft_rvv.compare",
 	                     "rvv.role.compute.generic_vector",
-	                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
 	                     "compare_mask_a", 16});
-	    steps.push_back({"compute", "tcrv_rvv.compare",
+	    steps.push_back({"compute", "weft_rvv.compare",
 	                     "rvv.role.compute.generic_vector",
-	                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
 	                     "compare_mask_b", 17});
-	    steps.push_back({"compute", "tcrv_rvv.mask_and",
+	    steps.push_back({"compute", "weft_rvv.mask_and",
 	                     "rvv.role.compute.generic_vector",
-	                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
 	                     "mask_and", 18});
 	    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-	                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+	                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
 	                     route->operationMnemonic, 19});
-	    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-	                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+	    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+	                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
 	                     "store", 20});
 }
 
@@ -1424,44 +1424,44 @@ void appendRuntimeScalarComputedMaskStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      5});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 7});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 9});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 10});
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 11});
 }
 
@@ -1470,47 +1470,47 @@ void appendRuntimeScalarComputedMaskLoadStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      5});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 7});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 9});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 10});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 11});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 12});
 }
 
@@ -1519,61 +1519,61 @@ void appendComputedMaskedMAccAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 6});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      7});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 8});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_lhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_payload_load", 11});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_payload_load", 12});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 13});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 14});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 15});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 16});
 }
 
@@ -1582,61 +1582,61 @@ void appendRuntimeScalarComputedMaskedMAccAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 6});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      7});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 8});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_lhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_payload_load", 11});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_payload_load", 12});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 13});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 14});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 15});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 16});
 }
 
@@ -1645,51 +1645,51 @@ void appendComputedMaskStandaloneReductionRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "src_load", 10});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 11});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 12});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 13});
 }
 
@@ -1698,51 +1698,51 @@ void appendRuntimeScalarComputedMaskStandaloneReductionRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "src_load", 10});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 11});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 12});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 13});
 }
 
@@ -1751,31 +1751,31 @@ void appendWideningConversionRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName, bool isWidenI16ToI32) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 2});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface",
                      isWidenI16ToI32 ? "__riscv_vsetvl_e32m1"
                                      : "__riscv_vsetvl_e64m2",
                      3});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 4});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 4});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 5});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 6});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 7});
 }
 
@@ -1784,33 +1784,33 @@ void appendStandaloneReductionRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 6});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 7});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 8});
 }
 
@@ -1819,43 +1819,43 @@ void appendMAccAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      5});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 9});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 10});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 11});
 }
 
@@ -1864,43 +1864,43 @@ void appendScalarBroadcastMAccAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      5});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 7});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 9});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 10});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 11});
 }
 
@@ -1909,43 +1909,43 @@ void appendWideningMAccAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      5});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 9});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 10});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 11});
 }
 
@@ -1961,80 +1961,80 @@ void appendWideningProductReduceDequantizeF32RoleSteps(
     //   - single-scope typed body (Stage 3 flip): widening_product OR
     //     packed_i4_nibble_unpack_product head, NO handoff, NO consumer scope.
     const bool nibbleHead = typedComputeOpName.starts_with(
-        "tcrv_rvv.packed_i4_nibble_unpack_product");
+        "weft_rvv.packed_i4_nibble_unpack_product");
     const bool hasHandoff =
-        typedComputeOpName.contains("tcrv_rvv.gearbox_cross_region_handoff");
-    // The deferred-wide (N3) chain carries a tcrv_rvv.widening_accumulate compute
+        typedComputeOpName.contains("weft_rvv.gearbox_cross_region_handoff");
+    // The deferred-wide (N3) chain carries a weft_rvv.widening_accumulate compute
     // step between the widening_product head and the trailing standalone_reduce
     // (the i32m8 deferred vector accumulate). Detected from the candidate-aware
     // typed-compute chain (I5: read from the realized chain, not a name).
     const bool hasDeferredWideAccumulate =
-        typedComputeOpName.contains("tcrv_rvv.widening_accumulate");
+        typedComputeOpName.contains("weft_rvv.widening_accumulate");
     const llvm::StringRef headOp =
-        nibbleHead ? llvm::StringRef("tcrv_rvv.packed_i4_nibble_unpack_product")
-                   : llvm::StringRef("tcrv_rvv.widening_product");
+        nibbleHead ? llvm::StringRef("weft_rvv.packed_i4_nibble_unpack_product")
+                   : llvm::StringRef("weft_rvv.widening_product");
     unsigned order = 1;
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "scale", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", order++});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      order++});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", order++});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", order++});
     steps.push_back({"compute", headOp,
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface", "widening_product",
+                     route->typedRoleID, "WEFTComputeOpInterface",
+                     "WEFTEmitCLowerableInterface", "widening_product",
                      order++});
     if (hasDeferredWideAccumulate)
-      steps.push_back({"compute", "tcrv_rvv.widening_accumulate",
-                       route->typedRoleID, "TCRVComputeOpInterface",
-                       "TCRVEmitCLowerableInterface",
+      steps.push_back({"compute", "weft_rvv.widening_accumulate",
+                       route->typedRoleID, "WEFTComputeOpInterface",
+                       "WEFTEmitCLowerableInterface",
                        "widening_product_deferred_accumulate", order++});
-    steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.standalone_reduce",
+                     route->typedRoleID, "WEFTComputeOpInterface",
+                     "WEFTEmitCLowerableInterface",
                      "widening_product_reduce", order++});
     if (hasHandoff) {
-      steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
-                       route->typedRoleID, "TCRVComputeOpInterface",
-                       "TCRVEmitCLowerableInterface",
+      steps.push_back({"compute", "weft_rvv.gearbox_cross_region_handoff",
+                       route->typedRoleID, "WEFTComputeOpInterface",
+                       "WEFTEmitCLowerableInterface",
                        "gearbox_cross_region_handoff", order++});
-      steps.push_back({"scope", "tcrv_rvv.with_vl",
-                       "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                       "TCRVEmitCLowerableInterface", "consumer_with_vl",
+      steps.push_back({"scope", "weft_rvv.with_vl",
+                       "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                       "WEFTEmitCLowerableInterface", "consumer_with_vl",
                        order++});
     }
-    steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.dequantize", route->typedRoleID,
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, order++});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", order++});
 }
 
@@ -2043,100 +2043,100 @@ void appendWideningProductReduceDequantClampF32RoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "scale", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lower_bound", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "upper_bound", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 6});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 7});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      8});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 9});
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 9});
     // Candidate-aware head + optional handoff/consumer-scope (see the dequantize
     // block); single-scope typed bodies (Stage 3 flip) carry neither.
     const bool nibbleHead = typedComputeOpName.starts_with(
-        "tcrv_rvv.packed_i4_nibble_unpack_product");
+        "weft_rvv.packed_i4_nibble_unpack_product");
     const bool hasHandoff =
-        typedComputeOpName.contains("tcrv_rvv.gearbox_cross_region_handoff");
+        typedComputeOpName.contains("weft_rvv.gearbox_cross_region_handoff");
     const llvm::StringRef headOp =
-        nibbleHead ? llvm::StringRef("tcrv_rvv.packed_i4_nibble_unpack_product")
-                   : llvm::StringRef("tcrv_rvv.widening_product");
+        nibbleHead ? llvm::StringRef("weft_rvv.packed_i4_nibble_unpack_product")
+                   : llvm::StringRef("weft_rvv.widening_product");
     unsigned order = 10;
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", order++});
     steps.push_back({"compute", headOp,
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface", "widening_product",
+                     route->typedRoleID, "WEFTComputeOpInterface",
+                     "WEFTEmitCLowerableInterface", "widening_product",
                      order++});
-    steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.standalone_reduce",
+                     route->typedRoleID, "WEFTComputeOpInterface",
+                     "WEFTEmitCLowerableInterface",
                      "widening_product_reduce", order++});
     if (hasHandoff) {
-      steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
-                       route->typedRoleID, "TCRVComputeOpInterface",
-                       "TCRVEmitCLowerableInterface",
+      steps.push_back({"compute", "weft_rvv.gearbox_cross_region_handoff",
+                       route->typedRoleID, "WEFTComputeOpInterface",
+                       "WEFTEmitCLowerableInterface",
                        "gearbox_cross_region_handoff", order++});
-      steps.push_back({"scope", "tcrv_rvv.with_vl",
-                       "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                       "TCRVEmitCLowerableInterface", "consumer_with_vl",
+      steps.push_back({"scope", "weft_rvv.with_vl",
+                       "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                       "WEFTEmitCLowerableInterface", "consumer_with_vl",
                        order++});
     }
-    steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.dequantize", route->typedRoleID,
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "dequantize", order++});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lower_bound_splat", order++});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "upper_bound_splat", order++});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "lower_compare", order++});
-    steps.push_back({"compute", "tcrv_rvv.select", route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.select", route->typedRoleID,
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "lower_select", order++});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "upper_compare", order++});
-    steps.push_back({"compute", "tcrv_rvv.select", route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.select", route->typedRoleID,
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "upper_select", order++});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", order++});
 }
 
@@ -2158,68 +2158,68 @@ void appendWideningProductReduceAddRoleSteps(
     //     runtime_abi "qhi" + load "qhi_load"). Empty for N=2, so those keep the
     //     byte-identical 12-step spec (order++ from 1 with no insertion == the
     //     former hardcoded 1..11).
-    //   - head op: route->headOpName (tcrv_rvv.widening_product for the N=2
+    //   - head op: route->headOpName (weft_rvv.widening_product for the N=2
     //     unpacked-i8 path; the N=3 offset-binary / codebook_gather mnemonics for
     //     C3/C4). The codebook's inert table_broadcast aux is filtered out of the
     //     realized role sequence, so its step list matches the C3 spec.
     // A future N-operand product-reduction route needs only a registry entry.
     const llvm::StringRef headOp =
         productRouteIdentity ? productRouteIdentity->headOpName
-                             : llvm::StringRef("tcrv_rvv.widening_product");
+                             : llvm::StringRef("weft_rvv.widening_product");
     llvm::SmallVector<ContractionProductFactorRoleLabels, 2> extraFactors;
     if (productRouteIdentity)
       extraFactors = getContractionExtraProductFactorRoleLabels(
           *productRouteIdentity);
     int order = 1;
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", order++});
     for (const ContractionProductFactorRoleLabels &factor : extraFactors)
-      steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+      steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                        "rvv.role.runtime_abi.runtime_abi_value",
-                       "TCRVResourceOpInterface",
-                       "TCRVEmitCLowerableInterface", factor.runtimeABICallee,
+                       "WEFTResourceOpInterface",
+                       "WEFTEmitCLowerableInterface", factor.runtimeABICallee,
                        order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", order++});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      order++});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", order++});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", order++});
     for (const ContractionProductFactorRoleLabels &factor : extraFactors)
-      steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                       "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+      steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                       "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                        factor.loadCallee, order++});
     steps.push_back({"compute", headOp,
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface", "widening_product",
+                     route->typedRoleID, "WEFTComputeOpInterface",
+                     "WEFTEmitCLowerableInterface", "widening_product",
                      order++});
-    steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface",
+    steps.push_back({"compute", "weft_rvv.standalone_reduce",
+                     route->typedRoleID, "WEFTComputeOpInterface",
+                     "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, order++});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", order++});
 }
 
@@ -2229,64 +2229,64 @@ void appendWideningDotReduceAddRoleSteps(
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
     // The deferred-wide i16 dot-reduce realization (2nd kernel family) decomposes
-    // the narrow single fused tcrv_rvv.widening_dot_reduce compute step into the
+    // the narrow single fused weft_rvv.widening_dot_reduce compute step into the
     // structural chain widening_product -> deferred_accumulate -> standalone_reduce
     // (3 compute ops). Detect it from the realized typed-compute-op chain and emit
     // the parallel canonical role order; the narrow path keeps the single step.
     const bool isDeferredWideDotChain =
-        typedComputeOpName == "tcrv_rvv.widening_product+"
-                              "tcrv_rvv.deferred_accumulate+"
-                              "tcrv_rvv.standalone_reduce";
+        typedComputeOpName == "weft_rvv.widening_product+"
+                              "weft_rvv.deferred_accumulate+"
+                              "weft_rvv.standalone_reduce";
     int order = 1;
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", order++});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", order++});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      order++});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", order++});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", order++});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", order++});
     if (isDeferredWideDotChain) {
-      steps.push_back({"compute", "tcrv_rvv.widening_product",
-                       route->typedRoleID, "TCRVComputeOpInterface",
-                       "TCRVEmitCLowerableInterface", "widening_product",
+      steps.push_back({"compute", "weft_rvv.widening_product",
+                       route->typedRoleID, "WEFTComputeOpInterface",
+                       "WEFTEmitCLowerableInterface", "widening_product",
                        order++});
-      steps.push_back({"compute", "tcrv_rvv.deferred_accumulate",
-                       route->typedRoleID, "TCRVComputeOpInterface",
-                       "TCRVEmitCLowerableInterface",
+      steps.push_back({"compute", "weft_rvv.deferred_accumulate",
+                       route->typedRoleID, "WEFTComputeOpInterface",
+                       "WEFTEmitCLowerableInterface",
                        "deferred_dot_accumulate", order++});
-      steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
-                       route->typedRoleID, "TCRVComputeOpInterface",
-                       "TCRVEmitCLowerableInterface", route->operationMnemonic,
+      steps.push_back({"compute", "weft_rvv.standalone_reduce",
+                       route->typedRoleID, "WEFTComputeOpInterface",
+                       "WEFTEmitCLowerableInterface", route->operationMnemonic,
                        order++});
     } else {
       steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                       "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                       "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                        route->operationMnemonic, order++});
     }
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", order++});
 }
 
@@ -2295,48 +2295,48 @@ void appendStridedInputWideningDotReduceAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_stride", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_stride", 6});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      7});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 8});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "lhs_strided_load", 9});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "rhs_strided_load", 10});
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 8});
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "lhs_strided_load", 9});
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "rhs_strided_load", 10});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 11});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 12});
 }
 
@@ -2345,58 +2345,58 @@ void appendComputedMaskWideningDotReduceAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 6});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      7});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 8});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_lhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "dot_lhs_load", 11});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "dot_rhs_load", 12});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 13});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 14});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 15});
 }
 
@@ -2405,68 +2405,68 @@ void appendComputedMaskStridedInputWideningDotReduceAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 6});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_stride", 7});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_stride", 8});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      9});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 10});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_lhs_load", 11});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs_load", 12});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "dot_lhs_strided_load",
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "dot_lhs_strided_load",
                      13});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "dot_rhs_strided_load",
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "dot_rhs_strided_load",
                      14});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_mask", 15});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 16});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 17});
 }
 
@@ -2475,33 +2475,33 @@ void appendStridedLoadUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "stride_bytes", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "source_strided_load", 6});
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "source_strided_load", 6});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 7});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 8});
 }
 
@@ -2510,34 +2510,34 @@ void appendUnitLoadStridedStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst_stride_bytes", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 6});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 7});
-    steps.push_back({"store", "tcrv_rvv.strided_store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "strided_store", 8});
+    steps.push_back({"store", "weft_rvv.strided_store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "strided_store", 8});
 }
 
 void appendIndexedGatherUnitStoreRoleSteps(
@@ -2545,36 +2545,36 @@ void appendIndexedGatherUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 6});
-    steps.push_back({"load", "tcrv_rvv.indexed_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "indexed_data_load", 7});
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 6});
+    steps.push_back({"load", "weft_rvv.indexed_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "indexed_data_load", 7});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 8});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 9});
 }
 
@@ -2583,37 +2583,37 @@ void appendIndexedScatterUnitLoadRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 6});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 7});
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 7});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 8});
-    steps.push_back({"store", "tcrv_rvv.indexed_store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "indexed_store", 9});
+    steps.push_back({"store", "weft_rvv.indexed_store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "indexed_store", 9});
 }
 
 void appendMaskedUnitLoadStoreRoleSteps(
@@ -2621,36 +2621,36 @@ void appendMaskedUnitLoadStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "mask", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.mask_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "mask_load", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.mask_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "mask_load", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 7});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 8});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 9});
 }
 
@@ -2659,34 +2659,34 @@ void appendMaskedUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "mask", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.mask_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "mask_load", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.mask_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "mask_load", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 7});
-    steps.push_back({"store", "tcrv_rvv.masked_store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.masked_store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 8});
 }
 
@@ -2695,47 +2695,47 @@ void appendComputedMaskUnitLoadStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      5});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 9});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 10});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 11});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 12});
 }
 
@@ -2744,48 +2744,48 @@ void appendComputedMaskStridedStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst_stride_bytes", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 10});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 11});
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 12});
 }
 
@@ -2794,51 +2794,51 @@ void appendComputedMaskStridedLoadUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src_stride_bytes", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 10});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 11});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 12});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 13});
 }
 
@@ -2847,54 +2847,54 @@ void appendComputedMaskIndexedGatherLoadUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 10});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 11});
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 12});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 14});
 }
 
@@ -2903,54 +2903,54 @@ void appendRuntimeScalarComputedMaskIndexedGatherLoadUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 10});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 11});
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_sle", 12});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 14});
 }
 
@@ -2959,74 +2959,74 @@ void appendRuntimeScalarComputedMaskIndexedGatherMAccScatterRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "gather_src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "payload", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "acc", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 6});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 7});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      8});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 9});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 10});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 11});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "payload_load", 12});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 13});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "old_destination_load", 14});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 15});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 15});
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_sle", 16});
-    steps.push_back({"load", "tcrv_rvv.masked_indexed_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "masked_indexed_gather",
+    steps.push_back({"load", "weft_rvv.masked_indexed_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "masked_indexed_gather",
                      17});
-    steps.push_back({"compute", "tcrv_rvv.masked_macc",
+    steps.push_back({"compute", "weft_rvv.masked_macc",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "masked_macc", 18});
-    steps.push_back({"store", "tcrv_rvv.masked_indexed_store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "masked_indexed_scatter",
+    steps.push_back({"store", "weft_rvv.masked_indexed_store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "masked_indexed_scatter",
                      19});
 }
 
@@ -3035,51 +3035,51 @@ void appendRuntimeScalarComputedMaskIndexedScatterStoreUnitLoadRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 10});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 11});
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_sle", 12});
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
 }
 
@@ -3088,51 +3088,51 @@ void appendComputedMaskIndexedScatterStoreUnitLoadRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "index", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "source_load", 10});
-    steps.push_back({"load", "tcrv_rvv.index_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "index_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"load", "weft_rvv.index_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "index_load", 11});
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 12});
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
 }
 
@@ -3141,51 +3141,51 @@ void appendRuntimeScalarComputedMaskSegment2StoreUnitLoadRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src0", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src1", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_payload_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_payload_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 12});
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
 }
 
@@ -3194,57 +3194,57 @@ void appendRuntimeScalarComputedMaskSegment2LoadUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out0", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out1", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar_splat", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_old_passthrough_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_old_passthrough_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_sle", 12});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_store", 14});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_store", 15});
 }
 
@@ -3254,61 +3254,61 @@ void appendComputedMaskSegment2StoreOrUpdateUnitLoadRoleSteps(
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName,
     bool isComputedMaskSegment2UpdateUnitLoad) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src0", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src1", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_payload_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_payload_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 12});
     if (isComputedMaskSegment2UpdateUnitLoad) {
-      steps.push_back({"compute", "tcrv_rvv.binary",
+      steps.push_back({"compute", "weft_rvv.binary",
                        "rvv.role.compute.generic_vector",
-                       "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                       "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                        "add", 13});
       steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                       "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                       "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                        route->operationMnemonic, 14});
       return;
     }
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
 }
 
@@ -3317,57 +3317,57 @@ void appendComputedMaskSegment2LoadUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "cmp_rhs", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out0", 3});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out1", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 5});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      6});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_lhs_load", 8});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_rhs_load", 9});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_old_passthrough_load", 10});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_old_passthrough_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      "rvv.role.compute.generic_vector",
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_slt", 12});
     steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 13});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_store", 14});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_store", 15});
 }
 
@@ -3376,39 +3376,39 @@ void appendSegment2DeinterleaveUnitStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out0", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out1", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.segment2_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "segment2_load", 6});
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.segment2_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "segment2_load", 6});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_move", 7});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_move", 8});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_store", 9});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_store", 10});
 }
 
@@ -3417,34 +3417,34 @@ void appendSegment2InterleaveUnitLoadRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "src1", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "dst", 2});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 3});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field0_load", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "field1_load", 7});
-    steps.push_back({"store", "tcrv_rvv.segment2_store",
+    steps.push_back({"store", "weft_rvv.segment2_store",
                      "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "segment2_store", 8});
 }
 
@@ -3455,139 +3455,139 @@ void appendGenericElementwiseSpineRoleSteps(
     llvm::StringRef rhsSourceOperationName, bool isWideningProduct,
     bool isStridedAdd, bool isMAccAdd, bool isCompareSelect,
     bool isMaskedElementwise) {
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "rhs", 1});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "out", 2});
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                    "n", 3});
   if (isWideningProduct) {
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e16mf2",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e16mf2",
                      4});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 5});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_load", 6});
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_load", 7});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 8});
-    steps.push_back({"store", "tcrv_rvv.store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "store", 9});
+    steps.push_back({"store", "weft_rvv.store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "store", 9});
     return;
   }
   if (isStridedAdd) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "lhs_stride", 4});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_stride", 5});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out_stride", 6});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      7});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 8});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "lhs_strided_load", 9});
-    steps.push_back({"load", "tcrv_rvv.strided_load",
-                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "rhs_strided_load", 10});
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 8});
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "lhs_strided_load", 9});
+    steps.push_back({"load", "weft_rvv.strided_load",
+                     "rvv.role.load.generic_load", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "rhs_strided_load", 10});
     steps.push_back({"compute", typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 11});
-    steps.push_back({"store", "tcrv_rvv.strided_store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "strided_store", 12});
+    steps.push_back({"store", "weft_rvv.strided_store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "strided_store", 12});
     return;
   }
-  steps.push_back({"configure", "tcrv_rvv.setvl", "rvv.role.configure.setvl",
-                   "TCRVConfigOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"configure", "weft_rvv.setvl", "rvv.role.configure.setvl",
+                   "WEFTConfigOpInterface", "WEFTEmitCLowerableInterface",
                    "__riscv_vsetvl_e32m1", 4});
-  steps.push_back({"scope", "tcrv_rvv.with_vl", "rvv.role.scope.with_vl",
-                   "TCRVConfigOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"scope", "weft_rvv.with_vl", "rvv.role.scope.with_vl",
+                   "WEFTConfigOpInterface", "WEFTEmitCLowerableInterface",
                    "with_vl", 5});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "lhs_load", 6});
   steps.push_back({"load", rhsSourceOperationName, "rvv.role.load.generic_load",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                   rhsSourceOperationName == "tcrv_rvv.broadcast_load"
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
+                   rhsSourceOperationName == "weft_rvv.broadcast_load"
                        ? "rhs_broadcast"
-                       : rhsSourceOperationName == "tcrv_rvv.splat"
+                       : rhsSourceOperationName == "weft_rvv.splat"
                              ? "rhs_scalar_splat"
                              : "rhs_load",
                    7});
   if (isMAccAdd) {
-    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"load", "weft_rvv.load", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "accumulator_load", 8});
     steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 9});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 10});
     return;
   }
   if (isCompareSelect) {
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_eq", 8});
     steps.push_back({"compute", route->typedComputeOpName,
                      route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 9});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 10});
     return;
   }
 
   if (isMaskedElementwise) {
-    steps.push_back({"compute", "tcrv_rvv.compare",
+    steps.push_back({"compute", "weft_rvv.compare",
                      route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "compare_eq", 8});
     steps.push_back({"compute", route->typedComputeOpName,
                      route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, 9});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "store", 10});
     return;
   }
 
   steps.push_back({"compute", typedComputeOpName,
                    route->typedRoleID,
-                   "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                   "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                    route->operationMnemonic, 8});
-  steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
-                   "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+  steps.push_back({"store", "weft_rvv.store", "rvv.role.store.generic_store",
+                   "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                    "store", 9});
 }
 
@@ -3596,31 +3596,31 @@ void appendRuntimeScalarSplatStoreRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "rhs_scalar", 0});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "out", 1});
-    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+    steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
-                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
                      "n", 2});
-    steps.push_back({"configure", "tcrv_rvv.setvl",
-                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+    steps.push_back({"configure", "weft_rvv.setvl",
+                     "rvv.role.configure.setvl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
                      3});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 4});
-    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
-                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+    steps.push_back({"scope", "weft_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
+                     "WEFTEmitCLowerableInterface", "with_vl", 4});
+    steps.push_back({"load", "weft_rvv.splat", "rvv.role.load.generic_load",
+                     "WEFTMemoryOpInterface", "WEFTEmitCLowerableInterface",
                      "runtime_scalar_splat", 5});
-    steps.push_back({"store", "tcrv_rvv.store",
-                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
-                     "TCRVEmitCLowerableInterface", "store", 6});
+    steps.push_back({"store", "weft_rvv.store",
+                     "rvv.role.store.generic_store", "WEFTMemoryOpInterface",
+                     "WEFTEmitCLowerableInterface", "store", 6});
 }
 
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
@@ -3635,7 +3635,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         llvm::Twine("unknown RVV selected-body operation '") +
         operationMnemonic + "'");
-  const bool usesGenericBinary = typedComputeOpName == "tcrv_rvv.binary";
+  const bool usesGenericBinary = typedComputeOpName == "weft_rvv.binary";
   const bool isCompareSelect = route->operationMnemonic == "cmp_select";
   const bool isComputedMaskSelect =
       route->operationMnemonic == "computed_mask_select";
@@ -3751,128 +3751,128 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isWideningConversion = isWidenI32ToI64 || isWidenI16ToI32;
   const bool isDequantizeI32ToF32 =
       route->operationMnemonic == "dequantize_i32_to_f32";
-  if (isCompareSelect && typedComputeOpName != "tcrv_rvv.select")
+  if (isCompareSelect && typedComputeOpName != "weft_rvv.select")
     return makeRVVConstructionError(
-        "RVV compare/select construction requires generic tcrv_rvv.select");
-  if (isComputedMaskSelect && typedComputeOpName != "tcrv_rvv.select")
+        "RVV compare/select construction requires generic weft_rvv.select");
+  if (isComputedMaskSelect && typedComputeOpName != "weft_rvv.select")
     return makeRVVConstructionError(
         "RVV computed-mask select construction requires generic "
-        "tcrv_rvv.select");
+        "weft_rvv.select");
   if (isRuntimeScalarCompareSelect &&
-      typedComputeOpName != "tcrv_rvv.select")
+      typedComputeOpName != "weft_rvv.select")
     return makeRVVConstructionError(
         "RVV runtime scalar compare/select construction requires generic "
-        "tcrv_rvv.select");
+        "weft_rvv.select");
   if (isRuntimeScalarDualCompareMaskAndSelect &&
-      typedComputeOpName != "tcrv_rvv.select")
+      typedComputeOpName != "weft_rvv.select")
     return makeRVVConstructionError(
         "RVV runtime scalar dual-compare mask-and select construction "
-        "requires generic tcrv_rvv.select");
-  if (isF32ClampSelect && typedComputeOpName != "tcrv_rvv.select")
+        "requires generic weft_rvv.select");
+  if (isF32ClampSelect && typedComputeOpName != "weft_rvv.select")
     return makeRVVConstructionError(
-        "RVV f32 clamp/select construction requires generic tcrv_rvv.select");
+        "RVV f32 clamp/select construction requires generic weft_rvv.select");
   if (isDequantClampF32Epilogue &&
-      typedComputeOpName != "tcrv_rvv.select")
+      typedComputeOpName != "weft_rvv.select")
     return makeRVVConstructionError(
         "RVV dequant-clamp epilogue construction requires generic "
-        "tcrv_rvv.select");
+        "weft_rvv.select");
   if (isRuntimeScalarComputedMaskStore &&
-      typedComputeOpName != "tcrv_rvv.masked_store")
+      typedComputeOpName != "weft_rvv.masked_store")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask store construction requires "
-        "generic tcrv_rvv.masked_store");
+        "generic weft_rvv.masked_store");
   if (isRuntimeScalarComputedMaskLoadStore &&
-      typedComputeOpName != "tcrv_rvv.masked_load")
+      typedComputeOpName != "weft_rvv.masked_load")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask load-store construction requires "
-        "generic tcrv_rvv.masked_load");
+        "generic weft_rvv.masked_load");
   if (isRuntimeScalarComputedMaskIndexedGatherLoadUnitStore &&
-      typedComputeOpName != "tcrv_rvv.masked_indexed_load")
+      typedComputeOpName != "weft_rvv.masked_indexed_load")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask indexed gather-load construction "
-        "requires generic tcrv_rvv.masked_indexed_load");
-  if (isReduction && typedComputeOpName != "tcrv_rvv.reduce")
+        "requires generic weft_rvv.masked_indexed_load");
+  if (isReduction && typedComputeOpName != "weft_rvv.reduce")
     return makeRVVConstructionError(
-        "RVV reduction construction requires generic tcrv_rvv.reduce");
+        "RVV reduction construction requires generic weft_rvv.reduce");
   if (isStandaloneReduction &&
-      typedComputeOpName != "tcrv_rvv.standalone_reduce")
+      typedComputeOpName != "weft_rvv.standalone_reduce")
     return makeRVVConstructionError(
         "RVV standalone reduction construction requires generic "
-        "tcrv_rvv.standalone_reduce");
+        "weft_rvv.standalone_reduce");
   if (isComputedMaskStandaloneReduction &&
-      typedComputeOpName != "tcrv_rvv.masked_standalone_reduce")
+      typedComputeOpName != "weft_rvv.masked_standalone_reduce")
     return makeRVVConstructionError(
         "RVV computed-mask standalone reduction construction requires generic "
-        "tcrv_rvv.masked_standalone_reduce");
+        "weft_rvv.masked_standalone_reduce");
   if (isRuntimeScalarComputedMaskStandaloneReduction &&
-      typedComputeOpName != "tcrv_rvv.masked_standalone_reduce")
+      typedComputeOpName != "weft_rvv.masked_standalone_reduce")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask standalone reduction construction "
-        "requires generic tcrv_rvv.masked_standalone_reduce");
-  if (isMaskedElementwise && typedComputeOpName != "tcrv_rvv.masked_binary")
+        "requires generic weft_rvv.masked_standalone_reduce");
+  if (isMaskedElementwise && typedComputeOpName != "weft_rvv.masked_binary")
     return makeRVVConstructionError(
         "RVV masked elementwise construction requires generic "
-        "tcrv_rvv.masked_binary");
+        "weft_rvv.masked_binary");
   if ((isMAccAdd || isScalarBroadcastMAccAdd) &&
-      typedComputeOpName != "tcrv_rvv.macc")
+      typedComputeOpName != "weft_rvv.macc")
     return makeRVVConstructionError(
         "RVV multiply-accumulate construction requires generic "
-        "tcrv_rvv.macc");
+        "weft_rvv.macc");
   if (isComputedMaskedMAccAdd &&
-      typedComputeOpName != "tcrv_rvv.masked_macc")
+      typedComputeOpName != "weft_rvv.masked_macc")
     return makeRVVConstructionError(
         "RVV computed-mask multiply-accumulate construction requires generic "
-        "tcrv_rvv.masked_macc");
+        "weft_rvv.masked_macc");
   if (isRuntimeScalarComputedMaskedMAccAdd &&
-      typedComputeOpName != "tcrv_rvv.masked_macc")
+      typedComputeOpName != "weft_rvv.masked_macc")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask multiply-accumulate construction "
-        "requires generic tcrv_rvv.masked_macc");
-  if (isWideningMAccAdd && typedComputeOpName != "tcrv_rvv.widening_macc")
+        "requires generic weft_rvv.masked_macc");
+  if (isWideningMAccAdd && typedComputeOpName != "weft_rvv.widening_macc")
     return makeRVVConstructionError(
         "RVV widening multiply-accumulate construction requires generic "
-        "tcrv_rvv.widening_macc");
+        "weft_rvv.widening_macc");
   if (isWideningProduct &&
-      typedComputeOpName != "tcrv_rvv.widening_product")
+      typedComputeOpName != "weft_rvv.widening_product")
     return makeRVVConstructionError(
         "RVV low-precision widening-product construction requires generic "
-        "tcrv_rvv.widening_product");
+        "weft_rvv.widening_product");
   if (isWideningProductReduceAdd &&
       typedComputeOpName !=
-          "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce")
+          "weft_rvv.widening_product+weft_rvv.standalone_reduce")
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction construction requires "
-        "generic tcrv_rvv.widening_product followed by "
-        "tcrv_rvv.standalone_reduce");
+        "generic weft_rvv.widening_product followed by "
+        "weft_rvv.standalone_reduce");
   // The dequant(/clamp) chain is candidate-aware: widening_product or
   // packed_i4_nibble_unpack_product head, and the gearbox_cross_region_handoff is
   // present only in the legacy two-scope body. Accept exactly the bounded legal
   // set (fail-closed: any other chain rejected).
   auto isLegalDequantChain = [&](bool isClamp) -> bool {
     const llvm::StringRef tail =
-        isClamp ? "+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
-                : "+tcrv_rvv.dequantize";
+        isClamp ? "+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
+                : "+weft_rvv.dequantize";
     const std::string wideningHandoff =
-        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-         "tcrv_rvv.gearbox_cross_region_handoff" +
+        ("weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+         "weft_rvv.gearbox_cross_region_handoff" +
          llvm::Twine(tail))
             .str();
     const std::string widening =
-        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.widening_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
     const std::string nibble =
-        ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.packed_i4_nibble_unpack_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
-    // The deferred-wide (N3) chain inserts tcrv_rvv.widening_accumulate between
+    // The deferred-wide (N3) chain inserts weft_rvv.widening_accumulate between
     // the widening_product and the trailing standalone_reduce (plain dequant
     // only; no clamp variant).
     const std::string deferredWide =
         isClamp ? std::string()
-                : std::string("tcrv_rvv.widening_product+"
-                              "tcrv_rvv.widening_accumulate+"
-                              "tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize");
+                : std::string("weft_rvv.widening_product+"
+                              "weft_rvv.widening_accumulate+"
+                              "weft_rvv.standalone_reduce+weft_rvv.dequantize");
     return typedComputeOpName == wideningHandoff ||
            typedComputeOpName == widening || typedComputeOpName == nibble ||
            (!deferredWide.empty() && typedComputeOpName == deferredWide);
@@ -3880,151 +3880,151 @@ buildRVVSelectedBodyExecutableRoleSteps(
   if (isWideningProductReduceDequantizeF32 && !isLegalDequantChain(false))
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction dequantization "
-        "construction requires generic tcrv_rvv.widening_product or "
-        "tcrv_rvv.packed_i4_nibble_unpack_product followed by "
-        "tcrv_rvv.standalone_reduce, an optional "
-        "tcrv_rvv.gearbox_cross_region_handoff, and tcrv_rvv.dequantize");
+        "construction requires generic weft_rvv.widening_product or "
+        "weft_rvv.packed_i4_nibble_unpack_product followed by "
+        "weft_rvv.standalone_reduce, an optional "
+        "weft_rvv.gearbox_cross_region_handoff, and weft_rvv.dequantize");
   if (isWideningProductReduceDequantClampF32 && !isLegalDequantChain(true))
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction dequant-clamp "
-        "construction requires generic tcrv_rvv.widening_product or "
-        "tcrv_rvv.packed_i4_nibble_unpack_product followed by "
-        "tcrv_rvv.standalone_reduce, an optional "
-        "tcrv_rvv.gearbox_cross_region_handoff, tcrv_rvv.dequantize, "
-        "tcrv_rvv.compare, and tcrv_rvv.select");
+        "construction requires generic weft_rvv.widening_product or "
+        "weft_rvv.packed_i4_nibble_unpack_product followed by "
+        "weft_rvv.standalone_reduce, an optional "
+        "weft_rvv.gearbox_cross_region_handoff, weft_rvv.dequantize, "
+        "weft_rvv.compare, and weft_rvv.select");
   // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
-  // single fused tcrv_rvv.widening_dot_reduce and the deferred-wide i16 chain
+  // single fused weft_rvv.widening_dot_reduce and the deferred-wide i16 chain
   // (2nd kernel family) widening_product + deferred_accumulate + standalone_reduce.
   // The strided-input dot-reduce keeps only the narrow fused form.
   const std::string deferredWideDotChain =
-      "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-      "tcrv_rvv.standalone_reduce";
+      "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+      "weft_rvv.standalone_reduce";
   if (isWideningDotReduceAdd &&
-      typedComputeOpName != "tcrv_rvv.widening_dot_reduce" &&
+      typedComputeOpName != "weft_rvv.widening_dot_reduce" &&
       typedComputeOpName != deferredWideDotChain)
     return makeRVVConstructionError(
         "RVV widening dot-product reduction construction requires generic "
-        "tcrv_rvv.widening_dot_reduce or the deferred-wide "
-        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-        "tcrv_rvv.standalone_reduce chain");
+        "weft_rvv.widening_dot_reduce or the deferred-wide "
+        "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+        "weft_rvv.standalone_reduce chain");
   if (isStridedInputWideningDotReduceAdd &&
-      typedComputeOpName != "tcrv_rvv.widening_dot_reduce")
+      typedComputeOpName != "weft_rvv.widening_dot_reduce")
     return makeRVVConstructionError(
         "RVV strided-input widening dot-product reduction construction requires "
-        "generic tcrv_rvv.widening_dot_reduce");
+        "generic weft_rvv.widening_dot_reduce");
   if ((isComputedMaskWideningDotReduceAdd ||
        isComputedMaskStridedInputWideningDotReduceAdd) &&
-      typedComputeOpName != "tcrv_rvv.masked_widening_dot_reduce")
+      typedComputeOpName != "weft_rvv.masked_widening_dot_reduce")
     return makeRVVConstructionError(
         "RVV computed-mask widening dot-product reduction construction "
-        "requires generic tcrv_rvv.masked_widening_dot_reduce");
-  if (isWideningConversion && typedComputeOpName != "tcrv_rvv.widening_convert")
+        "requires generic weft_rvv.masked_widening_dot_reduce");
+  if (isWideningConversion && typedComputeOpName != "weft_rvv.widening_convert")
     return makeRVVConstructionError(
         "RVV widening conversion construction requires generic "
-        "tcrv_rvv.widening_convert");
-  if (isDequantizeI32ToF32 && typedComputeOpName != "tcrv_rvv.dequantize")
+        "weft_rvv.widening_convert");
+  if (isDequantizeI32ToF32 && typedComputeOpName != "weft_rvv.dequantize")
     return makeRVVConstructionError(
         "RVV i32-to-f32 dequantization construction requires generic "
-        "tcrv_rvv.dequantize");
-  if (isStridedLoadUnitStore && typedComputeOpName != "tcrv_rvv.move")
+        "weft_rvv.dequantize");
+  if (isStridedLoadUnitStore && typedComputeOpName != "weft_rvv.move")
     return makeRVVConstructionError(
         "RVV strided-load to unit-stride-store construction requires generic "
-        "tcrv_rvv.move");
-  if (isUnitLoadStridedStore && typedComputeOpName != "tcrv_rvv.move")
+        "weft_rvv.move");
+  if (isUnitLoadStridedStore && typedComputeOpName != "weft_rvv.move")
     return makeRVVConstructionError(
         "RVV unit-load to strided-store construction requires generic "
-        "tcrv_rvv.move");
-  if (isIndexedGatherUnitStore && typedComputeOpName != "tcrv_rvv.move")
+        "weft_rvv.move");
+  if (isIndexedGatherUnitStore && typedComputeOpName != "weft_rvv.move")
     return makeRVVConstructionError(
         "RVV indexed gather to unit-stride-store construction requires "
-        "generic tcrv_rvv.move");
-  if (isIndexedScatterUnitLoad && typedComputeOpName != "tcrv_rvv.move")
+        "generic weft_rvv.move");
+  if (isIndexedScatterUnitLoad && typedComputeOpName != "weft_rvv.move")
     return makeRVVConstructionError(
         "RVV unit-stride-load to indexed scatter construction requires "
-        "generic tcrv_rvv.move");
-  if (isMaskedUnitLoadStore && typedComputeOpName != "tcrv_rvv.masked_load")
+        "generic weft_rvv.move");
+  if (isMaskedUnitLoadStore && typedComputeOpName != "weft_rvv.masked_load")
     return makeRVVConstructionError(
         "RVV masked unit-stride memory movement construction requires generic "
-        "tcrv_rvv.masked_load");
-  if (isMaskedUnitStore && typedComputeOpName != "tcrv_rvv.masked_store")
+        "weft_rvv.masked_load");
+  if (isMaskedUnitStore && typedComputeOpName != "weft_rvv.masked_store")
     return makeRVVConstructionError(
         "RVV masked unit-stride store construction requires generic "
-        "tcrv_rvv.masked_store");
+        "weft_rvv.masked_store");
   if (isComputedMaskUnitLoadStore &&
-      typedComputeOpName != "tcrv_rvv.masked_load")
+      typedComputeOpName != "weft_rvv.masked_load")
     return makeRVVConstructionError(
         "RVV computed-mask unit-stride memory movement construction requires "
-        "generic tcrv_rvv.masked_load");
+        "generic weft_rvv.masked_load");
   if (isComputedMaskStridedStore &&
-      typedComputeOpName != "tcrv_rvv.masked_strided_store")
+      typedComputeOpName != "weft_rvv.masked_strided_store")
     return makeRVVConstructionError(
         "RVV computed-mask memory movement construction requires "
-        "generic tcrv_rvv.masked_strided_store");
+        "generic weft_rvv.masked_strided_store");
   if (isComputedMaskStridedLoadUnitStore &&
-      typedComputeOpName != "tcrv_rvv.masked_strided_load")
+      typedComputeOpName != "weft_rvv.masked_strided_load")
     return makeRVVConstructionError(
         "RVV computed-mask strided-load memory movement construction requires "
-        "generic tcrv_rvv.masked_strided_load");
+        "generic weft_rvv.masked_strided_load");
   if (isComputedMaskIndexedGatherLoadUnitStore &&
-      typedComputeOpName != "tcrv_rvv.masked_indexed_load")
+      typedComputeOpName != "weft_rvv.masked_indexed_load")
     return makeRVVConstructionError(
         "RVV computed-mask indexed gather-load memory movement construction "
-        "requires generic tcrv_rvv.masked_indexed_load");
+        "requires generic weft_rvv.masked_indexed_load");
   if ((isComputedMaskIndexedScatterStoreUnitLoad ||
        isRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad) &&
-      typedComputeOpName != "tcrv_rvv.masked_indexed_store")
+      typedComputeOpName != "weft_rvv.masked_indexed_store")
     return makeRVVConstructionError(
         "RVV computed-mask indexed scatter-store memory movement construction "
-        "requires generic tcrv_rvv.masked_indexed_store");
+        "requires generic weft_rvv.masked_indexed_store");
   if (isRuntimeScalarComputedMaskIndexedGatherMAccScatter &&
-      typedComputeOpName != "tcrv_rvv.masked_indexed_load+"
-                            "tcrv_rvv.masked_macc+"
-                            "tcrv_rvv.masked_indexed_store")
+      typedComputeOpName != "weft_rvv.masked_indexed_load+"
+                            "weft_rvv.masked_macc+"
+                            "weft_rvv.masked_indexed_store")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask indexed gather-MAcc-scatter "
-        "construction requires generic tcrv_rvv.masked_indexed_load followed "
-        "by tcrv_rvv.masked_macc and tcrv_rvv.masked_indexed_store");
+        "construction requires generic weft_rvv.masked_indexed_load followed "
+        "by weft_rvv.masked_macc and weft_rvv.masked_indexed_store");
   if (isComputedMaskSegment2LoadUnitStore &&
-      typedComputeOpName != "tcrv_rvv.masked_segment2_load")
+      typedComputeOpName != "weft_rvv.masked_segment2_load")
     return makeRVVConstructionError(
         "RVV computed-mask segment2 load memory movement construction "
-        "requires generic tcrv_rvv.masked_segment2_load");
+        "requires generic weft_rvv.masked_segment2_load");
   if (isRuntimeScalarComputedMaskSegment2LoadUnitStore &&
-      typedComputeOpName != "tcrv_rvv.masked_segment2_load")
+      typedComputeOpName != "weft_rvv.masked_segment2_load")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask segment2 load memory movement "
-        "construction requires generic tcrv_rvv.masked_segment2_load");
+        "construction requires generic weft_rvv.masked_segment2_load");
   if (isComputedMaskSegment2StoreUnitLoad &&
-      typedComputeOpName != "tcrv_rvv.masked_segment2_store")
+      typedComputeOpName != "weft_rvv.masked_segment2_store")
     return makeRVVConstructionError(
         "RVV computed-mask segment2 store memory movement construction "
-        "requires generic tcrv_rvv.masked_segment2_store");
+        "requires generic weft_rvv.masked_segment2_store");
   if (isRuntimeScalarComputedMaskSegment2StoreUnitLoad &&
-      typedComputeOpName != "tcrv_rvv.masked_segment2_store")
+      typedComputeOpName != "weft_rvv.masked_segment2_store")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask segment2 store memory movement "
-        "construction requires generic tcrv_rvv.masked_segment2_store");
+        "construction requires generic weft_rvv.masked_segment2_store");
   if (isComputedMaskSegment2UpdateUnitLoad &&
-      typedComputeOpName != "tcrv_rvv.masked_segment2_store" &&
-      typedComputeOpName != "tcrv_rvv.binary")
+      typedComputeOpName != "weft_rvv.masked_segment2_store" &&
+      typedComputeOpName != "weft_rvv.binary")
     return makeRVVConstructionError(
         "RVV computed-mask segment2 update construction requires generic "
-        "tcrv_rvv.binary producer or generic tcrv_rvv.masked_segment2_store "
+        "weft_rvv.binary producer or generic weft_rvv.masked_segment2_store "
         "movement");
   if (isSegment2DeinterleaveUnitStore &&
-      typedComputeOpName != "tcrv_rvv.move")
+      typedComputeOpName != "weft_rvv.move")
     return makeRVVConstructionError(
         "RVV segment2 deinterleave memory movement construction requires "
-        "generic tcrv_rvv.move");
+        "generic weft_rvv.move");
   if (isSegment2InterleaveUnitLoad &&
-      typedComputeOpName != "tcrv_rvv.segment2_store")
+      typedComputeOpName != "weft_rvv.segment2_store")
     return makeRVVConstructionError(
         "RVV segment2 interleave memory movement construction requires "
-        "generic tcrv_rvv.segment2_store");
-  if (isRuntimeScalarSplatStore && typedComputeOpName != "tcrv_rvv.splat")
+        "generic weft_rvv.segment2_store");
+  if (isRuntimeScalarSplatStore && typedComputeOpName != "weft_rvv.splat")
     return makeRVVConstructionError(
         "RVV runtime scalar splat-store construction requires generic "
-        "tcrv_rvv.splat");
+        "weft_rvv.splat");
   if (!isCompareSelect && !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect &&
       !isRuntimeScalarDualCompareMaskAndSelect &&
@@ -4073,7 +4073,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !usesGenericBinary)
     return makeRVVConstructionError(
         llvm::Twine("RVV arithmetic construction requires generic "
-                    "tcrv_rvv.binary, not legacy typed compute op '") +
+                    "weft_rvv.binary, not legacy typed compute op '") +
         typedComputeOpName + "'");
   if (!isWideningConversion && !isDequantizeI32ToF32 &&
       !isStridedLoadUnitStore &&
@@ -4113,89 +4113,89 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isStridedInputWideningDotReduceAdd &&
       !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
       !isRuntimeScalarSplatStore &&
-      rhsSourceOperationName != "tcrv_rvv.load" &&
-      rhsSourceOperationName != "tcrv_rvv.broadcast_load" &&
-      rhsSourceOperationName != "tcrv_rvv.splat" &&
-      rhsSourceOperationName != "tcrv_rvv.strided_load")
+      rhsSourceOperationName != "weft_rvv.load" &&
+      rhsSourceOperationName != "weft_rvv.broadcast_load" &&
+      rhsSourceOperationName != "weft_rvv.splat" &&
+      rhsSourceOperationName != "weft_rvv.strided_load")
     return makeRVVConstructionError(
         llvm::Twine("RVV RHS source operation must be generic "
-                    "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
-                    "tcrv_rvv.splat, or tcrv_rvv.strided_load, not '") +
+                    "weft_rvv.load, weft_rvv.broadcast_load, "
+                    "weft_rvv.splat, or weft_rvv.strided_load, not '") +
         rhsSourceOperationName + "'");
   if (isScalarBroadcastElementwise &&
-      rhsSourceOperationName != "tcrv_rvv.splat")
+      rhsSourceOperationName != "weft_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar-broadcast elementwise construction requires "
         "explicit RHS runtime scalar splat");
   if (isScalarBroadcastMAccAdd &&
-      rhsSourceOperationName != "tcrv_rvv.splat")
+      rhsSourceOperationName != "weft_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar-broadcast multiply-accumulate construction "
         "requires explicit RHS runtime scalar splat feeding the macc RHS "
         "operand");
-  if (isRuntimeScalarSplatStore && rhsSourceOperationName != "tcrv_rvv.splat")
+  if (isRuntimeScalarSplatStore && rhsSourceOperationName != "weft_rvv.splat")
     return makeRVVConstructionError(
         "RVV runtime scalar splat-store construction requires explicit RHS "
         "runtime scalar splat");
   if (isRuntimeScalarCompareSelect &&
-      rhsSourceOperationName != "tcrv_rvv.splat")
+      rhsSourceOperationName != "weft_rvv.splat")
     return makeRVVConstructionError(
         "RVV runtime scalar compare/select construction requires explicit "
         "RHS runtime scalar splat");
   if (isRuntimeScalarComputedMaskStore &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask store construction requires "
         "explicit RHS runtime scalar splat feeding compare-produced mask and "
         "masked_store roles");
   if (isRuntimeScalarComputedMaskLoadStore &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask load-store construction requires "
         "explicit RHS runtime scalar splat feeding compare-produced mask, "
         "masked_load merge, and store roles");
   if (isRuntimeScalarComputedMaskSegment2StoreUnitLoad &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask segment2 store construction requires "
         "explicit RHS runtime scalar splat feeding compare-produced mask, "
         "field payload loads, and masked_segment2_store roles");
   if (isRuntimeScalarComputedMaskSegment2LoadUnitStore &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask segment2 load construction requires "
         "explicit RHS runtime scalar splat feeding compare-produced mask, "
         "old field passthrough loads, masked_segment2_load, and field store "
         "roles");
   if (isRuntimeScalarComputedMaskIndexedGatherLoadUnitStore &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask indexed gather-load construction "
         "requires explicit RHS runtime scalar splat feeding compare-produced "
         "mask, index_load, masked_indexed_load, passthrough, and store roles");
   if (isRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask indexed scatter-store construction "
         "requires explicit RHS runtime scalar splat feeding compare-produced "
         "mask, source payload load, index_load, and masked_indexed_store "
         "roles");
   if (isRuntimeScalarComputedMaskIndexedGatherMAccScatter &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask indexed gather-MAcc-scatter "
         "construction requires explicit RHS runtime scalar splat feeding "
         "compare-produced mask, index_load, masked_indexed_load, masked_macc, "
         "and masked_indexed_store roles");
   if (isRuntimeScalarComputedMaskedMAccAdd &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask multiply-accumulate construction "
         "requires explicit RHS runtime scalar splat feeding compare-produced "
         "mask, payload lhs/rhs loads, accumulator passthrough, and store "
         "roles");
   if (isRuntimeScalarComputedMaskStandaloneReduction &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask standalone reduction construction "
         "requires explicit RHS runtime scalar splat feeding compare-produced "
@@ -4214,7 +4214,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isRuntimeScalarComputedMaskSegment2StoreUnitLoad &&
       !isRuntimeScalarComputedMaskedMAccAdd &&
       !isRuntimeScalarComputedMaskStandaloneReduction &&
-      rhsSourceOperationName == "tcrv_rvv.splat")
+      rhsSourceOperationName == "weft_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar splat memory form is only supported by "
         "scalar_broadcast_add/sub/mul, scalar_broadcast_macc_add, "
@@ -4230,36 +4230,36 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "runtime_scalar_cmp_masked_macc_add, "
         "runtime_scalar_cmp_masked_standalone_reduce_add/min/max in "
         "this bounded slice");
-  if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
+  if (isStridedAdd && rhsSourceOperationName != "weft_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided add construction requires explicit strided lhs, "
         "rhs, and output memory roles");
   if (isStridedLoadUnitStore &&
-      rhsSourceOperationName != "tcrv_rvv.strided_load")
+      rhsSourceOperationName != "weft_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided-load to unit-stride-store construction requires "
         "an explicit source strided load");
   if (isUnitLoadStridedStore &&
-      rhsSourceOperationName != "tcrv_rvv.strided_store")
+      rhsSourceOperationName != "weft_rvv.strided_store")
     return makeRVVConstructionError(
         "RVV generic unit-load to strided-store construction requires "
         "explicit unit-stride source load and strided_store memory roles");
   if (isIndexedGatherUnitStore &&
-      rhsSourceOperationName != "tcrv_rvv.indexed_load")
+      rhsSourceOperationName != "weft_rvv.indexed_load")
     return makeRVVConstructionError(
         "RVV generic indexed gather to unit-stride-store construction "
         "requires explicit index_load and indexed_load memory roles");
   if (isIndexedScatterUnitLoad &&
-      rhsSourceOperationName != "tcrv_rvv.indexed_store")
+      rhsSourceOperationName != "weft_rvv.indexed_store")
     return makeRVVConstructionError(
         "RVV generic unit-stride-load to indexed scatter construction "
         "requires explicit index_load and indexed_store memory roles");
-  if (isMaskedUnitLoadStore && rhsSourceOperationName != "tcrv_rvv.mask_load")
+  if (isMaskedUnitLoadStore && rhsSourceOperationName != "weft_rvv.mask_load")
     return makeRVVConstructionError(
         "RVV generic masked unit-stride memory movement construction requires "
         "explicit mask_load, old-destination load, masked_load, "
         "and store roles");
-  if (isMaskedUnitStore && rhsSourceOperationName != "tcrv_rvv.mask_load")
+  if (isMaskedUnitStore && rhsSourceOperationName != "weft_rvv.mask_load")
     return makeRVVConstructionError(
         "RVV generic masked unit-stride store construction requires explicit "
         "source load, mask_load, and masked_store roles");
@@ -4284,23 +4284,23 @@ buildRVVSelectedBodyExecutableRoleSteps(
        isRuntimeScalarComputedMaskedMAccAdd ||
        isComputedMaskStandaloneReduction ||
        isRuntimeScalarComputedMaskStandaloneReduction) &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic computed-mask construction requires explicit compare "
         "lhs/rhs loads, compare producer, mask-consuming typed body, and "
         "store roles");
   if (isSegment2DeinterleaveUnitStore &&
-      rhsSourceOperationName != "tcrv_rvv.segment2_load")
+      rhsSourceOperationName != "weft_rvv.segment2_load")
     return makeRVVConstructionError(
         "RVV generic segment2 deinterleave construction requires explicit "
         "segment2_load, field0 move, field1 move, and dual store roles");
   if (isSegment2InterleaveUnitLoad &&
-      rhsSourceOperationName != "tcrv_rvv.segment2_store")
+      rhsSourceOperationName != "weft_rvv.segment2_store")
     return makeRVVConstructionError(
         "RVV generic segment2 interleave construction requires explicit "
         "field0 load, field1 load, and segment2_store roles");
   if (!isMaskedUnitLoadStore && !isMaskedUnitStore &&
-      rhsSourceOperationName == "tcrv_rvv.mask_load")
+      rhsSourceOperationName == "weft_rvv.mask_load")
     return makeRVVConstructionError(
         "RVV generic mask_load memory form is only supported by "
         "masked_unit_load_store or masked_unit_store in this bounded slice");
@@ -4328,7 +4328,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isRuntimeScalarComputedMaskedMAccAdd &&
       !isComputedMaskStandaloneReduction &&
       !isRuntimeScalarComputedMaskStandaloneReduction &&
-      rhsSourceOperationName == "tcrv_rvv.compare")
+      rhsSourceOperationName == "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic compare-produced mask memory form is only supported by "
         "computed_mask_select, runtime_scalar_dual_cmp_mask_and_select, "
@@ -4355,125 +4355,125 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "computed_masked_strided_input_widening_dot_reduce_add in this "
         "bounded slice");
   if (!isSegment2DeinterleaveUnitStore &&
-      rhsSourceOperationName == "tcrv_rvv.segment2_load")
+      rhsSourceOperationName == "weft_rvv.segment2_load")
     return makeRVVConstructionError(
         "RVV generic segment2_load memory form is only supported by "
         "segment2_deinterleave_unit_store in this bounded slice");
   if (!isSegment2InterleaveUnitLoad &&
-      rhsSourceOperationName == "tcrv_rvv.segment2_store")
+      rhsSourceOperationName == "weft_rvv.segment2_store")
     return makeRVVConstructionError(
         "RVV generic segment2_store memory form is only supported by "
         "segment2_interleave_unit_load in this bounded slice");
   if (!isStridedAdd && !isStridedLoadUnitStore &&
       !isStridedInputWideningDotReduceAdd &&
       !isComputedMaskStridedInputWideningDotReduceAdd &&
-      rhsSourceOperationName == "tcrv_rvv.strided_load")
+      rhsSourceOperationName == "weft_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided memory form is only supported by strided_add, "
         "strided_load_unit_store, strided_input_widening_dot_reduce_add, or "
         "computed_masked_strided_input_widening_dot_reduce_add in "
         "this bounded slice");
   if (!isUnitLoadStridedStore && !isComputedMaskStridedStore &&
-      rhsSourceOperationName == "tcrv_rvv.strided_store")
+      rhsSourceOperationName == "weft_rvv.strided_store")
     return makeRVVConstructionError(
         "RVV generic strided_store memory form is only supported by "
         "unit_load_strided_store or computed_masked_strided_store in this "
         "bounded slice");
   if (!isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
-      rhsSourceOperationName == "tcrv_rvv.indexed_load")
+      rhsSourceOperationName == "weft_rvv.indexed_load")
     return makeRVVConstructionError(
         "RVV generic indexed memory form is only supported by "
         "indexed_gather_unit_store in this bounded slice");
   if (!isIndexedScatterUnitLoad &&
-      rhsSourceOperationName == "tcrv_rvv.indexed_store")
+      rhsSourceOperationName == "weft_rvv.indexed_store")
     return makeRVVConstructionError(
         "RVV generic indexed store memory form is only supported by "
         "indexed_scatter_unit_load in this bounded slice");
   if (isCompareSelect &&
-      rhsSourceOperationName != "tcrv_rvv.load")
+      rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic compare/select construction requires an explicit RHS "
         "generic vector load; broadcast compare/select is not in this "
         "bounded slice");
-  if (isReduction && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isReduction && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic reduction construction requires explicit vector input "
         "and accumulator loads; broadcast reduction is not in this bounded "
         "slice");
-  if (isStandaloneReduction && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isStandaloneReduction && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic standalone reduction construction requires explicit "
         "input vector load, scalar accumulator seed boundary, and scalar "
         "output boundary; broadcast standalone reduction is not in this "
         "bounded slice");
   if (isComputedMaskStandaloneReduction &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic computed-mask standalone reduction construction requires "
         "compare lhs/rhs loads, a compare-produced mask, a source vector load, "
         "an i32 scalar accumulator seed boundary, and an i32 scalar output "
         "boundary");
-  if (isMaskedElementwise && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isMaskedElementwise && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic masked elementwise construction requires an explicit "
         "RHS generic vector load; broadcast masked elementwise is not in this "
         "bounded slice");
-  if (isMAccAdd && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isMAccAdd && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic multiply-accumulate construction requires explicit "
         "vector lhs, rhs, and accumulator loads; broadcast macc is not in this "
         "bounded slice");
-  if (isComputedMaskedMAccAdd && rhsSourceOperationName != "tcrv_rvv.compare")
+  if (isComputedMaskedMAccAdd && rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic computed-mask multiply-accumulate construction requires "
         "compare lhs/rhs loads, a compare-produced mask, payload lhs/rhs "
         "loads, an accumulator-input-buffer load, and an output boundary");
   if (isRuntimeScalarComputedMaskedMAccAdd &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic runtime scalar computed-mask multiply-accumulate "
         "construction requires a compare lhs load, RHS runtime scalar splat, "
         "a compare-produced mask, payload lhs/rhs loads, an "
         "accumulator-input-buffer load, and an output boundary");
-  if (isWideningMAccAdd && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isWideningMAccAdd && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic widening multiply-accumulate construction requires "
         "explicit i16 lhs/rhs vector loads and an i32 accumulator load; "
         "broadcast widening macc is not in this bounded slice");
-  if (isWideningProduct && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isWideningProduct && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic low-precision widening-product construction requires "
         "explicit signed i8 lhs/rhs vector loads and an i16 output boundary; "
         "broadcast widening product is not in this bounded slice");
   if (isWideningProductReduceAdd &&
-      rhsSourceOperationName != "tcrv_rvv.load")
+      rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic low-precision widening product-reduction construction "
         "requires explicit signed i8 lhs/rhs vector loads, an i16 product "
         "intermediate, an i32 scalar accumulator seed boundary, and an i32 "
         "scalar output boundary");
-  if (isWideningDotReduceAdd && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isWideningDotReduceAdd && rhsSourceOperationName != "weft_rvv.load")
     return makeRVVConstructionError(
         "RVV generic widening dot-product reduction construction requires "
         "explicit i16 lhs/rhs vector loads, an i32 scalar accumulator seed "
         "boundary, and an i32 scalar output boundary; broadcast dot-product "
         "reduction is not in this bounded slice");
   if (isStridedInputWideningDotReduceAdd &&
-      rhsSourceOperationName != "tcrv_rvv.strided_load")
+      rhsSourceOperationName != "weft_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided-input widening dot-product reduction construction "
         "requires explicit i16 lhs/rhs strided vector loads, lhs/rhs element "
         "stride ABI roles, an i32 scalar accumulator seed boundary, and an i32 "
         "scalar output boundary");
   if (isComputedMaskWideningDotReduceAdd &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic computed-mask widening dot-product reduction "
         "construction requires compare lhs/rhs loads, a compare-produced "
         "mask, i16 dot lhs/rhs vector loads, an i32 scalar accumulator seed "
         "boundary, and an i32 scalar output boundary");
   if (isComputedMaskStridedInputWideningDotReduceAdd &&
-      rhsSourceOperationName != "tcrv_rvv.compare")
+      rhsSourceOperationName != "weft_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic computed-mask strided-input widening dot-product "
         "reduction construction requires compare lhs/rhs loads, a "
@@ -4495,9 +4495,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
                           rhsSourceOperationName);
     return steps;
   }
-  steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+  steps.push_back({"runtime_abi", "weft_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
-	                   "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+	                   "WEFTResourceOpInterface", "WEFTEmitCLowerableInterface",
 	                   isRuntimeScalarDualCompareMaskAndSelect
 	                       ? "cmp_lhs_a"
 	                   : (isComputedMaskSelect ||
@@ -4907,12 +4907,12 @@ llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRuntimeScalarCompareSelectExpectedParametersForFacts(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
   llvm::SmallVector<support::RuntimeABIParameter, 6> i64Parameters =
-      tcrv::rvv::
+      weft::rvv::
           buildRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters(
               "int64_t");
   if (support::runtimeABIParametersEqual(parameters, i64Parameters))
     return i64Parameters;
-  return tcrv::rvv::
+  return weft::rvv::
       getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
 }
 
@@ -4920,12 +4920,12 @@ llvm::SmallVector<support::RuntimeABIParameter, 8>
 getRuntimeScalarDualCompareMaskAndSelectExpectedParametersForFacts(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
   llvm::SmallVector<support::RuntimeABIParameter, 8> i64Parameters =
-      tcrv::rvv::
+      weft::rvv::
           buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
               "int64_t");
   if (support::runtimeABIParametersEqual(parameters, i64Parameters))
     return i64Parameters;
-  return tcrv::rvv::
+  return weft::rvv::
       getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
 }
 
@@ -4933,12 +4933,12 @@ llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRuntimeScalarComputedMaskStoreExpectedParametersForFacts(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
   llvm::SmallVector<support::RuntimeABIParameter, 5> i64Parameters =
-      tcrv::rvv::
+      weft::rvv::
           buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
               "int64_t");
   if (support::runtimeABIParametersEqual(parameters, i64Parameters))
     return i64Parameters;
-  return tcrv::rvv::
+  return weft::rvv::
       getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
 }
 
@@ -4951,22 +4951,22 @@ getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName) {
         llvm::Twine("unknown RVV selected-body typed compute op '") +
         typedComputeOpName + "'");
   llvm::StringRef rhsSourceOperationName =
-      (typedComputeOpName == "tcrv_rvv.masked_move" ||
-       typedComputeOpName == "tcrv_rvv.masked_load" ||
-       typedComputeOpName == "tcrv_rvv.masked_store")
-          ? "tcrv_rvv.mask_load"
-      : (typedComputeOpName == "tcrv_rvv.masked_strided_store" ||
-         typedComputeOpName == "tcrv_rvv.masked_strided_load" ||
-         typedComputeOpName == "tcrv_rvv.masked_indexed_load" ||
-         typedComputeOpName == "tcrv_rvv.masked_indexed_store" ||
-         typedComputeOpName == "tcrv_rvv.masked_segment2_load" ||
-         typedComputeOpName == "tcrv_rvv.masked_segment2_store")
-          ? "tcrv_rvv.compare"
-      : (typedComputeOpName == "tcrv_rvv.segment2_store"
-                 ? "tcrv_rvv.segment2_store"
-         : typedComputeOpName == "tcrv_rvv.splat"
-             ? "tcrv_rvv.splat"
-             : "tcrv_rvv.load");
+      (typedComputeOpName == "weft_rvv.masked_move" ||
+       typedComputeOpName == "weft_rvv.masked_load" ||
+       typedComputeOpName == "weft_rvv.masked_store")
+          ? "weft_rvv.mask_load"
+      : (typedComputeOpName == "weft_rvv.masked_strided_store" ||
+         typedComputeOpName == "weft_rvv.masked_strided_load" ||
+         typedComputeOpName == "weft_rvv.masked_indexed_load" ||
+         typedComputeOpName == "weft_rvv.masked_indexed_store" ||
+         typedComputeOpName == "weft_rvv.masked_segment2_load" ||
+         typedComputeOpName == "weft_rvv.masked_segment2_store")
+          ? "weft_rvv.compare"
+      : (typedComputeOpName == "weft_rvv.segment2_store"
+                 ? "weft_rvv.segment2_store"
+         : typedComputeOpName == "weft_rvv.splat"
+             ? "weft_rvv.splat"
+             : "weft_rvv.load");
   return buildRVVSelectedBodyExecutableRoleSteps(route->operationMnemonic,
                                                 typedComputeOpName,
                                                 rhsSourceOperationName);
@@ -5036,56 +5036,56 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
     llvm::SmallVector<support::RuntimeABIParameter, 7> routeRuntimeABIParameters;
     if (route.operationMnemonic == "strided_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 7> stridedParameters =
-          tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
       routeRuntimeABIParameters.append(stridedParameters.begin(),
                                        stridedParameters.end());
     } else if (route.operationMnemonic == "strided_load_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> stridedMoveParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(stridedMoveParameters.begin(),
                                        stridedMoveParameters.end());
     } else if (route.operationMnemonic == "unit_load_strided_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> stridedStoreParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(stridedStoreParameters.begin(),
                                        stridedStoreParameters.end());
     } else if (route.operationMnemonic == "indexed_gather_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> indexedParameters =
-          tcrv::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
       routeRuntimeABIParameters.append(indexedParameters.begin(),
                                        indexedParameters.end());
     } else if (route.operationMnemonic == "indexed_scatter_unit_load") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> indexedParameters =
-          tcrv::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(indexedParameters.begin(),
                                        indexedParameters.end());
     } else if (route.operationMnemonic == "masked_unit_load_store" ||
                route.operationMnemonic == "masked_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> maskedParameters =
-          tcrv::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
       routeRuntimeABIParameters.append(maskedParameters.begin(),
                                        maskedParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_unit_load_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           computedMaskParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
       routeRuntimeABIParameters.append(computedMaskParameters.begin(),
                                        computedMaskParameters.end());
     } else if (route.operationMnemonic == "computed_mask_select") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskSelectParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(computedMaskSelectParameters.begin(),
                                        computedMaskSelectParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_cmp_select") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarCompareSelectParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarCompareSelectParameters.begin(),
@@ -5094,7 +5094,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "runtime_scalar_dual_cmp_mask_and_select") {
       llvm::SmallVector<support::RuntimeABIParameter, 8>
           runtimeScalarDualCompareMaskAndSelectParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarDualCompareMaskAndSelectParameters.begin(),
@@ -5102,7 +5102,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
     } else if (route.operationMnemonic == "f32_clamp_select") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           runtimeScalarF32ClampSelectParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarF32ClampSelectParameters.begin(),
@@ -5110,7 +5110,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
     } else if (route.operationMnemonic == "dequant_clamp_f32_epilogue") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           dequantClampF32EpilogueParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           dequantClampF32EpilogueParameters.begin(),
@@ -5121,7 +5121,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                    "runtime_scalar_cmp_masked_load_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           runtimeScalarComputedMaskStoreParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarComputedMaskStoreParameters.begin(),
@@ -5129,7 +5129,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
     } else if (route.operationMnemonic == "computed_masked_strided_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskStridedParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(computedMaskStridedParameters.begin(),
                                        computedMaskStridedParameters.end());
@@ -5137,7 +5137,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "computed_masked_strided_load_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskStridedLoadParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           computedMaskStridedLoadParameters.begin(),
@@ -5146,7 +5146,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "computed_masked_indexed_gather_load_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskIndexedGatherParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           computedMaskIndexedGatherParameters.begin(),
@@ -5155,7 +5155,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "runtime_scalar_cmp_masked_indexed_gather_load_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarComputedMaskIndexedGatherParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarComputedMaskIndexedGatherParameters.begin(),
@@ -5164,7 +5164,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "computed_masked_indexed_scatter_store_unit_load") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskIndexedScatterParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           computedMaskIndexedScatterParameters.begin(),
@@ -5173,7 +5173,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarComputedMaskIndexedScatterParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarComputedMaskIndexedScatterParameters.begin(),
@@ -5182,7 +5182,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "computed_masked_segment2_load_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskSegment2LoadParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           computedMaskSegment2LoadParameters.begin(),
@@ -5191,7 +5191,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "runtime_scalar_cmp_masked_segment2_load_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarComputedMaskSegment2LoadParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarComputedMaskSegment2LoadParameters.begin(),
@@ -5200,7 +5200,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "runtime_scalar_cmp_masked_segment2_store_unit_load") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarComputedMaskSegment2StoreParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           runtimeScalarComputedMaskSegment2StoreParameters.begin(),
@@ -5211,7 +5211,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                    "computed_masked_segment2_update_unit_load") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           computedMaskSegment2StoreParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           computedMaskSegment2StoreParameters.begin(),
@@ -5219,13 +5219,13 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
     } else if (route.operationMnemonic ==
                "segment2_deinterleave_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Parameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(segment2Parameters.begin(),
                                        segment2Parameters.end());
     } else if (route.operationMnemonic == "segment2_interleave_unit_load") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Parameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(segment2Parameters.begin(),
                                        segment2Parameters.end());
@@ -5233,93 +5233,93 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                route.operationMnemonic == "scalar_broadcast_sub" ||
                route.operationMnemonic == "scalar_broadcast_mul") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
-          tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
       routeRuntimeABIParameters.append(scalarParameters.begin(),
                                        scalarParameters.end());
     } else if (route.operationMnemonic ==
                "widening_standalone_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
     } else if (isStandaloneReduceOperationMnemonic(route.operationMnemonic)) {
       llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
-          tcrv::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
     } else if (isComputedMaskStandaloneReduceOperationMnemonic(
                    route.operationMnemonic)) {
       llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
     } else if (isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
                    route.operationMnemonic)) {
       llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
     } else if (route.operationMnemonic == "macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
-          tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(maccParameters.begin(),
                                        maccParameters.end());
     } else if (route.operationMnemonic == "scalar_broadcast_macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(maccParameters.begin(),
                                        maccParameters.end());
     } else if (route.operationMnemonic == "computed_masked_macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 7> maskedMAccParameters =
-          tcrv::rvv::getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(maskedMAccParameters.begin(),
                                        maskedMAccParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 7> maskedMAccParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(maskedMAccParameters.begin(),
                                        maskedMAccParameters.end());
     } else if (route.operationMnemonic == "widen_i32_to_i64") {
       llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningConversionRuntimeABIParameters();
       routeRuntimeABIParameters.append(conversionParameters.begin(),
                                        conversionParameters.end());
     } else if (route.operationMnemonic == "widen_i16_to_i32") {
       llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(conversionParameters.begin(),
                                        conversionParameters.end());
     } else if (route.operationMnemonic == "dequantize_i32_to_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 4>
           dequantizationParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyDequantizationRuntimeABIParameters();
       routeRuntimeABIParameters.append(dequantizationParameters.begin(),
                                        dequantizationParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_splat_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 3> splatParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(splatParameters.begin(),
                                        splatParameters.end());
     } else if (route.operationMnemonic == "widening_macc_add" ||
                route.operationMnemonic == "widening_dot_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccParameters =
-          tcrv::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(wideningMAccParameters.begin(),
                                        wideningMAccParameters.end());
     } else if (route.operationMnemonic == "widening_product_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           productReductionParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(productReductionParameters.begin(),
                                        productReductionParameters.end());
@@ -5327,7 +5327,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "widening_product_reduce_dequantize_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           productReductionDequantizationParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
       routeRuntimeABIParameters.append(
           productReductionDequantizationParameters.begin(),
@@ -5336,7 +5336,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "widening_product_reduce_dequant_clamp_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 8>
           productReductionDequantClampF32Parameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
       routeRuntimeABIParameters.append(
           productReductionDequantClampF32Parameters.begin(),
@@ -5344,20 +5344,20 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
     } else if (route.operationMnemonic == "widening_product") {
       llvm::SmallVector<support::RuntimeABIParameter, 4>
           wideningProductParameters =
-              tcrv::rvv::getRVVSelectedBodyWideningProductRuntimeABIParameters();
+              weft::rvv::getRVVSelectedBodyWideningProductRuntimeABIParameters();
       routeRuntimeABIParameters.append(wideningProductParameters.begin(),
                                        wideningProductParameters.end());
     } else if (route.operationMnemonic ==
                "strided_input_widening_dot_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 7> stridedDotParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(stridedDotParameters.begin(),
                                        stridedDotParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_widening_dot_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 7> maskedDotParameters =
-          tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(maskedDotParameters.begin(),
                                        maskedDotParameters.end());
@@ -5365,7 +5365,7 @@ static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
                "computed_masked_strided_input_widening_dot_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 9>
           maskedStridedDotParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(maskedStridedDotParameters.begin(),
                                        maskedStridedDotParameters.end());
@@ -5418,7 +5418,7 @@ llvm::Error verifyRVVConstructionProtocolReady() {
 llvm::Error verifyRVVSelectedBodyConstructionRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
   if (llvm::Error error =
-          tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+          weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
               parameters, "RVV construction protocol"))
     return makeRVVConstructionError(llvm::toString(std::move(error)));
   return llvm::Error::success();
@@ -5489,265 +5489,265 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         " provider-derived operation '" + facts.operationMnemonic +
         "' is not a retained RVV selected-body specialization label");
 
-  const bool usesGenericBinary = facts.typedComputeOpName == "tcrv_rvv.binary";
+  const bool usesGenericBinary = facts.typedComputeOpName == "weft_rvv.binary";
   if (usesGenericBinary && route->operationMnemonic == "cmp_select")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " compare/select cannot use generic tcrv_rvv.binary");
+        " compare/select cannot use generic weft_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "computed_mask_select")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " computed-mask select cannot use generic tcrv_rvv.binary");
+        " computed-mask select cannot use generic weft_rvv.binary");
 	  if (usesGenericBinary &&
 	      route->operationMnemonic == "runtime_scalar_cmp_select")
 	    return makeRVVConstructionError(
 	        llvm::Twine(context) +
 	        " runtime scalar compare/select cannot use generic "
-	        "tcrv_rvv.binary");
+	        "weft_rvv.binary");
 		  if (usesGenericBinary &&
 		      route->operationMnemonic ==
 		          "runtime_scalar_dual_cmp_mask_and_select")
 		    return makeRVVConstructionError(
 		        llvm::Twine(context) +
 		        " runtime scalar dual-compare mask-and select cannot use generic "
-		        "tcrv_rvv.binary");
+		        "weft_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "f32_clamp_select")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " f32 clamp/select cannot use generic tcrv_rvv.binary");
+        " f32 clamp/select cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "dequant_clamp_f32_epilogue")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " dequant-clamp epilogue cannot use generic tcrv_rvv.binary");
+        " dequant-clamp epilogue cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "runtime_scalar_cmp_masked_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "runtime_scalar_cmp_masked_load_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask load-store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " reduction cannot use generic tcrv_rvv.binary");
+        " reduction cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       isStandaloneReduceOperationMnemonic(route->operationMnemonic))
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " standalone reduction cannot use generic tcrv_rvv.binary");
+        " standalone reduction cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       isComputedMaskStandaloneReduceOperationMnemonic(route->operationMnemonic))
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask standalone reduction cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
           route->operationMnemonic))
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask standalone reduction cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       (route->operationMnemonic == "masked_add" ||
        route->operationMnemonic == "masked_sub" ||
        route->operationMnemonic == "masked_mul"))
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " masked elementwise cannot use generic tcrv_rvv.binary");
+        " masked elementwise cannot use generic weft_rvv.binary");
   if (usesGenericBinary && (route->operationMnemonic == "macc_add" ||
                             route->operationMnemonic ==
                                 "scalar_broadcast_macc_add"))
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " multiply-accumulate cannot use generic tcrv_rvv.binary");
+        " multiply-accumulate cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_macc_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask multiply-accumulate cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "runtime_scalar_cmp_masked_macc_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask multiply-accumulate cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "widening_macc_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " widening multiply-accumulate cannot use generic tcrv_rvv.binary");
+        " widening multiply-accumulate cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "widening_product_reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " low-precision widening product-reduction chain cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "widening_product_reduce_dequantize_f32")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " low-precision widening product-reduction dequantization chain "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "widening_product_reduce_dequant_clamp_f32")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " low-precision widening product-reduction dequant-clamp chain "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "widening_dot_reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " widening dot-product reduction cannot use generic tcrv_rvv.binary");
+        " widening dot-product reduction cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "strided_input_widening_dot_reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " strided-input widening dot-product reduction cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_widening_dot_reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask widening dot-product reduction cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "computed_masked_strided_input_widening_dot_reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask strided-input widening dot-product reduction cannot "
-        "use generic tcrv_rvv.binary");
+        "use generic weft_rvv.binary");
   if (usesGenericBinary && (route->operationMnemonic == "widen_i32_to_i64" ||
                             route->operationMnemonic == "widen_i16_to_i32"))
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " widening conversion cannot use generic tcrv_rvv.binary");
+        " widening conversion cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "dequantize_i32_to_f32")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " i32-to-f32 dequantization cannot use generic tcrv_rvv.binary");
+        " i32-to-f32 dequantization cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "strided_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " strided-load to unit-stride-store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "indexed_gather_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " indexed gather to unit-stride-store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "indexed_scatter_unit_load")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " unit-stride-load to indexed scatter cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "masked_unit_load_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " masked unit-stride memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "masked_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " masked unit-stride store cannot use generic tcrv_rvv.binary");
+        " masked unit-stride store cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_unit_load_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask unit-stride memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_strided_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask strided-store memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_strided_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask strided-load memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "computed_masked_indexed_gather_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask indexed gather-load memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "runtime_scalar_cmp_masked_indexed_gather_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask indexed gather-load memory movement "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "computed_masked_indexed_scatter_store_unit_load")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask indexed scatter-store memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask indexed scatter-store memory movement "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_segment2_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask segment2 load memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "runtime_scalar_cmp_masked_segment2_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask segment2 load memory movement cannot "
-        "use generic tcrv_rvv.binary");
+        "use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "computed_masked_segment2_store_unit_load")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " computed-mask segment2 store memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic ==
           "runtime_scalar_cmp_masked_segment2_store_unit_load")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " runtime scalar computed-mask segment2 store memory movement cannot "
-        "use generic tcrv_rvv.binary");
+        "use generic weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "segment2_deinterleave_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " segment2 deinterleave memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       route->operationMnemonic == "segment2_interleave_unit_load")
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " segment2 interleave memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   // The low-precision dequant(/clamp) chain is candidate-aware (widening_product
   // or packed_i4_nibble_unpack_product head; gearbox_cross_region_handoff only in
   // the legacy two-scope body). Accept exactly the bounded legal set.
@@ -5758,28 +5758,28 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     const bool isClampRoute =
         route->operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
     const llvm::StringRef tail =
-        isClampRoute ? "+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
-                     : "+tcrv_rvv.dequantize";
+        isClampRoute ? "+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
+                     : "+weft_rvv.dequantize";
     const std::string wideningHandoff =
-        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-         "tcrv_rvv.gearbox_cross_region_handoff" +
+        ("weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+         "weft_rvv.gearbox_cross_region_handoff" +
          llvm::Twine(tail))
             .str();
     const std::string widening =
-        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.widening_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
     const std::string nibble =
-        ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.packed_i4_nibble_unpack_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
-    // The deferred-wide (N3) chain inserts a tcrv_rvv.widening_accumulate between
+    // The deferred-wide (N3) chain inserts a weft_rvv.widening_accumulate between
     // the widening_product and the trailing standalone_reduce (the i32m8 deferred
     // vector accumulate). Accept it as a bounded legal dequant chain (no clamp
     // variant -- the deferred-wide path is the plain dequant only).
     const std::string deferredWide =
-        ("tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+"
-         "tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.widening_product+weft_rvv.widening_accumulate+"
+         "weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
     if (facts.typedComputeOpName != wideningHandoff &&
@@ -5798,22 +5798,22 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     return llvm::Error::success();
   }
   // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
-  // fused tcrv_rvv.widening_dot_reduce and the deferred-wide i16 chain
+  // fused weft_rvv.widening_dot_reduce and the deferred-wide i16 chain
   // widening_product + deferred_accumulate + standalone_reduce. Accept either.
   if (route->operationMnemonic == "widening_dot_reduce_add") {
-    const llvm::StringRef narrowChain = "tcrv_rvv.widening_dot_reduce";
+    const llvm::StringRef narrowChain = "weft_rvv.widening_dot_reduce";
     const llvm::StringRef deferredWideDotChain =
-        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-        "tcrv_rvv.standalone_reduce";
+        "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+        "weft_rvv.standalone_reduce";
     if (facts.typedComputeOpName != narrowChain &&
         facts.typedComputeOpName != deferredWideDotChain)
       return makeRVVConstructionError(
           llvm::Twine(context) +
           " selected-body typed compute op for operation '" +
           facts.operationMnemonic +
-          "' must be the narrow tcrv_rvv.widening_dot_reduce or the deferred-wide "
-          "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-          "tcrv_rvv.standalone_reduce chain, but was '" +
+          "' must be the narrow weft_rvv.widening_dot_reduce or the deferred-wide "
+          "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+          "weft_rvv.standalone_reduce chain, but was '" +
           facts.typedComputeOpName + "'");
     return llvm::Error::success();
   }
@@ -5891,7 +5891,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  || route->operationMnemonic ==
                      "segment2_interleave_unit_load"
              ? "'"
-             : "' or generic 'tcrv_rvv.binary'") +
+             : "' or generic 'weft_rvv.binary'") +
         " but was '" + facts.typedComputeOpName + "'");
   if (facts.emitCRouteID != route->emitCRouteID)
     return makeRVVConstructionError(
@@ -5931,49 +5931,49 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
   llvm::SmallVector<support::RuntimeABIParameter, 7> expectedParameters;
   if (route->operationMnemonic == "strided_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> stridedParameters =
-        tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
     expectedParameters.append(stridedParameters.begin(),
                               stridedParameters.end());
   } else if (route->operationMnemonic == "strided_load_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> stridedMoveParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
     expectedParameters.append(stridedMoveParameters.begin(),
                               stridedMoveParameters.end());
   } else if (route->operationMnemonic == "unit_load_strided_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> stridedStoreParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
     expectedParameters.append(stridedStoreParameters.begin(),
                               stridedStoreParameters.end());
   } else if (route->operationMnemonic == "indexed_gather_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> indexedParameters =
-        tcrv::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
     expectedParameters.append(indexedParameters.begin(),
                               indexedParameters.end());
   } else if (route->operationMnemonic == "indexed_scatter_unit_load") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> indexedParameters =
-        tcrv::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
     expectedParameters.append(indexedParameters.begin(),
                               indexedParameters.end());
   } else if (route->operationMnemonic == "masked_unit_load_store" ||
              route->operationMnemonic == "masked_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> maskedParameters =
-        tcrv::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
     expectedParameters.append(maskedParameters.begin(),
                               maskedParameters.end());
   } else if (route->operationMnemonic ==
              "computed_masked_unit_load_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 5>
         computedMaskParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
     expectedParameters.append(computedMaskParameters.begin(),
                               computedMaskParameters.end());
   } else if (route->operationMnemonic == "computed_mask_select") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskSelectParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
     expectedParameters.append(computedMaskSelectParameters.begin(),
                               computedMaskSelectParameters.end());
@@ -5996,14 +5996,14 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
   } else if (route->operationMnemonic == "f32_clamp_select") {
     llvm::SmallVector<support::RuntimeABIParameter, 5>
         runtimeScalarF32ClampSelectParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
     expectedParameters.append(runtimeScalarF32ClampSelectParameters.begin(),
                               runtimeScalarF32ClampSelectParameters.end());
   } else if (route->operationMnemonic == "dequant_clamp_f32_epilogue") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         dequantClampF32EpilogueParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
     expectedParameters.append(dequantClampF32EpilogueParameters.begin(),
                               dequantClampF32EpilogueParameters.end());
@@ -6021,7 +6021,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
   } else if (route->operationMnemonic == "computed_masked_strided_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskStridedParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
     expectedParameters.append(computedMaskStridedParameters.begin(),
                               computedMaskStridedParameters.end());
@@ -6029,7 +6029,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "computed_masked_strided_load_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskStridedLoadParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
     expectedParameters.append(computedMaskStridedLoadParameters.begin(),
                               computedMaskStridedLoadParameters.end());
@@ -6037,7 +6037,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "computed_masked_indexed_gather_load_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskIndexedGatherParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
     expectedParameters.append(computedMaskIndexedGatherParameters.begin(),
                               computedMaskIndexedGatherParameters.end());
@@ -6045,7 +6045,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "runtime_scalar_cmp_masked_indexed_gather_load_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         runtimeScalarComputedMaskIndexedGatherParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
     expectedParameters.append(
         runtimeScalarComputedMaskIndexedGatherParameters.begin(),
@@ -6054,7 +6054,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "computed_masked_indexed_scatter_store_unit_load") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskIndexedScatterParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
     expectedParameters.append(computedMaskIndexedScatterParameters.begin(),
                               computedMaskIndexedScatterParameters.end());
@@ -6062,7 +6062,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         runtimeScalarComputedMaskIndexedScatterParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
     expectedParameters.append(
         runtimeScalarComputedMaskIndexedScatterParameters.begin(),
@@ -6071,7 +6071,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "computed_masked_segment2_load_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskSegment2LoadParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
     expectedParameters.append(computedMaskSegment2LoadParameters.begin(),
                               computedMaskSegment2LoadParameters.end());
@@ -6079,7 +6079,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "runtime_scalar_cmp_masked_segment2_load_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         runtimeScalarComputedMaskSegment2LoadParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
     expectedParameters.append(
         runtimeScalarComputedMaskSegment2LoadParameters.begin(),
@@ -6088,7 +6088,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "runtime_scalar_cmp_masked_segment2_store_unit_load") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         runtimeScalarComputedMaskSegment2StoreParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
     expectedParameters.append(
         runtimeScalarComputedMaskSegment2StoreParameters.begin(),
@@ -6099,20 +6099,20 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  "computed_masked_segment2_update_unit_load") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         computedMaskSegment2StoreParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
     expectedParameters.append(computedMaskSegment2StoreParameters.begin(),
                               computedMaskSegment2StoreParameters.end());
   } else if (route->operationMnemonic ==
              "segment2_deinterleave_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Parameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
     expectedParameters.append(segment2Parameters.begin(),
                               segment2Parameters.end());
   } else if (route->operationMnemonic == "segment2_interleave_unit_load") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Parameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
     expectedParameters.append(segment2Parameters.begin(),
                               segment2Parameters.end());
@@ -6120,84 +6120,84 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              route->operationMnemonic == "scalar_broadcast_sub" ||
              route->operationMnemonic == "scalar_broadcast_mul") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
-        tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
     expectedParameters.append(scalarParameters.begin(),
                               scalarParameters.end());
   } else if (route->operationMnemonic == "widening_standalone_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
   } else if (isStandaloneReduceOperationMnemonic(route->operationMnemonic)) {
     llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
-        tcrv::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
   } else if (isComputedMaskStandaloneReduceOperationMnemonic(
                  route->operationMnemonic)) {
     llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
   } else if (isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
                  route->operationMnemonic)) {
     llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
   } else if (route->operationMnemonic == "macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
-        tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
     expectedParameters.append(maccParameters.begin(), maccParameters.end());
   } else if (route->operationMnemonic == "scalar_broadcast_macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
-        tcrv::rvv::getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
     expectedParameters.append(maccParameters.begin(), maccParameters.end());
   } else if (route->operationMnemonic == "computed_masked_macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> maskedMAccParameters =
-        tcrv::rvv::getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
     expectedParameters.append(maskedMAccParameters.begin(),
                               maskedMAccParameters.end());
   } else if (route->operationMnemonic ==
              "runtime_scalar_cmp_masked_macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> maskedMAccParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters();
     expectedParameters.append(maskedMAccParameters.begin(),
                               maskedMAccParameters.end());
   } else if (route->operationMnemonic == "widen_i32_to_i64") {
     llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
-        tcrv::rvv::getRVVSelectedBodyWideningConversionRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyWideningConversionRuntimeABIParameters();
     expectedParameters.append(conversionParameters.begin(),
                               conversionParameters.end());
   } else if (route->operationMnemonic == "widen_i16_to_i32") {
     llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
-        tcrv::rvv::getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
     expectedParameters.append(conversionParameters.begin(),
                               conversionParameters.end());
   } else if (route->operationMnemonic == "dequantize_i32_to_f32") {
     llvm::SmallVector<support::RuntimeABIParameter, 4>
         dequantizationParameters =
-            tcrv::rvv::getRVVSelectedBodyDequantizationRuntimeABIParameters();
+            weft::rvv::getRVVSelectedBodyDequantizationRuntimeABIParameters();
     expectedParameters.append(dequantizationParameters.begin(),
                               dequantizationParameters.end());
   } else if (route->operationMnemonic == "runtime_scalar_splat_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 3> splatParameters =
-        tcrv::rvv::getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
     expectedParameters.append(splatParameters.begin(), splatParameters.end());
   } else if (route->operationMnemonic == "widening_macc_add" ||
              route->operationMnemonic == "widening_dot_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccParameters =
-        tcrv::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
     expectedParameters.append(wideningMAccParameters.begin(),
                               wideningMAccParameters.end());
   } else if (route->operationMnemonic == "widening_product_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5>
         productReductionParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
     expectedParameters.append(productReductionParameters.begin(),
                               productReductionParameters.end());
@@ -6205,7 +6205,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "widening_product_reduce_dequantize_f32") {
     llvm::SmallVector<support::RuntimeABIParameter, 6>
         productReductionDequantizationParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
     expectedParameters.append(
         productReductionDequantizationParameters.begin(),
@@ -6214,21 +6214,21 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "widening_product_reduce_dequant_clamp_f32") {
     llvm::SmallVector<support::RuntimeABIParameter, 8>
         productReductionDequantClampF32Parameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
     expectedParameters.append(productReductionDequantClampF32Parameters.begin(),
                               productReductionDequantClampF32Parameters.end());
   } else if (route->operationMnemonic ==
              "strided_input_widening_dot_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> stridedDotParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters();
     expectedParameters.append(stridedDotParameters.begin(),
                               stridedDotParameters.end());
   } else if (route->operationMnemonic ==
              "computed_masked_widening_dot_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> maskedDotParameters =
-        tcrv::rvv::
+        weft::rvv::
             getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
     expectedParameters.append(maskedDotParameters.begin(),
                               maskedDotParameters.end());
@@ -6236,13 +6236,13 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "computed_masked_strided_input_widening_dot_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 9>
         maskedStridedDotParameters =
-            tcrv::rvv::
+            weft::rvv::
                 getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters();
     expectedParameters.append(maskedStridedDotParameters.begin(),
                               maskedStridedDotParameters.end());
   } else {
     llvm::SmallVector<support::RuntimeABIParameter, 4> baseParameters =
-        tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
+        weft::rvv::getRVVSelectedBodyRuntimeABIParameters();
     expectedParameters.append(baseParameters.begin(), baseParameters.end());
   }
   if (!support::runtimeABIParametersEqual(facts.runtimeABIParameters,
@@ -6256,7 +6256,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         route->operationMnemonic == "masked_sub" ||
         route->operationMnemonic == "masked_mul") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> i64Parameters =
-          tcrv::rvv::getRVVSelectedBodyI64RuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyI64RuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, i64Parameters);
     } else if (route->operationMnemonic == "computed_mask_select") {
@@ -6284,14 +6284,14 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
               support::RuntimeABIParameterRole::OutputBuffer));
       computedMaskSelectI64Parameters.push_back(
           support::makeTargetExportABIParameter(
-              tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName(), "size_t",
+              weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName(), "size_t",
               support::RuntimeABIParameterRole::RuntimeElementCount));
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, computedMaskSelectI64Parameters);
     } else if (route->operationMnemonic == "runtime_scalar_cmp_select") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarCompareSelectI64Parameters =
-              tcrv::rvv::
+              weft::rvv::
                   buildRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters(
                       "int64_t");
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
@@ -6300,7 +6300,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                "runtime_scalar_dual_cmp_mask_and_select") {
       llvm::SmallVector<support::RuntimeABIParameter, 8>
           runtimeScalarDualCompareMaskAndSelectI64Parameters =
-              tcrv::rvv::
+              weft::rvv::
                   buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
                       "int64_t");
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
@@ -6310,7 +6310,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                "runtime_scalar_cmp_masked_standalone_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           runtimeScalarStandaloneReductionI64Parameters =
-              tcrv::rvv::
+              weft::rvv::
                   buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
                       "int64_t");
       acceptsTypedI64Parameters =
@@ -6321,7 +6321,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                "runtime_scalar_cmp_masked_indexed_gather_macc_scatter") {
       llvm::SmallVector<support::RuntimeABIParameter, 8>
           runtimeScalarIndexedGatherMAccScatterParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters,
@@ -6329,17 +6329,17 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     } else if (route->operationMnemonic == "widening_macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           wideningMAccParameters =
-              tcrv::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
+              weft::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, wideningMAccParameters);
     } else if (route->operationMnemonic == "widening_product_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           productReductionParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           unsignedProductReductionParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
       // P1e C3 (offset-binary N=3): the offset-binary packed-i4 x i8 product-
       // reduction route shares the widening_product_reduce_add mnemonic with the
@@ -6351,7 +6351,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
       // matches one of the two 5-parameter sets -> byte-exact for existing.
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           offsetBinaryProductReductionParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters();
       // P1f C4: the codebook N=3 route projects the same 6-parameter head as the
       // offset-binary route but with an UNSIGNED u8 weight (w). Accept its
@@ -6359,7 +6359,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
       // dialect runtime-ABI contract acceptance). Byte-exact for existing routes.
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           codebookProductReductionParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyCodebookProductReductionRuntimeABIParameters();
       acceptsTypedI64Parameters =
           support::runtimeABIParametersEqual(facts.runtimeABIParameters,
@@ -6375,7 +6375,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                "widening_product_reduce_dequantize_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
           productReductionDequantizationParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters,
@@ -6384,18 +6384,18 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                "widening_product_reduce_dequant_clamp_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 8>
           productReductionDequantClampF32Parameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, productReductionDequantClampF32Parameters);
     } else if (route->operationMnemonic == "widening_product") {
       llvm::SmallVector<support::RuntimeABIParameter, 4>
           wideningProductParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyWideningProductRuntimeABIParameters();
       llvm::SmallVector<support::RuntimeABIParameter, 4>
           unsignedWideningProductParameters =
-              tcrv::rvv::
+              weft::rvv::
                   getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters();
       acceptsTypedI64Parameters =
           support::runtimeABIParametersEqual(facts.runtimeABIParameters,
@@ -6450,13 +6450,13 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
   spec.selectedVariantSymbol = selectedVariantSymbol;
   spec.pathRole = pathRole;
   spec.semanticRoleGraph =
-      typedComputeOpName == "tcrv_rvv.widening_convert"
+      typedComputeOpName == "weft_rvv.widening_convert"
           ? "runtime_abi->runtime_abi->runtime_abi->configure->scope->"
             "load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.dequantize"
+      : typedComputeOpName == "weft_rvv.dequantize"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.move"
+      : typedComputeOpName == "weft_rvv.move"
           ? (operationMnemonic == "segment2_deinterleave_unit_store"
                  ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
                    "configure->scope->load->compute->compute->store->store"
@@ -6466,7 +6466,7 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
                    "configure->scope->load->load->compute->store"
                  : "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
                    "configure->scope->load->compute->store")
-      : typedComputeOpName == "tcrv_rvv.masked_load"
+      : typedComputeOpName == "weft_rvv.masked_load"
           ? (operationMnemonic == "computed_masked_unit_load_store"
                  ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
                    "runtime_abi->configure->scope->load->load->load->"
@@ -6483,86 +6483,86 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
             "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->load->load->load->load->load->"
             "compute->load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_indexed_load"
+      : typedComputeOpName == "weft_rvv.masked_indexed_load"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "load->compute->load->store"
-      : typedComputeOpName == "tcrv_rvv.masked_indexed_store"
+      : typedComputeOpName == "weft_rvv.masked_indexed_store"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_segment2_load"
+      : typedComputeOpName == "weft_rvv.masked_segment2_load"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "load->compute->load->store->store"
-      : typedComputeOpName == "tcrv_rvv.masked_segment2_store"
+      : typedComputeOpName == "weft_rvv.masked_segment2_store"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_move"
+      : typedComputeOpName == "weft_rvv.masked_move"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->load->load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_store" &&
+      : typedComputeOpName == "weft_rvv.masked_store" &&
                 operationMnemonic == "runtime_scalar_cmp_masked_store"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->configure->scope->load->load->load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_store"
+      : typedComputeOpName == "weft_rvv.masked_store"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->load->store"
-      : typedComputeOpName == "tcrv_rvv.masked_strided_store"
+      : typedComputeOpName == "weft_rvv.masked_strided_store"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "compute->store"
-      : typedComputeOpName == "tcrv_rvv.select" &&
+      : typedComputeOpName == "weft_rvv.select" &&
                 operationMnemonic == "computed_mask_select"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "load->compute->compute->store"
-	      : typedComputeOpName == "tcrv_rvv.select" &&
+	      : typedComputeOpName == "weft_rvv.select" &&
 	                operationMnemonic == "runtime_scalar_cmp_select"
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "runtime_abi->runtime_abi->configure->scope->load->load->load->"
 	            "load->compute->compute->store"
-	      : typedComputeOpName == "tcrv_rvv.select" &&
+	      : typedComputeOpName == "weft_rvv.select" &&
 	                operationMnemonic ==
 	                    "runtime_scalar_dual_cmp_mask_and_select"
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "configure->scope->load->load->load->load->load->load->"
 	            "compute->compute->compute->compute->store"
-	      : typedComputeOpName == "tcrv_rvv.select" &&
+	      : typedComputeOpName == "weft_rvv.select" &&
 	                operationMnemonic == "f32_clamp_select"
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "runtime_abi->configure->scope->load->load->load->"
 	            "compute->compute->compute->compute->store"
-	      : typedComputeOpName == "tcrv_rvv.select" &&
+	      : typedComputeOpName == "weft_rvv.select" &&
 	                operationMnemonic == "dequant_clamp_f32_epilogue"
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "runtime_abi->runtime_abi->configure->scope->load->compute->"
 	            "load->load->compute->compute->compute->compute->store"
-	      : (typedComputeOpName == "tcrv_rvv.select" ||
-	         typedComputeOpName == "tcrv_rvv.masked_binary")
+	      : (typedComputeOpName == "weft_rvv.select" ||
+	         typedComputeOpName == "weft_rvv.masked_binary")
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "configure->scope->load->load->compute->compute->store"
-      : typedComputeOpName == "tcrv_rvv.macc"
+      : typedComputeOpName == "weft_rvv.macc"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->load->load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_macc"
+      : typedComputeOpName == "weft_rvv.masked_macc"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->runtime_abi->configure->scope->"
             "load->load->load->load->load->compute->compute->store"
-      : typedComputeOpName == "tcrv_rvv.widening_macc"
+      : typedComputeOpName == "weft_rvv.widening_macc"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->configure->scope->load->load->load->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_widening_dot_reduce"
+      : typedComputeOpName == "weft_rvv.masked_widening_dot_reduce"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->runtime_abi->configure->scope->"
             "load->load->load->load->compute->compute->store"
-      : typedComputeOpName == "tcrv_rvv.masked_standalone_reduce"
+      : typedComputeOpName == "weft_rvv.masked_standalone_reduce"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "compute->compute->store"
-      : typedComputeOpName == "tcrv_rvv.widening_dot_reduce"
+      : typedComputeOpName == "weft_rvv.widening_dot_reduce"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->configure->scope->load->load->compute->store"
           : "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
@@ -6618,15 +6618,15 @@ llvm::Error verifyRVVRoleOperationInterface(mlir::Operation *roleOp,
                                     role + "'");
 
   auto lowerable = llvm::dyn_cast<
-      tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface>(roleOp);
+      weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(roleOp);
   if (!lowerable)
     return makeRVVConstructionError(
         llvm::Twine("role operation '") + roleOp->getName().getStringRef() +
-        "' must implement TCRVEmitCLowerableOpInterface");
+        "' must implement WEFTEmitCLowerableOpInterface");
 
   llvm::StringRef sourceOpName =
-      lowerable.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+      lowerable.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
   if (!operationNameMatchesTypedRole(sourceOpName, typedRole->operationName))
     return makeRVVConstructionError(
         llvm::Twine("source op '") + sourceOpName +
@@ -6637,9 +6637,9 @@ llvm::Error verifyRVVRoleOperationInterface(mlir::Operation *roleOp,
                                     sourceRole +
                                     "' does not match RVV typed role '" +
                                     typedRole->role + "'");
-  if (typedRole->emitCLowerableInterface != "TCRVEmitCLowerableInterface")
+  if (typedRole->emitCLowerableInterface != "WEFTEmitCLowerableInterface")
     return makeRVVConstructionError(
-        "RVV typed role must name TCRVEmitCLowerableInterface");
+        "RVV typed role must name WEFTEmitCLowerableInterface");
   return llvm::Error::success();
 }
 
@@ -6656,232 +6656,232 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
   if (!route)
     return route.takeError();
   const RVVSelectedBodyConstructionRoute &expected = **route;
-  const bool usesGenericBinary = typedComputeOpName == "tcrv_rvv.binary";
+  const bool usesGenericBinary = typedComputeOpName == "weft_rvv.binary";
   if (usesGenericBinary && expected.operationMnemonic == "cmp_select")
     return makeRVVConstructionError(
-        "selected-body compare/select cannot use generic tcrv_rvv.binary");
+        "selected-body compare/select cannot use generic weft_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "computed_mask_select")
     return makeRVVConstructionError(
         "selected-body computed-mask vector select cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
 	  if (usesGenericBinary &&
 	      expected.operationMnemonic == "runtime_scalar_cmp_select")
 	    return makeRVVConstructionError(
 	        "selected-body runtime scalar compare/select cannot use generic "
-	        "tcrv_rvv.binary");
+	        "weft_rvv.binary");
 		  if (usesGenericBinary &&
 		      expected.operationMnemonic ==
 		          "runtime_scalar_dual_cmp_mask_and_select")
 		    return makeRVVConstructionError(
 		        "selected-body runtime scalar dual-compare mask-and select cannot "
-		        "use generic tcrv_rvv.binary");
+		        "use generic weft_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "f32_clamp_select")
     return makeRVVConstructionError(
-        "selected-body f32 clamp/select cannot use generic tcrv_rvv.binary");
+        "selected-body f32 clamp/select cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "dequant_clamp_f32_epilogue")
     return makeRVVConstructionError(
         "selected-body dequant-clamp epilogue cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "runtime_scalar_cmp_masked_store")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "runtime_scalar_cmp_masked_load_store")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask load-store cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "reduce_add")
     return makeRVVConstructionError(
-        "selected-body reduction cannot use generic tcrv_rvv.binary");
+        "selected-body reduction cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       isStandaloneReduceOperationMnemonic(expected.operationMnemonic))
     return makeRVVConstructionError(
         "selected-body standalone reduction cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       isComputedMaskStandaloneReduceOperationMnemonic(expected.operationMnemonic))
     return makeRVVConstructionError(
         "selected-body computed-mask standalone reduction cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
           expected.operationMnemonic))
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask standalone reduction "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       (expected.operationMnemonic == "masked_add" ||
        expected.operationMnemonic == "masked_sub" ||
        expected.operationMnemonic == "masked_mul"))
     return makeRVVConstructionError(
         "selected-body masked elementwise cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary && (expected.operationMnemonic == "macc_add" ||
                             expected.operationMnemonic ==
                                 "scalar_broadcast_macc_add"))
     return makeRVVConstructionError(
         "selected-body multiply-accumulate cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "computed_masked_macc_add")
     return makeRVVConstructionError(
         "selected-body computed-mask multiply-accumulate cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "runtime_scalar_cmp_masked_macc_add")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask multiply-accumulate "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "widening_macc_add")
     return makeRVVConstructionError(
         "selected-body widening multiply-accumulate cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "widening_product_reduce_add")
     return makeRVVConstructionError(
         "selected-body low-precision widening product-reduction chain cannot "
-        "use generic tcrv_rvv.binary");
+        "use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "widening_product_reduce_dequantize_f32")
     return makeRVVConstructionError(
         "selected-body low-precision widening product-reduction "
-        "dequantization chain cannot use generic tcrv_rvv.binary");
+        "dequantization chain cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "widening_product_reduce_dequant_clamp_f32")
     return makeRVVConstructionError(
         "selected-body low-precision widening product-reduction "
-        "dequant-clamp chain cannot use generic tcrv_rvv.binary");
+        "dequant-clamp chain cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "widening_dot_reduce_add")
     return makeRVVConstructionError(
         "selected-body widening dot-product reduction cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "computed_masked_widening_dot_reduce_add")
     return makeRVVConstructionError(
         "selected-body computed-mask widening dot-product reduction cannot "
-        "use generic tcrv_rvv.binary");
+        "use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "computed_masked_strided_input_widening_dot_reduce_add")
     return makeRVVConstructionError(
         "selected-body computed-mask strided-input widening dot-product "
-        "reduction cannot use generic tcrv_rvv.binary");
+        "reduction cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "strided_input_widening_dot_reduce_add")
     return makeRVVConstructionError(
         "selected-body strided-input widening dot-product reduction cannot "
-        "use generic tcrv_rvv.binary");
+        "use generic weft_rvv.binary");
   if (usesGenericBinary && (expected.operationMnemonic == "widen_i32_to_i64" ||
                             expected.operationMnemonic == "widen_i16_to_i32"))
     return makeRVVConstructionError(
         "selected-body widening conversion cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "dequantize_i32_to_f32")
     return makeRVVConstructionError(
         "selected-body i32-to-f32 dequantization cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "strided_load_unit_store")
     return makeRVVConstructionError(
         "selected-body strided-load to unit-stride-store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "indexed_gather_unit_store")
     return makeRVVConstructionError(
         "selected-body indexed gather to unit-stride-store cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "indexed_scatter_unit_load")
     return makeRVVConstructionError(
         "selected-body unit-stride-load to indexed scatter cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "masked_unit_load_store")
     return makeRVVConstructionError(
         "selected-body masked unit-stride memory movement cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "masked_unit_store")
     return makeRVVConstructionError(
         "selected-body masked unit-stride store cannot use generic "
-        "tcrv_rvv.binary");
+        "weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "computed_masked_unit_load_store")
     return makeRVVConstructionError(
         "selected-body computed-mask unit-stride memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "computed_masked_strided_store")
     return makeRVVConstructionError(
         "selected-body computed-mask strided-store memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "computed_masked_strided_load_unit_store")
     return makeRVVConstructionError(
         "selected-body computed-mask strided-load memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "computed_masked_indexed_gather_load_unit_store")
     return makeRVVConstructionError(
         "selected-body computed-mask indexed gather-load memory movement "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "runtime_scalar_cmp_masked_indexed_gather_load_unit_store")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask indexed gather-load "
-        "memory movement cannot use generic tcrv_rvv.binary");
+        "memory movement cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "computed_masked_indexed_scatter_store_unit_load")
     return makeRVVConstructionError(
         "selected-body computed-mask indexed scatter-store memory movement "
-        "cannot use generic tcrv_rvv.binary");
+        "cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask indexed scatter-store "
-        "memory movement cannot use generic tcrv_rvv.binary");
+        "memory movement cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "computed_masked_segment2_load_unit_store")
     return makeRVVConstructionError(
         "selected-body computed-mask segment2 load memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "runtime_scalar_cmp_masked_segment2_load_unit_store")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask segment2 load memory "
-        "movement cannot use generic tcrv_rvv.binary");
+        "movement cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "computed_masked_segment2_store_unit_load")
     return makeRVVConstructionError(
         "selected-body computed-mask segment2 store memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic ==
           "runtime_scalar_cmp_masked_segment2_store_unit_load")
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask segment2 store memory "
-        "movement cannot use generic tcrv_rvv.binary");
+        "movement cannot use generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "segment2_deinterleave_unit_store")
     return makeRVVConstructionError(
         "selected-body segment2 deinterleave memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "segment2_interleave_unit_load")
     return makeRVVConstructionError(
         "selected-body segment2 interleave memory movement cannot use "
-        "generic tcrv_rvv.binary");
+        "generic weft_rvv.binary");
   // The low-precision dequant(/clamp) routes have a candidate-aware typed-compute
   // chain: the head op is widening_product (unpacked-byte/grouped) or
   // packed_i4_nibble_unpack_product (packed-i4), and the legacy two-scope body
@@ -6894,26 +6894,26 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     const bool isClampRoute =
         expected.operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
     const llvm::StringRef tail =
-        isClampRoute ? "+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
-                     : "+tcrv_rvv.dequantize";
+        isClampRoute ? "+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
+                     : "+weft_rvv.dequantize";
     const std::string wideningHandoffChain =
-        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-         "tcrv_rvv.gearbox_cross_region_handoff" +
+        ("weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+         "weft_rvv.gearbox_cross_region_handoff" +
          llvm::Twine(tail))
             .str();
     const std::string wideningChain =
-        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.widening_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
     const std::string nibbleChain =
-        ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.packed_i4_nibble_unpack_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
-    // The deferred-wide (N3) chain inserts tcrv_rvv.widening_accumulate between
+    // The deferred-wide (N3) chain inserts weft_rvv.widening_accumulate between
     // the widening_product and the trailing standalone_reduce.
     const std::string deferredWideChain =
-        ("tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+"
-         "tcrv_rvv.standalone_reduce" +
+        ("weft_rvv.widening_product+weft_rvv.widening_accumulate+"
+         "weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
     if (typedComputeOpName != wideningHandoffChain &&
@@ -6930,23 +6930,23 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return llvm::Error::success();
   }
   // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
-  // single fused tcrv_rvv.widening_dot_reduce, and the deferred-wide i16 chain
+  // single fused weft_rvv.widening_dot_reduce, and the deferred-wide i16 chain
   // (2nd kernel family, N3 winner) that decomposes it into widening_product +
   // deferred_accumulate + standalone_reduce. Both carry the same route identity;
   // accept either chain (still fail-closed: any other chain is rejected).
   if (expected.operationMnemonic == "widening_dot_reduce_add") {
-    const llvm::StringRef narrowChain = "tcrv_rvv.widening_dot_reduce";
+    const llvm::StringRef narrowChain = "weft_rvv.widening_dot_reduce";
     const llvm::StringRef deferredWideDotChain =
-        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-        "tcrv_rvv.standalone_reduce";
+        "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+        "weft_rvv.standalone_reduce";
     if (typedComputeOpName != narrowChain &&
         typedComputeOpName != deferredWideDotChain)
       return makeRVVConstructionError(
           llvm::Twine("selected-body typed compute op for operation '") +
           operationMnemonic +
-          "' must be the narrow tcrv_rvv.widening_dot_reduce or the deferred-wide "
-          "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-          "tcrv_rvv.standalone_reduce chain, but was '" +
+          "' must be the narrow weft_rvv.widening_dot_reduce or the deferred-wide "
+          "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+          "weft_rvv.standalone_reduce chain, but was '" +
           typedComputeOpName + "'");
     return llvm::Error::success();
   }
@@ -7025,7 +7025,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  || expected.operationMnemonic ==
                      "segment2_interleave_unit_load"
              ? "'"
-             : "' or generic 'tcrv_rvv.binary'"));
+             : "' or generic 'weft_rvv.binary'"));
   if (expected.emitCRouteID != emitCRouteID)
     return makeRVVConstructionError(
         llvm::Twine("EmitC route id for selected-body operation '") +
@@ -7070,4 +7070,4 @@ llvm::Error verifyRVVSelectedBodyConstructionPlanMapping(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

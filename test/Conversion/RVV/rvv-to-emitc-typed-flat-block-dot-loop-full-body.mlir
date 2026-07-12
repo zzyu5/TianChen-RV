@@ -1,17 +1,17 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/%acc, %bterm/%acc, %dd/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REGION
-// RUN: sed 's/%wv, %av, %vl/%av, %av, %vl/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=CHAIN
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/%acc, %bterm/%acc, %dd/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REGION
+// RUN: sed 's/%wv, %av, %vl/%av, %av, %vl/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=CHAIN
 
 // M-FLAT loop-scaffold step 5a + W4 -- the FULL q8_0 typed body with the vector
 // integer core wired IN-REGION. The region-carrying
-// tcrv_rvv.typed_flat_block_dot_loop_body now holds the COMPLETE per-block
+// weft_rvv.typed_flat_block_dot_loop_body now holds the COMPLETE per-block
 // chain: brick 1 (the per-block `d_x*d_y` fp16 scale product over the
 // block_index induction variable) -> the vector integer core (two per-block i8
-// loads -> tcrv_rvv.widening_product signed i8m2xi8m2->i16m4 ->
-// tcrv_rvv.standalone_reduce ->tcrv_rvv.typed_vector_lane0_to_scalar_extract
-// into the scalar i32 sumi) -> brick 2 (tcrv_rvv.block_computed_scale_dequant,
+// loads -> weft_rvv.widening_product signed i8m2xi8m2->i16m4 ->
+// weft_rvv.standalone_reduce ->weft_rvv.typed_vector_lane0_to_scalar_extract
+// into the scalar i32 sumi) -> brick 2 (weft_rvv.block_computed_scale_dequant,
 // `(float)sumi * scale` on THAT sumi) -> brick 3
-// (tcrv_rvv.cross_block_f32_accumulate, `sumf + term`) -> the typed yield. The
+// (weft_rvv.cross_block_f32_accumulate, `sumf + term`) -> the typed yield. The
 // lowering recognizes this chain REGION-DRIVEN (the presence of brick 2 marks a
 // full body), GATES the emit on every integer-core link (W4), then drives the
 // FULL-body emit OP-BY-OP from the region ops' OPERANDS (W4): the per-block base
@@ -45,45 +45,45 @@
 // the provenance verbatim comments deliberately carry THIS op's identity.
 
 module {
-  tcrv.exec.kernel @rvv_flat_full_body_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_flat_full_body attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
+  weft.exec.kernel @rvv_flat_full_body_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @rvv_flat_full_body attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
       // The per-block reduce seed (0) -- standalone_reduce takes a runtime ABI
       // scalar seed. Each block reduces fresh; cross-block fold is brick 3 (f32).
-      %zero_seed = tcrv_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_flat_full_body, sew = 8 : i64, source_kernel = "rvv_flat_full_body_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "elided"} {
+      %zero_seed = weft_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_flat_full_body, sew = 8 : i64, source_kernel = "rvv_flat_full_body_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "elided"} {
         ^bb0(%block_index: index, %acc: f32):
           // brick 1: the per-block d_x*d_y fp16 scale over the block_index.
           // (SSA named %dd -- d_x*d_y -- to avoid the lit %s/%t RUN-line rewrite.)
-          %dd = tcrv_rvv.block_fp16_scale_product %vx, %vy block %block_index : index {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value -> f32
+          %dd = weft_rvv.block_fp16_scale_product %vx, %vy block %block_index : index {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
           // W4 integer core: two per-block i8 loads (base + ib*stride + quant_off).
-          %wv = tcrv_rvv.load %vx, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
-          %av = tcrv_rvv.load %vy, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
+          %wv = weft_rvv.load %vx, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+          %av = weft_rvv.load %vy, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
           // vector dot: signed widening product (i8m2 x i8m2 -> i16m4).
-          %prod = tcrv_rvv.widening_product %wv, %av, %vl {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m4">
+          %prod = weft_rvv.widening_product %wv, %av, %vl {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !weft_rvv.vector<i8, "m2">, !weft_rvv.vector<i8, "m2">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m4">
           // reduce i16m4 -> i32m1 lane0, then extract lane0 -> scalar i32 sumi.
-          %red = tcrv_rvv.standalone_reduce %prod, %zero_seed, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "m4">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %sumi = tcrv_rvv.typed_vector_lane0_to_scalar_extract %red, %vl {kind = "vector_lane0_to_scalar_i32_extract", extract_relation = "i32m1-lane0-to-scalar-i32"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> i32
+          %red = weft_rvv.standalone_reduce %prod, %zero_seed, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !weft_rvv.vector<i16, "m4">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %sumi = weft_rvv.typed_vector_lane0_to_scalar_extract %red, %vl {kind = "vector_lane0_to_scalar_i32_extract", extract_relation = "i32m1-lane0-to-scalar-i32"} : !weft_rvv.vector<i32, "m1">, !weft_rvv.vl -> i32
           // brick 2: (float)sumi * scale (the per-block dequant term %bterm).
-          %bterm = tcrv_rvv.block_computed_scale_dequant %sumi, %dd {kind = "computed_scale_sumi_dequant", dequant_relation = "scalar-i32-sumi-to-f32-computed-scale-f32"} : i32, f32 -> f32
+          %bterm = weft_rvv.block_computed_scale_dequant %sumi, %dd {kind = "computed_scale_sumi_dequant", dequant_relation = "scalar-i32-sumi-to-f32-computed-scale-f32"} : i32, f32 -> f32
           // brick 3: sumf + term (cross-block fp32 fold, strict ascending).
-          %acc_next = tcrv_rvv.cross_block_f32_accumulate %acc, %bterm {kind = "cross_block_f32_scalar_accumulate", accumulate_order = "strict-ascending-block-carried"} : f32, f32 -> f32
-          tcrv_rvv.typed_flat_block_dot_loop_yield %acc_next : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %acc_next = weft_rvv.cross_block_f32_accumulate %acc, %bterm {kind = "cross_block_f32_scalar_accumulate", accumulate_order = "strict-ascending-block-carried"} : f32, f32 -> f32
+          weft_rvv.typed_flat_block_dot_loop_yield %acc_next : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_rvv_flat_full_body_kernel_rvv_flat_full_body(
+// CHECK: emitc.func @weft_emitc_rvv_flat_full_body_kernel_rvv_flat_full_body(
 // The loop skeleton: the mutable `float sumf = 0.0f;` accumulator + nb = n/32.
 // CHECK: %[[SUMF:.*]] = "emitc.variable"() <{value = #emitc.opaque<"">}> : () -> !emitc.lvalue<!emitc.opaque<"float">>
 // CHECK: literal "0.0f" : !emitc.opaque<"float">
@@ -157,7 +157,7 @@ module {
 // the region SSA chain the gate checks (brick 3 term must be brick 2's dequant
 // term). With the loop-body attrs UNCHANGED, the emit fails closed: the emission
 // is driven by the region op wiring, not re-derived from the attrs alone.
-// REGION: failed to legalize operation 'tcrv.exec.variant'
+// REGION: failed to legalize operation 'weft.exec.variant'
 
 // CHAIN-DRIVEN (W4) negative: misdirecting the vector integer core's widening
 // product operands (`%wv, %av` -> `%av, %av`, dropping the weight-load result
@@ -166,4 +166,4 @@ module {
 // results). With the loop-body attrs UNCHANGED, the emit fails closed -- proving
 // the emit tracks the region integer-core chain (pre-W4 the chain was ignored
 // and this misdirect still emitted the byte-exact core).
-// CHAIN: failed to legalize operation 'tcrv.exec.variant'
+// CHAIN: failed to legalize operation 'weft.exec.variant'

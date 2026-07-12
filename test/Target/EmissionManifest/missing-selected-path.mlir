@@ -1,17 +1,17 @@
-// RUN: not tcrv-translate --tcrv-export-emission-manifest %s 2>&1 | FileCheck %s --implicit-check-not=tianchenrv.emission_manifest.version
+// RUN: not weft-translate --weft-export-emission-manifest %s 2>&1 | FileCheck %s --implicit-check-not=weft.emission_manifest.version
 
 module {
-  tcrv.exec.kernel @missing_selected_path {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @missing_selected_path {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-plugin",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "mock unsupported selected emission path",
       origin = "mock-plugin",
       reason = "emission_plan",
@@ -26,5 +26,5 @@ module {
   }
 }
 
-// CHECK: TianChen-RV emission manifest export failed for kernel @missing_selected_path
+// CHECK: Weft-RV emission manifest export failed for kernel @missing_selected_path
 // CHECK-SAME: requires a selected path surface before exporting an emission manifest

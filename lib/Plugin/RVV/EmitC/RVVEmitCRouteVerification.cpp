@@ -11,22 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "RVVEmitCRoutePlanningInternal.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -50,7 +50,7 @@
 
 
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -69,7 +69,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const RVVSelectedBodyConfigProfile &configProfile = profile->config;
   const RVVSelectedBodyTargetLeafProfile &targetLeaves =
       profile->targetLeaves;
-  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
+  const weft::rvv::RVVSelectedBodyConfigVLContract &configContract =
       *configProfile.configContract;
   const bool isComputedMaskWideningDotReduce =
       operationProfile.operation ==
@@ -243,23 +243,23 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const RVVSelectedBodyConstructionRoute &constructionRoute = **route;
 
   const bool usesGenericBinary =
-      description.typedComputeOpName == "tcrv_rvv.binary";
+      description.typedComputeOpName == "weft_rvv.binary";
   if (usesGenericBinary && operationProfile.isCompareSelect)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " compare/select cannot use generic tcrv_rvv.binary");
+        " compare/select cannot use generic weft_rvv.binary");
   if (usesGenericBinary && operationProfile.isReduction)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " reduction cannot use generic tcrv_rvv.binary");
+        " reduction cannot use generic weft_rvv.binary");
   if (usesGenericBinary && operationProfile.isMaskedArithmetic)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " masked arithmetic cannot use generic tcrv_rvv.binary");
+        " masked arithmetic cannot use generic weft_rvv.binary");
   if (usesGenericBinary && operationProfile.isMultiplyAccumulate)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " multiply-accumulate cannot use generic tcrv_rvv.binary");
+        " multiply-accumulate cannot use generic weft_rvv.binary");
   // The low-precision dequant(/clamp) routes carry a candidate-aware typed-compute
   // chain on the description (validated against the bounded legal set by the
   // construction-protocol layer), so it must not be mirrored against the single
@@ -276,7 +276,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   // structural chain typed-compute-op (widening_product+deferred_accumulate+
   // standalone_reduce) on the description, validated against the bounded legal set
   // by the construction-protocol layer -- it must not be mirrored against the
-  // single static narrow tcrv_rvv.widening_dot_reduce chain here.
+  // single static narrow weft_rvv.widening_dot_reduce chain here.
   const bool isDeferredWideDotReduceTypedComputeRoute =
       description.operation ==
       RVVSelectedBodyOperationKind::
@@ -1540,7 +1540,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "EmitC loop VL", description.emitCLoopVLName,
-          tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName()))
+          weft::rvv::getRVVSelectedBodyEmitCLoopVLName()))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "remaining AVL metadata",
@@ -1591,10 +1591,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else if (isDequantClampF32Epilogue) {
     llvm::StringRef expectedResultVectorType =
         getRVVSelectedBodyFloatVectorTypeName(
-            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+            weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
     llvm::StringRef expectedResultVectorCType =
         getRVVSelectedBodyFloatVectorCType(
-            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+            weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
     if (llvm::Error error = requireRouteDescriptionField(
             context, "dequant-clamp result vector type",
             description.vectorTypeName, expectedResultVectorType))
@@ -1643,11 +1643,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     const bool isI16ToI32 =
         operationProfile.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
     std::int64_t expectedSourceSEW =
-        isI16ToI32 ? tcrv::rvv::getRVVSEW16Bits()
-                   : tcrv::rvv::getRVVFirstSliceSEWBits();
+        isI16ToI32 ? weft::rvv::getRVVSEW16Bits()
+                   : weft::rvv::getRVVFirstSliceSEWBits();
     llvm::StringRef expectedSourceLMUL =
-        isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
-                   : tcrv::rvv::getRVVLMULM1();
+        isI16ToI32 ? weft::rvv::getRVVLMULMF2()
+                   : weft::rvv::getRVVLMULM1();
     llvm::StringRef expectedSourceVectorType =
         getRVVSelectedBodyVectorTypeName(expectedSourceSEW,
                                          expectedSourceLMUL);
@@ -1753,8 +1753,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   } else if (isDequantClampF32Epilogue) {
     const std::int64_t expectedSourceSEW =
-        tcrv::rvv::getRVVFirstSliceSEWBits();
-    const llvm::StringRef expectedSourceLMUL = tcrv::rvv::getRVVLMULM1();
+        weft::rvv::getRVVFirstSliceSEWBits();
+    const llvm::StringRef expectedSourceLMUL = weft::rvv::getRVVLMULM1();
     llvm::StringRef expectedSourceVectorType =
         getRVVSelectedBodyVectorTypeName(expectedSourceSEW,
                                          expectedSourceLMUL);
@@ -1881,7 +1881,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       operationProfile.operation ==
               RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd
           ? getRVVSelectedBodyVectorLoadIntrinsic(
-                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2())
+                weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2())
           : configProfile.vectorLoadIntrinsic;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "vector-load intrinsic", description.vectorLoadIntrinsic,
@@ -2536,9 +2536,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (operationProfile.operation ==
         RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) {
       expectedStandaloneSourceVectorType = getRVVSelectedBodyVectorTypeName(
-          tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+          weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2());
       expectedStandaloneSourceVectorCType = getRVVSelectedBodySignedVectorCType(
-          tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+          weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2());
     }
     if (expectedAccumulatorLayout.empty())
       return makeRVVEmitCRouteProviderError(
@@ -3590,4 +3590,4 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

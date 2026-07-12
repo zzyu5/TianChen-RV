@@ -1,4 +1,4 @@
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -8,7 +8,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace emitc {
 
@@ -19,7 +19,7 @@ bool convertModuleWithBackendEmitter(
   // The conversion patterns construct emitc ops/types. When this harness runs
   // outside the pass framework (the live artifact-export materialization seam),
   // the EmitC dialect is only registered, not loaded, in the translate context
-  // -- so eagerly load it here. This mirrors the `--tcrv-rvv-lower-to-emitc`
+  // -- so eagerly load it here. This mirrors the `--weft-rvv-lower-to-emitc`
   // pass's `dependentDialects` and makes the harness self-sufficient for both
   // callers. Loading is idempotent.
   context->loadDialect<mlir::emitc::EmitCDialect>();
@@ -43,7 +43,7 @@ bool convertModuleWithBackendEmitter(
           mlir::applyPartialConversion(module, target, std::move(patterns))))
     return false;
 
-  // Backend-specific cleanup (e.g. draining now-emptied tcrv.exec scaffolding
+  // Backend-specific cleanup (e.g. draining now-emptied weft.exec scaffolding
   // for converted kernels so the result is a clean translatable EmitC module).
   if (mlir::failed(driver.postConversionCleanup(module)))
     return false;
@@ -79,4 +79,4 @@ bool convertModuleWithBackendEmitter(
 
 } // namespace emitc
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

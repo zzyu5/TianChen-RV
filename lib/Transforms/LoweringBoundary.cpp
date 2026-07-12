@@ -1,5 +1,5 @@
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -12,15 +12,15 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZESELECTEDLOWERINGBOUNDARIES
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::tcrv::exec::KernelOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::exec::KernelOp;
 
 class MaterializeSelectedLoweringBoundariesPass final
     : public impl::MaterializeSelectedLoweringBoundariesBase<
@@ -54,7 +54,7 @@ public:
 private:
   mlir::LogicalResult runMaterialization(KernelOp kernel) {
     if (llvm::Error error =
-            tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+            weft::plugin::materializeSelectedLoweringBoundaries(
                 kernel, *registry)) {
       std::string message = llvm::toString(std::move(error));
       if (kernel)
@@ -83,4 +83,4 @@ createMaterializeSelectedLoweringBoundariesPass(
   return std::make_unique<MaterializeSelectedLoweringBoundariesPass>(registry);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

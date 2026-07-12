@@ -49,8 +49,8 @@ tools/bench/new-line-worktree.sh <line> --no-configure   # 只开 worktree
 
 ```bash
 tools/bench/configure-line-build.sh <line>         # 单独（重）配
-ninja -C .worktrees/<line>/build/<line> tcrv-opt tcrv-translate
-ninja -C .worktrees/<line>/build/<line> check-tianchenrv
+ninja -C .worktrees/<line>/build/<line> weft-opt weft-translate
+ninja -C .worktrees/<line>/build/<line> check-weft
 ```
 
 - build 目录 = `<worktree>/build/<line>/`，**在 worktree 内**，绝对路径唯一、独立
@@ -65,11 +65,11 @@ ninja -C .worktrees/<line>/build/<line> check-tianchenrv
 
 ```bash
 # 1) 拿到 pinned base 产物路径（缓存；首次构建、之后命中幂等）
-BASE=$(tools/bench/byte-exact-baseline.sh <base-commit> tcrv-opt)
+BASE=$(tools/bench/byte-exact-baseline.sh <base-commit> weft-opt)
 
 # 2) 字节精确 = 缓存 base 产物 emit  vs  线 worktree constructed 产物 emit
-diff <("$BASE"                          IN.mlir --tcrv-rvv-lower-to-emitc) \
-     <(.worktrees/<line>/build/<line>/bin/tcrv-opt IN.mlir --tcrv-rvv-lower-to-emitc)
+diff <("$BASE"                          IN.mlir --weft-rvv-lower-to-emitc) \
+     <(.worktrees/<line>/build/<line>/bin/weft-opt IN.mlir --weft-rvv-lower-to-emitc)
 # 空 diff = byte-identical。全程不碰主树、无 git stash。
 ```
 
@@ -93,8 +93,8 @@ diff <("$BASE"                          IN.mlir --tcrv-rvv-lower-to-emitc) \
 1. **开线**：`tools/bench/new-line-worktree.sh <line>`（从 HEAD；自动装门 + 配 build）。
 2. **申报触碰集**：编辑 `.worktrees/<line>/.touch-set/<line>.txt`，列该线可写 globs；
    与其余活跃线**真不相交**（共享文件 ODS/verifier/emitter 必须串行，不并行）。
-3. **构建**：`ninja -C .worktrees/<line>/build/<line> tcrv-opt tcrv-translate`。
-4. **字节精确**：`BASE=$(tools/bench/byte-exact-baseline.sh <base> tcrv-opt)` → 用**缓存 base**
+3. **构建**：`ninja -C .worktrees/<line>/build/<line> weft-opt weft-translate`。
+4. **字节精确**：`BASE=$(tools/bench/byte-exact-baseline.sh <base> weft-opt)` → 用**缓存 base**
    emit 对 diff。**不 stash、不动主树。**
 5. **暂存**：只用**显式路径白名单** `git add <path> …`；活跃并行期**禁** `git add -A`/`git add .`/
    `git commit -a`（pre-commit 门是安全网，纪律靠显式暂存）。

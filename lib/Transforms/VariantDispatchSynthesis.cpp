@@ -1,9 +1,9 @@
-#include "TianChenRV/Transforms/VariantDispatchSynthesis.h"
+#include "Weft/Transforms/VariantDispatchSynthesis.h"
 
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -14,10 +14,10 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_SYNTHESIZEVARIANTDISPATCH
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -27,14 +27,14 @@ constexpr llvm::StringLiteral kGuardAttrName("guard");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kRuntimeGuardPolicy("capability_dispatch_guard");
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
+using weft::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 struct VariantAvailability {
   VariantOp variant;
@@ -165,7 +165,7 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
 
   if (!hasKernelBody(kernel))
     return kernel.emitError()
-           << "cannot synthesize tcrv.exec.dispatch for kernel @"
+           << "cannot synthesize weft.exec.dispatch for kernel @"
            << kernel.getSymName() << ": kernel has no body block";
 
   if (hasDirectDispatch(kernel))
@@ -195,7 +195,7 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
                       return isConflictFreeAvailable(availability);
                     }))
     return kernel.emitError()
-           << "cannot synthesize tcrv.exec.dispatch for kernel @"
+           << "cannot synthesize weft.exec.dispatch for kernel @"
            << kernel.getSymName()
            << ": no direct variant is conflict-free and generically available "
               "as dispatch fallback under the kernel capability set";
@@ -205,7 +205,7 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
 
   if (!fallback)
     return kernel.emitError()
-           << "cannot synthesize tcrv.exec.dispatch for kernel @"
+           << "cannot synthesize weft.exec.dispatch for kernel @"
            << kernel.getSymName()
            << ": no direct variant carries conflict-free available generic "
               "fallback_role = \""
@@ -325,4 +325,4 @@ std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass() {
   return std::make_unique<SynthesizeVariantDispatchPass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

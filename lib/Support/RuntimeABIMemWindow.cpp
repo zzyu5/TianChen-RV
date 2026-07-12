@@ -1,4 +1,4 @@
-#include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "Weft/Support/RuntimeABIMemWindow.h"
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
@@ -8,11 +8,11 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::support {
+namespace weft::support {
 namespace {
 
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::MemWindowOp;
+using weft::exec::KernelOp;
+using weft::exec::MemWindowOp;
 
 llvm::Error makeMemWindowError(KernelOp kernel, llvm::Twine message) {
   std::string text;
@@ -58,7 +58,7 @@ llvm::Error requireAttrEquals(KernelOp kernel, MemWindowOp window,
   llvm::StringRef actual = getStringAttr(window.getOperation(), attrName);
   if (actual != expected)
     return makeMemWindowError(
-        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+        kernel, llvm::Twine("weft.exec.mem_window @") + window.getSymName() +
                     " requires attribute '" + attrName + "' = \"" + expected +
                     "\" for ABI role '" +
                     getStringAttr(window.getOperation(),
@@ -71,7 +71,7 @@ llvm::Error validateWindowAgainstSpec(KernelOp kernel, MemWindowOp window,
                                       const RuntimeABIMemWindowSpec &spec) {
   if (!window)
     return makeMemWindowError(
-        kernel, llvm::Twine("requires exactly one tcrv.exec.mem_window with "
+        kernel, llvm::Twine("requires exactly one weft.exec.mem_window with "
                             "ABI role '") +
                     getRoleName(spec) + "'");
 
@@ -124,7 +124,7 @@ llvm::Error findWindowForSpec(KernelOp kernel,
                               MemWindowOp &out) {
   if (!kernel || kernel.getBody().empty())
     return makeMemWindowError(kernel,
-                              "requires a materialized tcrv.exec.kernel body");
+                              "requires a materialized weft.exec.kernel body");
 
   unsigned count = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -143,7 +143,7 @@ llvm::Error findWindowForSpec(KernelOp kernel,
 
   if (count > 1)
     return makeMemWindowError(
-        kernel, llvm::Twine("requires exactly one tcrv.exec.mem_window with "
+        kernel, llvm::Twine("requires exactly one weft.exec.mem_window with "
                             "ABI role '") +
                     getRoleName(spec) + "'; found duplicate windows");
 
@@ -179,7 +179,7 @@ llvm::Error ensureRuntimeABIBufferMemWindows(
     llvm::ArrayRef<RuntimeABIMemWindowSpec> specs) {
   if (!kernel || kernel.getBody().empty())
     return makeMemWindowError(kernel,
-                              "requires a materialized tcrv.exec.kernel body");
+                              "requires a materialized weft.exec.kernel body");
 
   llvm::StringMap<mlir::Operation *> directSymbols;
   collectDirectKernelSymbols(kernel, directSymbols);
@@ -199,7 +199,7 @@ llvm::Error ensureRuntimeABIBufferMemWindows(
       return makeMemWindowError(
           kernel, llvm::Twine("direct symbol @") + spec.symbolName +
                       " already exists and cannot be reused for "
-                      "tcrv.exec.mem_window ABI role '" +
+                      "weft.exec.mem_window ABI role '" +
                       getRoleName(spec) + "'");
 
     MemWindowOp created = createWindow(builder, kernel, spec);
@@ -218,7 +218,7 @@ llvm::Error collectRuntimeABIBufferMemWindows(
       return error;
     if (!window)
       return makeMemWindowError(
-          kernel, llvm::Twine("requires exactly one tcrv.exec.mem_window with "
+          kernel, llvm::Twine("requires exactly one weft.exec.mem_window with "
                               "ABI role '") +
                       getRoleName(spec) + "'");
     if (llvm::Error error = validateWindowAgainstSpec(kernel, window, spec))
@@ -234,4 +234,4 @@ llvm::Error validateRuntimeABIBufferMemWindows(
   return collectRuntimeABIBufferMemWindows(kernel, specs, ignored);
 }
 
-} // namespace tianchenrv::support
+} // namespace weft::support

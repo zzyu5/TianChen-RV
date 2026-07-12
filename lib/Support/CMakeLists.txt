@@ -1,4 +1,4 @@
-add_mlir_library(TianChenRVSupport
+add_mlir_library(WeftSupport
   CapabilityModel.cpp
   DeclaredInstanceHash.cpp
   RuntimeABIContract.cpp
@@ -6,7 +6,7 @@ add_mlir_library(TianChenRVSupport
   RuntimeABIMemWindow.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVExecDialect
+  WeftExecDialect
   MLIRIR
   MLIRSupport
 )

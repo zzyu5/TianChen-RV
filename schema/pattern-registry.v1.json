@@ -2,9 +2,9 @@
   "$meta": {
     "schema_version": "v1.0.0",
     "declares": "PAT-1 unified pattern registry (C3' first-class data object)",
-    "note": "The [PAT-1] registry-as-data ([docs/TianChen-RV_科研目标总纲v2.md] §2.8:118). Each row is {pattern_id, requires, transform, mechanism, metrics_hook, status ∈ {mechanized|partial|planned|measured-negative|deferred-backlog}}. This is EVIDENCE-axis mirror data (core-invariants I4): it never chooses route/compute/dtype; it records which construction patterns are mechanized and points a lit/metrics artifact at each. A row's status flips planned->partial->mechanized ONLY when its construction primitive lands with a lit artifact hung on metrics_hook. status=measured-negative is a LAYER-4 characterization outcome: the construction primitive IS mechanized (green lit) but a perf/optimization HYPOTHESIS attached to it was measured on hardware and FALSIFIED -- the row records the falsified boundary as a design-space asset, it is NOT a failed or planned brick. status=deferred-backlog is a NAMED salvage/optimization path that is NOT mechanized (no ODS/verifier/emit primitive landed) and is explicitly PARKED with a restart_condition + evidence pointer -- distinct from `planned` (a scheduled brick in the CURRENT milestone): a deferred-backlog row reopens only when a FUTURE campaign reproduces its bottleneck with NEW evidence. Created in the M-FLAT milestone alongside brick 1 (the canon specifies this schema but no file existed).",
+    "note": "The [PAT-1] registry-as-data ([docs/Weft-RV_科研目标总纲v2.md] §2.8:118). Each row is {pattern_id, requires, transform, mechanism, metrics_hook, status ∈ {mechanized|partial|planned|measured-negative|deferred-backlog}}. This is EVIDENCE-axis mirror data (core-invariants I4): it never chooses route/compute/dtype; it records which construction patterns are mechanized and points a lit/metrics artifact at each. A row's status flips planned->partial->mechanized ONLY when its construction primitive lands with a lit artifact hung on metrics_hook. status=measured-negative is a LAYER-4 characterization outcome: the construction primitive IS mechanized (green lit) but a perf/optimization HYPOTHESIS attached to it was measured on hardware and FALSIFIED -- the row records the falsified boundary as a design-space asset, it is NOT a failed or planned brick. status=deferred-backlog is a NAMED salvage/optimization path that is NOT mechanized (no ODS/verifier/emit primitive landed) and is explicitly PARKED with a restart_condition + evidence pointer -- distinct from `planned` (a scheduled brick in the CURRENT milestone): a deferred-backlog row reopens only when a FUTURE campaign reproduces its bottleneck with NEW evidence. Created in the M-FLAT milestone alongside brick 1 (the canon specifies this schema but no file existed).",
     "authority": [
-      "docs/TianChen-RV_科研目标总纲v2.md#PAT-1",
+      "docs/Weft-RV_科研目标总纲v2.md#PAT-1",
       ".trellis/tasks/07-03-g1-q8-0-strong-construct/prd.md",
       ".trellis/tasks/07-03-m-flat-brick1-fp16-scale/prd.md"
     ],
@@ -20,7 +20,7 @@
       "milestone": "M-FLAT",
       "brick": 1,
       "requires": ["rvv.zvfh"],
-      "transform": "tcrv_rvv.block_fp16_scale_product op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitBlockFp16ScaleProduct); ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (def BlockFp16ScaleProductOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (BlockFp16ScaleProductOp::verify)",
+      "transform": "weft_rvv.block_fp16_scale_product op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitBlockFp16ScaleProduct); ODS include/Weft/Dialect/RVV/IR/RVVOps.td (def BlockFp16ScaleProductOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (BlockFp16ScaleProductOp::verify)",
       "mechanism": "Per-block dual-fp16 scale reconstruct becomes a first-class typed body op (read d_x/d_y, fp16->f32, multiply -> one f32) instead of an inline opaque emitc.call_opaque; f32 covers fp16 so it is byte-exact by construction.",
       "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-block-fp16-scale-product.mlir",
       "status": "mechanized"
@@ -30,8 +30,8 @@
       "milestone": "M-FLAT",
       "brick": 2,
       "requires": ["rvv.zvfh", "rvv.v"],
-      "transform": "tcrv_rvv.block_computed_scale_dequant op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitBlockComputedScaleDequant); ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (def BlockComputedScaleDequantOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (BlockComputedScaleDequantOp::verify, APPENDED -- DequantizeOp::verify untouched)",
-      "mechanism": "A NEW sibling op consumes the per-block COMPUTED f32 scale (brick 1 output, tcrv_rvv.block_fp16_scale_product) + a scalar i32 sumi and folds `(float)sumi * scale`; requiring the scale operand to be f32 fail-closed rejects the imported !tcrv_rvv.runtime_abi_value scale that tcrv_rvv.dequantize hard-requires -- removing the imported-scale-only wall without touching DequantizeOp's contract.",
+      "transform": "weft_rvv.block_computed_scale_dequant op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitBlockComputedScaleDequant); ODS include/Weft/Dialect/RVV/IR/RVVOps.td (def BlockComputedScaleDequantOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (BlockComputedScaleDequantOp::verify, APPENDED -- DequantizeOp::verify untouched)",
+      "mechanism": "A NEW sibling op consumes the per-block COMPUTED f32 scale (brick 1 output, weft_rvv.block_fp16_scale_product) + a scalar i32 sumi and folds `(float)sumi * scale`; requiring the scale operand to be f32 fail-closed rejects the imported !weft_rvv.runtime_abi_value scale that weft_rvv.dequantize hard-requires -- removing the imported-scale-only wall without touching DequantizeOp's contract.",
       "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-block-computed-scale-dequant.mlir",
       "status": "mechanized"
     },
@@ -40,8 +40,8 @@
       "milestone": "M-FLAT",
       "brick": 3,
       "requires": ["rvv.v"],
-      "transform": "tcrv_rvv.cross_block_f32_accumulate op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitCrossBlockF32Accumulate); ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (def CrossBlockF32AccumulateOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (CrossBlockF32AccumulateOp::verify, APPENDED -- WideningAccumulateOp/DeferredAccumulateOp contracts untouched)",
-      "mechanism": "A NEW op folds the cross-block `sumf += (float)sumi * (d_x*d_y)` as a typed f32 scalar accumulate `acc + term` (block-carried, strict ascending) instead of a raw emitc.add; requiring both operands AND the result to be scalar f32 fail-closed rejects the i32 intra-strip WideningAccumulate/DeferredAccumulate (RVVOps.td:3669/3717), which are the wrong dtype AND wrong scope -- the wall-3 contrast. The `term` operand is brick 2's tcrv_rvv.block_computed_scale_dequant f32 output.",
+      "transform": "weft_rvv.cross_block_f32_accumulate op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitCrossBlockF32Accumulate); ODS include/Weft/Dialect/RVV/IR/RVVOps.td (def CrossBlockF32AccumulateOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (CrossBlockF32AccumulateOp::verify, APPENDED -- WideningAccumulateOp/DeferredAccumulateOp contracts untouched)",
+      "mechanism": "A NEW op folds the cross-block `sumf += (float)sumi * (d_x*d_y)` as a typed f32 scalar accumulate `acc + term` (block-carried, strict ascending) instead of a raw emitc.add; requiring both operands AND the result to be scalar f32 fail-closed rejects the i32 intra-strip WideningAccumulate/DeferredAccumulate (RVVOps.td:3669/3717), which are the wrong dtype AND wrong scope -- the wall-3 contrast. The `term` operand is brick 2's weft_rvv.block_computed_scale_dequant f32 output.",
       "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-cross-block-f32-accumulate.mlir",
       "status": "mechanized"
     },
@@ -70,7 +70,7 @@
       "milestone": "M-FLAT",
       "brick": "P2c",
       "requires": ["rvv.v", "rvv.zvfhmin"],
-      "transform": "tcrv_rvv.typed_flat_block_dot_loop_body fold_structure=\"deferred-ordered\" schedule variant. ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (TypedFlatBlockDotLoopBodyOp fold_model/fold_structure knobs ~9193-9274); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (~9506-9606, per-knob bounds, does not couple); emit lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp (deferred body ~6721-6913; fail-closed gates ~5993-6000, 6706-6719: q8_0-only + mbf in {2,4} + strip=elided). Landed commit 1185729a.",
+      "transform": "weft_rvv.typed_flat_block_dot_loop_body fold_structure=\"deferred-ordered\" schedule variant. ODS include/Weft/Dialect/RVV/IR/RVVOps.td (TypedFlatBlockDotLoopBodyOp fold_model/fold_structure knobs ~9193-9274); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (~9506-9606, per-knob bounds, does not couple); emit lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp (deferred body ~6721-6913; fail-closed gates ~5993-6000, 6706-6719: q8_0-only + mbf in {2,4} + strip=elided). Landed commit 1185729a.",
       "mechanism": "PHASE-A batches the per-block sumi (vslide1down pack) + strided fp16 scale gather (vlse16 -> vfwcvt); PHASE-B replaces the per-block vector->scalar->fmaf round-trip with ONE seed-first vfredosum.vs ordered reduction. Byte-exact vs the pinned §1 separated-left-assoc oracle by construction (seed-first / lane-ascending = the serial left fold; no FMA). HYPOTHESIS at landing (commit 1185729a body): eliminating the per-block round-trip recovers the +8.4% no-FMA fold cost and unlocks Win-B.",
       "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-q8-0-q8-0-typed-flat-block-dot-loop-body-deferred.mlir (CORE construction, green) + experiments/archive/perf-historical/ondevice-q8_0-deferred/fair/perf_rvv_vlen128_FAIR.csv (fair perf)",
       "status": "measured-negative",

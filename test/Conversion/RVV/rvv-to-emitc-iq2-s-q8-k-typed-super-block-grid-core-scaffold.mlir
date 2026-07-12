@@ -1,6 +1,6 @@
-// RUN: tcrv-opt %s | FileCheck %s --check-prefix=VERIFY
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
-// RUN: sed 's|// R1 ||' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
+// RUN: weft-opt %s | FileCheck %s --check-prefix=VERIFY
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: sed 's|// R1 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 // iq2_s anti-bypass M-tests (the emit is OPERAND-DRIVEN, not gate-only): (MSWAP)
 // swapping the grid core's q8 activation base %vy -> %vx CHANGES the emit -- the
 // super_block_base_y activation-base arithmetic collapses into super_block_base_x (both
@@ -9,13 +9,13 @@
 // PARSES + VERIFIES (the standalone 4-operand form) but FAILS to legalize -- the driver
 // gate requires the brick's block_index to be the loop induction variable so the emit
 // addresses base + ib*stride, never super-block-0.
-// RUN: sed 's/iq2_s_q8_k_grid_core %%vx, %%vy/iq2_s_q8_k_grid_core %%vx, %%vx/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=MSWAP
-// RUN: sed 's/iq2_s_q8_k_grid_core %%vx, %%vy, %%n, %%vl block %%super_block_index : index/iq2_s_q8_k_grid_core %%vx, %%vy, %%n, %%vl/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=MGATE
-// RUN: sed 's/fold_model = "scalar_delta_grid"/fold_model = "unsupported_fold"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADFOLD
-// RUN: sed 's/%%sumf: f32):/%%sumf: f32, %%extra: f32):/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADARGS-SCALAR
-// RUN: sed 's/fold_model = "scalar_delta_grid"/fold_model = "super_block_two_level_scale_min"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=DUALFOLD
-// RUN: sed 's/kind = "typed_super_block_block_dot_loop_body"/kind = "plain_super_block_loop"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed -e 's|// RS ||' -e 's/loop_yield %%sumf : f32/loop_yield %%sumf, %%spare_sumf : f32, f32/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=SCALARYIELDSECOND
+// RUN: sed 's/iq2_s_q8_k_grid_core %%vx, %%vy/iq2_s_q8_k_grid_core %%vx, %%vx/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MSWAP
+// RUN: sed 's/iq2_s_q8_k_grid_core %%vx, %%vy, %%n, %%vl block %%super_block_index : index/iq2_s_q8_k_grid_core %%vx, %%vy, %%n, %%vl/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=MGATE
+// RUN: sed 's/fold_model = "scalar_delta_grid"/fold_model = "unsupported_fold"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADFOLD
+// RUN: sed 's/%%sumf: f32):/%%sumf: f32, %%extra: f32):/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADARGS-SCALAR
+// RUN: sed 's/fold_model = "scalar_delta_grid"/fold_model = "super_block_two_level_scale_min"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=DUALFOLD
+// RUN: sed 's/kind = "typed_super_block_block_dot_loop_body"/kind = "plain_super_block_loop"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed -e 's|// RS ||' -e 's/loop_yield %%sumf : f32/loop_yield %%sumf, %%spare_sumf : f32, f32/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=SCALARYIELDSECOND
 
 // iq2_s super-block SCALAR-accumulator per-half-scale GRID emit (the flip lowering + the
 // shared per-super-block grid body, SIGN-PLANE explicit-signs variant, PER-HALF explicit
@@ -30,12 +30,12 @@
 // scalar-accumulator arity as iq1_s's "scalar_delta_grid", with a DISTINCT integer core (the
 // EXPLICIT per-sub-block 4-bit scales[8] two-half split ls1/ls2 + the 1024-grid + signs256
 // gather + the qh-plane injection) and the trailing 0.125f factor. So
-// tcrv_rvv.typed_super_block_block_dot_loop_body with fold_model = "scalar_delta_grid"
+// weft_rvv.typed_super_block_block_dot_loop_body with fold_model = "scalar_delta_grid"
 // carries a SCALAR accumulator: the region entry arguments are just
 // (super_block_index, sumf:f32) and the region is terminated by
-// tcrv_rvv.typed_super_block_block_dot_loop_yield naming the `sumf` SCALAR ALONE. The
+// weft_rvv.typed_super_block_block_dot_loop_yield naming the `sumf` SCALAR ALONE. The
 // body carries the NET-NEW iq2_s per-half-scale GRID INTEGER CORE
-// (tcrv_rvv.iq2_s_q8_k_grid_core -- the explicit scale byte -> ls1/ls2 two-half split, the
+// (weft_rvv.iq2_s_q8_k_grid_core -- the explicit scale byte -> ls1/ls2 two-half split, the
 // qh-plane byte, the per-half 2-index vluxei16_v_i64m1 grid gather + the SECOND signs256
 // vluxei16 gather + the vmul-onto-grid sign fold + the signed widening grid dot + the bsum
 // fold) with a per-super-block `block %super_block_index` operand, producing the ONE SCALAR
@@ -57,16 +57,16 @@
 // unchanged -- zero regression).
 
 module {
-  tcrv.exec.kernel @iq2_s_super_block_grid_core_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @iq2_s_super_block_grid_core attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @iq2_s_super_block_grid_core, sew = 32 : i64, source_kernel = "iq2_s_super_block_grid_core_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 82 : i64, activation_block_stride = 292 : i64, fold_model = "scalar_delta_grid"} {
+  weft.exec.kernel @iq2_s_super_block_grid_core_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @iq2_s_super_block_grid_core attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @iq2_s_super_block_grid_core, sew = 32 : i64, source_kernel = "iq2_s_super_block_grid_core_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 82 : i64, activation_block_stride = 292 : i64, fold_model = "scalar_delta_grid"} {
         ^bb0(%super_block_index: index, %sumf: f32):
           // R1 %r1 = arith.constant 0.0 : f32
           // RS %spare_sumf = arith.constant 0.000000e+00 : f32
@@ -81,13 +81,13 @@ module {
           // per half, producing the ONE SCALAR integer state bsum. The
           // `block %super_block_index` operand makes the weight/activation bases
           // per-super-block (vx + ib*82, vy + ib*292).
-          %bsum = tcrv_rvv.iq2_s_q8_k_grid_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_iq2_s_q8_k_grid_core", scale_model = "per-half-int4-explicit-scales-grid-codebook-qh-plane-explicit-signs-int-domain", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 82 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 0 : i64, weight_qs_byte_offset = 2 : i64, weight_signs_byte_offset = 34 : i64, weight_qh_byte_offset = 66 : i64, weight_scales_byte_offset = 74 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
+          %bsum = weft_rvv.iq2_s_q8_k_grid_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_iq2_s_q8_k_grid_core", scale_model = "per-half-int4-explicit-scales-grid-codebook-qh-plane-explicit-signs-int-domain", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 82 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 0 : i64, weight_qs_byte_offset = 2 : i64, weight_signs_byte_offset = 34 : i64, weight_qh_byte_offset = 66 : i64, weight_scales_byte_offset = 74 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
           // SINGLE carried-out SCALAR accumulator (sumf ONLY -- no 8-lane vector
           // `sums`). The byte-exact scalar fold sumf += d*(float)bsum (d = fp16(x.d @0)*
           // y.d @0) + the trailing *s = 0.125f*sumf are emitter-inlined (no fold brick).
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -96,11 +96,11 @@ module {
 // the loop op (fold_model "scalar_delta_grid") + the iq2_s grid integer core brick + the
 // one-operand scalar yield round-trip (the region carries the (index, f32) pair and the
 // yield names the single carried-out `sumf` scalar, NO 8-lane `sums` vector).
-// VERIFY: tcrv_rvv.typed_super_block_block_dot_loop_body
+// VERIFY: weft_rvv.typed_super_block_block_dot_loop_body
 // VERIFY: ^bb0(%{{.*}}: index, %{{.*}}: f32):
-// VERIFY: tcrv_rvv.iq2_s_q8_k_grid_core %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
-// VERIFY: tcrv_rvv.typed_super_block_block_dot_loop_yield %{{.*}} : f32
-// VERIFY-NOT: tcrv_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}}
+// VERIFY: weft_rvv.iq2_s_q8_k_grid_core %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
+// VERIFY: weft_rvv.typed_super_block_block_dot_loop_yield %{{.*}} : f32
+// VERIFY-NOT: weft_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}}
 
 // The flip lowers the honest body to a REAL emitc.func -- the INTEGER-byte-exact
 // SCALAR-accumulator per-half-scale GRID emit (same grid/signs256 decls + per-super-block
@@ -108,13 +108,13 @@ module {
 // the retired monolith; the sub-block gather/config are pair-BATCHED but the integer value
 // is unchanged) modulo
 // the source-op provenance token + the func name.
-// EMIT: emitc.func @tcrv_emitc_iq2_s_super_block_grid_core_kernel_iq2_s_super_block_grid_core(
+// EMIT: emitc.func @weft_emitc_iq2_s_super_block_grid_core_kernel_iq2_s_super_block_grid_core(
 // The 1024-entry GRID codebook + the UNIVERSAL 2048-byte signs256 sign plane, emitted ONCE
 // as structured static const decls (keyed off the grid-core brick op identity from the
 // canonical kIQ2SGrid; signs256 = the definitional 8-bit-to-per-lane +-1 expansion, NO
 // ksigns selector because iq2_s signs are EXPLICIT bytes).
-// EMIT: verbatim "static const int64_t tcrv_iq2s_grid[1024] = {0x0808080808080808ULL,
-// EMIT: verbatim "static const int8_t tcrv_iq2s_signs256[2048] = {1, 1, 1, 1, 1, 1, 1, 1, -1,
+// EMIT: verbatim "static const int64_t weft_iq2s_grid[1024] = {0x0808080808080808ULL,
+// EMIT: verbatim "static const int8_t weft_iq2s_signs256[2048] = {1, 1, 1, 1, 1, 1, 1, 1, -1,
 // The SINGLE `sumf` float emitc.variable SCALAR accumulator, seeded ONCE outside the
 // loop (NO 8-lane sums vector -- iq2_s's positive term is the scalar bsum).
 // EMIT: local_variable=sumf
@@ -203,7 +203,7 @@ module {
 // legalize -- the driver requires the addressing brick's block_index to be the loop
 // induction variable (region arg 0), so a body that would silently address
 // super-block-0 is fail-closed rejected.
-// MGATE: failed to legalize operation 'tcrv.exec.variant'
+// MGATE: failed to legalize operation 'weft.exec.variant'
 // MGATE-NOT: allowlist
 
 // A TOP-LEVEL non-allowlist op in the scalar-accumulator super-block GRID loop region

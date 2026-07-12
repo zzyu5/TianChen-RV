@@ -59,7 +59,7 @@ def main() -> int:
     args = parser.parse_args()
     supervisor = load_supervisor(args.supervisor.resolve())
 
-    with tempfile.TemporaryDirectory(prefix="tcrv-supervisor-contract-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="weft-supervisor-contract-") as tmp:
         repo = Path(tmp) / "repo"
         repo.mkdir()
         run(["git", "init"], repo)
@@ -159,7 +159,7 @@ def main() -> int:
             manual_steering="",
         )
         required_prompt_fragments = [
-            "## TianChen-RV Context For Task Selection",
+            "## Weft-RV Context For Task Selection",
             "Recent Round Drift Summary",
             "recent_drift_escalation_required: yes",
             "RVV production-kernel capability campaign",

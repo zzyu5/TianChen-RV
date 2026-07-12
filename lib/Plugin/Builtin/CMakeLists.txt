@@ -1,14 +1,14 @@
-add_mlir_library(TianChenRVBuiltinPlugins
+add_mlir_library(WeftBuiltinPlugins
   BuiltinExtensionPlugins.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVPlugin
-  TianChenRVIMEPlugin
-  TianChenRVOffloadPlugin
-  TianChenRVRVVPlugin
-  TianChenRVScalarPlugin
-  TianChenRVTemplatePlugin
-  TianChenRVTensorExtLitePlugin
-  TianChenRVToyPlugin
+  WeftPlugin
+  WeftIMEPlugin
+  WeftOffloadPlugin
+  WeftRVVPlugin
+  WeftScalarPlugin
+  WeftTemplatePlugin
+  WeftTensorExtLitePlugin
+  WeftToyPlugin
   MLIRSupport
 )

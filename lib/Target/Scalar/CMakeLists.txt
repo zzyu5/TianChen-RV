@@ -1,11 +1,11 @@
-add_mlir_library(TianChenRVScalarTarget
+add_mlir_library(WeftScalarTarget
   ScalarTargetSupportBundle.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVConversionEmitCBuiltin
-  TianChenRVScalarEmitCRouteProvider
-  TianChenRVTarget
+  WeftConversionEmitC
+  WeftConversionEmitCBuiltin
+  WeftScalarEmitCRouteProvider
+  WeftTarget
   MLIREmitCDialect
   MLIRTargetCpp
   MLIRIR

@@ -1,9 +1,9 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
 // Track B G2 换心 — the CODEBOOK (vrgather) packed-i4 x plain-i8 product-reduce
 // integer core (the integer core of ggml IQ4_NL / FP4 codebook x Q8_0). The typed
 // body broadcast-loads the 16-entry non-linear int8 codebook table
-// (tcrv_rvv.codebook_table_broadcast -> i8/m1 values vreg), loads the UNSIGNED
+// (weft_rvv.codebook_table_broadcast -> i8/m1 values vreg), loads the UNSIGNED
 // packed-i4 weight (ui8/m1, each byte two 4-bit table indices) and TWO plain-int8
 // activation halves (i8/m1, the q8 low/high halves), chains the codebook-gather
 // product op into the existing signed widening reduction (i16/m2 -> i32/m1 via
@@ -20,32 +20,32 @@
 // iq4_nl board kernel uses) is pinned by the iq4_nl block-dot lit's decode chain.
 
 module {
-  tcrv.exec.kernel @rvv_codebook_q8_0_integer_core_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_codebook_q8_0_integer_core attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %w = tcrv_rvv.runtime_abi_value {c_name = "w", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %qlo = tcrv_rvv.runtime_abi_value {c_name = "qlo", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-low", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %qhi = tcrv_rvv.runtime_abi_value {c_name = "qhi", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-high", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_codebook_q8_0_integer_core, sew = 32 : i64, source_kernel = "rvv_codebook_q8_0_integer_core_kernel", status = "selected-lowering-boundary"} {
-        %table = tcrv_rvv.codebook_table_broadcast {codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>, table_symbol = "tcrv_iq4_nl_kvalues"} : !tcrv_rvv.vector<i8, "m1">
-        %w_vec = tcrv_rvv.load %w, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<ui8, "m1">
-        %qlo_vec = tcrv_rvv.load %qlo, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m1">
-        %qhi_vec = tcrv_rvv.load %qhi, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m1">
-        %product = tcrv_rvv.codebook_gather_x_i8_product %w_vec, %qlo_vec, %qhi_vec, %table, %vl {kind = "signed_codebook_gather_x_i8_product", product_relation = "codebook-gather-i8-x-i8x2-to-i16"} : !tcrv_rvv.vector<ui8, "m1">, !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m2">
-        %reduced = tcrv_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "m2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @rvv_codebook_q8_0_integer_core_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @rvv_codebook_q8_0_integer_core attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %w = weft_rvv.runtime_abi_value {c_name = "w", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %qlo = weft_rvv.runtime_abi_value {c_name = "qlo", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-low", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %qhi = weft_rvv.runtime_abi_value {c_name = "qhi", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-high", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %acc = weft_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "acc", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
+      %out = weft_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_codebook_q8_0_integer_core, sew = 32 : i64, source_kernel = "rvv_codebook_q8_0_integer_core_kernel", status = "selected-lowering-boundary"} {
+        %table = weft_rvv.codebook_table_broadcast {codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>, table_symbol = "weft_iq4_nl_kvalues"} : !weft_rvv.vector<i8, "m1">
+        %w_vec = weft_rvv.load %w, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<ui8, "m1">
+        %qlo_vec = weft_rvv.load %qlo, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m1">
+        %qhi_vec = weft_rvv.load %qhi, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m1">
+        %product = weft_rvv.codebook_gather_x_i8_product %w_vec, %qlo_vec, %qhi_vec, %table, %vl {kind = "signed_codebook_gather_x_i8_product", product_relation = "codebook-gather-i8-x-i8x2-to-i16"} : !weft_rvv.vector<ui8, "m1">, !weft_rvv.vector<i8, "m1">, !weft_rvv.vector<i8, "m1">, !weft_rvv.vector<i8, "m1">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m2">
+        %reduced = weft_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !weft_rvv.vector<i16, "m2">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        weft_rvv.store %out, %reduced, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_rvv_codebook_q8_0_integer_core_kernel_rvv_codebook_q8_0_integer_core(
+// CHECK: emitc.func @weft_emitc_rvv_codebook_q8_0_integer_core_kernel_rvv_codebook_q8_0_integer_core(
 // CHECK: call_opaque "__riscv_vsetvl_e32m1"
 // Pre-loop i32 seed: out[0] = acc[0].
 // CHECK: %[[ACCSCALAR:.*]] = load
@@ -54,7 +54,7 @@ module {
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
 // CHECK: %[[BODYVL:.*]] = call_opaque "__riscv_vsetvl_e32m1"
 // The 16-entry non-linear codebook as a structured static const decl + broadcast.
-// CHECK: verbatim "static const int8_t tcrv_iq4_nl_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};"
+// CHECK: verbatim "static const int8_t weft_iq4_nl_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};"
 // CHECK: %[[VALUES:.*]] = call_opaque "__riscv_vle8_v_i8m1"
 // The UNSIGNED packed-i4 weight load + the two plain-i8 q8 activation halves.
 // CHECK: %[[W:.*]] = call_opaque "__riscv_vle8_v_u8m1"

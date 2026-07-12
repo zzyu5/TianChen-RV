@@ -5,20 +5,20 @@
 // operator identity, instead of routing a monolithic op to a per-kernel hand
 // emitter. The auto-constructed body is the single-strip generic-op composition
 //   load x3 (packed-i4 weight + the two plain-i8 q8 activation halves)
-//     -> tcrv_rvv.packed_i4_offset_binary_x_i8_product (the offset-binary nibble
+//     -> weft_rvv.packed_i4_offset_binary_x_i8_product (the offset-binary nibble
 //        decode + asymmetric widening product -- ALREADY a first-class generic op,
 //        lowered by the SAME emitOffsetBinaryDecodeProductValue the hand-written
 //        block-dot strip calls)
-//     -> tcrv_rvv.standalone_reduce (signed widening reduce, i16 -> i32)
-//     -> tcrv_rvv.store
-// the unchanged --tcrv-rvv-lower-to-emitc emitter consumes verbatim. This proves
+//     -> weft_rvv.standalone_reduce (signed widening reduce, i16 -> i32)
+//     -> weft_rvv.store
+// the unchanged --weft-rvv-lower-to-emitc emitter consumes verbatim. This proves
 // auto-construction REACHES nibble-decode through the generic-op mechanism: the
 // nibble unpack itself needs NO new emitter vocabulary; it is already a typed op.
 //
 // HONEST SCOPE -- the nibble integer CORE only (NOT the full q4_0 KERNEL). There is
 // NO nb = n / QK outer block loop, NO per-block dual fp16 scale read, and NO left-
 // associative fp32 fold; those three axes need NEW generic ODS vocabulary and are
-// full G1, DEFERRED. The monolithic tcrv_rvv.q4_0_q8_0_block_dot op, its KERNEL
+// full G1, DEFERRED. The monolithic weft_rvv.q4_0_q8_0_block_dot op, its KERNEL
 // front door (RVVQ40BlockDotSourceFrontDoor), and the hand emitter
 // (emitQ4_0Q8_0BlockDot) all STAY -- this adds a SEPARATE rung-3 front door, like
 // dequant-vs-reduction.
@@ -40,16 +40,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -71,11 +71,11 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
-namespace tcrvexec = ::tianchenrv::tcrv::exec;
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftexec = ::weft::exec;
+namespace weftrvv = ::weft::rvv;
 
 // The DISTINCT marker the source module carries to route to THIS packed-i4 nibble
 // integer-core front door (NOT the MVP's "bounded_widening_dot_reduce_source", the
@@ -84,11 +84,11 @@ namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
 // and early-returns on a mismatch, so the four passes are mutually exclusive and
 // every existing front-door lit is byte-unchanged.
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
-    "tcrv_rvv.source_front_door");
-constexpr llvm::StringLiteral kSourceKernelAttrName("tcrv_rvv.source_kernel");
+    "weft_rvv.source_front_door");
+constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kAcceptedMarkerValue(
     "bounded_packed_i4_offset_binary_dot_source");
-constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
+constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kFallbackCapabilitySymbol("scalar_fallback");
@@ -240,7 +240,7 @@ selectIntegerCoreLMUL(llvm::StringRef march, llvm::StringRef isaVectorHints) {
 }
 
 //===----------------------------------------------------------------------===//
-// (3) Body builder: auto-construct the tcrv_rvv RVV-dialect nibble integer-core
+// (3) Body builder: auto-construct the weft_rvv RVV-dialect nibble integer-core
 //     body (the single-strip packed_i4 product-reduce composition).
 //===----------------------------------------------------------------------===//
 
@@ -252,7 +252,7 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 void createCapability(mlir::OpBuilder &builder, mlir::Location loc,
                       llvm::StringRef symbol, llvm::StringRef id,
                       llvm::StringRef kind) {
-  mlir::OperationState state(loc, tcrvexec::CapabilityOp::getOperationName());
+  mlir::OperationState state(loc, weftexec::CapabilityOp::getOperationName());
   state.addAttribute("sym_name", builder.getStringAttr(symbol));
   state.addAttribute("id", builder.getStringAttr(id));
   state.addAttribute("kind", builder.getStringAttr(kind));
@@ -264,19 +264,19 @@ mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol)
   return builder.getArrayAttr({symbolRef(builder, symbol)});
 }
 
-tcrvrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return tcrvrvv::PolicyAttr::get(builder.getContext(),
-                                  tcrvrvv::TailPolicy::Agnostic,
-                                  tcrvrvv::MaskPolicy::Agnostic);
+weftrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
+  return weftrvv::PolicyAttr::get(builder.getContext(),
+                                  weftrvv::TailPolicy::Agnostic,
+                                  weftrvv::MaskPolicy::Agnostic);
 }
 
-tcrvrvv::RuntimeABIValueOp
+weftrvv::RuntimeABIValueOp
 createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
                       llvm::StringRef role, llvm::StringRef cName,
                       llvm::StringRef cType, llvm::StringRef purpose,
                       mlir::Type resultType) {
   mlir::OperationState state(loc,
-                             tcrvrvv::RuntimeABIValueOp::getOperationName());
+                             weftrvv::RuntimeABIValueOp::getOperationName());
   state.addAttribute("role", builder.getStringAttr(role));
   state.addAttribute("c_name", builder.getStringAttr(cName));
   state.addAttribute("c_type", builder.getStringAttr(cType));
@@ -284,28 +284,28 @@ createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
                      builder.getStringAttr("target-export-abi-owned"));
   state.addAttribute("purpose", builder.getStringAttr(purpose));
   state.addTypes(resultType);
-  return llvm::cast<tcrvrvv::RuntimeABIValueOp>(builder.create(state));
+  return llvm::cast<weftrvv::RuntimeABIValueOp>(builder.create(state));
 }
 
-tcrvrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
+weftrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
                              mlir::Value n, std::int64_t sew,
-                             llvm::StringRef lmul, tcrvrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, tcrvrvv::SetVLOp::getOperationName());
+                             llvm::StringRef lmul, weftrvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, weftrvv::SetVLOp::getOperationName());
   state.addOperands(n);
   state.addAttribute("sew", builder.getI64IntegerAttr(sew));
   state.addAttribute("lmul", builder.getStringAttr(lmul));
   state.addAttribute("policy", policy);
-  state.addTypes(tcrvrvv::VLType::get(builder.getContext()));
-  return llvm::cast<tcrvrvv::SetVLOp>(builder.create(state));
+  state.addTypes(weftrvv::VLType::get(builder.getContext()));
+  return llvm::cast<weftrvv::SetVLOp>(builder.create(state));
 }
 
-tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
+weftrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
                                mlir::Value vl, std::int64_t sew,
-                               llvm::StringRef lmul, tcrvrvv::PolicyAttr policy,
+                               llvm::StringRef lmul, weftrvv::PolicyAttr policy,
                                llvm::StringRef kernelName,
                                llvm::StringRef selectedVariantSymbol,
                                mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, tcrvrvv::WithVLOp::getOperationName());
+  mlir::OperationState state(loc, weftrvv::WithVLOp::getOperationName());
   state.addOperands(vl);
   state.addAttribute("sew", builder.getI64IntegerAttr(sew));
   state.addAttribute("lmul", builder.getStringAttr(lmul));
@@ -325,7 +325,7 @@ tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(kRVVConstructionProtocolAttrName,
                      builder.getStringAttr(kRVVConstructionProtocol));
   state.addRegion();
-  auto withVL = llvm::cast<tcrvrvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weftrvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -333,7 +333,7 @@ tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
 mlir::Value createRVVLoad(mlir::OpBuilder &builder, mlir::Location loc,
                           mlir::Value buffer, mlir::Value vl,
                           mlir::Type vectorType) {
-  mlir::OperationState state(loc, tcrvrvv::LoadOp::getOperationName());
+  mlir::OperationState state(loc, weftrvv::LoadOp::getOperationName());
   state.addOperands({buffer, vl});
   state.addTypes(vectorType);
   return builder.create(state)->getResult(0);
@@ -350,7 +350,7 @@ mlir::Value createPackedI4OffsetBinaryProduct(
     mlir::Value activationLow, mlir::Value activationHigh, mlir::Value vl,
     mlir::Type productType) {
   mlir::OperationState state(
-      loc, tcrvrvv::PackedI4OffsetBinaryXI8ProductOp::getOperationName());
+      loc, weftrvv::PackedI4OffsetBinaryXI8ProductOp::getOperationName());
   state.addOperands({weight, activationLow, activationHigh, vl});
   state.addAttribute("kind", builder.getStringAttr(kPackedI4ProductKind));
   state.addAttribute("product_relation",
@@ -363,7 +363,7 @@ mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
                                    mlir::Value input, mlir::Value accumulatorSeed,
                                    mlir::Value vl, mlir::Type resultType) {
   mlir::OperationState state(loc,
-                             tcrvrvv::StandaloneReduceOp::getOperationName());
+                             weftrvv::StandaloneReduceOp::getOperationName());
   state.addOperands({input, accumulatorSeed, vl});
   state.addAttribute("kind",
                      builder.getStringAttr("signed_widening_reduce_add"));
@@ -379,23 +379,23 @@ mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
 
 void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value buffer, mlir::Value value, mlir::Value vl) {
-  mlir::OperationState state(loc, tcrvrvv::StoreOp::getOperationName());
+  mlir::OperationState state(loc, weftrvv::StoreOp::getOperationName());
   state.addOperands({buffer, value, vl});
   (void)builder.create(state);
 }
 
-tcrvexec::VariantOp
+weftexec::VariantOp
 createVariant(mlir::OpBuilder &builder, mlir::Location loc,
               llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
-              tcrvrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, tcrvexec::VariantOp::getOperationName());
+              weftrvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, weftexec::VariantOp::getOperationName());
   state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
   state.addAttribute(kOriginAttrName,
                      builder.getStringAttr(getRVVExtensionPluginName()));
   state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("tcrv_rvv.policy", policy);
+  state.addAttribute("weft_rvv.policy", policy);
   state.addRegion();
-  auto variant = llvm::cast<tcrvexec::VariantOp>(builder.create(state));
+  auto variant = llvm::cast<weftexec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();
   return variant;
 }
@@ -420,7 +420,7 @@ mlir::LogicalResult createConservativeFallbackCapability(
 }
 
 mlir::FailureOr<std::string> materializeConservativeFallbackVariantViaPlugin(
-    mlir::OpBuilder &builder, tcrvexec::KernelOp kernel,
+    mlir::OpBuilder &builder, weftexec::KernelOp kernel,
     mlir::Operation *highLevelOp, const ExtensionPluginRegistry &registry,
     llvm::StringRef fallbackVariantSymbol) {
   llvm::Expected<support::TargetCapabilitySet> capabilities =
@@ -478,17 +478,17 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
                     llvm::StringRef fallbackVariantSymbol,
                     llvm::StringRef fallbackOrigin) {
   mlir::OperationState dispatchState(loc,
-                                     tcrvexec::DispatchOp::getOperationName());
+                                     weftexec::DispatchOp::getOperationName());
   dispatchState.addRegion();
   auto dispatch =
-      llvm::cast<tcrvexec::DispatchOp>(builder.create(dispatchState));
+      llvm::cast<weftexec::DispatchOp>(builder.create(dispatchState));
   dispatch.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(&dispatch.getBody().front());
 
   mlir::OperationState caseState(loc,
-                                 tcrvexec::DispatchCaseOp::getOperationName());
+                                 weftexec::DispatchCaseOp::getOperationName());
   caseState.addAttribute("target", symbolRef(builder, selectedVariantSymbol));
   caseState.addAttribute(kOriginAttrName,
                          builder.getStringAttr(getRVVExtensionPluginName()));
@@ -496,7 +496,7 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(caseState);
 
   mlir::OperationState fallbackState(loc,
-                                     tcrvexec::FallbackOp::getOperationName());
+                                     weftexec::FallbackOp::getOperationName());
   fallbackState.addAttribute("target",
                              symbolRef(builder, fallbackVariantSymbol));
   fallbackState.addAttribute(kOriginAttrName,
@@ -512,7 +512,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                   const ExtensionPluginRegistry &registry,
                   PackedI4DotSourceMatch source) {
   mlir::Location loc = source.func.getLoc();
-  tcrvrvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol = "rvv_packed_i4_offset_binary_dot_i8";
   std::string fallbackVariantSymbol =
       "rvv_packed_i4_offset_binary_dot_i8_scalar_fallback";
@@ -536,10 +536,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                             "anchor '") +
                     productLMUL + "'");
 
-  mlir::OperationState kernelState(loc, tcrvexec::KernelOp::getOperationName());
+  mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
-  auto kernel = llvm::cast<tcrvexec::KernelOp>(builder.create(kernelState));
+  auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -551,19 +551,19 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     return mlir::failure();
   mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
 
-  tcrvexec::VariantOp rvvVariant =
+  weftexec::VariantOp rvvVariant =
       createVariant(builder, loc, selectedVariantSymbol, rvvRequires, policy);
   // AUDIT-ONLY provenance (NOT the route/dtype authority): the no-flip nibble
   // integer-core anchor the body below realizes structurally. Recorded as the
   // PINNED form (never the gate's plain-int8 m1/m2 return, which would mislead).
   rvvVariant->setAttr(
-      "tcrv_rvv.packed_i4_integer_core_anchor",
+      "weft_rvv.packed_i4_integer_core_anchor",
       builder.getStringAttr("i8mf4-i16mf2-i32m1-no-vlen-flip"));
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
   mlir::Type runtimeABIType =
-      tcrvrvv::RuntimeABIValueType::get(builder.getContext());
+      weftrvv::RuntimeABIValueType::get(builder.getContext());
   // The six nibble integer-core ABI roles, in the order the emitted C signature
   // pins (so the output buffer is arg4, matching the nibble-core lit): the
   // packed-i4 weight, the two plain-i8 q8 activation halves, the i32 acc seed, the
@@ -585,10 +585,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
                                  "size_t", "n", builder.getIndexType());
 
-  tcrvrvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(),
+  weftrvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(),
                                        kNibbleCoreStripSEW, kNibbleCoreStripLMUL,
                                        policy);
-  tcrvrvv::WithVLOp withVL =
+  weftrvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), kNibbleCoreStripSEW,
                    kNibbleCoreStripLMUL, policy, kernelName,
                    selectedVariantSymbol, rvvRequires);
@@ -596,11 +596,11 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
 
-  mlir::Type i8VecType = tcrvrvv::VectorType::get(
+  mlir::Type i8VecType = weftrvv::VectorType::get(
       builder.getContext(), builder.getI8Type(), loadLMUL);
-  mlir::Type i16VecType = tcrvrvv::VectorType::get(
+  mlir::Type i16VecType = weftrvv::VectorType::get(
       builder.getContext(), builder.getI16Type(), productLMUL);
-  mlir::Type i32VecType = tcrvrvv::VectorType::get(
+  mlir::Type i32VecType = weftrvv::VectorType::get(
       builder.getContext(), builder.getI32Type(), reduceLMUL);
 
   // The three i8/mf4 source loads: the packed-i4 weight + the two plain-i8 q8
@@ -654,8 +654,8 @@ mlir::LogicalResult requireRVVSourceOnlyModule(mlir::ModuleOp module) {
     if (staleOp || op == module.getOperation())
       return;
     llvm::StringRef dialect = op->getName().getDialectNamespace();
-    if (dialect == "tcrv" || dialect == "tcrv_rvv" || dialect == "tcrv_toy" ||
-        dialect == "tcrv_tensorext_lite")
+    if (dialect == "weft" || dialect == "weft_rvv" || dialect == "weft_toy" ||
+        dialect == "weft_tensorext_lite")
       staleOp = op;
   });
   if (!staleOp)
@@ -689,10 +689,10 @@ public:
       : registry(registry) {}
 
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-packed-i4-offset-binary-dot-source-front-door";
+    return "weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door";
   }
   llvm::StringRef getDescription() const final {
-    return "Auto-construct the tcrv_rvv q4_0 nibble integer-CORE body (load x3 + "
+    return "Auto-construct the weft_rvv q4_0 nibble integer-CORE body (load x3 + "
            "packed_i4_offset_binary_x_i8_product + standalone_reduce + store) "
            "from a marked generic nibble-core source, with the integer-core path "
            "legality gated by the shared block-dot schedule authority from the "
@@ -703,8 +703,8 @@ public:
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
     registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
                     mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect, tcrvexec::TCRVExecDialect,
-                    tcrvrvv::TCRVRVVDialect>();
+                    mlir::vector::VectorDialect, weftexec::WEFTExecDialect,
+                    weftrvv::WEFTRVVDialect>();
   }
 
   void runOnOperation() final {
@@ -724,7 +724,7 @@ public:
       return; // not our marker: leave the module untouched.
 
     if (hasStaleRVVLoweringSeedMetadata(module)) {
-      (void)fail(module, "rejected stale tcrv_rvv.lowering_seed metadata as RVV "
+      (void)fail(module, "rejected stale weft_rvv.lowering_seed metadata as RVV "
                          "source-route authority");
       signalPassFailure();
       return;
@@ -808,8 +808,8 @@ llvm::Error registerRVVPackedI4DotSourceFrontDoorPasses(
   const ExtensionPluginRegistry *registryPtr = &registry;
   out.push_back(SourceFrontDoorPassRegistration(
       ownerPlugin,
-      "tcrv-rvv-materialize-packed-i4-offset-binary-dot-source-front-door",
-      "Auto-construct the tcrv_rvv q4_0 nibble integer-CORE body (load x3 + "
+      "weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door",
+      "Auto-construct the weft_rvv q4_0 nibble integer-CORE body (load x3 + "
       "packed_i4_offset_binary_x_i8_product + standalone_reduce + store) from a "
       "marked generic nibble-core source (BOUNDED Track B G1: the nibble integer "
       "core only, capability-gated)",
@@ -821,4 +821,4 @@ llvm::Error registerRVVPackedI4DotSourceFrontDoorPasses(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

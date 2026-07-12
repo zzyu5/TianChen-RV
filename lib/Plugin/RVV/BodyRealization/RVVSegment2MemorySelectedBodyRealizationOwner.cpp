@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -11,14 +11,14 @@
 #include <cstdint>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -31,23 +31,23 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
-                                     tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+                                     weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.setvl");
   state.addOperands(nValue);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   return builder.create(state);
 }
 
-tcrv::rvv::WithVLOp createRealizedWithVL(
+weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
     VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
-    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
@@ -64,7 +64,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
                      builder.getStringAttr(
                          rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -72,7 +72,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
   mlir::Type elementType = builder.getIntegerType(sew);
-  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+  return weft::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
 mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
@@ -80,7 +80,7 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Value buffer,
                                            mlir::Value vl, std::int64_t sew,
                                            llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.load");
+  mlir::OperationState state(loc, "weft_rvv.load");
   state.addOperands({buffer, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -91,7 +91,7 @@ mlir::Operation *createRealizedGenericSegment2Load(
     mlir::Value vl, std::int64_t segmentCount,
     llvm::StringRef sourceMemoryForm, llvm::StringRef field0Role,
     llvm::StringRef field1Role, std::int64_t sew, llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.segment2_load");
+  mlir::OperationState state(loc, "weft_rvv.segment2_load");
   state.addOperands({source, vl});
   state.addAttribute("segment_count",
                      builder.getI64IntegerAttr(segmentCount));
@@ -109,7 +109,7 @@ mlir::Operation *createRealizedGenericSegment2Store(
     mlir::Value field0, mlir::Value field1, mlir::Value vl,
     std::int64_t segmentCount, llvm::StringRef destinationMemoryForm,
     llvm::StringRef field0Role, llvm::StringRef field1Role) {
-  mlir::OperationState state(loc, "tcrv_rvv.segment2_store");
+  mlir::OperationState state(loc, "weft_rvv.segment2_store");
   state.addOperands({destination, field0, field1, vl});
   state.addAttribute("segment_count",
                      builder.getI64IntegerAttr(segmentCount));
@@ -129,7 +129,7 @@ createRealizedGenericMove(mlir::OpBuilder &builder, mlir::Location loc,
         "pre-realized RVV selected-body segment2 memory realization supports "
         "only move kind 'copy'");
 
-  mlir::OperationState state(loc, "tcrv_rvv.move");
+  mlir::OperationState state(loc, "weft_rvv.move");
   state.addOperands({source, vl});
   state.addAttribute("kind", builder.getStringAttr(moveKind));
   state.addTypes(source.getType());
@@ -139,7 +139,7 @@ createRealizedGenericMove(mlir::OpBuilder &builder, mlir::Location loc,
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.store");
+  mlir::OperationState state(loc, "weft_rvv.store");
   state.addOperands({out, value, vl});
   (void)builder.create(state);
 }
@@ -147,18 +147,18 @@ void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
 } // namespace
 
 bool isPreRealizedRVVSegment2MemoryOwnerOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
-                   tcrv::rvv::
+  return llvm::isa<weft::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
+                   weft::rvv::
                        TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
-                   tcrv::rvv::
+                   weft::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
+                   weft::rvv::
                        TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp,
-                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+                   weft::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
+                   weft::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
       op);
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSegment2MemoryOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   if (!isPreRealizedRVVSegment2MemoryOwnerOp(bodyOp))
@@ -166,8 +166,8 @@ realizePreRealizedRVVSegment2MemoryOwner(
         "segment2 memory selected-body realization owner received a body "
         "outside its RVV-owned realization family");
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
         "pre-realized RVV segment2 memory selected-body realization requires "
@@ -178,14 +178,14 @@ realizePreRealizedRVVSegment2MemoryOwner(
   mlir::OpBuilder::InsertionGuard guard(builder);
 
   if (auto computedMaskSegment2LoadBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
+          weft::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
           bodyOp)) {
     return realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
         request, computedMaskSegment2LoadBody);
   }
 
   if (auto runtimeScalarSegment2LoadBody = llvm::dyn_cast<
-          tcrv::rvv::
+          weft::rvv::
               TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp>(
           bodyOp)) {
     return realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
@@ -193,14 +193,14 @@ realizePreRealizedRVVSegment2MemoryOwner(
   }
 
   if (auto computedMaskSegment2StoreBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+          weft::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
           bodyOp)) {
     return realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
         request, computedMaskSegment2StoreBody);
   }
 
   if (auto runtimeScalarSegment2StoreBody = llvm::dyn_cast<
-          tcrv::rvv::
+          weft::rvv::
               TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp>(
           bodyOp)) {
     return realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
@@ -208,7 +208,7 @@ realizePreRealizedRVVSegment2MemoryOwner(
   }
 
   if (auto segment2Body = llvm::dyn_cast<
-          tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
+          weft::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
           bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
@@ -220,16 +220,16 @@ realizePreRealizedRVVSegment2MemoryOwner(
 
     std::int64_t sew = static_cast<std::int64_t>(segment2Body.getSew());
     llvm::StringRef lmul = segment2Body.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+    auto setvl = llvm::cast<weft::rvv::SetVLOp>(
         createRealizedSetVL(builder, loc, segment2Body.getN(), sew, lmul,
                             segment2Body.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires, sew, lmul,
                              segment2Body.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto segmentLoad = llvm::cast<tcrv::rvv::Segment2LoadOp>(
+    auto segmentLoad = llvm::cast<weft::rvv::Segment2LoadOp>(
         createRealizedGenericSegment2Load(
             builder, loc, segment2Body.getSource(), setvl.getVl(),
             static_cast<std::int64_t>(segment2Body.getSegmentCount()),
@@ -254,7 +254,7 @@ realizePreRealizedRVVSegment2MemoryOwner(
   }
 
   if (auto segment2Body = llvm::dyn_cast<
-          tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+          weft::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
           bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
@@ -266,19 +266,19 @@ realizePreRealizedRVVSegment2MemoryOwner(
 
     std::int64_t sew = static_cast<std::int64_t>(segment2Body.getSew());
     llvm::StringRef lmul = segment2Body.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+    auto setvl = llvm::cast<weft::rvv::SetVLOp>(
         createRealizedSetVL(builder, loc, segment2Body.getN(), sew, lmul,
                             segment2Body.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires, sew, lmul,
                              segment2Body.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto field0Load = llvm::cast<tcrv::rvv::LoadOp>(
+    auto field0Load = llvm::cast<weft::rvv::LoadOp>(
         createRealizedGenericLoad(builder, loc, segment2Body.getSrc0(),
                                   setvl.getVl(), sew, lmul));
-    auto field1Load = llvm::cast<tcrv::rvv::LoadOp>(
+    auto field1Load = llvm::cast<weft::rvv::LoadOp>(
         createRealizedGenericLoad(builder, loc, segment2Body.getSrc1(),
                                   setvl.getVl(), sew, lmul));
     createRealizedGenericSegment2Store(
@@ -296,4 +296,4 @@ realizePreRealizedRVVSegment2MemoryOwner(
       "pre-realized body op");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

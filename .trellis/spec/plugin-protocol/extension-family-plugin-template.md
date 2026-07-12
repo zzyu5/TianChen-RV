@@ -18,10 +18,10 @@ status lives in tasks/journal, not here
 > `Template` family spans **6 source directory roots, 20 source files, 6
 > `CMakeLists.txt`, plus 1 shared registration file** — because the plugin library
 > transitively links a family `Dialect` library and a family `Target` library
-> (verified from `lib/Plugin/Template/CMakeLists.txt`: `TianChenRVTemplatePlugin`
-> `LINK_LIBS … TianChenRVTemplateDialect TianChenRVTemplateTarget`). Copying only
+> (verified from `lib/Plugin/Template/CMakeLists.txt`: `WeftTemplatePlugin`
+> `LINK_LIBS … WeftTemplateDialect WeftTemplateTarget`). Copying only
 > the 5 `lib/Plugin/<Fam>/` files and running `cmake --build` fails at link with
-> missing `TianChenRV<Fam>Dialect` / `TianChenRV<Fam>Target` targets.
+> missing `Weft<Fam>Dialect` / `Weft<Fam>Target` targets.
 
 ```text
 lib/Plugin/<Fam>/                      5 .cpp + CMakeLists  → 4 libs
@@ -29,22 +29,22 @@ lib/Plugin/<Fam>/                      5 .cpp + CMakeLists  → 4 libs
                                          free fn register<Fam>ExtensionPlugin(registry)
   <Fam>VariantLegality.cpp               legality predicate
   <Fam>ConstructionProtocol.cpp          abstract op → in-compiler typed body (front-door family side)
-  <Fam>EmitCRouteProvider.cpp            selected variant → TCRVEmitCLowerableRoute
+  <Fam>EmitCRouteProvider.cpp            selected variant → WEFTEmitCLowerableRoute
   <Fam>BackendEmissionDriver.cpp         backend body emission
-include/TianChenRV/Plugin/<Fam>/       4 headers (mirror the 4 non-legality .cpp; legality is internal)
+include/Weft/Plugin/<Fam>/       4 headers (mirror the 4 non-legality .cpp; legality is internal)
 lib/Dialect/<Fam>/                     CMakeLists (add_subdirectory IR)                     ← MANDATORY link dep
-lib/Dialect/<Fam>/IR/                  <Fam>Dialect.cpp + CMakeLists → lib TianChenRV<Fam>Dialect
-include/TianChenRV/Dialect/<Fam>/      CMakeLists
-include/TianChenRV/Dialect/<Fam>/IR/   <Fam>Dialect.h + <Fam>Ops.td + CMakeLists (ODS/TableGen)
-lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → lib TianChenRV<Fam>Target  ← MANDATORY link dep
-include/TianChenRV/Target/<Fam>/       <Fam>TargetSupportBundle.h
+lib/Dialect/<Fam>/IR/                  <Fam>Dialect.cpp + CMakeLists → lib Weft<Fam>Dialect
+include/Weft/Dialect/<Fam>/      CMakeLists
+include/Weft/Dialect/<Fam>/IR/   <Fam>Dialect.h + <Fam>Ops.td + CMakeLists (ODS/TableGen)
+lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → lib Weft<Fam>Target  ← MANDATORY link dep
+include/Weft/Target/<Fam>/       <Fam>TargetSupportBundle.h
 lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 SHARED registration (见 [GAP-P4-REGISTER] in
                                        [extension-plugin-integration.md](./extension-plugin-integration.md))
 ```
 
 The 6 `CMakeLists.txt` are: `lib/Plugin/<Fam>/`, `lib/Dialect/<Fam>/`,
-`lib/Dialect/<Fam>/IR/`, `include/TianChenRV/Dialect/<Fam>/`,
-`include/TianChenRV/Dialect/<Fam>/IR/`, `lib/Target/<Fam>/`. The `Plugin/` and
+`lib/Dialect/<Fam>/IR/`, `include/Weft/Dialect/<Fam>/`,
+`include/Weft/Dialect/<Fam>/IR/`, `lib/Target/<Fam>/`. The `Plugin/` and
 `Target/` include mirrors carry no `CMakeLists` (their headers are pulled by the
 `lib/` targets); only the `Dialect/` side has extra `CMakeLists` for ODS
 TableGen (`MLIR<Fam>OpsIncGen`).
@@ -85,15 +85,15 @@ plugin. The body must own extension compute/config/control/dataflow. For RVV,
 the exemplar surface is:
 
 ```text
-!tcrv_rvv.vector<elem = i32, lmul = m1>
-tcrv_rvv.setvl
-tcrv_rvv.load
-tcrv_rvv.binary {kind = add}
-tcrv_rvv.store
+!weft_rvv.vector<elem = i32, lmul = m1>
+weft_rvv.setvl
+weft_rvv.load
+weft_rvv.binary {kind = add}
+weft_rvv.store
 ```
 
 Avoid finite dtype-prefixed namespaces such as `rvv-finite-binary` or
-`tcrv_rvv.i32_*` as architectural templates.
+`weft_rvv.i32_*` as architectural templates.
 
 ### 4. Legality
 
@@ -118,7 +118,7 @@ Do not persist this as a readiness state machine.
 
 ### 6. Route Provider
 
-Build a provider-owned `TCRVEmitCLowerableRoute` from the legal typed/realized
+Build a provider-owned `WEFTEmitCLowerableRoute` from the legal typed/realized
 body. Common EmitC materializes this route; it does not invent extension
 semantics.
 
@@ -148,17 +148,17 @@ artifact authority, or progress proof.
 Use generic orchestration names that reflect ownership:
 
 ```text
-tcrv-select-variants
-tcrv-realize-selected-bodies
-tcrv-materialize-emitc-lowerable-routes
-tcrv-lower-routes-to-emitc
-tcrv-export-target-artifact
+weft-select-variants
+weft-realize-selected-bodies
+weft-materialize-emitc-lowerable-routes
+weft-lower-routes-to-emitc
+weft-export-target-artifact
 ```
 
 Avoid:
 
 ```text
-tcrv-select-route
+weft-select-route
 ```
 
 because route construction is plugin-owned and common/core only orchestrate

@@ -1,8 +1,8 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-plugin-variants 2>&1 | FileCheck %s
+// RUN: not weft-opt %s --weft-materialize-plugin-variants 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @malformed_toy_template {
-    tcrv.exec.capability @toy_template {
+  weft.exec.kernel @malformed_toy_template {
+    weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
       status = "available",

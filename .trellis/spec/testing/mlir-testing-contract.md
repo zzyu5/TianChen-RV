@@ -77,7 +77,7 @@
 - **判读规程(真分支 vs 同名假阳性,命中即需裁决):** 一处命中判 **RED(真分支违规)** 当且仅当它是**核心里按家族名做的控制流/派发决策**(if/switch/StringSwitch/starts_with 键控 family)。以下为**声明式假阳性类**(manifest 逐条 allow,不判 RED):
   1. **数据/表文件里的字符串字面量**(family 名作表数据,非分支);
   2. **身份比较**(如 `candidate.origin == selectedRoute.originPlugin`,按 origin 相等而非按 family 名分支);
-  3. **op 属性名/类型助记符里含 family 子串**(如 `target_kind` / `region_kind`(E2a 引入)、类型助记符 `tcrv_rvv.*` / `!rvv...`)—— 是命名不是决策。
+  3. **op 属性名/类型助记符里含 family 子串**(如 `target_kind` / `region_kind`(E2a 引入)、类型助记符 `weft_rvv.*` / `!rvv...`)—— 是命名不是决策。
 - **allow-list 精确到 (文件 glob, 正则)**;新假阳性须**显式登记**方可豁免,不得放宽全局正则。命中不在 allow-list = RED。
 - 详细每家族正则表 + 白名单文件清单是 **E3 pillar 交付物**(本节钉判读规程与 manifest 形态,具体条目住 manifest 工件 + docs/科研目标总纲 [F-1])。
 

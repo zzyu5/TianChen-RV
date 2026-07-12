@@ -1,11 +1,11 @@
 # Architecture Specs
 
-本层定义 TianChen-RV MLIR 的系统定位和长期边界。进入任何实现或实验解释前，先确认这里的 invariants。
+本层定义 Weft-RV MLIR 的系统定位和长期边界。进入任何实现或实验解释前，先确认这里的 invariants。
 
 ## Pre-Development Checklist（判断提示，不是 gate）
 
-- [ ] 这项工作仍把 TianChen-RV 描述为 high-level MLIR 之后的 RISC-V execution layer 吗？
-- [ ] 避免了新增核心 `tcrv.matmul`/`tcrv.softmax`/`tcrv.reduce`/`tcrv.generic_tile` 这类高层计算 op 吗？（[core-invariants](./core-invariants.md) I2）
+- [ ] 这项工作仍把 Weft-RV 描述为 high-level MLIR 之后的 RISC-V execution layer 吗？
+- [ ] 避免了新增核心 `weft.matmul`/`weft.softmax`/`weft.reduce`/`weft.generic_tile` 这类高层计算 op 吗？（[core-invariants](./core-invariants.md) I2）
 - [ ] capability object 在 pass 决策路径上，而不是注释吗？（I1）
 - [ ] core/common 没有按 family 名分支吗？（I3）
 - [ ] RVV dtype/config/operation 来自 typed body，而不是 route id/ABI string/artifact name/旧 `i32m1` helper 吗？（I5）
@@ -22,7 +22,7 @@
 
 ## Quality Check
 
-- 系统叙事必须能一句话复述为：unified TCRV RISC-V MLIR for capability-scoped extension execution。
+- 系统叙事必须能一句话复述为：unified WEFT RISC-V MLIR for capability-scoped extension execution。
 - 任何新增核心概念必须说明它属于 capability/variant/plugin/dispatch/fallback 之一，或解释为何需要扩展核心 interface。
 - 出现 high-level compute core op 时视为 architecture violation，除非它明确属于某 extension family 内部执行 op。
 - IME / Offload 是 **N2 的关键证据点**（第二个非-RVV family 走通 common 路径），不是"禁止"项；但也别让它们把 RVV 主线晾在半路——取舍读 [trunk-discipline](../guides/trunk-discipline.md)。

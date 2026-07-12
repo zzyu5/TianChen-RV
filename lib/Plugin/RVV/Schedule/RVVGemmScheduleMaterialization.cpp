@@ -1,7 +1,7 @@
 //===- RVVGemmScheduleMaterialization.cpp ---------------------------------===//
 //
 // The N3 MEASUREMENT-backed autotuner for the ggml Q4_0 x Q8_0 FULL GEMM
-// (tcrv_rvv.q4_0_q8_0_gemm) M-block: the inner activation-column block M, the one
+// (weft_rvv.q4_0_q8_0_gemm) M-block: the inner activation-column block M, the one
 // knob that sets how many activation columns share each hoisted weight decode. It
 // REUSES the EXACT tune-once -> cache -> read architecture the block-dot
 // measurement tuner established -- the SAME shared 7-step materialize skeleton
@@ -21,23 +21,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 #include <memory>
 
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftrvv = ::weft::rvv;
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZERVVGEMMSCHEDULE
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -51,7 +51,7 @@ public:
   void runOnOperation() override {
     plugin::rvv::runRVVScheduleMaterializationViaInterface(
         getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
-        mlir::TypeID::get<tcrvrvv::GgmlGemmQ40Q80Op>());
+        mlir::TypeID::get<weftrvv::GgmlGemmQ40Q80Op>());
   }
 };
 
@@ -61,4 +61,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeRVVGemmSchedulePass() {
   return std::make_unique<MaterializeRVVGemmSchedulePass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

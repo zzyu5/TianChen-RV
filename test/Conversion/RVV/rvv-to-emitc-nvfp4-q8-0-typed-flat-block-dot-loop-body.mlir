@@ -1,16 +1,16 @@
-// RUN: tcrv-opt %s | FileCheck %s --check-prefix=VERIFY
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
-// RUN: sed 's|// R1 ||' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
+// RUN: weft-opt %s | FileCheck %s --check-prefix=VERIFY
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: sed 's|// R1 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 // nvfp4 anti-bypass M-test (MGATE, the operand-driven driver gate): dropping the
 // codebook core's block_index still PARSES + VERIFIES (the standalone 4-operand
 // form) but FAILS to legalize -- the driver gate requires the brick's block_index to
 // be the loop induction variable so the emit addresses base + ib*stride, never
 // super-block-0.
-// RUN: sed 's/nvfp4_q8_0_codebook_core %%vx, %%vy, %%n, %%vl block %%block_index : index/nvfp4_q8_0_codebook_core %%vx, %%vy, %%n, %%vl/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=MGATE
-// RUN: sed 's/fold_model = "flat_nvfp4_codebook"/fold_model = "unsupported_fold"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADFOLD
-// RUN: sed 's/%%block_index: index, %%acc: f32/%%block_index: index, %%acc: f32, %%extra: f32/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADARGS
-// RUN: sed 's/kind = "typed_flat_block_dot_loop_body"/kind = "plain_flat_loop"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed 's/0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12/0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADCODEBOOK
+// RUN: sed 's/nvfp4_q8_0_codebook_core %%vx, %%vy, %%n, %%vl block %%block_index : index/nvfp4_q8_0_codebook_core %%vx, %%vy, %%n, %%vl/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=MGATE
+// RUN: sed 's/fold_model = "flat_nvfp4_codebook"/fold_model = "unsupported_fold"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADFOLD
+// RUN: sed 's/%%block_index: index, %%acc: f32/%%block_index: index, %%acc: f32, %%extra: f32/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADARGS
+// RUN: sed 's/kind = "typed_flat_block_dot_loop_body"/kind = "plain_flat_loop"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed 's/0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12/0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADCODEBOOK
 
 // nvfp4 (NVIDIA's FP4, the SECOND FP4-CODEBOOK sibling) constructed FLAT-loop emit
 // (the flip lowering + the emitter-inlined per-super-block codebook body). nvfp4 is a
@@ -23,10 +23,10 @@
 // wrapped in the per-SUB-block UE4M3 fp8 weight scale (the ldexpf-based HALF-form
 // decode) + the two-q8_0-block/half addressing. Its fold is a SINGLE per-super-block
 // scalar `acc` accumulator: the region entry arguments are (block_index, acc:f32) and
-// the region is terminated by tcrv_rvv.typed_flat_block_dot_loop_yield naming the
+// the region is terminated by weft_rvv.typed_flat_block_dot_loop_yield naming the
 // loop-carried `acc` (the per-sub-block fp32 fold is emitter-inlined). The body
 // carries the NET-NEW nvfp4 CODEBOOK INTEGER CORE
-// (tcrv_rvv.nvfp4_q8_0_codebook_core) with a per-super-block `block %block_index`
+// (weft_rvv.nvfp4_q8_0_codebook_core) with a per-super-block `block %block_index`
 // operand, producing ONE SCALAR i32 result (an UNUSED placeholder -- nvfp4's fold has
 // no single scalar state).
 //
@@ -41,16 +41,16 @@
 // zero regression.
 
 module {
-  tcrv.exec.kernel @nvfp4_flat_codebook_core_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @nvfp4_flat_codebook_core attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @nvfp4_flat_codebook_core, sew = 32 : i64, source_kernel = "nvfp4_flat_codebook_core_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 64 : i64, weight_block_stride = 36 : i64, activation_block_stride = 34 : i64, fold_model = "flat_nvfp4_codebook"} {
+  weft.exec.kernel @nvfp4_flat_codebook_core_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @nvfp4_flat_codebook_core attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @nvfp4_flat_codebook_core, sew = 32 : i64, source_kernel = "nvfp4_flat_codebook_core_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 64 : i64, weight_block_stride = 36 : i64, activation_block_stride = 34 : i64, fold_model = "flat_nvfp4_codebook"} {
         ^bb0(%block_index: index, %acc: f32):
           // R1 %r1 = arith.constant 0.0 : f32
           // nvfp4 CODEBOOK INTEGER CORE (NET-NEW, decode_model=lookup): the 16-entry
@@ -62,13 +62,13 @@ module {
           // SCALAR i32 result (UNUSED -- the fold is per-sub-block float, no single
           // scalar state). The `block %block_index` operand makes the weight base
           // per-super-block (vx + ib*36) and the q8 block-pair base (2*ib).
-          %partial = tcrv_rvv.nvfp4_q8_0_codebook_core %vx, %vy, %n, %vl block %block_index : index {kind = "ggml_nvfp4_q8_0_codebook_core", scale_model = "ue4m3-half-per-sub-block", qk = 64 : i64, qk_sub = 16 : i64, weight_block_stride = 36 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 4 : i64, activation_quant_byte_offset = 2 : i64, activation_high_byte_offset = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
+          %partial = weft_rvv.nvfp4_q8_0_codebook_core %vx, %vy, %n, %vl block %block_index : index {kind = "ggml_nvfp4_q8_0_codebook_core", scale_model = "ue4m3-half-per-sub-block", qk = 64 : i64, qk_sub = 16 : i64, weight_block_stride = 36 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 4 : i64, activation_quant_byte_offset = 2 : i64, activation_high_byte_offset = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
           // SINGLE carried-out SCALAR accumulator (acc ONLY). The byte-exact
           // per-sub-block float fold acc += (dy*d)*(float)sumi + the trailing *s = acc
           // (NO factor) are emitter-inlined.
-          tcrv_rvv.typed_flat_block_dot_loop_yield %acc : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.typed_flat_block_dot_loop_yield %acc : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -77,20 +77,20 @@ module {
 // "flat_nvfp4_codebook") + the nvfp4 codebook integer-core brick + the one-operand
 // scalar yield round-trip (the region carries the (index, f32) pair and the yield
 // names the single carried-out `acc`).
-// VERIFY: tcrv_rvv.typed_flat_block_dot_loop_body
+// VERIFY: weft_rvv.typed_flat_block_dot_loop_body
 // VERIFY: ^bb0(%{{.*}}: index, %{{.*}}: f32):
-// VERIFY: tcrv_rvv.nvfp4_q8_0_codebook_core %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
-// VERIFY: tcrv_rvv.typed_flat_block_dot_loop_yield %{{.*}} : f32
+// VERIFY: weft_rvv.nvfp4_q8_0_codebook_core %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
+// VERIFY: weft_rvv.typed_flat_block_dot_loop_yield %{{.*}} : f32
 
 // The flip lowers the honest body to a REAL emitc.func -- the byte-exact FLAT-loop
 // CODEBOOK emit, byte-identical to the retired monolith (same codebook decl +
 // per-super-block body, same facts, same order) modulo the source-op provenance token
 // + the func name. The <math.h> include is added for the UE4M3 ldexpf.
 // EMIT: emitc.include <"math.h">
-// EMIT: emitc.func @tcrv_emitc_nvfp4_flat_codebook_core_kernel_nvfp4_flat_codebook_core(
+// EMIT: emitc.func @weft_emitc_nvfp4_flat_codebook_core_kernel_nvfp4_flat_codebook_core(
 // The 16-entry DOUBLED e2m1 codebook, emitted ONCE as a structured static const decl
 // (the SAME kvalues_mxfp4[16] table mxfp4 uses), broadcast-loaded ONCE (vle8_v_i8m1).
-// EMIT: verbatim "static const int8_t tcrv_nvfp4_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};"
+// EMIT: verbatim "static const int8_t weft_nvfp4_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};"
 // The SINGLE `sumf` float emitc.variable SCALAR accumulator + the SUPER-block count
 // nb = n / 64.
 // EMIT: local_variable=sumf
@@ -161,7 +161,7 @@ module {
 // legalize -- the driver requires the addressing brick's block_index to be the loop
 // induction variable (region arg 0), so a body that would silently address
 // super-block-0 is fail-closed rejected.
-// MGATE: failed to legalize operation 'tcrv.exec.variant'
+// MGATE: failed to legalize operation 'weft.exec.variant'
 // MGATE-NOT: allowlist
 
 // The bounded surface is fail-closed on the loop kind and the fold_model fact (I7),

@@ -1,4 +1,4 @@
-add_mlir_library(TianChenRVScalarEmitCRouteProvider
+add_mlir_library(WeftScalarEmitCRouteProvider
   ScalarEmitCRouteProvider.cpp
 
   PARTIAL_SOURCES_INTENDED
@@ -7,32 +7,32 @@ add_mlir_library(TianChenRVScalarEmitCRouteProvider
   MLIRSupport
 )
 
-add_mlir_library(TianChenRVScalarBackendEmitter
+add_mlir_library(WeftScalarBackendEmitter
   ScalarBackendEmissionDriver.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVScalarDialect
-  TianChenRVScalarEmitCRouteProvider
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftScalarDialect
+  WeftScalarEmitCRouteProvider
+  WeftSupport
   MLIREmitCDialect
   MLIRIR
   MLIRSupport
   MLIRTransformUtils
 )
 
-add_mlir_library(TianChenRVScalarPlugin
+add_mlir_library(WeftScalarPlugin
   ScalarExtensionPlugin.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVScalarDialect
-  TianChenRVScalarTarget
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftScalarDialect
+  WeftScalarTarget
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRSupport
 )

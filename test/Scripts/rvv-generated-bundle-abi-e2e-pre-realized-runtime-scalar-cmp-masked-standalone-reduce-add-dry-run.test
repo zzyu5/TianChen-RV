@@ -1,9 +1,9 @@
-# REQUIRES: tianchenrv-local-rvv-object-clang
+# REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --op-kind runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --op-kind runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add/evidence.json
-# RUN: FileCheck %s --check-prefix=REDUCEM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=REDUCEM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_add_harness.c
 # RUN: FileCheck %s --check-prefix=HARNESSM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2_harness.c
 
@@ -23,110 +23,110 @@
 # REDUCE-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_add"
 # REDUCE-DAG: "input_mode": "pre-realized-selected-body"
 # REDUCE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add.mlir"
-# REDUCE-DAG: "prototype": "void tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
-# REDUCE-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce"
+# REDUCE-DAG: "prototype": "void weft_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
+# REDUCE-DAG: "expected_function": "weft_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce"
 # REDUCE-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1"
 # REDUCE-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce"
-# REDUCE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# REDUCE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# REDUCE-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
+# REDUCE-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
 # REDUCE-DAG: "route_entry_realization": false
 # REDUCE-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
-# REDUCE-DAG: --tcrv-materialize-selected-lowering-boundaries
+# REDUCE-DAG: --weft-materialize-selected-lowering-boundaries
 # REDUCE-DAG: "pre_realized_body_consumed": true
 # REDUCE-DAG: "key": "rvv_emitc_lowerable_route"
 # REDUCE-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-emitc-route"
 # REDUCE-DAG: "key": "rvv_selected_body_operation"
 # REDUCE-DAG: "value": "runtime_scalar_cmp_masked_standalone_reduce_add"
 # REDUCE-DAG: "key": "rvv_selected_body_typed_compute_op"
-# REDUCE-DAG: "value": "tcrv_rvv.masked_standalone_reduce"
-# REDUCE-DAG: "typed_compute_op": "tcrv_rvv.masked_standalone_reduce"
+# REDUCE-DAG: "value": "weft_rvv.masked_standalone_reduce"
+# REDUCE-DAG: "typed_compute_op": "weft_rvv.masked_standalone_reduce"
 # REDUCE-DAG: "memory_form": "runtime-scalar-computed-mask-unit-stride-standalone-reduction"
-# REDUCE-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# REDUCE-DAG: "key": "weft_rvv.runtime_abi_order"
 # REDUCE-DAG: "value": "cmp_lhs,rhs_scalar,src,acc,out,n"
-# REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# REDUCE-DAG: "key": "weft_rvv.route_operand_binding_plan"
 # REDUCE-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1"
-# REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# REDUCE-DAG: "key": "weft_rvv.route_operand_binding_operands"
 # REDUCE-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
-# REDUCE-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# REDUCE-DAG: "key": "weft_rvv.provider_supported_mirror"
 # REDUCE-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
-# REDUCE-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# REDUCE-DAG: "key": "weft_rvv.target_leaf_profile"
 # REDUCE-DAG: "value": "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
-# REDUCE-DAG: "key": "tcrv_rvv.required_header_declarations"
+# REDUCE-DAG: "key": "weft_rvv.required_header_declarations"
 # REDUCE-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
-# REDUCE-DAG: "key": "tcrv_rvv.c_type_mapping"
+# REDUCE-DAG: "key": "weft_rvv.c_type_mapping"
 # REDUCE-DAG: "value": "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"
-# REDUCE-DAG: "key": "tcrv_rvv.compare_predicate_kind"
+# REDUCE-DAG: "key": "weft_rvv.compare_predicate_kind"
 # REDUCE-DAG: "value": "sle"
-# REDUCE-DAG: "key": "tcrv_rvv.mask_role"
+# REDUCE-DAG: "key": "weft_rvv.mask_role"
 # REDUCE-DAG: "value": "predicate-mask-produced-by-compare"
-# REDUCE-DAG: "key": "tcrv_rvv.mask_source"
+# REDUCE-DAG: "key": "weft_rvv.mask_source"
 # REDUCE-DAG: "value": "compare-produced-mask-same-vl-scope"
-# REDUCE-DAG: "key": "tcrv_rvv.mask_memory_form"
+# REDUCE-DAG: "key": "weft_rvv.mask_memory_form"
 # REDUCE-DAG: "value": "compare-produced-mask"
-# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_type"
-# REDUCE-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
-# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_c_type"
+# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_source_vector_type"
+# REDUCE-DAG: "value": "!weft_rvv.vector<i32, \"m1\">"
+# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_source_vector_c_type"
 # REDUCE-DAG: "value": "vint32m1_t"
-# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_c_type"
+# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_scalar_c_type"
 # REDUCE-DAG: "value": "int32_t"
-# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
-# REDUCE-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
-# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_scalar_result_vector_type"
+# REDUCE-DAG: "value": "!weft_rvv.vector<i32, \"m1\">"
+# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_scalar_result_vector_c_type"
 # REDUCE-DAG: "value": "vint32m1_t"
-# REDUCE-DAG: "key": "tcrv_rvv.reduction_accumulator_layout"
+# REDUCE-DAG: "key": "weft_rvv.reduction_accumulator_layout"
 # REDUCE-DAG: "value": "scalar-i32-seed-lane0-from-accumulator-input"
-# REDUCE-DAG: "key": "tcrv_rvv.reduction_result_layout"
+# REDUCE-DAG: "key": "weft_rvv.reduction_result_layout"
 # REDUCE-DAG: "value": "store-standalone-reduction-lane0-to-output-scalar"
-# REDUCE-DAG: "key": "tcrv_rvv.reduction_store_vl"
+# REDUCE-DAG: "key": "weft_rvv.reduction_store_vl"
 # REDUCE-DAG: "value": "1"
-# REDUCE-DAG: "key": "tcrv_rvv.vector_load_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.vector_load_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vle32_v_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.source_splat_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.source_splat_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vmv_v_x_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.scalar_seed_splat_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.scalar_seed_splat_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vmv_v_x_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.reduction_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.reduction_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vredsum_vs_i32m1_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.scalar_result_store_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.scalar_result_store_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vse32_v_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.rhs_broadcast_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.rhs_broadcast_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vmv_v_x_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.compare_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.compare_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vmsle_vv_i32m1_b32"
-# REDUCE-DAG: "key": "tcrv_rvv.masked_merge_intrinsic"
+# REDUCE-DAG: "key": "weft_rvv.masked_merge_intrinsic"
 # REDUCE-DAG: "value": "__riscv_vmerge_vvm_i32m1"
-# REDUCE-DAG: "key": "tcrv_rvv.accumulation_route_family_plan"
+# REDUCE-DAG: "key": "weft_rvv.accumulation_route_family_plan"
 # REDUCE-DAG: "value": "rvv-computed-mask-accumulation-route-family-plan.v1"
-# REDUCE-DAG: "key": "tcrv_rvv.accumulation_compute_suffix"
+# REDUCE-DAG: "key": "weft_rvv.accumulation_compute_suffix"
 # REDUCE-DAG: "value": "scalar-horizontal-masked-standalone-reduction"
-# REDUCE-DAG: "key": "tcrv_rvv.accumulation_mask_producer_source"
+# REDUCE-DAG: "key": "weft_rvv.accumulation_mask_producer_source"
 # REDUCE-DAG: "value": "runtime-scalar-splat-compare-rhs"
-# REDUCE-DAG: "key": "tcrv_rvv.accumulation_accumulator_contract"
+# REDUCE-DAG: "key": "weft_rvv.accumulation_accumulator_contract"
 # REDUCE-DAG: "value": "scalar-seed-input-feeds-masked-horizontal-reduction"
-# REDUCE-DAG: "key": "tcrv_rvv.accumulation_result_contract"
+# REDUCE-DAG: "key": "weft_rvv.accumulation_result_contract"
 # REDUCE-DAG: "value": "scalar-horizontal-reduction-lane0-stored-to-output"
-# REDUCE-DAG: "key": "tcrv_rvv.accumulation_scalar_carry_contract"
+# REDUCE-DAG: "key": "weft_rvv.accumulation_scalar_carry_contract"
 # REDUCE-DAG: "value": "scalar-result-carries-across-runtime-vl-chunks"
-# REDUCE-DAG: "key": "tcrv_rvv.inactive_lane_zeroing_requirement"
+# REDUCE-DAG: "key": "weft_rvv.inactive_lane_zeroing_requirement"
 # REDUCE-DAG: "value": "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
-# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary"
+# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_scalar_result_runtime_boundary"
 # REDUCE-DAG: "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
 # REDUCE-DAG: "mask_tail_policy_boundary": {
-# REDUCE-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar mask/reduction body/config/runtime facts"
+# REDUCE-DAG: "authority": "provider-derived typed weft_rvv runtime-scalar mask/reduction body/config/runtime facts"
 # REDUCE-DAG: "selected_mask_abi": {
-# REDUCE-DAG: "producer": "tcrv_rvv.compare"
+# REDUCE-DAG: "producer": "weft_rvv.compare"
 # REDUCE-DAG: "runtime_scalar_operand": "rhs_scalar"
-# REDUCE-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# REDUCE-DAG: "runtime_scalar_realization_op": "weft_rvv.splat"
 # REDUCE-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
 # REDUCE-DAG: "inactive_lane_contract": "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
 # REDUCE-DAG: "all_inactive_mask_behavior": "all compare-false lanes are replaced with the operation neutral element before reduction, so out[0] remains the seed"
 # REDUCE-DAG: "active_lane_contract": "runtime scalar compare-true source lanes contribute to the scalar add reduction"
 # REDUCE-DAG: "masked_source_vector"
 # REDUCE-DAG: "reduction_accumulation_boundary": {
-# REDUCE-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask standalone reduction body/config/runtime facts"
+# REDUCE-DAG: "authority": "provider-derived typed weft_rvv runtime-scalar computed-mask standalone reduction body/config/runtime facts"
 # REDUCE-DAG: "reduction_kind": "add"
 # REDUCE-DAG: "runtime_scalar_operand": "rhs_scalar"
-# REDUCE-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# REDUCE-DAG: "runtime_scalar_realization_op": "weft_rvv.splat"
 # REDUCE-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
 # REDUCE-DAG: "scalar_result_runtime_boundary": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
 # REDUCE-DAG: "selected_source_abi": {
@@ -155,20 +155,20 @@
 # REDUCEM2-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2"
 # REDUCEM2-DAG: "input_mode": "pre-realized-selected-body"
 # REDUCEM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-lmul-m2.mlir"
-# REDUCEM2-DAG: "prototype": "void tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
-# REDUCEM2-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2"
+# REDUCEM2-DAG: "prototype": "void weft_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
+# REDUCEM2-DAG: "expected_function": "weft_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2"
 # REDUCEM2-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce_m2"
 # REDUCEM2-DAG: "route_entry_realization": false
 # REDUCEM2-DAG: "pre_realized_body_consumed": true
-# REDUCEM2-DAG: "key": "tcrv_rvv.config_contract"
+# REDUCEM2-DAG: "key": "weft_rvv.config_contract"
 # REDUCEM2-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
-# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_type"
-# REDUCEM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
-# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_c_type"
+# REDUCEM2-DAG: "key": "weft_rvv.standalone_reduction_source_vector_type"
+# REDUCEM2-DAG: "value": "!weft_rvv.vector<i32, \"m2\">"
+# REDUCEM2-DAG: "key": "weft_rvv.standalone_reduction_source_vector_c_type"
 # REDUCEM2-DAG: "value": "vint32m2_t"
-# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
-# REDUCEM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
-# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+# REDUCEM2-DAG: "key": "weft_rvv.standalone_reduction_scalar_result_vector_type"
+# REDUCEM2-DAG: "value": "!weft_rvv.vector<i32, \"m1\">"
+# REDUCEM2-DAG: "key": "weft_rvv.standalone_reduction_scalar_result_vector_c_type"
 # REDUCEM2-DAG: "value": "vint32m1_t"
 # REDUCEM2-DAG: "__riscv_vsetvl_e32m2"
 # REDUCEM2-DAG: "__riscv_vle32_v_i32m2"
@@ -193,7 +193,7 @@
 # HARNESS-DAG: tail_preserved
 # HARNESS-DAG: int32_t expected = seed;
 # HARNESS-DAG: expected = (int32_t)(expected + src[index]);
-# HARNESS-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESS-DAG: weft_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce(cmp_lhs, rhs_scalar, src, acc, out, n);
 # HARNESS-DAG: const size_t counts[] = {0, 1, 16, 23, 257};
 # HARNESS-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
 # HARNESS-DAG: const int patterns[] = {0, 1};
@@ -208,7 +208,7 @@
 # HARNESSM2-DAG: tail_preserved
 # HARNESSM2-DAG: int32_t expected = seed;
 # HARNESSM2-DAG: expected = (int32_t)(expected + src[index]);
-# HARNESSM2-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESSM2-DAG: weft_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(cmp_lhs, rhs_scalar, src, acc, out, n);
 # HARNESSM2-DAG: const size_t counts[] = {0, 1, 16, 23, 257};
 # HARNESSM2-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
 # HARNESSM2-DAG: const int patterns[] = {0, 1};

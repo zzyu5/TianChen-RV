@@ -1,62 +1,62 @@
-add_mlir_library(TianChenRVTemplateConstructionProtocol
+add_mlir_library(WeftTemplateConstructionProtocol
   TemplateConstructionProtocol.cpp
   TemplateVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVExecDialect
-  TianChenRVPluginConstructionProtocol
-  TianChenRVSupport
+  WeftExecDialect
+  WeftPluginConstructionProtocol
+  WeftSupport
   MLIRIR
   MLIRSupport
 )
 
-add_mlir_library(TianChenRVTemplateEmitCRouteProvider
+add_mlir_library(WeftTemplateEmitCRouteProvider
   TemplateEmitCRouteProvider.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTemplateConstructionProtocol
-  TianChenRVTemplateDialect
+  WeftConversionEmitC
+  WeftPlugin
+  WeftSupport
+  WeftTemplateConstructionProtocol
+  WeftTemplateDialect
   MLIRIR
   MLIRSupport
 )
 
-add_mlir_library(TianChenRVTemplateBackendEmitter
+add_mlir_library(WeftTemplateBackendEmitter
   TemplateBackendEmissionDriver.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVTemplateConstructionProtocol
-  TianChenRVSupport
-  TianChenRVTemplateDialect
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftTemplateConstructionProtocol
+  WeftSupport
+  WeftTemplateDialect
   MLIREmitCDialect
   MLIRIR
   MLIRSupport
   MLIRTransformUtils
 )
 
-add_mlir_library(TianChenRVTemplatePlugin
+add_mlir_library(WeftTemplatePlugin
   TemplateExtensionPlugin.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTemplateConstructionProtocol
-  TianChenRVTemplateDialect
-  TianChenRVTemplateEmitCRouteProvider
-  TianChenRVTemplateTarget
+  WeftConversionEmitC
+  WeftPlugin
+  WeftSupport
+  WeftTemplateConstructionProtocol
+  WeftTemplateDialect
+  WeftTemplateEmitCRouteProvider
+  WeftTemplateTarget
   MLIRIR
   MLIRSupport
 )

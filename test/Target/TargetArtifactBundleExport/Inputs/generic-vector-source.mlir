@@ -1,4 +1,4 @@
-// Generic source-only MLIR with no tcrv.exec.kernel. Used as input by the
+// Generic source-only MLIR with no weft.exec.kernel. Used as input by the
 // source-artifact bundle front-door tests to assert that a plain vector source
 // (lacking any selected execution plan) fails the generic source-artifact
 // front-door pipeline before any target artifact bundle is produced.

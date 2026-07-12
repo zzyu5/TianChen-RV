@@ -3,7 +3,7 @@
 
 This is Gate 4 evidence tooling for the bounded RVV production-kernel
 capability campaign. It reuses the generated-bundle ABI e2e path to build and
-verify the generated TianChen-RV RVV object/header, then builds a small external
+verify the generated Weft-RV RVV object/header, then builds a small external
 C harness that runs the generated artifact and a named scalar C reference
 baseline on the same ``ssh rvv`` target. The script records correctness-before-
 timing guards, target profile, compile flags, timing method, raw timing output,
@@ -353,7 +353,7 @@ DEQUANT_MEASUREMENT_HARNESS_TEMPLATE = r'''
 #define MEASURE_REPEATS $repeat_count
 #define MEASURE_ITERATIONS $measure_iterations
 
-static volatile double tcrv_measurement_sink = 0.0;
+static volatile double weft_measurement_sink = 0.0;
 
 static unsigned long long now_ns(void) {
   struct timespec ts;
@@ -543,7 +543,7 @@ static int run_case(size_t n, int pattern, float scale) {
     baseline_product_reduction_dequant_v1(lhs, rhs, acc, scale, baseline_out,
                                           n);
     $function_name(lhs, rhs, acc, scale, generated_out, n);
-    tcrv_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
+    weft_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
   }
 
   double best_baseline_per_iter = -1.0;
@@ -553,14 +553,14 @@ static int run_case(size_t n, int pattern, float scale) {
     for (int iter = 0; iter < MEASURE_ITERATIONS; ++iter) {
       baseline_product_reduction_dequant_v1(lhs, rhs, acc, scale, baseline_out,
                                             n);
-      tcrv_measurement_sink += (double)baseline_out[0];
+      weft_measurement_sink += (double)baseline_out[0];
     }
     unsigned long long baseline_ns = now_ns() - start;
 
     start = now_ns();
     for (int iter = 0; iter < MEASURE_ITERATIONS; ++iter) {
       $function_name(lhs, rhs, acc, scale, generated_out, n);
-      tcrv_measurement_sink += (double)generated_out[0];
+      weft_measurement_sink += (double)generated_out[0];
     }
     unsigned long long generated_ns = now_ns() - start;
 
@@ -642,7 +642,7 @@ int main(void) {
          "timing_method=$timing_method warmups=%d repeats=%d iterations=%d "
          "sink=%.9g\n",
          MEASURE_WARMUPS, MEASURE_REPEATS, MEASURE_ITERATIONS,
-         tcrv_measurement_sink);
+         weft_measurement_sink);
   return 0;
 }
 '''.lstrip()
@@ -660,7 +660,7 @@ PACKED_I4_DEQUANT_MEASUREMENT_HARNESS_TEMPLATE = r'''
 #define MEASURE_REPEATS $repeat_count
 #define MEASURE_ITERATIONS $measure_iterations
 
-static volatile double tcrv_measurement_sink = 0.0;
+static volatile double weft_measurement_sink = 0.0;
 
 static unsigned long long now_ns(void) {
   struct timespec ts;
@@ -912,7 +912,7 @@ static int run_case(size_t n, int pattern, float scale) {
     baseline_product_reduction_dequant_packed_i4_v1(lhs, rhs, acc, scale,
                                                     baseline_out, n);
     $function_name(lhs, rhs, acc, scale, generated_out, n);
-    tcrv_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
+    weft_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
   }
 
   double best_baseline_per_iter = -1.0;
@@ -922,14 +922,14 @@ static int run_case(size_t n, int pattern, float scale) {
     for (int iter = 0; iter < MEASURE_ITERATIONS; ++iter) {
       baseline_product_reduction_dequant_packed_i4_v1(lhs, rhs, acc, scale,
                                                       baseline_out, n);
-      tcrv_measurement_sink += (double)baseline_out[0];
+      weft_measurement_sink += (double)baseline_out[0];
     }
     unsigned long long baseline_ns = now_ns() - start;
 
     start = now_ns();
     for (int iter = 0; iter < MEASURE_ITERATIONS; ++iter) {
       $function_name(lhs, rhs, acc, scale, generated_out, n);
-      tcrv_measurement_sink += (double)generated_out[0];
+      weft_measurement_sink += (double)generated_out[0];
     }
     unsigned long long generated_ns = now_ns() - start;
 
@@ -1015,7 +1015,7 @@ int main(void) {
          "warmups=%d repeats=%d iterations=%d packed_i4_reference_oracle "
          "sink=%.9g\n",
          MEASURE_WARMUPS, MEASURE_REPEATS, MEASURE_ITERATIONS,
-         tcrv_measurement_sink);
+         weft_measurement_sink);
   return 0;
 }
 '''.lstrip()
@@ -1038,7 +1038,7 @@ struct BoundPair {
   float upper_bound;
 };
 
-static volatile double tcrv_measurement_sink = 0.0;
+static volatile double weft_measurement_sink = 0.0;
 
 static unsigned long long now_ns(void) {
   struct timespec ts;
@@ -1305,7 +1305,7 @@ static int run_case(size_t n, int pattern, float scale,
         baseline_out, n);
     $function_name(lhs, rhs, acc, scale, bounds.lower_bound,
                    bounds.upper_bound, generated_out, n);
-    tcrv_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
+    weft_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
   }
 
   double best_baseline_per_iter = -1.0;
@@ -1316,7 +1316,7 @@ static int run_case(size_t n, int pattern, float scale,
       baseline_product_reduction_dequant_clamp_packed_i4_v1(
           lhs, rhs, acc, scale, bounds.lower_bound, bounds.upper_bound,
           baseline_out, n);
-      tcrv_measurement_sink += (double)baseline_out[0];
+      weft_measurement_sink += (double)baseline_out[0];
     }
     unsigned long long baseline_ns = now_ns() - start;
 
@@ -1324,7 +1324,7 @@ static int run_case(size_t n, int pattern, float scale,
     for (int iter = 0; iter < MEASURE_ITERATIONS; ++iter) {
       $function_name(lhs, rhs, acc, scale, bounds.lower_bound,
                      bounds.upper_bound, generated_out, n);
-      tcrv_measurement_sink += (double)generated_out[0];
+      weft_measurement_sink += (double)generated_out[0];
     }
     unsigned long long generated_ns = now_ns() - start;
 
@@ -1434,7 +1434,7 @@ int main(void) {
          "timing_method=$timing_method warmups=%d repeats=%d iterations=%d "
          "packed_i4_reference_oracle sink=%.9g\n",
          MEASURE_WARMUPS, MEASURE_REPEATS, MEASURE_ITERATIONS,
-         tcrv_measurement_sink);
+         weft_measurement_sink);
   return 0;
 }
 '''.lstrip()
@@ -1457,7 +1457,7 @@ struct BoundPair {
   float upper_bound;
 };
 
-static volatile double tcrv_measurement_sink = 0.0;
+static volatile double weft_measurement_sink = 0.0;
 
 static unsigned long long now_ns(void) {
   struct timespec ts;
@@ -1666,7 +1666,7 @@ static int run_case(size_t n, int pattern, float scale,
         baseline_out, n);
     $function_name(lhs, rhs, acc, scale, bounds.lower_bound, bounds.upper_bound,
                    generated_out, n);
-    tcrv_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
+    weft_measurement_sink += (double)baseline_out[0] + (double)generated_out[0];
   }
 
   double best_baseline_per_iter = -1.0;
@@ -1677,7 +1677,7 @@ static int run_case(size_t n, int pattern, float scale,
       baseline_product_reduction_dequant_clamp_v1(
           lhs, rhs, acc, scale, bounds.lower_bound, bounds.upper_bound,
           baseline_out, n);
-      tcrv_measurement_sink += (double)baseline_out[0];
+      weft_measurement_sink += (double)baseline_out[0];
     }
     unsigned long long baseline_ns = now_ns() - start;
 
@@ -1685,7 +1685,7 @@ static int run_case(size_t n, int pattern, float scale,
     for (int iter = 0; iter < MEASURE_ITERATIONS; ++iter) {
       $function_name(lhs, rhs, acc, scale, bounds.lower_bound,
                      bounds.upper_bound, generated_out, n);
-      tcrv_measurement_sink += (double)generated_out[0];
+      weft_measurement_sink += (double)generated_out[0];
     }
     unsigned long long generated_ns = now_ns() - start;
 
@@ -1793,7 +1793,7 @@ int main(void) {
          "timing_method=$timing_method warmups=%d repeats=%d iterations=%d "
          "sink=%.9g\n",
          MEASURE_WARMUPS, MEASURE_REPEATS, MEASURE_ITERATIONS,
-         tcrv_measurement_sink);
+         weft_measurement_sink);
   return 0;
 }
 '''.lstrip()
@@ -2345,7 +2345,7 @@ def low_precision_resource_metadata_sources(
     ):
         for entry in record.get("artifact_metadata", []):
             key = str(entry.get("key", ""))
-            if not key.startswith("tcrv_rvv.low_precision_resource."):
+            if not key.startswith("weft_rvv.low_precision_resource."):
                 continue
             value = str(entry.get("value", ""))
             previous = target_artifact_metadata.get(key)
@@ -2394,7 +2394,7 @@ def low_precision_candidate_feedback_record(
         for _entry in _record.get("artifact_metadata", []):
             if (
                 str(_entry.get("key", ""))
-                == "tcrv_rvv.low_precision_primitive.source_lmul"
+                == "weft_rvv.low_precision_primitive.source_lmul"
             ):
                 bundle_primitive_source_lmul = str(_entry.get("value", ""))
     is_deferred_wide_candidate = (
@@ -2424,7 +2424,7 @@ def low_precision_candidate_feedback_record(
     )
 
     def resource_field(name: str) -> str:
-        route_key = f"tcrv_rvv.low_precision_resource.{name}"
+        route_key = f"weft_rvv.low_precision_resource.{name}"
         value = target_metadata.get(route_key)
         if value is None:
             value = route_metadata.get(route_key)
@@ -2470,7 +2470,7 @@ def low_precision_candidate_feedback_record(
     )
     expected_fields = {
         name: expected_resource_metadata[
-            f"tcrv_rvv.low_precision_resource.{name}"
+            f"weft_rvv.low_precision_resource.{name}"
         ]
         for name in stable_field_names
     }
@@ -2873,7 +2873,7 @@ def packed_i4_provider_feedback_tie_back(
     ):
         for entry in record.get("artifact_metadata", []):
             key = str(entry.get("key", ""))
-            if not key.startswith("tcrv_rvv.low_precision_resource."):
+            if not key.startswith("weft_rvv.low_precision_resource."):
                 continue
             value = str(entry.get("value", ""))
             previous = target_artifact_metadata.get(key)
@@ -2886,7 +2886,7 @@ def packed_i4_provider_feedback_tie_back(
             target_artifact_metadata[key] = value
 
     def resource_field(name: str) -> str:
-        route_key = f"tcrv_rvv.low_precision_resource.{name}"
+        route_key = f"weft_rvv.low_precision_resource.{name}"
         value = target_artifact_metadata.get(route_key)
         if value is None:
             value = route_metadata.get(route_key)
@@ -3004,7 +3004,7 @@ def packed_i4_provider_feedback_tie_back(
     )
     expected_fields = {
         name: expected_resource_metadata[
-            f"tcrv_rvv.low_precision_resource.{name}"
+            f"weft_rvv.low_precision_resource.{name}"
         ]
         for name in expected_field_names
     }
@@ -3147,8 +3147,8 @@ def generate_verified_bundle(
     artifact_dir: Path,
     expectation: abi.OpExpectation,
     config: MeasurementConfig,
-    tcrv_opt: str,
-    tcrv_translate: str,
+    weft_opt: str,
+    weft_translate: str,
     readobj: str | None,
 ) -> dict[str, Any]:
     generation_args = make_generation_args(
@@ -3159,8 +3159,8 @@ def generate_verified_bundle(
         run_id=run_id,
         artifact_dir=artifact_dir,
         expectation=expectation,
-        tcrv_opt=tcrv_opt,
-        tcrv_translate=tcrv_translate,
+        weft_opt=weft_opt,
+        weft_translate=weft_translate,
         readobj=readobj,
         runtime_counts=config.counts,
         rhs_scalar_values=list(abi.DEFAULT_RHS_SCALAR_VALUES),
@@ -3183,7 +3183,7 @@ def run_remote_measurement(
     compile_flags: list[str],
 ) -> dict[str, Any]:
     remote_dir = (
-        f"/tmp/tianchenrv_rvv_same_target_measure_"
+        f"/tmp/weft_rvv_same_target_measure_"
         f"{abi.safe_run_id(run_id)}_{expectation.kind}"
     )
     remote_object = f"{remote_dir}/{object_path.name}"
@@ -3475,8 +3475,8 @@ def run_one_measurement(
     expectation: abi.OpExpectation,
     candidate_label: str | None = None,
     config: MeasurementConfig,
-    tcrv_opt: str,
-    tcrv_translate: str,
+    weft_opt: str,
+    weft_translate: str,
     readobj: str | None,
 ) -> dict[str, Any]:
     generation_artifact_root = (
@@ -3512,8 +3512,8 @@ def run_one_measurement(
             artifact_dir=generation_artifact_root,
             expectation=expectation,
             config=config,
-            tcrv_opt=tcrv_opt,
-            tcrv_translate=tcrv_translate,
+            weft_opt=weft_opt,
+            weft_translate=weft_translate,
             readobj=readobj,
         )
         evidence["generated_bundle_generation"] = abi.root_op_result_summary(
@@ -3857,8 +3857,8 @@ def run_measurement(args: argparse.Namespace) -> int:
                 "ssh_evidence": not args.dry_run,
             }
 
-        tcrv_opt = abi.ensure_tool(args.tcrv_opt)
-        tcrv_translate = abi.ensure_tool(args.tcrv_translate)
+        weft_opt = abi.ensure_tool(args.weft_opt)
+        weft_translate = abi.ensure_tool(args.weft_translate)
         readobj = abi.ensure_tool(args.llvm_readobj) if args.llvm_readobj else None
 
         if candidate_inputs:
@@ -3892,8 +3892,8 @@ def run_measurement(args: argparse.Namespace) -> int:
                 expectation=expectation,
                 candidate_label=candidate.label if candidate else None,
                 config=config,
-                tcrv_opt=tcrv_opt,
-                tcrv_translate=tcrv_translate,
+                weft_opt=weft_opt,
+                weft_translate=weft_translate,
                 readobj=readobj,
             )
             evidence["op_results"][op_result_key] = result["op_summary"]
@@ -4664,132 +4664,132 @@ def run_self_test() -> int:
 
     for metadata_key, stale_value, expected_token in [
         (
-            "tcrv_rvv.low_precision_resource.planning_contract",
+            "weft_rvv.low_precision_resource.planning_contract",
             "metadata-derived-resource-planning-contract",
             "planning_contract",
         ),
         (
-            "tcrv_rvv.low_precision_resource.operand_form",
+            "weft_rvv.low_precision_resource.operand_form",
             "metadata-only-packed-form",
             "operand_form",
         ),
         (
-            "tcrv_rvv.low_precision_resource.source_signedness",
+            "weft_rvv.low_precision_resource.source_signedness",
             "unsigned",
             "source_signedness",
         ),
         (
-            "tcrv_rvv.low_precision_resource.storage_element_width",
+            "weft_rvv.low_precision_resource.storage_element_width",
             "16",
             "storage_element_width",
         ),
         (
-            "tcrv_rvv.low_precision_resource.effective_element_width",
+            "weft_rvv.low_precision_resource.effective_element_width",
             "8",
             "effective_element_width",
         ),
         (
-            "tcrv_rvv.low_precision_resource.packing_layout",
+            "weft_rvv.low_precision_resource.packing_layout",
             "metadata-only-packed-layout",
             "packing_layout",
         ),
         (
-            "tcrv_rvv.low_precision_resource.unpack_intent",
+            "weft_rvv.low_precision_resource.unpack_intent",
             "metadata-only-unpack-intent",
             "unpack_intent",
         ),
         (
-            "tcrv_rvv.low_precision_resource.vsetvl_region_count",
+            "weft_rvv.low_precision_resource.vsetvl_region_count",
             "3",
             "vsetvl_region_count",
         ),
         (
-            "tcrv_rvv.low_precision_resource.runtime_avl_source",
+            "weft_rvv.low_precision_resource.runtime_avl_source",
             "metadata-derived-avl",
             "runtime_avl_source",
         ),
         (
-            "tcrv_rvv.low_precision_resource.route_family_plan",
+            "weft_rvv.low_precision_resource.route_family_plan",
             "stale-route-family-plan.v1",
             "route_family_plan",
         ),
         (
-            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+            "weft_rvv.low_precision_resource.provider_supported_mirror",
             "provider_supported_mirror:stale",
             "provider_supported_mirror",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+            "weft_rvv.low_precision_resource.remediation_handoff_contract",
             "stale-remediation-handoff.v1",
             "remediation_handoff_contract",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+            "weft_rvv.low_precision_resource.remediation_measurement_evidence",
             "stale/remediation/same_target_measurement_evidence.json",
             "remediation_measurement_evidence",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_decision",
+            "weft_rvv.low_precision_resource.remediation_decision",
             "stale-remediation-decision",
             "remediation_decision",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_product_plan",
+            "weft_rvv.low_precision_resource.remediation_product_plan",
             "metadata-only-packed-i4-product-plan",
             "remediation_product_plan",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+            "weft_rvv.low_precision_resource.remediation_vl_plan",
             "metadata-only-packed-i4-vl-plan",
             "remediation_vl_plan",
         ),
         (
-            "tcrv_rvv.low_precision_resource.schedule_decision",
+            "weft_rvv.low_precision_resource.schedule_decision",
             "metadata-only-packed-i4-schedule-decision",
             "schedule_decision",
         ),
         (
-            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+            "weft_rvv.low_precision_resource.performance_maturity_outcome",
             RESULT_CLASSIFICATION_WIN,
             "performance_maturity_outcome",
         ),
         (
-            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+            "weft_rvv.low_precision_resource.performance_selection_eligible",
             "true",
             "performance_selection_eligible",
         ),
         (
-            "tcrv_rvv.low_precision_resource.dispatch_preference",
+            "weft_rvv.low_precision_resource.dispatch_preference",
             PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
             "dispatch_preference",
         ),
         (
-            "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+            "weft_rvv.low_precision_resource.performance_best_speedup_range",
             "2.000000..2.500000",
             "performance_best_speedup_range",
         ),
         (
-            "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+            "weft_rvv.low_precision_resource.primitive_reduction_intrinsic",
             "__riscv_vwredsum_vs_i32m1_i32m1",
             "primitive_reduction_intrinsic",
         ),
         (
-            "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+            "weft_rvv.low_precision_resource.primitive_chain_kind",
             "stale-primitive-chain-kind",
             "primitive_chain_kind",
         ),
         (
-            "tcrv_rvv.low_precision_resource.primitive_source_extension",
+            "weft_rvv.low_precision_resource.primitive_source_extension",
             "stale-primitive-source-extension",
             "primitive_source_extension",
         ),
         (
-            "tcrv_rvv.low_precision_resource.realization_decision",
+            "weft_rvv.low_precision_resource.realization_decision",
             "stale-realization-decision",
             "realization_decision",
         ),
         (
-            "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+            "weft_rvv.low_precision_resource.target_capability_legality_mirror",
             "stale-target-capability-legality",
             "target_capability_legality_mirror",
         ),
@@ -4799,19 +4799,19 @@ def run_self_test() -> int:
         )
     for metadata_key, expected_token in [
         (
-            "tcrv_rvv.low_precision_resource.route_family_plan",
+            "weft_rvv.low_precision_resource.route_family_plan",
             "route_family_plan",
         ),
         (
-            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+            "weft_rvv.low_precision_resource.provider_supported_mirror",
             "provider_supported_mirror",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+            "weft_rvv.low_precision_resource.remediation_handoff_contract",
             "remediation_handoff_contract",
         ),
         (
-            "tcrv_rvv.low_precision_resource.remediation_product_plan",
+            "weft_rvv.low_precision_resource.remediation_product_plan",
             "remediation_product_plan",
         ),
     ]:
@@ -4909,7 +4909,7 @@ def run_self_test() -> int:
 
     stale_candidate_metadata = dict(grouped_candidate_metadata)
     stale_candidate_metadata[
-        "tcrv_rvv.low_precision_resource.selected_candidate_index"
+        "weft_rvv.low_precision_resource.selected_candidate_index"
     ] = "3"
     expect_candidate_feedback_metadata_failure(
         generation_result={
@@ -4923,7 +4923,7 @@ def run_self_test() -> int:
 
     missing_candidate_metadata = dict(grouped_candidate_metadata)
     del missing_candidate_metadata[
-        "tcrv_rvv.low_precision_resource.candidate_count"
+        "weft_rvv.low_precision_resource.candidate_count"
     ]
     expect_candidate_feedback_metadata_failure(
         generation_result={
@@ -4948,7 +4948,7 @@ def run_self_test() -> int:
                                 "artifact_metadata": [
                                     {
                                         "key": (
-                                            "tcrv_rvv.low_precision_resource."
+                                            "weft_rvv.low_precision_resource."
                                             "selected_candidate_index"
                                         ),
                                         "value": "3",
@@ -4977,7 +4977,7 @@ def run_self_test() -> int:
                                 "artifact_metadata": [
                                     {
                                         "key": (
-                                            "tcrv_rvv.low_precision_resource."
+                                            "weft_rvv.low_precision_resource."
                                             "selected_candidate_index"
                                         ),
                                         "value": "2",
@@ -4988,7 +4988,7 @@ def run_self_test() -> int:
                                 "artifact_metadata": [
                                     {
                                         "key": (
-                                            "tcrv_rvv.low_precision_resource."
+                                            "weft_rvv.low_precision_resource."
                                             "selected_candidate_index"
                                         ),
                                         "value": "3",
@@ -5076,8 +5076,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "defaults to the bounded RVV clang flags"
         ),
     )
-    parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
-    parser.add_argument("--tcrv-translate", default="build/bin/tcrv-translate")
+    parser.add_argument("--weft-opt", default="build/bin/weft-opt")
+    parser.add_argument("--weft-translate", default="build/bin/weft-translate")
     parser.add_argument("--llvm-readobj", default=abi.default_readobj())
     parser.add_argument("--ssh-target", default=abi.DEFAULT_SSH_TARGET)
     parser.add_argument("--timeout", type=int, default=abi.DEFAULT_TIMEOUT_SECONDS)

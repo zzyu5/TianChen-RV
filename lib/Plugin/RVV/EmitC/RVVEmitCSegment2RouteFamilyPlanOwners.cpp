@@ -1,9 +1,9 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 
@@ -15,7 +15,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral
@@ -71,23 +71,23 @@ bool isSupportedPreRealizedArithmeticOpKind(llvm::StringRef opKind) {
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
-                                     tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+                                     weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.setvl");
   state.addOperands(nValue);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   return builder.create(state);
 }
 
-tcrv::rvv::WithVLOp createRealizedWithVL(
+weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
     VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
-    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
@@ -104,7 +104,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
                      builder.getStringAttr(
                          rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -112,20 +112,20 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
   mlir::Type elementType = builder.getIntegerType(sew);
-  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+  return weft::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
 mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
-  return tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
-                                  tcrv::rvv::getRVVLMULM1());
+  return weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+                                  weft::rvv::getRVVLMULM1());
 }
 
 mlir::Type getGenericMaskTypeForVector(mlir::OpBuilder &builder,
                                        mlir::Value vector) {
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(vector.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(vector.getType());
   if (!vectorType)
     return getStage1GenericMaskType(builder);
-  return tcrv::rvv::MaskType::get(builder.getContext(),
+  return weft::rvv::MaskType::get(builder.getContext(),
                                   vectorType.getElementType(),
                                   vectorType.getLmul());
 }
@@ -135,7 +135,7 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Value buffer, mlir::Value vl,
                                            std::int64_t sew,
                                            llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.load");
+  mlir::OperationState state(loc, "weft_rvv.load");
   state.addOperands({buffer, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -146,7 +146,7 @@ mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
                                             mlir::Value scalar, mlir::Value vl,
                                             std::int64_t sew,
                                             llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.splat");
+  mlir::OperationState state(loc, "weft_rvv.splat");
   state.addOperands({scalar, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -158,7 +158,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
                                               mlir::Value rhs,
                                               mlir::Value vl,
                                               llvm::StringRef kind) {
-  mlir::OperationState state(loc, "tcrv_rvv.compare");
+  mlir::OperationState state(loc, "weft_rvv.compare");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(kind));
   state.addTypes(getGenericMaskTypeForVector(builder, lhs));
@@ -168,7 +168,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.store");
+  mlir::OperationState state(loc, "weft_rvv.store");
   state.addOperands({out, value, vl});
   builder.create(state);
 }
@@ -181,7 +181,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericBinaryCompute(
         "pre-realized RVV selected-body realization supports only op_kind "
         "'add', 'sub', or 'mul'");
 
-  mlir::OperationState state(loc, "tcrv_rvv.binary");
+  mlir::OperationState state(loc, "weft_rvv.binary");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
   state.addTypes(lhs.getType());
@@ -194,7 +194,7 @@ mlir::Operation *createRealizedGenericMaskedSegment2Load(
     mlir::Value vl, std::int64_t segmentCount,
     llvm::StringRef sourceMemoryForm, llvm::StringRef field0Role,
     llvm::StringRef field1Role, llvm::StringRef inactiveLanePolicy) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_load");
+  mlir::OperationState state(loc, "weft_rvv.masked_segment2_load");
   state.addOperands({source, mask, passthrough0, passthrough1, vl});
   state.addAttribute("segment_count",
                      builder.getI64IntegerAttr(segmentCount));
@@ -214,7 +214,7 @@ mlir::Operation *createRealizedGenericMaskedSegment2Store(
     std::int64_t segmentCount, llvm::StringRef destinationMemoryForm,
     llvm::StringRef field0Role, llvm::StringRef field1Role,
     llvm::StringRef inactiveLanePolicy) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_store");
+  mlir::OperationState state(loc, "weft_rvv.masked_segment2_store");
   state.addOperands({destination, mask, field0, field1, vl});
   state.addAttribute("segment_count",
                      builder.getI64IntegerAttr(segmentCount));
@@ -389,15 +389,15 @@ bool isPreRealizedSegment2InterleaveField1Role(llvm::StringRef role) {
   return role == "segment-field1-input-buffer";
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedComputedMaskSegment2RuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " must be defined by explicit tcrv_rvv.runtime_abi_value");
+        " must be defined by explicit weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -413,15 +413,15 @@ requirePreRealizedComputedMaskSegment2RuntimeABIValue(
   return binding;
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedPlainSegment2RuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " must be defined by explicit tcrv_rvv.runtime_abi_value");
+        " must be defined by explicit weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -439,12 +439,12 @@ requirePreRealizedPlainSegment2RuntimeABIValue(
 
 template <typename BodyOpT>
 llvm::Error rejectMixedPreRealizedComputedMaskSegment2Body(
-    tcrv::exec::VariantOp variant, llvm::StringRef bodyDescription) {
+    weft::exec::VariantOp variant, llvm::StringRef bodyDescription) {
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp, BodyOpT>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp, BodyOpT>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -458,12 +458,12 @@ llvm::Error rejectMixedPreRealizedComputedMaskSegment2Body(
 
 template <typename BodyOpT>
 llvm::Error rejectMixedPreRealizedPlainSegment2Body(
-    tcrv::exec::VariantOp variant, llvm::StringRef bodyDescription) {
+    weft::exec::VariantOp variant, llvm::StringRef bodyDescription) {
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp, BodyOpT>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp, BodyOpT>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -476,7 +476,7 @@ llvm::Error rejectMixedPreRealizedPlainSegment2Body(
 }
 
 llvm::Error requireComputedMaskSegment2SelectedVariantRequires(
-    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+    weft::exec::VariantOp variant, llvm::StringRef context) {
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
     return makeRVVEmitCRouteProviderError(
@@ -486,7 +486,7 @@ llvm::Error requireComputedMaskSegment2SelectedVariantRequires(
 }
 
 llvm::Error requirePlainSegment2SelectedVariantRequires(
-    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+    weft::exec::VariantOp variant, llvm::StringRef context) {
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
     return makeRVVEmitCRouteProviderError(
@@ -824,8 +824,8 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask segment2 load realization requires a "
@@ -833,7 +833,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask segment2 load body must be a "
-        "direct child of the selected tcrv.exec.variant");
+        "direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskSegment2LoadOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -894,38 +894,38 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
         "pre-realized RVV selected computed-mask segment2 load body requires "
         "inactive_lane_policy 'preserve-passthrough-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask segment2 load body requires "
         "SEW32 LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask segment2 load body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask segment2 load compare lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask segment2 load compare rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask segment2 load source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field0 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getOut0(),
           "pre-realized RVV computed-mask segment2 load field0 output "
@@ -933,7 +933,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::SegmentField0OutputBuffer);
   if (!field0)
     return field0.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field1 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getOut1(),
           "pre-realized RVV computed-mask segment2 load field1 output "
@@ -941,7 +941,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::SegmentField1OutputBuffer);
   if (!field1)
     return field1.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask segment2 load runtime n/AVL operand",
@@ -951,7 +951,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskSegment2Body<
-              tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
               variant, "computed-mask segment2 load"))
     return error;
   return requireComputedMaskSegment2SelectedVariantRequires(
@@ -961,9 +961,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
         body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime-scalar computed-mask segment2 load realization "
@@ -972,7 +972,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
-        "body must be a direct child of the selected tcrv.exec.variant");
+        "body must be a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedRuntimeScalarComputedMaskSegment2LoadOpKind(
           body.getOpKind()))
@@ -1042,17 +1042,17 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
         "body requires inactive_lane_policy "
         "'preserve-passthrough-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
         "body requires SEW32 LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
         "body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime-scalar computed-mask segment2 load lhs "
@@ -1060,7 +1060,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime-scalar computed-mask segment2 load rhs "
@@ -1068,7 +1068,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getSource(),
           "pre-realized RVV runtime-scalar computed-mask segment2 load "
@@ -1076,7 +1076,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field0 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getOut0(),
           "pre-realized RVV runtime-scalar computed-mask segment2 load "
@@ -1084,7 +1084,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::SegmentField0OutputBuffer);
   if (!field0)
     return field0.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field1 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getOut1(),
           "pre-realized RVV runtime-scalar computed-mask segment2 load "
@@ -1092,7 +1092,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
           support::RuntimeABIParameterRole::SegmentField1OutputBuffer);
   if (!field1)
     return field1.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime-scalar computed-mask segment2 load "
@@ -1103,14 +1103,14 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
 
   auto rhsType = llvm::dyn_cast<mlir::IntegerType>(body.getRhsScalar().getType());
   if (!rhsType ||
-      rhsType.getWidth() != tcrv::rvv::getRVVFirstSliceSEWBits())
+      rhsType.getWidth() != weft::rvv::getRVVFirstSliceSEWBits())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
         "rhs scalar operand must be i32 before splat realization");
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskSegment2Body<
-              tcrv::rvv::
+              weft::rvv::
                   TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp>(
               variant, "runtime-scalar computed-mask segment2 load"))
     return error;
@@ -1120,8 +1120,8 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask segment2 store realization requires a "
@@ -1129,7 +1129,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask segment2 store body must be a "
-        "direct child of the selected tcrv.exec.variant");
+        "direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -1212,31 +1212,31 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
         "pre-realized RVV selected computed-mask segment2 store body requires "
         "inactive_lane_policy 'preserve-output-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask segment2 store body requires "
         "SEW32 LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask segment2 store body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask segment2 store compare lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask segment2 store compare rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field0 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getSrc0(),
           "pre-realized RVV computed-mask segment2 store field0 source "
@@ -1244,7 +1244,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::SegmentField0InputBuffer);
   if (!field0)
     return field0.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field1 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getSrc1(),
           "pre-realized RVV computed-mask segment2 store field1 source "
@@ -1252,7 +1252,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::SegmentField1InputBuffer);
   if (!field1)
     return field1.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getDst(),
           "pre-realized RVV computed-mask segment2 store interleaved "
@@ -1260,7 +1260,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask segment2 store runtime n/AVL "
@@ -1271,7 +1271,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskSegment2Body<
-              tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
               variant, "computed-mask segment2 store"))
     return error;
   return requireComputedMaskSegment2SelectedVariantRequires(
@@ -1281,9 +1281,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
         body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime-scalar computed-mask segment2 store realization "
@@ -1292,7 +1292,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 store "
-        "body must be a direct child of the selected tcrv.exec.variant");
+        "body must be a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedRuntimeScalarComputedMaskSegment2StoreOpKind(
           body.getOpKind()))
@@ -1365,17 +1365,17 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 store "
         "body requires inactive_lane_policy 'preserve-output-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 store "
         "body requires SEW32 LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 store "
         "body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime-scalar computed-mask segment2 store lhs "
@@ -1383,7 +1383,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime-scalar computed-mask segment2 store rhs "
@@ -1391,7 +1391,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field0 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getSrc0(),
           "pre-realized RVV runtime-scalar computed-mask segment2 store "
@@ -1399,7 +1399,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::SegmentField0InputBuffer);
   if (!field0)
     return field0.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field1 =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getSrc1(),
           "pre-realized RVV runtime-scalar computed-mask segment2 store "
@@ -1407,7 +1407,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::SegmentField1InputBuffer);
   if (!field1)
     return field1.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getDst(),
           "pre-realized RVV runtime-scalar computed-mask segment2 store "
@@ -1415,7 +1415,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
           support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskSegment2RuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime-scalar computed-mask segment2 store "
@@ -1426,7 +1426,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
 
   auto rhsType = llvm::dyn_cast<mlir::IntegerType>(body.getRhsScalar().getType());
   if (!rhsType ||
-      rhsType.getWidth() != tcrv::rvv::getRVVFirstSliceSEWBits())
+      rhsType.getWidth() != weft::rvv::getRVVFirstSliceSEWBits())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask segment2 store "
         "rhs scalar operand must be i32 before splat realization");
@@ -1442,7 +1442,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskSegment2Body<
-              tcrv::rvv::
+              weft::rvv::
                   TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp>(
               variant, "runtime-scalar computed-mask segment2 store"))
     return error;
@@ -1451,14 +1451,14 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
 }
 
 bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
-    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+    weft::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
   return body && isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind());
 }
 
 llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV segment2 deinterleave memory realization requires a "
@@ -1466,7 +1466,7 @@ llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected segment2 deinterleave memory body must be "
-        "a direct child of the selected tcrv.exec.variant");
+        "a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
           body.getOpKind()))
@@ -1507,35 +1507,35 @@ llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
         "pre-realized RVV selected segment2 deinterleave memory body "
         "currently supports only destination_memory_form 'unit-stride-store'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected segment2 deinterleave memory body requires "
         "SEW32 LMUL m1 data config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected segment2 deinterleave memory body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getSource(), "pre-realized RVV segment2 source operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field0 =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getOut0(), "pre-realized RVV segment2 field0 output operand",
           support::RuntimeABIParameterRole::SegmentField0OutputBuffer);
   if (!field0)
     return field0.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field1 =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getOut1(), "pre-realized RVV segment2 field1 output operand",
           support::RuntimeABIParameterRole::SegmentField1OutputBuffer);
   if (!field1)
     return field1.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getN(), "pre-realized RVV segment2 runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -1544,7 +1544,7 @@ llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedPlainSegment2Body<
-              tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
               variant, "segment2 deinterleave memory"))
     return error;
   return requirePlainSegment2SelectedVariantRequires(
@@ -1553,8 +1553,8 @@ llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
 
 llvm::Error validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV segment2 interleave memory realization requires a "
@@ -1562,7 +1562,7 @@ llvm::Error validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected segment2 interleave memory body must be "
-        "a direct child of the selected tcrv.exec.variant");
+        "a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedSegment2InterleaveMemoryMovementOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -1606,36 +1606,36 @@ llvm::Error validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
         "supports only destination_memory_form "
         "'segment2-interleaved-unit-stride-store'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected segment2 interleave memory body requires "
         "SEW32 LMUL m1 data config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected segment2 interleave memory body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field0 =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getSrc0(), "pre-realized RVV segment2 field0 source operand",
           support::RuntimeABIParameterRole::SegmentField0InputBuffer);
   if (!field0)
     return field0.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> field1 =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getSrc1(), "pre-realized RVV segment2 field1 source operand",
           support::RuntimeABIParameterRole::SegmentField1InputBuffer);
   if (!field1)
     return field1.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getDst(),
           "pre-realized RVV segment2 interleaved destination operand",
           support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedPlainSegment2RuntimeABIValue(
           body.getN(), "pre-realized RVV segment2 runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -1644,7 +1644,7 @@ llvm::Error validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedPlainSegment2Body<
-              tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
               variant, "segment2 interleave memory"))
     return error;
   return requirePlainSegment2SelectedVariantRequires(
@@ -1671,17 +1671,17 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlan(
   return deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(analysis);
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body) {
+    weft::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body) {
   if (llvm::Error error =
           validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(request,
                                                                      body))
     return std::move(error);
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   mlir::Location loc = body->getLoc();
@@ -1690,32 +1690,32 @@ realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
 
   std::int64_t sew = static_cast<std::int64_t>(body.getSew());
   llvm::StringRef lmul = body.getLmul();
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
                           body.getPolicy()));
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires, sew, lmul,
                            body.getPolicy());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto compareLhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+  auto compareLhsLoad = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getCompareLhs(),
                                 setvl.getVl(), sew, lmul));
-  auto compareRhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+  auto compareRhsLoad = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getCompareRhs(),
                                 setvl.getVl(), sew, lmul));
-  auto oldField0Load = llvm::cast<tcrv::rvv::LoadOp>(
+  auto oldField0Load = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getOut0(), setvl.getVl(),
                                 sew, lmul));
-  auto oldField1Load = llvm::cast<tcrv::rvv::LoadOp>(
+  auto oldField1Load = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getOut1(), setvl.getVl(),
                                 sew, lmul));
-  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+  auto compare = llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
                                    compareRhsLoad.getLoaded(),
                                    setvl.getVl(), body.getPredicateKind()));
-  auto maskedSegmentLoad = llvm::cast<tcrv::rvv::MaskedSegment2LoadOp>(
+  auto maskedSegmentLoad = llvm::cast<weft::rvv::MaskedSegment2LoadOp>(
       createRealizedGenericMaskedSegment2Load(
           builder, loc, body.getSource(), compare.getMask(),
           oldField0Load.getLoaded(), oldField1Load.getLoaded(),
@@ -1730,18 +1730,18 @@ realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
   return withVL;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
         body) {
   if (llvm::Error error =
           validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
               request, body))
     return std::move(error);
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   mlir::Location loc = body->getLoc();
@@ -1759,36 +1759,36 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, runtimeControlPlan->runtimeAVLValue,
                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
                           runtimeControlPlan->policy));
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires,
                            runtimeControlPlan->sew, runtimeControlPlan->lmul,
                            runtimeControlPlan->policy);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+  auto lhsLoad = llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
       builder, loc, body.getLhs(), setvl.getVl(), runtimeControlPlan->sew,
       runtimeControlPlan->lmul));
-  auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+  auto rhsSplat = llvm::cast<weft::rvv::SplatOp>(createRealizedGenericSplat(
       builder, loc, body.getRhsScalar(), setvl.getVl(),
       runtimeControlPlan->sew, runtimeControlPlan->lmul));
-  auto oldField0Load = llvm::cast<tcrv::rvv::LoadOp>(
+  auto oldField0Load = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getOut0(), setvl.getVl(),
                                 runtimeControlPlan->sew,
                                 runtimeControlPlan->lmul));
-  auto oldField1Load = llvm::cast<tcrv::rvv::LoadOp>(
+  auto oldField1Load = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getOut1(), setvl.getVl(),
                                 runtimeControlPlan->sew,
                                 runtimeControlPlan->lmul));
-  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+  auto compare = llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, lhsLoad.getLoaded(),
                                    rhsSplat.getBroadcast(), setvl.getVl(),
                                    body.getPredicateKind()));
-  auto maskedSegmentLoad = llvm::cast<tcrv::rvv::MaskedSegment2LoadOp>(
+  auto maskedSegmentLoad = llvm::cast<weft::rvv::MaskedSegment2LoadOp>(
       createRealizedGenericMaskedSegment2Load(
           builder, loc, body.getSource(), compare.getMask(),
           oldField0Load.getLoaded(), oldField1Load.getLoaded(),
@@ -1803,17 +1803,17 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
   return withVL;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+    weft::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
   if (llvm::Error error =
           validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(request,
                                                                       body))
     return std::move(error);
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   mlir::Location loc = body->getLoc();
@@ -1822,28 +1822,28 @@ realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
 
   std::int64_t sew = static_cast<std::int64_t>(body.getSew());
   llvm::StringRef lmul = body.getLmul();
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
                           body.getPolicy()));
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires, sew, lmul,
                            body.getPolicy());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto compareLhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+  auto compareLhsLoad = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getCompareLhs(),
                                 setvl.getVl(), sew, lmul));
-  auto compareRhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+  auto compareRhsLoad = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getCompareRhs(),
                                 setvl.getVl(), sew, lmul));
-  auto field0Load = llvm::cast<tcrv::rvv::LoadOp>(
+  auto field0Load = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getSrc0(), setvl.getVl(),
                                 sew, lmul));
-  auto field1Load = llvm::cast<tcrv::rvv::LoadOp>(
+  auto field1Load = llvm::cast<weft::rvv::LoadOp>(
       createRealizedGenericLoad(builder, loc, body.getSrc1(), setvl.getVl(),
                                 sew, lmul));
-  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+  auto compare = llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
                                    compareRhsLoad.getLoaded(),
                                    setvl.getVl(), body.getPredicateKind()));
@@ -1868,18 +1868,18 @@ realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
   return withVL;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
         body) {
   if (llvm::Error error =
           validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
               request, body))
     return std::move(error);
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   mlir::Location loc = body->getLoc();
@@ -1897,30 +1897,30 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, runtimeControlPlan->runtimeAVLValue,
                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
                           runtimeControlPlan->policy));
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires,
                            runtimeControlPlan->sew, runtimeControlPlan->lmul,
                            runtimeControlPlan->policy);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+  auto lhsLoad = llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
       builder, loc, body.getLhs(), setvl.getVl(), runtimeControlPlan->sew,
       runtimeControlPlan->lmul));
-  auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+  auto rhsSplat = llvm::cast<weft::rvv::SplatOp>(createRealizedGenericSplat(
       builder, loc, body.getRhsScalar(), setvl.getVl(),
       runtimeControlPlan->sew, runtimeControlPlan->lmul));
-  auto field0Load = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+  auto field0Load = llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
       builder, loc, body.getSrc0(), setvl.getVl(), runtimeControlPlan->sew,
       runtimeControlPlan->lmul));
-  auto field1Load = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+  auto field1Load = llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
       builder, loc, body.getSrc1(), setvl.getVl(), runtimeControlPlan->sew,
       runtimeControlPlan->lmul));
-  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+  auto compare = llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, lhsLoad.getLoaded(),
                                    rhsSplat.getBroadcast(), setvl.getVl(),
                                    body.getPredicateKind()));
@@ -1934,4 +1934,4 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
   return withVL;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

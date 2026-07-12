@@ -3,9 +3,9 @@
 // LAST literal block-dot format bucket flowing through production-export: FP4
 // weights with an E8M0 shared-exponent block scale. The front door's OWN
 // auto-constructed monolithic flat block-dot body flows through the COMPLETE
-// tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
-// --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target artifact
-// through tcrv-translate --tcrv-export-target-artifact.
+// weft-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
+// --weft-check-execution-plan-coherence) AND exports a real RISC-V target artifact
+// through weft-translate --weft-export-target-artifact.
 //
 // SAME generalized monolithic wiring (RVVMonolithicBlockDotFamily.h), NOT a new
 // mechanism: mxfp4 is a FLAT op, so it takes the flat route id
@@ -20,7 +20,7 @@
 // SCHEDULE STAMP: like the iq4_nl codebook sibling, the mxfp4 emitter requires a
 // stamped integer-core shape (the codebook gather anchor is a VLEN-capability fact),
 // so the front-door-constructed attr-less op is shaped by the EXISTING
-// --tcrv-rvv-materialize-schedule gearbox before lowering -- the same gearbox its
+// --weft-rvv-materialize-schedule gearbox before lowering -- the same gearbox its
 // CORE emit fixtures use. This is the honest per-op pipeline, not new wiring.
 //
 // BOTH MARCH ANCHORS (the emitter differs): the codebook gather FLIPS m1@VLEN128 ->
@@ -36,27 +36,27 @@
 // / NO perf claim -- coverage/wiring maturity only.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
-// REQUIRES: tianchenrv-local-rvv-object-clang
+// REQUIRES: weft-local-rvv-object-clang
 
 // FULL pipeline: front door auto-constructs the monolithic flat block-dot body, the
 // schedule gearbox stamps the integer-core shape (rv64gcv -> m1), the
-// tcrv-source-artifact-front-door-pipeline materializes the emission plan AND passes
-// --tcrv-check-execution-plan-coherence.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// weft-source-artifact-front-door-pipeline materializes the emission plan AND passes
+// --weft-check-execution-plan-coherence.
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
-// BYTE-EXACT @ VLEN128 (m1): --tcrv-materialize-emission-plans only APPENDS the
+// BYTE-EXACT @ VLEN128 (m1): --weft-materialize-emission-plans only APPENDS the
 // emission-plan diagnostic mirror; the block-dot body is untouched, so the
-// production-export EmitC is byte-for-byte the CORE --tcrv-rvv-lower-to-emitc emit.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv --tcrv-rvv-lower-to-emitc > %t.core.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
+// production-export EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 // RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
 
 // BYTE-EXACT @ VLEN256 (the mf2 FLIP): the SAME auto-constructed attr-less op stamps
 // mf2 at rv64gcv_zvl256b and lowers to a byte-different codebook core; the
 // emission-plan mirror is still byte-exact vs the CORE emit at THIS anchor.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc > %t.core256.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod256.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc > %t.core256.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod256.mlir
 // RUN: diff %t.core256.mlir %t.prod256.mlir
 // RUN: FileCheck %s --check-prefix=CORE256 < %t.core256.mlir
 
@@ -64,7 +64,7 @@
 // exports a real RISC-V RVV relocatable object through the registered peer object
 // exporter.
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -72,12 +72,12 @@
 // packages to a real RISC-V RVV relocatable object under the same registered
 // exporter and the same exported handoff symbol.
 // RUN: rm -f %t256.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t256.o
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t256.o
 // RUN: llvm-readobj -h %t256.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t256.o | FileCheck %s --check-prefix=SYMBOL
 
-module attributes {tcrv_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_mxfp4_q8_0_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_mxfp4_q8_0_kernel"} {
   func.func @source_mxfp4_q8_0_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
@@ -86,9 +86,9 @@ module attributes {tcrv_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_sourc
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the FLAT monolithic route id + object kind.
-// PLAN: tcrv.exec.kernel @ggml_vec_dot_mxfp4_q8_0_kernel
-// PLAN: tcrv_rvv.mxfp4_q8_0_block_dot
-// PLAN: tcrv.exec.diagnostic
+// PLAN: weft.exec.kernel @ggml_vec_dot_mxfp4_q8_0_kernel
+// PLAN: weft_rvv.mxfp4_q8_0_block_dot
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline), with the mxfp4
@@ -112,10 +112,10 @@ module attributes {tcrv_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_sourc
 // non-linear int8 kvalues_mxfp4 table via vrgather -- NOT a linear nibble-8 decode),
 // wrapped in the structured E8M0 -> fp32 HALF weight-scale reconstruction -- pinned
 // so a regression into an arithmetic decode or a wrong scale domain is caught.
-// CORE: emitc.func @tcrv_emitc_ggml_vec_dot_mxfp4_q8_0_kernel_rvv_mxfp4_q8_0_block_dot(
+// CORE: emitc.func @weft_emitc_ggml_vec_dot_mxfp4_q8_0_kernel_rvv_mxfp4_q8_0_block_dot(
 // The FP4 codebook emitted as a structured static const int8_t[16] decl
 // (kvalues_mxfp4 = 2*E2M1).
-// CORE: verbatim "static const int8_t tcrv_mxfp4_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};"
+// CORE: verbatim "static const int8_t weft_mxfp4_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};"
 // The codebook table broadcast-loaded ONCE (above the block loop), i8m1.
 // CORE: call_opaque "__riscv_vle8_v_i8m1"
 // The STRUCTURED E8M0 -> fp32 HALF weight scale (the FP4-class piece): cmp / mask /
@@ -152,8 +152,8 @@ module attributes {tcrv_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_sourc
 // mf2 register at VLEN256, VLMAX 16 = the ggml _vl256 shape) and the widened product
 // narrows one step to i16m1. The structured E8M0 half scale is UNCHANGED (it is
 // scalar, outside the vector core).
-// CORE256: emitc.func @tcrv_emitc_ggml_vec_dot_mxfp4_q8_0_kernel_rvv_mxfp4_q8_0_block_dot(
-// CORE256: verbatim "static const int8_t tcrv_mxfp4_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};"
+// CORE256: emitc.func @weft_emitc_ggml_vec_dot_mxfp4_q8_0_kernel_rvv_mxfp4_q8_0_block_dot(
+// CORE256: verbatim "static const int8_t weft_mxfp4_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};"
 // The codebook table broadcast-loaded at the mf2 anchor (16 entries fill a full mf2
 // register at VLEN256); the m1-form strip spellings must be ABSENT.
 // CORE256: call_opaque "__riscv_vle8_v_i8mf2"
@@ -185,6 +185,6 @@ module attributes {tcrv_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_sourc
 // OBJECT: Type: Relocatable
 
 // The exported function symbol is the kernel+variant handoff name -- the same name
-// the CORE EmitC emit carries (tcrv_emitc_<kernel>_<variant>), identical at both
+// the CORE EmitC emit carries (weft_emitc_<kernel>_<variant>), identical at both
 // anchors (the VLEN flip changes the body bytes, not the ABI symbol).
-// SYMBOL: Name: tcrv_emitc_ggml_vec_dot_mxfp4_q8_0_kernel_rvv_mxfp4_q8_0_block_dot
+// SYMBOL: Name: weft_emitc_ggml_vec_dot_mxfp4_q8_0_kernel_rvv_mxfp4_q8_0_block_dot

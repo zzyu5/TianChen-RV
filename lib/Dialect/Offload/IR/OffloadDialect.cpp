@@ -1,18 +1,18 @@
-#include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
+#include "Weft/Dialect/Offload/IR/OffloadDialect.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 
-using namespace tianchenrv::tcrv::offload;
+using namespace weft::offload;
 
-#include "TianChenRV/Dialect/Offload/IR/OffloadOpsDialect.cpp.inc"
+#include "Weft/Dialect/Offload/IR/OffloadOpsDialect.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "TianChenRV/Dialect/Offload/IR/OffloadOps.cpp.inc"
+#include "Weft/Dialect/Offload/IR/OffloadOps.cpp.inc"
 
 namespace {
 
@@ -116,7 +116,7 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   if (status.getValue() != kNoActiveRouteStatusValue)
     return emitOpError()
            << "status must be '" << kNoActiveRouteStatusValue
-           << "' because tcrv_offload.lowering_boundary has no active "
+           << "' because weft_offload.lowering_boundary has no active "
               "offload lowering route";
 
   auto handoffKind = op->getAttrOfType<mlir::StringAttr>(kHandoffKindAttrName);
@@ -156,40 +156,40 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
            << kRequiredCapabilitiesAttrName
            << "' containing capability symbol references";
 
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  auto kernel = op->getParentOfType<weft::exec::KernelOp>();
   if (!kernel)
     return emitOpError()
-           << "must be nested directly in a tcrv.exec.kernel";
+           << "must be nested directly in a weft.exec.kernel";
   if (op->getParentOp() != kernel.getOperation())
     return emitOpError()
-           << "must be a direct child of the enclosing tcrv.exec.kernel";
+           << "must be a direct child of the enclosing weft.exec.kernel";
 
   auto sourceKernel =
       op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
   if (sourceKernel.getValue() != kernel.getSymName())
     return emitOpError()
-           << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
+           << "source_kernel must match enclosing weft.exec.kernel symbol @"
            << kernel.getSymName();
 
   if (kernel.getBody().empty())
     return emitOpError()
-           << "requires enclosing tcrv.exec.kernel to have a body block";
+           << "requires enclosing weft.exec.kernel to have a body block";
 
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+  llvm::Expected<weft::support::TargetCapabilitySet>
       capabilitiesOrError =
-          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+          weft::support::TargetCapabilitySet::buildFromKernelChecked(
               kernel);
   if (!capabilitiesOrError) {
     std::string message = llvm::toString(capabilitiesOrError.takeError());
     return emitOpError() << message;
   }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
+  const weft::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
 
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
+  weft::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     if (auto variant =
-            llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
+            llvm::dyn_cast<weft::exec::VariantOp>(sibling)) {
       if (variant.getSymName() == selectedVariant.getValue()) {
         resolvedVariant = variant;
         break;
@@ -200,8 +200,8 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   if (!resolvedVariant)
     return emitOpError()
            << "selected_variant @" << selectedVariant.getValue()
-           << " must resolve to a direct sibling tcrv.exec.variant in the "
-              "enclosing tcrv.exec.kernel";
+           << " must resolve to a direct sibling weft.exec.variant in the "
+              "enclosing weft.exec.kernel";
 
   for (mlir::Attribute requiredCapability : requiredCapabilities) {
     auto symbolRef =
@@ -214,7 +214,7 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
     if (!capabilities.lookupBySymbolName(symbolRef.getValue()))
       return emitOpError()
              << "requires unknown capability @" << symbolRef.getValue()
-             << " in enclosing tcrv.exec.kernel";
+             << " in enclosing weft.exec.kernel";
   }
 
   auto variantRequires =
@@ -227,9 +227,9 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   return mlir::success();
 }
 
-void TCRVOffloadDialect::initialize() {
+void WEFTOffloadDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TianChenRV/Dialect/Offload/IR/OffloadOps.cpp.inc"
+#include "Weft/Dialect/Offload/IR/OffloadOps.cpp.inc"
       >();
 }

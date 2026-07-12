@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // The m1 flat-cohort rung: SAME offset-binary decode + asymmetric product
 // STRUCTURE at the SEW8 byte-anchor strip scope (i4m1 weight x i8m1 low/high
 // activation -> i16m2), sed-derived from the narrow mf4/mf2 integer-core anchor.
@@ -6,7 +6,7 @@
 // (i8mf4->i8m1, i16mf2->i16m2, e32m1->e8m1, vwredsum i16mf2->i16m2) -- byte-exact
 // structure. This exercises the packed_i4_offset_binary_x_i8_product verifier's
 // m1 rung ("offset-binary-i4m1-x-i8m1x2-to-i16m2") end to end (parse+verify+lower).
-// RUN: sed -e 's/sew = 32/sew = 8/g; s/"mf4"/"m1"/g; s/i16, "mf2"/i16, "m2"/g; s/offset-binary-i4mf4-x-i8mf4x2-to-i16mf2/offset-binary-i4m1-x-i8m1x2-to-i16m2/g' %s | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=M1
+// RUN: sed -e 's/sew = 32/sew = 8/g; s/"mf4"/"m1"/g; s/i16, "mf2"/i16, "m2"/g; s/offset-binary-i4mf4-x-i8mf4x2-to-i16mf2/offset-binary-i4m1-x-i8m1x2-to-i16m2/g' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M1
 
 // Stage 4 换心 — ASYMMETRIC offset-binary packed-i4 x plain-i8 product-reduce
 // (the integer core of ggml Q4_0 x Q8_0). The typed body loads the packed-i4
@@ -26,31 +26,31 @@
 // .trellis/tasks/.../artifacts/inc1-integer-core/.
 
 module {
-  tcrv.exec.kernel @rvv_q4_0_q8_0_integer_core_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_q4_0_q8_0_integer_core attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %w = tcrv_rvv.runtime_abi_value {c_name = "w", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %qlo = tcrv_rvv.runtime_abi_value {c_name = "qlo", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-low", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %qhi = tcrv_rvv.runtime_abi_value {c_name = "qhi", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-high", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_q4_0_q8_0_integer_core, sew = 32 : i64, source_kernel = "rvv_q4_0_q8_0_integer_core_kernel", status = "selected-lowering-boundary"} {
-        %w_vec = tcrv_rvv.load %w, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
-        %qlo_vec = tcrv_rvv.load %qlo, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
-        %qhi_vec = tcrv_rvv.load %qhi, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
-        %product = tcrv_rvv.packed_i4_offset_binary_x_i8_product %w_vec, %qlo_vec, %qhi_vec, %vl {kind = "signed_packed_i4_offset_binary_x_i8_product", product_relation = "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
-        %reduced = tcrv_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @rvv_q4_0_q8_0_integer_core_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @rvv_q4_0_q8_0_integer_core attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %w = weft_rvv.runtime_abi_value {c_name = "w", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %qlo = weft_rvv.runtime_abi_value {c_name = "qlo", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-low", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %qhi = weft_rvv.runtime_abi_value {c_name = "qhi", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q8-high", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %acc = weft_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "acc", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
+      %out = weft_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_q4_0_q8_0_integer_core, sew = 32 : i64, source_kernel = "rvv_q4_0_q8_0_integer_core_kernel", status = "selected-lowering-boundary"} {
+        %w_vec = weft_rvv.load %w, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "mf4">
+        %qlo_vec = weft_rvv.load %qlo, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "mf4">
+        %qhi_vec = weft_rvv.load %qhi, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "mf4">
+        %product = weft_rvv.packed_i4_offset_binary_x_i8_product %w_vec, %qlo_vec, %qhi_vec, %vl {kind = "signed_packed_i4_offset_binary_x_i8_product", product_relation = "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2"} : !weft_rvv.vector<i8, "mf4">, !weft_rvv.vector<i8, "mf4">, !weft_rvv.vector<i8, "mf4">, !weft_rvv.vl -> !weft_rvv.vector<i16, "mf2">
+        %reduced = weft_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !weft_rvv.vector<i16, "mf2">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        weft_rvv.store %out, %reduced, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_rvv_q4_0_q8_0_integer_core_kernel_rvv_q4_0_q8_0_integer_core(
+// CHECK: emitc.func @weft_emitc_rvv_q4_0_q8_0_integer_core_kernel_rvv_q4_0_q8_0_integer_core(
 // CHECK: call_opaque "__riscv_vsetvl_e32m1"
 // Pre-loop i32 seed: out[0] = acc[0].
 // CHECK: %[[ACCSCALAR:.*]] = load
@@ -83,7 +83,7 @@ module {
 // i16m2 asymmetric product, the byte-anchor i16m2->i32m1 vwredsum. Proves the
 // emitter emits the m1 rung purely from the operand/result types (no mf4/SEW32
 // assumption) -- the "emit supports m1" evidence for the verifier's m1 rung.
-// M1-LABEL: emitc.func @tcrv_emitc_rvv_q4_0_q8_0_integer_core_kernel_rvv_q4_0_q8_0_integer_core(
+// M1-LABEL: emitc.func @weft_emitc_rvv_q4_0_q8_0_integer_core_kernel_rvv_q4_0_q8_0_integer_core(
 // M1: call_opaque "__riscv_vsetvl_e8m1"
 // M1: %[[ACCSCALAR:.*]] = load
 // M1: call_opaque "__riscv_vmv_v_x_i32m1"(%[[ACCSCALAR]],

@@ -1,13 +1,13 @@
-add_mlir_dialect_library(TianChenRVScalarDialect
+add_mlir_dialect_library(WeftScalarDialect
   ScalarDialect.cpp
 
   DEPENDS
   MLIRScalarOpsIncGen
-  MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRWEFTEmitCLowerableOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftSupport
   MLIRIR
 )

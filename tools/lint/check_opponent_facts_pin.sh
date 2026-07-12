@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/lint/check_opponent_facts_pin.sh -- opponent-fact provenance <-> ggml-pin gate.
 #
-# The structured opponent facts the tcrv_rvv.quant_contraction op carries
+# The structured opponent facts the weft_rvv.quant_contraction op carries
 # (opponent_vlen_native_floor / block_dot_compute_heavy) are VALUES read off a
 # PINNED ggml tree. experiments/sealed/c1-cleanliness/opponent-facts-provenance/opponent-facts.pin.json
 # records the pin sha those fact values were verified against. This gate compares

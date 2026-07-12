@@ -1,6 +1,6 @@
 // END-TO-END production-export CLOSURE for the C4 (N=3 + ConstantTableLoad codebook)
 // front door: the front door's OWN auto-constructed codebook integer-core body now
-// flows through the FULL production-export pipeline (--tcrv-materialize-emission-plans)
+// flows through the FULL production-export pipeline (--weft-materialize-emission-plans)
 // and emits correct EmitC. This is the P1f payoff -- the FIRST N-operand route with a
 // non-linear LUT (ConstantTableLoad) source proven end-to-end, and the FIRST route
 // whose low-precision resource candidate is ASYMMETRIC-SIGNED (u8 gather-index source,
@@ -8,8 +8,8 @@
 //
 // WHY this is a distinct, load-bearing test (vs the front-door fixture
 // test/Transforms/RVV/rvv-codebook-gather-dot-source-front-door.mlir): that fixture
-// runs front-door --> --tcrv-rvv-lower-to-emitc DIRECTLY. This test inserts
-// --tcrv-materialize-emission-plans in the MIDDLE -- the production-export chain --
+// runs front-door --> --weft-rvv-lower-to-emitc DIRECTLY. This test inserts
+// --weft-materialize-emission-plans in the MIDDLE -- the production-export chain --
 // proving the codebook N=3+LUT route survives emission-plan materialization end-to-end
 // (the asymmetric codebook resource candidate + the codebook runtime-ABI list + the
 // codebook role-sequence spec are all exercised), not just the direct lower.
@@ -39,17 +39,17 @@
 
 // VLEN128 production-export: front door auto-constructs the body, materializes the
 // emission plan, lowers to EmitC. The codebook i8 gather anchor is m1.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 // VLEN256 production-export: the SAME generic source, capability tier rv64gcv_zvl256b.
 // The codebook gather FLIPS to the mf2 anchor (i16m1 product).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 
 // ===================== VLEN128 EMITTED C4 (N=3 + LUT) CHAIN @ m1 =============
 // The 6-arg EmitC signature: w = const UINT8_t* (the UNSIGNED gather index -- the one
 // arg that distinguishes C4 from the signed C3 offset-binary route), qlo / qhi =
 // const int8_t*, acc = const int32_t*, out = int32_t*, n = size_t.
-// EMITC: emitc.func @tcrv_emitc_rvv_codebook_gather_dot_i8_from_source_rvv_codebook_gather_dot_i8(
+// EMITC: emitc.func @weft_emitc_rvv_codebook_gather_dot_i8_from_source_rvv_codebook_gather_dot_i8(
 // EMITC-SAME: %arg0: !emitc.ptr<!emitc.opaque<"const uint8_t">>,
 // EMITC-SAME: %arg1: !emitc.ptr<!emitc.opaque<"const int8_t">>,
 // EMITC-SAME: %arg2: !emitc.ptr<!emitc.opaque<"const int8_t">>,
@@ -60,7 +60,7 @@
 // EMITC: call_opaque "__riscv_vsetvl_e32m1"
 // The structured kvalues table decl (the ConstantTableLoad source). A mutation of ANY
 // entry fails this line -- pinning the LUT contents.
-// EMITC: verbatim "static const int8_t tcrv_iq4_nl_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};"
+// EMITC: verbatim "static const int8_t weft_iq4_nl_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};"
 // The table broadcast-load into the values vreg (i8m1) the gather indexes.
 // EMITC: %[[VALUES:.*]] = call_opaque "__riscv_vle8_v_i8m1"
 // The three source loads: w (UNSIGNED u8m1) / qlo (i8m1) / qhi (i8m1).
@@ -89,10 +89,10 @@
 // ===================== VLEN256 EMITTED C4 CHAIN -- THE FLIP @ mf2 ============
 // The SAME 6-arg signature (UNSIGNED w), the SAME kvalues table, but the codebook gather
 // FLIPS to the mf2 anchor with an i16m1 product -- byte-different C from VLEN128.
-// EMITC256: emitc.func @tcrv_emitc_rvv_codebook_gather_dot_i8_from_source_rvv_codebook_gather_dot_i8(
+// EMITC256: emitc.func @weft_emitc_rvv_codebook_gather_dot_i8_from_source_rvv_codebook_gather_dot_i8(
 // EMITC256-SAME: %arg0: !emitc.ptr<!emitc.opaque<"const uint8_t">>,
 // EMITC256-SAME: %arg5: !emitc.opaque<"size_t">)
-// EMITC256: verbatim "static const int8_t tcrv_iq4_nl_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};"
+// EMITC256: verbatim "static const int8_t weft_iq4_nl_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};"
 // The table + source loads flip to mf2 -- NOT the m1 VLEN128 forms.
 // EMITC256: %[[VALUES2:.*]] = call_opaque "__riscv_vle8_v_i8mf2"
 // EMITC256-NOT: call_opaque "__riscv_vle8_v_i8m1"
@@ -117,7 +117,7 @@
 // EMITC256-NOT: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // EMITC256: return
 
-module attributes {tcrv_rvv.source_front_door = "bounded_codebook_gather_dot_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_codebook_gather_dot_source"} {
   func.func @source_codebook_dot(%weight: memref<?xi8>, %qlo: memref<?xi8>, %qhi: memref<?xi8>, %acc: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     return
   }

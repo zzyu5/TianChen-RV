@@ -14,10 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
 
-#include "TianChenRV/Conversion/EmitC/TunableScheduleOpInterface.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Conversion/EmitC/TunableScheduleOpInterface.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -32,7 +32,7 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 // q1_0's candidate space is a SINGLE knob (integer_core_lmul) over the two
 // whole-LMUL anchors {m2, m1}. There is no multi_block_factor / strip_elision
@@ -156,7 +156,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "q4_0")
     return makeBlockDotScheduleDescriptor(
         /*kernelKey=*/"q4_0",
-        /*attrPrefix=*/"tcrv_rvv.q4_0_schedule",
+        /*attrPrefix=*/"weft_rvv.q4_0_schedule",
         /*producerName=*/"rvv-q4-0-autotuner",
         /*measuredReason=*/
         "measured-fastest legal Q4_0 shape (on-board best-of-N; "
@@ -171,7 +171,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     RVVScheduleMaterializationDescriptor descriptor =
         makeBlockDotScheduleDescriptor(
             /*kernelKey=*/"q8_0",
-            /*attrPrefix=*/"tcrv_rvv.q8_0_schedule",
+            /*attrPrefix=*/"weft_rvv.q8_0_schedule",
             /*producerName=*/"rvv-q8-0-autotuner",
             /*measuredReason=*/
             "measured-fastest legal Q8_0 shape (on-board best-of-N; "
@@ -193,7 +193,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "q4_1")
     return makeBlockDotScheduleDescriptor(
         /*kernelKey=*/"q4_1",
-        /*attrPrefix=*/"tcrv_rvv.q4_1_schedule",
+        /*attrPrefix=*/"weft_rvv.q4_1_schedule",
         /*producerName=*/"rvv-q4-1-autotuner",
         /*measuredReason=*/
         "measured-fastest legal Q4_1 shape (on-board best-of-N; "
@@ -207,7 +207,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "q5_0")
     return makeBlockDotScheduleDescriptor(
         /*kernelKey=*/"q5_0",
-        /*attrPrefix=*/"tcrv_rvv.q5_0_schedule",
+        /*attrPrefix=*/"weft_rvv.q5_0_schedule",
         /*producerName=*/"rvv-q5-0-autotuner",
         /*measuredReason=*/
         "measured-fastest legal Q5_0 shape (on-board best-of-N; "
@@ -221,7 +221,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "q5_1")
     return makeBlockDotScheduleDescriptor(
         /*kernelKey=*/"q5_1",
-        /*attrPrefix=*/"tcrv_rvv.q5_1_schedule",
+        /*attrPrefix=*/"weft_rvv.q5_1_schedule",
         /*producerName=*/"rvv-q5-1-autotuner",
         /*measuredReason=*/
         "measured-fastest legal Q5_1 shape (on-board best-of-N; "
@@ -240,7 +240,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "q1_0") {
     RVVScheduleMaterializationDescriptor descriptor;
     descriptor.kernelKey = "q1_0";
-    descriptor.attrPrefix = "tcrv_rvv.q1_0_schedule";
+    descriptor.attrPrefix = "weft_rvv.q1_0_schedule";
     descriptor.producerName = "rvv-q1-0-autotuner";
     descriptor.measuredReason =
         "measured-fastest legal Q1_0 shape (on-board best-of-N; "
@@ -272,7 +272,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "tq2_0") {
     RVVScheduleMaterializationDescriptor descriptor;
     descriptor.kernelKey = "tq2_0";
-    descriptor.attrPrefix = "tcrv_rvv.tq2_0_schedule";
+    descriptor.attrPrefix = "weft_rvv.tq2_0_schedule";
     descriptor.producerName = "rvv-tq2-0-autotuner";
     descriptor.measuredReason =
         "measured-fastest legal TQ2_0 shape (on-board best-of-N; "
@@ -304,7 +304,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "tq1_0") {
     RVVScheduleMaterializationDescriptor descriptor;
     descriptor.kernelKey = "tq1_0";
-    descriptor.attrPrefix = "tcrv_rvv.tq1_0_schedule";
+    descriptor.attrPrefix = "weft_rvv.tq1_0_schedule";
     descriptor.producerName = "rvv-tq1-0-autotuner";
     descriptor.measuredReason =
         "measured-fastest legal TQ1_0 shape (on-board best-of-N; "
@@ -339,7 +339,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   if (kernelKey == "iq2_xxs") {
     RVVScheduleMaterializationDescriptor descriptor;
     descriptor.kernelKey = "iq2_xxs";
-    descriptor.attrPrefix = "tcrv_rvv.iq2_xxs_schedule";
+    descriptor.attrPrefix = "weft_rvv.iq2_xxs_schedule";
     descriptor.producerName = "rvv-iq2-xxs-autotuner";
     descriptor.measuredReason =
         "measured-fastest legal IQ2_XXS shape (on-board best-of-N; "
@@ -374,7 +374,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     RVVScheduleMaterializationDescriptor descriptor =
         makeBlockDotScheduleDescriptor(
             /*kernelKey=*/"iq4_nl",
-            /*attrPrefix=*/"tcrv_rvv.iq4_nl_schedule",
+            /*attrPrefix=*/"weft_rvv.iq4_nl_schedule",
             /*producerName=*/"rvv-iq4-nl-autotuner",
             /*measuredReason=*/
             "measured-fastest legal IQ4_NL shape (on-board best-of-N; "
@@ -393,7 +393,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     RVVScheduleMaterializationDescriptor descriptor =
         makeBlockDotScheduleDescriptor(
             /*kernelKey=*/"mxfp4",
-            /*attrPrefix=*/"tcrv_rvv.mxfp4_schedule",
+            /*attrPrefix=*/"weft_rvv.mxfp4_schedule",
             /*producerName=*/"rvv-mxfp4-autotuner",
             /*measuredReason=*/
             "measured-fastest legal MXFP4 shape (on-board best-of-N; "
@@ -414,7 +414,7 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     // at the struct default (true); only stampPeakLiveVregs is overridden.
     RVVScheduleMaterializationDescriptor descriptor;
     descriptor.kernelKey = "q4_0_q8_0_gemm";
-    descriptor.attrPrefix = "tcrv_rvv.q4_0_gemm_schedule";
+    descriptor.attrPrefix = "weft_rvv.q4_0_gemm_schedule";
     descriptor.producerName = "rvv-gemm-m-autotuner";
     descriptor.measuredReason =
         "measured-fastest GEMM M-block (on-board best-of-N; tuning-record-backed; "
@@ -532,4 +532,4 @@ void runRVVScheduleMaterializationViaInterface(
   }
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

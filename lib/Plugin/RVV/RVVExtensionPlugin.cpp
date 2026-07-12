@@ -1,27 +1,27 @@
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
-#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVReductionSourceFrontDoor.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
-#include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
-#include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVReductionSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
+#include "Weft/Support/RuntimeABI.h"
+#include "Weft/Target/RVV/RVVTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -40,17 +40,17 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVPluginVersion("0.1.0");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
-constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
+constexpr llvm::StringLiteral kRVVPolicyAttrName("weft_rvv.policy");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 
 // Capability-DERIVED vector-paradigm ranking cost (SEL-1 exec-level capability
@@ -62,7 +62,7 @@ constexpr double kRVVVectorBaseCost = 1.0;
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -72,7 +72,7 @@ bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
          request.getCapabilities().isCapabilityAvailableByID(kRVVCapabilityID);
 }
 
-bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
+bool variantContainsExplicitTypedRVVBody(weft::exec::VariantOp variant) {
   if (!variant || variant.getBody().empty())
     return false;
 
@@ -80,13 +80,13 @@ bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   variant.getBody().walk([&](mlir::Operation *op) {
     if (found || op == variant.getOperation())
       return;
-    if (op->getName().getDialectNamespace() == "tcrv_rvv")
+    if (op->getName().getDialectNamespace() == "weft_rvv")
       found = true;
   });
   return found;
 }
 
-llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
+llvm::Error requireExplicitTypedRVVBody(weft::exec::VariantOp variant) {
   if (variantContainsExplicitTypedRVVBody(variant))
     return llvm::Error::success();
   return makeRVVPluginError(
@@ -94,11 +94,11 @@ llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
       "extension-family body");
 }
 
-llvm::Error requireRVVSelectedVariant(tcrv::exec::VariantOp variant) {
+llvm::Error requireRVVSelectedVariant(weft::exec::VariantOp variant) {
   if (!variant)
     return makeRVVPluginError(
         "selected RVV lowering boundary requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue() != kRVVPluginName)
@@ -109,15 +109,15 @@ llvm::Error requireRVVSelectedVariant(tcrv::exec::VariantOp variant) {
 }
 
 bool isRVVGearboxProductReduceDequantConsumerScope(
-    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp candidate) {
+    weft::rvv::WithVLOp producerWithVL, weft::rvv::WithVLOp candidate) {
   if (!producerWithVL || !candidate || producerWithVL == candidate ||
       candidate.getVl() != producerWithVL.getVl() ||
       !producerWithVL->isProperAncestor(candidate.getOperation()))
     return false;
 
-  auto isHandoffConsumingDequantize = [&](tcrv::rvv::DequantizeOp dequantize) {
+  auto isHandoffConsumingDequantize = [&](weft::rvv::DequantizeOp dequantize) {
     auto handoff = dequantize.getSource()
-                       .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+                       .getDefiningOp<weft::rvv::GearboxCrossRegionHandoffOp>();
     return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
            dequantize->getParentOp() == candidate.getOperation() &&
            dequantize.getVl() == producerWithVL.getVl();
@@ -130,12 +130,12 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       mlir::Value current = worklist.pop_back_val();
       if (!seen.insert(current).second)
         continue;
-      if (auto dequantize = current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+      if (auto dequantize = current.getDefiningOp<weft::rvv::DequantizeOp>()) {
         if (isHandoffConsumingDequantize(dequantize))
           return true;
         continue;
       }
-      auto select = current.getDefiningOp<tcrv::rvv::SelectOp>();
+      auto select = current.getDefiningOp<weft::rvv::SelectOp>();
       if (!select || select->getParentOp() != candidate.getOperation() ||
           select.getVl() != producerWithVL.getVl())
         continue;
@@ -149,7 +149,7 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
   bool hasHandoffDequantize = false;
   bool hasStore = false;
   for (mlir::Operation &op : candidate.getBody().front()) {
-    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+    if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
       const bool usesGroupedLowPrecisionDecision =
           marker.getResourceDecision() ==
           rvv::kRVVLowPrecisionResourceGroupedRealizationDecision;
@@ -171,12 +171,12 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
           marker.getVl() == producerWithVL.getVl();
       continue;
     }
-    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+    if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op)) {
       if (isHandoffConsumingDequantize(dequantize))
         hasHandoffDequantize = true;
       continue;
     }
-    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+    if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
       if (store.getVl() == producerWithVL.getVl() &&
           valueUsesHandoffDequantize(store.getValue()))
         hasStore = true;
@@ -186,10 +186,10 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
   return hasRegionMarker && hasHandoffDequantize && hasStore;
 }
 
-bool hasDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
+bool hasDirectRVVGearboxCrossRegionHandoff(weft::rvv::WithVLOp withVL) {
   bool found = false;
   for (mlir::Operation &op : withVL.getBody().front()) {
-    if (llvm::isa<tcrv::rvv::GearboxCrossRegionHandoffOp>(op)) {
+    if (llvm::isa<weft::rvv::GearboxCrossRegionHandoffOp>(op)) {
       if (found)
         return false;
       found = true;
@@ -198,33 +198,33 @@ bool hasDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
   return found;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp> findSelectedRVVGearboxProducerBoundary(
-    llvm::ArrayRef<tcrv::rvv::WithVLOp> withVLs) {
+llvm::Expected<weft::rvv::WithVLOp> findSelectedRVVGearboxProducerBoundary(
+    llvm::ArrayRef<weft::rvv::WithVLOp> withVLs) {
   if (withVLs.size() != 2)
     return makeRVVPluginError(
         "selected RVV typed lowering boundary requires exactly one "
-        "tcrv_rvv.with_vl op, or a bounded Gearbox producer/consumer "
+        "weft_rvv.with_vl op, or a bounded Gearbox producer/consumer "
         "two-with_vl body");
 
-  tcrv::rvv::WithVLOp producerWithVL;
-  for (tcrv::rvv::WithVLOp withVL : withVLs) {
+  weft::rvv::WithVLOp producerWithVL;
+  for (weft::rvv::WithVLOp withVL : withVLs) {
     if (!hasDirectRVVGearboxCrossRegionHandoff(withVL))
       continue;
     if (producerWithVL)
       return makeRVVPluginError(
           "selected RVV Gearbox typed lowering boundary requires a unique "
-          "producer tcrv_rvv.with_vl with a direct "
-          "tcrv_rvv.gearbox_cross_region_handoff");
+          "producer weft_rvv.with_vl with a direct "
+          "weft_rvv.gearbox_cross_region_handoff");
     producerWithVL = withVL;
   }
   if (!producerWithVL)
     return makeRVVPluginError(
         "selected RVV Gearbox typed lowering boundary requires a producer "
-        "tcrv_rvv.with_vl with a direct "
-        "tcrv_rvv.gearbox_cross_region_handoff");
+        "weft_rvv.with_vl with a direct "
+        "weft_rvv.gearbox_cross_region_handoff");
 
-  tcrv::rvv::WithVLOp consumerWithVL;
-  for (tcrv::rvv::WithVLOp withVL : withVLs) {
+  weft::rvv::WithVLOp consumerWithVL;
+  for (weft::rvv::WithVLOp withVL : withVLs) {
     if (withVL == producerWithVL)
       continue;
     if (isRVVGearboxProductReduceDequantConsumerScope(producerWithVL, withVL))
@@ -233,45 +233,45 @@ llvm::Expected<tcrv::rvv::WithVLOp> findSelectedRVVGearboxProducerBoundary(
   if (!consumerWithVL)
     return makeRVVPluginError(
         "selected RVV Gearbox typed lowering boundary requires a nested "
-        "consumer tcrv_rvv.with_vl with matching VL, dequant-store marker, "
+        "consumer weft_rvv.with_vl with matching VL, dequant-store marker, "
         "handoff-consuming dequantize, and store facts");
 
   return producerWithVL;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
-findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
+llvm::Expected<weft::rvv::WithVLOp>
+findSelectedRVVSelectedBodyBoundary(weft::exec::VariantOp variant) {
   if (!variant)
     return makeRVVPluginError(
         "selected RVV lowering boundary requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
-  llvm::SmallVector<tcrv::rvv::SetVLOp, 2> setvls;
-  llvm::SmallVector<tcrv::rvv::WithVLOp, 2> withVLs;
+  llvm::SmallVector<weft::rvv::SetVLOp, 2> setvls;
+  llvm::SmallVector<weft::rvv::WithVLOp, 2> withVLs;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (auto setvl = llvm::dyn_cast<tcrv::rvv::SetVLOp>(op))
+    if (auto setvl = llvm::dyn_cast<weft::rvv::SetVLOp>(op))
       setvls.push_back(setvl);
-    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
+    if (auto withVL = llvm::dyn_cast<weft::rvv::WithVLOp>(op))
       withVLs.push_back(withVL);
   });
 
   if (setvls.size() != 1)
     return makeRVVPluginError(
         "selected RVV typed lowering boundary requires exactly one "
-        "tcrv_rvv.setvl op");
-  tcrv::rvv::WithVLOp selectedWithVL;
+        "weft_rvv.setvl op");
+  weft::rvv::WithVLOp selectedWithVL;
   if (withVLs.size() == 1) {
     selectedWithVL = withVLs.front();
   } else {
-    llvm::Expected<tcrv::rvv::WithVLOp> gearboxProducer =
+    llvm::Expected<weft::rvv::WithVLOp> gearboxProducer =
         findSelectedRVVGearboxProducerBoundary(withVLs);
     if (!gearboxProducer)
       return gearboxProducer.takeError();
     selectedWithVL = *gearboxProducer;
   }
 
-  tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
-      tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(setvls.front(),
+  weft::rvv::RVVConfigContractDiagnostic configDiagnostic =
+      weft::rvv::validateRVVSelectedBodyConfigVLStructure(setvls.front(),
                                                           selectedWithVL);
   if (!configDiagnostic.ok)
     return makeRVVPluginError(configDiagnostic.message);
@@ -279,10 +279,10 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
   return selectedWithVL;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
     const VariantLoweringBoundaryRequest &request) {
-  llvm::Expected<tcrv::rvv::WithVLOp> boundary =
+  llvm::Expected<weft::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
   std::optional<rvv::RVVPreRealizedSelectedBodyMatch> preRealizedBody =
       rvv::findFirstPreRealizedRVVSelectedBodyMatch(request.getVariant());
@@ -313,8 +313,8 @@ requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
 }
 
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
-    VariantEmissionRole role, tcrv::rvv::WithVLOp boundary) {
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
+    VariantEmissionRole role, weft::rvv::WithVLOp boundary) {
   auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!variantRequires || variantRequires.empty())
     return makeRVVPluginError(
@@ -345,15 +345,15 @@ llvm::Error verifySelectedRVVLoweringBoundaryConformance(
 
 llvm::Error validateSelectedRVVSelectedBodyBoundary(
     const VariantLoweringBoundaryValidationRequest &request) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeRVVPluginError(
         "selected RVV lowering-boundary validation requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
   if (!request.getKernel())
     return makeRVVPluginError(
         "selected RVV lowering-boundary validation requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   if (llvm::Error error = requireRVVSelectedVariant(variant))
     return error;
@@ -365,20 +365,20 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
     return targetCapabilityFacts.takeError();
 
   auto boundary =
-      llvm::dyn_cast_if_present<tcrv::rvv::WithVLOp>(request.getBoundary());
+      llvm::dyn_cast_if_present<weft::rvv::WithVLOp>(request.getBoundary());
   if (!boundary)
     return makeRVVPluginError(
         "selected RVV typed lowering boundary must be the existing "
-        "tcrv_rvv.with_vl operation");
+        "weft_rvv.with_vl operation");
 
-  llvm::Expected<tcrv::rvv::WithVLOp> expectedBoundary =
+  llvm::Expected<weft::rvv::WithVLOp> expectedBoundary =
       findSelectedRVVSelectedBodyBoundary(variant);
   if (!expectedBoundary)
     return expectedBoundary.takeError();
   if (expectedBoundary->getOperation() != boundary.getOperation())
     return makeRVVPluginError(
         "selected RVV typed lowering boundary must be the unique "
-        "tcrv_rvv.with_vl operation in the selected variant body");
+        "weft_rvv.with_vl operation in the selected variant body");
   if (llvm::Error error = verifySelectedRVVLoweringBoundaryConformance(
           request.getKernel(), variant, request.getRole(), boundary))
     return error;
@@ -416,13 +416,13 @@ namespace {
 // Unlike the decomposed contraction/elementwise/memory routes (whose selected
 // with_vl body is a straight-line of generic typed micro-ops the RVV route-slice
 // analysis walks), a monolithic ggml block-dot body is ONE plugin-local typed op
-// (tcrv_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
+// (weft_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
 // ...) that carries the whole block dot as first-class STRUCTURE and lowers
 // DIRECTLY through the RVV->EmitC DialectConversion. There is no decomposed route
 // slice to describe, so the slice-based describeRVVSelectedBodyEmitCRoute rejects
 // it fail-closed. This is the "proven-decomposable but not wired to production"
-// gap (README): the CORE emit (--tcrv-rvv-lower-to-emitc) already works, but the
-// production-export chain's --tcrv-materialize-emission-plans step could not build
+// gap (README): the CORE emit (--weft-rvv-lower-to-emitc) already works, but the
+// production-export chain's --weft-materialize-emission-plans step could not build
 // a plan.
 //
 // The honest fix is a peer, monolithic-body emission plan: the plan says exactly
@@ -440,14 +440,14 @@ namespace {
 // predicate, not any one op type, and reads its per-op data from that table.
 
 // Build the honest runtime-ABI parameter list from the selected variant's
-// tcrv_rvv.runtime_abi_value bindings (the ggml vec_dot ABI: n/s/vx/vy for the
+// weft_rvv.runtime_abi_value bindings (the ggml vec_dot ABI: n/s/vx/vy for the
 // 4-role ops, n/s/bs/vx/bx/vy/by/nrc for the strided q4_0 op). Each binding
 // carries the role/c_name/c_type/ownership the coherence check validates.
 llvm::Error collectMonolithicBlockDotRuntimeABIParameters(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
   llvm::Error error = llvm::Error::success();
-  variant.getBody().walk([&](tcrv::rvv::RuntimeABIValueOp binding) {
+  variant.getBody().walk([&](weft::rvv::RuntimeABIValueOp binding) {
     if (error)
       return;
     std::optional<support::RuntimeABIParameterRole> role =
@@ -501,11 +501,11 @@ llvm::Error buildMonolithicBlockDotEmissionPlan(
   llvm::StringRef kindValue;
   llvm::StringRef scaleModelValue;
   llvm::StringRef bodyName = blockDot->getName().getStringRef();
-  if (bodyName == tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName() ||
+  if (bodyName == weft::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName() ||
       bodyName ==
-          tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName() ||
-      bodyName == tcrv::rvv::TypedRepackGemvLoopBodyOp::getOperationName() ||
-      bodyName == tcrv::rvv::TypedRepackGemmLoopBodyOp::getOperationName()) {
+          weft::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName() ||
+      bodyName == weft::rvv::TypedRepackGemvLoopBodyOp::getOperationName() ||
+      bodyName == weft::rvv::TypedRepackGemmLoopBodyOp::getOperationName()) {
     // The generic typed flat/super-block loop bodies carry the generic loop kind
     // ("typed_*_block_dot_loop_body") and NO scale_model attr; the repacked
     // GEVM/GEMM loop bodies carry the generic loop kind + a DYNAMIC scale_model. In
@@ -579,7 +579,7 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       kRVVCapabilityID, kRVVCapabilityKind,
       "RVV first-slice vector ISA capability participation; target "
-      "availability is supplied by tcrv.exec.capability metadata"));
+      "availability is supplied by weft.exec.capability metadata"));
 }
 
 llvm::StringRef RVVExtensionPlugin::getName() const { return kRVVPluginName; }
@@ -594,7 +594,7 @@ llvm::ArrayRef<PluginCapability> RVVExtensionPlugin::getCapabilities() const {
 
 void RVVExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::rvv::TCRVRVVDialect>();
+  registry.insert<weft::rvv::WEFTRVVDialect>();
 }
 
 llvm::Error
@@ -654,7 +654,7 @@ llvm::Error RVVExtensionPlugin::collectVariantProposals(
 
   out.addRecoverableDecline(
       kRVVPluginName,
-      "RVV proposal requires explicit typed tcrv_rvv extension-family IR "
+      "RVV proposal requires explicit typed weft_rvv extension-family IR "
       "before selecting an RVV variant");
   return llvm::Error::success();
 }
@@ -667,10 +667,10 @@ RVVExtensionPlugin::buildTargetCapabilitiesFromProbeFacts(
 
 llvm::Error RVVExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeRVVPluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue() != kRVVPluginName)
@@ -691,7 +691,7 @@ RVVExtensionPlugin::estimateVariantCost(const VariantCostRequest &request,
                                         VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeRVVPluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
   if (llvm::Error error = requireExplicitTypedRVVBody(request.getVariant()))
     return error;
 
@@ -725,10 +725,10 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeRVVPluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeRVVPluginError(
-        "emission readiness requires an enclosing tcrv.exec.kernel");
+        "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -739,7 +739,7 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return llvm::Error::success();
   }
 
-  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
+  llvm::Expected<weft::rvv::WithVLOp> selectedBoundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
   if (!selectedBoundary) {
     std::string diagnostic = llvm::toString(selectedBoundary.takeError());
@@ -780,11 +780,11 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeRVVPluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
 
   if (!request.getKernel())
     return makeRVVPluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -792,7 +792,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     return error;
 
   mlir::OpBuilder builder(request.getVariant().getContext());
-  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
+  llvm::Expected<weft::rvv::WithVLOp> selectedBoundary =
       requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
           VariantLoweringBoundaryRequest(
               request.getVariant(), request.getKernel(),
@@ -837,7 +837,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       getRVVSelectedBodyEmissionKind(), routeDescription->targetArtifactRouteID,
       runtimeABIName, routeDescription->targetArtifactKind,
       "RVV selected typed body route materializes a verified EmitC "
-      "module through the common TCRVEmitCLowerableRoute materializer, then "
+      "module through the common WEFTEmitCLowerableRoute materializer, then "
       "uses the MLIR EmitC C/C++ emitter before RISC-V object packaging");
   out.setRuntimeABIKind(getRVVSelectedBodyRuntimeABIKind());
   out.setRuntimeABIName(runtimeABIName);
@@ -868,18 +868,18 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   if (!request.getVariant())
     return makeRVVPluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
   if (!request.getKernel())
     return makeRVVPluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality))
     return error;
 
-  llvm::Expected<tcrv::rvv::WithVLOp> boundary =
+  llvm::Expected<weft::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
   if (!boundary) {
     llvm::Error boundaryError = boundary.takeError();
@@ -916,7 +916,7 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
-  bundle.addRequiredDialectName("tcrv_rvv");
+  bundle.addRequiredDialectName("weft_rvv");
   return target::rvv::configureRVVTargetSupportExtensionBundle(bundle);
 }
 
@@ -931,4 +931,4 @@ llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinRVVExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

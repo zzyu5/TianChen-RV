@@ -1,12 +1,12 @@
-#include "TianChenRV/Plugin/Toy/ToyBackendEmissionDriver.h"
+#include "Weft/Plugin/Toy/ToyBackendEmissionDriver.h"
 
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/Toy/IR/ToyDialect.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -19,16 +19,16 @@
 
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace plugin {
 namespace toy {
 
 namespace {
 
 namespace emitc = ::mlir::emitc;
-namespace tcrvemitc = ::tianchenrv::conversion::emitc;
+namespace weftemitc = ::weft::conversion::emitc;
 
-constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";
+constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 
 mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
                                      llvm::StringRef cType) {
@@ -44,7 +44,7 @@ mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.route_source_op=" << opName << " role=" << role
+  os << "// weft_emitc.route_source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -54,35 +54,35 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
                         llvm::StringRef callee) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface << " callee=" << callee;
   os.flush();
   return text;
 }
 
-/// Lowers a selected `tcrv_toy.compute_skeleton` boundary into a standalone
+/// Lowers a selected `weft_toy.compute_skeleton` boundary into a standalone
 /// top-level EmitC function, byte-equivalent to the route+materializer output:
 ///   #include <stddef.h>
 ///   #include <stdint.h>
-///   int32_t tcrv_toy_template_compute(size_t);
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(size_t toy_value_count) {
+///   int32_t weft_toy_template_compute(size_t);
+///   extern "C" void weft_emitc_<kernel>_<variant>(size_t toy_value_count) {
 ///     // route_source_op + source_op provenance comments
-///     int32_t toy_value = tcrv_toy_template_compute(toy_value_count);
+///     int32_t toy_value = weft_toy_template_compute(toy_value_count);
 ///   }
 class ToyComputeSkeletonToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::toy::ComputeSkeletonOp> {
+    : public mlir::OpConversionPattern<weft::toy::ComputeSkeletonOp> {
 public:
   using mlir::OpConversionPattern<
-      tcrv::toy::ComputeSkeletonOp>::OpConversionPattern;
+      weft::toy::ComputeSkeletonOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::toy::ComputeSkeletonOp compute, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::toy::ComputeSkeletonOp compute, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = compute.getContext();
     mlir::Location loc = compute.getLoc();
 
     // The exported function name is derived from the selected kernel+variant
-    // exactly as the export path does: tcrv_emitc_<kernel>_<variant>.
+    // exactly as the export path does: weft_emitc_<kernel>_<variant>.
     auto variant = compute->getAttrOfType<mlir::FlatSymbolRefAttr>(
         "selected_variant");
     auto sourceKernel =
@@ -92,7 +92,7 @@ public:
           compute, "compute_skeleton requires selected_variant and "
                    "source_kernel attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     // Plugin legality gate: the conversion's convert-set MUST equal the plugin
@@ -102,11 +102,11 @@ public:
     // emitted (I7). Decline so the legacy plugin route-build still owns the
     // fail-closed diagnostic. The Toy compute_skeleton boundary lives at kernel
     // scope; resolve the selected variant op by its symbol.
-    auto kernelOp = compute->getParentOfType<tcrv::exec::KernelOp>();
+    auto kernelOp = compute->getParentOfType<weft::exec::KernelOp>();
     if (!kernelOp)
       return rewriter.notifyMatchFailure(compute, "compute has no kernel");
-    tcrv::exec::VariantOp variantOp;
-    kernelOp.walk([&](tcrv::exec::VariantOp candidate) {
+    weft::exec::VariantOp variantOp;
+    kernelOp.walk([&](weft::exec::VariantOp candidate) {
       if (candidate.getSymName() == variant.getValue())
         variantOp = candidate;
     });
@@ -133,8 +133,8 @@ public:
         getToyTemplateRuntimeABIParameters();
 
     llvm::StringRef sourceOpName =
-        compute.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = compute.getTCRVEmitCLowerableSourceRole();
+        compute.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = compute.getWEFTEmitCLowerableSourceRole();
 
     auto module = compute->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -209,7 +209,7 @@ public:
 };
 
 class ToyBackendEmissionDriver final
-    : public tcrvemitc::TypedBackendEmissionDriver {
+    : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "toy"; }
 
@@ -220,10 +220,10 @@ public:
   }
 
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
-    // A tcrv_toy.compute_skeleton boundary is illegal and must be converted
+    // A weft_toy.compute_skeleton boundary is illegal and must be converted
     // into an emitc.func. Everything else stays legal so unconverted families
     // fall through unchanged.
-    target.addIllegalOp<tcrv::toy::ComputeSkeletonOp>();
+    target.addIllegalOp<weft::toy::ComputeSkeletonOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -240,7 +240,7 @@ public:
     bool hasToy = false;
     module.walk([&](mlir::Operation *op) {
       if (op->getName().getDialectNamespace() ==
-          tcrv::toy::TCRVToyDialect::getDialectNamespace()) {
+          weft::toy::WEFTToyDialect::getDialectNamespace()) {
         hasToy = true;
         return mlir::WalkResult::interrupt();
       }
@@ -252,7 +252,7 @@ public:
 
 llvm::LogicalResult
 ToyBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
-  // Once a function was produced, drop the now-emptied tcrv.exec scaffolding
+  // Once a function was produced, drop the now-emptied weft.exec scaffolding
   // (kernel/capability/diagnostics) and any leftover source ops so the module
   // is the clean, standalone EmitC-only shape the export handoff expects (a
   // leftover non-emitc top-level op makes the export handoff reject the module
@@ -276,7 +276,7 @@ ToyBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
 } // namespace
 
 void registerToyBackendEmitter(
-    tcrvemitc::BackendEmissionRegistry &registry) {
+    weftemitc::BackendEmissionRegistry &registry) {
   // Function-local static: owned by this translation unit, outlives the
   // registry, no global-init-order hazard.
   static const ToyBackendEmissionDriver driver;
@@ -285,4 +285,4 @@ void registerToyBackendEmitter(
 
 } // namespace toy
 } // namespace plugin
-} // namespace tianchenrv
+} // namespace weft

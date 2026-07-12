@@ -1,8 +1,8 @@
-// RUN: tcrv-opt %s --split-input-file --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --split-input-file --weft-rvv-lower-to-emitc | FileCheck %s
 
 // Track B q4_K BRICK 6 -- the q4_K/q5_K super-block DEFERRED fp32 POSITIVE fold
 // (sums += fp16(x.d) * y.d * (float)aux32), as a FIRST-CLASS generic op
-// (tcrv_rvv.q4_k_sums_fold_scale_d), auto-constructing the positive accumulation
+// (weft_rvv.q4_k_sums_fold_scale_d), auto-constructing the positive accumulation
 // instead of carrying it inside the monolithic q4_K block dot. ONE super-block:
 // NO nb = n/256 loop, NO plain 4-bit nibble unpack (BRICK 1), NO 6-bit scale/min
 // bit-dance (BRICK 2), NO scaled dot (BRICK 3), NO MIN term (BRICK 4), NO
@@ -20,23 +20,23 @@
 // read here -- BRICK 3 fused it into aux32.
 
 module {
-  tcrv.exec.kernel @q4_k_sums_fold_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @q4_k_sums_fold attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %aux32 = tcrv_rvv.runtime_abi_value {c_name = "aux32", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "q4-aux32", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @q4_k_sums_fold, sew = 32 : i64, source_kernel = "q4_k_sums_fold_kernel", status = "selected-lowering-boundary"} {
-        %fd = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %aux32, %vy, %vl {kind = "q4_k_sums_fold_scale_d", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, weight_d_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @q4_k_sums_fold_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @q4_k_sums_fold attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %aux32 = weft_rvv.runtime_abi_value {c_name = "aux32", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "q4-aux32", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @q4_k_sums_fold, sew = 32 : i64, source_kernel = "q4_k_sums_fold_kernel", status = "selected-lowering-boundary"} {
+        %fd = weft_rvv.q4_k_sums_fold_scale_d %vx, %aux32, %vy, %vl {kind = "q4_k_sums_fold_scale_d", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, weight_d_byte_offset = 0 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
-// CHECK-LABEL: emitc.func @tcrv_emitc_q4_k_sums_fold_kernel_q4_k_sums_fold(
+// CHECK-NOT: weft_rvv.
+// CHECK-LABEL: emitc.func @weft_emitc_q4_k_sums_fold_kernel_q4_k_sums_fold(
 // The op declares its OWN 8-lane fp32 sums accumulator, seeded by vfmv_v_f to
 // 0.0f, plus a function-scoped float sums_out[8] sink it stores into.
 // CHECK: %[[SUMS:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"vfloat32m2_t">>

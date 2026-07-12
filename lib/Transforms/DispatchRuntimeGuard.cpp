@@ -1,10 +1,10 @@
-#include "TianChenRV/Transforms/DispatchRuntimeGuard.h"
+#include "Weft/Transforms/DispatchRuntimeGuard.h"
 
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/DeclaredInstanceHash.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/DeclaredInstanceHash.h"
+#include "Weft/Support/RuntimeABIParam.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 
@@ -20,31 +20,31 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZEDISPATCHRUNTIMEGUARDS
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::RuntimeParamOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::KernelOp;
+using weft::exec::RuntimeParamOp;
+using weft::exec::VariantOp;
 
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kDeclaredInstanceHashAttrName(
     "declared_instance_hash");
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
+using weft::exec::diagnostic::kRuntimeGuardAttrName;
+using weft::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
 llvm::Error makeRuntimeGuardError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV dispatch runtime-guard materialization failed";
+  stream << "Weft-RV dispatch runtime-guard materialization failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -102,11 +102,11 @@ llvm::Error resolveDispatchCaseVariant(
     return makeRuntimeGuardError(
         kernel, llvm::Twine("dispatch case target @") + target.getValue() +
                     " resolves to a direct sibling symbol that is not a "
-                    "tcrv.exec.variant");
+                    "weft.exec.variant");
 
   return makeRuntimeGuardError(
       kernel, llvm::Twine("dispatch case target @") + target.getValue() +
-                  " does not resolve to a direct sibling tcrv.exec.variant");
+                  " does not resolve to a direct sibling weft.exec.variant");
 }
 
 bool hasRuntimeGuardRequirement(DispatchCaseOp dispatchCase) {
@@ -156,7 +156,7 @@ llvm::Error collectDispatchCasesNeedingRuntimeGuard(
     llvm::SmallVectorImpl<DispatchCaseOp> &out) {
   if (!dispatch || !hasDirectParent(dispatch.getOperation(), kernel))
     return makeRuntimeGuardError(
-        kernel, "requires tcrv.exec.dispatch to be a direct kernel child");
+        kernel, "requires weft.exec.dispatch to be a direct kernel child");
   if (dispatch.getBody().empty())
     return makeRuntimeGuardError(
         kernel, "selected dispatch requires a materialized body block");
@@ -283,7 +283,7 @@ public:
 llvm::Error materializeDispatchRuntimeGuards(KernelOp kernel,
                                              mlir::OpBuilder &builder) {
   if (!kernel)
-    return makeRuntimeGuardError(kernel, "requires a tcrv.exec.kernel");
+    return makeRuntimeGuardError(kernel, "requires a weft.exec.kernel");
   if (!hasKernelBody(kernel))
     return makeRuntimeGuardError(
         kernel, "requires kernel to have a materialized body block");
@@ -349,4 +349,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeDispatchRuntimeGuardsPass() {
   return std::make_unique<MaterializeDispatchRuntimeGuardsPass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

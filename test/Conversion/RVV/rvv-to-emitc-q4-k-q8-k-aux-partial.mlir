@@ -1,8 +1,8 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
 // q4_K K4a (the most-used modern K-quant) -- the ggml ggml_vec_dot_q4_K_q8_K
 // INTEGER CORE as STRUCTURED emitc IR (I5; ZERO raw() strings, including the
-// 6-bit scale/min bit-dance). The single typed op tcrv_rvv.q4_k_q8_k_aux_partial
+// 6-bit scale/min bit-dance). The single typed op weft_rvv.q4_k_q8_k_aux_partial
 // reproduces _generic's per-super-block INTEGER state right BEFORE the fp32
 // d/dmin fold: aux32[8] (the per-sub-block uint6-scaled i32 accumulator) AND the
 // 8 decoded 6-bit scales + 8 decoded 6-bit mins (the get_scale_min_k4 /
@@ -26,25 +26,25 @@
 // .trellis/tasks/.../artifacts/inc23-q4_K-k4a/.
 
 module {
-  tcrv.exec.kernel @ggml_vec_dot_q4_K_q8_K_aux_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_vec_dot_q4_K_q8_K_aux attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %a32 = tcrv_rvv.runtime_abi_value {c_name = "aux32", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %sm = tcrv_rvv.runtime_abi_value {c_name = "scalemin", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_q4_K_q8_K_aux, sew = 32 : i64, source_kernel = "ggml_vec_dot_q4_K_q8_K_aux_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.q4_k_q8_k_aux_partial %vx, %vy, %a32, %sm, %n, %vl {kind = "ggml_q4_k_q8_k_aux_partial", scale_model = "per-sub-block-uint6-scale-i32-domain", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, activation_block_stride = 292 : i64, weight_scales_byte_offset = 4 : i64, weight_qs_byte_offset = 16 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @ggml_vec_dot_q4_K_q8_K_aux_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_vec_dot_q4_K_q8_K_aux attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %a32 = weft_rvv.runtime_abi_value {c_name = "aux32", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %sm = weft_rvv.runtime_abi_value {c_name = "scalemin", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_q4_K_q8_K_aux, sew = 32 : i64, source_kernel = "ggml_vec_dot_q4_K_q8_K_aux_kernel", status = "selected-lowering-boundary"} {
+        %dot = weft_rvv.q4_k_q8_k_aux_partial %vx, %vy, %a32, %sm, %n, %vl {kind = "ggml_q4_k_q8_k_aux_partial", scale_model = "per-sub-block-uint6-scale-i32-domain", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, activation_block_stride = 292 : i64, weight_scales_byte_offset = 4 : i64, weight_qs_byte_offset = 16 : i64, activation_quant_byte_offset = 4 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_ggml_vec_dot_q4_K_q8_K_aux_kernel_ggml_vec_dot_q4_K_q8_K_aux(
+// CHECK: emitc.func @weft_emitc_ggml_vec_dot_q4_K_q8_K_aux_kernel_ggml_vec_dot_q4_K_q8_K_aux(
 // The super-block count nb = n / 256 and the int8_t aux8[256] + uint32_t utmp[4].
 // CHECK: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
 // CHECK: %[[AUX8:.*]] = "emitc.variable"() {{.*}} -> !emitc.array<256x!emitc.opaque<"int8_t">>

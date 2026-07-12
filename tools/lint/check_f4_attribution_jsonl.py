@@ -2,9 +2,9 @@
 """check_f4_attribution_jsonl.py -- [F-4] attribution-completeness CI gate (M1 evidence line).
 
 Makes the [F-4] COMPILE-TIME SELECTION attribution JSONL export ([D-4] stage (1)) CI-executable.
-The `--tcrv-select-variants=attribution-jsonl=<path>` sink writes ONE canonical-JSON object per
+The `--weft-select-variants=attribution-jsonl=<path>` sink writes ONE canonical-JSON object per
 planned kernel: {candidates[], chosen, declared_instance_hash, kernel, keys_evaluated{}, reason,
-ts}. This gate runs tcrv-opt over the COMMITTED attribution lit corpus, parses the emitted JSONL,
+ts}. This gate runs weft-opt over the COMMITTED attribution lit corpus, parses the emitted JSONL,
 and validates -- WITHOUT touching the selection logic (read-only export check) -- that:
 
   (V1) SHAPE       : every record carries the seven required top-level keys; declared_instance_hash
@@ -30,9 +30,9 @@ Two modes (sibling idiom of the falsifier-gate.yml gates):
   --self-test : hermetic classifier discrimination on synthetic JSONL records. Proves the validator
      FIRES (missing key / bad reason token / reason-not-supported-by-candidates / dropped kernel /
      M1 branch never emitted -> RED) and STAYS GREEN on a compliant corpus. No compiler needed.
-  (default)   : locates tcrv-opt (build/bin, $TCRV_BUILD/bin, or --opt), runs the pass pipeline
+  (default)   : locates weft-opt (build/bin, $WEFT_BUILD/bin, or --opt), runs the pass pipeline
      parsed from each corpus file's own `// RUN:` line (single source of truth), parses the emitted
-     JSONL, classifies. If tcrv-opt is absent the build-free lane SKIPs (exit 0) so binary-free CI
+     JSONL, classifies. If weft-opt is absent the build-free lane SKIPs (exit 0) so binary-free CI
      stays green; pass --require-binaries to make the absence itself RED.
 
 Stdlib-only.
@@ -66,7 +66,7 @@ VALID_REASONS = {"only_feasible", "static_order", "prior", "measured"}
 # [D-4] M1 查①②: the two reason tokens stage (1) emits today and must keep exercising.
 M1_REQUIRED_REASONS = {"only_feasible", "static_order"}
 _HEX_RE = re.compile(r"^[0-9a-f]+$")
-_KERNEL_RE = re.compile(r"(?m)^\s*tcrv\.exec\.kernel\s+@")
+_KERNEL_RE = re.compile(r"(?m)^\s*weft\.exec\.kernel\s+@")
 
 
 # ---------------------------------------------------------------------------
@@ -161,10 +161,10 @@ def locate_opt(override):
     if override:
         return override if (os.path.isfile(override) or _on_path(override)) else None
     candidates = []
-    env = os.environ.get("TCRV_BUILD")
+    env = os.environ.get("WEFT_BUILD")
     if env:
-        candidates.append(os.path.join(env, "bin", "tcrv-opt"))
-    candidates.append(os.path.join(REPO, "build", "bin", "tcrv-opt"))
+        candidates.append(os.path.join(env, "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build", "bin", "weft-opt"))
     for c in candidates:
         if os.path.isfile(c):
             return c
@@ -172,16 +172,16 @@ def locate_opt(override):
 
 
 def parse_run_command(mlir_path):
-    """Extract the tcrv-opt `// RUN:` line that writes the attribution JSONL.
+    """Extract the weft-opt `// RUN:` line that writes the attribution JSONL.
 
     Returns the shlex-tokenized argv (with %s / %t still symbolic), or raises.
     """
     with open(mlir_path) as f:
         for line in f:
             s = line.strip()
-            if s.startswith("// RUN:") and "attribution-jsonl=" in s and "tcrv-opt" in s:
+            if s.startswith("// RUN:") and "attribution-jsonl=" in s and "weft-opt" in s:
                 return shlex.split(s[len("// RUN:"):].strip())
-    raise RuntimeError(f"no tcrv-opt attribution-jsonl RUN line found in {mlir_path}")
+    raise RuntimeError(f"no weft-opt attribution-jsonl RUN line found in {mlir_path}")
 
 
 def run_corpus_file(opt, mlir_path, tmpdir, verbose):
@@ -195,7 +195,7 @@ def run_corpus_file(opt, mlir_path, tmpdir, verbose):
     jsonl_path = tbase + ".jsonl"
     cmd = []
     for tok in argv:
-        if tok == "tcrv-opt" or tok.endswith("/tcrv-opt"):
+        if tok == "weft-opt" or tok.endswith("/weft-opt"):
             cmd.append(opt)
         else:
             cmd.append(tok.replace("%s", mlir_path).replace("%t", tbase))
@@ -204,7 +204,7 @@ def run_corpus_file(opt, mlir_path, tmpdir, verbose):
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(
-            f"tcrv-opt exited {proc.returncode} on {mlir_path}:\n{proc.stderr}")
+            f"weft-opt exited {proc.returncode} on {mlir_path}:\n{proc.stderr}")
     if not os.path.isfile(jsonl_path):
         raise RuntimeError(f"attribution sink produced no JSONL at {jsonl_path}")
     records = []
@@ -224,8 +224,8 @@ def run_real(verbose, opt_override, require_binaries):
 
     opt = locate_opt(opt_override)
     if not opt:
-        msg = ("[f4-attribution] tcrv-opt not built "
-               "(looked under $TCRV_BUILD/bin and build/bin)")
+        msg = ("[f4-attribution] weft-opt not built "
+               "(looked under $WEFT_BUILD/bin and build/bin)")
         if require_binaries:
             print(msg + " -- RED (--require-binaries)")
             return 2

@@ -60,14 +60,14 @@ names, dtype choices, or supported-path claims on behalf of plugins.
 
 Emission-plan metadata is not executable route authority. Core may materialize
 optional plugin-owned mirrors into
-`tcrv.exec.diagnostic {reason = "emission_plan"}` only after selected-path
+`weft.exec.diagnostic {reason = "emission_plan"}` only after selected-path
 collection and provider route construction. That materialization is limited to
 copying generic mirror fields and validating symbol structure. It is not
 lowering, runtime glue, artifact generation, RVV support, correctness evidence,
 performance evidence, or progress.
 
 Public tool integration is a front-door/plugin-loader responsibility, not a core
-target-family branch. For example, `tcrv-opt` may construct a deterministic
+target-family branch. For example, `weft-opt` may construct a deterministic
 `ExtensionPluginRegistry`, populate it with built-in plugins such as the RVV
 first-slice plugin, register plugin dialects, and pass that registry into
 registry-dependent passes. The shared pass logic must still route only through
@@ -80,7 +80,7 @@ When family code is consolidated under one directory, a family integration PR is
 
 ```text
 lib/{Dialect,Plugin,Target}/<Fam>/   family ops/types/attrs, legality, realization, route provider, emission patterns
-  + include/TianChenRV/{Dialect,Plugin,Target}/<Fam>/  header mirrors
+  + include/Weft/{Dialect,Plugin,Target}/<Fam>/  header mirrors
                      (this is the real 6-directory-root shape — NOT a literal `plugins/<family>/`;
                       the plugin lib transitively links the family Dialect + Target libs, 见 [GAP-P4-TOUCHSET])
 tables               capability fact rows + relation rows (schema/**) + ledger row (docs/method/C2_marginal_cost_ledger.md)
@@ -135,4 +135,4 @@ For any new plugin, record:
 - selected-body realization hooks;
 - route provider implementation;
 - whether core contains extension-specific branch;
-- whether `tcrv.exec.variant`, dispatch, verifier orchestration, and emission interfaces are reused.
+- whether `weft.exec.variant`, dispatch, verifier orchestration, and emission interfaces are reused.

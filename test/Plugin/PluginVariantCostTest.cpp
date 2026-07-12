@@ -1,6 +1,6 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -20,16 +20,16 @@
 #include <limits>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRankingEntry;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::support::CapabilityDescriptor;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRankingEntry;
+using weft::plugin::VariantCostRequest;
+using weft::support::CapabilityDescriptor;
+using weft::support::TargetCapabilitySet;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 namespace {
 
@@ -288,17 +288,17 @@ std::string printModule(mlir::ModuleOp module) {
 int runSingleVariantCostRoutingTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @cost_anchor attributes {} {
-    tcrv.exec.capability @generic_fast {
+  weft.exec.kernel @cost_anchor attributes {} {
+    weft.exec.capability @generic_fast {
       id = "generic.fast",
       kind = "generic-feature"
     }
-    tcrv.exec.capability @generic_optional {
+    weft.exec.capability @generic_optional {
       id = "generic.optional",
       kind = "policy",
       status = "disabled"
     }
-    tcrv.exec.variant @alpha_path attributes {
+    weft.exec.variant @alpha_path attributes {
       origin = "alpha",
       requires = [@generic_fast]
     } {
@@ -386,12 +386,12 @@ module {
 int runDefaultNeutralEstimateTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @default_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @default_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @default_path attributes {
+    weft.exec.variant @default_path attributes {
       origin = "default",
       requires = [@generic_base]
     } {
@@ -438,27 +438,27 @@ module {
 int runKernelCollectionAndRankingTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @ranking_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @ranking_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @third_path attributes {
+    weft.exec.variant @third_path attributes {
       origin = "third",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @tie_a_path attributes {
+    weft.exec.variant @tie_a_path attributes {
       origin = "tie-a",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @tie_b_path attributes {
+    weft.exec.variant @tie_b_path attributes {
       origin = "tie-b",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @low_path attributes {
+    weft.exec.variant @low_path attributes {
       origin = "low",
       requires = [@generic_base]
     } {
@@ -560,17 +560,17 @@ module {
 int runExplicitPreferenceAvailabilityRankingTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @preference_availability_anchor attributes {} {
-    tcrv.exec.capability @generic_base {
+  weft.exec.kernel @preference_availability_anchor attributes {} {
+    weft.exec.capability @generic_base {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @default_no_preference attributes {
+    weft.exec.variant @default_no_preference attributes {
       origin = "default",
       requires = [@generic_base]
     } {
     }
-    tcrv.exec.variant @explicit_preference attributes {
+    weft.exec.variant @explicit_preference attributes {
       origin = "explicit",
       requires = [@generic_base]
     } {
@@ -621,38 +621,38 @@ module {
 int runNegativeCostTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @negative_anchor attributes {} {
-    tcrv.exec.capability @generic_fast {
+  weft.exec.kernel @negative_anchor attributes {} {
+    weft.exec.capability @generic_fast {
       id = "generic.fast",
       kind = "generic-feature"
     }
-    tcrv.exec.variant @unknown_path attributes {
+    weft.exec.variant @unknown_path attributes {
       origin = "missing-plugin",
       requires = [@generic_fast]
     } {
     }
-    tcrv.exec.variant @disabled_path attributes {
+    weft.exec.variant @disabled_path attributes {
       origin = "disabled",
       requires = [@generic_fast]
     } {
     }
-    tcrv.exec.variant @failing_path attributes {
+    weft.exec.variant @failing_path attributes {
       origin = "failing",
       requires = [@generic_fast]
     } {
     }
-    tcrv.exec.variant @well_formed_path attributes {
+    weft.exec.variant @well_formed_path attributes {
       origin = "well-formed",
       requires = [@generic_fast]
     } {
     }
   }
-  tcrv.exec.kernel @other_anchor attributes {} {
-    tcrv.exec.capability @generic_other {
+  weft.exec.kernel @other_anchor attributes {} {
+    weft.exec.capability @generic_other {
       id = "generic.other",
       kind = "toolchain"
     }
-    tcrv.exec.variant @other_path attributes {
+    weft.exec.variant @other_path attributes {
       origin = "other",
       requires = [@generic_other]
     } {
@@ -678,7 +678,7 @@ module {
     VariantCostRequest request(VariantOp(), kernel, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
-                                {"requires a materialized tcrv.exec.variant",
+                                {"requires a materialized weft.exec.variant",
                                  "<missing>", "negative_anchor"}))
       return result;
   }
@@ -690,7 +690,7 @@ module {
                                KernelOp(), emptyCapabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
-                                {"requires an enclosing tcrv.exec.kernel",
+                                {"requires an enclosing weft.exec.kernel",
                                  "well_formed_path", "<missing>"}))
       return result;
   }
@@ -703,7 +703,7 @@ module {
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"variant is not enclosed by the request "
-                                 "tcrv.exec.kernel",
+                                 "weft.exec.kernel",
                                  "well_formed_path", "other_anchor"}))
       return result;
   }
@@ -842,7 +842,7 @@ module {
     if (int result =
             expectErrorContains(registry.collectKernelVariantCosts(KernelOp(),
                                                                    entries),
-                                {"requires a tcrv.exec.kernel", "<missing>"}))
+                                {"requires a weft.exec.kernel", "<missing>"}))
       return result;
   }
 
@@ -853,7 +853,7 @@ module {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

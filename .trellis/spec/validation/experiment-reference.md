@@ -4,7 +4,7 @@
 
 This spec is a validation reference. It must not decide system structure.
 
-TianChen-RV MLIR is first a capability-driven RISC-V execution layer. Experiments test whether that design holds.
+Weft-RV MLIR is first a capability-driven RISC-V execution layer. Experiments test whether that design holds.
 
 ## Hardware Conditions
 
@@ -20,15 +20,15 @@ The JSON artifact may also include a sanitized `capability_facts` section for
 the compiler-facing profile boundary. Those facts are input to the plugin-local
 C++ RVV capability profile, which validates them and populates
 `TargetCapabilitySet`; they are not themselves compiler internals or proof that
-TianChen-RV emitted executable RVV code.
+Weft-RV emitted executable RVV code.
 
 This probe is a prerequisite evidence source for future RVV compiler claims,
-but it is not itself a TianChen-RV compiler correctness, runtime, supported
+but it is not itself a Weft-RV compiler correctness, runtime, supported
 emission, or performance artifact.
 
 ## Research Questions
 
-### Q1: Can TianChen-RV generate valid code on real RVV hardware?
+### Q1: Can Weft-RV generate valid code on real RVV hardware?
 
 Objects:
 
@@ -44,8 +44,8 @@ attention micro-kernel fragments
 
 These objects calibrate RVV coverage and future frontend proof. They do
 not make current high-level Linalg/frontend lowering the source authority.
-Current RVV codegen claims must still flow through selected `tcrv.exec`
-variants, typed `tcrv_rvv` bodies, RVV plugin legality/realization, provider
+Current RVV codegen claims must still flow through selected `weft.exec`
+variants, typed `weft_rvv` bodies, RVV plugin legality/realization, provider
 routes, and common EmitC.
 
 Comparisons:
@@ -123,7 +123,7 @@ new ops/types
 new variant generators
 supported high-level op count
 extension-specific branches in core pass
-reuse of tcrv.exec.variant / dispatch / verifier orchestration
+reuse of weft.exec.variant / dispatch / verifier orchestration
 ```
 
 ### Q4: Can runtime-offload capability join the same execution layer?
@@ -260,7 +260,7 @@ dispatch with offload threshold
 - **带宽受限内核以 parity 为零假设**（parity 是物理确认，不是失败）。
 - **memory-轴 epilogue 融合（消一趟中间张量往返）= 机制展示 / 方法学素材,不作性能支柱**：其 isolated A/B（融合 vs 自己两趟）字节消除即便 board-proven,也**不得**暗示 whole-model e2e 收益。当融合的中间张量在整模型尺度 **cache-resident**（< L2/L3）时,isolated micro（>L3 强迫 DRAM 往返）的字节赢**不传导**,whole-model e2e 被 **Amdahl（该算子相内占比切片）+ cache 驻留**双双稀释到噪声地板下 = **结构性 null**（非测量缺失、非失败）。此类 e2e 须作 **micro↛e2e 传导会计的正面档案教材**登记,成色 = `e2e-diluted-Amdahl`。**锁定标准表述形态**：*「kernel 级字节轴机制已证;whole-model 中被 Amdahl（该算子占相内 X%）与 cache 驻留（中间张量 < L2/L3）稀释,e2e 不显著——传导会计精确预测了这一点」*。**绝不**据此声称 Win-B/Win-C 或 e2e beat。
 
-> 表 schema 与落点（T0/T3/T6/T7 等）详情引 [docs 实验总纲 §2](../../../docs/TianChen-RV_实验总纲v1.md) + `experiments/`；本层只写口径与门，零现值。
+> 表 schema 与落点（T0/T3/T6/T7 等）详情引 [docs 实验总纲 §2](../../../docs/Weft-RV_实验总纲v1.md) + `experiments/`；本层只写口径与门，零现值。
 
 ## N3 Performance-Claim Discipline (baselines — durable contract)
 
@@ -356,7 +356,7 @@ A pass-ON/OFF speedup is a structural-transform contribution without a same-stru
 A build-swap speedup (e.g. IME-lib vs non-IME-lib) isolates the new hardware unit without a can't-possibly-help control regime.
 AME is current verified primary hardware.
 Any future extension never needs core changes.
-TianChen-RV is a new high-level tensor IR.
+Weft-RV is a new high-level tensor IR.
 Structured kernel validation objects are current source-route authority.
 Offload or IME dispatch is required before RVV typed-route maturity.
 Source-front-door generated artifacts prove RVV maturity.
@@ -369,5 +369,5 @@ Sophgo offload is runtime-offload capability.
 Tuning is a system ability inside capability-aware variant selection.
 Current mainline is RVV; later IME validates new extension plugin integration.
 Extensions that map to existing interfaces support plugin-local integration.
-TianChen-RV is a RISC-V execution layer after high-level MLIR.
+Weft-RV is a RISC-V execution layer after high-level MLIR.
 ```

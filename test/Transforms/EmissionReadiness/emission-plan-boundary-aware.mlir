@@ -1,18 +1,18 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-materialize-emission-plans
+// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans
 
 module {
-  tcrv.exec.kernel @fallback_only_scalar_without_boundary {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @fallback_only_scalar_without_boundary {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+    weft.exec.variant @scalar_fallback_first_slice attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "selected scalar fallback envelope",
       reason = "variant-selected",
       selection_kind = "fallback-only",
@@ -26,18 +26,18 @@ module {
 
 module {
   // expected-error@+1 {{selected path @rvv_missing_boundary_path as direct variant requires one materialized plugin lowering boundary before emission planning}}
-  tcrv.exec.kernel @missing_rvv_boundary {
-    tcrv.exec.capability @rvv {
+  weft.exec.kernel @missing_rvv_boundary {
+    weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_missing_boundary_path attributes {
+    weft.exec.variant @rvv_missing_boundary_path attributes {
       origin = "rvv-plugin",
       requires = [@rvv]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "selected RVV path without materialized boundary",
       reason = "variant-selected",
       selection_kind = "static-variant",
@@ -51,25 +51,25 @@ module {
 
 module {
   // expected-error@+1 {{origin 'other-plugin' does not match selected variant @scalar_fallback_first_slice origin 'scalar-plugin'}}
-  tcrv.exec.kernel @boundary_origin_mismatch {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @boundary_origin_mismatch {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+    weft.exec.variant @scalar_fallback_first_slice attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "selected scalar fallback path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "mock boundary with wrong origin",
       origin = "other-plugin",
       reason = "mock-lowering-boundary",
@@ -85,31 +85,31 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{stale lowering boundary 'tcrv.exec.diagnostic' selected_variant @other_scalar as direct variant is not selected by the current dispatch or selected diagnostic surface}}
-  tcrv.exec.kernel @boundary_selected_variant_mismatch {
-    tcrv.exec.capability @scalar_fallback {
+  // expected-error@+1 {{stale lowering boundary 'weft.exec.diagnostic' selected_variant @other_scalar as direct variant is not selected by the current dispatch or selected diagnostic surface}}
+  weft.exec.kernel @boundary_selected_variant_mismatch {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+    weft.exec.variant @scalar_fallback_first_slice attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
     }
-    tcrv.exec.variant @other_scalar attributes {
+    weft.exec.variant @other_scalar attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "selected scalar fallback path changed",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "stale boundary for old selected variant",
       origin = "scalar-plugin",
       reason = "mock-lowering-boundary",
@@ -126,25 +126,25 @@ module {
 
 module {
   // expected-error@+1 {{duplicate competing lowering boundaries for selected path @scalar_fallback_first_slice as direct variant}}
-  tcrv.exec.kernel @duplicate_competing_boundaries {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @duplicate_competing_boundaries {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+    weft.exec.variant @scalar_fallback_first_slice attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "selected scalar fallback path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "first mock boundary",
       origin = "scalar-plugin",
       reason = "mock-lowering-boundary",
@@ -154,7 +154,7 @@ module {
       source_kernel = "duplicate_competing_boundaries",
       status = "no-active-route"
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "second mock boundary",
       origin = "scalar-plugin",
       reason = "mock-lowering-boundary",
@@ -171,30 +171,30 @@ module {
 
 module {
   // expected-error@+1 {{required_capabilities must be a safe subset of selected variant @scalar_fallback_first_slice requires metadata}}
-  tcrv.exec.kernel @boundary_required_capabilities_mismatch {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @boundary_required_capabilities_mismatch {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.capability @portable {
+    weft.exec.capability @portable {
       id = "portable",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+    weft.exec.variant @scalar_fallback_first_slice attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "selected scalar fallback path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "mock boundary with mismatched requires",
       origin = "scalar-plugin",
       reason = "mock-lowering-boundary",

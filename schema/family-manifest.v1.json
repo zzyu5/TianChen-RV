@@ -5,13 +5,13 @@
     "gate": "f3-family-locality",
     "checker": "tools/lint/check_family_locality.py",
     "ci": ".github/workflows/falsifier-gate.yml (job: f3-family-locality)",
-    "falsifier": "[F-3] 变更收容 (docs/canon/TianChen-RV_科研目标总纲v2.md:107 · .trellis/spec/plugin-protocol/locality-contract.md:76)",
+    "falsifier": "[F-3] 变更收容 (docs/canon/Weft-RV_科研目标总纲v2.md:107 · .trellis/spec/plugin-protocol/locality-contract.md:76)",
     "invariant": "Change containment: a family-integration PR is contained to that family's declared territory + capability/coverage TABLE ROWS + DOCS (the containment form of [P-1] no-core-edit, spatial counterpart of the [P-2] five-piece set). Combined with I3 zero family-name branches ([F-1]) this is the auditable evidence for C2 marginal-cost generalization.",
     "ruling": "2026-07-12 用户裁「MLIR 分层为主 + family 清单机检」: DO NOT do a cross-Dialect/Conversion/Target family-root 大搬迁 (violates MLIR-ecosystem convention; the reference-template must look like an MLIR project, not a bespoke layout). INSTEAD each family keeps this manifest listing its files/symbols across the layers, and the falsifier machine-checks CONTAINMENT off the manifest -- containment is asserted by the manifest, NOT by a physical directory move. This REPLACES the earlier F-3 premise ('gated on 跨根目录归拢') which is now WITHDRAWN as the mechanism.",
     "purpose": "Per-family address book across the MLIR layers + the CONTAINMENT machine-check source of truth. Each family declares its OWNED source territory (source_ranges: lib/{Dialect,Conversion,Plugin,Target}/<Fam>/ + include/ mirrors -- the enforced containment scope), plus an informational inventory of its test/schema-table/docs footprint. The [F-3] gate asserts: (default) every family-territory source file is claimed by exactly one manifest (no orphan, no cross-family pollution) and no family range escapes into the family-AGNOSTIC core scope; (CI) a family-integration PR's diff touches ONLY that one family's territory plus the shared allowances (TABLE ROWS + DOCS + [P-2] tests). A cross-family or core-source file touched by a family PR is a containment violation (RED).",
     "gate_semantics": "RED iff (a) DEFAULT: a lib/include family-territory code file (under lib/{Dialect,Conversion,Plugin,Target}/<X>/ or its include mirror, X not a declared core_subdir) is claimed by zero manifests (orphan) or by >=2 manifests (cross-family pollution), OR a family source_range matches an authoritative core-scope file (range widened into core), OR a family-shaped directory exists with no manifest entry, OR the shrink-only ratchet breaks (baseline_range_count != total declared source_ranges); (b) CI: a base..head diff touches >=2 distinct families' source territory (cross-family), OR touches a core-source code file while it is a family-integration PR (core edit). GREEN == every family stays contained to its own territory + shared allowances.",
     "containment_scope": {
-      "enforced": "SOURCE CODE only: tracked *.cpp/*.h/*.td under lib/ and include/TianChenRV/. This is where the [F-3] '(no core-file edits)' claim bites and where the per-family directories are clean and unambiguous. A file is family-source iff a family source_range matches it; every other lib/include code file is CORE-source (family-agnostic).",
+      "enforced": "SOURCE CODE only: tracked *.cpp/*.h/*.td under lib/ and include/Weft/. This is where the [F-3] '(no core-file edits)' claim bites and where the per-family directories are clean and unambiguous. A file is family-source iff a family source_range matches it; every other lib/include code file is CORE-source (family-agnostic).",
       "shared_allowances": {
         "note": "Buckets a family-integration PR may freely touch BEYOND its own source territory -- the canon [F-3] '+ 表格行 + 文档' plus the [P-2] onboarding-kit tests. These are NOT core-dispatch source, so touching them is NOT a containment violation.",
         "table_rows": "schema/**  (capability facts / coverage cells / ledger rows -- the '表行')",
@@ -51,10 +51,10 @@
         "lib/Conversion/RVV",
         "lib/Plugin/RVV",
         "lib/Target/RVV",
-        "include/TianChenRV/Dialect/RVV",
-        "include/TianChenRV/Conversion/RVV",
-        "include/TianChenRV/Plugin/RVV",
-        "include/TianChenRV/Target/RVV"
+        "include/Weft/Dialect/RVV",
+        "include/Weft/Conversion/RVV",
+        "include/Weft/Plugin/RVV",
+        "include/Weft/Target/RVV"
       ],
       "test_ranges": [
         "test/Dialect/RVV",
@@ -89,8 +89,8 @@
       "source_ranges": [
         "lib/Dialect/IME",
         "lib/Plugin/IME",
-        "include/TianChenRV/Dialect/IME",
-        "include/TianChenRV/Plugin/IME"
+        "include/Weft/Dialect/IME",
+        "include/Weft/Plugin/IME"
       ],
       "test_ranges": [
         "test/Dialect/IME",
@@ -118,9 +118,9 @@
         "lib/Dialect/Scalar",
         "lib/Plugin/Scalar",
         "lib/Target/Scalar",
-        "include/TianChenRV/Dialect/Scalar",
-        "include/TianChenRV/Plugin/Scalar",
-        "include/TianChenRV/Target/Scalar"
+        "include/Weft/Dialect/Scalar",
+        "include/Weft/Plugin/Scalar",
+        "include/Weft/Target/Scalar"
       ],
       "test_ranges": [
         "test/Dialect/Scalar",
@@ -150,8 +150,8 @@
       "source_ranges": [
         "lib/Dialect/Offload",
         "lib/Plugin/Offload",
-        "include/TianChenRV/Dialect/Offload",
-        "include/TianChenRV/Plugin/Offload"
+        "include/Weft/Dialect/Offload",
+        "include/Weft/Plugin/Offload"
       ],
       "test_ranges": [
         "test/Dialect/Offload",
@@ -175,9 +175,9 @@
         "lib/Dialect/Template",
         "lib/Plugin/Template",
         "lib/Target/Template",
-        "include/TianChenRV/Dialect/Template",
-        "include/TianChenRV/Plugin/Template",
-        "include/TianChenRV/Target/Template"
+        "include/Weft/Dialect/Template",
+        "include/Weft/Plugin/Template",
+        "include/Weft/Target/Template"
       ],
       "test_ranges": [
         "test/Dialect/Template",
@@ -201,9 +201,9 @@
         "lib/Dialect/TensorExtLite",
         "lib/Plugin/TensorExtLite",
         "lib/Target/TensorExtLite",
-        "include/TianChenRV/Dialect/TensorExtLite",
-        "include/TianChenRV/Plugin/TensorExtLite",
-        "include/TianChenRV/Target/TensorExtLite"
+        "include/Weft/Dialect/TensorExtLite",
+        "include/Weft/Plugin/TensorExtLite",
+        "include/Weft/Target/TensorExtLite"
       ],
       "test_ranges": [
         "test/Dialect/TensorExtLite",
@@ -227,9 +227,9 @@
         "lib/Dialect/Toy",
         "lib/Plugin/Toy",
         "lib/Target/Toy",
-        "include/TianChenRV/Dialect/Toy",
-        "include/TianChenRV/Plugin/Toy",
-        "include/TianChenRV/Target/Toy"
+        "include/Weft/Dialect/Toy",
+        "include/Weft/Plugin/Toy",
+        "include/Weft/Target/Toy"
       ],
       "test_ranges": [
         "test/Dialect/Toy",

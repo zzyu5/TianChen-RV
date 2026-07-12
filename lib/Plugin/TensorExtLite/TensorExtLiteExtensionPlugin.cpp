@@ -1,12 +1,12 @@
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
-#include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
+#include "Weft/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -19,10 +19,10 @@
 #include <algorithm>
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kTensorExtLitePluginName("tensorext-lite-plugin");
 constexpr llvm::StringLiteral kTensorExtLitePluginVersion("0.1.0");
@@ -34,23 +34,23 @@ constexpr llvm::StringLiteral kTensorExtLiteFragmentPreferredCapabilitySymbol(
 constexpr llvm::StringLiteral kTensorExtLiteFragmentFirstSliceVariantName(
     "tensorext_lite_tile_mma_first_slice");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentABIAttrName(
-    "tcrv_tensorext_lite.fragment_abi");
+    "weft_tensorext_lite.fragment_abi");
 constexpr llvm::StringLiteral kTensorExtLiteHandoffKindAttrName(
-    "tcrv_tensorext_lite.handoff_kind");
+    "weft_tensorext_lite.handoff_kind");
 constexpr llvm::StringLiteral kTensorExtLiteConstructionProtocolAttrName(
-    "tcrv_tensorext_lite.construction_protocol");
+    "weft_tensorext_lite.construction_protocol");
 constexpr llvm::StringLiteral kTensorExtLiteConstructionArchetypeAttrName(
-    "tcrv_tensorext_lite.archetype");
+    "weft_tensorext_lite.archetype");
 constexpr llvm::StringLiteral kTensorExtLiteSemanticRoleGraphAttrName(
-    "tcrv_tensorext_lite.semantic_role_graph");
+    "weft_tensorext_lite.semantic_role_graph");
 constexpr llvm::StringLiteral kTensorExtLiteCommonInterfaceRealizationAttrName(
-    "tcrv_tensorext_lite.common_interface_realization");
+    "weft_tensorext_lite.common_interface_realization");
 constexpr llvm::StringLiteral kTensorExtLiteTypedRoleRealizationAttrName(
-    "tcrv_tensorext_lite.typed_role_realization");
+    "weft_tensorext_lite.typed_role_realization");
 constexpr llvm::StringLiteral kTensorExtLiteEmitCRouteMappingAttrName(
-    "tcrv_tensorext_lite.emitc_route_mapping");
+    "weft_tensorext_lite.emitc_route_mapping");
 constexpr llvm::StringLiteral kTensorExtLiteEvidenceProfileAttrName(
-    "tcrv_tensorext_lite.evidence_profile");
+    "weft_tensorext_lite.evidence_profile");
 constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("tensorext-lite-fragment-mma-template");
@@ -93,7 +93,7 @@ struct TensorExtLiteFragmentCapabilityView {
 
 llvm::Error makeTensorExtLitePluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV TensorExtLite extension plugin fragment failed: ") +
+      llvm::Twine("Weft-RV TensorExtLite extension plugin fragment failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -295,8 +295,8 @@ mlir::FlatSymbolRefAttr makeTensorExtLiteSymbolRef(mlir::MLIRContext *context,
 }
 
 llvm::Error materializeTensorExtLiteRoleOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role,
+    mlir::OpBuilder &builder, weft::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, VariantEmissionRole role,
     mlir::ArrayAttr requires,
     const tensorext_lite::TensorExtLiteFragmentMmaRoleStep &step) {
   mlir::OperationState state(variant.getLoc(), step.operationName);
@@ -345,7 +345,7 @@ getTensorExtLiteSelectedRoleSequenceSpec(
 
 llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
     const VariantLoweringBoundaryRequest &request) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (variant.getBody().empty())
     return makeTensorExtLitePluginError(
         "selected TensorExtLite construction-template path requires a "
@@ -372,7 +372,7 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
             construction::verifySelectedExecutableRoleSequenceComplete(
                 spec, *inspection))
       return error;
-    llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
+    llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
     VariantEmitCLowerableRequest routeRequest(
         request.getVariant(), request.getKernel(), request.getCapabilities(),
         request.getRole());
@@ -400,7 +400,7 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
       return error;
   }
 
-  llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
+  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -409,7 +409,7 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
 }
 
 bool isSelectedTensorExtLiteLoweringBoundary(
-    tcrv::tensorext_lite::LoweringBoundaryOp boundary,
+    weft::tensorext_lite::LoweringBoundaryOp boundary,
     llvm::StringRef variantSymbol, llvm::StringRef role) {
   auto selectedVariant =
       boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
@@ -422,11 +422,11 @@ bool isSelectedTensorExtLiteLoweringBoundary(
 llvm::Expected<mlir::Operation *> getOrCreateTensorExtLiteLoweringBoundary(
     const VariantLoweringBoundaryRequest &request) {
   llvm::StringRef role = stringifyVariantEmissionRole(request.getRole());
-  tcrv::tensorext_lite::LoweringBoundaryOp selectedBoundary;
+  weft::tensorext_lite::LoweringBoundaryOp selectedBoundary;
   unsigned matchingBoundaries = 0;
   for (mlir::Operation &op : request.getKernel().getBody().front()) {
     auto boundary =
-        llvm::dyn_cast<tcrv::tensorext_lite::LoweringBoundaryOp>(op);
+        llvm::dyn_cast<weft::tensorext_lite::LoweringBoundaryOp>(op);
     if (!boundary ||
         !isSelectedTensorExtLiteLoweringBoundary(
             boundary, request.getVariant().getSymName(), role))
@@ -452,7 +452,7 @@ llvm::Expected<mlir::Operation *> getOrCreateTensorExtLiteLoweringBoundary(
         "lowering-boundary materialization");
 
   mlir::OperationState state(request.getVariant().getLoc(),
-                             "tcrv_tensorext_lite.lowering_boundary");
+                             "weft_tensorext_lite.lowering_boundary");
   state.addAttribute(kSourceKernelAttrName,
                      request.getBuilder().getStringAttr(
                          request.getKernel().getSymName()));
@@ -482,7 +482,7 @@ llvm::Expected<mlir::Operation *> getOrCreateTensorExtLiteLoweringBoundary(
 }
 
 std::string joinTensorExtLiteRouteSourceOps(
-    llvm::ArrayRef<conversion::emitc::TCRVEmitCSourceOpProvenance> sources) {
+    llvm::ArrayRef<conversion::emitc::WEFTEmitCSourceOpProvenance> sources) {
   std::string joined;
   llvm::raw_string_ostream stream(joined);
   for (auto [index, source] : llvm::enumerate(sources)) {
@@ -495,7 +495,7 @@ std::string joinTensorExtLiteRouteSourceOps(
 }
 
 std::string joinTensorExtLiteRouteSourceRoles(
-    llvm::ArrayRef<conversion::emitc::TCRVEmitCSourceOpProvenance> sources) {
+    llvm::ArrayRef<conversion::emitc::WEFTEmitCSourceOpProvenance> sources) {
   std::string joined;
   llvm::raw_string_ostream stream(joined);
   for (auto [index, source] : llvm::enumerate(sources)) {
@@ -508,7 +508,7 @@ std::string joinTensorExtLiteRouteSourceRoles(
 }
 
 llvm::Expected<std::string> getTensorExtLiteRouteSourceOpInterface(
-    llvm::ArrayRef<conversion::emitc::TCRVEmitCSourceOpProvenance> sources) {
+    llvm::ArrayRef<conversion::emitc::WEFTEmitCSourceOpProvenance> sources) {
   if (sources.empty())
     return makeTensorExtLitePluginError(
         "TensorExtLite target artifact emission plan requires route "
@@ -592,7 +592,7 @@ llvm::ArrayRef<PluginCapability> TensorExtLiteExtensionPlugin::getCapabilities()
 
 void TensorExtLiteExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::tensorext_lite::TCRVTensorExtLiteDialect>();
+  registry.insert<weft::tensorext_lite::WEFTTensorExtLiteDialect>();
 }
 
 llvm::Error
@@ -646,7 +646,7 @@ llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
   (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       getName(),
-      "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door",
+      "weft-tensorext-lite-materialize-fragment-mma-source-front-door",
       "Materialize one bounded TensorExtLite fragment-MMA source marker into "
       "the selected TensorExtLite role-sequence front door",
       [] {
@@ -672,7 +672,7 @@ llvm::Error TensorExtLiteExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeTensorExtLitePluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
 
   out = VariantCostEstimate();
   out.setScore(50.0);
@@ -693,10 +693,10 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeTensorExtLitePluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeTensorExtLitePluginError(
-        "emission readiness requires an enclosing tcrv.exec.kernel");
+        "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -708,7 +708,7 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
+  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -733,11 +733,11 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeTensorExtLitePluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
 
   if (!request.getKernel())
     return makeTensorExtLitePluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -749,7 +749,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
+  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -770,7 +770,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
       constructionRoute.emissionKind, constructionRoute.routeID,
       constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "TensorExtLite selected explicit role sequence materializes an EmitC "
-      "module through the common TCRVEmitCLowerableRoute materializer and "
+      "module through the common WEFTEmitCLowerableRoute materializer and "
       "packages the MLIR EmitC C/C++ emitter output as a relocatable object "
       "artifact for the first slice");
   out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
@@ -835,17 +835,17 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
 llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeTensorExtLitePluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!kernel)
     return makeTensorExtLitePluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
@@ -878,11 +878,11 @@ llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
 llvm::Error TensorExtLiteExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   auto boundary =
-      llvm::dyn_cast_if_present<tcrv::tensorext_lite::LoweringBoundaryOp>(
+      llvm::dyn_cast_if_present<weft::tensorext_lite::LoweringBoundaryOp>(
           request.getBoundary());
   if (!boundary)
     return makeTensorExtLitePluginError(
-        "selected TensorExtLite path requires a tcrv_tensorext_lite.lowering_boundary operation");
+        "selected TensorExtLite path requires a weft_tensorext_lite.lowering_boundary operation");
 
   auto variantRequires =
       request.getVariant()->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -913,7 +913,7 @@ llvm::Error TensorExtLiteExtensionPlugin::validateSelectedLoweringBoundary(
 llvm::Error
 TensorExtLiteExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
-  bundle.addRequiredDialectName("tcrv_tensorext_lite");
+  bundle.addRequiredDialectName("weft_tensorext_lite");
   return target::tensorext_lite::
       configureTensorExtLiteTargetSupportExtensionBundle(bundle);
 }
@@ -930,4 +930,4 @@ llvm::Error registerTensorExtLiteExtensionPlugin(ExtensionPluginRegistry &regist
   return registry.registerPlugin(getBuiltinTensorExtLiteExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

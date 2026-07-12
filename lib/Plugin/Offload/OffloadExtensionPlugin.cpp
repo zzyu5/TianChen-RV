@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
+#include "Weft/Plugin/Offload/OffloadExtensionPlugin.h"
 
-#include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
+#include "Weft/Dialect/Offload/IR/OffloadDialect.h"
+#include "Weft/Plugin/ExtensionBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kOffloadPluginName("offload-plugin");
@@ -24,9 +24,9 @@ constexpr llvm::StringLiteral kOffloadRuntimePreferredCapabilitySymbol(
 constexpr llvm::StringLiteral kOffloadRuntimeFirstSliceVariantName(
     "offload_runtime_first_slice");
 constexpr llvm::StringLiteral kOffloadRuntimeABIAttrName(
-    "tcrv_offload.runtime_abi");
+    "weft_offload.runtime_abi");
 constexpr llvm::StringLiteral kOffloadHandoffKindAttrName(
-    "tcrv_offload.handoff_kind");
+    "weft_offload.handoff_kind");
 constexpr llvm::StringLiteral kExpectedRuntimeABI(
     "generic-runtime-offload-c-abi-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("runtime-offload");
@@ -55,7 +55,7 @@ struct OffloadRuntimeCapabilityView {
 
 llvm::Error makeOffloadPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV runtime-offload extension plugin first slice "
+      llvm::Twine("Weft-RV runtime-offload extension plugin first slice "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -217,7 +217,7 @@ buildOffloadFirstSliceProposal(const VariantProposalRequest &request) {
 }
 
 llvm::Expected<bool>
-variantRequiresOffloadRuntime(tcrv::exec::VariantOp variant,
+variantRequiresOffloadRuntime(weft::exec::VariantOp variant,
                               const support::TargetCapabilitySet &capabilities) {
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -247,7 +247,7 @@ variantRequiresOffloadRuntime(tcrv::exec::VariantOp variant,
 }
 
 llvm::Error verifyOffloadVariantMetadata(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const OffloadRuntimeCapabilityView &capabilityView) {
   auto runtimeABI = variant->getAttrOfType<mlir::StringAttr>(
       kOffloadRuntimeABIAttrName);
@@ -255,7 +255,7 @@ llvm::Error verifyOffloadVariantMetadata(
     return makeOffloadPluginError(
         llvm::Twine("materialized runtime-offload variant @") +
         variant.getSymName() +
-        " requires non-empty string 'tcrv_offload.runtime_abi' metadata");
+        " requires non-empty string 'weft_offload.runtime_abi' metadata");
   if (runtimeABI.getValue() != capabilityView.runtimeABI)
     return makeOffloadPluginError(
         llvm::Twine("materialized runtime-offload variant @") +
@@ -269,7 +269,7 @@ llvm::Error verifyOffloadVariantMetadata(
     return makeOffloadPluginError(
         llvm::Twine("materialized runtime-offload variant @") +
         variant.getSymName() +
-        " requires non-empty string 'tcrv_offload.handoff_kind' metadata");
+        " requires non-empty string 'weft_offload.handoff_kind' metadata");
   if (handoffKind.getValue() != capabilityView.handoffKind)
     return makeOffloadPluginError(
         llvm::Twine("materialized runtime-offload variant @") +
@@ -351,7 +351,7 @@ OffloadExtensionPlugin::getCapabilities() const {
 
 void OffloadExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::offload::TCRVOffloadDialect>();
+  registry.insert<weft::offload::WEFTOffloadDialect>();
 }
 
 bool OffloadExtensionPlugin::supportsOperation(
@@ -398,10 +398,10 @@ llvm::Error OffloadExtensionPlugin::collectVariantProposals(
 
 llvm::Error OffloadExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeOffloadPluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -436,7 +436,7 @@ llvm::Error OffloadExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeOffloadPluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
 
   out = VariantCostEstimate();
   out.setScore(10.0);
@@ -455,10 +455,10 @@ llvm::Error OffloadExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeOffloadPluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeOffloadPluginError(
-        "emission readiness requires an enclosing tcrv.exec.kernel");
+        "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -481,11 +481,11 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeOffloadPluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
 
   if (!request.getKernel())
     return makeOffloadPluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -511,17 +511,17 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
 llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeOffloadPluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!kernel)
     return makeOffloadPluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
@@ -541,7 +541,7 @@ llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
 
 llvm::Error OffloadExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
-  bundle.addRequiredDialectName("tcrv_offload");
+  bundle.addRequiredDialectName("weft_offload");
   return llvm::Error::success();
 }
 
@@ -551,4 +551,4 @@ llvm::Error registerOffloadExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinOffloadExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

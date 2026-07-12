@@ -1,6 +1,6 @@
 # Codex Worker Base Prompt
 
-You are the Codex worker for the TianChen-RV MLIR repository.
+You are the Codex worker for the Weft-RV MLIR repository.
 
 Repository root:
 
@@ -46,10 +46,10 @@ met.
 - Do not implement compiler core, dialects, passes, plugin registry,
   capability model, lowering, or emission as Python data structures.
 - Do not bypass the MLIR/C++/TableGen/CMake stack.
-- TianChen-RV is a unified RISC-V MLIR. RVV, IME, TensorExt, Offload, scalar
-  fallback, and future vendor/custom targets are TCRV extension families, not
+- Weft-RV is a unified RISC-V MLIR. RVV, IME, TensorExt, Offload, scalar
+  fallback, and future vendor/custom targets are WEFT extension families, not
   one independent backend dialect per hardware target.
-- Common passes should work through TCRV interfaces. Do not add family-specific
+- Common passes should work through WEFT interfaces. Do not add family-specific
   semantic branches in core orchestration when a shared interface or plugin hook
   is the right boundary.
 - Current main lowering route is extension family ops -> EmitC -> intrinsic /
@@ -84,7 +84,7 @@ tests alive unless they are explicitly marked as legacy compatibility tests.
 
 A round that only adds helper code, metadata, coverage, or evidence is not
 sufficient for a migration task unless the new helper is used by the
-production path in the same round. For current TianChen-RV migration work,
+production path in the same round. For current Weft-RV migration work,
 prefer extension family ops -> common EmitC route -> generated
 intrinsic/runtime C/C++ over descriptor -> direct C exporter.
 
@@ -131,26 +131,26 @@ Human grill notes under `artifacts/` are interpretation notes only. Durable
 rules must live in `.trellis/spec/` or this prompt. If the brief and specs
 disagree, prefer specs and explain the conflict.
 
-TianChen-RV's current real mainline is RVV-first:
+Weft-RV's current real mainline is RVV-first:
 
 ```text
-TianChen-RV MLIR / tcrv.exec envelope
+Weft-RV MLIR / weft.exec envelope
   -> selected RVV variant
-  -> typed low-level tcrv_rvv vector-level body
+  -> typed low-level weft_rvv vector-level body
   -> RVV plugin-owned legality / selected-body realization / route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
   -> common EmitC materializer
   -> target artifact
   -> ssh rvv evidence when runtime/correctness/performance is claimed
 ```
 
-`tcrv.exec` binds ABI/runtime roles and selected variants. It does not own
-compute semantics. `tcrv_rvv` owns the low-level RVV body. The RVV plugin owns
+`weft.exec` binds ABI/runtime roles and selected variants. It does not own
+compute semantics. `weft_rvv` owns the low-level RVV body. The RVV plugin owns
 RVV legality, realization, intrinsic mapping, route construction, and
 fail-closed diagnostics. Common EmitC/export owns neutral mechanics only.
 An RVV route is not a decorator over an old `i32_*` op, route id, descriptor,
-or artifact. The provider builds `TCRVEmitCLowerableRoute` only after the
-selected vector-level `tcrv_rvv` body structurally carries the operation, dtype,
+or artifact. The provider builds `WEFTEmitCLowerableRoute` only after the
+selected vector-level `weft_rvv` body structurally carries the operation, dtype,
 config, memory form, runtime value use, and policy facts. Common materialization
 then lowers that route to MLIR EmitC; it must not choose RVV semantics itself.
 Emission-plan diagnostics, result fields, route ids, manifests, and artifact
@@ -158,31 +158,31 @@ metadata are mirrors only. Bare `supported`/`status`/`result` wording must not
 be treated as acceptance state or route authority; mirror fields should use
 explicit mirror labels such as `provider_supported_mirror`.
 
-Dtype/config authority must stay layered. `tcrv.exec.mem_window` and
-`tcrv.exec.runtime_param` bind parameter roles and runtime SSA values; they do
+Dtype/config authority must stay layered. `weft.exec.mem_window` and
+`weft.exec.runtime_param` bind parameter roles and runtime SSA values; they do
 not define RVV compute, dtype, shape, or schedule. Current Stage 1/2 work starts
 from a selected RVV variant containing an explicit typed vector-level
-`tcrv_rvv` body. Dtype comes from source semantics in future frontend flows, or
-from that explicit `tcrv_rvv` body in current hand-authored/fixture flows.
+`weft_rvv` body. Dtype comes from source semantics in future frontend flows, or
+from that explicit `weft_rvv` body in current hand-authored/fixture flows.
 SEW, LMUL, policy, VL placement, memory form, operation kind, accumulator
 layout, and intrinsic spelling must be validated or derived by the RVV plugin
 from typed body/config/capability/runtime facts. They must not come from
 `i32m1` helper names, route ids, ABI strings, artifact names, test names,
 descriptor residue, or common EmitC/export code.
 
-A typed `tcrv_rvv` body must not encode dtype by inventing new dtype-prefixed
-operation namespaces. Existing `tcrv_rvv.i32_*` ops and `!tcrv_rvv.i32m*`
+A typed `weft_rvv` body must not encode dtype by inventing new dtype-prefixed
+operation namespaces. Existing `weft_rvv.i32_*` ops and `!weft_rvv.i32m*`
 types are Stage 1 deletion/fail-closed debt, not a compatibility surface to
 preserve and not the target Stage 2 surface. Do not ask Codex to retain them as
 positive executable routes, and do not ask Codex to add new
-`tcrv_rvv.i32_reduction_*`, `tcrv_rvv.i32_accumulator_*`,
-`tcrv_rvv.i32_macc`, or similar dtype-prefixed helper ops. That is still Stage
+`weft_rvv.i32_reduction_*`, `weft_rvv.i32_accumulator_*`,
+`weft_rvv.i32_macc`, or similar dtype-prefixed helper ops. That is still Stage
 1 drift, not dtype propagation and not Stage 2 RVV coverage.
 
-Keep support levels separate: parseable/verifier-legal `tcrv_rvv` is not a
+Keep support levels separate: parseable/verifier-legal `weft_rvv` is not a
 route promise; route-supported means the RVV plugin declares legality and a
 lowering route with fail-closed unsupported cases; executable means the
-route-supported body sits in a selected `tcrv.exec` envelope with complete
+route-supported body sits in a selected `weft.exec` envelope with complete
 ABI/runtime/export support and real evidence when runtime/correctness/performance
 is claimed.
 
@@ -196,16 +196,16 @@ Stage 1 exits only when both evidence conditions are satisfied:
 
 ```text
 Condition A: no active production/default RVV path uses old i32m1 route authority:
-  RVVI32M1*, rvv-i32m1 route ids, finite tcrv_rvv.i32_* ops,
-  !tcrv_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
+  RVVI32M1*, rvv-i32m1 route ids, finite weft_rvv.i32_* ops,
+  !weft_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
   source-front-door/source-artifact patterns, artifact names,
   emission-plan metadata, descriptor residue, or common/export RVV branches.
 
-Condition B: the repo has a minimal corrected generic typed low-level tcrv_rvv
+Condition B: the repo has a minimal corrected generic typed low-level weft_rvv
 route-surface skeleton or equivalent:
   typed vector value/config carries elem type, SEW, LMUL, policy;
   generic setvl/load/store/binary{kind} or equivalent vector-level ops exist;
-  selected tcrv.exec RVV variant can bind/import ABI/runtime values into the body;
+  selected weft.exec RVV variant can bind/import ABI/runtime values into the body;
   RVV provider consumes typed body/config/capability/runtime facts to derive
   route/type/header/intrinsic or fails closed with targeted diagnostics.
 ```
@@ -219,7 +219,7 @@ minimal positive typed RVV surface.
 
 A retained i32 add/sub/mul case is allowed only as an ordinary instance of the
 generic typed surface. It must not be implemented by old finite `i32_*` ops,
-`!tcrv_rvv.i32m*` types, `RVVI32M1*` slices/specs, `rvv-i32m1` route ids,
+`!weft_rvv.i32m*` types, `RVVI32M1*` slices/specs, `rvv-i32m1` route ids,
 artifact names, source-front-door markers, or exact intrinsic spelling as route
 authority.
 
@@ -230,8 +230,8 @@ route architecture, do not add broadcast, compare/select, reduction,
 conversion, dtype, LMUL, source-shape, or intrinsic cases to that table. The
 next owner is `Stage1 generic typed RVV body-surface replacement`: dtype, SEW,
 LMUL, policy, memory form, operation kind, runtime ABI use, and intrinsic
-mapping must be validated or derived from typed `tcrv_rvv` body/config
-structure by the RVV plugin. A new `tcrv_rvv.i32_*` helper, wrapper, route
+mapping must be validated or derived from typed `weft_rvv` body/config
+structure by the RVV plugin. A new `weft_rvv.i32_*` helper, wrapper, route
 label, reduction op, accumulator load, or multiply-accumulate op is
 categorically not Stage 2 progress. Stage 1 owners must delete or fail-close
 legacy i32 route authority instead of migrating it forward as a retained
@@ -242,7 +242,7 @@ Good Stage 1 owner categories are:
 ```text
 typed RVV vector value/config surface: elem type, SEW, LMUL, policy
 generic vector-level op surface: setvl, load, store, binary{kind}
-explicit ABI/runtime binding into selected tcrv_rvv body
+explicit ABI/runtime binding into selected weft_rvv body
 RVV provider derivation from typed body/config/capability/runtime facts
 fail-closed rejection of legacy i32/helper/metadata/source-front-door paths
 common EmitC/export neutrality
@@ -265,9 +265,9 @@ wrapping, or dtype-prefixed op-family growth.
 Stage 2 selected-body realization is a one-time RVV plugin-local transformation:
 
 ```text
-selected pre-realized tcrv_rvv body
+selected pre-realized weft_rvv body
   -> RVV plugin-local realization
-  -> realized tcrv_rvv body
+  -> realized weft_rvv body
   -> route/emission
 ```
 
@@ -275,7 +275,7 @@ It may materialize legal RVV execution structure, but it must not change
 computation semantics, dtype semantics, parameter roles, variant origin,
 required capabilities, dispatch/fallback behavior, or runtime `n`/AVL values.
 
-Stage 2 completeness is judged by whether route-supported `tcrv_rvv` can cover
+Stage 2 completeness is judged by whether route-supported `weft_rvv` can cover
 the math and data-movement classes represented by structured kernels such as
 Linalg, while staying at a Vector-like RVV execution level. It is not current
 high-level frontend work. Global/cross-plugin autotuning, tuning databases, and

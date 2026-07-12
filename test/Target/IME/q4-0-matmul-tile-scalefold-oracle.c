@@ -6,7 +6,7 @@
 // top of that int32 core: the ggml q4_0 x q8_0 dot over one 32-element block is
 //   d_a * d_w * Sum_{k in block} qa[k] * qw[k]
 // summed over the K/32 contraction blocks. The int32 kernel produces the inner
-// Sum(qa*qw) per block; this file adds the tcrv_ime_q4_0_vmadot_matmul_f32
+// Sum(qa*qw) per block; this file adds the weft_ime_q4_0_vmadot_matmul_f32
 // scale-fold epilogue (bridge #1) driven at RUNTIME shape (bridge #2) and checks
 // it against an INDEPENDENT (ZERO-MODEL) canonical q4_0 x q8_0 reference.
 //
@@ -36,12 +36,12 @@
 // ---------------------------------------------------------------------------
 // (A) The emitted structured helpers. The int32 decode + batched MAC are the
 // M1b-sealed helpers (reused verbatim). The scale-fold epilogue kernel
-// tcrv_ime_q4_0_vmadot_matmul_f32 is the NEW forward-bridge helper (bridge #1).
+// weft_ime_q4_0_vmadot_matmul_f32 is the NEW forward-bridge helper (bridge #1).
 // ---------------------------------------------------------------------------
 
 // Scalar substitute for the batched register-resident vmadot MAC leaf (int32
 // contract identical to the K1-sealed asm leaf; see q4-0-matmul-tile-int32-oracle.c).
-static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B,
+static inline void weft_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B,
                                              long kt, int32_t *frag) {
   int32_t acc[16];
   for (int r = 0; r < 16; ++r) acc[r] = 0;
@@ -60,7 +60,7 @@ static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B,
 }
 
 // The q4_0 offset-binary nibble DECODE (identical to the emitted/sealed decode core).
-static inline void tcrv_ime_q4_0_dequant_fragment(const uint8_t *blk,
+static inline void weft_ime_q4_0_dequant_fragment(const uint8_t *blk,
                                                   int8_t *out) {
   const uint8_t *qs = blk + 2; // past the 2-byte fp16 d slot (unused here; the
                                // real per-column d lives in the parallel dW array)
@@ -80,7 +80,7 @@ static inline void tcrv_ime_q4_0_dequant_fragment(const uint8_t *blk,
 // carried in the parallel dW array; the per-(row,block) activation scale in dA.
 // M/N/K are RUNTIME parameters (bridge #2: the fixed micro-tile is generalized to
 // the tensor's real shape).
-static void tcrv_ime_q4_0_vmadot_matmul_f32(const int8_t *Apack, const float *dA,
+static void weft_ime_q4_0_vmadot_matmul_f32(const int8_t *Apack, const float *dA,
                                             const uint8_t *Bnib, const float *dW,
                                             float *Cf, long M, long N, long K) {
   const long mt = M / 4, nt = N / 4, nb = K / 32; // nb = # of 32-element blocks
@@ -94,11 +94,11 @@ static void tcrv_ime_q4_0_vmadot_matmul_f32(const int8_t *Apack, const float *dA
       for (long b = 0; b < nb; ++b) {
         int8_t Bdec[128];
         for (long f = 0; f < frags_per_block; ++f)
-          tcrv_ime_q4_0_dequant_fragment(
+          weft_ime_q4_0_dequant_fragment(
               Bcol + (b * frags_per_block + f) * q40_block_bytes, Bdec + f * 32);
         int32_t frag[16];
         // A fragments for this block: global fragments b*4 .. b*4+3, contiguous.
-        tcrv_ime_vmadot_mac_kloop(Arow + b * frags_per_block * 32, Bdec,
+        weft_ime_vmadot_mac_kloop(Arow + b * frags_per_block * 32, Bdec,
                                   frags_per_block, frag);
         for (long r = 0; r < 4; ++r)
           for (long c = 0; c < 4; ++c) {
@@ -286,10 +286,10 @@ static int test_shape(long M, long N, long K, unsigned seed) {
         const uint8_t *Bcol = Bnib + nj * kt * q40_block_bytes;
         int8_t Bdec[128];
         for (long f = 0; f < 4; ++f)
-          tcrv_ime_q4_0_dequant_fragment(Bcol + (b * 4 + f) * q40_block_bytes,
+          weft_ime_q4_0_dequant_fragment(Bcol + (b * 4 + f) * q40_block_bytes,
                                          Bdec + f * 32);
         int32_t frag[16];
-        tcrv_ime_vmadot_mac_kloop(Arow + b * 4 * 32, Bdec, 4, frag);
+        weft_ime_vmadot_mac_kloop(Arow + b * 4 * 32, Bdec, 4, frag);
         for (long r = 0; r < 4; ++r)
           for (long c = 0; c < 4; ++c) {
             long m = mi * 4 + r, n = nj * 4 + c;
@@ -303,7 +303,7 @@ static int test_shape(long M, long N, long K, unsigned seed) {
 
   // --- Check (2): scale-fold f32 vs canonical reference (bounded ULP) ---------
   float *Cf = (float *)calloc((size_t)M * N, sizeof(float));
-  tcrv_ime_q4_0_vmadot_matmul_f32(Apack, dA, Bnib, dW, Cf, M, N, K);
+  weft_ime_q4_0_vmadot_matmul_f32(Apack, dA, Bnib, dW, Cf, M, N, K);
 
   double max_abs_err = 0.0, max_rel_err = 0.0, ref_max = 0.0;
   for (long m = 0; m < M; ++m)

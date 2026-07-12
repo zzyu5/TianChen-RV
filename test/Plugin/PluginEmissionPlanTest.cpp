@@ -1,7 +1,7 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -16,18 +16,18 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::support::RuntimeABIParameter;
-using tianchenrv::support::RuntimeABIParameterOwnership;
-using tianchenrv::support::RuntimeABIParameterRole;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::support::RuntimeABIParameter;
+using weft::support::RuntimeABIParameterOwnership;
+using weft::support::RuntimeABIParameterRole;
+using weft::support::TargetCapabilitySet;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 namespace {
 
@@ -147,12 +147,12 @@ VariantOp findDirectVariant(KernelOp kernel, llvm::StringRef name) {
 int runUnsupportedArtifactKindPlanTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @artifact_plan_anchor attributes {} {
-    tcrv.exec.capability @generic_exec {
+  weft.exec.kernel @artifact_plan_anchor attributes {} {
+    weft.exec.capability @generic_exec {
       id = "generic.exec",
       kind = "generic-feature"
     }
-    tcrv.exec.variant @artifact_path attributes {
+    weft.exec.variant @artifact_path attributes {
       origin = "artifact-plan",
       requires = [@generic_exec]
     } {
@@ -202,7 +202,7 @@ module {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

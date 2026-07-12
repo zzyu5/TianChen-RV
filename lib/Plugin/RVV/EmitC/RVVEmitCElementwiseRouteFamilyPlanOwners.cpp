@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -15,7 +15,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVGenericBinaryRuntimeABIOrder(
@@ -369,11 +369,11 @@ getElementwiseArithmeticCTypeMappingSummary(RVVSelectedBodyOperationKind op) {
 
 std::optional<std::string>
 getElementwiseVectorIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
-  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      sew != tcrv::rvv::getRVVSEW64Bits())
+  if (sew != weft::rvv::getRVVFirstSliceSEWBits() &&
+      sew != weft::rvv::getRVVSEW64Bits())
     return std::nullopt;
-  if (lmul != tcrv::rvv::getRVVLMULM1() &&
-      lmul != tcrv::rvv::getRVVLMULM2())
+  if (lmul != weft::rvv::getRVVLMULM1() &&
+      lmul != weft::rvv::getRVVLMULM2())
     return std::nullopt;
   return (llvm::Twine("i") + llvm::Twine(sew) + lmul).str();
 }
@@ -385,17 +385,17 @@ getElementwiseMaskIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
   if (!vectorSuffix)
     return std::nullopt;
   std::int64_t maskBits = 0;
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == weft::rvv::getRVVLMULM1())
     maskBits = 32;
-  else if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-           lmul == tcrv::rvv::getRVVLMULM2())
+  else if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+           lmul == weft::rvv::getRVVLMULM2())
     maskBits = 16;
-  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-           lmul == tcrv::rvv::getRVVLMULM1())
+  else if (sew == weft::rvv::getRVVSEW64Bits() &&
+           lmul == weft::rvv::getRVVLMULM1())
     maskBits = 64;
-  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-           lmul == tcrv::rvv::getRVVLMULM2())
+  else if (sew == weft::rvv::getRVVSEW64Bits() &&
+           lmul == weft::rvv::getRVVLMULM2())
     maskBits = 32;
   if (maskBits == 0)
     return std::nullopt;
@@ -426,13 +426,13 @@ getElementwiseArithmeticIntrinsicStem(RVVSelectedBodyOperationKind operation) {
 std::optional<std::string> deriveElementwiseArithmeticIntrinsic(
     RVVSelectedBodyOperationKind operation, std::int64_t sew,
     llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul != tcrv::rvv::getRVVLMULM1())
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
+      lmul != weft::rvv::getRVVLMULM1())
     return std::nullopt;
   llvm::StringRef stem = getElementwiseArithmeticIntrinsicStem(operation);
   if (stem.empty())
     return std::nullopt;
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
       operation != RVVSelectedBodyOperationKind::Add &&
       operation != RVVSelectedBodyOperationKind::MaskedAdd &&
       operation != RVVSelectedBodyOperationKind::MaskedSub &&
@@ -563,11 +563,11 @@ llvm::Error validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
         "elementwise arithmetic route-family plan requires element bit width "
         "to mirror provider-derived SEW");
   llvm::StringRef expectedElementType;
-  if (plan.sew == tcrv::rvv::getRVVSEW16Bits())
+  if (plan.sew == weft::rvv::getRVVSEW16Bits())
     expectedElementType = "i16";
-  else if (plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  else if (plan.sew == weft::rvv::getRVVFirstSliceSEWBits())
     expectedElementType = "i32";
-  else if (plan.sew == tcrv::rvv::getRVVSEW64Bits())
+  else if (plan.sew == weft::rvv::getRVVSEW64Bits())
     expectedElementType = "i64";
   else
     return makeRVVEmitCRouteProviderError(
@@ -853,7 +853,7 @@ deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           getElementwiseArithmeticRuntimeABIOrder(operation),
           "elementwise arithmetic route-family plan");
@@ -1103,7 +1103,7 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
         "scalar-broadcast elementwise route-family plan requires element bit "
         "width to mirror provider-derived SEW");
   llvm::StringRef expectedElementType;
-  if (plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (plan.sew == weft::rvv::getRVVFirstSliceSEWBits())
     expectedElementType = "i32";
   else
     return makeRVVEmitCRouteProviderError(
@@ -1228,8 +1228,8 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast elementwise route-family plan requires typed RVV "
         "config facts before deriving scalar-broadcast route facts");
-  if (analysis.typedConfigFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      analysis.typedConfigFacts.lmul != tcrv::rvv::getRVVLMULM1())
+  if (analysis.typedConfigFacts.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      analysis.typedConfigFacts.lmul != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast elementwise route-family plan currently requires "
         "SEW32 LMUL m1 typed config");
@@ -1247,7 +1247,7 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           kRVVScalarBroadcastRuntimeABIOrder,
           "scalar-broadcast elementwise route-family plan");
@@ -1874,4 +1874,4 @@ llvm::Error verifyRVVSelectedBodyElementwiseRouteDescriptionMirrors(
 
 
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

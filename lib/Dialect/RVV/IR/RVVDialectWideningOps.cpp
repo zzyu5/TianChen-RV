@@ -14,13 +14,13 @@
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Conversion/EmitC/TunableScheduleOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Conversion/EmitC/TunableScheduleOpInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
@@ -36,7 +36,7 @@
 #include <optional>
 #include <string>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
 mlir::LogicalResult WideningMAccOp::verify() {
   mlir::Operation *op = getOperation();
@@ -46,7 +46,7 @@ mlir::LogicalResult WideningMAccOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.widening_macc keeps source/result "
+             << "'; weft_rvv.widening_macc keeps source/result "
                 "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
@@ -83,23 +83,23 @@ mlir::LogicalResult WideningMAccOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs and rhs i16 generic RVV vector operands, one i32 "
-              "accumulator vector operand, one !tcrv_rvv.vl operand, and one "
+              "accumulator vector operand, one !weft_rvv.vl operand, and one "
               "i32 generic RVV vector result";
   if (!isGenericRVVVectorI16MF2(getLhs().getType()) ||
       !isGenericRVVVectorI16MF2(getRhs().getType()))
     return emitOpError()
            << "requires lhs and rhs source vectors to have type "
-              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+              "!weft_rvv.vector<i16, \"mf2\"> for the bounded signed "
               "widening multiply-accumulate route";
   if (!isGenericRVVVectorI32M1(getAccumulator().getType()) ||
       !isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
            << "requires accumulator and result vectors to have type "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed widening "
+              "!weft_rvv.vector<i32, \"m1\"> for the bounded signed widening "
               "multiply-accumulate route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -112,17 +112,17 @@ mlir::LogicalResult WideningMAccOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+           << "requires enclosing weft_rvv.with_vl to carry explicit "
               "accumulator/result SEW/LMUL metadata for widening macc";
   if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
                                  expectedLMUL.getValue()))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl accumulator/result config "
+           << "requires enclosing weft_rvv.with_vl accumulator/result config "
               "to be SEW32 LMUL m1 for the bounded signed widening macc "
               "route";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for widening macc";
 
   return mlir::success();
@@ -136,7 +136,7 @@ mlir::LogicalResult WideningDotReduceOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.widening_dot_reduce keeps source/result "
+             << "'; weft_rvv.widening_dot_reduce keeps source/result "
                 "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
@@ -175,26 +175,26 @@ mlir::LogicalResult WideningDotReduceOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs and rhs i16 generic RVV vector operands, one i32 "
-              "accumulator seed runtime ABI operand, one !tcrv_rvv.vl "
+              "accumulator seed runtime ABI operand, one !weft_rvv.vl "
               "operand, and one i32 generic RVV vector result";
   if (!isGenericRVVVectorI16MF2(getLhs().getType()) ||
       !isGenericRVVVectorI16MF2(getRhs().getType()))
     return emitOpError()
            << "requires lhs and rhs source vectors to have type "
-              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+              "!weft_rvv.vector<i16, \"mf2\"> for the bounded signed "
               "widening dot-product reduction route";
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
            << "requires result vector to have type "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+              "!weft_rvv.vector<i32, \"m1\"> for the bounded signed "
               "widening dot-product reduction route";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAccumulatorSeed(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   RuntimeABIValueOp seedBinding =
@@ -205,7 +205,7 @@ mlir::LogicalResult WideningDotReduceOp::verify() {
               "for the bounded signed widening dot-product reduction route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -218,17 +218,17 @@ mlir::LogicalResult WideningDotReduceOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+           << "requires enclosing weft_rvv.with_vl to carry explicit "
               "result SEW/LMUL metadata for widening dot-product reduction";
   if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
                                  expectedLMUL.getValue()))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl result config to be "
+           << "requires enclosing weft_rvv.with_vl result config to be "
               "SEW32 LMUL m1 for the bounded signed widening dot-product "
               "reduction route";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for widening dot-product reduction";
 
   return mlir::success();
@@ -242,7 +242,7 @@ mlir::LogicalResult WideningProductOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.widening_product keeps source/result "
+             << "'; weft_rvv.widening_product keeps source/result "
                 "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
@@ -271,10 +271,10 @@ mlir::LogicalResult WideningProductOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs and rhs i8 generic RVV vector operands, one "
-              "!tcrv_rvv.vl operand, and one i16 generic RVV vector result";
+              "!weft_rvv.vl operand, and one i16 generic RVV vector result";
   const bool isUnsignedProduct = getKind() == "unsigned_widening_product";
   // The deferred-wide max-legal-LMUL rung (N3 schedule, the measured ssh-rvv
-  // winner): i8m2 x i8m2 -> i16m4 feeding tcrv_rvv.widening_accumulate. This is
+  // winner): i8m2 x i8m2 -> i16m4 feeding weft_rvv.widening_accumulate. This is
   // a PARALLEL signed verifier branch -- the narrow i8mf4 branch is unchanged.
   const bool isWideDeferredProduct =
       getKind() == "signed_widening_product" &&
@@ -284,16 +284,16 @@ mlir::LogicalResult WideningProductOp::verify() {
         !isGenericRVVVectorSignedI8M2(getRhs().getType()))
       return emitOpError()
              << "requires lhs and rhs source vectors to have type "
-                "!tcrv_rvv.vector<i8, \"m2\"> for the deferred-wide "
+                "!weft_rvv.vector<i8, \"m2\"> for the deferred-wide "
                 "max-legal-LMUL widening-product rung";
     if (!isGenericRVVVectorSignedI16M4(getResult().getType()))
       return emitOpError()
              << "requires result vector to have type "
-                "!tcrv_rvv.vector<i16, \"m4\"> for the deferred-wide "
+                "!weft_rvv.vector<i16, \"m4\"> for the deferred-wide "
                 "max-legal-LMUL widening-product rung";
     if (!llvm::isa<VLType>(getVl().getType()))
       return emitOpError() << "requires runtime VL operand to have "
-                              "!tcrv_rvv.vl type";
+                              "!weft_rvv.vl type";
     auto withVL = verifyNestedDataflowOp(op);
     if (mlir::failed(withVL))
       return mlir::failure();
@@ -305,21 +305,21 @@ mlir::LogicalResult WideningProductOp::verify() {
         (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
     if (!expectedSEW || !expectedLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+             << "requires enclosing weft_rvv.with_vl to carry explicit "
                 "SEW/LMUL metadata for the deferred-wide widening product";
     if (expectedSEW.getInt() != getRVVSEW8Bits() ||
         expectedLMUL.getValue() != getRVVLMULM2())
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl config to be SEW8 LMUL m2 "
+             << "requires enclosing weft_rvv.with_vl config to be SEW8 LMUL m2 "
                 "for the deferred-wide max-legal-LMUL widening-product rung";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+             << "requires enclosing weft_rvv.with_vl to carry explicit policy "
                 "metadata for widening product";
     return mlir::success();
   }
   // The Track B byte-anchor dot-reduce m1 rung (e8m1 anchor, VLEN256): i8m1 x
-  // i8m1 -> i16m2 feeding tcrv_rvv.standalone_reduce. PARALLEL signed branch; the
+  // i8m1 -> i16m2 feeding weft_rvv.standalone_reduce. PARALLEL signed branch; the
   // i8m2 rung above (e8m2, VLEN128) and the narrow i8mf4 branch are unchanged.
   // (The m2 byte-anchor dot-reduce reuses the isWideDeferredProduct branch above
   // -- the i8m2 -> i16m4 product type-check is identical; only the consumer op
@@ -334,17 +334,17 @@ mlir::LogicalResult WideningProductOp::verify() {
             getRhs().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
       return emitOpError()
              << "requires lhs and rhs source vectors to have type "
-                "!tcrv_rvv.vector<i8, \"m1\"> for the byte-anchor m1 "
+                "!weft_rvv.vector<i8, \"m1\"> for the byte-anchor m1 "
                 "widening-product dot-reduce rung";
     if (!isGenericRVVSignedOrSignlessIntegerVectorType(
             getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
       return emitOpError()
              << "requires result vector to have type "
-                "!tcrv_rvv.vector<i16, \"m2\"> for the byte-anchor m1 "
+                "!weft_rvv.vector<i16, \"m2\"> for the byte-anchor m1 "
                 "widening-product dot-reduce rung";
     if (!llvm::isa<VLType>(getVl().getType()))
       return emitOpError() << "requires runtime VL operand to have "
-                              "!tcrv_rvv.vl type";
+                              "!weft_rvv.vl type";
     auto withVL = verifyNestedDataflowOp(op);
     if (mlir::failed(withVL))
       return mlir::failure();
@@ -356,22 +356,22 @@ mlir::LogicalResult WideningProductOp::verify() {
         (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
     if (!expectedSEW || !expectedLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+             << "requires enclosing weft_rvv.with_vl to carry explicit "
                 "SEW/LMUL metadata for the byte-anchor widening product";
     if (expectedSEW.getInt() != getRVVSEW8Bits() ||
         expectedLMUL.getValue() != getRVVLMULM1())
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl config to be SEW8 LMUL m1 "
+             << "requires enclosing weft_rvv.with_vl config to be SEW8 LMUL m1 "
                 "for the byte-anchor m1 widening-product dot-reduce rung";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+             << "requires enclosing weft_rvv.with_vl to carry explicit policy "
                 "metadata for widening product";
     return mlir::success();
   }
   // The 2nd-family (i16 dot-reduce) deferred-wide rung: i16m4 x i16m4 -> i32m8,
   // a SINGLE widening step where the widened product already equals the i32
-  // accumulator width. Feeds a NON-widening tcrv_rvv.deferred_accumulate
+  // accumulator width. Feeds a NON-widening weft_rvv.deferred_accumulate
   // (vadd.vv). PARALLEL signed branch -- the byte i8m2 and narrow i8mf4 branches
   // are unchanged.
   const bool isWideDotReduceProduct =
@@ -388,7 +388,7 @@ mlir::LogicalResult WideningProductOp::verify() {
     const llvm::StringRef sourceLMUL =
         getRVVDotReduceProductSourceLMUL(getProductRelation());
     const llvm::StringRef accumulatorLMUL =
-        tianchenrv::plugin::rvv::getRVVNextWiderLMUL(sourceLMUL);
+        weft::plugin::rvv::getRVVNextWiderLMUL(sourceLMUL);
     if (sourceLMUL.empty() || accumulatorLMUL.empty())
       return emitOpError()
              << "requires a supported deferred-wide dot-reduce "
@@ -399,20 +399,20 @@ mlir::LogicalResult WideningProductOp::verify() {
             getRhs().getType(), getRVVSEW16Bits(), sourceLMUL))
       return emitOpError()
              << "requires lhs and rhs source vectors to have type "
-                "!tcrv_rvv.vector<i16, \""
+                "!weft_rvv.vector<i16, \""
              << sourceLMUL
              << "\"> matching the deferred-wide dot-reduce product_relation "
                 "source LMUL";
     if (!isGenericRVVVectorType(getResult().getType(), getRVVSEW32Bits(),
                                 accumulatorLMUL))
       return emitOpError()
-             << "requires result vector to have type !tcrv_rvv.vector<i32, \""
+             << "requires result vector to have type !weft_rvv.vector<i32, \""
              << accumulatorLMUL
              << "\"> matching the deferred-wide dot-reduce product_relation "
                 "accumulator LMUL";
     if (!llvm::isa<VLType>(getVl().getType()))
       return emitOpError() << "requires runtime VL operand to have "
-                              "!tcrv_rvv.vl type";
+                              "!weft_rvv.vl type";
     auto withVL = verifyNestedDataflowOp(op);
     if (mlir::failed(withVL))
       return mlir::failure();
@@ -424,17 +424,17 @@ mlir::LogicalResult WideningProductOp::verify() {
         (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
     if (!expectedSEW || !expectedLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+             << "requires enclosing weft_rvv.with_vl to carry explicit "
                 "SEW/LMUL metadata for the deferred-wide dot-reduce product";
     if (expectedSEW.getInt() != getRVVSEW16Bits() ||
         expectedLMUL.getValue() != sourceLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl config to be SEW16 LMUL "
+             << "requires enclosing weft_rvv.with_vl config to be SEW16 LMUL "
              << sourceLMUL
              << " matching the deferred-wide dot-reduce widening-product rung";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+             << "requires enclosing weft_rvv.with_vl to carry explicit policy "
                 "metadata for widening product";
     return mlir::success();
   }
@@ -448,12 +448,12 @@ mlir::LogicalResult WideningProductOp::verify() {
         !isGenericRVVVectorUnsignedI8MF4(getRhs().getType()))
       return emitOpError()
              << "requires lhs and rhs source vectors to have type "
-                "!tcrv_rvv.vector<ui8, \"mf4\"> for the bounded unsigned "
+                "!weft_rvv.vector<ui8, \"mf4\"> for the bounded unsigned "
                 "low-precision widening-product typed surface";
     if (!isGenericRVVVectorUnsignedI16MF2(getResult().getType()))
       return emitOpError()
              << "requires result vector to have type "
-                "!tcrv_rvv.vector<ui16, \"mf2\"> for the bounded unsigned "
+                "!weft_rvv.vector<ui16, \"mf2\"> for the bounded unsigned "
                 "low-precision widening-product typed surface";
   } else {
     if (getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
@@ -465,17 +465,17 @@ mlir::LogicalResult WideningProductOp::verify() {
         !isGenericRVVVectorSignedI8MF4(getRhs().getType()))
       return emitOpError()
              << "requires lhs and rhs source vectors to have type "
-                "!tcrv_rvv.vector<i8, \"mf4\"> for the bounded signed "
+                "!weft_rvv.vector<i8, \"mf4\"> for the bounded signed "
                 "low-precision widening-product route";
     if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
       return emitOpError()
              << "requires result vector to have type "
-                "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+                "!weft_rvv.vector<i16, \"mf2\"> for the bounded signed "
                 "low-precision widening-product route";
   }
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -488,7 +488,7 @@ mlir::LogicalResult WideningProductOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+           << "requires enclosing weft_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for widening product";
   const bool isStandaloneProductConfig =
       expectedSEW.getInt() == getRVVSEW16Bits() &&
@@ -497,14 +497,14 @@ mlir::LogicalResult WideningProductOp::verify() {
       isBoundedWideningProductReductionChainProduct(*this, *withVL);
   if (!isStandaloneProductConfig && !isProductReductionChainConfig)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl result config to be "
+           << "requires enclosing weft_rvv.with_vl result config to be "
               "SEW16 LMUL mf2 for the bounded signed low-precision "
               "widening-product route, or SEW32 LMUL m1 when the i16 product "
               "feeds the bounded i16-to-i32 standalone widening reduction "
               "chain";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for widening product";
 
   return mlir::success();
@@ -518,7 +518,7 @@ mlir::LogicalResult WideningAccumulateOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.widening_accumulate keeps source/result SEW/LMUL/"
+             << "'; weft_rvv.widening_accumulate keeps source/result SEW/LMUL/"
                 "policy on typed vector values and setvl/with_vl, runtime "
                 "n/AVL/VL in the surrounding control-plane IR, and rejects "
                 "deleted local element_count metadata";
@@ -544,20 +544,20 @@ mlir::LogicalResult WideningAccumulateOp::verify() {
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one i16 LMUL m4 widening-product operand, one "
-              "!tcrv_rvv.vl operand, and one i32 LMUL m8 vector result";
+              "!weft_rvv.vl operand, and one i32 LMUL m8 vector result";
   if (!isGenericRVVVectorSignedI16M4(getProduct().getType()))
     return emitOpError()
            << "requires product operand to have type "
-              "!tcrv_rvv.vector<i16, \"m4\"> for the deferred-wide widening "
+              "!weft_rvv.vector<i16, \"m4\"> for the deferred-wide widening "
               "accumulate route";
   if (!isGenericRVVVectorI32M8(getResult().getType()))
     return emitOpError()
            << "requires result vector to have type "
-              "!tcrv_rvv.vector<i32, \"m8\"> for the deferred-wide widening "
+              "!weft_rvv.vector<i32, \"m8\"> for the deferred-wide widening "
               "accumulate route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   // The deferred-wide accumulate consumes a bounded i8m2 x i8m2 -> i16m4 signed
   // widening product (the structural marker that the body is the deferred-wide
@@ -567,23 +567,23 @@ mlir::LogicalResult WideningAccumulateOp::verify() {
   if (!product)
     return emitOpError()
            << "requires product operand to be produced by a bounded "
-              "tcrv_rvv.widening_product inside the selected RVV typed body";
+              "weft_rvv.widening_product inside the selected RVV typed body";
   if (product.getKind() != "signed_widening_product" ||
       !isSupportedGenericWideningProductWideDeferredRelation(
           product.getProductRelation()))
     return emitOpError()
-           << "requires product-producing tcrv_rvv.widening_product to use "
+           << "requires product-producing weft_rvv.widening_product to use "
               "kind \"signed_widening_product\" and product_relation "
               "\"signed-i8m2xi8m2-to-i16m4\" for the deferred-wide widening "
               "accumulate route";
   if (product.getVl() != getVl())
     return emitOpError()
-           << "requires product-producing tcrv_rvv.widening_product to consume "
-              "the same !tcrv_rvv.vl token as tcrv_rvv.widening_accumulate";
+           << "requires product-producing weft_rvv.widening_product to consume "
+              "the same !weft_rvv.vl token as weft_rvv.widening_accumulate";
   if (product->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires product-producing tcrv_rvv.widening_product to be in "
-              "the same tcrv_rvv.with_vl body as tcrv_rvv.widening_accumulate";
+           << "requires product-producing weft_rvv.widening_product to be in "
+              "the same weft_rvv.with_vl body as weft_rvv.widening_accumulate";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -597,16 +597,16 @@ mlir::LogicalResult WideningAccumulateOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW/LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW/LMUL "
               "metadata for the deferred-wide widening accumulate";
   if (expectedSEW.getInt() != getRVVSEW8Bits() ||
       expectedLMUL.getValue() != getRVVLMULM2())
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl config to be SEW8 LMUL m2 "
+           << "requires enclosing weft_rvv.with_vl config to be SEW8 LMUL m2 "
               "for the deferred-wide max-legal-LMUL widening accumulate route";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the deferred-wide widening accumulate";
 
   return mlir::success();
@@ -620,7 +620,7 @@ mlir::LogicalResult DeferredAccumulateOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.deferred_accumulate keeps source/result SEW/LMUL/"
+             << "'; weft_rvv.deferred_accumulate keeps source/result SEW/LMUL/"
                 "policy on typed vector values and setvl/with_vl, runtime "
                 "n/AVL/VL in the surrounding control-plane IR, and rejects "
                 "deleted local element_count metadata";
@@ -657,23 +657,23 @@ mlir::LogicalResult DeferredAccumulateOp::verify() {
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires one i32 widening-product operand, one !tcrv_rvv.vl "
+           << "requires one i32 widening-product operand, one !weft_rvv.vl "
               "operand, and one i32 vector result";
   if (!isGenericRVVVectorType(getProduct().getType(), getRVVSEW32Bits(),
                               accumulatorLMUL))
     return emitOpError()
-           << "requires product operand to have type !tcrv_rvv.vector<i32, \""
+           << "requires product operand to have type !weft_rvv.vector<i32, \""
            << accumulatorLMUL
            << "\"> matching the deferred-wide dot-reduce accumulate_relation";
   if (!isGenericRVVVectorType(getResult().getType(), getRVVSEW32Bits(),
                               accumulatorLMUL))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, \""
+           << "requires result vector to have type !weft_rvv.vector<i32, \""
            << accumulatorLMUL
            << "\"> matching the deferred-wide dot-reduce accumulate_relation";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   // The deferred-wide dot-reduce accumulate consumes a bounded i16<L> x i16<L> ->
   // i32<W> signed widening product (the structural marker that the body is the
@@ -684,27 +684,27 @@ mlir::LogicalResult DeferredAccumulateOp::verify() {
   if (!product)
     return emitOpError()
            << "requires product operand to be produced by a bounded "
-              "tcrv_rvv.widening_product inside the selected RVV typed body";
+              "weft_rvv.widening_product inside the selected RVV typed body";
   const llvm::StringRef productSourceLMUL =
       getRVVDotReduceProductSourceLMUL(product.getProductRelation());
   if (product.getKind() != "signed_widening_product" ||
       productSourceLMUL.empty() ||
-      tianchenrv::plugin::rvv::getRVVNextWiderLMUL(productSourceLMUL) !=
+      weft::plugin::rvv::getRVVNextWiderLMUL(productSourceLMUL) !=
           accumulatorLMUL)
     return emitOpError()
-           << "requires product-producing tcrv_rvv.widening_product to use "
+           << "requires product-producing weft_rvv.widening_product to use "
               "kind \"signed_widening_product\" and a product_relation "
               "\"signed-i16<L>xi16<L>-to-i32"
            << accumulatorLMUL
            << "\" matching the deferred-wide dot-reduce accumulate route";
   if (product.getVl() != getVl())
     return emitOpError()
-           << "requires product-producing tcrv_rvv.widening_product to consume "
-              "the same !tcrv_rvv.vl token as tcrv_rvv.deferred_accumulate";
+           << "requires product-producing weft_rvv.widening_product to consume "
+              "the same !weft_rvv.vl token as weft_rvv.deferred_accumulate";
   if (product->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires product-producing tcrv_rvv.widening_product to be in "
-              "the same tcrv_rvv.with_vl body as tcrv_rvv.deferred_accumulate";
+           << "requires product-producing weft_rvv.widening_product to be in "
+              "the same weft_rvv.with_vl body as weft_rvv.deferred_accumulate";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -718,19 +718,19 @@ mlir::LogicalResult DeferredAccumulateOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW/LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW/LMUL "
               "metadata for the deferred-wide dot-reduce accumulate";
   // The enclosing with_vl strip config is the i16 SOURCE LMUL <L> (the product
   // source), not the i32 accumulator <W>.
   if (expectedSEW.getInt() != getRVVSEW16Bits() ||
       expectedLMUL.getValue() != productSourceLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl config to be SEW16 LMUL "
+           << "requires enclosing weft_rvv.with_vl config to be SEW16 LMUL "
            << productSourceLMUL
            << " matching the deferred-wide dot-reduce accumulate route";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the deferred-wide dot-reduce accumulate";
 
   return mlir::success();
@@ -744,7 +744,7 @@ mlir::LogicalResult PackedI4NibbleUnpackProductOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.packed_i4_nibble_unpack_product keeps source/"
+             << "'; weft_rvv.packed_i4_nibble_unpack_product keeps source/"
                 "result SEW/LMUL/policy on typed vector values and "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
@@ -771,21 +771,21 @@ mlir::LogicalResult PackedI4NibbleUnpackProductOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires two i8 LMUL mf4 packed source operands, one "
-              "!tcrv_rvv.vl operand, and one i16 LMUL mf2 result";
+              "!weft_rvv.vl operand, and one i16 LMUL mf2 result";
   if (!isGenericRVVVectorSignedI8MF4(getLhs().getType()) ||
       !isGenericRVVVectorSignedI8MF4(getRhs().getType()))
     return emitOpError()
            << "requires lhs and rhs source vectors to have type "
-              "!tcrv_rvv.vector<i8, \"mf4\"> for the bounded packed-i4 "
+              "!weft_rvv.vector<i8, \"mf4\"> for the bounded packed-i4 "
               "nibble-unpack widening-product route";
   if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
     return emitOpError()
            << "requires result vector to have type "
-              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded packed-i4 "
+              "!weft_rvv.vector<i16, \"mf2\"> for the bounded packed-i4 "
               "nibble-unpack widening-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -794,7 +794,7 @@ mlir::LogicalResult PackedI4NibbleUnpackProductOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for packed-i4 nibble-unpack widening product";
 
   return mlir::success();
@@ -808,7 +808,7 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.packed_i4_offset_binary_x_i8_product keeps source/"
+             << "'; weft_rvv.packed_i4_offset_binary_x_i8_product keeps source/"
                 "result SEW/LMUL/policy on typed vector values and "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
@@ -831,7 +831,7 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
   // product STRUCTURE; only the vector width differs. The narrow mf4/mf2 rung is
   // the INC-1 integer-core anchor; the m1/m2 rung is the M-FLAT flat-cohort core
   // (i4m1 weight x i8m1 low/high activation -> i16m2). This mirrors how
-  // tcrv_rvv.widening_product declares multiple LMUL rungs; the emitter derives
+  // weft_rvv.widening_product declares multiple LMUL rungs; the emitter derives
   // every intrinsic width from the operand/result types, so the m1 rung is
   // byte-exact to the mf4 rung modulo the width tokens.
   const bool isNarrowRung =
@@ -849,14 +849,14 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one packed-i4 weight operand, two plain-int8 "
-              "activation operands, one !tcrv_rvv.vl operand, and one widened "
+              "activation operands, one !weft_rvv.vl operand, and one widened "
               "i16 result";
   if (isM1Rung) {
     if (!isGenericRVVSignedOrSignlessIntegerVectorType(
             getWeight().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
       return emitOpError()
              << "requires the packed-i4 weight source vector to have type "
-                "!tcrv_rvv.vector<i8, \"m1\"> for the m1 asymmetric "
+                "!weft_rvv.vector<i8, \"m1\"> for the m1 asymmetric "
                 "offset-binary packed-i4 x plain-i8 widening-product rung";
     if (!isGenericRVVSignedOrSignlessIntegerVectorType(
             getActivationLow().getType(), getRVVSEW8Bits(), getRVVLMULM1()) ||
@@ -864,36 +864,36 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
             getActivationHigh().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
       return emitOpError()
              << "requires the low and high plain-int8 activation source vectors "
-                "to have type !tcrv_rvv.vector<i8, \"m1\"> for the m1 "
+                "to have type !weft_rvv.vector<i8, \"m1\"> for the m1 "
                 "asymmetric offset-binary packed-i4 x plain-i8 "
                 "widening-product rung";
     if (!isGenericRVVSignedOrSignlessIntegerVectorType(
             getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
       return emitOpError()
              << "requires result vector to have type "
-                "!tcrv_rvv.vector<i16, \"m2\"> for the m1 asymmetric "
+                "!weft_rvv.vector<i16, \"m2\"> for the m1 asymmetric "
                 "offset-binary packed-i4 x plain-i8 widening-product rung";
   } else {
     if (!isGenericRVVVectorSignedI8MF4(getWeight().getType()))
       return emitOpError()
              << "requires the packed-i4 weight source vector to have type "
-                "!tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric offset-binary "
+                "!weft_rvv.vector<i8, \"mf4\"> for the asymmetric offset-binary "
                 "packed-i4 x plain-i8 widening-product route";
     if (!isGenericRVVVectorSignedI8MF4(getActivationLow().getType()) ||
         !isGenericRVVVectorSignedI8MF4(getActivationHigh().getType()))
       return emitOpError()
              << "requires the low and high plain-int8 activation source vectors "
-                "to have type !tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric "
+                "to have type !weft_rvv.vector<i8, \"mf4\"> for the asymmetric "
                 "offset-binary packed-i4 x plain-i8 widening-product route";
     if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
       return emitOpError()
              << "requires result vector to have type "
-                "!tcrv_rvv.vector<i16, \"mf2\"> for the asymmetric offset-binary "
+                "!weft_rvv.vector<i16, \"mf2\"> for the asymmetric offset-binary "
                 "packed-i4 x plain-i8 widening-product route";
   }
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -902,7 +902,7 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for asymmetric offset-binary packed-i4 x plain-i8 "
               "widening product";
 
@@ -930,7 +930,7 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_lane_wise_q4_x_i8_dot keeps SEW/LMUL/policy "
+             << "'; weft_rvv.repack_lane_wise_q4_x_i8_dot keeps SEW/LMUL/policy "
                 "on setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -1012,12 +1012,12 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked weight base, the plain q8_0 activation "
-              "base, one !tcrv_rvv.vl operand, one block_index induction "
+              "base, one !weft_rvv.vl operand, one block_index induction "
               "operand, and one or more per-strip i32 vector results (one per "
               "disjoint strip -- numHalves total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -1032,7 +1032,7 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-strip result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-strip 16-lane combined sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -1047,7 +1047,7 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise nibble-dot integer core";
 
   return mlir::success();
@@ -1112,12 +1112,12 @@ mlir::LogicalResult RepackGemvTernaryCoreOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked ternary weight base, the plain block_q8_K "
-              "activation base, one !tcrv_rvv.vl operand, one block_index "
+              "activation base, one !weft_rvv.vl operand, one block_index "
               "induction operand, and one or more per-strip i32 vector results "
               "(one per disjoint strip -- numHalves total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -1129,7 +1129,7 @@ mlir::LogicalResult RepackGemvTernaryCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-strip result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-strip combined ternary sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -1144,7 +1144,7 @@ mlir::LogicalResult RepackGemvTernaryCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise ternary trit-dot core";
   return mlir::success();
 }
@@ -1159,12 +1159,12 @@ mlir::LogicalResult RepackGemmTernaryCoreOp::verify() {
   if (op->getNumOperands() != 5 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked ternary weight base, the interleaved "
-              "block_q8_Kx4 activation base, one !tcrv_rvv.vl operand, one "
+              "block_q8_Kx4 activation base, one !weft_rvv.vl operand, one "
               "block_index induction operand, one strip_row_offset operand, and "
               "one or more per-column i32 vector results (columnsPerPass total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -1180,7 +1180,7 @@ mlir::LogicalResult RepackGemmTernaryCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-column result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-column combined ternary sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -1195,7 +1195,7 @@ mlir::LogicalResult RepackGemmTernaryCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise ternary trit-dot core";
   return mlir::success();
 }
@@ -1208,7 +1208,7 @@ mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.unsigned_nibble_x_i8_product keeps source/result "
+             << "'; weft_rvv.unsigned_nibble_x_i8_product keeps source/result "
                 "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
@@ -1238,14 +1238,14 @@ mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one UNSIGNED packed-i4 weight operand, two plain-int8 "
-              "activation operands, one !tcrv_rvv.vl operand, and one widened "
+              "activation operands, one !weft_rvv.vl operand, and one widened "
               "i16 result";
 
   if (!isGenericRVVUnsignedIntegerVectorType(
           getWeight().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
     return emitOpError()
            << "requires the packed-i4 weight source vector to be an UNSIGNED i8 "
-              "!tcrv_rvv.vector<ui8, \"m1\"> for the m1 asymmetric "
+              "!weft_rvv.vector<ui8, \"m1\"> for the m1 asymmetric "
               "unsigned-nibble packed-i4 x plain-i8 widening-product rung";
   if (!isGenericRVVSignedOrSignlessIntegerVectorType(
           getActivationLow().getType(), getRVVSEW8Bits(), getRVVLMULM1()) ||
@@ -1253,17 +1253,17 @@ mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
           getActivationHigh().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
     return emitOpError()
            << "requires the low and high plain-int8 activation source vectors "
-              "to have type !tcrv_rvv.vector<i8, \"m1\"> for the m1 asymmetric "
+              "to have type !weft_rvv.vector<i8, \"m1\"> for the m1 asymmetric "
               "unsigned-nibble packed-i4 x plain-i8 widening-product rung";
   if (!isGenericRVVSignedOrSignlessIntegerVectorType(
           getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
     return emitOpError()
            << "requires result vector to have type "
-              "!tcrv_rvv.vector<i16, \"m2\"> for the m1 asymmetric "
+              "!weft_rvv.vector<i16, \"m2\"> for the m1 asymmetric "
               "unsigned-nibble packed-i4 x plain-i8 widening-product rung";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -1272,7 +1272,7 @@ mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for asymmetric unsigned-nibble packed-i4 x plain-i8 "
               "widening product";
 
@@ -1287,7 +1287,7 @@ mlir::LogicalResult FiveBitOffsetBinaryXI8ProductOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.five_bit_offset_binary_x_i8_product keeps "
+             << "'; weft_rvv.five_bit_offset_binary_x_i8_product keeps "
                 "source/result SEW/LMUL/policy on typed vector values and "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding control-plane "
                 "IR, and rejects deleted local element_count metadata";
@@ -1318,13 +1318,13 @@ mlir::LogicalResult FiveBitOffsetBinaryXI8ProductOp::verify() {
     return emitOpError()
            << "requires one UNSIGNED packed weight operand, one scalar i32 "
               "qh_source operand, two plain-int8 activation operands, one "
-              "!tcrv_rvv.vl operand, and one widened i16 result";
+              "!weft_rvv.vl operand, and one widened i16 result";
 
   if (!isGenericRVVUnsignedIntegerVectorType(
           getWeight().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
     return emitOpError()
            << "requires the packed weight source vector to be an UNSIGNED i8 "
-              "!tcrv_rvv.vector<ui8, \"m1\"> for the m1 five-bit offset-binary "
+              "!weft_rvv.vector<ui8, \"m1\"> for the m1 five-bit offset-binary "
               "packed x plain-i8 widening-product rung";
   // The qh_source is a SCALAR i32 gate-only token (the block_five_bit_qh_source
   // brick result), NOT a typed vector -- the 5th-bit bytes are re-read from that
@@ -1340,17 +1340,17 @@ mlir::LogicalResult FiveBitOffsetBinaryXI8ProductOp::verify() {
           getActivationHigh().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
     return emitOpError()
            << "requires the low and high plain-int8 activation source vectors "
-              "to have type !tcrv_rvv.vector<i8, \"m1\"> for the m1 five-bit "
+              "to have type !weft_rvv.vector<i8, \"m1\"> for the m1 five-bit "
               "offset-binary packed x plain-i8 widening-product rung";
   if (!isGenericRVVSignedOrSignlessIntegerVectorType(
           getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
     return emitOpError()
            << "requires result vector to have type "
-              "!tcrv_rvv.vector<i16, \"m2\"> for the m1 five-bit offset-binary "
+              "!weft_rvv.vector<i16, \"m2\"> for the m1 five-bit offset-binary "
               "packed x plain-i8 widening-product rung";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -1359,7 +1359,7 @@ mlir::LogicalResult FiveBitOffsetBinaryXI8ProductOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for five-bit offset-binary packed x plain-i8 widening "
               "product";
 
@@ -1374,7 +1374,7 @@ mlir::LogicalResult CodebookTableBroadcastOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.codebook_table_broadcast keeps the result SEW/LMUL "
+             << "'; weft_rvv.codebook_table_broadcast keeps the result SEW/LMUL "
                 "on the typed vector value and setvl/with_vl, and rejects "
                 "deleted local element_count metadata";
     if (attrName != "codebook" && attrName != "table_symbol")
@@ -1403,7 +1403,7 @@ mlir::LogicalResult CodebookTableBroadcastOp::verify() {
       !isGenericRVVSignedOrSignlessIntegerVectorType(
           getResult().getType(), getRVVSEW8Bits(), resultVec.getLmul()))
     return emitOpError()
-           << "requires a signed/signless i8 LMUL !tcrv_rvv.vector result for "
+           << "requires a signed/signless i8 LMUL !weft_rvv.vector result for "
               "the broadcast codebook table register";
 
   auto withVL = verifyNestedDataflowOp(op);
@@ -1411,7 +1411,7 @@ mlir::LogicalResult CodebookTableBroadcastOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the codebook table broadcast";
 
   return mlir::success();
@@ -1425,7 +1425,7 @@ mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.codebook_gather_x_i8_product keeps source/result "
+             << "'; weft_rvv.codebook_gather_x_i8_product keeps source/result "
                 "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
@@ -1451,7 +1451,7 @@ mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
     return emitOpError()
            << "requires one UNSIGNED i8 LMUL packed-i4 weight operand, two "
               "SIGNED i8 LMUL plain-int8 activation operands, one SIGNED i8 LMUL "
-              "codebook-table operand, one !tcrv_rvv.vl operand, and one i16 "
+              "codebook-table operand, one !weft_rvv.vl operand, and one i16 "
               "LMUL result";
 
   // The codebook i8 source LMUL is the VLEN-capability anchor (m1 at VLEN128,
@@ -1459,10 +1459,10 @@ mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
   // product LMUL (the genuine flip), instead of pinning a single LMUL.
   auto weightVec = llvm::dyn_cast<VectorType>(getWeight().getType());
   if (!weightVec)
-    return emitOpError() << "requires a typed !tcrv_rvv.vector weight operand";
+    return emitOpError() << "requires a typed !weft_rvv.vector weight operand";
   llvm::StringRef srcLMUL = weightVec.getLmul();
   llvm::StringRef productLMUL =
-      tianchenrv::plugin::rvv::getRVVNextWiderLMUL(srcLMUL);
+      weft::plugin::rvv::getRVVNextWiderLMUL(srcLMUL);
   if (productLMUL.empty())
     return emitOpError() << "no wider i16 product LMUL rung for the codebook i8 "
                             "source anchor '"
@@ -1472,31 +1472,31 @@ mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
                                              getRVVSEW8Bits(), srcLMUL))
     return emitOpError()
            << "requires the packed-i4 weight source vector to be an UNSIGNED i8 "
-              "LMUL !tcrv_rvv.vector (the gather index lanes run on the u8 lane)";
+              "LMUL !weft_rvv.vector (the gather index lanes run on the u8 lane)";
   if (!isGenericRVVSignedOrSignlessIntegerVectorType(
           getActivationLow().getType(), getRVVSEW8Bits(), srcLMUL) ||
       !isGenericRVVSignedOrSignlessIntegerVectorType(
           getActivationHigh().getType(), getRVVSEW8Bits(), srcLMUL))
     return emitOpError()
            << "requires the low and high plain-int8 activation source vectors "
-              "to be signed/signless i8 LMUL !tcrv_rvv.vector matching the "
+              "to be signed/signless i8 LMUL !weft_rvv.vector matching the "
               "weight anchor '"
            << srcLMUL << "'";
   if (!isGenericRVVSignedOrSignlessIntegerVectorType(
           getTable().getType(), getRVVSEW8Bits(), srcLMUL))
     return emitOpError()
            << "requires the codebook-table source vector to be a signed/"
-              "signless i8 LMUL !tcrv_rvv.vector matching the weight anchor '"
+              "signless i8 LMUL !weft_rvv.vector matching the weight anchor '"
            << srcLMUL << "'";
   if (!isGenericRVVSignedOrSignlessIntegerVectorType(
           getResult().getType(), getRVVSEW16Bits(), productLMUL))
     return emitOpError()
            << "requires the result vector to be a signed/signless i16 LMUL "
-              "!tcrv_rvv.vector at the widened product anchor '"
+              "!weft_rvv.vector at the widened product anchor '"
            << productLMUL << "'";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -1505,7 +1505,7 @@ mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for codebook-gather packed-i4 x plain-i8 widening "
               "product";
 
@@ -1638,7 +1638,7 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
     // The bounded block-format / shape-knob attributes, plus the N3
     // autotuner's resource-provenance audit trail. The schedule producer pass
     // (MaterializeRVVQ40Schedule) stamps the chosen shape knobs alongside a
-    // "tcrv_rvv.q4_0_schedule.*" provenance namespace (the candidate count, the
+    // "weft_rvv.q4_0_schedule.*" provenance namespace (the candidate count, the
     // selected cost, the Zvl128b capability fact, the vreg budget) so the choice
     // is a PROVABLE resource-aware selection, not a manual constant. The
     // provenance is mirror metadata (I4): it records the derivation, it does not
@@ -1649,7 +1649,7 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
            name == "activation_high_byte_offset" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
            name == "strip_elision" ||
-           name.starts_with("tcrv_rvv.q4_0_schedule.") ||
+           name.starts_with("weft_rvv.q4_0_schedule.") ||
            // The option-2 stage-B IN-COMPILER contraction-path SELECTION audit
            // trail. The RVVLowerQuantContraction pass stamps which contraction
            // ALGORITHM it selected from capability facts (repack vs block-dot),
@@ -1657,17 +1657,17 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
            // its weight materialization is deferred to stage C. Pure provenance
            // mirror metadata (I4): it records the in-compiler decision, it does
            // not carry executable config -- emitter-inert, exactly like the
-           // tcrv_rvv.q4_0_schedule.* resource-provenance trail above.
-           name == "tcrv_rvv.contraction_algorithm" ||
-           name == "tcrv_rvv.path_selection_reason" ||
-           name == "tcrv_rvv.path_materialization";
+           // weft_rvv.q4_0_schedule.* resource-provenance trail above.
+           name == "weft_rvv.contraction_algorithm" ||
+           name == "weft_rvv.path_selection_reason" ||
+           name == "weft_rvv.path_materialization";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_0_q8_0_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_0_q8_0_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -1768,7 +1768,7 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -1800,11 +1800,11 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_0 x Q8_0 block dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -1813,7 +1813,7 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_0 x Q8_0 block dot-product";
 
   return mlir::success();
@@ -1848,7 +1848,7 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.quant_contraction keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.quant_contraction keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/nc/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -2645,12 +2645,12 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // Six runtime ABI value operands -- the plain weight base, the plain
   // activation base, the fp32 output, the runtime element count n, the runtime
   // column count nc (carried ALWAYS so the repack branch can reach it; the
-  // block-dot identity lowering DROPS it), and the !tcrv_rvv.vl token.
+  // block-dot identity lowering DROPS it), and the !weft_rvv.vl token.
   if (op->getNumOperands() != 6 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one plain weight base pointer, one plain activation "
               "base pointer, one output pointer, one runtime element-count, one "
-              "runtime column-count (nc), one !tcrv_rvv.vl operand, and one i32 "
+              "runtime column-count (nc), one !weft_rvv.vl operand, and one i32 "
               "LMUL m1 result";
 
   RuntimeABIValueOp weightBinding =
@@ -2685,11 +2685,11 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the abstract block-quantized contraction request";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -2698,7 +2698,7 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the abstract block-quantized contraction request";
 
   return mlir::success();
@@ -2723,7 +2723,7 @@ mlir::LogicalResult GgmlGemmTileQ40Q80Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_0_q8_0_gemm_tile keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_0_q8_0_gemm_tile keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -2784,7 +2784,7 @@ mlir::LogicalResult GgmlGemmTileQ40Q80Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one activation column-stride, one output pointer, one runtime "
-              "element-count runtime ABI operand, one !tcrv_rvv.vl operand, and "
+              "element-count runtime ABI operand, one !weft_rvv.vl operand, and "
               "one i32 LMUL m1 result";
 
   // The buffer operands and the element count are runtime ABI values; the
@@ -2821,11 +2821,11 @@ mlir::LogicalResult GgmlGemmTileQ40Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_0 x Q8_0 GEMM tile route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -2834,7 +2834,7 @@ mlir::LogicalResult GgmlGemmTileQ40Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_0 x Q8_0 GEMM tile";
 
   return mlir::success();
@@ -2848,7 +2848,7 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
   // activation-column block count M, plus the GEMM M-block measurement-tuner's
   // resource-provenance audit trail. The schedule producer pass
   // (MaterializeRVVGemmSchedule) stamps the measured/static M alongside a
-  // "tcrv_rvv.q4_0_gemm_schedule.*" provenance namespace (the candidate count,
+  // "weft_rvv.q4_0_gemm_schedule.*" provenance namespace (the candidate count,
   // the selected cost, the measurement ns, the vreg ceiling) so the choice is a
   // PROVABLE measurement-backed selection, not a manual constant. The provenance
   // is mirror metadata (I4): it records the derivation, it does not carry
@@ -2861,14 +2861,14 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" || name == "activation_cols" ||
-           name.starts_with("tcrv_rvv.q4_0_gemm_schedule.");
+           name.starts_with("weft_rvv.q4_0_gemm_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_0_q8_0_gemm keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_0_q8_0_gemm keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL/nr/nc/bx/bs in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -2934,7 +2934,7 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
               "one activation column-stride, one output pointer, one runtime "
               "element-count, one runtime row-count, one runtime column-count, "
               "one weight-row byte-stride, one output-row float-stride runtime "
-              "ABI operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "ABI operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The buffer operands and the counts/strides are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -2988,11 +2988,11 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_0 x Q8_0 full GEMM route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -3001,7 +3001,7 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_0 x Q8_0 full GEMM";
 
   return mlir::success();
@@ -3026,17 +3026,17 @@ mlir::LogicalResult GgmlRepackGemvQ50Q80Op::verify() {
            // The same in-IR stage-B/C1 SELECTION-audit + DECLARED OUTPUT
            // CONTRACT carrier names the block-dot sibling carries (see the q4_0
            // verifier): pure declared provenance, emitter-inert.
-           name == "tcrv_rvv.contraction_algorithm" ||
-           name == "tcrv_rvv.path_selection_reason" ||
-           name == "tcrv_rvv.path_materialization" ||
-           name == "tcrv_rvv.weight_layout_contract";
+           name == "weft_rvv.contraction_algorithm" ||
+           name == "weft_rvv.path_selection_reason" ||
+           name == "weft_rvv.path_materialization" ||
+           name == "weft_rvv.weight_layout_contract";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemv_q5_0_q8_0 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.repack_gemv_q5_0_q8_0 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/nc in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -3127,7 +3127,7 @@ mlir::LogicalResult GgmlRepackGemvQ50Q80Op::verify() {
     return emitOpError()
            << "requires one repacked weight base pointer, one plain activation "
               "base pointer, one output pointer, one runtime element-count, one "
-              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "runtime column-count, one !weft_rvv.vl operand, and one i32 LMUL "
               "m1 result";
 
   RuntimeABIValueOp weightBinding =
@@ -3161,11 +3161,11 @@ mlir::LogicalResult GgmlRepackGemvQ50Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q5_0 x Q8_0 16x1-repacked GEMV route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -3174,7 +3174,7 @@ mlir::LogicalResult GgmlRepackGemvQ50Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q5_0 x Q8_0 16x1-repacked GEMV";
 
   return mlir::success();
@@ -3206,7 +3206,7 @@ mlir::LogicalResult GgmlRepackGemvQ51Q81Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemv_q5_1_q8_1 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.repack_gemv_q5_1_q8_1 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/nc in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -3314,7 +3314,7 @@ mlir::LogicalResult GgmlRepackGemvQ51Q81Op::verify() {
     return emitOpError()
            << "requires one repacked weight base pointer, one plain activation "
               "base pointer, one output pointer, one runtime element-count, one "
-              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "runtime column-count, one !weft_rvv.vl operand, and one i32 LMUL "
               "m1 result";
 
   RuntimeABIValueOp weightBinding =
@@ -3348,11 +3348,11 @@ mlir::LogicalResult GgmlRepackGemvQ51Q81Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q5_1 x Q8_1 16x1-repacked GEMV route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -3361,7 +3361,7 @@ mlir::LogicalResult GgmlRepackGemvQ51Q81Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q5_1 x Q8_1 16x1-repacked GEMV";
 
   return mlir::success();
@@ -3385,7 +3385,7 @@ mlir::LogicalResult GgmlPackQ40ToX16Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.pack_q4_0_to_q4_0x16 is a pure scalar byte "
+             << "'; weft_rvv.pack_q4_0_to_q4_0x16 is a pure scalar byte "
                 "transform and keeps SEW/LMUL/policy on setvl/with_vl, runtime "
                 "nblocks in the surrounding control-plane IR";
     if (!isAllowedAttr(attrName))
@@ -3465,7 +3465,7 @@ mlir::LogicalResult GgmlRepackGemvQ80Q80Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemv_q8_0_q8_0 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.repack_gemv_q8_0_q8_0 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/nc in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -3577,7 +3577,7 @@ mlir::LogicalResult GgmlRepackGemvQ80Q80Op::verify() {
     return emitOpError()
            << "requires one repacked weight base pointer, one plain activation "
               "base pointer, one output pointer, one runtime element-count, one "
-              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "runtime column-count, one !weft_rvv.vl operand, and one i32 LMUL "
               "m1 result";
 
   // The buffer operands are runtime ABI values: the repacked weight/plain
@@ -3614,11 +3614,11 @@ mlir::LogicalResult GgmlRepackGemvQ80Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q8_0 x Q8_0 16x1-repacked GEMV route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -3627,7 +3627,7 @@ mlir::LogicalResult GgmlRepackGemvQ80Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q8_0 x Q8_0 16x1-repacked GEMV";
 
   return mlir::success();
@@ -3636,8 +3636,8 @@ mlir::LogicalResult GgmlRepackGemvQ80Q80Op::verify() {
 // NOTE (G3 主线A T2-construct): the q4_K 16x1-REPACKED GEVM + GEMM monolith op
 // verifiers (GgmlRepackGem{v,m}Q4KQ8KOp::verify) are RETIRED to the front door with
 // their ops. The K-quant repack is now CONSTRUCTED as the typed
-// tcrv_rvv.typed_repack_gem{v,m}_loop_body region carrying the
-// tcrv_rvv.repack_gem{v,m}_kquant_core brick (verified below), the SAME retirement the
+// weft_rvv.typed_repack_gem{v,m}_loop_body region carrying the
+// weft_rvv.repack_gem{v,m}_kquant_core brick (verified below), the SAME retirement the
 // ternary batch (tq2_0/tq1_0) took.
 
 // Shared allow-list + decode/lmul checks for the two K-quant repack core bricks
@@ -3713,12 +3713,12 @@ mlir::LogicalResult RepackGemvKQuantCoreOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked block_q4_Kx16 weight base, the plain "
-              "block_q8_K activation base, one !tcrv_rvv.vl operand, one "
+              "block_q8_K activation base, one !weft_rvv.vl operand, one "
               "block_index induction operand, and one or more per-strip i32 vector "
               "results (one per disjoint strip -- numHalves total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -3730,7 +3730,7 @@ mlir::LogicalResult RepackGemvKQuantCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-strip result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-strip combined K-quant sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -3745,7 +3745,7 @@ mlir::LogicalResult RepackGemvKQuantCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise K-quant dual-scale+min core";
   return mlir::success();
 }
@@ -3760,12 +3760,12 @@ mlir::LogicalResult RepackGemmKQuantCoreOp::verify() {
   if (op->getNumOperands() != 5 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked block_q4_Kx16 weight base, the interleaved "
-              "block_q8_Kx4 activation base, one !tcrv_rvv.vl operand, one "
+              "block_q8_Kx4 activation base, one !weft_rvv.vl operand, one "
               "block_index induction operand, one strip_row_offset operand, and "
               "one or more per-column i32 vector results (columnsPerPass total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -3781,7 +3781,7 @@ mlir::LogicalResult RepackGemmKQuantCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-column result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-column combined K-quant sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -3796,7 +3796,7 @@ mlir::LogicalResult RepackGemmKQuantCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise K-quant dual-scale+min core";
   return mlir::success();
 }
@@ -3879,12 +3879,12 @@ mlir::LogicalResult RepackGemvCodebookCoreOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked block_iq4_nlx16 weight base, the plain "
-              "block_q8_0 activation base, one !tcrv_rvv.vl operand, one "
+              "block_q8_0 activation base, one !weft_rvv.vl operand, one "
               "block_index induction operand, and one or more per-strip i32 "
               "vector results (one per disjoint strip -- numHalves total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -3896,7 +3896,7 @@ mlir::LogicalResult RepackGemvCodebookCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-strip result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-strip combined codebook sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -3911,7 +3911,7 @@ mlir::LogicalResult RepackGemvCodebookCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise codebook single-scale core";
   return mlir::success();
 }
@@ -3926,12 +3926,12 @@ mlir::LogicalResult RepackGemmCodebookCoreOp::verify() {
   if (op->getNumOperands() != 5 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked block_iq4_nlx16 weight base, the interleaved "
-              "block_q8_0x4 activation base, one !tcrv_rvv.vl operand, one "
+              "block_q8_0x4 activation base, one !weft_rvv.vl operand, one "
               "block_index induction operand, one strip_row_offset operand, and "
               "one or more per-column i32 vector results (columnsPerPass total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -3947,7 +3947,7 @@ mlir::LogicalResult RepackGemmCodebookCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-column result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-column combined codebook sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -3962,7 +3962,7 @@ mlir::LogicalResult RepackGemmCodebookCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise codebook single-scale core";
   return mlir::success();
 }
@@ -4044,12 +4044,12 @@ mlir::LogicalResult RepackGemvGridCoreOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked block_iq2_xxsx16 weight base, the plain "
-              "block_q8_K activation base, one !tcrv_rvv.vl operand, one "
+              "block_q8_K activation base, one !weft_rvv.vl operand, one "
               "block_index induction operand, and one or more per-strip i32 "
               "vector results (one per disjoint strip -- numHalves total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -4061,7 +4061,7 @@ mlir::LogicalResult RepackGemvGridCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-strip result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-strip combined grid sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -4076,7 +4076,7 @@ mlir::LogicalResult RepackGemvGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise grid ls-scale core";
   return mlir::success();
 }
@@ -4101,12 +4101,12 @@ mlir::LogicalResult RepackGemmGridCoreOp::verify() {
   if (op->getNumOperands() != 5 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked block_iq2_xxsx16 weight base, the "
-              "interleaved block_q8_Kx4 activation base, one !tcrv_rvv.vl operand, "
+              "interleaved block_q8_Kx4 activation base, one !weft_rvv.vl operand, "
               "one block_index induction operand, one strip_row_offset operand, "
               "and one or more per-column i32 vector results (columnsPerPass total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -4122,7 +4122,7 @@ mlir::LogicalResult RepackGemmGridCoreOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-column result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-column combined grid sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -4137,7 +4137,7 @@ mlir::LogicalResult RepackGemmGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked lane-wise grid ls-scale core";
   return mlir::success();
 }
@@ -4206,7 +4206,7 @@ mlir::LogicalResult RepackGemmGridCoreOp::verify() {
 // NOTE (G3 retirement_batch 4 mxfp4 codebook front-door): GgmlRepackGemvMxfp4Q8Op::verify()
 // + GgmlRepackGemmMxfp4Q8Op::verify() are RETIRED with the mxfp4 FLAT CODEBOOK + E8M0
 // monolith op-defs (the LAST dispatch-wired repack cell, retirement_batch 4). The
-// tcrv_rvv.repack_gem{v,m}_codebook_core verifier (verifyRepackCodebookCoreCommon) accepts
+// weft_rvv.repack_gem{v,m}_codebook_core verifier (verifyRepackCodebookCoreCommon) accepts
 // decode_model "mxfp4" + the 16-entry doubled-e2m1 codebook, the loop-body verifier accepts
 // the "codebook_flat_e8m0_scale" fold, and the abstract GgmlQuantContractionOp::verify pins
 // the PLAIN block_mxfp4 fact-set (stride 17, nibbles @1 after the E8M0 exponent byte, q8 high
@@ -4279,7 +4279,7 @@ mlir::LogicalResult GgmlRepackGemvQ41Q81Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemv_q4_1_q8_1 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.repack_gemv_q4_1_q8_1 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/nc in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -4389,7 +4389,7 @@ mlir::LogicalResult GgmlRepackGemvQ41Q81Op::verify() {
     return emitOpError()
            << "requires one repacked weight base pointer, one plain activation "
               "base pointer, one output pointer, one runtime element-count, one "
-              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "runtime column-count, one !weft_rvv.vl operand, and one i32 LMUL "
               "m1 result";
 
   RuntimeABIValueOp weightBinding =
@@ -4423,11 +4423,11 @@ mlir::LogicalResult GgmlRepackGemvQ41Q81Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_1 x Q8_1 16x1-repacked GEMV route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -4436,7 +4436,7 @@ mlir::LogicalResult GgmlRepackGemvQ41Q81Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_1 x Q8_1 16x1-repacked GEMV";
 
   return mlir::success();
@@ -4467,7 +4467,7 @@ mlir::LogicalResult GgmlRepackGemmQ41Q81Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemm_q4_1_q8_1 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.repack_gemm_q4_1_q8_1 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/nr/nc/bs in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -4583,7 +4583,7 @@ mlir::LogicalResult GgmlRepackGemmQ41Q81Op::verify() {
               "activation base pointer, one output pointer, one runtime "
               "element-count, one runtime row-count, one runtime column-count, "
               "one output-row float-stride runtime ABI operand, one "
-              "!tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "!weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
@@ -4624,11 +4624,11 @@ mlir::LogicalResult GgmlRepackGemmQ41Q81Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_1 x Q8_1 16x1-repacked GEMM route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -4637,7 +4637,7 @@ mlir::LogicalResult GgmlRepackGemmQ41Q81Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_1 x Q8_1 16x1-repacked GEMM";
 
   return mlir::success();
@@ -4661,14 +4661,14 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
            name == "activation_high_byte_offset" || name == "codebook" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
            name == "strip_elision" || name == "minimum_vlen" ||
-           name.starts_with("tcrv_rvv.mxfp4_schedule.");
+           name.starts_with("weft_rvv.mxfp4_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.mxfp4_q8_0_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.mxfp4_q8_0_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -4751,9 +4751,9 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
   if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
     std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
     constexpr std::int64_t kCodebookTableEntries = 16; // index range [0,15].
-    std::int64_t gatherVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(*coreLmul),
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(*coreLmul), minimumVLEN);
+    std::int64_t gatherVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(*coreLmul),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(*coreLmul), minimumVLEN);
     if (gatherVLMAX < kCodebookTableEntries)
       return emitOpError()
              << "integer_core_lmul \"" << *coreLmul
@@ -4813,7 +4813,7 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
@@ -4841,11 +4841,11 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml MXFP4 x Q8_0 block dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -4854,7 +4854,7 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml MXFP4 x Q8_0 block dot-product";
 
   return mlir::success();
@@ -4886,14 +4886,14 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("tcrv_rvv.q1_0_schedule.");
+           name.starts_with("weft_rvv.q1_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q1_0_q8_0_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q1_0_q8_0_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -4985,9 +4985,9 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
              << anchor << "\"";
     std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
     constexpr std::int64_t kQ10SubBlockLen = 32; // the 32-element q8 sub-block.
-    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
     if (stripVLMAX < kQ10SubBlockLen)
       return emitOpError()
              << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
@@ -5003,7 +5003,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
@@ -5031,11 +5031,11 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q1_0 x Q8_0 block dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5044,7 +5044,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q1_0 x Q8_0 block dot-product";
 
   return mlir::success();
@@ -5057,7 +5057,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
   // binary-sign scale model, and the super-block-format structural facts (the
   // q1_0 stride, the q8_0 stride, the per-super-block q8-block span, and the two
   // quant byte offsets), plus the Win-A resource shape knob integer_core_lmul +
-  // minimum_vlen and the "tcrv_rvv.q1_0_schedule.*" autotuner provenance
+  // minimum_vlen and the "weft_rvv.q1_0_schedule.*" autotuner provenance
   // namespace. Anything else -- a forbidden local element_count/SEW/LMUL/policy
   // attr, or an unexpected name -- is rejected fail-closed (I7).
   auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
@@ -5068,14 +5068,14 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("tcrv_rvv.q1_0_schedule.");
+           name.starts_with("weft_rvv.q1_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q1_0_q8_0_binary_sign_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q1_0_q8_0_binary_sign_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -5154,9 +5154,9 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
              << anchor << "\"";
     std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
     constexpr std::int64_t kQ10SubBlockLen = 32; // the 32-element q8 sub-block.
-    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
     if (stripVLMAX < kQ10SubBlockLen)
       return emitOpError()
              << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
@@ -5178,7 +5178,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (sumi placeholder)";
 
@@ -5206,7 +5206,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
               "integer-dot placeholder) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5215,7 +5215,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q1_0 x Q8_0 binary-sign integer core";
 
   return mlir::success();
@@ -5241,7 +5241,7 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KAux32Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q6_k_q8_k_aux32_partial keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q6_k_q8_k_aux32_partial keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -5306,7 +5306,7 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KAux32Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one aux32 output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, an OPTIONAL `block_index` "
+              "operand, one !weft_rvv.vl operand, an OPTIONAL `block_index` "
               "induction operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
@@ -5350,12 +5350,12 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KAux32Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q6_K x Q8_K super-block integer partial "
               "route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5364,7 +5364,7 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KAux32Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q6_K x Q8_K super-block integer partial";
 
   return mlir::success();
@@ -5394,7 +5394,7 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KAux32Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q3_k_q8_k_aux32_partial keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q3_k_q8_k_aux32_partial keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -5466,7 +5466,7 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KAux32Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one aux32 output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, an OPTIONAL `block_index` "
+              "operand, one !weft_rvv.vl operand, an OPTIONAL `block_index` "
               "induction operand, and one i32 LMUL m1 result";
 
   RuntimeABIValueOp weightBinding =
@@ -5504,12 +5504,12 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KAux32Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q3_K x Q8_K super-block integer partial "
               "route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5518,7 +5518,7 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KAux32Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q3_K x Q8_K super-block integer partial";
 
   return mlir::success();
@@ -5549,7 +5549,7 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q6_k_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q6_k_q8_k_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -5651,7 +5651,7 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -5683,12 +5683,12 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q6_K x Q8_K super-block full block "
               "dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5697,7 +5697,7 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q6_K x Q8_K super-block full block "
               "dot-product";
 
@@ -5723,7 +5723,7 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_nibble_unpack keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_nibble_unpack keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -5801,12 +5801,12 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer runtime ABI operand, one "
-              "!tcrv_rvv.vl operand, one optional block_index induction operand, "
+              "!weft_rvv.vl operand, one optional block_index induction operand, "
               "and one i32 LMUL m1 result";
 
   // The weight base operand is a runtime ABI value addressing the AoS block_q4_K
   // byte array as const uint8_t * (the same binding the monolithic
-  // tcrv_rvv.q4_k_q8_k_aux_partial weight base uses).
+  // weft_rvv.q4_k_q8_k_aux_partial weight base uses).
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
   if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
@@ -5816,12 +5816,12 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
               "Region-A nibble unpack route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5830,7 +5830,7 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the q4_K/q5_K Region-A nibble unpack";
 
   return mlir::success();
@@ -5855,7 +5855,7 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_scale_min_bit_dance keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_scale_min_bit_dance keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -5906,12 +5906,12 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer runtime ABI operand, one "
-              "!tcrv_rvv.vl operand, one optional block_index induction operand, "
+              "!weft_rvv.vl operand, one optional block_index induction operand, "
               "and one i32 LMUL m1 result";
 
   // The weight base operand is a runtime ABI value addressing the AoS block_q4_K
   // byte array as const uint8_t * (the same binding the monolithic
-  // tcrv_rvv.q4_k_q8_k_aux_partial weight base uses; the bit-dance casts it to
+  // weft_rvv.q4_k_q8_k_aux_partial weight base uses; the bit-dance casts it to
   // const uint32_t * at the scales offset).
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
@@ -5922,12 +5922,12 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
               "Region-B scale/min bit-dance route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -5936,7 +5936,7 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the q4_K/q5_K Region-B scale/min bit-dance";
 
   return mlir::success();
@@ -5963,7 +5963,7 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_scaled_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_scaled_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6035,7 +6035,7 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires three runtime ABI base pointer operands (aux8 / scales / "
-              "q8), one !tcrv_rvv.vl operand, one optional block_index induction "
+              "q8), one !weft_rvv.vl operand, one optional block_index induction "
               "operand, and one i32 LMUL m1 result";
   if (!hasBlockIndex && getActivationQuantByteOffset())
     return emitOpError()
@@ -6077,12 +6077,12 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
               "Region-C scaled-dot route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6091,7 +6091,7 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the q4_K/q5_K Region-C scaled dot";
 
   return mlir::success();
@@ -6117,7 +6117,7 @@ mlir::LogicalResult Q4KMinTermOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_min_term keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_min_term keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6167,7 +6167,7 @@ mlir::LogicalResult Q4KMinTermOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires three runtime ABI base pointer operands (weight / "
-              "scales / activation), one !tcrv_rvv.vl operand, one optional "
+              "scales / activation), one !weft_rvv.vl operand, one optional "
               "block_index induction operand, and one i32 LMUL m1 result";
 
   // The three base operands are runtime ABI values: the q4_K/q5_K weight block
@@ -6199,12 +6199,12 @@ mlir::LogicalResult Q4KMinTermOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
               "MIN-term route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6213,7 +6213,7 @@ mlir::LogicalResult Q4KMinTermOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the q4_K/q5_K MIN term";
 
   return mlir::success();
@@ -6238,7 +6238,7 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_sums_fold_scale_d keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_sums_fold_scale_d keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6291,7 +6291,7 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires three runtime ABI base pointer operands (weight / aux32 "
-              "/ activation), one !tcrv_rvv.vl operand, one optional block_index "
+              "/ activation), one !weft_rvv.vl operand, one optional block_index "
               "induction operand, and one i32 LMUL m1 result";
 
   // The three base operands are runtime ABI values: the q4_K/q5_K weight block
@@ -6332,12 +6332,12 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
               "positive-fold route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6346,7 +6346,7 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the q4_K/q5_K positive fold";
 
   return mlir::success();
@@ -6372,7 +6372,7 @@ mlir::LogicalResult Q4KHorizontalFoldOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_horizontal_fold keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_horizontal_fold keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6411,7 +6411,7 @@ mlir::LogicalResult Q4KHorizontalFoldOp::verify() {
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one runtime ABI base pointer operand (the 8-lane fp32 "
-              "sums source), one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "sums source), one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The single base operand is a runtime ABI value: the 8-lane fp32 sums source
   // (const float *, vle32-loaded into a vfloat32m2_t the horizontal fold collapses).
@@ -6425,12 +6425,12 @@ mlir::LogicalResult Q4KHorizontalFoldOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
               "horizontal-fold route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6439,7 +6439,7 @@ mlir::LogicalResult Q4KHorizontalFoldOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the q4_K/q5_K horizontal fold";
 
   return mlir::success();
@@ -6465,7 +6465,7 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_q8_k_aux_partial keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_q8_k_aux_partial keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6525,7 +6525,7 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one aux32 output pointer, one scale/min output pointer, one "
-              "runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, and one i32 LMUL m1 result";
 
   // The four buffer operands and the element count are runtime ABI values; the
@@ -6567,12 +6567,12 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_K x Q8_K super-block integer partial "
               "route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6581,7 +6581,7 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_K x Q8_K super-block integer partial";
 
   return mlir::success();
@@ -6615,7 +6615,7 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q4_k_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q4_k_q8_k_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6724,7 +6724,7 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KOp::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -6757,12 +6757,12 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q4_K x Q8_K super-block full block "
               "dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6771,7 +6771,7 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q4_K x Q8_K super-block full block "
               "dot-product";
 
@@ -6808,7 +6808,7 @@ mlir::LogicalResult GgmlBlockDotQ5KQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q5_k_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q5_k_q8_k_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -6900,7 +6900,7 @@ mlir::LogicalResult GgmlBlockDotQ5KQ8KOp::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -6932,12 +6932,12 @@ mlir::LogicalResult GgmlBlockDotQ5KQ8KOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q5_K x Q8_K super-block full block "
               "dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -6946,7 +6946,7 @@ mlir::LogicalResult GgmlBlockDotQ5KQ8KOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q5_K x Q8_K super-block full block "
               "dot-product";
 
@@ -6981,7 +6981,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q2_k_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q2_k_q8_k_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -7067,7 +7067,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KOp::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -7099,12 +7099,12 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q2_K x Q8_K super-block full block "
               "dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -7113,7 +7113,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q2_K x Q8_K super-block full block "
               "dot-product";
 
@@ -7146,7 +7146,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KIntegerCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q2_k_q8_k_integer_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q2_k_q8_k_integer_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -7222,7 +7222,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KIntegerCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 2)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and two "
               "scalar i32 results (isum, summs)";
 
@@ -7259,7 +7259,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KIntegerCoreOp::verify() {
               "be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -7268,7 +7268,7 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KIntegerCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q2_K x Q8_K super-block scalar integer "
               "core";
 
@@ -7302,7 +7302,7 @@ mlir::LogicalResult GgmlBlockDotIQ1SQ8KGridCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq1_s_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq1_s_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -7387,7 +7387,7 @@ mlir::LogicalResult GgmlBlockDotIQ1SQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 2)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and two "
               "scalar i32 results (sumi, sumi1)";
 
@@ -7425,7 +7425,7 @@ mlir::LogicalResult GgmlBlockDotIQ1SQ8KGridCoreOp::verify() {
               "to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -7434,7 +7434,7 @@ mlir::LogicalResult GgmlBlockDotIQ1SQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ1_S x Q8_K super-block TERNARY-grid "
               "scalar integer core";
 
@@ -7468,7 +7468,7 @@ mlir::LogicalResult GgmlBlockDotIQ1MQ8KGridCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq1_m_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq1_m_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -7554,7 +7554,7 @@ mlir::LogicalResult GgmlBlockDotIQ1MQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 2)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and two "
               "scalar i32 results (sumi1, sumi2)";
 
@@ -7592,7 +7592,7 @@ mlir::LogicalResult GgmlBlockDotIQ1MQ8KGridCoreOp::verify() {
               "integer sum) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -7601,7 +7601,7 @@ mlir::LogicalResult GgmlBlockDotIQ1MQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ1_M x Q8_K super-block TERNARY-grid "
               "scalar integer core";
 
@@ -7634,7 +7634,7 @@ mlir::LogicalResult GgmlBlockDotIQ3XXSQ8KGridCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq3_xxs_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq3_xxs_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -7718,7 +7718,7 @@ mlir::LogicalResult GgmlBlockDotIQ3XXSQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (bsum)";
 
@@ -7746,7 +7746,7 @@ mlir::LogicalResult GgmlBlockDotIQ3XXSQ8KGridCoreOp::verify() {
               "grid/sign integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -7755,7 +7755,7 @@ mlir::LogicalResult GgmlBlockDotIQ3XXSQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ3_XXS x Q8_K super-block GRID-of-4 "
               "scalar integer core";
 
@@ -7790,7 +7790,7 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.q3_k_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.q3_k_q8_k_block_dot keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -7900,7 +7900,7 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -7932,12 +7932,12 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
 
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+           << "requires result vector to have type !weft_rvv.vector<i32, "
               "\"m1\"> for the ggml Q3_K x Q8_K super-block full block "
               "dot-product route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -7946,7 +7946,7 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q3_K x Q8_K super-block full block "
               "dot-product";
 
@@ -7962,7 +7962,7 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
   // 2-bit-weight qs @0, the fp16 weight scale d @64 -- d is at the END of
   // block_tq2_0, distinct from every sibling -- the fp32 activation scale d @0,
   // qs @4), plus the Win-A resource shape knob integer_core_lmul + minimum_vlen
-  // and the "tcrv_rvv.tq2_0_schedule.*" autotuner provenance namespace. tq2_0 is
+  // and the "weft_rvv.tq2_0_schedule.*" autotuner provenance namespace. tq2_0 is
   // TERNARY with NO scales[16], NO per-sub-block scale, NO min term, NO dmin, NO
   // bsums. Anything else -- a forbidden local element_count/SEW/LMUL/policy attr,
   // or an unexpected name -- is rejected fail-closed (I7).
@@ -7974,14 +7974,14 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("tcrv_rvv.tq2_0_schedule.");
+           name.starts_with("weft_rvv.tq2_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.tq2_0_q8_k_ternary_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.tq2_0_q8_k_ternary_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -8055,7 +8055,7 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (sumi)";
 
@@ -8083,7 +8083,7 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
               "ternary*q8 integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -8092,7 +8092,7 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml TQ2_0 x Q8_K super-block FUSED 2-bit "
               "ternary scalar integer core";
 
@@ -8120,9 +8120,9 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
              << anchor << "\"";
     std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
     constexpr std::int64_t kTQ20PlaneLen = 32; // the 32-element 2-bit plane.
-    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
     if (stripVLMAX < kTQ20PlaneLen)
       return emitOpError()
              << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
@@ -8144,7 +8144,7 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
   // base-3 qs bytes @0, the 4 base-3 qh bytes @48, the fp16 weight scale d @52 --
   // d is at the END of block_tq1_0, the qh array is the new structural fact vs
   // tq2_0 -- the fp32 activation scale d @0, qs @4), plus the Win-A resource shape
-  // knob integer_core_lmul + minimum_vlen and the "tcrv_rvv.tq1_0_schedule.*"
+  // knob integer_core_lmul + minimum_vlen and the "weft_rvv.tq1_0_schedule.*"
   // autotuner provenance namespace. tq1_0 is BASE-3 TERNARY with NO scales[16], NO
   // per-sub-block scale, NO min term, NO dmin, NO bsums. Anything else -- a
   // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
@@ -8158,14 +8158,14 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("tcrv_rvv.tq1_0_schedule.");
+           name.starts_with("weft_rvv.tq1_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.tq1_0_q8_k_ternary_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.tq1_0_q8_k_ternary_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -8244,7 +8244,7 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (sumi)";
 
@@ -8272,7 +8272,7 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
               "ternary*q8 integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -8281,7 +8281,7 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml TQ1_0 x Q8_K super-block BASE-3 ternary "
               "scalar integer core";
 
@@ -8308,9 +8308,9 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
              << anchor << "\"";
     std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
     constexpr std::int64_t kTQ10StripLen = 32; // the 32-lane dot strip.
-    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
     if (stripVLMAX < kTQ10StripLen)
       return emitOpError()
              << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
@@ -8351,7 +8351,7 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KCodebookCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq4_xs_q8_k_codebook_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq4_xs_q8_k_codebook_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -8458,7 +8458,7 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KCodebookCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (the unused per-super-block placeholder)";
 
@@ -8486,7 +8486,7 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KCodebookCoreOp::verify() {
               "be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -8495,7 +8495,7 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KCodebookCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
               "integer core";
 
@@ -8530,7 +8530,7 @@ mlir::LogicalResult GgmlBlockDotNVFP4Q80CodebookCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.nvfp4_q8_0_codebook_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.nvfp4_q8_0_codebook_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -8637,7 +8637,7 @@ mlir::LogicalResult GgmlBlockDotNVFP4Q80CodebookCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (the unused per-super-block placeholder)";
 
@@ -8665,7 +8665,7 @@ mlir::LogicalResult GgmlBlockDotNVFP4Q80CodebookCoreOp::verify() {
               "be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -8674,7 +8674,7 @@ mlir::LogicalResult GgmlBlockDotNVFP4Q80CodebookCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml NVFP4 x Q8_0 super-block CODEBOOK scalar "
               "integer core";
 
@@ -8689,7 +8689,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
   // iq2_xxs super-block-format structural facts the integer core reads (the fp16 d @0,
   // the 64 uint8 INTERLEAVED index+aux bytes qs @2, the q8_K fp32 d @0, the q8_K qs @4),
   // plus the Win-A resource shape knob integer_core_lmul + minimum_vlen and the
-  // "tcrv_rvv.iq2_xxs_schedule.*" autotuner provenance namespace. The FIXED 256-entry
+  // "weft_rvv.iq2_xxs_schedule.*" autotuner provenance namespace. The FIXED 256-entry
   // iq2xxs_grid GRID-of-8 codebook and the DERIVED keven_signs_q2xs signs64 sign plane
   // are byte-exact constants of the FORMAT (keyed off the brick op identity at emit),
   // NOT carried in the IR (the signs64 sign-plane is DERIVED from the fixed ksigns
@@ -8704,14 +8704,14 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("tcrv_rvv.iq2_xxs_schedule.");
+           name.starts_with("weft_rvv.iq2_xxs_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq2_xxs_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq2_xxs_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -8789,7 +8789,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (bsum)";
 
@@ -8817,7 +8817,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
               "grid/sign integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -8826,7 +8826,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ2_XXS x Q8_K super-block GRID-of-8 "
               "scalar integer core";
 
@@ -8850,9 +8850,9 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
              << anchor << "\"";
     std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
     constexpr std::int64_t kIQ2XXSSubBlockLen = 32; // the 32-element sub-block.
-    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
     if (stripVLMAX < kIQ2XXSSubBlockLen)
       return emitOpError()
              << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
@@ -8894,7 +8894,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XSQ8KGridCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq2_xs_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq2_xs_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -8980,7 +8980,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XSQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (bsum)";
 
@@ -9008,7 +9008,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XSQ8KGridCoreOp::verify() {
               "grid/sign integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -9017,7 +9017,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XSQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ2_XS x Q8_K super-block per-half-scale "
               "GRID scalar integer core";
 
@@ -9055,7 +9055,7 @@ mlir::LogicalResult GgmlBlockDotIQ2SQ8KGridCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq2_s_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq2_s_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -9152,7 +9152,7 @@ mlir::LogicalResult GgmlBlockDotIQ2SQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (bsum)";
 
@@ -9180,7 +9180,7 @@ mlir::LogicalResult GgmlBlockDotIQ2SQ8KGridCoreOp::verify() {
               "grid/sign integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -9189,7 +9189,7 @@ mlir::LogicalResult GgmlBlockDotIQ2SQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ2_S x Q8_K super-block per-half-scale "
               "GRID scalar integer core";
 
@@ -9225,7 +9225,7 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KGridCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq3_s_q8_k_grid_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.iq3_s_q8_k_grid_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -9321,7 +9321,7 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KGridCoreOp::verify() {
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "one runtime element-count runtime ABI operand, one !weft_rvv.vl "
               "operand, an OPTIONAL `block_index` induction operand, and one "
               "scalar i32 result (bsum)";
 
@@ -9349,7 +9349,7 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KGridCoreOp::verify() {
               "grid/sign integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -9358,7 +9358,7 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KGridCoreOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ3_S x Q8_K super-block GRID-of-4 "
               "scalar integer core";
 
@@ -9442,7 +9442,7 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
   if (!bufferBinding || !scalarBinding)
     return emitOpError()
            << "requires the two leading runtime ABI operands to bind "
-              "tcrv_rvv.runtime_abi_value ops (the forward operator's f32 in/out "
+              "weft_rvv.runtime_abi_value ops (the forward operator's f32 in/out "
               "buffers and/or scalar; the map core brick pins the exact C types)";
   if (!llvm::isa<mlir::IndexType>(getN().getType()))
     return emitOpError()
@@ -9473,7 +9473,7 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
               "index-typed (the strip induction variable)";
   // The reduce model's loop-carried accumulator (region arg 1) is EITHER the f64
   // scalar (rms_norm's Σx² scalar-double ascending fold) OR the
-  // !tcrv_rvv.vector<f64, "m1"> WIDENING accumulator (soft_max's
+  // !weft_rvv.vector<f64, "m1"> WIDENING accumulator (soft_max's
   // vfwredusum_vs_f32m2_f64m1 Σe^x fold, ggml's vfloat64m1_t vsum). Any other
   // type fails closed (I7).
   if (isReduceModel) {
@@ -9482,7 +9482,7 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
       return emitOpError()
              << "requires the reduce model's second region argument to be the "
                 "loop-carried accumulator: the f64 scalar (rms_norm's Σx² "
-                "ascending fold) or the !tcrv_rvv.vector<f64, \"m1\"> widening "
+                "ascending fold) or the !weft_rvv.vector<f64, \"m1\"> widening "
                 "accumulator (soft_max's vfwredusum Σe^x fold)";
   }
   // The rotate model's loop-carried recurrence (region arg 1) is the f32 scalar
@@ -9501,7 +9501,7 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_elementwise_loop_yield";
+              "weft_rvv.typed_elementwise_loop_yield";
   // The yield's carried-value cardinality tracks the model (the yield verifier
   // pins the f64 acc type + the reduce-model tie).
   const unsigned expectedYield = isCarriedModel ? 1 : 0;
@@ -9531,7 +9531,7 @@ mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
   const bool isRotateModel = parent.getReduceMapModel() == "rotate";
   if (isReduceModel) {
     // The carried accumulator is the f64 scalar (rms_norm) OR the
-    // !tcrv_rvv.vector<f64, "m1"> widening accumulator (soft_max), matching the
+    // !weft_rvv.vector<f64, "m1"> widening accumulator (soft_max), matching the
     // loop-body op's region-arg type.
     if (getAccNext().size() != 1 ||
         (!getAccNext()[0].getType().isF64() &&
@@ -9539,7 +9539,7 @@ mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
       return emitOpError()
              << "reduce model requires the yield to carry exactly one "
                 "loop-carried accumulator operand: the f64 scalar (rms_norm) or "
-                "the !tcrv_rvv.vector<f64, \"m1\"> widening accumulator "
+                "the !weft_rvv.vector<f64, \"m1\"> widening accumulator "
                 "(soft_max)";
   } else if (isRotateModel) {
     // The carried recurrence is the f32 scalar theta (rope), matching the
@@ -9573,7 +9573,7 @@ mlir::LogicalResult ElementwiseScaleMapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_scale_map keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.elementwise_scale_map keeps SEW/LMUL/policy on "
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedScaleAttr(attrName))
       return emitOpError()
@@ -9619,7 +9619,7 @@ mlir::LogicalResult ElementwiseScaleMapOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   mlir::Block &parentBlock = parent.getBody().front();
   if (parentBlock.getNumArguments() < 1 ||
@@ -9646,7 +9646,7 @@ mlir::LogicalResult ElementwiseSiluMapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_silu_map keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.elementwise_silu_map keeps SEW/LMUL/policy on "
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedSiluAttr(attrName))
       return emitOpError()
@@ -9686,7 +9686,7 @@ mlir::LogicalResult ElementwiseSiluMapOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   mlir::Block &parentBlock = parent.getBody().front();
   if (parentBlock.getNumArguments() < 1 ||
@@ -9715,7 +9715,7 @@ mlir::LogicalResult ElementwiseBinaryMapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_binary_map keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.elementwise_binary_map keeps SEW/LMUL/policy on "
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedBinaryAttr(attrName))
       return emitOpError()
@@ -9771,7 +9771,7 @@ mlir::LogicalResult ElementwiseBinaryMapOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   mlir::Block &parentBlock = parent.getBody().front();
   if (parentBlock.getNumArguments() < 1 ||
@@ -9798,7 +9798,7 @@ mlir::LogicalResult ElementwiseCopyMapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_copy_map keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.elementwise_copy_map keeps SEW/LMUL/policy on "
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedCopyAttr(attrName))
       return emitOpError()
@@ -9839,7 +9839,7 @@ mlir::LogicalResult ElementwiseCopyMapOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   mlir::Block &parentBlock = parent.getBody().front();
   if (parentBlock.getNumArguments() < 1 ||
@@ -9865,7 +9865,7 @@ mlir::LogicalResult ElementwiseGeluMapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_gelu_map keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.elementwise_gelu_map keeps SEW/LMUL/policy on "
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedGeluAttr(attrName))
       return emitOpError()
@@ -9898,7 +9898,7 @@ mlir::LogicalResult ElementwiseGeluMapOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   mlir::Block &parentBlock = parent.getBody().front();
   if (parentBlock.getNumArguments() < 1 ||
@@ -9928,7 +9928,7 @@ mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_rms_norm_reduce_core keeps "
+             << "'; weft_rvv.elementwise_rms_norm_reduce_core keeps "
                 "SEW/LMUL/policy on setvl/with_vl and rejects deleted local "
                 "element_count metadata";
     if (!isAllowedRmsNormAttr(attrName))
@@ -9992,7 +9992,7 @@ mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   if (parent.getReduceMapModel() != "reduce")
     return emitOpError()
@@ -10013,7 +10013,7 @@ mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
   // OPTIONAL fused rms_norm->mul epilogue region: 0 blocks (plain rms_norm, the
   // unfused byte-identical path) or 1 block carrying exactly ONE entry argument
   // -- the per-strip normalized vector `vy` at this brick's NORMALIZE strip LMUL
-  // -- plus exactly ONE tcrv_rvv.elementwise_mul_map consumer brick. The chain
+  // -- plus exactly ONE weft_rvv.elementwise_mul_map consumer brick. The chain
   // block arg is a declaration the reduce-body emitter binds to the C `vy`
   // variable (the per-strip value is not a real SSA value at the typed-body
   // layer). The mul_map brick's own verifier pins the chain/strip_index/output
@@ -10040,7 +10040,7 @@ mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
         epiBlock.getOps<ElementwiseMulMapOp>().empty())
       return emitOpError()
              << "the fused epilogue region must carry exactly one "
-                "tcrv_rvv.elementwise_mul_map consumer brick";
+                "weft_rvv.elementwise_mul_map consumer brick";
   }
 
   return mlir::success();
@@ -10060,7 +10060,7 @@ mlir::LogicalResult ElementwiseMulMapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_mul_map keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.elementwise_mul_map keeps SEW/LMUL/policy on "
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedMulAttr(attrName))
       return emitOpError()
@@ -10102,7 +10102,7 @@ mlir::LogicalResult ElementwiseMulMapOp::verify() {
   if (!producer || !epilogue || epilogue != &producer.getEpilogue())
     return emitOpError()
            << "must be carried inside the $epilogue region of a "
-              "tcrv_rvv.elementwise_rms_norm_reduce_core producer";
+              "weft_rvv.elementwise_rms_norm_reduce_core producer";
   mlir::Block &epiBlock = epilogue->front();
   if (epiBlock.getNumArguments() < 1 || getChain() != epiBlock.getArgument(0))
     return emitOpError()
@@ -10124,7 +10124,7 @@ mlir::LogicalResult ElementwiseMulMapOp::verify() {
   if (!loop)
     return emitOpError()
            << "must be nested (via the reduce core's epilogue) under a "
-              "tcrv_rvv.typed_elementwise_loop_body";
+              "weft_rvv.typed_elementwise_loop_body";
   mlir::Block &loopBlock = loop.getBody().front();
   if (loopBlock.getNumArguments() < 1 ||
       getStripIndex() != loopBlock.getArgument(0))
@@ -10135,7 +10135,7 @@ mlir::LogicalResult ElementwiseMulMapOp::verify() {
   // OPTIONAL [FMT-PROP] fused-activation-quantize epilogue region: 0 blocks (the
   // plain fused rms_norm->mul that stores f32 z[]) or 1 block carrying exactly ONE
   // entry argument -- the per-block WEIGHTED vector `vz` at the producer normalize
-  // strip LMUL -- plus exactly ONE tcrv_rvv.elementwise_quantize_q8_0_map consumer
+  // strip LMUL -- plus exactly ONE weft_rvv.elementwise_quantize_q8_0_map consumer
   // brick. When present, the emit runs the per-block amax/scale/narrow q8_0 body
   // on the register-kept vz and stores block_q8_0: the f32 z[] intermediate is
   // NEVER stored and the downstream independent quantize_row pass is elided. The
@@ -10171,7 +10171,7 @@ mlir::LogicalResult ElementwiseMulMapOp::verify() {
         qBlock.getOps<ElementwiseQuantizeQ80MapOp>().empty())
       return emitOpError()
              << "the fused quant epilogue region must carry exactly one "
-                "tcrv_rvv.elementwise_quantize_q8_0_map consumer brick";
+                "weft_rvv.elementwise_quantize_q8_0_map consumer brick";
   }
 
   return mlir::success();
@@ -10182,7 +10182,7 @@ mlir::LogicalResult ElementwiseQuantizeQ80MapOp::verify() {
 
   // Bounded mirror attrs only (I4): the operation kind + the block_q8_0 AoS
   // format facts (qk / block_stride / scale/quant byte offsets), IDENTICAL to
-  // tcrv_rvv.quantize_row_q8_0's mirror attrs. There is NO resource/scheduling
+  // weft_rvv.quantize_row_q8_0's mirror attrs. There is NO resource/scheduling
   // LMUL knob this cut -- the quantize block rides ggml's e32m8 QK8_0 strip. A
   // forbidden local element_count/SEW/LMUL/policy attr or an unexpected name fails
   // closed (I7).
@@ -10195,7 +10195,7 @@ mlir::LogicalResult ElementwiseQuantizeQ80MapOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_quantize_q8_0_map keeps SEW/LMUL/policy "
+             << "'; weft_rvv.elementwise_quantize_q8_0_map keeps SEW/LMUL/policy "
                 "on setvl/with_vl and rejects deleted local element_count "
                 "metadata";
     if (!isAllowedQuantizeAttr(attrName))
@@ -10258,7 +10258,7 @@ mlir::LogicalResult ElementwiseQuantizeQ80MapOp::verify() {
   if (!mul || !quantEpi || quantEpi != &mul.getQuantEpilogue())
     return emitOpError()
            << "must be carried inside the $quant_epilogue region of a "
-              "tcrv_rvv.elementwise_mul_map producer";
+              "weft_rvv.elementwise_mul_map producer";
   mlir::Block &quantBlock = quantEpi->front();
   if (quantBlock.getNumArguments() < 1 ||
       getChain() != quantBlock.getArgument(0))
@@ -10274,7 +10274,7 @@ mlir::LogicalResult ElementwiseQuantizeQ80MapOp::verify() {
   if (!loop)
     return emitOpError()
            << "must be nested (via the mul_map's quant epilogue) under a "
-              "tcrv_rvv.typed_elementwise_loop_body";
+              "weft_rvv.typed_elementwise_loop_body";
   mlir::Block &loopBlock = loop.getBody().front();
   if (loopBlock.getNumArguments() < 1 ||
       getStripIndex() != loopBlock.getArgument(0))
@@ -10300,7 +10300,7 @@ mlir::LogicalResult ElementwiseSoftMaxReduceCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_soft_max_reduce_core keeps SEW/LMUL/"
+             << "'; weft_rvv.elementwise_soft_max_reduce_core keeps SEW/LMUL/"
                 "policy on setvl/with_vl and rejects deleted local element_count "
                 "metadata";
     if (!isAllowedSoftMaxAttr(attrName))
@@ -10347,11 +10347,11 @@ mlir::LogicalResult ElementwiseSoftMaxReduceCoreOp::verify() {
   // returned sum.
   if (!isGenericRVVVectorF64M1(getAcc().getType()))
     return emitOpError()
-           << "requires the acc operand to have type !tcrv_rvv.vector<f64, "
+           << "requires the acc operand to have type !weft_rvv.vector<f64, "
               "\"m1\"> (the ggml vfloat64m1_t vsum widening accumulator)";
   if (!isGenericRVVVectorF64M1(getAccNext().getType()))
     return emitOpError()
-           << "requires the acc_next result to have type !tcrv_rvv.vector<f64, "
+           << "requires the acc_next result to have type !weft_rvv.vector<f64, "
               "\"m1\"> (the updated soft_max widening accumulator)";
 
   // ANTI-BYPASS (I7): the strip_index MUST be the enclosing loop op's region
@@ -10361,7 +10361,7 @@ mlir::LogicalResult ElementwiseSoftMaxReduceCoreOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   if (parent.getReduceMapModel() != "reduce")
     return emitOpError()
@@ -10396,7 +10396,7 @@ mlir::LogicalResult ElementwiseRopeRotateCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.elementwise_rope_rotate_core keeps SEW/LMUL/policy "
+             << "'; weft_rvv.elementwise_rope_rotate_core keeps SEW/LMUL/policy "
                 "on setvl/with_vl and rejects deleted local element_count "
                 "metadata";
     if (!isAllowedRopeAttr(attrName))
@@ -10454,7 +10454,7 @@ mlir::LogicalResult ElementwiseRopeRotateCoreOp::verify() {
   auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
   if (!parent)
     return emitOpError()
-           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+           << "must be carried inside a weft_rvv.typed_elementwise_loop_body "
               "region";
   if (parent.getReduceMapModel() != "rotate")
     return emitOpError()
@@ -10576,7 +10576,7 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.dequantize_row keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.dequantize_row keeps SEW/LMUL/policy on "
                 "setvl/with_vl and runtime k/AVL/VL in the surrounding "
                 "control-plane IR";
     if (attrName != "format")
@@ -10601,7 +10601,7 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one read-only quantized-weight byte pointer, one f32 "
-              "output pointer, one runtime element-count, one !tcrv_rvv.vl "
+              "output pointer, one runtime element-count, one !weft_rvv.vl "
               "operand, and one f32 LMUL m1 result";
 
   // ggml's dequantize_row_<format> reads the AoS block buffer (const block_qX *,
@@ -10624,10 +10624,10 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
 
   if (!isGenericRVVVectorF32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, \"m1\"> "
+           << "requires result vector to have type !weft_rvv.vector<f32, \"m1\"> "
               "for the dequantize_row store boundary";
   if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have !tcrv_rvv.vl "
+    return emitOpError() << "requires runtime VL operand to have !weft_rvv.vl "
                             "type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -10636,7 +10636,7 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the dequantize_row support op";
   return mlir::success();
 }
@@ -10646,7 +10646,7 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
 // (bare signed-int8 scale, no nibble unpack) plus the flat 4-bit nibble leaves
 // block_q4_0/q4_1/q5_0/q5_1 (nibble unpack + the optional 5th-bit qh merge / min
 // fold). The other (K-quant / FP4 / ternary / codebook / IQ grid) dequantize_row
-// formats stay dispatch-wired (the abstract tcrv_rvv.dequantize_row monolith).
+// formats stay dispatch-wired (the abstract weft_rvv.dequantize_row monolith).
 // Shared by the typed loop body op and its per-block decode brick so both fail
 // closed on an unconstructed decode_model (I7).
 static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
@@ -10681,7 +10681,7 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.typed_dequantize_row_loop_body keeps SEW/LMUL/policy "
+             << "'; weft_rvv.typed_dequantize_row_loop_body keeps SEW/LMUL/policy "
                 "on setvl/with_vl and runtime k/AVL/VL in the surrounding "
                 "control-plane IR";
     if (!isAllowedAttr(attrName))
@@ -10708,7 +10708,7 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
               "super-block leaves) + iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 (the codebook "
               "/ ternary-grid extended leaves) + tq1_0/tq2_0 (the base-3 / 2-bit ternary "
               "super-block leaves). An unconstructed format stays "
-              "dispatch-wired via the abstract tcrv_rvv.dequantize_row monolith";
+              "dispatch-wired via the abstract weft_rvv.dequantize_row monolith";
 
   // qk / weight_block_stride are positive ggml ABI byte counts the per-block
   // address arithmetic depends on. Read the SIGNED attr view so a NEGATIVE spelling
@@ -10749,7 +10749,7 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
   // Region structure: exactly ONE entry argument -- the block_index induction
   // variable (index). Unlike the block-dot loop ops there is NO loop-carried
   // accumulator (the decode STORES to memory), so the region is terminated by the
-  // VOID tcrv_rvv.typed_dequantize_row_loop_yield.
+  // VOID weft_rvv.typed_dequantize_row_loop_yield.
   mlir::Block &block = getBody().front();
   if (block.getNumArguments() != 1)
     return emitOpError()
@@ -10768,7 +10768,7 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_dequantize_row_loop_yield (the VOID streaming-store "
+              "weft_rvv.typed_dequantize_row_loop_yield (the VOID streaming-store "
               "sink)";
 
   return mlir::success();
@@ -10789,7 +10789,7 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.dequantize_row_decode_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.dequantize_row_decode_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl";
     if (!isAllowedAttr(attrName))
       return emitOpError()
@@ -10868,7 +10868,7 @@ mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.typed_quantize_row_loop_body keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.typed_quantize_row_loop_body keeps SEW/LMUL/policy on "
                 "setvl/with_vl and runtime k/AVL/VL in the surrounding "
                 "control-plane IR";
     if (!isAllowedAttr(attrName))
@@ -10931,7 +10931,7 @@ mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
   // Region structure: exactly ONE entry argument -- the block_index induction
   // variable (index). Unlike the block-dot loop ops there is NO loop-carried
   // accumulator (the quantizer STORES to memory), so the region is terminated by the
-  // VOID tcrv_rvv.typed_quantize_row_loop_yield.
+  // VOID weft_rvv.typed_quantize_row_loop_yield.
   mlir::Block &block = getBody().front();
   if (block.getNumArguments() != 1)
     return emitOpError()
@@ -10950,7 +10950,7 @@ mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_quantize_row_loop_yield (the VOID streaming-store "
+              "weft_rvv.typed_quantize_row_loop_yield (the VOID streaming-store "
               "sink)";
 
   return mlir::success();
@@ -10970,7 +10970,7 @@ mlir::LogicalResult QuantizeRowEncodeCoreOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.quantize_row_encode_core keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.quantize_row_encode_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl";
     if (!isAllowedAttr(attrName))
       return emitOpError()
@@ -11035,7 +11035,7 @@ mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.quantize_row_q8_0 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.quantize_row_q8_0 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -11080,7 +11080,7 @@ mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
     return emitOpError()
            << "requires one read-only f32 input pointer, one block_q8_0 output "
               "byte-buffer pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one f32 LMUL m1 result";
 
   // ggml's quantize_row_q8_0 reads x[] (const float *) and writes the block_q8_0
   // AoS byte buffer vy (void *, taken as a uint8_t * byte cursor). The
@@ -11107,11 +11107,11 @@ mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
 
   if (!isGenericRVVVectorF32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+           << "requires result vector to have type !weft_rvv.vector<f32, "
               "\"m1\"> for the ggml f32->q8_0 quantizer route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -11120,7 +11120,7 @@ mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml f32->q8_0 quantizer";
 
   return mlir::success();
@@ -11145,7 +11145,7 @@ mlir::LogicalResult GgmlQuantizeRowQ81Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.quantize_row_q8_1 keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.quantize_row_q8_1 keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -11195,7 +11195,7 @@ mlir::LogicalResult GgmlQuantizeRowQ81Op::verify() {
     return emitOpError()
            << "requires one read-only f32 input pointer, one block_q8_1 output "
               "byte-buffer pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one f32 LMUL m1 result";
 
   RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp outputBinding =
@@ -11217,11 +11217,11 @@ mlir::LogicalResult GgmlQuantizeRowQ81Op::verify() {
 
   if (!isGenericRVVVectorF32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+           << "requires result vector to have type !weft_rvv.vector<f32, "
               "\"m1\"> for the ggml f32->q8_1 quantizer route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -11230,7 +11230,7 @@ mlir::LogicalResult GgmlQuantizeRowQ81Op::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml f32->q8_1 quantizer";
 
   return mlir::success();
@@ -11255,7 +11255,7 @@ mlir::LogicalResult GgmlQuantizeRowQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.quantize_row_q8_K keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.quantize_row_q8_K keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -11306,7 +11306,7 @@ mlir::LogicalResult GgmlQuantizeRowQ8KOp::verify() {
     return emitOpError()
            << "requires one read-only f32 input pointer, one block_q8_K output "
               "byte-buffer pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+              "operand, one !weft_rvv.vl operand, and one f32 LMUL m1 result";
 
   RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp outputBinding =
@@ -11328,11 +11328,11 @@ mlir::LogicalResult GgmlQuantizeRowQ8KOp::verify() {
 
   if (!isGenericRVVVectorF32M1(getResult().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+           << "requires result vector to have type !weft_rvv.vector<f32, "
               "\"m1\"> for the ggml f32->q8_K quantizer route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -11341,7 +11341,7 @@ mlir::LogicalResult GgmlQuantizeRowQ8KOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml f32->q8_K quantizer";
 
   return mlir::success();
@@ -11355,7 +11355,7 @@ mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.masked_widening_dot_reduce keeps mask "
+             << "'; weft_rvv.masked_widening_dot_reduce keeps mask "
                 "provenance, source/result SEW/LMUL/policy on typed values "
                 "and setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
@@ -11413,25 +11413,25 @@ mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
     return emitOpError()
            << "requires compare-produced mask, lhs and rhs i16 generic RVV "
               "vector operands, one i32 accumulator seed runtime ABI operand, "
-              "one !tcrv_rvv.vl operand, and one i32 generic RVV vector result";
+              "one !weft_rvv.vl operand, and one i32 generic RVV vector result";
   if (!isGenericRVVVectorI16MF2(getLhs().getType()) ||
       !isGenericRVVVectorI16MF2(getRhs().getType()))
     return emitOpError()
            << "requires lhs and rhs source vectors to have type "
-              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed masked "
+              "!weft_rvv.vector<i16, \"mf2\"> for the bounded signed masked "
               "widening dot-product reduction route";
   if (!isGenericRVVVectorI32M1(getResult().getType()))
     return emitOpError()
            << "requires result vector to have type "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed masked "
+              "!weft_rvv.vector<i32, \"m1\"> for the bounded signed masked "
               "widening dot-product reduction route";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAccumulatorSeed(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   RuntimeABIValueOp seedBinding =
@@ -11443,7 +11443,7 @@ mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
               "route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -11453,22 +11453,22 @@ mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getKind() != "slt")
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to use kind "
+           << "requires mask-producing weft_rvv.compare to use kind "
               "\"slt\" for the bounded computed-mask widening dot-product "
               "reduction route";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_widening_dot_reduce";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_widening_dot_reduce";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as "
-              "tcrv_rvv.masked_widening_dot_reduce";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as "
+              "weft_rvv.masked_widening_dot_reduce";
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();
 
@@ -11478,18 +11478,18 @@ mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+           << "requires enclosing weft_rvv.with_vl to carry explicit "
               "result SEW/LMUL metadata for masked widening dot-product "
               "reduction";
   if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
                                  expectedLMUL.getValue()))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl result config to be "
+           << "requires enclosing weft_rvv.with_vl result config to be "
               "SEW32 LMUL m1 for the bounded signed masked widening "
               "dot-product reduction route";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for masked widening dot-product reduction";
 
   return mlir::success();
@@ -11503,7 +11503,7 @@ mlir::LogicalResult WideningConvertOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.widening_convert keeps source/destination "
+             << "'; weft_rvv.widening_convert keeps source/destination "
                 "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
@@ -11523,11 +11523,11 @@ mlir::LogicalResult WideningConvertOp::verify() {
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one source generic RVV vector operand, one "
-              "!tcrv_rvv.vl operand, and one destination generic RVV vector "
+              "!weft_rvv.vl operand, and one destination generic RVV vector "
               "result";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+           << "requires runtime VL operand to have !weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -11540,47 +11540,47 @@ mlir::LogicalResult WideningConvertOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+           << "requires enclosing weft_rvv.with_vl to carry explicit "
               "destination SEW/LMUL metadata for widening conversion";
 
   if (getKind() == "widen_i32_to_i64") {
     if (!isGenericRVVVectorI32M1(getSource().getType()))
       return emitOpError()
              << "requires source vector type to be "
-                "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+                "!weft_rvv.vector<i32, \"m1\"> for the bounded signed "
                 "i32-to-i64 widening conversion route";
     if (!isGenericRVVVectorI64M2(getResult().getType()))
       return emitOpError()
              << "requires result vector type to be "
-                "!tcrv_rvv.vector<i64, \"m2\"> for the bounded signed "
+                "!weft_rvv.vector<i64, \"m2\"> for the bounded signed "
                 "i32-to-i64 widening conversion route";
     if (!isRVVSelectedBodyI64M2Config(expectedSEW.getInt(),
                                       expectedLMUL.getValue()))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl destination config to "
+             << "requires enclosing weft_rvv.with_vl destination config to "
                 "be SEW64 LMUL m2 for the bounded signed i32-to-i64 "
                 "widening conversion route";
   } else {
     if (!isGenericRVVVectorI16MF2(getSource().getType()))
       return emitOpError()
              << "requires source vector type to be "
-                "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+                "!weft_rvv.vector<i16, \"mf2\"> for the bounded signed "
                 "i16-to-i32 widening conversion route";
     if (!isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires result vector type to be "
-                "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+                "!weft_rvv.vector<i32, \"m1\"> for the bounded signed "
                 "i16-to-i32 widening conversion route";
     if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
                                    expectedLMUL.getValue()))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl destination config to "
+             << "requires enclosing weft_rvv.with_vl destination config to "
                 "be SEW32 LMUL m1 for the bounded signed i16-to-i32 "
                 "widening conversion route";
   }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for widening conversion";
 
   return mlir::success();
@@ -11594,7 +11594,7 @@ mlir::LogicalResult DequantizeOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.dequantize keeps source/result dtype, "
+             << "'; weft_rvv.dequantize keeps source/result dtype, "
                 "SEW/LMUL/policy, and runtime scale authority on typed vector "
                 "values, runtime ABI SSA, and setvl/with_vl, and rejects "
                 "deleted local element_count metadata";
@@ -11619,25 +11619,25 @@ mlir::LogicalResult DequantizeOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one i32 source generic RVV vector operand, one "
-              "runtime f32 scale ABI operand, one !tcrv_rvv.vl operand, and "
+              "runtime f32 scale ABI operand, one !weft_rvv.vl operand, and "
               "one f32 destination generic RVV vector result";
   if (!isGenericRVVVectorI32M1(getSource().getType()))
     return emitOpError()
            << "requires source vector type to be "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded i32-to-f32 "
+              "!weft_rvv.vector<i32, \"m1\"> for the bounded i32-to-f32 "
               "dequantization route";
   if (!isGenericRVVVectorF32M1(getResult().getType()))
     return emitOpError()
            << "requires result vector type to be "
-              "!tcrv_rvv.vector<f32, \"m1\"> for the bounded i32-to-f32 "
+              "!weft_rvv.vector<f32, \"m1\"> for the bounded i32-to-f32 "
               "dequantization route";
   if (!llvm::isa<RuntimeABIValueType>(getScale().getType()))
     return emitOpError()
-           << "requires scale operand to have !tcrv_rvv.runtime_abi_value "
+           << "requires scale operand to have !weft_rvv.runtime_abi_value "
               "type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getScale(), "runtime scale",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                DequantScaleValue})))
     return mlir::failure();
   RuntimeABIValueOp scaleBinding = getScale().getDefiningOp<RuntimeABIValueOp>();
@@ -11647,7 +11647,7 @@ mlir::LogicalResult DequantizeOp::verify() {
               "i32-to-f32 dequantization route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+           << "requires runtime VL operand to have !weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -11655,8 +11655,8 @@ mlir::LogicalResult DequantizeOp::verify() {
     return mlir::failure();
 
   // Deferred-wide dequant (N3 max-legal-LMUL schedule): the dequant sources the
-  // trailing tcrv_rvv.standalone_reduce (i32m1) whose input is the i32m8
-  // tcrv_rvv.widening_accumulate. The source/result dtype (i32m1 -> f32m1) is
+  // trailing weft_rvv.standalone_reduce (i32m1) whose input is the i32m8
+  // weft_rvv.widening_accumulate. The source/result dtype (i32m1 -> f32m1) is
   // the SAME as the narrow path; only the enclosing with_vl is the strip config
   // (SEW8 LMUL m2), so the SEW32-pinned result-vector check does not apply. This
   // is a PARALLEL branch keyed on the deferred-accumulate structural marker.
@@ -11666,13 +11666,13 @@ mlir::LogicalResult DequantizeOp::verify() {
       if (deferredReduce.getVl() != getVl())
         return emitOpError()
                << "requires the deferred-wide trailing "
-                  "tcrv_rvv.standalone_reduce to consume the same "
-                  "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+                  "weft_rvv.standalone_reduce to consume the same "
+                  "!weft_rvv.vl token as weft_rvv.dequantize";
       if (deferredReduce->getParentOp() != op->getParentOp())
         return emitOpError()
                << "requires the deferred-wide trailing "
-                  "tcrv_rvv.standalone_reduce to be in the same "
-                  "tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+                  "weft_rvv.standalone_reduce to be in the same "
+                  "weft_rvv.with_vl body as weft_rvv.dequantize";
       // Source i32m1 / result f32m1 already checked above; the deferred-wide
       // path keeps those, and skips the SEW32/m1 with_vl pin (strip is SEW8/m2).
       return mlir::success();
@@ -11681,8 +11681,8 @@ mlir::LogicalResult DequantizeOp::verify() {
 
   // NARROW byte-anchor dequant (Track B auto-lowering: the dequant rung ON the
   // byte-anchor widening dot-reduce front door): the dequant sources a narrow
-  // tcrv_rvv.standalone_reduce (i32m1) whose input is a tcrv_rvv.widening_product
-  // (NOT the deferred-wide tcrv_rvv.widening_accumulate). The source/result dtype
+  // weft_rvv.standalone_reduce (i32m1) whose input is a weft_rvv.widening_product
+  // (NOT the deferred-wide weft_rvv.widening_accumulate). The source/result dtype
   // (i32m1 -> f32m1) is the SAME as the SEW32/m1 grouped path -- already checked
   // above; the ONLY difference is the enclosing with_vl is the SEW8 byte-anchor
   // strip config (LMUL m1 or m2), so the SEW32-pinned source/result-vector checks
@@ -11713,13 +11713,13 @@ mlir::LogicalResult DequantizeOp::verify() {
         if (narrowReduce.getVl() != getVl() || product.getVl() != getVl())
           return emitOpError()
                  << "requires the byte-anchor source product and "
-                    "tcrv_rvv.standalone_reduce to consume the same "
-                    "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+                    "weft_rvv.standalone_reduce to consume the same "
+                    "!weft_rvv.vl token as weft_rvv.dequantize";
         if (narrowReduce->getParentOp() != op->getParentOp() ||
             product->getParentOp() != op->getParentOp())
           return emitOpError()
                  << "requires the byte-anchor source product-reduction chain to "
-                    "be in the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+                    "be in the same weft_rvv.with_vl body as weft_rvv.dequantize";
         // Source i32m1 / result f32m1 already checked above; the byte-anchor
         // narrow path keeps those, and skips the SEW32/m1 with_vl pin (the strip
         // is SEW8/m{1,2}).
@@ -11734,20 +11734,20 @@ mlir::LogicalResult DequantizeOp::verify() {
   auto sourceHandoff = getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
   if (!sourceLoad && !sourceReduction && !sourceHandoff)
     return emitOpError()
-           << "requires source vector to be produced by tcrv_rvv.load or by "
-              "a bounded tcrv_rvv.widening_product -> "
-              "tcrv_rvv.standalone_reduce chain, optionally through "
-              "tcrv_rvv.gearbox_cross_region_handoff, inside the selected "
+           << "requires source vector to be produced by weft_rvv.load or by "
+              "a bounded weft_rvv.widening_product -> "
+              "weft_rvv.standalone_reduce chain, optionally through "
+              "weft_rvv.gearbox_cross_region_handoff, inside the selected "
               "RVV typed body";
   if (sourceLoad) {
     if (sourceLoad.getVl() != getVl())
       return emitOpError()
-             << "requires source-producing tcrv_rvv.load to consume the same "
-                "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+             << "requires source-producing weft_rvv.load to consume the same "
+                "!weft_rvv.vl token as weft_rvv.dequantize";
     if (sourceLoad->getParentOp() != op->getParentOp())
       return emitOpError()
-             << "requires source-producing tcrv_rvv.load to be in the same "
-                "tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+             << "requires source-producing weft_rvv.load to be in the same "
+                "weft_rvv.with_vl body as weft_rvv.dequantize";
   }
   if (sourceReduction) {
     // The reduce input is either a plain widening product or the signed packed-i4
@@ -11759,9 +11759,9 @@ mlir::LogicalResult DequantizeOp::verify() {
         llvm::dyn_cast_or_null<PackedI4NibbleUnpackProductOp>(productOp);
     if (!product && !packed)
       return emitOpError()
-             << "requires source-producing tcrv_rvv.standalone_reduce to "
-                "consume a bounded tcrv_rvv.widening_product or "
-                "tcrv_rvv.packed_i4_nibble_unpack_product result for the "
+             << "requires source-producing weft_rvv.standalone_reduce to "
+                "consume a bounded weft_rvv.widening_product or "
+                "weft_rvv.packed_i4_nibble_unpack_product result for the "
                 "low-precision product-reduction dequantization route";
     const bool productKindOK =
         product ? product.getKind() == "signed_widening_product"
@@ -11777,20 +11777,20 @@ mlir::LogicalResult DequantizeOp::verify() {
     if (sourceReduction.getVl() != getVl() || productVL != getVl())
       return emitOpError()
              << "requires source-producing product and "
-                "tcrv_rvv.standalone_reduce to consume the same "
-                "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+                "weft_rvv.standalone_reduce to consume the same "
+                "!weft_rvv.vl token as weft_rvv.dequantize";
     if (sourceReduction->getParentOp() != op->getParentOp() ||
         productOp->getParentOp() != op->getParentOp())
       return emitOpError()
              << "requires source-producing product-reduction chain to be in "
-                "the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+                "the same weft_rvv.with_vl body as weft_rvv.dequantize";
   }
   if (sourceHandoff) {
     auto reduction = sourceHandoff.getInput().getDefiningOp<StandaloneReduceOp>();
     if (!reduction)
       return emitOpError()
              << "requires source-producing Gearbox handoff to consume a "
-                "tcrv_rvv.standalone_reduce result";
+                "weft_rvv.standalone_reduce result";
     // The reduce input is either a plain widening product or the signed
     // packed-i4 nibble-unpack widening product (the Stage-3 typed packed-i4
     // surface); both feed the i32 reduce -> handoff -> dequant chain.
@@ -11799,8 +11799,8 @@ mlir::LogicalResult DequantizeOp::verify() {
                                PackedI4NibbleUnpackProductOp>(productOp))
       return emitOpError()
              << "requires source-producing Gearbox handoff reduction to "
-                "consume a bounded tcrv_rvv.widening_product or "
-                "tcrv_rvv.packed_i4_nibble_unpack_product result";
+                "consume a bounded weft_rvv.widening_product or "
+                "weft_rvv.packed_i4_nibble_unpack_product result";
     mlir::Value productVL =
         llvm::isa<WideningProductOp>(productOp)
             ? llvm::cast<WideningProductOp>(productOp).getVl()
@@ -11809,8 +11809,8 @@ mlir::LogicalResult DequantizeOp::verify() {
         productVL != getVl())
       return emitOpError()
              << "requires source-producing Gearbox handoff, product, and "
-                "standalone reduction to consume the same !tcrv_rvv.vl token "
-                "as tcrv_rvv.dequantize";
+                "standalone reduction to consume the same !weft_rvv.vl token "
+                "as weft_rvv.dequantize";
     WithVLOp producerWithVL =
         llvm::dyn_cast_or_null<WithVLOp>(sourceHandoff->getParentOp());
     if (!producerWithVL ||
@@ -11820,7 +11820,7 @@ mlir::LogicalResult DequantizeOp::verify() {
          producerWithVL.getOperation() != op->getParentOp()))
       return emitOpError()
              << "requires source-producing Gearbox handoff chain to be in "
-                "the same producer tcrv_rvv.with_vl body as the handoff, and "
+                "the same producer weft_rvv.with_vl body as the handoff, and "
                 "that producer scope must enclose or match the dequantize "
                 "consumer scope";
   }
@@ -11862,21 +11862,21 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
   if (!llvm::isa<RuntimeABIValueType>(getLhsScaleBase().getType()))
     return emitOpError()
            << "requires lhs_scale_base operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   if (!llvm::isa<RuntimeABIValueType>(getRhsScaleBase().getType()))
     return emitOpError()
            << "requires rhs_scale_base operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   // The base-import contract is NOT relaxed by the loop extension: both bases
   // stay imported ABI block-0 pointers with the LHS/RHS input-buffer roles; the
   // per-block form only ADDS the loop offset on top of these imported bases.
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhsScaleBase(), "lhs scale base",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhsScaleBase(), "rhs scale base",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
 
   if (hasBlockIndex) {
@@ -11896,7 +11896,7 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
              << "requires block_index to be index-typed (the enclosing loop op "
                 "induction variable)";
     // Structural: block_index must be the induction variable (region argument
-    // 0) of the enclosing tcrv_rvv.typed_flat_block_dot_loop_body region. SSA
+    // 0) of the enclosing weft_rvv.typed_flat_block_dot_loop_body region. SSA
     // scoping already guarantees this op is nested in that region, so the
     // block-arg owner check is sufficient (I7 fail-closed: a non-loop or
     // non-induction index value is rejected).
@@ -11907,7 +11907,7 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
       return emitOpError()
              << "requires block_index to be the induction variable (region "
                 "argument 0) of an enclosing "
-                "tcrv_rvv.typed_flat_block_dot_loop_body region";
+                "weft_rvv.typed_flat_block_dot_loop_body region";
   } else {
     // Single-block backward-compat form: the per-block stride attrs are
     // meaningless without a block_index and are rejected fail-closed.
@@ -11960,20 +11960,20 @@ mlir::LogicalResult BlockFp16MinProductOp::verify() {
   if (!llvm::isa<RuntimeABIValueType>(getLhsMinBase().getType()))
     return emitOpError()
            << "requires lhs_min_base operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   if (!llvm::isa<RuntimeABIValueType>(getRhsSumBase().getType()))
     return emitOpError()
            << "requires rhs_sum_base operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   // The base-import contract is NOT relaxed by the loop extension: both bases
   // stay imported ABI block-0 pointers with the LHS/RHS input-buffer roles.
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhsMinBase(), "lhs min base",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhsSumBase(), "rhs sum base",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
 
   if (hasBlockIndex) {
@@ -11997,7 +11997,7 @@ mlir::LogicalResult BlockFp16MinProductOp::verify() {
       return emitOpError()
              << "requires block_index to be the induction variable (region "
                 "argument 0) of an enclosing "
-                "tcrv_rvv.typed_flat_block_dot_loop_body region";
+                "weft_rvv.typed_flat_block_dot_loop_body region";
   } else {
     if (getLhsBlockStride() || getRhsBlockStride())
       return emitOpError()
@@ -12039,12 +12039,12 @@ mlir::LogicalResult BlockFiveBitQhSourceOp::verify() {
 
   if (!llvm::isa<RuntimeABIValueType>(getQhBase().getType()))
     return emitOpError()
-           << "requires qh_base operand to have !tcrv_rvv.runtime_abi_value type";
+           << "requires qh_base operand to have !weft_rvv.runtime_abi_value type";
   // The qh field lives WITHIN the weight block, so the base is the weight ABI
   // base (the SAME LHS input-buffer the nibble weight load names).
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getQhBase(), "qh base",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
 
   if (hasBlockIndex) {
@@ -12067,7 +12067,7 @@ mlir::LogicalResult BlockFiveBitQhSourceOp::verify() {
       return emitOpError()
              << "requires block_index to be the induction variable (region "
                 "argument 0) of an enclosing "
-                "tcrv_rvv.typed_flat_block_dot_loop_body region";
+                "weft_rvv.typed_flat_block_dot_loop_body region";
   } else {
     if (getBlockStride())
       return emitOpError()
@@ -12089,7 +12089,7 @@ mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
   mlir::Operation *op = getOperation();
 
   // Standalone bounded surface checks by string equality (deliberately NOT the
-  // shared tcrv_rvv.dequantize helpers): this op is APPENDED with zero reach
+  // shared weft_rvv.dequantize helpers): this op is APPENDED with zero reach
   // into DequantizeOp's contract.
   if (getKind() != "computed_scale_sumi_dequant")
     return emitOpError()
@@ -12119,26 +12119,26 @@ mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
               "partial sum consumed by the fp32 fold)";
 
   // Wall-2 contrast: the computed scale must be a COMPUTED f32 SSA value (the
-  // tcrv_rvv.block_fp16_scale_product output), NOT an imported ABI scale. An
-  // imported runtime scale carries the !tcrv_rvv.runtime_abi_value type, which
+  // weft_rvv.block_fp16_scale_product output), NOT an imported ABI scale. An
+  // imported runtime scale carries the !weft_rvv.runtime_abi_value type, which
   // fails this f32 check -- so requiring f32 fail-closed rejects the
-  // imported-scale-only form tcrv_rvv.dequantize hard-requires (I7).
+  // imported-scale-only form weft_rvv.dequantize hard-requires (I7).
   if (!getComputedScale().getType().isF32())
     return emitOpError()
            << "requires the computed_scale operand to be a COMPUTED f32 SSA "
-              "value (an imported !tcrv_rvv.runtime_abi_value scale is "
+              "value (an imported !weft_rvv.runtime_abi_value scale is "
               "rejected: this op consumes the per-block computed scale, not an "
               "imported ABI scale)";
 
   // The OPTIONAL Family-B min_term (the m_x*s_y product from
-  // tcrv_rvv.block_fp16_min_product) must be a COMPUTED f32 SSA value, same
+  // weft_rvv.block_fp16_min_product) must be a COMPUTED f32 SSA value, same
   // fail-closed contrast as computed_scale (an imported ABI scale carries the
-  // !tcrv_rvv.runtime_abi_value type and fails the f32 check).
+  // !weft_rvv.runtime_abi_value type and fails the f32 check).
   if (minTerm && !minTerm.getType().isF32())
     return emitOpError()
            << "requires the optional min_term operand to be a COMPUTED f32 SSA "
               "value (the m_x*s_y per-block correction product from "
-              "tcrv_rvv.block_fp16_min_product)";
+              "weft_rvv.block_fp16_min_product)";
 
   if (!getResult().getType().isF32())
     return emitOpError()
@@ -12188,7 +12188,7 @@ mlir::LogicalResult CrossBlockF32AccumulateOp::verify() {
     return emitOpError()
            << "requires the term operand to be a scalar f32 (the per-block "
               "`(float)sumi * scale` value from "
-              "tcrv_rvv.block_computed_scale_dequant)";
+              "weft_rvv.block_computed_scale_dequant)";
   if (!getResult().getType().isF32())
     return emitOpError()
            << "requires an f32 scalar result (f32 fully covers the accumulator "
@@ -12388,7 +12388,7 @@ mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_flat_block_dot_loop_yield (the carried-out f32 "
+              "weft_rvv.typed_flat_block_dot_loop_yield (the carried-out f32 "
               "accumulator)";
   if (!yield.getAccNext().getType().isF32())
     return emitOpError()
@@ -12406,7 +12406,7 @@ mlir::LogicalResult TypedFlatBlockDotLoopYieldOp::verify() {
 }
 
 // The q4_K/q5_K super-block loop op carries a DUAL accumulator: an 8-lane fp32
-// VECTOR (!tcrv_rvv.vector<f32, "m2">, the deferred positive-fold `sums` chain)
+// VECTOR (!weft_rvv.vector<f32, "m2">, the deferred positive-fold `sums` chain)
 // and a scalar f32 (the `sumf` MIN-term chain). The predicate pins that exact
 // vector accumulator type.
 static bool isF32M2VectorAccumulator(mlir::Type type) {
@@ -12447,7 +12447,7 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_dual_fp16_scale_fold keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.repack_dual_fp16_scale_fold keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding control-plane "
                 "IR, and rejects deleted local element_count metadata";
     if (!isAllowedAttr(attrName))
@@ -12489,12 +12489,12 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
     return emitOpError()
            << "requires the repacked weight base, the plain q8_0 activation base, "
               "the per-strip i32 sumi, the loop-carried per-strip f32 "
-              "accumulator, one !tcrv_rvv.vl operand, and one block_index "
+              "accumulator, one !weft_rvv.vl operand, and one block_index "
               "induction operand, producing one folded-out per-strip f32 vector "
               "accumulator";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -12506,7 +12506,7 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
       !isGenericRVVSignedOrSignlessIntegerVectorType(
           getSumi().getType(), getRVVSEW32Bits(), getRVVLMULM4()))
     return emitOpError()
-           << "requires the consumed sumi to be an i32 !tcrv_rvv.vector<i32, "
+           << "requires the consumed sumi to be an i32 !weft_rvv.vector<i32, "
               "\"m2\"> (the mf2 core) or <i32, \"m4\"> (the m1 core)";
   // The loop-carried accumulator + folded-out result are per-strip f32 vectors:
   // f32m2 for the mf2 (RVV1.0 fractional) fold, f32m4 for the m1 (RVV0.7
@@ -12515,7 +12515,7 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
   if (!isF32M2OrM4VectorAccumulator(getAcc().getType()))
     return emitOpError()
            << "requires the loop-carried accumulator to be a per-strip f32 vector "
-              "(!tcrv_rvv.vector<f32, \"m2\"> the mf2 fold or <f32, \"m4\"> the "
+              "(!weft_rvv.vector<f32, \"m2\"> the mf2 fold or <f32, \"m4\"> the "
               "m1 whole-LMUL fold)";
   if (getAccNext().getType() != getAcc().getType())
     return emitOpError()
@@ -12535,7 +12535,7 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked per-strip dual-fp16 scale fold";
 
   return mlir::success();
@@ -12663,7 +12663,7 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
       return emitOpError()
              << "requires the second region argument (the loop-carried `sums` "
                 "accumulator) to be an 8-lane fp32 vector "
-                "(!tcrv_rvv.vector<f32, \"m2\">)";
+                "(!weft_rvv.vector<f32, \"m2\">)";
     TypedSuperBlockBlockDotLoopYieldOp yield =
         block.empty()
             ? TypedSuperBlockBlockDotLoopYieldOp()
@@ -12671,12 +12671,12 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     if (!yield)
       return emitOpError()
              << "requires the region to be terminated by "
-                "tcrv_rvv.typed_super_block_block_dot_loop_yield (the single "
+                "weft_rvv.typed_super_block_block_dot_loop_yield (the single "
                 "carried-out `sums` vector accumulator)";
     if (!isF32M2VectorAccumulator(yield.getSumsNext().getType()))
       return emitOpError()
              << "requires the loop yield to carry an 8-lane fp32 vector `sums` "
-                "accumulator (!tcrv_rvv.vector<f32, \"m2\">) as its first operand";
+                "accumulator (!weft_rvv.vector<f32, \"m2\">) as its first operand";
     if (yield.getSumfNext())
       return emitOpError()
              << "the single-accumulator no-min fold_model \"scales_times_sumi\" "
@@ -12721,7 +12721,7 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     if (!yield)
       return emitOpError()
              << "requires the region to be terminated by "
-                "tcrv_rvv.typed_super_block_block_dot_loop_yield (the single "
+                "weft_rvv.typed_super_block_block_dot_loop_yield (the single "
                 "carried-out `sumf` scalar accumulator)";
     if (!yield.getSumsNext().getType().isF32())
       return emitOpError()
@@ -12745,7 +12745,7 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
   // contrast with q2_K is the fold ARITHMETIC (iq1_s's `sumf += d*((float)sumi +
   // IQ1S_DELTA*(float)sumi1)` ternary-grid delta fold, keyed for the milestone-2
   // emitter) and the in-region brick (the ternary-grid integer core
-  // tcrv_rvv.iq1_s_q8_k_grid_core, decode_model=lookup, vs q2_K's arithmetic
+  // weft_rvv.iq1_s_q8_k_grid_core, decode_model=lookup, vs q2_K's arithmetic
   // integer core); the accumulator arity is the same single f32 scalar, so the
   // region/yield contract mirrors the scalar path. An 8-lane vector first
   // accumulator, or a second (`sumf_next`) yield operand under this scalar fold,
@@ -12777,7 +12777,7 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     if (!yield)
       return emitOpError()
              << "requires the region to be terminated by "
-                "tcrv_rvv.typed_super_block_block_dot_loop_yield (the single "
+                "weft_rvv.typed_super_block_block_dot_loop_yield (the single "
                 "carried-out `sumf` scalar accumulator)";
     if (!yield.getSumsNext().getType().isF32())
       return emitOpError()
@@ -12815,7 +12815,7 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     return emitOpError()
            << "requires the second region argument (the loop-carried `sums` "
               "accumulator) to be an 8-lane fp32 vector "
-              "(!tcrv_rvv.vector<f32, \"m2\">)";
+              "(!weft_rvv.vector<f32, \"m2\">)";
   if (!block.getArgument(2).getType().isF32())
     return emitOpError()
            << "requires the third region argument (the loop-carried `sumf` "
@@ -12828,12 +12828,12 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_super_block_block_dot_loop_yield (the DUAL "
+              "weft_rvv.typed_super_block_block_dot_loop_yield (the DUAL "
               "carried-out `sums` vector + `sumf` scalar accumulators)";
   if (!isF32M2VectorAccumulator(yield.getSumsNext().getType()))
     return emitOpError()
            << "requires the loop yield to carry an 8-lane fp32 vector `sums` "
-              "accumulator (!tcrv_rvv.vector<f32, \"m2\">) as its first operand";
+              "accumulator (!weft_rvv.vector<f32, \"m2\">) as its first operand";
   // fold_model-keyed arity: the DUAL fold requires the yield to name the `sumf`
   // scalar (the sumf operand is now ODS-optional to support the q6_K single path,
   // so a dual body with a sumf-absent single yield is rejected fail-closed here).
@@ -12864,7 +12864,7 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopYieldOp::verify() {
   if (!isF32M2VectorAccumulator(sumsNextTy) && !sumsNextTy.isF32())
     return emitOpError()
            << "requires the first carried-out accumulator to be either an "
-              "8-lane fp32 vector `sums` accumulator (!tcrv_rvv.vector<f32, "
+              "8-lane fp32 vector `sums` accumulator (!weft_rvv.vector<f32, "
               "\"m2\">, the q4_K/q5_K/q6_K positive-fold chain) or a scalar f32 "
               "`sumf` accumulator (the q2_K scalar fold chain)";
   if (getSumfNext() && !getSumfNext().getType().isF32())
@@ -13125,7 +13125,7 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
     if (!isF32M2OrM4VectorAccumulator(block.getArgument(1 + h).getType()))
       return emitOpError()
              << "requires each per-strip loop-carried accumulator region argument "
-                "to be an f32 vector (!tcrv_rvv.vector<f32, \"m2\"> or "
+                "to be an f32 vector (!weft_rvv.vector<f32, \"m2\"> or "
                 "<f32, \"m4\">)";
     if (block.getArgument(1 + h).getType() != block.getArgument(1).getType())
       return emitOpError()
@@ -13140,7 +13140,7 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_repack_gemv_loop_yield (the carried-out per-strip "
+              "weft_rvv.typed_repack_gemv_loop_yield (the carried-out per-strip "
               "f32 vector accumulators)";
   if (static_cast<int64_t>(yield.getAccNext().size()) != numHalves)
     return emitOpError()
@@ -13150,7 +13150,7 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
     if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
       return emitOpError()
              << "requires each loop-yield accumulator to be a per-strip f32 "
-                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">)";
+                "vector (!weft_rvv.vector<f32, \"m2\"> or <f32, \"m4\">)";
 
   return mlir::success();
 }
@@ -13163,7 +13163,7 @@ mlir::LogicalResult TypedRepackGemvLoopYieldOp::verify() {
     if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
       return emitOpError()
              << "requires every carried-out accumulator to be a per-strip f32 "
-                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">, the "
+                "vector (!weft_rvv.vector<f32, \"m2\"> or <f32, \"m4\">, the "
                 "lane-wise repacked GEVM accumulator domain)";
   return mlir::success();
 }
@@ -13189,7 +13189,7 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot keeps SEW/LMUL/"
+             << "'; weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot keeps SEW/LMUL/"
                 "policy on setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -13265,13 +13265,13 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
   if (op->getNumOperands() != 5 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked weight base, the interleaved q8_0x4 "
-              "activation base, one !tcrv_rvv.vl operand, one block_index "
+              "activation base, one !weft_rvv.vl operand, one block_index "
               "induction operand, one strip_row_offset runtime strip operand, and "
               "one or more per-column i32 vector results (one per interleaved "
               "activation column folded in the pass -- columnsPerPass total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -13290,7 +13290,7 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
             result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
       return emitOpError()
              << "requires every per-column result to be an i32 "
-                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "!weft_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
                 "(the m1 core) -- the per-column combined sumi";
     if (result.getType() != getResults().front().getType())
       return emitOpError()
@@ -13305,7 +13305,7 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked GEMM lane-wise nibble-dot integer core";
 
   return mlir::success();
@@ -13331,7 +13331,7 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemm_dual_fp16_scale_fold keeps SEW/LMUL/"
+             << "'; weft_rvv.repack_gemm_dual_fp16_scale_fold keeps SEW/LMUL/"
                 "policy on setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -13375,13 +13375,13 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
     return emitOpError()
            << "requires the repacked weight base, the interleaved q8_0x4 "
               "activation base, the per-column i32 sumi, the loop-carried "
-              "per-column f32 accumulator, one !tcrv_rvv.vl operand, one "
+              "per-column f32 accumulator, one !weft_rvv.vl operand, one "
               "block_index induction operand, and one strip_row_offset runtime "
               "strip operand, producing one folded-out per-column f32 vector "
               "accumulator";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
@@ -13397,7 +13397,7 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
       !isGenericRVVSignedOrSignlessIntegerVectorType(
           getSumi().getType(), getRVVSEW32Bits(), getRVVLMULM4()))
     return emitOpError()
-           << "requires the consumed sumi to be an i32 !tcrv_rvv.vector<i32, "
+           << "requires the consumed sumi to be an i32 !weft_rvv.vector<i32, "
               "\"m2\"> (the mf2 core) or <i32, \"m4\"> (the m1 core)";
   // The loop-carried accumulator + folded-out result are per-column f32 vectors:
   // f32m2 for the mf2 (RVV1.0 fractional) fold, f32m4 for the m1 (RVV0.7
@@ -13406,7 +13406,7 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
   if (!isF32M2OrM4VectorAccumulator(getAcc().getType()))
     return emitOpError()
            << "requires the loop-carried accumulator to be a per-column f32 "
-              "vector (!tcrv_rvv.vector<f32, \"m2\"> the mf2 fold or "
+              "vector (!weft_rvv.vector<f32, \"m2\"> the mf2 fold or "
               "<f32, \"m4\"> the m1 whole-LMUL fold)";
   if (getAccNext().getType() != getAcc().getType())
     return emitOpError()
@@ -13426,7 +13426,7 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
     return mlir::failure();
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the repacked GEMM per-column dual-fp16 scale fold";
 
   return mlir::success();
@@ -13705,7 +13705,7 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
     if (!isF32M2OrM4VectorAccumulator(block.getArgument(2 + c).getType()))
       return emitOpError()
              << "requires each per-column loop-carried accumulator region "
-                "argument to be an f32 vector (!tcrv_rvv.vector<f32, \"m2\"> or "
+                "argument to be an f32 vector (!weft_rvv.vector<f32, \"m2\"> or "
                 "<f32, \"m4\">)";
     if (block.getArgument(2 + c).getType() != block.getArgument(2).getType())
       return emitOpError()
@@ -13720,7 +13720,7 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
   if (!yield)
     return emitOpError()
            << "requires the region to be terminated by "
-              "tcrv_rvv.typed_repack_gemm_loop_yield (the carried-out per-column "
+              "weft_rvv.typed_repack_gemm_loop_yield (the carried-out per-column "
               "f32 vector accumulators)";
   if (static_cast<int64_t>(yield.getAccNext().size()) != columnsPerPass)
     return emitOpError()
@@ -13730,7 +13730,7 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
     if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
       return emitOpError()
              << "requires each loop-yield accumulator to be a per-column f32 "
-                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">)";
+                "vector (!weft_rvv.vector<f32, \"m2\"> or <f32, \"m4\">)";
 
   return mlir::success();
 }
@@ -13744,7 +13744,7 @@ mlir::LogicalResult TypedRepackGemmLoopYieldOp::verify() {
     if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
       return emitOpError()
              << "requires every carried-out accumulator to be a per-column f32 "
-                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">, the "
+                "vector (!weft_rvv.vector<f32, \"m2\"> or <f32, \"m4\">, the "
                 "lane-wise repacked GEMM accumulator domain)";
   return mlir::success();
 }
@@ -13768,7 +13768,7 @@ mlir::LogicalResult TypedVectorLane0ToScalarExtractOp::verify() {
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires one i32 LMUL m1 vector input, one !tcrv_rvv.vl operand, "
+           << "requires one i32 LMUL m1 vector input, one !weft_rvv.vl operand, "
               "and one scalar i32 result";
 
   // The input is the standalone-reduce / vwredsum output shape: an i32 LMUL m1
@@ -13776,11 +13776,11 @@ mlir::LogicalResult TypedVectorLane0ToScalarExtractOp::verify() {
   if (!isGenericRVVVectorI32M1(getInput().getType()))
     return emitOpError()
            << "requires the input to be an i32 LMUL m1 vector "
-              "(!tcrv_rvv.vector<i32, \"m1\">) -- the vwredsum lane0 boundary";
+              "(!weft_rvv.vector<i32, \"m1\">) -- the vwredsum lane0 boundary";
   // The active VL token is carried as the vector boundary marker.
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires the runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   // The result is scalar i32 (the vmv_x_s extraction target); a vector result
   // (a no-op passthrough) is rejected fail-closed -- this is exactly the
   // vector -> scalar contrast the bridge exists for.

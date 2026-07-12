@@ -1015,7 +1015,7 @@ def write_repo_audit(run_dir: Path, before: dict[str, Any], after: dict[str, Any
         ("tracked project files", run_shell(repo, "git ls-files | sort | sed -n '1,500p'"), 20000),
         ("top-level tree", run_shell(repo, "find . -maxdepth 3 -type f -not -path './.git/*' -not -path './artifacts/tmp/*' | sort | sed -n '1,300p'"), 16000),
         ("TianchenRV specs", run_shell(repo, "find .trellis/spec -maxdepth 3 -type f | sort | sed -n '1,240p'"), 12000),
-        ("source package directories", run_shell(repo, "find . -maxdepth 3 -type d \\( -name src -o -name include -o -name lib -o -name python -o -name tianchenrv -o -name tests -o -name examples -o -name tools \\) | sort"), 12000),
+        ("source package directories", run_shell(repo, "find . -maxdepth 3 -type d \\( -name src -o -name include -o -name lib -o -name python -o -name weft -o -name tests -o -name examples -o -name tools \\) | sort"), 12000),
         ("MLIR and build tool detection", run_shell(repo, "printf 'local:\\n'; for t in mlir-opt mlir-tblgen clang clang++ cmake ninja python3; do printf '%s=' \"$t\"; command -v \"$t\" || true; done"), 12000),
         ("rvv remote quick probe", run_shell(repo, "ssh -o BatchMode=yes -o ConnectTimeout=6 rvv 'hostname; uname -m; nproc; command -v clang || true; command -v mlir-opt || true; command -v cmake || true; sudo -n true && echo sudo_nopass_ok || echo sudo_needs_password'"), 12000),
     )
@@ -1408,10 +1408,10 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Was the milestone right-bigsize, or did it shrink into metadata/test/status/report-only work?",
         "- If it used TianchenRV Trellis, did it either finish/archive a completed normal task or keep an incomplete macro-task active with completed outcomes, remaining outcomes, and a precise continuation point?",
         "- Did it produce active code/schema/build/RVV evidence, not just docs or scaffolding labels?",
-        "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
+        "- Did it keep `weft.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
         "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and ABI/runtime envelope plus capability descriptor facts only where applicable; no descriptor-driven computation?",
-        "- Did RVV dtype/config/operation authority come from the explicit typed `tcrv_rvv` body plus RVV plugin validation, not from i32 helper names, route ids, ABI strings, artifacts, descriptors, tests, or common EmitC/export code?",
+        "- Did RVV dtype/config/operation authority come from the explicit typed `weft_rvv` body plus RVV plugin validation, not from i32 helper names, route ids, ABI strings, artifacts, descriptors, tests, or common EmitC/export code?",
         "- Did it avoid treating legacy `RVVI32M1*` route-table expansion as Stage 2 RVV progress?",
         "- Did it keep source-front-door/source-artifact paths fail-closed by default and treat emission-plan result/status, manifests, route ids, and artifact metadata as mirrors only?",
         "- If recent rounds show metadata-only/no-production-source/evidence-closeout drift, did Hermes escalate to a macro production-capability owner rather than another adjacent artifact seam?",
@@ -1775,7 +1775,7 @@ def build_review_prompt(
         "The runner prepends this canonical Codex base prompt to your Direction Brief. "
         "Do not repeat the base prompt. Codex will turn your brief into or repair a Trellis PRD."
     )
-    return f"""You are Hermes supervisor for the TianChen-RV MLIR repository.
+    return f"""You are Hermes supervisor for the Weft-RV MLIR repository.
 
 You are a read-only planner and reviewer. Review the Codex worker run that just
 finished and produce the next Hermes Direction Brief. You do not edit files and
@@ -1878,7 +1878,7 @@ that intentionally spans multiple Codex rounds. Good owners make one of these
 more real:
 
 ```text
-TianChen-RV MLIR -> selected boundary -> plugin-owned lowering/emission -> artifact/runtime evidence
+Weft-RV MLIR -> selected boundary -> plugin-owned lowering/emission -> artifact/runtime evidence
 an IR boundary modeled and consumed by pass/exporter
 a selected variant materialized to extension ops
 a plugin-owned extension family lowering or EmitC emission path completed
@@ -1954,7 +1954,7 @@ examples are pressure tests for low-precision and contraction maturity. They
 are not route authority and must not become q8-named route ids, artifact names,
 or hand-written wrapper owners.
 
-## TianChen-RV Context For Task Selection
+## Weft-RV Context For Task Selection
 
 Hermes is the task selector. Codex is the worker that turns one Hermes
 Direction Brief into a truthful Trellis PRD, implements it, checks it, finishes
@@ -1964,35 +1964,35 @@ Codex to choose from multiple candidate tasks.
 The project shape that matters for review is:
 
 ```text
-TianChen-RV MLIR / tcrv.exec envelope
+Weft-RV MLIR / weft.exec envelope
   -> selected extension-family variant
   -> typed extension-family body
   -> plugin-owned legality / selected-body realization / route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
   -> common EmitC materialization and target artifact mechanics
 ```
 
 For the current real hardware mainline, the selected family is RVV:
 
 ```text
-selected tcrv.exec RVV variant
-  -> typed low-level tcrv_rvv vector-level body
+selected weft.exec RVV variant
+  -> typed low-level weft_rvv vector-level body
   -> RVV plugin-owned legality / selected-body realization / route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
   -> common EmitC materializer
   -> target artifact
   -> ssh rvv evidence when runtime/correctness/performance is claimed
 ```
 
-`tcrv.exec` is the execution envelope and ABI/runtime binding surface. It does
+`weft.exec` is the execution envelope and ABI/runtime binding surface. It does
 not invent compute semantics from parameter names, route ids, artifact names,
-test names, descriptors, or C strings. `tcrv_rvv` is the low-level typed RVV
+test names, descriptors, or C strings. `weft_rvv` is the low-level typed RVV
 body. The RVV plugin owns RVV legality, realization, intrinsic mapping, route
 construction, and fail-closed diagnostics. Common lowering/export owns neutral
 mechanics only.
 An RVV route is not a decorator over an old `i32_*` op, route id, descriptor,
-or artifact. The provider builds `TCRVEmitCLowerableRoute` only after the
-selected vector-level `tcrv_rvv` body structurally carries the operation, dtype,
+or artifact. The provider builds `WEFTEmitCLowerableRoute` only after the
+selected vector-level `weft_rvv` body structurally carries the operation, dtype,
 config, memory form, runtime value use, and policy facts. Common materialization
 then lowers that route to MLIR EmitC; it must not choose RVV semantics itself.
 Emission-plan diagnostics, result fields, route ids, manifests, and artifact
@@ -2000,12 +2000,12 @@ metadata are mirrors only. Bare `supported`/`status`/`result` wording must not
 be treated as acceptance state or route authority; mirror fields should use
 explicit mirror labels such as `provider_supported_mirror`.
 
-Dtype/config authority must stay layered. `tcrv.exec.mem_window` and
-`tcrv.exec.runtime_param` bind parameter roles and runtime SSA values; they do
+Dtype/config authority must stay layered. `weft.exec.mem_window` and
+`weft.exec.runtime_param` bind parameter roles and runtime SSA values; they do
 not define RVV compute, dtype, shape, or schedule. Current Stage 1/2 work starts
 from a selected RVV variant containing an explicit typed vector-level
-`tcrv_rvv` body. Dtype comes from source semantics in future frontend flows, or
-from that explicit `tcrv_rvv` body in current hand-authored/fixture flows.
+`weft_rvv` body. Dtype comes from source semantics in future frontend flows, or
+from that explicit `weft_rvv` body in current hand-authored/fixture flows.
 SEW, LMUL, policy, VL placement, memory form, operation kind, accumulator
 layout, and intrinsic spelling must be validated or derived by the RVV plugin
 from typed body/config/capability/runtime facts. They must not come from
@@ -2023,7 +2023,7 @@ route-supported:
   pattern/region, and unsupported combinations fail closed.
 
 executable:
-  route-supported body is inside a selected tcrv.exec envelope with complete
+  route-supported body is inside a selected weft.exec envelope with complete
   ABI/runtime binding, materialization/export support, and real evidence when
   runtime/correctness/performance is claimed.
 ```
@@ -2037,16 +2037,16 @@ Stage 1 exits only when both evidence conditions are satisfied:
 
 ```text
 Condition A: no active production/default RVV path uses old i32m1 route authority:
-  RVVI32M1*, rvv-i32m1 route ids, finite tcrv_rvv.i32_* ops,
-  !tcrv_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
+  RVVI32M1*, rvv-i32m1 route ids, finite weft_rvv.i32_* ops,
+  !weft_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
   source-front-door/source-artifact patterns, artifact names,
   emission-plan metadata, descriptor residue, or common/export RVV branches.
 
-Condition B: the repo has a minimal corrected generic typed low-level tcrv_rvv
+Condition B: the repo has a minimal corrected generic typed low-level weft_rvv
 route-surface skeleton or equivalent:
   typed vector value/config carries elem type, SEW, LMUL, policy;
   generic setvl/load/store/binary{{kind}} or equivalent vector-level ops exist;
-  selected tcrv.exec RVV variant can bind/import ABI/runtime values into the body;
+  selected weft.exec RVV variant can bind/import ABI/runtime values into the body;
   RVV provider consumes typed body/config/capability/runtime facts to derive
   route/type/header/intrinsic or fails closed with targeted diagnostics.
 ```
@@ -2062,7 +2062,7 @@ Good Stage 1 owners are concrete module owners such as:
 ```text
 typed RVV vector value/config surface: elem type, SEW, LMUL, policy
 generic vector-level op surface: setvl, load, store, binary{{kind}}
-explicit ABI/runtime binding into selected tcrv_rvv body
+explicit ABI/runtime binding into selected weft_rvv body
 RVV provider derivation from typed body/config/capability/runtime facts
 fail-closed rejection of legacy i32/helper/metadata/source-front-door paths
 common EmitC/export neutrality
@@ -2072,7 +2072,7 @@ Stage 2 begins only after Condition A and Condition B both have focused repo evi
 When Hermes is about to switch to Stage 2, inspect or require Codex to provide:
 
 ```bash
-rg -n "RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_|!tcrv_rvv\\.i32m|__riscv_.*_i32m1|source-front-door|source-artifact|emission_plan|selected route" include lib test .trellis/spec
+rg -n "RVVI32M1|rvv-i32m1|weft_rvv\\.i32_|!weft_rvv\\.i32m|__riscv_.*_i32m1|source-front-door|source-artifact|emission_plan|selected route" include lib test .trellis/spec
 ```
 
 Remaining matches are allowed only as deprecated/fail-closed/negative-test
@@ -2083,7 +2083,7 @@ provider derivation from typed body/config, and fail-closed unsupported cases.
 Only after both gates are satisfied may the Stage 2 owner be:
 
 ```text
-expand route-supported RVV coverage on the corrected vector-level tcrv_rvv
+expand route-supported RVV coverage on the corrected vector-level weft_rvv
 surface, including RVV plugin-local selected-body realization for
 performance-sensitive vector-level bodies, using dependency order but not small
 completion batches.
@@ -2096,10 +2096,10 @@ route architecture, do not ask Codex to add broadcast, compare/select,
 reduction, conversion, dtype, LMUL, source-shape, or intrinsic cases to that
 table. Choose `Stage1 generic typed RVV body-surface replacement` instead:
 dtype, SEW, LMUL, policy, memory form, operation kind, runtime ABI use, and
-intrinsic mapping must be validated or derived from typed `tcrv_rvv`
+intrinsic mapping must be validated or derived from typed `weft_rvv`
 body/config structure by the RVV plugin. If the last round only
 fail-closed/deleted legacy route authority but did not introduce the corrected
-generic typed `tcrv_rvv` surface skeleton, continue Stage 1 with the positive
+generic typed `weft_rvv` surface skeleton, continue Stage 1 with the positive
 replacement owner.
 
 Stage 2 expands the route-supported low-level RVV surface toward structured
@@ -2112,9 +2112,9 @@ ops, one-op-per-intrinsic wrapping, or dtype/LMUL clone batches.
 Stage 2 selected-body realization is a one-time RVV plugin-local transformation:
 
 ```text
-selected pre-realized tcrv_rvv body
+selected pre-realized weft_rvv body
   -> RVV plugin-local realization
-  -> realized tcrv_rvv body
+  -> realized weft_rvv body
   -> route/emission
 ```
 
@@ -2122,7 +2122,7 @@ It may materialize legal RVV execution structure, but it must not change
 computation semantics, dtype semantics, parameter roles, variant origin,
 required capabilities, dispatch/fallback behavior, or runtime `n`/AVL values.
 
-Stage 2 completeness is judged by whether route-supported `tcrv_rvv` can cover
+Stage 2 completeness is judged by whether route-supported `weft_rvv` can cover
 the math and data-movement classes represented by structured kernels such as
 Linalg, while staying at a Vector-like RVV execution level. This does not make
 Linalg the current input contract and does not authorize per-Linalg-op route
@@ -2187,7 +2187,7 @@ Hard redirections:
 - if common/core code chose RVV semantics directly, redirect to plugin-owned
   interfaces or route construction;
 - if export/materialization invented missing compute, schedule, dtype, policy,
-  or body shape, redirect to typed tcrv_rvv body plus RVV-owned realization;
+  or body shape, redirect to typed weft_rvv body plus RVV-owned realization;
 - if the task is mainly tests/reports/artifact bookkeeping without production
   path movement, redirect to the production owner it should have supported.
 
@@ -2655,11 +2655,11 @@ def build_hermes_ask_prompt(
     repo_audit = read_text(ask_dir / "repo_audit.md", max_chars=int(max_chars * 0.42))
     manifest = read_text(ask_dir / "manifest.json", max_chars=6000)
     question = question or (
-        "Perform a read-only supervisor self-check of the current TianChen-RV repository state. "
+        "Perform a read-only supervisor self-check of the current Weft-RV repository state. "
         "Explain whether the next Codex owner should continue the compiler spine, pause for workspace hygiene, "
         "or stop for human intervention."
     )
-    return f"""You are Hermes supervisor for the TianChen-RV MLIR repository.
+    return f"""You are Hermes supervisor for the Weft-RV MLIR repository.
 
 This is an ask-only self-check. Do not modify the repository. Do not launch Codex. Do not generate or write a next worker prompt unless the user explicitly asks for one in this ask-only question.
 
@@ -2677,7 +2677,7 @@ Answer in concise Markdown. It is okay to name concrete files, commits, risks, a
 Ask-only Stage1/Stage2 gate: do not suggest Stage2/Stage3/source-front-door/
 future-plugin work while RVV Stage 1 may still be open. Stage 1 is complete
 only if both old i32m1 route authority is absent from active paths and the repo
-has a minimal corrected generic typed `tcrv_rvv` surface skeleton. If unsure,
+has a minimal corrected generic typed `weft_rvv` surface skeleton. If unsure,
 recommend `Stage1 generic typed RVV body-surface replacement` or ask for
 focused Gate A/Gate B evidence; do not jump to coverage expansion.
 

@@ -34,49 +34,49 @@
 // legality divergence below is the ISA-generation (ta/ma) axis specifically, with
 // the LMUL grid as an independent capability axis the same derivation produces.
 
-// RUN: tcrv-opt %s \
-// RUN:   --tcrv-rvv-materialize-probed-capability-axes=march=rv64gcv \
+// RUN: weft-opt %s \
+// RUN:   --weft-rvv-materialize-probed-capability-axes=march=rv64gcv \
 // RUN: | FileCheck %s --check-prefix=STAMP-RVV10
 
-// RUN: tcrv-opt %s \
-// RUN:   --tcrv-rvv-materialize-probed-capability-axes=march=rv64gc_xtheadvector \
+// RUN: weft-opt %s \
+// RUN:   --weft-rvv-materialize-probed-capability-axes=march=rv64gc_xtheadvector \
 // RUN: | FileCheck %s --check-prefix=STAMP-RVV07
 
 // Then the full pipeline proves the legality DIVERGENCE driven by the version.
 
-// RUN: tcrv-opt %s \
-// RUN:   --tcrv-rvv-materialize-probed-capability-axes=march=rv64gcv \
-// RUN:   --tcrv-materialize-emitc-lowerable-routes \
+// RUN: weft-opt %s \
+// RUN:   --weft-rvv-materialize-probed-capability-axes=march=rv64gcv \
+// RUN:   --weft-materialize-emitc-lowerable-routes \
 // RUN: | FileCheck %s --check-prefix=RVV10
 
-// RUN: not tcrv-opt %s \
-// RUN:   --tcrv-rvv-materialize-probed-capability-axes=march=rv64gc_xtheadvector \
-// RUN:   --tcrv-materialize-emitc-lowerable-routes 2>&1 \
+// RUN: not weft-opt %s \
+// RUN:   --weft-rvv-materialize-probed-capability-axes=march=rv64gc_xtheadvector \
+// RUN:   --weft-materialize-emitc-lowerable-routes 2>&1 \
 // RUN: | FileCheck %s --check-prefix=RVV07
 
 module {
-  tcrv.exec.kernel @diverge_rvv_version {
+  weft.exec.kernel @diverge_rvv_version {
     // Bare RVV capability provider: identity only, NO supported_sew /
     // supported_lmul / rvv_version. The version (and the support axes) are
     // materialized live by the march below.
-    tcrv.exec.capability @rvv {
+    weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available",
       architecture = "riscv64"
     }
-    tcrv.exec.variant @diverge_body attributes { origin = "rvv-plugin", requires = [@rvv] } {
-      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %sum = tcrv_rvv.binary %a, %b, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+    weft.exec.variant @diverge_body attributes { origin = "rvv-plugin", requires = [@rvv] } {
+      %lhs = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %rhs = weft_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %out = weft_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %a = weft_rvv.load %lhs, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        %b = weft_rvv.load %rhs, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        %sum = weft_rvv.binary %a, %b, %vl {kind = "add"} : !weft_rvv.vector<i32, "m1">, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        weft_rvv.store %out, %sum, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
@@ -89,11 +89,11 @@ module {
 // axis, and the LMUL axis is a SECOND, independent capability divergence the same
 // pass derives. The attr-dict prints alphabetically: rvv_version, supported_lmul,
 // supported_sew.
-// STAMP-RVV10: tcrv.exec.capability @rvv
+// STAMP-RVV10: weft.exec.capability @rvv
 // STAMP-RVV10-SAME: rvv_version = "1.0"
 // STAMP-RVV10-SAME: supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8"
 // STAMP-RVV10-SAME: supported_sew = "8,16,32,64"
-// STAMP-RVV07: tcrv.exec.capability @rvv
+// STAMP-RVV07: weft.exec.capability @rvv
 // STAMP-RVV07-SAME: rvv_version = "0.7"
 // STAMP-RVV07-SAME: supported_lmul = "m1,m2,m4,m8"
 // STAMP-RVV07-SAME: supported_sew = "8,16,32,64"
@@ -101,12 +101,12 @@ module {
 // Profile A (RVV1.0 rv64gcv): the live-materialized rvv_version is 1.0, which has
 // the ratified ta/ma policy, so the agnostic-policy body is fully lowered to
 // EmitC.
-// RVV10: emitc.func @tcrv_emitc_diverge_rvv_version_diverge_body
+// RVV10: emitc.func @weft_emitc_diverge_rvv_version_diverge_body
 // RVV10: callee=__riscv_vadd_vv_i32m1
 
 // Profile B (RVV0.7 rv64gc_xtheadvector): the live-materialized rvv_version is
 // 0.7, which LACKS the ratified ta/ma policy the typed body requires, so the
 // version capability gates it out fail-closed -- no backend emission driver
 // legalizes it, no emitc.func is emitted.
-// RVV07: error: TianChen-RV EmitC lowerable materialization failed: no registered backend emission driver fully legalizes the selected variant @diverge_body body to EmitC
-// RVV07-NOT: emitc.func @tcrv_emitc_diverge_rvv_version_diverge_body
+// RVV07: error: Weft-RV EmitC lowerable materialization failed: no registered backend emission driver fully legalizes the selected variant @diverge_body body to EmitC
+// RVV07-NOT: emitc.func @weft_emitc_diverge_rvv_version_diverge_body

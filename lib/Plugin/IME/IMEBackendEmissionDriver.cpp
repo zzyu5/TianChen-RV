@@ -1,9 +1,9 @@
-#include "TianChenRV/Plugin/IME/IMEBackendEmissionDriver.h"
+#include "Weft/Plugin/IME/IMEBackendEmissionDriver.h"
 
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/IME/IR/IMEDialect.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/IME/IR/IMEDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -16,29 +16,29 @@
 
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace plugin {
 namespace ime {
 
 namespace {
 
 namespace emitc = ::mlir::emitc;
-namespace tcrvemitc = ::tianchenrv::conversion::emitc;
+namespace weftemitc = ::weft::conversion::emitc;
 
-constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";
+constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 // The self-contained asm-leaf helper name. ALL dataflow is structured emitc;
 // this helper holds the SINGLE justified instruction leaf (the `vmadot` asm) —
 // there is no IME intrinsic header, so per the design note we claim ONE leaf,
 // not raw()==0. Reached only by a structured emitc.call_opaque on the A/B/C
 // pointer block-args of the wrapping emitc.func (no SSA name is interpolated
 // into the asm text; the helper has its own fixed parameter names).
-constexpr llvm::StringLiteral kVmadotHelperName("tcrv_ime_vmadot_mma_4x4x8");
+constexpr llvm::StringLiteral kVmadotHelperName("weft_ime_vmadot_mma_4x4x8");
 // The SECOND (unsigned) asm-leaf helper — same structure, but the single
 // justified instruction leaf is `vmadotu` (unsigned*unsigned int8 MAC), a
 // GENUINELY different instruction (encoding 0xe210012b vs vmadot's 0xe210312b)
 // with unsigned numeric semantics. There is no IME intrinsic header, so this is
 // likewise ONE justified verbatim leaf reached by a structured call_opaque.
-constexpr llvm::StringLiteral kVmadotuHelperName("tcrv_ime_vmadotu_mma_4x4x8");
+constexpr llvm::StringLiteral kVmadotuHelperName("weft_ime_vmadotu_mma_4x4x8");
 // The FOURTH (mixed-sign) asm-leaf helper — same structure, but the single
 // justified instruction leaf is `vmadotsu` (signed*unsigned int8 MAC), a
 // GENUINELY different instruction (encoding 0xe210212b vs vmadot's 0xe210312b
@@ -46,7 +46,7 @@ constexpr llvm::StringLiteral kVmadotuHelperName("tcrv_ime_vmadotu_mma_4x4x8");
 // unsigned B). There is no IME intrinsic header, so this is likewise ONE
 // justified verbatim leaf reached by a structured call_opaque.
 constexpr llvm::StringLiteral kVmadotsuHelperName(
-    "tcrv_ime_vmadotsu_mma_4x4x8");
+    "weft_ime_vmadotsu_mma_4x4x8");
 // The SIXTH IME op: the reversed-order mixed-sign asm-leaf helper — same
 // structure, but the single justified instruction leaf is `vmadotus` (unsigned A
 // * signed B int8 MAC), a GENUINELY different instruction (encoding 0xe210112b
@@ -55,7 +55,7 @@ constexpr llvm::StringLiteral kVmadotsuHelperName(
 // this is likewise ONE justified verbatim leaf reached by a structured
 // call_opaque. This completes the signedness family.
 constexpr llvm::StringLiteral kVmadotusHelperName(
-    "tcrv_ime_vmadotus_mma_4x4x8");
+    "weft_ime_vmadotus_mma_4x4x8");
 // The FIFTH IME op: the sliding-window MAC. The justified instruction leaf is
 // `vmadot1`/`vmadot2`/`vmadot3` (funct7 111001, e6..., DISTINCT from the
 // non-slide 111000/e2...). A genuinely different kernel SHAPE: A is an EVEN
@@ -63,16 +63,16 @@ constexpr llvm::StringLiteral kVmadotusHelperName(
 // down by `slide` rows. vmadot1 v4,v0,v2 = 0xe620322b (vs vmadot v4,v0,v2 =
 // 0xe220322b). Confirmed bit-exact on real K1 by a 4-way window discriminator.
 constexpr llvm::StringLiteral kVmadot1SlideHelperName(
-    "tcrv_ime_vmadot1_mma_slide_4x4x8");
+    "weft_ime_vmadot1_mma_slide_4x4x8");
 constexpr llvm::StringLiteral kVmadot2SlideHelperName(
-    "tcrv_ime_vmadot2_mma_slide_4x4x8");
+    "weft_ime_vmadot2_mma_slide_4x4x8");
 constexpr llvm::StringLiteral kVmadot3SlideHelperName(
-    "tcrv_ime_vmadot3_mma_slide_4x4x8");
+    "weft_ime_vmadot3_mma_slide_4x4x8");
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.route_source_op=" << opName << " role=" << role
+  os << "// weft_emitc.route_source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -82,7 +82,7 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
                         llvm::StringRef callee) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface << " callee=" << callee;
   os.flush();
   return text;
@@ -106,7 +106,7 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
 std::string macHelperBody(llvm::StringRef helperName, llvm::StringRef mnemonic) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << helperName
+  os << "// weft_ime.asm_leaf=" << helperName
      << " mac=4x4x8 elem_in=int8 accum=int32 ime_op=" << mnemonic << "\n";
   os << "static inline void " << helperName
      << "(const int8_t *A, const int8_t *B, int32_t *C) {\n";
@@ -156,7 +156,7 @@ std::string vmadotusHelperBody() {
 // bit-identical to the per-fragment form (same vmadot reductions, summed in the
 // same kf order); only the accumulate/store SCHEDULE changes.
 constexpr llvm::StringLiteral kVmadotMacKloopHelperName(
-    "tcrv_ime_vmadot_mac_kloop");
+    "weft_ime_vmadot_mac_kloop");
 
 /// The batched register-resident int8->int32 MAC leaf, emitted as ONE
 /// self-contained `static inline` helper. It reduces `kt` contiguous 4x8 A/B
@@ -176,7 +176,7 @@ std::string macKloopHelperBody(llvm::StringRef helperName,
                                llvm::StringRef mnemonic) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << helperName
+  os << "// weft_ime.asm_leaf=" << helperName
      << " batched_kloop mac=4x4x8 elem_in=int8 accum=int32 ime_op=" << mnemonic
      << " register_resident_accumulate=1 single_vsetvli=1 store_once=1\n";
   os << "static inline void " << helperName
@@ -231,7 +231,7 @@ std::string macSlideHelperBody(llvm::StringRef helperName,
                                llvm::StringRef mnemonic) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << helperName
+  os << "// weft_ime.asm_leaf=" << helperName
      << " slide_mac=4x4x8 a_pair=8x8 elem_in=int8 accum=int32 ime_op="
      << mnemonic << " funct7=111001\n";
   os << "static inline void " << helperName
@@ -280,8 +280,8 @@ std::string vmadot3SlideHelperBody() {
 // leaf is the same `vmadot`/`vmadotu` instruction, here driven IN-REGISTER over
 // the whole K reduction so the per-output reduce (RVV's vredsum) is
 // structurally absent — that is exactly the IME advantage the bench measures.
-constexpr llvm::StringLiteral kMatmulHelperName("tcrv_ime_vmadot_matmul");
-constexpr llvm::StringLiteral kMatmulUHelperName("tcrv_ime_vmadotu_matmul");
+constexpr llvm::StringLiteral kMatmulHelperName("weft_ime_vmadot_matmul");
+constexpr llvm::StringLiteral kMatmulUHelperName("weft_ime_vmadotu_matmul");
 
 /// The tiled int8->int32 whole-matrix kernel, emitted as ONE self-contained
 /// `static inline` helper. It computes C[M,N] += A[M,K] . B[K,N] by looping the
@@ -308,7 +308,7 @@ std::string matmulHelperBody(llvm::StringRef helperName,
                              llvm::StringRef mnemonic) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << helperName
+  os << "// weft_ime.asm_leaf=" << helperName
      << " tiled_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=" << mnemonic
      << " in_register_K_accumulate=1\n";
   os << "static inline void " << helperName
@@ -377,12 +377,12 @@ std::string matmulHelperBodyUnsigned() {
 //===----------------------------------------------------------------------===//
 // G4 M1a: the FORMAT-KEYED q4_0 IME GEMM tile emitter.
 //
-// The typed region (tcrv.ime.q4_0_matmul_tile) carries two decomposed bricks:
-//   * tcrv.ime.q4_0_dequant_core -> the q4_0 offset-binary nibble DECODE, emitted
+// The typed region (weft.ime.q4_0_matmul_tile) carries two decomposed bricks:
+//   * weft.ime.q4_0_dequant_core -> the q4_0 offset-binary nibble DECODE, emitted
 //     as ONE structured C helper (no asm): out[j]=(qs[j]&0xF)-8, out[j+16]=
 //     (qs[j]>>4)-8, the ggml q4_0 quant in [-8,7] that fits int8 exactly;
-//   * tcrv.ime.vmadot_mac_leaf -> the FOUNDATION-validated single-fragment vmadot
-//     MAC (the SAME justified asm leaf as tcrv.ime.mma). The K reduction
+//   * weft.ime.vmadot_mac_leaf -> the FOUNDATION-validated single-fragment vmadot
+//     MAC (the SAME justified asm leaf as weft.ime.mma). The K reduction
 //     accumulates in int32 in a C scratch (int32-EXACT; the in-register-accumulate
 //     perf form is a board/perf concern, not this correctness construction).
 // The output is the int32-EXACT MAC accumulator (what the M1b K1 seal validates
@@ -391,9 +391,9 @@ std::string matmulHelperBodyUnsigned() {
 // part of this int32-exact construction.
 //===----------------------------------------------------------------------===//
 constexpr llvm::StringLiteral kQ40DequantHelperName(
-    "tcrv_ime_q4_0_dequant_fragment");
+    "weft_ime_q4_0_dequant_fragment");
 constexpr llvm::StringLiteral kQ40MatmulHelperName(
-    "tcrv_ime_q4_0_vmadot_matmul");
+    "weft_ime_q4_0_vmadot_matmul");
 // G5-M3: the q4_0 forward-bridge SCALE-FOLD epilogue kernel. This is the
 // deferred per-block fp16 scale fold that turns the int32-EXACT MAC core into the
 // ggml q4_0 x q8_0 f32 mul_mat result the forward path consumes. It REUSES the
@@ -403,7 +403,7 @@ constexpr llvm::StringLiteral kQ40MatmulHelperName(
 // int32-exact seal object). Host + K1-silicon validated against a canonical
 // q4_0 x q8_0 ZERO-MODEL reference (test/Target/IME/q4-0-matmul-tile-scalefold-*.c).
 constexpr llvm::StringLiteral kQ40ScaleFoldMatmulHelperName(
-    "tcrv_ime_q4_0_vmadot_matmul_f32");
+    "weft_ime_q4_0_vmadot_matmul_f32");
 
 /// The q4_0 offset-binary nibble DECODE helper (structured C, no asm). Decodes
 /// one 18-byte ggml q4_0 block ([fp16 d][16 nibble bytes]) into a 32-int8 4x8 MAC
@@ -412,7 +412,7 @@ constexpr llvm::StringLiteral kQ40ScaleFoldMatmulHelperName(
 std::string q40DequantHelperBody() {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.decode_core=" << kQ40DequantHelperName
+  os << "// weft_ime.decode_core=" << kQ40DequantHelperName
      << " decode_model=q4_0_offset_binary_nibble qk=32 weight_block_stride=18 "
         "weight_quant_byte_offset=2\n";
   os << "static inline void " << kQ40DequantHelperName
@@ -434,12 +434,12 @@ std::string q40DequantHelperBody() {
 /// int32 fragment result into the tile's int32 accumulator (int32-EXACT). The
 /// weight is pre-packed FRAGMENT-MAJOR (one 18-byte q4_0 block per 4x8 MAC
 /// fragment): Bq4 col-tile nj is kt contiguous q4_0 blocks. The activation is the
-/// SAME fragment-major int8 pack as tcrv.ime.matmul. `vmadotHelperName` is the
+/// SAME fragment-major int8 pack as weft.ime.matmul. `vmadotHelperName` is the
 /// FOUNDATION single-fragment MAC helper this reuses.
 std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << macKloopHelperName
+  os << "// weft_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q4_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
         "weight_format=q4_0 int32_exact=1 register_resident_accumulate=1\n";
   os << "static void " << kQ40MatmulHelperName
@@ -481,12 +481,12 @@ std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName) {
 /// scale is carried in the parallel dW array, the per-(row,block) activation scale
 /// in dA. M/N/K are RUNTIME parameters (the fixed micro-tile generalized to the
 /// tensor's real shape). This is the forward-facing epilogue (introduces fp16
-/// rounding), distinct from the int32-exact tcrv_ime_q4_0_vmadot_matmul seal object.
+/// rounding), distinct from the int32-exact weft_ime_q4_0_vmadot_matmul seal object.
 /// `macKloopHelperName` is the FOUNDATION batched MAC helper this reuses.
 std::string q40ScaleFoldMatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.scale_fold_epilogue=" << kQ40ScaleFoldMatmulHelperName
+  os << "// weft_ime.scale_fold_epilogue=" << kQ40ScaleFoldMatmulHelperName
      << " tiled_q4_0_matmul_f32 fold_model=per_block_da_dw weight_format=q4_0 "
         "int32_core_exact=1 fp16_scale_fold=deferred "
         "register_resident_accumulate=1\n";
@@ -527,19 +527,19 @@ std::string q40ScaleFoldMatmulHelperBody(llvm::StringRef macKloopHelperName) {
 // G4 M2: the FORMAT-KEYED q8_0 IME GEMM tile emitter (the FLAT-int8 copy-adapt
 // sibling of the q4_0 emitter above).
 //
-// The typed region (tcrv.ime.q8_0_matmul_tile) carries two decomposed bricks:
-//   * tcrv.ime.q8_0_dequant_core -> the q8_0 DIRECT int8 read, emitted as ONE
+// The typed region (weft.ime.q8_0_matmul_tile) carries two decomposed bricks:
+//   * weft.ime.q8_0_dequant_core -> the q8_0 DIRECT int8 read, emitted as ONE
 //     structured C helper (no asm, no nibble unpack, no offset): out[j]=qs[j],
 //     the ggml q8_0 int8 quant in [-128,127] copied straight into the fragment;
-//   * tcrv.ime.vmadot_mac_leaf -> the SAME FOUNDATION-validated single-fragment
+//   * weft.ime.vmadot_mac_leaf -> the SAME FOUNDATION-validated single-fragment
 //     vmadot MAC as q4_0 (reused verbatim). The K reduction accumulates in int32.
 // The output is the int32-EXACT MAC accumulator (what the K1 seal validates
 // bit-exact); the per-block fp16 scale fold is a SEPARATE downstream epilogue.
 //===----------------------------------------------------------------------===//
 constexpr llvm::StringLiteral kQ80DequantHelperName(
-    "tcrv_ime_q8_0_dequant_fragment");
+    "weft_ime_q8_0_dequant_fragment");
 constexpr llvm::StringLiteral kQ80MatmulHelperName(
-    "tcrv_ime_q8_0_vmadot_matmul");
+    "weft_ime_q8_0_vmadot_matmul");
 
 /// The q8_0 DIRECT int8 DECODE helper (structured C, no asm). Copies one 34-byte
 /// ggml q8_0 block ([fp16 d][32 int8 quants]) into a 32-int8 4x8 MAC fragment. The
@@ -548,7 +548,7 @@ constexpr llvm::StringLiteral kQ80MatmulHelperName(
 std::string q80DequantHelperBody() {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.decode_core=" << kQ80DequantHelperName
+  os << "// weft_ime.decode_core=" << kQ80DequantHelperName
      << " decode_model=q8_0_direct_int8 qk=32 weight_block_stride=34 "
         "weight_quant_byte_offset=2\n";
   os << "static inline void " << kQ80DequantHelperName
@@ -573,7 +573,7 @@ std::string q80DequantHelperBody() {
 std::string q80MatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << macKloopHelperName
+  os << "// weft_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q8_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
         "weight_format=q8_0 int32_exact=1 register_resident_accumulate=1\n";
   os << "static void " << kQ80MatmulHelperName
@@ -609,28 +609,28 @@ std::string q80MatmulHelperBody(llvm::StringRef macKloopHelperName) {
 // G4 M2b: the FORMAT-KEYED q4_K IME GEMM tile emitter (the SUPER-BLOCK K-quant
 // sibling; the DEDICATED effort with the TWO-LEVEL 6-bit scale/min fold).
 //
-// The typed region (tcrv.ime.q4_K_matmul_tile) carries SIX decomposed bricks:
-//   * tcrv.ime.q4_K_dequant_core -> the q4_K RAW-nibble decode (unsigned [0,15],
-//     NOT q4_0 offset-binary), emitted as tcrv_ime_q4_K_dequant_fragment;
-//   * tcrv.ime.q4_K_scale_min_unpack_core -> the canonical 6-bit get_scale_min_k4
-//     bit-unpack, emitted as tcrv_ime_q4_K_get_scale_min;
-//   * tcrv.ime.vmadot_mac_leaf -> the SAME FOUNDATION vmadot MAC (reused verbatim),
+// The typed region (weft.ime.q4_K_matmul_tile) carries SIX decomposed bricks:
+//   * weft.ime.q4_K_dequant_core -> the q4_K RAW-nibble decode (unsigned [0,15],
+//     NOT q4_0 offset-binary), emitted as weft_ime_q4_K_dequant_fragment;
+//   * weft.ime.q4_K_scale_min_unpack_core -> the canonical 6-bit get_scale_min_k4
+//     bit-unpack, emitted as weft_ime_q4_K_get_scale_min;
+//   * weft.ime.vmadot_mac_leaf -> the SAME FOUNDATION vmadot MAC (reused verbatim),
 //     producing the per-sub-block sumi_b = Sum A_i*q_i;
-//   * tcrv.ime.q4_K_scale_weighted_accum -> S_scale += sc_b*sumi_b (int32-exact);
-//   * tcrv.ime.q4_K_min_bias_accum -> S_min += m_b*asum_b (int32-exact; asum_b is
+//   * weft.ime.q4_K_scale_weighted_accum -> S_scale += sc_b*sumi_b (int32-exact);
+//   * weft.ime.q4_K_min_bias_accum -> S_min += m_b*asum_b (int32-exact; asum_b is
 //     the pure activation sub-block sum vmadot cannot express);
-//   * tcrv.ime.q4_K_matmul_tile_yield -> the two-tile (S_scale, S_min) terminator.
+//   * weft.ime.q4_K_matmul_tile_yield -> the two-tile (S_scale, S_min) terminator.
 // The int32-EXACT core (S_scale, S_min) is what the K1 seal validates bit-exact;
 // the d/dmin fp16 fold C = d*S_scale - dmin*S_min is the SOLE deferred float
 // epilogue (the two-level kquant_dmin_bsums_min fold, mirroring the RVV precedent).
 //===----------------------------------------------------------------------===//
 constexpr llvm::StringLiteral kQ4KDequantHelperName(
-    "tcrv_ime_q4_K_dequant_fragment");
+    "weft_ime_q4_K_dequant_fragment");
 constexpr llvm::StringLiteral kQ4KScaleMinHelperName(
-    "tcrv_ime_q4_K_get_scale_min");
-constexpr llvm::StringLiteral kQ4KFp16HelperName("tcrv_ime_fp16_to_f32");
+    "weft_ime_q4_K_get_scale_min");
+constexpr llvm::StringLiteral kQ4KFp16HelperName("weft_ime_fp16_to_f32");
 constexpr llvm::StringLiteral kQ4KMatmulHelperName(
-    "tcrv_ime_q4_K_vmadot_matmul");
+    "weft_ime_q4_K_vmadot_matmul");
 
 /// The q4_K RAW-nibble DECODE helper (structured C, no asm). Decodes 8 nibbles of
 /// one column's super-block (sub-block b, fragment kf) into an 8-int8 vmadot lane
@@ -639,7 +639,7 @@ constexpr llvm::StringLiteral kQ4KMatmulHelperName(
 std::string q4KDequantHelperBody() {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.decode_core=" << kQ4KDequantHelperName
+  os << "// weft_ime.decode_core=" << kQ4KDequantHelperName
      << " decode_model=q4_K_raw_nibble qk=256 weight_block_stride=144 "
         "weight_quant_byte_offset=16\n";
   os << "static inline void " << kQ4KDequantHelperName
@@ -662,7 +662,7 @@ std::string q4KDequantHelperBody() {
 std::string q4KScaleMinHelperBody() {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.scale_min_core=" << kQ4KScaleMinHelperName
+  os << "// weft_ime.scale_min_core=" << kQ4KScaleMinHelperName
      << " scale_min_model=get_scale_min_k4 num_sub_blocks=8 scale_bits=6 "
         "k_scale_size=12\n";
   os << "static inline void " << kQ4KScaleMinHelperName
@@ -684,9 +684,9 @@ std::string q4KScaleMinHelperBody() {
 std::string q4KFp16HelperBody() {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.fp16_epilogue=" << kQ4KFp16HelperName
+  os << "// weft_ime.fp16_epilogue=" << kQ4KFp16HelperName
      << " (deterministic IEEE half->float; the deferred d/dmin float fold)\n";
-  os << "static inline unsigned short tcrv_ime_load_fp16(const uint8_t *p) {\n";
+  os << "static inline unsigned short weft_ime_load_fp16(const uint8_t *p) {\n";
   os << "  return (unsigned short)((unsigned)p[0] | ((unsigned)p[1] << 8));\n";
   os << "}\n";
   os << "static inline float " << kQ4KFp16HelperName
@@ -728,7 +728,7 @@ std::string q4KFp16HelperBody() {
 std::string q4KMatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << macKloopHelperName
+  os << "// weft_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
         "weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min "
         "register_resident_accumulate=1\n";
@@ -788,9 +788,9 @@ std::string q4KMatmulHelperBody(llvm::StringRef macKloopHelperName) {
   os << "            Sscale[oidx] = Sc[ml * 4 + nl];\n";
   os << "            Smin[oidx] = Sm[ml * 4 + nl];\n";
   os << "            float d = " << kQ4KFp16HelperName
-     << "(tcrv_ime_load_fp16(blk[nl] + 0));\n";
+     << "(weft_ime_load_fp16(blk[nl] + 0));\n";
   os << "            float dmin = " << kQ4KFp16HelperName
-     << "(tcrv_ime_load_fp16(blk[nl] + 2));\n";
+     << "(weft_ime_load_fp16(blk[nl] + 2));\n";
   os << "            Cf[mo * N + no] += d * (float)Sc[ml * 4 + nl] - dmin * "
         "(float)Sm[ml * 4 + nl];\n";
   os << "          }\n";
@@ -802,16 +802,16 @@ std::string q4KMatmulHelperBody(llvm::StringRef macKloopHelperName) {
   return text;
 }
 
-/// Lowers a selected IME MAC boundary (`tcrv.ime.mma` signed / `tcrv.ime.mma_u`
+/// Lowers a selected IME MAC boundary (`weft.ime.mma` signed / `weft.ime.mma_u`
 /// unsigned) into a standalone EmitC module:
 ///   #include <stdint.h>
-///   static inline void tcrv_ime_vmadot[u]_mma_4x4x8(const int8_t*,
+///   static inline void weft_ime_vmadot[u]_mma_4x4x8(const int8_t*,
 ///                              const int8_t*, int32_t*) { __asm__(...vmadot[u]...) }
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(const int8_t *A,
+///   extern "C" void weft_emitc_<kernel>_<variant>(const int8_t *A,
 ///                                                  const int8_t *B,
 ///                                                  int32_t *C) {
 ///     // route_source_op + source_op provenance comments
-///     tcrv_ime_vmadot[u]_mma_4x4x8(A, B, C);
+///     weft_ime_vmadot[u]_mma_4x4x8(A, B, C);
 ///   }
 /// The wrapper is structured emitc (emitc.func + emitc.call_opaque on the A/B/C
 /// block args); the single asm leaf is confined to the helper. The pattern is
@@ -841,11 +841,11 @@ public:
           mma, "IME MAC boundary requires selected_variant and source_kernel "
                "attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    llvm::StringRef sourceOpName = mma.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = mma.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef sourceOpName = mma.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = mma.getWEFTEmitCLowerableSourceRole();
 
     auto module = mma->template getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -905,44 +905,44 @@ private:
   static std::string helperBody();
 };
 
-// Signed surface: tcrv.ime.mma -> the vmadot asm leaf (the first slice).
+// Signed surface: weft.ime.mma -> the vmadot asm leaf (the first slice).
 template <>
-llvm::StringRef IMEMACToEmitCFunc<tcrv::ime::MMAOp>::helperName() {
+llvm::StringRef IMEMACToEmitCFunc<weft::ime::MMAOp>::helperName() {
   return kVmadotHelperName;
 }
-template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAOp>::helperBody() {
+template <> std::string IMEMACToEmitCFunc<weft::ime::MMAOp>::helperBody() {
   return vmadotHelperBody();
 }
 
-// Unsigned surface: tcrv.ime.mma_u -> the vmadotu asm leaf (the second op).
+// Unsigned surface: weft.ime.mma_u -> the vmadotu asm leaf (the second op).
 template <>
-llvm::StringRef IMEMACToEmitCFunc<tcrv::ime::MMAUOp>::helperName() {
+llvm::StringRef IMEMACToEmitCFunc<weft::ime::MMAUOp>::helperName() {
   return kVmadotuHelperName;
 }
-template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAUOp>::helperBody() {
+template <> std::string IMEMACToEmitCFunc<weft::ime::MMAUOp>::helperBody() {
   return vmadotuHelperBody();
 }
 
-// Mixed-sign surface: tcrv.ime.mma_su -> the vmadotsu asm leaf (the fourth op).
+// Mixed-sign surface: weft.ime.mma_su -> the vmadotsu asm leaf (the fourth op).
 template <>
-llvm::StringRef IMEMACToEmitCFunc<tcrv::ime::MMASUOp>::helperName() {
+llvm::StringRef IMEMACToEmitCFunc<weft::ime::MMASUOp>::helperName() {
   return kVmadotsuHelperName;
 }
-template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMASUOp>::helperBody() {
+template <> std::string IMEMACToEmitCFunc<weft::ime::MMASUOp>::helperBody() {
   return vmadotsuHelperBody();
 }
 
-// Reversed-order mixed-sign surface: tcrv.ime.mma_us -> the vmadotus asm leaf
+// Reversed-order mixed-sign surface: weft.ime.mma_us -> the vmadotus asm leaf
 // (the signedness-family-completing op: unsigned A * signed B).
 template <>
-llvm::StringRef IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>::helperName() {
+llvm::StringRef IMEMACToEmitCFunc<weft::ime::MMAUSOp>::helperName() {
   return kVmadotusHelperName;
 }
-template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>::helperBody() {
+template <> std::string IMEMACToEmitCFunc<weft::ime::MMAUSOp>::helperBody() {
   return vmadotusHelperBody();
 }
 
-/// Lowers the sliding-window IME boundary (`tcrv.ime.mma_slide`) into a
+/// Lowers the sliding-window IME boundary (`weft.ime.mma_slide`) into a
 /// standalone EmitC module. UNLIKE IMEMACToEmitCFunc, the emitted leaf depends
 /// on the `slide` window FACT carried on the op (1=>vmadot1, 2=>vmadot2,
 /// 3=>vmadot3) — a pure data flow of the capability-derived fact, NOT a
@@ -951,14 +951,14 @@ template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>::helperBody() {
 /// A/B/C ptr args + the call) is identical to the non-slide MAC; only the helper
 /// body/name differ.
 class IMEMACSlideToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::ime::MMASlideOp> {
+    : public mlir::OpConversionPattern<weft::ime::MMASlideOp> {
 public:
-  using mlir::OpConversionPattern<tcrv::ime::MMASlideOp>::OpConversionPattern;
+  using mlir::OpConversionPattern<weft::ime::MMASlideOp>::OpConversionPattern;
   using OpAdaptor =
-      typename mlir::OpConversionPattern<tcrv::ime::MMASlideOp>::OpAdaptor;
+      typename mlir::OpConversionPattern<weft::ime::MMASlideOp>::OpAdaptor;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::ime::MMASlideOp mma, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::ime::MMASlideOp mma, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = mma.getContext();
     mlir::Location loc = mma.getLoc();
@@ -981,11 +981,11 @@ public:
           mma, "IME slide MAC boundary requires selected_variant and "
                "source_kernel attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    llvm::StringRef sourceOpName = mma.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = mma.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef sourceOpName = mma.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = mma.getWEFTEmitCLowerableSourceRole();
 
     auto module = mma->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -1039,15 +1039,15 @@ public:
   }
 };
 
-/// Lowers the tiled whole-matrix IME boundary (`tcrv.ime.matmul`) into a
+/// Lowers the tiled whole-matrix IME boundary (`weft.ime.matmul`) into a
 /// standalone EmitC module:
 ///   #include <stdint.h>
-///   static inline void tcrv_ime_vmadot[u]_matmul(const int8_t*, const int8_t*,
+///   static inline void weft_ime_vmadot[u]_matmul(const int8_t*, const int8_t*,
 ///                                 int32_t*, long M, long N, long K) { ...tiled... }
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(const int8_t *Apack,
+///   extern "C" void weft_emitc_<kernel>_<variant>(const int8_t *Apack,
 ///                                                  const int8_t *Bpack,
 ///                                                  int32_t *C) {
-///     tcrv_ime_vmadot[u]_matmul(Apack, Bpack, C, <M>, <N>, <K>);
+///     weft_ime_vmadot[u]_matmul(Apack, Bpack, C, <M>, <N>, <K>);
 ///   }
 /// M/N/K are the op's capability-bound problem-dim FACTS (mat_m/mat_n/mat_k),
 /// baked into the wrapper as constants (they are compile-time facts of the
@@ -1057,14 +1057,14 @@ public:
 /// load/store/K-loop scaffold. Signed vs unsigned is the `ime_op` fact (NOT a
 /// family-name branch): vmadot => signed helper, vmadotu => unsigned helper.
 class IMEMatMulToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::ime::MatMulOp> {
+    : public mlir::OpConversionPattern<weft::ime::MatMulOp> {
 public:
-  using mlir::OpConversionPattern<tcrv::ime::MatMulOp>::OpConversionPattern;
+  using mlir::OpConversionPattern<weft::ime::MatMulOp>::OpConversionPattern;
   using OpAdaptor =
-      typename mlir::OpConversionPattern<tcrv::ime::MatMulOp>::OpAdaptor;
+      typename mlir::OpConversionPattern<weft::ime::MatMulOp>::OpAdaptor;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::ime::MatMulOp matmul, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::ime::MatMulOp matmul, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = matmul.getContext();
     mlir::Location loc = matmul.getLoc();
@@ -1086,15 +1086,15 @@ public:
           matmul, "IME matmul boundary requires selected_variant and "
                   "source_kernel attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     int64_t matM = matmul.getMatM();
     int64_t matN = matmul.getMatN();
     int64_t matK = matmul.getMatK();
 
-    llvm::StringRef sourceOpName = matmul.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = matmul.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef sourceOpName = matmul.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = matmul.getWEFTEmitCLowerableSourceRole();
 
     auto module = matmul->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -1158,32 +1158,32 @@ public:
   }
 };
 
-/// Lowers the FORMAT-KEYED q4_0 IME GEMM tile (`tcrv.ime.q4_0_matmul_tile`) into a
+/// Lowers the FORMAT-KEYED q4_0 IME GEMM tile (`weft.ime.q4_0_matmul_tile`) into a
 /// standalone EmitC module. Unlike IMEMatMulToEmitCFunc (format-agnostic pre-packed
 /// int8), this op OWNS a typed region carrying the DECOMPOSED q4_0-decode + vmadot
 /// MAC bricks; emission reads the region by OP-IDENTITY (I5) -- the presence of the
-/// tcrv.ime.q4_0_dequant_core decode brick keys the q4_0 dequant helper, the
-/// tcrv.ime.vmadot_mac_leaf brick keys the validated vmadot MAC leaf -- never a q4/q8
+/// weft.ime.q4_0_dequant_core decode brick keys the q4_0 dequant helper, the
+/// weft.ime.vmadot_mac_leaf brick keys the validated vmadot MAC leaf -- never a q4/q8
 /// name string. The emitted module:
 ///   #include <stdint.h>
-///   static inline void tcrv_ime_vmadot_mma_4x4x8(...) { __asm__(...vmadot...) }
-///   static inline void tcrv_ime_q4_0_dequant_fragment(const uint8_t*, int8_t*) {...}
-///   static inline void tcrv_ime_q4_0_vmadot_matmul(const int8_t* Apack,
+///   static inline void weft_ime_vmadot_mma_4x4x8(...) { __asm__(...vmadot...) }
+///   static inline void weft_ime_q4_0_dequant_fragment(const uint8_t*, int8_t*) {...}
+///   static inline void weft_ime_q4_0_vmadot_matmul(const int8_t* Apack,
 ///                          const uint8_t* Bq4, int32_t* C, long M,N,K) {...}
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(const int8_t* Apack,
+///   extern "C" void weft_emitc_<kernel>_<variant>(const int8_t* Apack,
 ///                          const uint8_t* Bq4, int32_t* C) { ...matmul(...M,N,K); }
 /// M/N/K are the tile op's compile-time problem-dim FACTS (mat_m/mat_n/mat_k). The
 /// int32 output is the int32-EXACT MAC accumulator (the M1b K1-seal bit-exact
 /// contract); the per-block fp16 scale fold is a separate downstream epilogue.
 class IMEQ40MatMulTileToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::ime::Q40MatMulTileOp> {
+    : public mlir::OpConversionPattern<weft::ime::Q40MatMulTileOp> {
 public:
-  using mlir::OpConversionPattern<tcrv::ime::Q40MatMulTileOp>::OpConversionPattern;
+  using mlir::OpConversionPattern<weft::ime::Q40MatMulTileOp>::OpConversionPattern;
   using OpAdaptor =
-      typename mlir::OpConversionPattern<tcrv::ime::Q40MatMulTileOp>::OpAdaptor;
+      typename mlir::OpConversionPattern<weft::ime::Q40MatMulTileOp>::OpAdaptor;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::ime::Q40MatMulTileOp tile, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::ime::Q40MatMulTileOp tile, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = tile.getContext();
     mlir::Location loc = tile.getLoc();
@@ -1192,8 +1192,8 @@ public:
     // dequant helper, the vmadot leaf keys the validated MAC leaf. Absence of
     // either brick is a fail-closed match failure (never emit an opaque body).
     mlir::Block &body = tile.getBody().front();
-    auto dequantCores = body.getOps<tcrv::ime::Q40DequantCoreOp>();
-    auto macLeaves = body.getOps<tcrv::ime::VmadotMacLeafOp>();
+    auto dequantCores = body.getOps<weft::ime::Q40DequantCoreOp>();
+    auto macLeaves = body.getOps<weft::ime::VmadotMacLeafOp>();
     if (dequantCores.empty() || macLeaves.empty())
       return rewriter.notifyMatchFailure(
           tile, "q4_0 tile region must carry the q4_0_dequant_core + "
@@ -1211,15 +1211,15 @@ public:
           tile, "IME q4_0 tile requires selected_variant and source_kernel "
                 "attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     int64_t matM = tile.getMatM();
     int64_t matN = tile.getMatN();
     int64_t matK = tile.getMatK();
 
-    llvm::StringRef sourceOpName = tile.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = tile.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef sourceOpName = tile.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = tile.getWEFTEmitCLowerableSourceRole();
 
     auto module = tile->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -1335,23 +1335,23 @@ public:
   }
 };
 
-/// Lowers the FORMAT-KEYED q8_0 IME GEMM tile (`tcrv.ime.q8_0_matmul_tile`) into a
+/// Lowers the FORMAT-KEYED q8_0 IME GEMM tile (`weft.ime.q8_0_matmul_tile`) into a
 /// standalone EmitC module (the FLAT-int8 copy-adapt sibling of
 /// IMEQ40MatMulTileToEmitCFunc). This op OWNS a typed region carrying the
 /// DECOMPOSED q8_0-decode (DIRECT int8 read) + vmadot MAC bricks; emission reads
-/// the region by OP-IDENTITY (I5) -- the tcrv.ime.q8_0_dequant_core brick keys the
-/// q8_0 direct-read helper, the tcrv.ime.vmadot_mac_leaf brick keys the validated
+/// the region by OP-IDENTITY (I5) -- the weft.ime.q8_0_dequant_core brick keys the
+/// q8_0 direct-read helper, the weft.ime.vmadot_mac_leaf brick keys the validated
 /// vmadot MAC leaf -- never a q4/q8 name string. The int32 output is the
 /// int32-EXACT MAC accumulator (the K1-seal bit-exact contract).
 class IMEQ80MatMulTileToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::ime::Q80MatMulTileOp> {
+    : public mlir::OpConversionPattern<weft::ime::Q80MatMulTileOp> {
 public:
-  using mlir::OpConversionPattern<tcrv::ime::Q80MatMulTileOp>::OpConversionPattern;
+  using mlir::OpConversionPattern<weft::ime::Q80MatMulTileOp>::OpConversionPattern;
   using OpAdaptor =
-      typename mlir::OpConversionPattern<tcrv::ime::Q80MatMulTileOp>::OpAdaptor;
+      typename mlir::OpConversionPattern<weft::ime::Q80MatMulTileOp>::OpAdaptor;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::ime::Q80MatMulTileOp tile, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::ime::Q80MatMulTileOp tile, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = tile.getContext();
     mlir::Location loc = tile.getLoc();
@@ -1360,8 +1360,8 @@ public:
     // direct-read helper, the vmadot leaf keys the validated MAC leaf. Absence of
     // either brick is a fail-closed match failure (never emit an opaque body).
     mlir::Block &body = tile.getBody().front();
-    auto dequantCores = body.getOps<tcrv::ime::Q80DequantCoreOp>();
-    auto macLeaves = body.getOps<tcrv::ime::VmadotMacLeafOp>();
+    auto dequantCores = body.getOps<weft::ime::Q80DequantCoreOp>();
+    auto macLeaves = body.getOps<weft::ime::VmadotMacLeafOp>();
     if (dequantCores.empty() || macLeaves.empty())
       return rewriter.notifyMatchFailure(
           tile, "q8_0 tile region must carry the q8_0_dequant_core + "
@@ -1379,15 +1379,15 @@ public:
           tile, "IME q8_0 tile requires selected_variant and source_kernel "
                 "attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     int64_t matM = tile.getMatM();
     int64_t matN = tile.getMatN();
     int64_t matK = tile.getMatK();
 
-    llvm::StringRef sourceOpName = tile.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = tile.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef sourceOpName = tile.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = tile.getWEFTEmitCLowerableSourceRole();
 
     auto module = tile->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -1456,7 +1456,7 @@ public:
   }
 };
 
-/// Lowers the FORMAT-KEYED q4_K IME GEMM tile (`tcrv.ime.q4_K_matmul_tile`) into a
+/// Lowers the FORMAT-KEYED q4_K IME GEMM tile (`weft.ime.q4_K_matmul_tile`) into a
 /// standalone EmitC module (the SUPER-BLOCK K-quant sibling; the DEDICATED effort
 /// beyond the q4_0/q8_0 single-decode tiles). This op OWNS a typed region carrying
 /// the SIX DECOMPOSED bricks -- the raw-nibble decode, the 6-bit scale/min unpack,
@@ -1465,14 +1465,14 @@ public:
 /// The int32 S_scale/S_min core is the K1-seal bit-exact contract; the d/dmin fp16
 /// fold is the sole deferred float epilogue.
 class IMEQ4KMatMulTileToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::ime::Q4KMatMulTileOp> {
+    : public mlir::OpConversionPattern<weft::ime::Q4KMatMulTileOp> {
 public:
-  using mlir::OpConversionPattern<tcrv::ime::Q4KMatMulTileOp>::OpConversionPattern;
+  using mlir::OpConversionPattern<weft::ime::Q4KMatMulTileOp>::OpConversionPattern;
   using OpAdaptor =
-      typename mlir::OpConversionPattern<tcrv::ime::Q4KMatMulTileOp>::OpAdaptor;
+      typename mlir::OpConversionPattern<weft::ime::Q4KMatMulTileOp>::OpAdaptor;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::ime::Q4KMatMulTileOp tile, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::ime::Q4KMatMulTileOp tile, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = tile.getContext();
     mlir::Location loc = tile.getLoc();
@@ -1483,11 +1483,11 @@ public:
     // of ANY brick -- ESPECIALLY the scale-weighted or min-bias accum (the HOLLOW
     // bare-MAC shape) -- is a fail-closed match failure.
     mlir::Block &body = tile.getBody().front();
-    auto dequantCores = body.getOps<tcrv::ime::Q4KDequantCoreOp>();
-    auto scaleMinCores = body.getOps<tcrv::ime::Q4KScaleMinUnpackCoreOp>();
-    auto macLeaves = body.getOps<tcrv::ime::VmadotMacLeafOp>();
-    auto scaleAccums = body.getOps<tcrv::ime::Q4KScaleWeightedAccumOp>();
-    auto minBiasAccums = body.getOps<tcrv::ime::Q4KMinBiasAccumOp>();
+    auto dequantCores = body.getOps<weft::ime::Q4KDequantCoreOp>();
+    auto scaleMinCores = body.getOps<weft::ime::Q4KScaleMinUnpackCoreOp>();
+    auto macLeaves = body.getOps<weft::ime::VmadotMacLeafOp>();
+    auto scaleAccums = body.getOps<weft::ime::Q4KScaleWeightedAccumOp>();
+    auto minBiasAccums = body.getOps<weft::ime::Q4KMinBiasAccumOp>();
     if (dequantCores.empty() || scaleMinCores.empty() || macLeaves.empty() ||
         scaleAccums.empty() || minBiasAccums.empty())
       return rewriter.notifyMatchFailure(
@@ -1507,15 +1507,15 @@ public:
           tile, "IME q4_K tile requires selected_variant and source_kernel "
                 "attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     int64_t matM = tile.getMatM();
     int64_t matN = tile.getMatN();
     int64_t matK = tile.getMatK();
 
-    llvm::StringRef sourceOpName = tile.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = tile.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef sourceOpName = tile.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = tile.getWEFTEmitCLowerableSourceRole();
 
     auto module = tile->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -1590,7 +1590,7 @@ public:
 };
 
 class IMEBackendEmissionDriver final
-    : public tcrvemitc::TypedBackendEmissionDriver {
+    : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "ime"; }
 
@@ -1599,22 +1599,22 @@ public:
 
   void
   configureConversionTarget(mlir::ConversionTarget &target) const override {
-    target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp,
-                        tcrv::ime::MMASUOp, tcrv::ime::MMAUSOp,
-                        tcrv::ime::MMASlideOp, tcrv::ime::MatMulOp,
-                        tcrv::ime::Q40MatMulTileOp,
-                        tcrv::ime::Q80MatMulTileOp,
-                        tcrv::ime::Q4KMatMulTileOp>();
+    target.addIllegalOp<weft::ime::MMAOp, weft::ime::MMAUOp,
+                        weft::ime::MMASUOp, weft::ime::MMAUSOp,
+                        weft::ime::MMASlideOp, weft::ime::MatMulOp,
+                        weft::ime::Q40MatMulTileOp,
+                        weft::ime::Q80MatMulTileOp,
+                        weft::ime::Q4KMatMulTileOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
   void
   populateLoweringPatterns(mlir::TypeConverter &typeConverter,
                            mlir::RewritePatternSet &patterns) const override {
-    patterns.add<IMEMACToEmitCFunc<tcrv::ime::MMAOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMAUOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMASUOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>, IMEMACSlideToEmitCFunc,
+    patterns.add<IMEMACToEmitCFunc<weft::ime::MMAOp>,
+                 IMEMACToEmitCFunc<weft::ime::MMAUOp>,
+                 IMEMACToEmitCFunc<weft::ime::MMASUOp>,
+                 IMEMACToEmitCFunc<weft::ime::MMAUSOp>, IMEMACSlideToEmitCFunc,
                  IMEMatMulToEmitCFunc, IMEQ40MatMulTileToEmitCFunc,
                  IMEQ80MatMulTileToEmitCFunc, IMEQ4KMatMulTileToEmitCFunc>(
         typeConverter, patterns.getContext());
@@ -1627,7 +1627,7 @@ public:
     bool hasIME = false;
     module.walk([&](mlir::Operation *op) {
       if (op->getName().getDialectNamespace() ==
-          tcrv::ime::TCRVIMEDialect::getDialectNamespace()) {
+          weft::ime::WEFTIMEDialect::getDialectNamespace()) {
         hasIME = true;
         return mlir::WalkResult::interrupt();
       }
@@ -1657,11 +1657,11 @@ IMEBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
 
 } // namespace
 
-void registerIMEBackendEmitter(tcrvemitc::BackendEmissionRegistry &registry) {
+void registerIMEBackendEmitter(weftemitc::BackendEmissionRegistry &registry) {
   static const IMEBackendEmissionDriver driver;
   registry.registerBackend(driver);
 }
 
 } // namespace ime
 } // namespace plugin
-} // namespace tianchenrv
+} // namespace weft

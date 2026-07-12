@@ -1,7 +1,7 @@
 #include "RVVToEmitCInternal.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -17,7 +17,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
@@ -930,7 +930,7 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
           int64_t g = half * numGroups + l;
           rewriter.create<emitc::VerbatimOp>(
               loc, stepComment(opName, role, "grid_sign_group"));
-          // int signs = tcrv_iq3xxs_ksigns[(aux32 >> 7*l) & 127];  (the shift is
+          // int signs = weft_iq3xxs_ksigns[(aux32 >> 7*l) & 127];  (the shift is
           // logical in the uint32_t domain; cast the [0,127] selector to int for the
           // table subscript). REUSES the ksigns sign plane.
           mlir::Value signSel =
@@ -940,7 +940,7 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
                       uAnd(uShr(aux32Pair[half], uintLit(7 * l)), uintLit(127)))
                   .getResult();
           mlir::Value ksignsName = rewriter.create<emitc::LiteralOp>(
-              loc, u8PtrType, "tcrv_iq3xxs_ksigns");
+              loc, u8PtrType, "weft_iq3xxs_ksigns");
           mlir::Value signsElem =
               rewriter
                   .create<emitc::SubscriptOp>(
@@ -2562,4 +2562,4 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

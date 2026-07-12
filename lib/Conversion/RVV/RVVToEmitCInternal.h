@@ -1,5 +1,5 @@
-#ifndef TIANCHENRV_CONVERSION_RVV_RVVTOEMITCINTERNAL_H
-#define TIANCHENRV_CONVERSION_RVV_RVVTOEMITCINTERNAL_H
+#ifndef WEFT_CONVERSION_RVV_RVVTOEMITCINTERNAL_H
+#define WEFT_CONVERSION_RVV_RVVTOEMITCINTERNAL_H
 
 // Implementation-internal header for the RVV->EmitC variant lowering. This is
 // NOT a public API: it exists solely so the VariantToEmitCFunc conversion
@@ -9,14 +9,14 @@
 // compile in parallel. To define a class's methods out-of-line in a different
 // TU the class must have a NAMED-namespace identity (an anonymous-namespace
 // class yields a distinct type per TU), so VariantToEmitCFunc lives in
-// `tianchenrv::conversion::rvv::detail` here -- mirroring the support helpers
+// `weft::conversion::rvv::detail` here -- mirroring the support helpers
 // already extracted to RVVToEmitCSupport.{h,cpp}. The emitted C is byte-
 // identical to the former monolithic translation unit (a pure code move): the
 // block-dot conversion fingerprint and the lit suite prove it.
 
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -32,16 +32,16 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
 
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftrvv = ::weft::rvv;
 namespace emitc = ::mlir::emitc;
 
 /// The scalar fp16->fp32 read callee spelling used by the typed
-/// tcrv_rvv.block_fp16_scale_product lowering. It currently holds the SAME
+/// weft_rvv.block_fp16_scale_product lowering. It currently holds the SAME
 /// string as the monolithic block-dot emitters' independent local
 /// `fp16ReadCallee` literals (RVVToEmitCBlockQuantLinear.cpp:187, :479, :5428,
 /// :6022), so the emitted C is byte-EQUAL to the monolith's inline fp16 read.
@@ -55,7 +55,7 @@ inline constexpr llvm::StringRef kFp16ScaleReadCallee =
     "(float)*(const _Float16 *)";
 
 struct AbiParam {
-  tcrvrvv::RuntimeABIValueOp op;
+  weftrvv::RuntimeABIValueOp op;
   std::string cType;
   mlir::Type emitcType;
 };
@@ -190,7 +190,7 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op);
 // + the interned emitc types + the ABI base pointers + the sumf accumulator
 // lvalue, so the per-block integer-core arithmetic + fp32-fold guts live as ONE
 // SHARED typed lowering that BOTH the monolithic emitFlatBlockDot AND the M-FLAT
-// tcrv_rvv.typed_flat_block_dot_loop_body region driver invoke. It is NOT
+// weft_rvv.typed_flat_block_dot_loop_body region driver invoke. It is NOT
 // entangled with any GgmlBlockDot* op entry: a step-6 monolith delete removes
 // the GgmlBlockDot* op + dispatch + orchestration and these guts survive as the
 // typed body's lowering (the honest-LOC boundary).
@@ -233,15 +233,15 @@ struct FlatBlockCore {
 };
 
 class VariantToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::exec::VariantOp> {
+    : public mlir::OpConversionPattern<weft::exec::VariantOp> {
 public:
   VariantToEmitCFunc(const mlir::TypeConverter &typeConverter,
                      mlir::MLIRContext *context)
-      : mlir::OpConversionPattern<tcrv::exec::VariantOp>(typeConverter,
+      : mlir::OpConversionPattern<weft::exec::VariantOp>(typeConverter,
                                                          context) {}
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override;
 
 private:
@@ -253,8 +253,8 @@ private:
   /// NOT emit the function epilogue/return; the caller owns that.
   mlir::LogicalResult emitScopeForLoop(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
-      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      weft::exec::VariantOp variant, weftrvv::WithVLOp scope,
+      weftrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
       mlir::Type sizeType, llvm::StringRef setvlCallee,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
@@ -264,88 +264,88 @@ private:
   /// True iff `scope` is a low-precision Gearbox product-reduce-dequantize body:
   /// it dequantizes an i32 accumulator built from a signed widening or packed-i4
   /// nibble-unpack product reduced over i8mf4 sources, then stores the f32
-  /// result. Structurally: the scope carries at least one tcrv_rvv.dequantize
-  /// whose source is a tcrv_rvv.standalone_reduce of a tcrv_rvv.widening_product
-  /// or tcrv_rvv.packed_i4_nibble_unpack_product, plus a store. This is the
+  /// result. Structurally: the scope carries at least one weft_rvv.dequantize
+  /// whose source is a weft_rvv.standalone_reduce of a weft_rvv.widening_product
+  /// or weft_rvv.packed_i4_nibble_unpack_product, plus a store. This is the
   /// dequant family the dedicated multi-loop + function-scoped accumulator
   /// routine owns; every other body falls to the single-scope emitScopeForLoop.
-  static bool isLowPrecisionDequantBody(tcrvrvv::WithVLOp scope);
+  static bool isLowPrecisionDequantBody(weftrvv::WithVLOp scope);
 
   /// True iff `scope` is the DEFERRED-WIDE low-precision contraction body (the
   /// N3 resource-aware max-legal-LMUL schedule, the measured ssh-rvv winner
-  /// var_v_m2_a1.c): the dequant sources a trailing tcrv_rvv.standalone_reduce
-  /// whose input is a tcrv_rvv.widening_accumulate (the i32m8 deferred vector
+  /// var_v_m2_a1.c): the dequant sources a trailing weft_rvv.standalone_reduce
+  /// whose input is a weft_rvv.widening_accumulate (the i32m8 deferred vector
   /// accumulate). The widening_accumulate op is the STRUCTURAL marker (I5): the
   /// conversion emits the deferred-wide algorithm because the op is in the body,
   /// not because of any metadata. A body with the narrow per-iteration
   /// vwredsum-into-scalar reduce (isLowPrecisionDequantBody) has NO
   /// widening_accumulate, so the two recognizers are disjoint.
-  static bool isDeferredWideDequantBody(tcrvrvv::WithVLOp scope);
+  static bool isDeferredWideDequantBody(weftrvv::WithVLOp scope);
 
   /// True iff `scope` is the 2nd-family (i16 dot-reduce) DEFERRED-WIDE body: a
-  /// tcrv_rvv.store whose stored value is a tcrv_rvv.standalone_reduce (i32m8 ->
-  /// i32m1) whose input is a tcrv_rvv.deferred_accumulate (the i32m8 NON-widening
+  /// weft_rvv.store whose stored value is a weft_rvv.standalone_reduce (i32m8 ->
+  /// i32m1) whose input is a weft_rvv.deferred_accumulate (the i32m8 NON-widening
   /// vadd.vv deferred accumulate). The deferred_accumulate op is the STRUCTURAL
   /// marker (I5): emission follows op identity. Disjoint from the byte path
   /// (which has a WideningAccumulateOp + a DequantizeOp) and from the narrow
   /// per-iter dot-reduce (which has a WideningDotReduceOp, no deferred_accumulate).
   /// True iff `scope` is the ggml Q4_0 x Q8_0 block dot-product body: a with_vl
-  /// scope whose ONLY compute op is a single tcrv_rvv.q4_0_q8_0_block_dot (the
+  /// scope whose ONLY compute op is a single weft_rvv.q4_0_q8_0_block_dot (the
   /// whole AoS block loop + per-block dual fp16 scale + fp32 accumulation + *s
   /// store is the op's emission, not a body of sub-ops). The op identity is the
   /// dispatch key; the emitter owns the structured expansion.
-  static bool isQ4_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_0Q8_0BlockDotBody(weftrvv::WithVLOp scope);
 
   /// The GEMM-tile (weight-decode reuse) recognizer: a with_vl scope whose ONLY
-  /// compute op is a single tcrv_rvv.q4_0_q8_0_gemm_tile. The op identity is the
+  /// compute op is a single weft_rvv.q4_0_q8_0_gemm_tile. The op identity is the
   /// dispatch key; the emitter owns the structured weight-reuse expansion.
-  static bool isQ4_0Q8_0GemmTileBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_0Q8_0GemmTileBody(weftrvv::WithVLOp scope);
 
   /// The full-GEMM (NR rows x nc cols) recognizer: a with_vl scope whose ONLY
-  /// compute op is a single tcrv_rvv.q4_0_q8_0_gemm. The op identity is the
+  /// compute op is a single weft_rvv.q4_0_q8_0_gemm. The op identity is the
   /// dispatch key; the emitter owns the structured row x column-strip expansion.
-  static bool isQ4_0Q8_0GemmBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_0Q8_0GemmBody(weftrvv::WithVLOp scope);
 
   /// The q5_0 16x1-REPACKED single-column GEMV (decode) recognizer: a with_vl
-  /// scope whose ONLY compute op is a single tcrv_rvv.repack_gemv_q5_0_q8_0. The
+  /// scope whose ONLY compute op is a single weft_rvv.repack_gemv_q5_0_q8_0. The
   /// op identity is the dispatch key; the emitter owns the block-as-lane
   /// expansion with the transposed bit-packed qh 5th-bit decode.
-  static bool isRepackGemvQ5_0Q8_0Body(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemvQ5_0Q8_0Body(weftrvv::WithVLOp scope);
 
   /// The q5_1 16x1-REPACKED single-column GEMV (decode) recognizer: a with_vl
-  /// scope whose ONLY compute op is a single tcrv_rvv.repack_gemv_q5_1_q8_1. The
+  /// scope whose ONLY compute op is a single weft_rvv.repack_gemv_q5_1_q8_1. The
   /// op identity is the dispatch key; the emitter owns the block-as-lane
   /// expansion (the q5_0 transposed bit-packed qh 5th-bit decode fused with the
   /// q4_1 scale+MIN dual fold).
-  static bool isRepackGemvQ5_1Q8_1Body(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemvQ5_1Q8_1Body(weftrvv::WithVLOp scope);
 
   /// The option-2 stage-C1b PACK (materialize) recognizer: a with_vl scope whose
-  /// ONLY compute op is a single tcrv_rvv.pack_q4_0_to_q4_0x16. The op identity
+  /// ONLY compute op is a single weft_rvv.pack_q4_0_to_q4_0x16. The op identity
   /// is the dispatch key; the emitter owns the scalar gather + ^0x88 pack body.
-  static bool isPackQ4_0ToX16Body(tcrvrvv::WithVLOp scope);
+  static bool isPackQ4_0ToX16Body(weftrvv::WithVLOp scope);
 
   /// The FAMILY-B 16x1-REPACKED single-column GEMV (decode) recognizer: a
   /// with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemv_q4_1_q8_1. The op identity is the dispatch key; the
+  /// weft_rvv.repack_gemv_q4_1_q8_1. The op identity is the dispatch key; the
   /// emitter owns the structured block-as-lane single-output-column expansion
   /// with the q4_1 scale+MIN fold.
-  static bool isRepackGemvQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemvQ4_1Q8_1Body(weftrvv::WithVLOp scope);
 
   /// The FAMILY-B 16x1-REPACKED full-GEMM (prefill) recognizer: a with_vl scope
-  /// whose ONLY compute op is a single tcrv_rvv.repack_gemm_q4_1_q8_1. The op
+  /// whose ONLY compute op is a single weft_rvv.repack_gemm_q4_1_q8_1. The op
   /// identity is the dispatch key; the emitter owns the structured block-as-lane
   /// multi-output-column expansion with the q4_1 scale+MIN per-column fold.
-  static bool isRepackGemmQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemmQ4_1Q8_1Body(weftrvv::WithVLOp scope);
   // NOTE (G3 主线A T2-construct): the q4_K repack GEMM recognizer
   // isRepackGemmQ4KQ8KBody is RETIRED with its monolith op -- the K-quant repack is
   // now CONSTRUCTED as the typed_repack_gemm_loop_body region (K-quant branch of
   // emitTypedRepackGemmLoopBody -> emitRepackKQuantGemmBodyQ4K).
   /// The Family-A (symmetric, full-int8) 16x1-REPACKED single-column GEMV
   /// (decode) recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemv_q8_0_q8_0. The op identity is the dispatch key; the
+  /// weft_rvv.repack_gemv_q8_0_q8_0. The op identity is the dispatch key; the
   /// emitter owns the structured block-as-lane single-output-column expansion
   /// with FULL int8 weight lanes (NO nibble decode) and i32 in-block accumulation.
-  static bool isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemvQ8_0Q8_0Body(weftrvv::WithVLOp scope);
 
   // NOTE (G3 主线A T2-construct): the q4_K repack GEVM recognizer
   // isRepackGemvQ4KQ8KBody is RETIRED with its monolith op -- the K-quant repack is
@@ -357,7 +357,7 @@ private:
   // THIRD min-fold, COMPLETING the K-quant repack family). The q5_K repack now flows
   // through the typed_repack_gem{v,m}_loop_body front door's K-quant MIN branch
   // (fold_model "kquant_dmin_bsums_min", SHARED with q4_K) carrying the
-  // tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q5_K"), lowered by
+  // weft_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q5_K"), lowered by
   // emitTypedRepackGem{v,m}LoopBody -> emitRepackKQuantGem{v,m}BodyQ5K (byte-exact GEVM /
   // S6-tiled byte-exact GEMM; the register-cliff lever transfers like q2_K). q5_K == q4_K
   // + the qh 5th-bit plane (A = nibble | ((qh_bit & 1) << 4)).
@@ -365,16 +365,16 @@ private:
   // NOTE (G3 主线A T3): the q6_K 16x1-REPACKED GEVM + GEMM recognizers
   // (isRepackGem{v,m}Q6KQ8KBody) are RETIRED with their direct emitters + monolith
   // ops. The q6_K repack is CONSTRUCTED as the typed
-  // tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
-  // "kquant_single_scale_no_min") carrying the tcrv_rvv.repack_gem{v,m}_kquant_core
+  // weft_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
+  // "kquant_single_scale_no_min") carrying the weft_rvv.repack_gem{v,m}_kquant_core
   // brick (decode_model "q6_K"), lowered by emitTypedRepackGem{v,m}LoopBody's K-quant
   // no-min branch -> emitRepackKQuantGem{v,m}BodyQ6K.
 
   // NOTE (G3 主线A T3 format2): the q2_K 16x1-repacked GEVM + GEMM recognizers
   // (isRepackGem{v,m}Q2KQ8KBody) are RETIRED with their direct emitters + monolith ops.
-  // The q2_K repack is now CONSTRUCTED as the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body
+  // The q2_K repack is now CONSTRUCTED as the typed weft_rvv.typed_repack_gem{v,m}_loop_body
   // region (fold_model "kquant_dmin_bsums_min", SHARED with q4_K) carrying the
-  // tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q2_K"), lowered by
+  // weft_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q2_K"), lowered by
   // emitTypedRepackGem{v,m}LoopBody's K-quant branch -> emitRepackKQuantGem{v,m}BodyQ2K
   // (byte-exact GEVM / S6-tiled byte-exact GEMM).
 
@@ -383,7 +383,7 @@ private:
   // the LAST K-quant repack sibling). The q3_K repack now flows through the
   // typed_repack_gem{v,m}_loop_body front door's K-quant NO-MIN branch (fold_model
   // "kquant_single_scale_no_min", SHARED with q6_K) carrying the
-  // tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q3_K"), lowered by
+  // weft_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q3_K"), lowered by
   // emitTypedRepackGem{v,m}LoopBody -> emitRepackKQuantGem{v,m}BodyQ3K (byte-exact GEVM /
   // PLAIN byte-exact GEMM; S6 tiling NULL for weight-bound q3_K).
 
@@ -420,45 +420,45 @@ private:
   // emitRepackGridGem{v,m}BodyIq2Xxs / emitRepackGem{v,m}Iq2DualScaleQ8K).
 
   /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
-  /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
+  /// single weft_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
   /// block loop with a SSA loop-carried f32 accumulator). Routed through the
   /// block-dot table (NOT the elementwise path) so no outer AVL loop wraps it;
   /// the op owns its own internal block loop, exactly like emitFlatBlockDot.
-  static bool isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedFlatBlockDotLoopBody(weftrvv::WithVLOp scope);
 
   /// The M-FLAT q4_K/q5_K super-block loop-scaffold recognizer (milestone-2): a
   /// with_vl scope whose ONLY op is a single
-  /// tcrv_rvv.typed_super_block_block_dot_loop_body (the region-carrying nb
+  /// weft_rvv.typed_super_block_block_dot_loop_body (the region-carrying nb
   /// super-block loop with the DUAL sums-vector + sumf-scalar loop-carried
   /// accumulator). Routed through the block-dot table (NOT the elementwise path)
   /// so no outer AVL loop wraps it; the op owns its own internal super-block
   /// loop, exactly like the monolithic emitQ4_KQ8_KBlockDot.
-  static bool isTypedSuperBlockBlockDotLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedSuperBlockBlockDotLoopBody(weftrvv::WithVLOp scope);
 
   /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold recognizer (milestone-1): a
   /// with_vl scope whose ONLY op is a single
-  /// tcrv_rvv.typed_repack_gemv_loop_body (the region-carrying nb contraction-
+  /// weft_rvv.typed_repack_gemv_loop_body (the region-carrying nb contraction-
   /// block loop with the per-strip LANE-WISE f32 VECTOR loop-carried accumulator,
   /// wrapped by the emitter in the outer weight-column-group loop). Routed through
   /// the block-dot table (NOT the elementwise path) so no outer AVL loop wraps it;
   /// the op owns its own internal loop nest, exactly like the monolithic
   /// emitRepackGemvQ4_0Q8_0.
-  static bool isTypedRepackGemvLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedRepackGemvLoopBody(weftrvv::WithVLOp scope);
 
   /// The M-FLAT q4_0 16x1-REPACKED GEMM loop-scaffold recognizer: a with_vl scope
-  /// whose ONLY op is a single tcrv_rvv.typed_repack_gemm_loop_body (the
+  /// whose ONLY op is a single weft_rvv.typed_repack_gemm_loop_body (the
   /// region-carrying nb contraction-block loop with the per-column per-strip
   /// LANE-WISE f32 VECTOR loop-carried accumulators, wrapped by the emitter in the
   /// outer row-group / column-group / runtime-strip / column-pass loops). Routed
   /// through the block-dot table (NOT the elementwise path) so no outer AVL loop
   /// wraps it; the op owns its own internal loop nest, exactly like the monolithic
   /// emitRepackGemmQ4_0Q8_0.
-  static bool isTypedRepackGemmLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedRepackGemmLoopBody(weftrvv::WithVLOp scope);
 
   /// The BINARY-class sibling recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
+  /// is a single weft_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
   /// key; the emitter owns the structured binary-sign-decode expansion.
-  static bool isQ1_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
+  static bool isQ1_0Q8_0BlockDotBody(weftrvv::WithVLOp scope);
 
   // NOTE: the monolith recognizer isIQ4XSQ8KBlockDotBody was RETIRED at the iq4_xs
   // flip (C_construct 23->24): the front door now constructs the typed super-block
@@ -506,8 +506,8 @@ private:
   // recognized by the loop op + resolved via emitTypedSuperBlockScalarDeltaGridLoopBody.
 
   /// The FP4 CODEBOOK sibling recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.mxfp4_q8_0_block_dot.
-  static bool isMXFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
+  /// is a single weft_rvv.mxfp4_q8_0_block_dot.
+  static bool isMXFP4Q8_0BlockDotBody(weftrvv::WithVLOp scope);
 
   // NOTE: the monolith recognizer isNVFP4Q8_0BlockDotBody was RETIRED at the nvfp4
   // flip (C_construct 27->28) with the monolith op; the constructed FLAT loop body
@@ -516,48 +516,48 @@ private:
   // emitTypedFlatBlockDotLoopBody's flat_nvfp4_codebook branch.
 
   /// The K-quant K1 recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.q6_k_q8_k_aux32_partial (the Q6_K x Q8_K super-block
+  /// single weft_rvv.q6_k_q8_k_aux32_partial (the Q6_K x Q8_K super-block
   /// integer aux32 partial).
-  static bool isQ6_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
+  static bool isQ6_KQ8_KAux32PartialBody(weftrvv::WithVLOp scope);
 
   /// The Track B q4_K brick-1 recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q4_k_nibble_unpack (one super-block's Region-A plain
+  /// is a single weft_rvv.q4_k_nibble_unpack (one super-block's Region-A plain
   /// 4-bit nibble unpack into aux8[256], NO bit-dance / dot / fold).
-  static bool isQ4_KNibbleUnpackBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KNibbleUnpackBody(weftrvv::WithVLOp scope);
 
   /// The Track B q4_K brick-2 recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q4_k_scale_min_bit_dance (one super-block's Region-B
+  /// is a single weft_rvv.q4_k_scale_min_bit_dance (one super-block's Region-B
   /// 6-bit scale/min bit-dance into utmp[4], NO nibble unpack / dot / fold).
-  static bool isQ4_KScaleMinBitDanceBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KScaleMinBitDanceBody(weftrvv::WithVLOp scope);
 
   /// The Track B q4_K brick-3 recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q4_k_scaled_dot (one super-block's Region-C
+  /// is a single weft_rvv.q4_k_scaled_dot (one super-block's Region-C
   /// per-sub-block uint6-scaled i32 dot into aux32 + the integer fold-back, NO
   /// nibble unpack / bit-dance / MIN term / fp32 fold).
-  static bool isQ4_KScaledDotBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KScaledDotBody(weftrvv::WithVLOp scope);
 
   /// The Track B q4_K brick-4 recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q4_k_min_term (one super-block's MIN term
+  /// is a single weft_rvv.q4_k_min_term (one super-block's MIN term
   /// `sumf -= dmin * sum(mins * bsums)`, NO nibble unpack / bit-dance / scaled
   /// dot / fp32 positive fold).
-  static bool isQ4_KMinTermBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KMinTermBody(weftrvv::WithVLOp scope);
 
   /// The Track B q4_K brick-6 recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q4_k_sums_fold_scale_d (one super-block's DEFERRED fp32
+  /// is a single weft_rvv.q4_k_sums_fold_scale_d (one super-block's DEFERRED fp32
   /// POSITIVE fold `sums += fp16(x.d) * y.d * (float)aux32`, NO nibble unpack /
   /// bit-dance / scaled dot / MIN term).
-  static bool isQ4_KSumsFoldScaleDBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KSumsFoldScaleDBody(weftrvv::WithVLOp scope);
 
   /// The Track B q4_K brick-7 recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.q4_k_horizontal_fold (the post-loop horizontal fold
+  /// is a single weft_rvv.q4_k_horizontal_fold (the post-loop horizontal fold
   /// `for (l=0..7) sumf += sums8[l]`, NO nibble unpack / bit-dance / scaled dot /
   /// MIN term / positive fold).
-  static bool isQ4_KHorizontalFoldBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KHorizontalFoldBody(weftrvv::WithVLOp scope);
 
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
+  /// weft_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
-  static bool isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
+  static bool isQ4_KQ8_KAux32PartialBody(weftrvv::WithVLOp scope);
 
   // NOTE: isTQ2_0Q8_KBlockDotBody + emitTQ2_0Q8_KBlockDot (the monolith tq2_0
   // recognizer + emitter) were RETIRED at the tq2_0 flip (C_construct 24->25). The
@@ -573,64 +573,64 @@ private:
   // (declared below).
 
   /// The M-FLAT forward-elementwise scaffold recognizer: a with_vl scope whose
-  /// compute op is a tcrv_rvv.typed_elementwise_loop_body (the constructed typed
-  /// strip-loop op that replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32).
+  /// compute op is a weft_rvv.typed_elementwise_loop_body (the constructed typed
+  /// strip-loop op that replaced the retired monolith weft_rvv.ggml_vec_scale_f32).
   /// The loop op identity is the dispatch key; emitTypedElementwiseLoopBody owns
   /// the byte-exact f32 strip-loop expansion driven by the region's map/reduce/
-  /// rotate core brick (tcrv_rvv.elementwise_scale_map / _silu_map /
+  /// rotate core brick (weft_rvv.elementwise_scale_map / _silu_map /
   /// _rms_norm_reduce_core / _rope_rotate_core).
   /// EXCLUDES the soft_max reduce body (it RETURNS the f64 sum, so it is dispatched
   /// by its own return-carrying branch, NOT this void-return table entry).
-  static bool isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedElementwiseLoopBody(weftrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.typed_elementwise_loop_body
-  /// (reduce_map_model "reduce") carrying the tcrv_rvv.elementwise_soft_max_reduce_core
+  /// True iff the with_vl body is EXACTLY a single weft_rvv.typed_elementwise_loop_body
+  /// (reduce_map_model "reduce") carrying the weft_rvv.elementwise_soft_max_reduce_core
   /// brick (the CONSTRUCTED F5b f32 soft_max: y[i] = e^{x[i]-max}, RETURNING the
   /// f64 sum via the loop-carried f64m1 vfwredusum widening accumulator). This is
-  /// the constructed replacement for the retired monolith tcrv_rvv.ggml_vec_soft_max_f32.
+  /// the constructed replacement for the retired monolith weft_rvv.ggml_vec_soft_max_f32.
   /// It is dispatched OUTSIDE the void-return kernel table (soft_max is the only
   /// forward-pass op whose function RETURNS a scalar): the branch keys the double
   /// result type + wraps emitElementwiseSoftMaxReduceStrip's f64 sum in `return`.
-  static bool isTypedElementwiseSoftMaxReduceLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedElementwiseSoftMaxReduceLoopBody(weftrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.quantize_row_q8_0
+  /// True iff the with_vl body is EXACTLY a single weft_rvv.quantize_row_q8_0
   /// (the F4 f32->block_q8_0 activation quantizer: per-32-block amax reduction +
   /// scale + f32->i16->i8 narrowing convert + the fp16 d / int8 qs AoS store).
   /// The op identity is the dispatch key; the emitter owns the structured block
   /// loop with the vfredmax reduction, the d?1/d:0 conditional, and the
   /// vfncvt/vncvt narrowing chain.
-  static bool isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope);
+  static bool isGgmlQuantizeRowQ80Body(weftrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.quantize_row_q8_1
+  /// True iff the with_vl body is EXACTLY a single weft_rvv.quantize_row_q8_1
   /// (the f32->block_q8_1 activation quantizer: the q8_0 amax/scale/narrow SIBLING
   /// plus the extra vwredsum integer block sum stored as the fp16 block_q8_1.s).
   /// The op identity is the dispatch key; the emitter owns the structured block
   /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
-  static bool isGgmlQuantizeRowQ81Body(tcrvrvv::WithVLOp scope);
+  static bool isGgmlQuantizeRowQ81Body(weftrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.quantize_row_q8_K
+  /// True iff the with_vl body is EXACTLY a single weft_rvv.quantize_row_q8_K
   /// (the f32->block_q8_K K-quant activation quantizer: the QK_K=256 min/max
   /// symmetric scale, the vfcvt/vnclip RNE narrowing, the float d store, and the
   /// per-16 vwredsum bsums, with the zero-block memset special case). The op
   /// identity is the dispatch key; the emitter owns the structured super-block
   /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
-  static bool isGgmlQuantizeRowQ8KBody(tcrvrvv::WithVLOp scope);
+  static bool isGgmlQuantizeRowQ8KBody(weftrvv::WithVLOp scope);
 
   // NOTE: isGgmlForwardElementwiseF32Body was RETIRED at the support flip
   // (dispatch-wired -> constructed, C_construct 73->77): add/mul/cpy/gelu are now
-  // CONSTRUCTED through the abstract tcrv_rvv.ggml_forward_elementwise source op
+  // CONSTRUCTED through the abstract weft_rvv.ggml_forward_elementwise source op
   // (recognized by isTypedElementwiseLoopBody after the front door constructs the
   // typed region), so no dedicated support recognizer remains.
 
-  /// True iff the with_vl body is EXACTLY one tcrv_rvv.dequantize_row op.
+  /// True iff the with_vl body is EXACTLY one weft_rvv.dequantize_row op.
   /// DISPATCH-WIRED: the op identity (+ its bounded `format`) is the dispatch key;
   /// the emitter owns the hand-written per-format monolith decode body (an AoS
   /// block loop reproducing ggml's reference dequantize_row_<format>). NOT
   /// constructed ([L-6] wiring != construction: no typed loop brick, no
   /// pattern-library primitive).
-  static bool isGgmlDequantizeRowBody(tcrvrvv::WithVLOp scope);
+  static bool isGgmlDequantizeRowBody(weftrvv::WithVLOp scope);
 
-  static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope);
+  static bool isDeferredWideDotReduceBody(weftrvv::WithVLOp scope);
 
   /// Emit one product/reduce slice into the function-scoped accumulator variable
   /// `accVar`: load lhs/rhs at the given pointer offset, widening (or packed-i4
@@ -640,20 +640,20 @@ private:
   /// (may be null) is added to the induction var for the second unroll slice.
   mlir::LogicalResult emitDequantProductReduceSlice(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::LoadOp lhsLoad, tcrvrvv::LoadOp rhsLoad,
-      mlir::Operation *productOp, tcrvrvv::StandaloneReduceOp reduce,
+      weftrvv::LoadOp lhsLoad, weftrvv::LoadOp rhsLoad,
+      mlir::Operation *productOp, weftrvv::StandaloneReduceOp reduce,
       mlir::Value lhsBuffer, mlir::Value rhsBuffer, mlir::Value sliceOffset,
-      mlir::Value accVar, tcrvrvv::VectorType accVecType, mlir::Value loadVL,
+      mlir::Value accVar, weftrvv::VectorType accVecType, mlir::Value loadVL,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// One product/reduce slice in the typed dequant body, grouped for emission:
   /// the i8mf4 lhs/rhs loads, the (widening or packed-i4) product op, and the
   /// standalone reduce that folds the product into the accumulator.
   struct DequantSlice {
-    tcrvrvv::LoadOp lhsLoad;
-    tcrvrvv::LoadOp rhsLoad;
+    weftrvv::LoadOp lhsLoad;
+    weftrvv::LoadOp rhsLoad;
     mlir::Operation *productOp = nullptr;
-    tcrvrvv::StandaloneReduceOp reduce;
+    weftrvv::StandaloneReduceOp reduce;
   };
 
   /// Emit the low-precision Gearbox product-reduce-dequantize body as a real
@@ -666,8 +666,8 @@ private:
   /// provenance comment, and the pre-loop full-chunk setvl (`vlmax`).
   mlir::LogicalResult emitLowPrecisionDequantBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
-      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      weft::exec::VariantOp variant, weftrvv::WithVLOp scope,
+      weftrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
       mlir::Type sizeType, llvm::StringRef setvlCallee,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -687,11 +687,11 @@ private:
   /// The i32m8 accumulator is zero-seeded (NOT splatted from acc[0]); acc[0] is
   /// added as a SCALAR after the single trailing vredsum. There is NO
   /// per-iteration vwredsum. The body is body-determined: the structural marker
-  /// is tcrv_rvv.widening_accumulate (I5).
+  /// is weft_rvv.widening_accumulate (I5).
   mlir::LogicalResult emitDeferredWideDequantBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
-      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      weft::exec::VariantOp variant, weftrvv::WithVLOp scope,
+      weftrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
       mlir::Type sizeType, llvm::StringRef setvlCallee,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -704,9 +704,9 @@ private:
   /// The acc[0] seed is added as a SCALAR (the i32m8 accumulator was zero-seeded).
   mlir::LogicalResult emitDeferredWideEpilogue(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrv::exec::VariantOp variant, tcrvrvv::StandaloneReduceOp reduce,
-      tcrvrvv::DequantizeOp dequant, tcrvrvv::StoreOp storeOp, mlir::Value accVar,
-      tcrvrvv::VectorType accVecType, tcrvrvv::VectorType reduceVecType,
+      weft::exec::VariantOp variant, weftrvv::StandaloneReduceOp reduce,
+      weftrvv::DequantizeOp dequant, weftrvv::StoreOp storeOp, mlir::Value accVar,
+      weftrvv::VectorType accVecType, weftrvv::VectorType reduceVecType,
       mlir::Value accVlmax, mlir::Value accBuffer,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -722,11 +722,11 @@ private:
   ///     dot_acc_vec = __riscv_vadd_vv_i32m8(dot_acc_vec, p, vl); // NON-widening
   ///   }
   ///   // ONE trailing vredsum + scalar acc[0] add + i32 lane-0 store.
-  /// The structural marker is tcrv_rvv.deferred_accumulate (I5).
+  /// The structural marker is weft_rvv.deferred_accumulate (I5).
   mlir::LogicalResult emitDeferredWideDotReduceBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
-      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      weft::exec::VariantOp variant, weftrvv::WithVLOp scope,
+      weftrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
       mlir::Type sizeType, llvm::StringRef setvlCallee,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -738,24 +738,24 @@ private:
   ///   out[0] = vse32(__riscv_vmv_v_x_i32m1(sum, 1));
   mlir::LogicalResult emitDeferredWideDotReduceEpilogue(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::StandaloneReduceOp reduce, tcrvrvv::StoreOp storeOp,
-      mlir::Value accVar, tcrvrvv::VectorType accVecType,
-      tcrvrvv::VectorType reduceVecType, mlir::Value accVlmax,
+      weftrvv::StandaloneReduceOp reduce, weftrvv::StoreOp storeOp,
+      mlir::Value accVar, weftrvv::VectorType accVecType,
+      weftrvv::VectorType reduceVecType, mlir::Value accVlmax,
       mlir::Value accBuffer, mlir::Value outBuffer,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// True iff `scope` is the STANDALONE i32->f32 runtime-scale dequant body: a
   /// with_vl scope whose ONLY compute is a single load -> dequantize -> store
   /// (no product / reduce / accumulator / clamp). Structurally: exactly one
-  /// tcrv_rvv.load producing an i32 vector, exactly one tcrv_rvv.dequantize
+  /// weft_rvv.load producing an i32 vector, exactly one weft_rvv.dequantize
   /// (kind `i32_to_f32_scaled`, i32->f32) sourcing that load, exactly one
-  /// tcrv_rvv.store of the f32 result, and nothing else. This is the dequant
+  /// weft_rvv.store of the f32 result, and nothing else. This is the dequant
   /// shape the legacy string materializer Gearbox-unrolls (u2) into a two-slice
   /// runtime-avl setvl loop; `emitStandaloneDequantBody` reproduces that loop.
   /// Any extra op, a different dtype/kind, or a missing piece returns false so
   /// the body falls to the (guarded) emitScopeForLoop path and then the legacy
   /// materializer -- no mislower.
-  static bool isStandaloneDequantBody(tcrvrvv::WithVLOp scope);
+  static bool isStandaloneDequantBody(weftrvv::WithVLOp scope);
 
   /// Emit the standalone i32->f32 runtime-scale dequant body as the legacy
   /// Gearbox-unrolled (u<unroll>) two-slice runtime-avl setvl loop, byte-
@@ -772,12 +772,12 @@ private:
   /// per accumulated VL, matching the legacy `v18=base+i; v19=v18+vl0` form).
   /// The two-slice remaining-VL setvl covers the tail naturally -- there is NO
   /// separate scalar tail loop (unlike the product-reduce dequant routine).
-  /// The unroll factor is read from the realized scope's `tcrv_rvv.gearbox.unroll`
+  /// The unroll factor is read from the realized scope's `weft_rvv.gearbox.unroll`
   /// attribute (the Gearbox schedule fact); absent or non-positive fails the
   /// match so the body falls back to the legacy materializer unchanged.
   mlir::LogicalResult emitStandaloneDequantBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg,
+      weftrvv::WithVLOp scope, weftrvv::SetVLOp preLoopSetVL, mlir::Value avlArg,
       mlir::Value vlmax, mlir::Type sizeType, llvm::StringRef setvlCallee,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -788,26 +788,26 @@ private:
   /// read from the function-scoped variable, not any in-loop SSA value.
   mlir::LogicalResult emitDequantEpilogue(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrv::exec::VariantOp variant, tcrvrvv::DequantizeOp dequant,
-      tcrvrvv::StoreOp storeOp, llvm::ArrayRef<mlir::Operation *> epilogueOps,
-      mlir::Value accVar, tcrvrvv::VectorType accVecType,
+      weft::exec::VariantOp variant, weftrvv::DequantizeOp dequant,
+      weftrvv::StoreOp storeOp, llvm::ArrayRef<mlir::Operation *> epilogueOps,
+      mlir::Value accVar, weftrvv::VectorType accVecType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
 private:
   /// True iff the with_vl body is the pure masked unit-store shape: its only
-  /// store-like op is exactly one tcrv_rvv.masked_store, and it contains NO
+  /// store-like op is exactly one weft_rvv.masked_store, and it contains NO
   /// compute op (binary/macc/compare/select/reduce/dequantize/...) that would
   /// require an agnostic or `_tu`/`_tum` intrinsic form the converter does not
   /// model under undisturbed policy. Such a body is the masked-store family
   /// (mask_load + payload load + masked_store) whose undisturbed scope policy is
   /// honored by the masked-store `_m` intrinsic. Any other shape (a plain store,
   /// a compute op, an extra store) is NOT this exception and stays refused.
-  static bool isPureMaskedStoreBody(tcrvrvv::WithVLOp scope);
+  static bool isPureMaskedStoreBody(weftrvv::WithVLOp scope);
 
   /// True iff the with_vl body is the runtime-scalar computed-mask masked-store
-  /// shape: its only store-like op is exactly one tcrv_rvv.masked_store whose
-  /// predicate is produced by a tcrv_rvv.compare in the same scope, and whose
-  /// compare RHS is a tcrv_rvv.splat of a runtime scalar (load -> splat ->
+  /// shape: its only store-like op is exactly one weft_rvv.masked_store whose
+  /// predicate is produced by a weft_rvv.compare in the same scope, and whose
+  /// compare RHS is a weft_rvv.splat of a runtime scalar (load -> splat ->
   /// compare -> masked_store, the RuntimeScalarComputedMaskStore family). That
   /// body carries an undisturbed scope policy honored by the masked-store `_m`
   /// form: the compare/splat/load steps emit agnostic intrinsics whose results
@@ -823,10 +823,10 @@ private:
   /// strided/indexed store, masked load, or a second store likewise drops the
   /// body out of this bounded exception so nothing is mislowered under
   /// undisturbed policy.
-  static bool isComputedMaskMaskedStoreBody(tcrvrvv::WithVLOp scope);
+  static bool isComputedMaskMaskedStoreBody(weftrvv::WithVLOp scope);
 
   /// Capability config gate (I1-honoring). The selected variant's `requires`
-  /// symbols resolve to tcrv.exec.capability / tcrv.exec.target provider ops in
+  /// symbols resolve to weft.exec.capability / weft.exec.target provider ops in
   /// the kernel; those are queryable MLIR objects that may declare
   /// `supported_sew` / `supported_lmul` as a comma-separated allow-list. If a
   /// resolved provider declares one of these and it does NOT include the typed
@@ -847,8 +847,8 @@ private:
   /// declares no `rvv_version` or declares "1.0".
   mlir::LogicalResult
   checkCapabilityConfigGate(mlir::ConversionPatternRewriter &rewriter,
-                            tcrv::exec::VariantOp variant,
-                            tcrv::exec::KernelOp kernel, unsigned bodySEW,
+                            weft::exec::VariantOp variant,
+                            weft::exec::KernelOp kernel, unsigned bodySEW,
                             llvm::StringRef bodyLMUL,
                             bool bodyRequiresAgnosticPolicy) const;
 
@@ -859,7 +859,7 @@ private:
   /// Existing single-slice callers pass the default null and emit one add.
   mlir::LogicalResult
   emitLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-           tcrvrvv::LoadOp load,
+           weftrvv::LoadOp load,
            llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
            mlir::Value inductionVar, mlir::Value bodyVL,
            mlir::Value extraOffset = {}) const;
@@ -867,7 +867,7 @@ private:
   /// binary{kind}(%lhs,%rhs,%vl) -> __riscv_v<op>_vv_<dtype><lmul>(lhs,rhs,vl)
   mlir::LogicalResult
   emitBinary(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-             tcrvrvv::BinaryOp binary,
+             weftrvv::BinaryOp binary,
              llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
              mlir::Value bodyVL) const;
 
@@ -890,7 +890,7 @@ private:
   /// still see (and reject/own) it.
   mlir::LogicalResult
   emitReduce(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-             tcrvrvv::ReduceOp reduce,
+             weftrvv::ReduceOp reduce,
              llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
              mlir::Value bodyVL) const;
 
@@ -919,7 +919,7 @@ private:
 
   /// True iff the with_vl body is a standalone reduction body (it carries a
   /// scalar-carry standalone_reduce / masked_standalone_reduce).
-  static bool isStandaloneReductionBody(tcrvrvv::WithVLOp scope);
+  static bool isStandaloneReductionBody(weftrvv::WithVLOp scope);
 
   /// The reduction mnemonic for the standalone family, mirroring the legacy
   /// getRVVSelectedBodyStandaloneReductionIntrinsic kind table. The widening
@@ -946,7 +946,7 @@ private:
   /// Value, or nullptr on an unconvertible/typeless shape (caller fails match).
   mlir::Value emitScalarSeedSplat(mlir::ConversionPatternRewriter &rewriter,
                                   mlir::Location loc, mlir::Value buffer,
-                                  tcrvrvv::VectorType resultVecType,
+                                  weftrvv::VectorType resultVecType,
                                   llvm::StringRef sourceOpName,
                                   llvm::StringRef sourceRole) const;
 
@@ -960,7 +960,7 @@ private:
   /// unconvertible result type).
   mlir::LogicalResult emitStandaloneReductionPreLoopSeed(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope,
+      weftrvv::WithVLOp scope,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Store a lane-0 reduction vector to the output buffer BASE (no `+ i`) with
@@ -968,8 +968,8 @@ private:
   /// in-loop result. Mirrors the legacy `vse<sew>_v_<dtype>m1(out, v, 1)`.
   mlir::LogicalResult emitStandaloneReductionScalarStore(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::StoreOp store, mlir::Value outBuffer, mlir::Value value,
-      tcrvrvv::VectorType resultVecType) const;
+      weftrvv::StoreOp store, mlir::Value outBuffer, mlir::Value value,
+      weftrvv::VectorType resultVecType) const;
 
   /// In-loop plain standalone reduce:
   ///   <celt> r = out[0]; v<rd>m1 seed = vmv_v_x_<rd>m1(r, 1);
@@ -978,7 +978,7 @@ private:
   /// store itself is emitted by the store dispatch (to base, VL=1).
   mlir::LogicalResult
   emitStandaloneReduce(mlir::ConversionPatternRewriter &rewriter,
-                       mlir::Location loc, tcrvrvv::StandaloneReduceOp reduce,
+                       mlir::Location loc, weftrvv::StandaloneReduceOp reduce,
                        llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                        mlir::Value outBuffer, mlir::Value bodyVL) const;
 
@@ -990,7 +990,7 @@ private:
   /// The neutral fills the masked-out lanes so they don't affect the reduction.
   mlir::LogicalResult emitMaskedStandaloneReduce(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedStandaloneReduceOp reduce,
+      weftrvv::MaskedStandaloneReduceOp reduce,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, mlir::Value outBuffer,
       mlir::Value bodyVL) const;
 
@@ -1010,7 +1010,7 @@ private:
   /// converter, so an unsigned source falls back to the legacy path unchanged.
   mlir::LogicalResult
   emitWideningProduct(mlir::ConversionPatternRewriter &rewriter,
-                      mlir::Location loc, tcrvrvv::WideningProductOp product,
+                      mlir::Location loc, weftrvv::WideningProductOp product,
                       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                       mlir::Value bodyVL) const;
 
@@ -1029,7 +1029,7 @@ private:
   /// generic body-walk emitter signature uniform.
   mlir::LogicalResult emitBlockFp16ScaleProduct(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::BlockFp16ScaleProductOp scaleProduct,
+      weftrvv::BlockFp16ScaleProductOp scaleProduct,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -1040,14 +1040,14 @@ private:
   /// `(float)sumi * <scale>` term, byte-identical at the operation-spelling
   /// level:
   ///   float term = (float)sumi * scale;   // emitc.cast + emitc.mul (float)
-  /// The computed_scale operand is the f32 tcrv_rvv.block_fp16_scale_product
+  /// The computed_scale operand is the f32 weft_rvv.block_fp16_scale_product
   /// output (M-FLAT brick 1), NOT an imported ABI scale. The op stops at the
   /// per-block term; the cross-block fp32 accumulate is a separate typed step.
   /// The op is scalar (no vl); the bodyVL argument is unused, taken only to
   /// keep the generic body-walk emitter signature uniform.
   mlir::LogicalResult emitBlockComputedScaleDequant(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::BlockComputedScaleDequantOp dequant,
+      weftrvv::BlockComputedScaleDequantOp dequant,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -1057,12 +1057,12 @@ private:
   /// operation-spelling level:
   ///   float sumf = acc + term;   // emitc.add (float)
   /// acc is the block-carried f32 accumulator, term is the f32
-  /// tcrv_rvv.block_computed_scale_dequant output (M-FLAT brick 2). The op is
+  /// weft_rvv.block_computed_scale_dequant output (M-FLAT brick 2). The op is
   /// scalar (no vl); the bodyVL argument is unused, taken only to keep the
   /// generic body-walk emitter signature uniform.
   mlir::LogicalResult emitCrossBlockF32Accumulate(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::CrossBlockF32AccumulateOp accumulate,
+      weftrvv::CrossBlockF32AccumulateOp accumulate,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -1079,7 +1079,7 @@ private:
   /// hand-written block-dot helper (the same shape as vwmul / vwredsum lower).
   mlir::LogicalResult emitTypedVectorLane0ToScalarExtract(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedVectorLane0ToScalarExtractOp extract,
+      weftrvv::TypedVectorLane0ToScalarExtractOp extract,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -1102,7 +1102,7 @@ private:
   /// reads operand_form / unpack_intent candidate-mirror strings to choose it.
   mlir::LogicalResult emitPackedI4NibbleUnpackProduct(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::PackedI4NibbleUnpackProductOp packed,
+      weftrvv::PackedI4NibbleUnpackProductOp packed,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -1130,7 +1130,7 @@ private:
   /// carries the offset-binary one-sided unpack STRUCTURE typed; the conversion
   /// never reads operand_form / mirror strings to choose it.
   /// Emit the COMPLETE ggml ggml_vec_dot_q4_0_q8_0 block kernel for one
-  /// tcrv_rvv.q4_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
+  /// weft_rvv.q4_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-string blob -- every value is a node in the IR graph):
   ///   float sumf = 0.0f;
   ///   size_t nb = n / 32;
@@ -1166,11 +1166,11 @@ private:
   /// which goes through emitc.call_opaque exactly as INC-1 emits its intrinsics.
   mlir::LogicalResult emitQ4_0Q8_0BlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the ggml Q4_0 x Q8_0 GEMM tile (weight-decode reuse) for one
-  /// tcrv_rvv.q4_0_q8_0_gemm_tile op as fully STRUCTURED emitc nodes (I5; no
+  /// weft_rvv.q4_0_q8_0_gemm_tile op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-string blob -- every value is a node in the IR graph). It is the
   /// WEIGHT-DECODE-REUSE sibling of emitQ4_0Q8_0BlockDot: ONE weight row times M
   /// activation columns, decoding each q4_0 weight block ONCE and reusing the
@@ -1208,11 +1208,11 @@ private:
   /// VLMAX >= 16) -- the same justification as the block-dot strip_elision form.
   mlir::LogicalResult emitQ4_0Q8_0GemmTile(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the COMPLETE ggml Q4_0 x Q8_0 FULL GEMM (NR weight rows x nc
-  /// activation columns) for one tcrv_rvv.q4_0_q8_0_gemm op as fully STRUCTURED
+  /// activation columns) for one weft_rvv.q4_0_q8_0_gemm op as fully STRUCTURED
   /// emitc nodes (I5; ZERO raw() strings -- every value is a node in the IR
   /// graph). It is the FULL-MATMUL wrapper of emitQ4_0Q8_0GemmTile: an outer
   /// emitc.for weight-ROW loop over nr, and an inner emitc.for column-strip loop
@@ -1256,7 +1256,7 @@ private:
   /// (the board's mandated full-V floor).
   mlir::LogicalResult emitQ4_0Q8_0Gemm(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The bounded per-block context the shared q4_0 16x1-REPACKED GEMM lane-wise
@@ -1314,7 +1314,7 @@ private:
   /// lo/hi with a vwadd_vv into the per-column i32 `sumi` values it returns
   /// (indexed by absolute column c, a vector of size activationInterleave filled at
   /// [cLo,cHi)). Factored VERBATIM out of the monolith emitRepackGemmQ4_0Q8_0 so
-  /// the monolith AND the typed tcrv_rvv.typed_repack_gemm_loop_body region (a
+  /// the monolith AND the typed weft_rvv.typed_repack_gemm_loop_body region (a
   /// later milestone) emit byte-identical integer-core C. Emits at the current
   /// insertion point.
   llvm::SmallVector<mlir::Value> emitRepackGemmQ4LaneWiseIntegerCore(
@@ -1367,7 +1367,7 @@ private:
   /// byte-identical to the q4_0 GEMV.
   mlir::LogicalResult emitRepackGemvQ5_0Q8_0(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The q5_1 block-as-lane 16x1-REPACKED single-column GEVM (decode): the UNION
@@ -1390,7 +1390,7 @@ private:
   /// op's fixed structure (I5; every value is a node, ZERO raw() strings).
   mlir::LogicalResult emitRepackGemvQ5_1Q8_1(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The option-2 stage-C1b PACK (materialize) emitter: the PRODUCER sibling of
@@ -1408,7 +1408,7 @@ private:
   /// proof, e2e-REDUNDANT (ggml packs at load), NEVER a kernel/perf/e2e win.
   mlir::LogicalResult emitPackQ4_0ToX16(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// FAMILY-B (scale+MIN, asymmetric) block-as-lane sibling of
@@ -1432,7 +1432,7 @@ private:
   /// structure (I5; every value is a node, ZERO raw() strings).
   mlir::LogicalResult emitRepackGemvQ4_1Q8_1(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// FAMILY-B (scale+MIN, asymmetric) block-as-lane PREFILL sibling of
@@ -1461,7 +1461,7 @@ private:
   /// oracle exists); the GEMM's own numeric oracle is deferred this pass.
   mlir::LogicalResult emitRepackGemmQ4_1Q8_1(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the COMPLETE ggml q4_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM
@@ -1469,7 +1469,7 @@ private:
   /// emitter emitRepackGemmQ4KQ8K, refactored to take the mapped ABI values +
   /// block-format facts (including the K-quant dmin/scales/bsums byte offsets +
   /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's
-  /// K-quant branch (gated on the in-region tcrv_rvv.repack_gemm_kquant_core
+  /// K-quant branch (gated on the in-region weft_rvv.repack_gemm_kquant_core
   /// anti-bypass brick, decode_model "q4_K"). The q4_K prefill sibling of
   /// emitRepackKQuantGemvBodyQ4K: the SAME 8-sub-block 6-bit scale/min dual-fold +
   /// bsums-min decode, with the weight unpack AMORTIZED across the 4 interleaved
@@ -1487,7 +1487,7 @@ private:
       int64_t half,
       // [M1c] the REALIZED outer group-loop order (col-outer vs row-outer): the
       // SEL-1 loop-order schedule axis the caller resolves from the stamped
-      // tcrv_rvv.loop_order attr, falling back to the SAME repackColGroupOuterForLayout
+      // weft_rvv.loop_order attr, falling back to the SAME repackColGroupOuterForLayout
       // predicate the selector keys on (so both sides carry one stride fact).
       bool colGroupOuter) const;
 
@@ -1512,7 +1512,7 @@ private:
   /// the op's fixed structure (I5; every value is a node, ZERO raw() strings).
   mlir::LogicalResult emitRepackGemvQ8_0Q8_0(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the COMPLETE ggml q4_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
@@ -1520,7 +1520,7 @@ private:
   /// emitter emitRepackGemvQ4KQ8K, refactored to take the mapped ABI values +
   /// block-format facts (including the K-quant dmin/scales/bsums byte offsets +
   /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's
-  /// K-quant branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core
+  /// K-quant branch (gated on the in-region weft_rvv.repack_gemv_kquant_core
   /// anti-bypass brick, decode_model "q4_K"). The K-quant super-block decode: 8
   /// sub-blocks of 32, per-sub-block 6-bit scale/min unpacked LANE-WISE across the
   /// 16 weight columns, main term d*Sum(scale_sub*sumi_sub) and MIN term
@@ -1542,7 +1542,7 @@ private:
   /// emitRepackGemvQ5KQ8K, refactored to take the mapped ABI values + block-format facts
   /// (the q4_K min structure dmin/scales/bsums + the q5_K qh 5th-bit plane byte offset +
   /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's K-quant
-  /// MIN branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass
+  /// MIN branch (gated on the in-region weft_rvv.repack_gemv_kquant_core anti-bypass
   /// brick, decode_model "q5_K"). q5_K == q4_K + the qh 5th (high) weight bit: a FAITHFUL
   /// reuse of the oracle-verified q4_K super-block decode (emitRepackKQuantGemvBodyQ4K)
   /// with ONE added step -- each 4-bit nibble is lifted to a 5-bit value in [0,31] by
@@ -1571,7 +1571,7 @@ private:
   /// sumf/sumi accumulators. The qh inject is the ONLY delta vs the q4_K tiled body
   /// (byte-identical otherwise -> byte-exact to the plain untiled q5_K emit). Called ONLY
   /// from emitTypedRepackGemmLoopBody's K-quant MIN branch (gated on the in-region
-  /// tcrv_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model "q5_K").
+  /// weft_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model "q5_K").
   /// RESULT-LESS (no monolith token).
   mlir::LogicalResult emitRepackKQuantGemmBodyQ5K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -1590,7 +1590,7 @@ private:
   /// emitter emitRepackGemvQ6KQ8K, refactored to take the mapped ABI values +
   /// block-format facts (the q6_K signed-scales + qh high-2-bit plane byte offsets +
   /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's
-  /// K-quant branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core
+  /// K-quant branch (gated on the in-region weft_rvv.repack_gemv_kquant_core
   /// anti-bypass brick, decode_model "q6_K"). q6_K is the LARGER K-quant delta: the
   /// 6-bit weight value is assembled LANE-WISE from a low-4-bit ql plane + a
   /// high-2-bit qh plane -- `((ql & 0xF) | (((qh >> shift) & 3) << 4)) - 32` (a SIGNED
@@ -1615,7 +1615,7 @@ private:
   /// inline-min-fold panel -- q6_K has no min -- and the per-column i32/f32
   /// accumulators stay SSA-REGISTER scalars, NEVER rolled into the iter-arg-less
   /// emitc.for). Called ONLY from emitTypedRepackGemmLoopBody's K-quant branch (gated
-  /// on the in-region tcrv_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model
+  /// on the in-region weft_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model
   /// "q6_K"). The q6_K prefill sibling of emitRepackKQuantGemvBodyQ6K: the SAME 6-bit
   /// ql|qh two-plane weight assembly (-32 bias) + signed-scale single-accumulator
   /// no-min fold, with the weight decode AMORTIZED across the 4 interleaved
@@ -1636,7 +1636,7 @@ private:
   /// emitter emitRepackGemvQ2KQ8K, refactored to take the mapped ABI values +
   /// block-format facts (the K-quant dmin/scales/bsums byte offsets + n_subblocks) as
   /// PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's K-quant branch (gated
-  /// on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass brick, decode_model
+  /// on the in-region weft_rvv.repack_gemv_kquant_core anti-bypass brick, decode_model
   /// "q2_K"). q2_K is the LOWEST-bit K-quant and the MIN-TERM regression: it REUSES the
   /// q4_K DUAL super-block d/dmin + bsums-min fold (NOT q6_K's single no-min
   /// accumulator), with a 2-BIT weight (4 lanes per byte peeled by vsrl 0/2/4/6 + vand
@@ -1663,7 +1663,7 @@ private:
   /// scale/min stack-panel + on-demand d/dmin widen; the per-column i32/f32 accumulators
   /// stay SSA-REGISTER scalars, NEVER rolled into the iter-arg-less emitc.for). Called
   /// ONLY from emitTypedRepackGemmLoopBody's K-quant branch (gated on the in-region
-  /// tcrv_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model "q2_K"). The q2_K
+  /// weft_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model "q2_K"). The q2_K
   /// prefill sibling of emitRepackKQuantGemvBodyQ2K: the SAME 2-bit-4-lanes weight
   /// assembly + 4-bit packed scale/min + dual d/dmin + bsums-min fold, with the weight
   /// decode + scale/min unpack AMORTIZED across the 4 interleaved block_q8_Kx4
@@ -1685,7 +1685,7 @@ private:
   /// emitRepackGemvQ3KQ8K, refactored to take the mapped ABI values + block-format facts
   /// (the q3_K signed-scales + hmask high-bit plane byte offset [the SHARED qh slot] +
   /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's K-quant
-  /// NO-MIN branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass
+  /// NO-MIN branch (gated on the in-region weft_rvv.repack_gemv_kquant_core anti-bypass
   /// brick, decode_model "q3_K"). q3_K is q6_K's no-min structural cousin: it REUSES the
   /// q6_K SINGLE-accumulator no-min scaffold (LANE-WISE vwmacc block-as-lane strips, 16
   /// SIGNED int8 scales vle8_v_i8 + vsext_vf2_i16, a SINGLE super-block d fold with NO
@@ -1712,7 +1712,7 @@ private:
   /// tiling is a family-lever NULL on weight-reconstruction-bound no-min K-quant (q4_K's
   /// register-cliff lever does NOT transfer to q3_K/q6_K; simpler-wins), byte-exact to
   /// the retired direct emitter. Called ONLY from emitTypedRepackGemmLoopBody's K-quant
-  /// NO-MIN branch (gated on the in-region tcrv_rvv.repack_gemm_kquant_core anti-bypass
+  /// NO-MIN branch (gated on the in-region weft_rvv.repack_gemm_kquant_core anti-bypass
   /// brick, decode_model "q3_K"). The q3_K prefill sibling of emitRepackKQuantGemvBodyQ3K:
   /// the SAME 3-bit SUBTRACTIVE-hmask weight assembly (-4 bias) + signed-6bit-scale
   /// single-accumulator no-min fold, with the weight decode AMORTIZED across the 4
@@ -1733,7 +1733,7 @@ private:
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
   /// emitter emitRepackGemvTQ20Q8K, refactored to take the mapped ABI values +
   /// block-format facts as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's
-  /// ternary branch (gated on the in-region tcrv_rvv.repack_gemv_ternary_core
+  /// ternary branch (gated on the in-region weft_rvv.repack_gemv_ternary_core
   /// anti-bypass brick). tq2_0 is the FIRST TERNARY (BitNet-class) repack: a LINEAR
   /// trit weight (`((qs>>shift)&3)-1` in {-1,0,1}), ONE fp16 super-block scale, a
   /// SINGLE i32 accumulator per column strip (per-super-half i16 partial widened into
@@ -1752,7 +1752,7 @@ private:
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
   /// emitter emitRepackGemmTQ20Q8K, refactored to take the mapped ABI values +
   /// block-format facts as PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's
-  /// ternary branch (gated on the in-region tcrv_rvv.repack_gemm_ternary_core
+  /// ternary branch (gated on the in-region weft_rvv.repack_gemm_ternary_core
   /// anti-bypass brick). The tq2_0 prefill sibling of emitRepackTernaryGemvBodyTQ20:
   /// the SAME 2-bit ternary weight decode + single-scale no-min fold, with the weight
   /// decode AMORTIZED across the 4 interleaved block_q8_Kx4 activation columns.
@@ -1772,7 +1772,7 @@ private:
   /// emitter emitRepackGemvTQ10Q8K, refactored to take the mapped ABI values +
   /// block-format facts as PARAMETERS (including the base-3 qh SECOND weight-plane
   /// byte offset the tq2_0 leaf lacks). Called ONLY from emitTypedRepackGemvLoopBody's
-  /// ternary branch (gated on the in-region tcrv_rvv.repack_gemv_ternary_core
+  /// ternary branch (gated on the in-region weft_rvv.repack_gemv_ternary_core
   /// anti-bypass brick, decode_model "tq1_0"). tq1_0 REUSES the tq2_0 single-scale
   /// no-min scaffold and differs ONLY in the WEIGHT DECODE: a BASE-3 unpack (`q =
   /// (uint8_t)(byte*pow3[l])`, `xi = (q*3)>>8`, `xi-1`) over the 48-byte qs plane (5
@@ -1793,7 +1793,7 @@ private:
   /// emitter emitRepackGemmTQ10Q8K, refactored to take the mapped ABI values +
   /// block-format facts as PARAMETERS (including the base-3 qh SECOND weight-plane
   /// byte offset). Called ONLY from emitTypedRepackGemmLoopBody's ternary branch
-  /// (gated on the in-region tcrv_rvv.repack_gemm_ternary_core anti-bypass brick,
+  /// (gated on the in-region weft_rvv.repack_gemm_ternary_core anti-bypass brick,
   /// decode_model "tq1_0"). The tq1_0 prefill sibling of emitRepackTernaryGemvBodyTQ10:
   /// the SAME base-3 ternary weight decode + single-scale no-min fold, with the weight
   /// decode AMORTIZED across the 4 interleaved block_q8_Kx4 activation columns.
@@ -1813,7 +1813,7 @@ private:
   /// emitRepackGemvIq4NlQ80, refactored to take the mapped ABI values + block-format facts
   /// (including the 16-entry non-linear int8 codebook) as PARAMETERS. Called ONLY from
   /// emitTypedRepackGemvLoopBody's codebook branch (gated on the in-region
-  /// tcrv_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model "iq4_nl"). iq4_nl
+  /// weft_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model "iq4_nl"). iq4_nl
   /// is the FIRST codebook repack: the 4-bit nibble is an INDEX into a 16-entry non-linear
   /// int8 codebook, decoded by a REAL fractional-anchor MEMORY vluxei16 codebook GATHER
   /// (zero-extend the nibble to a u16 byte offset, then vluxei16_v_i8; a register vrgather
@@ -1833,7 +1833,7 @@ private:
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
   /// emitRepackGemmIq4NlQ80, refactored to take the mapped ABI values + block-format facts
   /// (including the codebook) as PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's
-  /// codebook branch (gated on the in-region tcrv_rvv.repack_gemm_codebook_core anti-bypass
+  /// codebook branch (gated on the in-region weft_rvv.repack_gemm_codebook_core anti-bypass
   /// brick, decode_model "iq4_nl"). The iq4_nl prefill sibling of
   /// emitRepackCodebookGemvBodyIq4Nl: the SAME memory codebook-gather decode + single fp16
   /// scale i32-accumulator fold, with the codebook decode AMORTIZED across the 4
@@ -1854,7 +1854,7 @@ private:
   /// from the FRONT DOOR: the byte-exact body of the mxfp4 direct emitter, refactored to
   /// take the mapped ABI values + block-format facts (including the doubled-e2m1 codebook)
   /// as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's codebook branch (gated
-  /// on the in-region tcrv_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model
+  /// on the in-region weft_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model
   /// "mxfp4", fold_model "codebook_flat_e8m0_scale"). The E8M0 sibling of
   /// emitRepackCodebookGemvBodyIq4Nl: the SAME 16-entry memory codebook GATHER (vluxei16) +
   /// i32-accumulator no-min integer core, but the per-column weight scale is ONE E8M0
@@ -1874,7 +1874,7 @@ private:
   /// from the FRONT DOOR: the byte-exact body of the mxfp4 direct emitter, refactored to
   /// take the mapped ABI values + block-format facts as PARAMETERS. Called ONLY from
   /// emitTypedRepackGemmLoopBody's codebook branch (gated on the in-region
-  /// tcrv_rvv.repack_gemm_codebook_core anti-bypass brick, decode_model "mxfp4"). The mxfp4
+  /// weft_rvv.repack_gemm_codebook_core anti-bypass brick, decode_model "mxfp4"). The mxfp4
   /// prefill sibling of emitRepackCodebookGemvBodyMxfp4: the SAME memory fp4-codebook-gather
   /// decode + E8M0 vector scale reconstruction + i32-accumulator no-min fold, with the
   /// codebook decode and E8M0 reconstruction AMORTIZED across the 4 interleaved
@@ -1896,7 +1896,7 @@ private:
   /// emitRepackGemvIq4XsQ8K, refactored to take the mapped ABI values + block-format facts
   /// (including the signed-6 scale offsets + the 16-entry codebook) as PARAMETERS. Called
   /// ONLY from emitTypedRepackGemvLoopBody's codebook branch (gated on the in-region
-  /// tcrv_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model "iq4_xs", fold_model
+  /// weft_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model "iq4_xs", fold_model
   /// "codebook_superblock_signed6_no_min"). The SUPER-BLOCK CODEBOOK sibling of
   /// emitRepackCodebookGemvBodyIq4Nl: the SAME 16-entry memory codebook GATHER (vluxei16)
   /// with a K-quant 6-bit SIGNED per-sub-block scale (assembled lane-wise via the q4_K
@@ -1919,7 +1919,7 @@ private:
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
   /// emitRepackGemmIq4XsQ8K, refactored to take the mapped ABI values + facts as
   /// PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's codebook branch (gated on
-  /// the in-region tcrv_rvv.repack_gemm_codebook_core anti-bypass brick, decode_model
+  /// the in-region weft_rvv.repack_gemm_codebook_core anti-bypass brick, decode_model
   /// "iq4_xs"). The iq4_xs prefill sibling of emitRepackCodebookGemvBodyIq4Xs: the SAME
   /// codebook gather + 6-bit signed-scale decode + i32 scale-weighted fold, AMORTIZED
   /// across the 4 interleaved block_q8_Kx4 activation columns. Ships PLAIN (untiled):
@@ -1942,7 +1942,7 @@ private:
   /// emitRepackGemvIq2XxsQ8K, refactored to take the mapped ABI values + block-format facts
   /// (grid-index / ls-scale / sign-selector byte offsets + n_subblocks) as PARAMETERS.
   /// Called ONLY from emitTypedRepackGemvLoopBody's grid branch (gated on the in-region
-  /// tcrv_rvv.repack_gemv_grid_core anti-bypass brick, decode_model "iq2_xxs"). The FIRST
+  /// weft_rvv.repack_gemv_grid_core anti-bypass brick, decode_model "iq2_xxs"). The FIRST
   /// SUPER-BLOCK GRID CODEBOOK + SIGN-PLANE repack: each (sub-block, group, column) stores a
   /// raw 8-bit grid INDEX + a raw 7-bit sign SELECTOR; the decode does a REAL grid GATHER
   /// (zero-extend index to a u16 byte offset index*8+j, vluxei16_v_i8 over the flat 256*8
@@ -1967,7 +1967,7 @@ private:
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
   /// emitRepackGemmIq2XxsQ8K, refactored to take the mapped ABI values + facts as
   /// PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's grid branch (gated on the
-  /// in-region tcrv_rvv.repack_gemm_grid_core anti-bypass brick, decode_model "iq2_xxs").
+  /// in-region weft_rvv.repack_gemm_grid_core anti-bypass brick, decode_model "iq2_xxs").
   /// The iq2_xxs prefill sibling of emitRepackGridGemvBodyIq2Xxs: the SAME real grid gather
   /// + sign-plane gather + ls scale + 0.125 fold, with the grid+sign weight decode AMORTIZED
   /// across the 4 interleaved block_q8_Kx4 activation columns. Ships PLAIN (untiled):
@@ -2000,9 +2000,9 @@ private:
   /// dual-ls direct emitters, refactored (like emitRepackGridGemvBodyIq2Xxs) to take the
   /// mapped ABI values + block-format facts as PARAMETERS and RESULT-LESS (no monolith
   /// token). Called ONLY from emitTypedRepackGemvLoopBody's grid branch (gated on the
-  /// in-region tcrv_rvv.repack_gemv_grid_core anti-bypass brick, decode_model "iq2_xs" /
-  /// "iq2_s"). `variant` selects the grid table (tcrv_iq2xs_grid[512] /
-  /// tcrv_iq2s_grid[1024]) and the sign plane (tcrv_iq2xs_signs64 / tcrv_iq2s_signs256)
+  /// in-region weft_rvv.repack_gemv_grid_core anti-bypass brick, decode_model "iq2_xs" /
+  /// "iq2_s"). `variant` selects the grid table (weft_iq2xs_grid[512] /
+  /// weft_iq2s_grid[1024]) and the sign plane (weft_iq2xs_signs64 / weft_iq2s_signs256)
   /// emitted ONCE. The DUAL delta over iq2_xxs: a u16 grid index (vle16 direct, NO vzext)
   /// + each sub-block split into ls1 (groups 0-1) / ls2 (groups 2-3), both on lsOffset.
   mlir::LogicalResult emitRepackGemvIq2DualScaleQ8K(
@@ -2099,21 +2099,21 @@ private:
                     mlir::Value ib, int64_t blockOffset, bool forceRobust) const;
 
   /// The M-FLAT loop-scaffold emitter (step 1/6): lower the region-carrying
-  /// tcrv_rvv.typed_flat_block_dot_loop_body to the byte-exact skeleton
+  /// weft_rvv.typed_flat_block_dot_loop_body to the byte-exact skeleton
   /// emitFlatBlockDot emits for its mbf==1 form -- the sumf emitc.variable
   /// seeded `0.0f`, nb = n / QK, the outer emitc.for over nb, the SSA
   /// loop-carried acc mapped to a load-at-top / assign-at-bottom of the sumf
   /// lvalue (emitc.for has no iter_args), and the `*s = sumf` scalar store. The
-  /// minimal region body (a single tcrv_rvv.cross_block_f32_accumulate over a
+  /// minimal region body (a single weft_rvv.cross_block_f32_accumulate over a
   /// stub term) is dispatched through the existing brick emitters; the full
   /// per-block primitive chain + full-body byte-exactness are later steps.
   mlir::LogicalResult emitTypedFlatBlockDotLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The M-FLAT q4_K/q5_K super-block loop-scaffold emitter (milestone-2/3, W5-W7):
-  /// lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body to
+  /// lower the region-carrying weft_rvv.typed_super_block_block_dot_loop_body to
   /// the byte-exact skeleton the retired q4_K monolith emitted (milestone-3: this
   /// typed emitter is now the SOLE q4_K super-block lowering) -- the function-scoped
   /// aux8[256]/utmp[4]/sums8[8] scratch, the `sums` vfloat32m2 emitc.variable +
@@ -2129,12 +2129,12 @@ private:
   /// same order). NO monolith retire, NO flip.
   mlir::LogicalResult emitTypedSuperBlockBlockDotLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold emitter (Phase B, full-body
   /// byte-exact ALL arms): lower the region-carrying
-  /// tcrv_rvv.typed_repack_gemv_loop_body to the byte-exact repacked GEVM kernel on
+  /// weft_rvv.typed_repack_gemv_loop_body to the byte-exact repacked GEVM kernel on
   /// EVERY resource arm -- the VLEN=256 fractional one-strip mf2 form
   /// (numHalves==1, f32m2), the VLEN=128 two-8-lane-halves mf2 form (numHalves==2,
   /// two f32m2), and the RVV0.7 whole-LMUL one-strip m1 form (numHalves==1, f32m4).
@@ -2143,9 +2143,9 @@ private:
   /// accumulators seeded per group with vfmv_v_f(0.0f), the inner emitc.for block
   /// loop, and the per-strip lane-wise vse32 stores (NO horizontal reduction). The
   /// inner body is FULL-BODY byte-exact: the integer CORE brick
-  /// (tcrv_rvv.repack_lane_wise_q4_x_i8_dot -> emitRepackQ4LaneWiseIntegerCore,
+  /// (weft_rvv.repack_lane_wise_q4_x_i8_dot -> emitRepackQ4LaneWiseIntegerCore,
   /// numHalves per-strip sumi) FOLLOWED by the numHalves dual-fp16 scale FOLD bricks
-  /// (tcrv_rvv.repack_dual_fp16_scale_fold -> ONE call to emitRepackDualFp16Scale
+  /// (weft_rvv.repack_dual_fp16_scale_fold -> ONE call to emitRepackDualFp16Scale
   /// Fold over all strips, which loads each accumulator, folds its sumi in, and
   /// assigns it back). The carried-OUT accumulators are the fold results. The
   /// integer-core LMUL rung (l8/l16/l32) is derived from the loop op's optional
@@ -2155,11 +2155,11 @@ private:
   /// numHalves/half/l8/l16/l32/byte-offset facts) on every arm.
   mlir::LogicalResult emitTypedRepackGemvLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The M-FLAT q4_0 16x1-REPACKED GEMM loop-scaffold emitter: lower the
-  /// region-carrying tcrv_rvv.typed_repack_gemm_loop_body to the byte-exact
+  /// region-carrying weft_rvv.typed_repack_gemm_loop_body to the byte-exact
   /// repacked GEMM kernel by wrapping the region's inner contraction-block loop in
   /// the SAME four outer loops the now-retired monolithic emitRepackGemmQ4_0Q8_0
   /// emitted -- the
@@ -2180,7 +2180,7 @@ private:
   /// and dataflow-tied fail-closed (I7).
   mlir::LogicalResult emitTypedRepackGemmLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The bounded per-block context the shared q4_0 16x1-REPACKED lane-wise
@@ -2235,7 +2235,7 @@ private:
   /// per strip), then combines lo/hi with a vwadd_vv into the per-strip i32 `sumi`
   /// values it returns (numHalves entries). Factored VERBATIM out of the monolith
   /// emitRepackGemvQ4_0Q8_0 so the monolith AND the typed
-  /// tcrv_rvv.typed_repack_gemv_loop_body region emit byte-identical integer-core
+  /// weft_rvv.typed_repack_gemv_loop_body region emit byte-identical integer-core
   /// C (the dual-fp16 per-strip scale fold that consumes the sumi is the caller's,
   /// deferred in the typed loop scaffold). Emits at the current insertion point.
   llvm::SmallVector<mlir::Value> emitRepackQ4LaneWiseIntegerCore(
@@ -2279,8 +2279,8 @@ private:
   /// act_scale), converts the sumi with vfcvt_f_x_v, and folds acc = vfmacc(acc,
   /// sumi_f, d) back into `sumfVar[h]`. Factored VERBATIM out of the monolith
   /// emitRepackGemvQ4_0Q8_0 so the monolith AND the typed
-  /// tcrv_rvv.typed_repack_gemv_loop_body region's
-  /// tcrv_rvv.repack_dual_fp16_scale_fold brick emit byte-identical scale-fold C.
+  /// weft_rvv.typed_repack_gemv_loop_body region's
+  /// weft_rvv.repack_dual_fp16_scale_fold brick emit byte-identical scale-fold C.
   /// Emits at the current insertion point.
   void emitRepackDualFp16ScaleFold(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -2289,7 +2289,7 @@ private:
       llvm::ArrayRef<mlir::Value> sumfVar) const;
 
   /// The M-FLAT q6_K super-block SINGLE-accumulator loop emitter (milestone-2,
-  /// W-D): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
+  /// W-D): lower the region-carrying weft_rvv.typed_super_block_block_dot_loop_body
   /// whose fold_model is "scales_times_sumi" (the q6_K no-min path) to the
   /// byte-exact skeleton the retired q6_K monolith emitQ6_KQ8_KBlockDot emitted --
   /// the function-scoped aux8[256]/sums8[8] scratch, the `sums` vfloat32m2
@@ -2304,12 +2304,12 @@ private:
   /// fold_model. This is the SOLE q6_K super-block lowering.
   mlir::LogicalResult emitTypedSuperBlockScalesTimesSumiLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The M-FLAT q2_K super-block SCALAR-accumulator loop emitter (milestone-2,
-  /// W-D): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
+  /// W-D): lower the region-carrying weft_rvv.typed_super_block_block_dot_loop_body
   /// whose fold_model is "scalar_scale_min" (the q2_K path) to the byte-exact
   /// skeleton the retired q2_K monolith emitQ2_KQ8_KBlockDot emitted -- the
   /// function-scoped aux8[256] scratch, the `sumf` float emitc.variable SCALAR
@@ -2327,17 +2327,17 @@ private:
   /// super-block lowering.
   mlir::LogicalResult emitTypedSuperBlockScalarScaleMinLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The M-FLAT iq1_s super-block SCALAR-accumulator GRID loop emitter (the flip
-  /// lowering, M3): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
+  /// lowering, M3): lower the region-carrying weft_rvv.typed_super_block_block_dot_loop_body
   /// whose fold_model is "scalar_delta_grid" (the iq1_s ternary-grid path) to the
   /// byte-exact skeleton the (now-retired) monolith emitIQ1SQ8KBlockDot emitted --
-  /// the function-scoped `static const uint64_t tcrv_iq1s_grid[2048]` TERNARY grid
+  /// the function-scoped `static const uint64_t weft_iq1s_grid[2048]` TERNARY grid
   /// decl, the `sumf` float emitc.variable SCALAR accumulator seeded once OUTSIDE the
-  /// loop (NO 8-lane `sums` vector), nb = n / QK_K, the `tcrv_iq1s_grid` base literal,
+  /// loop (NO 8-lane `sums` vector), nb = n / QK_K, the `weft_iq1s_grid` base literal,
   /// the outer emitc.for over nb, and (post-loop) the `*s` store. The in-loop body is
   /// emitted OP-BY-OP from the region's iq1_s grid-core brick OPERANDS: the shared
   /// per-super-block grid body (emitIQ1SSuperBlockGridBody: the fp16*fp32 d fold, the
@@ -2352,17 +2352,17 @@ private:
   /// vec_dot (the monolith op + emitter + verifier were retired the same action).
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The M-FLAT iq1_m super-block SCALAR-accumulator GRID loop emitter (the flip
   /// lowering, iq1_s SIBLING): the iq1_m branch of the fold_model "scalar_delta_grid"
   /// path (dispatched by emitTypedSuperBlockScalarDeltaGridLoopBody when the region
   /// carries an iq1_m grid-core brick). It emits the SAME wrapper as the iq1_s emitter
-  /// (the `static const uint64_t tcrv_iq1m_grid[2048]` TERNARY grid decl from the
+  /// (the `static const uint64_t weft_iq1m_grid[2048]` TERNARY grid decl from the
   /// canonical kIQ1MGrid, the `sumf` float SCALAR accumulator seeded once OUTSIDE the
-  /// loop, nb = n / QK_K, the `tcrv_iq1m_grid` base literal, the outer emitc.for over
+  /// loop, nb = n / QK_K, the `weft_iq1m_grid` base literal, the outer emitc.for over
   /// nb, the per-super-block base built from the brick's (base, block_index) via a
   /// shared memo (anti-bypass), and the `*s` store), delegating the in-loop
   /// per-super-block body to the shared emitIQ1MSuperBlockGridBody anchor (the packed
@@ -2373,17 +2373,17 @@ private:
   /// helper, same facts, same order) modulo the source-op provenance token + func name.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The iq3_xxs super-block SCALAR-accumulator GRID-of-4 loop emitter (the flip
   /// lowering, iq1_s grid SIBLING): the iq3_xxs branch of the fold_model
   /// "scalar_delta_grid" path (dispatched by emitTypedSuperBlockScalarDeltaGridLoopBody
   /// when the region carries an iq3_xxs grid-core brick). It emits the wrapper -- the
-  /// `static const uint32_t tcrv_iq3xxs_grid[256]` GRID-of-4 decl (from the canonical
-  /// kIQ3XXSGrid), the `static const uint8_t tcrv_iq3xxs_ksigns[128]` SIGN plane (from
-  /// kIQ3XXSKsigns), the inline `tcrv_iq3xxs_kmask[8]` decl, the `sumf` float SCALAR
+  /// `static const uint32_t weft_iq3xxs_grid[256]` GRID-of-4 decl (from the canonical
+  /// kIQ3XXSGrid), the `static const uint8_t weft_iq3xxs_ksigns[128]` SIGN plane (from
+  /// kIQ3XXSKsigns), the inline `weft_iq3xxs_kmask[8]` decl, the `sumf` float SCALAR
   /// accumulator seeded once OUTSIDE the loop, nb = n / QK_K, the ONCE 8-lane kmask
   /// load + the (const int32_t *) grid32 view, the outer emitc.for over nb, the
   /// per-super-block base built from the brick's (base, block_index) via a shared memo
@@ -2396,17 +2396,17 @@ private:
   /// source-op provenance token + func name.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The iq2_xxs super-block SCALAR-accumulator GRID-of-8 loop emitter (the flip
   /// lowering, iq1_s grid SIBLING, SIGN-PLANE signs64 variant): the iq2_xxs branch of the
   /// fold_model "scalar_delta_grid" path (dispatched by
   /// emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq2_xxs
   /// grid-core brick). It emits the wrapper -- the `static const int64_t
-  /// tcrv_iq2xxs_grid[256]` GRID-of-8 decl (from the canonical kIQ2XXSGrid), the DERIVED
-  /// `static const int8_t tcrv_iq2xxs_signs64[1024]` signs64 SIGN plane (from
+  /// weft_iq2xxs_grid[256]` GRID-of-8 decl (from the canonical kIQ2XXSGrid), the DERIVED
+  /// `static const int8_t weft_iq2xxs_signs64[1024]` signs64 SIGN plane (from
   /// kIQ2XXSKsigns), the `sumf` float SCALAR accumulator seeded once OUTSIDE the loop, nb
   /// = n / QK_K, the ONCE (const int64_t *) grid64 + signs64 views, the outer emitc.for
   /// over nb, the per-super-block base built from the brick's (base, block_index) via a
@@ -2420,9 +2420,9 @@ private:
   /// facts, same order) modulo the source-op provenance token + func name.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The structured E8M0 -> fp32 HALF weight scale (the mxfp4 FP4-class scale
   /// source, FlatWeightScaleSource::E8M0): GGML_E8M0_TO_FP32_HALF(e) = 2^(e-128),
@@ -2438,7 +2438,7 @@ private:
                                 llvm::StringRef role) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_iq4_xs_q8_K super-block dot-product for
-  /// one tcrv_rvv.iq4_xs_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no
+  /// one weft_rvv.iq4_xs_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no
   /// raw()). It is the CODEBOOK class's SUPER-BLOCK rung -- the super-block variant
   /// of iq4_nl -- composing iq4_nl's codebook-gather integer core (REUSED VERBATIM:
   /// the same broadcast kvalues_iq4nl[16] table + vand 0x0F / vsrl 0x04 -> vrgather
@@ -2448,9 +2448,9 @@ private:
   /// integer aux32 domain -- this is the byte-exactness pivot at -ffp-contract=off:
   /// `_generic` computes `d1 = d4d8*(ls-32)` then `sumf += d1*sumi`, two separate
   /// float roundings, so the scale must NOT be folded into an integer accumulator):
-  ///   static const int8_t tcrv_iq4_xs_kvalues[16] = { ... };  // codebook decl
+  ///   static const int8_t weft_iq4_xs_kvalues[16] = { ... };  // codebook decl
   ///   float sumf = 0.0f;  size_t nb = n / 256;
-  ///   vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_iq4_xs_kvalues, 16);  // ONCE
+  ///   vint8m1_t values = __riscv_vle8_v_i8m1(weft_iq4_xs_kvalues, 16);  // ONCE
   ///   for (size_t ibl = 0; ibl < nb; ibl += 1) {
   ///     const uint8_t *xb = vx + ibl*136;  const uint8_t *yb = vy + ibl*292;
   ///     float dx   = (float)*(const _Float16 *)(xb + 0);     // fp16 weight d
@@ -2483,9 +2483,9 @@ private:
   /// identity.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   // tq2_0 (the FIRST TQ-family member, C_construct 24->25): the typed super-block
   // SCALAR-accumulator TERNARY loop body lowering (fold_model "scalar_delta_grid",
@@ -2497,9 +2497,9 @@ private:
   // Win-A m2/m1 gearbox on the brick's integer_core_lmul (kernel key "tq2_0").
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   // tq1_0 (the SECOND TQ-family member, C_construct 25->26): the typed super-block
   // SCALAR-accumulator BASE-3 TERNARY loop body lowering (fold_model "scalar_delta_grid",
@@ -2512,9 +2512,9 @@ private:
   // Carries the Win-A m2/m1 gearbox on the brick's integer_core_lmul (kernel key "tq1_0").
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   // NOTE: the monolith emitIQ2XXSQ8KBlockDot emitter was RETIRED at the iq2_xxs flip
   // (L3 coverage): the front door now constructs the typed super-block
@@ -2529,8 +2529,8 @@ private:
   /// instances), so this struct carries only the provenance, the size type, the two
   /// buffer pointer types, the iq2_xxs format byte offsets/sub-block shape, the Win-A
   /// coreLmul gearbox anchor, and the two per-loop-invariant SSA views the sub-block
-  /// gathers read: the `gridName` (const int64_t *) view of tcrv_iq2xxs_grid and the
-  /// `signs64` (const int64_t *) view of tcrv_iq2xxs_signs64 (the DERIVED keven_signs
+  /// gathers read: the `gridName` (const int64_t *) view of weft_iq2xxs_grid and the
+  /// `signs64` (const int64_t *) view of weft_iq2xxs_signs64 (the DERIVED keven_signs
   /// sign plane).
   struct IQ2XXSGridBodyContext {
     llvm::StringRef opName;
@@ -2546,12 +2546,12 @@ private:
     int64_t numSubBlocks;         //   8
     int64_t numGroups;            //   4 (grid/sign groups per sub-block)
     llvm::StringRef coreLmul;     // the Win-A gearbox anchor ("m2" default / "m1" @VLEN256)
-    mlir::Value gridName;         // the (const int64_t *) view of tcrv_iq2xxs_grid
-    mlir::Value signs64;          // the (const int64_t *) view of tcrv_iq2xxs_signs64
+    mlir::Value gridName;         // the (const int64_t *) view of weft_iq2xxs_grid
+    mlir::Value signs64;          // the (const int64_t *) view of weft_iq2xxs_signs64
   };
 
   /// Emit the fixed 256-entry iq2_xxs GRID-of-8 codebook as ONE `static const int64_t
-  /// tcrv_iq2xxs_grid[256] = { ... };` verbatim decl (ggml's exact uint64 hex literals
+  /// weft_iq2xxs_grid[256] = { ... };` verbatim decl (ggml's exact uint64 hex literals
   /// rendered `0x%016llxULL`), from the CANONICAL kIQ2XXSGrid constant (the grid-core
   /// brick carries no grid in the IR -- the emitter keys the fixed codebook off the brick
   /// op identity). Byte-identical to the retired monolith decl.
@@ -2559,7 +2559,7 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
 
   /// Emit the DERIVED keven_signs_q2xs signs64 SIGN plane as ONE `static const int8_t
-  /// tcrv_iq2xxs_signs64[1024] = { ... };` verbatim decl -- the 128-entry ksigns_iq2xs
+  /// weft_iq2xxs_signs64[1024] = { ... };` verbatim decl -- the 128-entry ksigns_iq2xs
   /// selector (canonical kIQ2XXSKsigns) EXPANDED to per-lane +-1 (byte b of selector j is
   /// `(ksigns[j] & (1<<b)) ? -1 : +1`). This IS the signs64 sign-plane mechanism carried
   /// by op identity (NO op-attr extension): the retired monolith derived it identically
@@ -2598,7 +2598,7 @@ private:
   /// instances), so this struct carries only the provenance, the size type, the two
   /// buffer pointer types, the iq3_xxs format byte offsets/sub-block shape, and the two
   /// per-loop-invariant SSA values the sub-block gather reads: the `grid32` (const
-  /// int32_t *) view of tcrv_iq3xxs_grid and the 8-lane `kmask` vuint8m1_t.
+  /// int32_t *) view of weft_iq3xxs_grid and the 8-lane `kmask` vuint8m1_t.
   struct IQ3XXSGridBodyContext {
     llvm::StringRef opName;
     llvm::StringRef role;
@@ -2614,12 +2614,12 @@ private:
     int64_t numSubBlocks;         //   8
     int64_t numGroups;            //   4 (sign groups per sub-block)
     int64_t indicesPerSubBlock;   //   8 (grid index bytes per sub-block)
-    mlir::Value grid32;           // the (const int32_t *) view of tcrv_iq3xxs_grid
+    mlir::Value grid32;           // the (const int32_t *) view of weft_iq3xxs_grid
     mlir::Value kmask;            // the 8-lane vuint8m1_t {1,2,4,8,16,32,64,128}
   };
 
   /// Emit the fixed 256-entry iq3_xxs GRID-of-4 codebook as ONE `static const uint32_t
-  /// tcrv_iq3xxs_grid[256] = { ... };` verbatim decl (ggml's exact hex literals rendered
+  /// weft_iq3xxs_grid[256] = { ... };` verbatim decl (ggml's exact hex literals rendered
   /// `0x%08xU`). The byte-exact SHARED anchor kept across the iq3_xxs flip: the retired
   /// monolith emitIQ3XXSQ8KBlockDot passed its carried grid attr; the typed grid loop
   /// lowering (the sole live caller) passes the canonical kIQ3XXSGrid so the emitted
@@ -2636,7 +2636,7 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
 
   /// Emit the fixed 128-entry ksigns_iq2xs SIGN plane as ONE `static const uint8_t
-  /// tcrv_iq3xxs_ksigns[128] = { ... };` verbatim decl, from the canonical kIQ3XXSKsigns
+  /// weft_iq3xxs_ksigns[128] = { ... };` verbatim decl, from the canonical kIQ3XXSKsigns
   /// constant (byte-identical to the monolith's carried ksigns attr decl).
   void emitIQ3XXSCanonicalKsignsTableDecl(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
@@ -2662,8 +2662,8 @@ private:
   /// flip lowering, iq3_xxs grid SIBLING): the iq3_s branch of the fold_model
   /// "scalar_delta_grid" path (dispatched by emitTypedSuperBlockScalarDeltaGridLoopBody
   /// when the region carries an iq3_s grid-core brick). It emits the wrapper -- the
-  /// `static const uint32_t tcrv_iq3s_grid[512]` GRID-of-4 decl (keyed off the grid-core
-  /// brick op identity from the canonical kIQ3SGrid), the inline `tcrv_iq3s_kmask[8]`
+  /// `static const uint32_t weft_iq3s_grid[512]` GRID-of-4 decl (keyed off the grid-core
+  /// brick op identity from the canonical kIQ3SGrid), the inline `weft_iq3s_kmask[8]`
   /// decl (iq3_s has NO ksigns plane -- the signs are an explicit memory region), the
   /// `sumf` float SCALAR accumulator seeded once OUTSIDE the loop, nb = n / QK_K, the
   /// ONCE 8-lane kmask load + the (const int32_t *) grid32 view, the outer emitc.for over
@@ -2678,9 +2678,9 @@ private:
   /// order) modulo the source-op provenance token + func name.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   // NOTE: the monolith emitIQ3SQ8KBlockDot emitter was RETIRED at the iq3_s flip
   // (C_construct 22->23): the front door now constructs the typed super-block
@@ -2695,7 +2695,7 @@ private:
   /// instances), so this struct carries only the provenance, the size type, the two
   /// buffer pointer types, the iq3_s format byte offsets/sub-block shape, and the two
   /// per-loop-invariant SSA values the sub-block gather reads: the `grid32` (const
-  /// int32_t *) view of tcrv_iq3s_grid and the 8-lane `kmask` vuint8m1_t. iq3_s has NO
+  /// int32_t *) view of weft_iq3s_grid and the 8-lane `kmask` vuint8m1_t. iq3_s has NO
   /// ksigns plane -- unlike iq3_xxs it reads EXPLICIT signs (offset 74), a qh-bit plane
   /// (offset 66), and explicit two-nibble scales (offset 106).
   struct IQ3SGridBodyContext {
@@ -2716,12 +2716,12 @@ private:
     int64_t numGroups;            //   4 (sign groups per sub-block)
     int64_t indicesPerSubBlock;   //   8 (grid index bytes per sub-block)
     int64_t signsPerSubBlock;     //   4 (explicit sign bytes per sub-block)
-    mlir::Value grid32;           // the (const int32_t *) view of tcrv_iq3s_grid
+    mlir::Value grid32;           // the (const int32_t *) view of weft_iq3s_grid
     mlir::Value kmask;            // the 8-lane vuint8m1_t {1,2,4,8,16,32,64,128}
   };
 
   /// Emit the fixed 512-entry iq3_s GRID-of-4 codebook as ONE `static const uint32_t
-  /// tcrv_iq3s_grid[512] = { ... };` verbatim decl (ggml's exact hex literals rendered
+  /// weft_iq3s_grid[512] = { ... };` verbatim decl (ggml's exact hex literals rendered
   /// `0x%08xU`). The byte-exact SHARED anchor kept across the iq3_s flip: the retired
   /// monolith emitIQ3SQ8KBlockDot passed its carried grid attr; the typed grid loop
   /// lowering (the sole live caller) passes the canonical kIQ3SGrid so the emitted decl
@@ -2758,9 +2758,9 @@ private:
   /// lowering, iq2_xxs grid SIBLING, SIGN-PLANE signs64 variant, PER-HALF explicit scale):
   /// the iq2_xs branch of the fold_model "scalar_delta_grid" path (dispatched by
   /// emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq2_xs grid-core
-  /// brick). It emits the wrapper -- the `static const int64_t tcrv_iq2xs_grid[512]` decl
+  /// brick). It emits the wrapper -- the `static const int64_t weft_iq2xs_grid[512]` decl
   /// (from the canonical kIQ2XSGrid), the DERIVED `static const int8_t
-  /// tcrv_iq2xs_signs64[1024]` signs64 SIGN plane (from kIQ2XSKsigns), the `sumf` float
+  /// weft_iq2xs_signs64[1024]` signs64 SIGN plane (from kIQ2XSKsigns), the `sumf` float
   /// SCALAR accumulator seeded once OUTSIDE the loop, nb = n / QK_K, the ONCE
   /// (const int64_t *) grid64 + signs64 views, the outer emitc.for over nb, the
   /// per-super-block base built from the brick's (base, block_index) via a shared memo
@@ -2774,9 +2774,9 @@ private:
   /// order) modulo the source-op provenance token + func name.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The bounded per-super-block byte-exact facts the iq2_xs per-half-scale GRID body helper
   /// reads (the I4 mirror off the grid-core brick). The emitc element/pointer types are
@@ -2784,7 +2784,7 @@ private:
   /// so this struct carries only the provenance, the size type, the two buffer pointer
   /// types, the iq2_xs format byte offsets/sub-block shape, and the two per-loop-invariant
   /// SSA views the sub-block gathers read: the `gridName` (const int64_t *) view of
-  /// tcrv_iq2xs_grid and the `signs64` (const int64_t *) view of tcrv_iq2xs_signs64 (the
+  /// weft_iq2xs_grid and the `signs64` (const int64_t *) view of weft_iq2xs_signs64 (the
   /// DERIVED keven_signs sign plane). UNLIKE iq2_xxs there is NO coreLmul (fixed 16-lane
   /// per-half shape); the scalesOffset carries the explicit per-sub-block scale byte stream.
   struct IQ2XSGridBodyContext {
@@ -2801,12 +2801,12 @@ private:
     int64_t subBlock;             //  32
     int64_t numSubBlocks;         //   8
     int64_t numGroupsPerHalf;     //   2 (grid/sign groups per 16-lane half)
-    mlir::Value gridName;         // the (const int64_t *) view of tcrv_iq2xs_grid
-    mlir::Value signs64;          // the (const int64_t *) view of tcrv_iq2xs_signs64
+    mlir::Value gridName;         // the (const int64_t *) view of weft_iq2xs_grid
+    mlir::Value signs64;          // the (const int64_t *) view of weft_iq2xs_signs64
   };
 
   /// Emit the fixed 512-entry iq2_xs GRID codebook as ONE `static const int64_t
-  /// tcrv_iq2xs_grid[512] = { ... };` verbatim decl (ggml's exact uint64 hex literals
+  /// weft_iq2xs_grid[512] = { ... };` verbatim decl (ggml's exact uint64 hex literals
   /// rendered `0x%016llxULL`), from the CANONICAL kIQ2XSGrid constant (the grid-core brick
   /// carries no grid in the IR -- the emitter keys the fixed codebook off the brick op
   /// identity). Byte-identical to the retired monolith decl.
@@ -2814,7 +2814,7 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
 
   /// Emit the DERIVED keven_signs_q2xs signs64 SIGN plane as ONE `static const int8_t
-  /// tcrv_iq2xs_signs64[1024] = { ... };` verbatim decl -- the 128-entry ksigns_iq2xs
+  /// weft_iq2xs_signs64[1024] = { ... };` verbatim decl -- the 128-entry ksigns_iq2xs
   /// selector (canonical kIQ2XSKsigns) EXPANDED to per-lane +-1 (byte b of selector j is
   /// `(ksigns[j] & (1<<b)) ? -1 : +1`). This IS the signs64 sign-plane mechanism carried by
   /// op identity (NO op-attr extension): the retired monolith derived it identically from
@@ -2843,9 +2843,9 @@ private:
   /// lowering, iq2_xs grid SIBLING, SIGN-PLANE explicit-signs variant, PER-HALF explicit
   /// scale): the iq2_s branch of the fold_model "scalar_delta_grid" path (dispatched by
   /// emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq2_s grid-core
-  /// brick). It emits the wrapper -- the `static const int64_t tcrv_iq2s_grid[1024]` decl
+  /// brick). It emits the wrapper -- the `static const int64_t weft_iq2s_grid[1024]` decl
   /// (from the canonical kIQ2SGrid), the UNIVERSAL `static const int8_t
-  /// tcrv_iq2s_signs256[2048]` sign plane, the `sumf` float SCALAR accumulator seeded
+  /// weft_iq2s_signs256[2048]` sign plane, the `sumf` float SCALAR accumulator seeded
   /// once OUTSIDE the loop, nb = n / QK_K, the ONCE (const int64_t *) grid64 + signs256
   /// views, the outer emitc.for over nb, the per-super-block base built from the brick's
   /// (base, block_index) via a shared memo (anti-bypass), and the trailing
@@ -2859,9 +2859,9 @@ private:
   /// order) modulo the source-op provenance token + func name.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+      weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The bounded per-super-block byte-exact facts the iq2_s per-half-scale GRID body helper
   /// reads (the I4 mirror off the grid-core brick). The emitc element/pointer types are
@@ -2869,7 +2869,7 @@ private:
   /// so this struct carries only the provenance, the size type, the two buffer pointer
   /// types, the iq2_s format byte offsets/sub-block shape, and the two per-loop-invariant
   /// SSA views the sub-block gathers read: the `gridName` (const int64_t *) view of
-  /// tcrv_iq2s_grid and the `signs256` (const int64_t *) view of tcrv_iq2s_signs256 (the
+  /// weft_iq2s_grid and the `signs256` (const int64_t *) view of weft_iq2s_signs256 (the
   /// UNIVERSAL explicit-sign-byte plane). Like iq2_xs there is NO coreLmul (fixed 16-lane
   /// per-half shape); iq2_s ADDS the signsOffset (the explicit sign-byte region at qs+32)
   /// and the qhOffset (the qh-bit plane) over iq2_xs.
@@ -2890,12 +2890,12 @@ private:
     int64_t numSubBlocks;         //   8
     int64_t groupsPerSub;         //   4 (grid groups per sub-block, l=0..3)
     int64_t numGroupsPerHalf;     //   2 (grid/sign groups per 16-lane half)
-    mlir::Value gridName;         // the (const int64_t *) view of tcrv_iq2s_grid
-    mlir::Value signs256;         // the (const int64_t *) view of tcrv_iq2s_signs256
+    mlir::Value gridName;         // the (const int64_t *) view of weft_iq2s_grid
+    mlir::Value signs256;         // the (const int64_t *) view of weft_iq2s_signs256
   };
 
   /// Emit the fixed 1024-entry iq2_s GRID codebook as ONE `static const int64_t
-  /// tcrv_iq2s_grid[1024] = { ... };` verbatim decl (ggml's exact uint64 hex literals
+  /// weft_iq2s_grid[1024] = { ... };` verbatim decl (ggml's exact uint64 hex literals
   /// rendered `0x%016llxULL`), from the CANONICAL kIQ2SGrid constant (the grid-core brick
   /// carries no grid in the IR -- the emitter keys the fixed codebook off the brick op
   /// identity). Byte-identical to the retired monolith decl.
@@ -2903,7 +2903,7 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
 
   /// Emit the UNIVERSAL signs256 SIGN plane as ONE `static const int8_t
-  /// tcrv_iq2s_signs256[2048] = { ... };` verbatim decl -- every 8-bit sign byte value v
+  /// weft_iq2s_signs256[2048] = { ... };` verbatim decl -- every 8-bit sign byte value v
   /// EXPANDED to per-lane +-1 (byte b of value v is `(v & (1<<b)) ? -1 : +1`). iq2_s has
   /// NO ksigns selector: its signs are EXPLICIT bytes read straight from the sign region,
   /// so the gather is indexed by the raw 8-bit sign byte DIRECTLY (0..255). This IS the
@@ -2942,7 +2942,7 @@ private:
   /// element/pointer types are re-derived inside the helper from the MLIRContext
   /// (uniqued -> the SAME Type instances), so this struct carries only the
   /// provenance, the size type, the two buffer pointer types, the format byte
-  /// offsets/sub-block shape, and the `tcrv_iq1s_grid` base literal.
+  /// offsets/sub-block shape, and the `weft_iq1s_grid` base literal.
   struct IQ1SGridBodyContext {
     llvm::StringRef opName;
     llvm::StringRef role;
@@ -2958,11 +2958,11 @@ private:
     int64_t subBlock;             //  32
     int64_t numSubBlocks;         //   8
     int64_t groupsPerSub;         //   4 (grid groups per sub-block)
-    mlir::Value gridArrayName;    // the `tcrv_iq1s_grid` u64 base literal
+    mlir::Value gridArrayName;    // the `weft_iq1s_grid` u64 base literal
   };
 
   /// Emit the fixed 2048-entry iq1_s TERNARY grid codebook as ONE `static const
-  /// uint64_t tcrv_iq1s_grid[2048] = { ... };` verbatim decl (ggml's exact hex
+  /// uint64_t weft_iq1s_grid[2048] = { ... };` verbatim decl (ggml's exact hex
   /// literals rendered `0x%016llxULL`). The byte-exact SHARED anchor kept across the
   /// iq1_s flip: the retired monolith emitIQ1SQ8KBlockDot passed its carried grid attr;
   /// the typed grid loop lowering (the sole live caller) passes the canonical kIQ1SGrid
@@ -3007,7 +3007,7 @@ private:
   /// element/pointer types are re-derived inside the helper from the MLIRContext
   /// (uniqued -> the SAME Type instances), so this struct carries only the
   /// provenance, the size type, the two buffer pointer types, the iq1_m format byte
-  /// offsets/sub-block shape, and the `tcrv_iq1m_grid` base literal. iq1_m carries NO
+  /// offsets/sub-block shape, and the `weft_iq1m_grid` base literal. iq1_m carries NO
   /// fp16 weight d (the scale is RECONSTRUCTED from the packed scales[] words) and NO
   /// bsums (the per-group delta reduces a fresh Σq8), so this struct has a
   /// weight_scales_byte_offset field (48) instead of iq1_s's bsums offset.
@@ -3025,11 +3025,11 @@ private:
     int64_t subBlock;             //  32
     int64_t numSubBlocks;         //   8
     int64_t groupsPerSub;         //   4 (grid groups per sub-block)
-    mlir::Value gridArrayName;    // the `tcrv_iq1m_grid` u64 base literal
+    mlir::Value gridArrayName;    // the `weft_iq1m_grid` u64 base literal
   };
 
   /// Emit the fixed 2048-entry iq1_m TERNARY grid codebook as ONE `static const
-  /// uint64_t tcrv_iq1m_grid[2048] = { ... };` verbatim decl (ggml's exact hex
+  /// uint64_t weft_iq1m_grid[2048] = { ... };` verbatim decl (ggml's exact hex
   /// literals rendered `0x%016llxULL`). The SAME 2048 ternary iq1s_grid literals as
   /// iq1_s (just a distinct decl NAME so the two coexist). The byte-exact SHARED
   /// anchor: the retired monolith emitIQ1MQ8KBlockDot passed its carried grid attr;
@@ -3065,7 +3065,7 @@ private:
       mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_mxfp4_q8_0 block dot-product for one
-  /// tcrv_rvv.mxfp4_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
+  /// weft_rvv.mxfp4_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
   /// raw()). It is the FP4 CODEBOOK sibling of emitIQ4NLQ8_0BlockDot, REUSING its
   /// codebook-gather integer core (vand 0x0F / vsrl 0x04 -> vrgather through the
   /// broadcast table -> the SAME emitOffsetBinaryProductFromDecodedValue product +
@@ -3083,9 +3083,9 @@ private:
   ///       EXACT bit construction (no scalbnf/ldexpf, byte-identical on denormals).
   ///       Only ONE fp16 read survives (the q8_0 d_y).
   ///
-  ///   static const int8_t tcrv_mxfp4_kvalues[16] = { ... };  // FP4 codebook decl
+  ///   static const int8_t weft_mxfp4_kvalues[16] = { ... };  // FP4 codebook decl
   ///   float sumf = 0.0f;  size_t nb = n / 32;
-  ///   vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_mxfp4_kvalues, 16);   // ONCE
+  ///   vint8m1_t values = __riscv_vle8_v_i8m1(weft_mxfp4_kvalues, 16);   // ONCE
   ///   for (size_t ib = 0; ib < nb; ib += 1) {
   ///     const uint8_t *xb = vx + ib*17;  const uint8_t *yb = vy + ib*34;
   ///     uint8_t  e   = *(const uint8_t *)(xb);                // E8M0 exponent
@@ -3104,7 +3104,7 @@ private:
   /// the verifier enforces it (the FP4 codebook class is inherently Zvl128b-gated).
   mlir::LogicalResult emitMXFP4Q8_0BlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   // NOTE: the monolith emitter emitNVFP4Q8_0BlockDot was RETIRED at the nvfp4 flip
@@ -3246,7 +3246,7 @@ private:
       mlir::TypedValue<emitc::ArrayType> utmpArray) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_q1_0_q8_0 block dot-product for one
-  /// tcrv_rvv.q1_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
+  /// weft_rvv.q1_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-control-flow blob -- every value is a node in the IR graph). It
   /// is the BINARY ({-1,+1}) class: each q1_0 weight bit is a SIGN (set -> +q8,
   /// clear -> -q8) and the q8 value itself is the magnitude. It runs ggml's
@@ -3287,7 +3287,7 @@ private:
   /// pieces.
   mlir::LogicalResult emitQ1_0Q8_0BlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The BYTE-EXACT q1_0 x q8_0 BINARY-sign block-dot body, SHARED by (a) the
@@ -3309,7 +3309,7 @@ private:
       int64_t activationQuantOffset) const;
 
   /// Emit the ggml ggml_vec_dot_q6_K_q8_K INTEGER CORE (the K-quant K1
-  /// increment) for one tcrv_rvv.q6_k_q8_k_aux32_partial op as fully STRUCTURED
+  /// increment) for one weft_rvv.q6_k_q8_k_aux32_partial op as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-control-flow blob). It reproduces the
   /// per-super-block aux32[8] integer state EXACTLY as _generic computes it right
   /// before the fp32 d-multiply, byte-exact, and stores it through the output
@@ -3336,7 +3336,7 @@ private:
   /// (I4 mirror); the emission is the op's fixed structure.
   mlir::LogicalResult emitQ6_KQ8_KAux32Partial(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Shared context for the q4_K super-block integer core (K4a + K4b), carrying
@@ -3490,7 +3490,7 @@ private:
   /// the SAME node sequence is shared VERBATIM by emitQ4_KSuperBlockAux32Core
   /// (the monolithic q4_K/q5_K integer core, which calls this in-loop after the
   /// per-super-block address arithmetic) AND the first-class
-  /// tcrv_rvv.q4_k_nibble_unpack op's lowering (which declares its own aux8 and
+  /// weft_rvv.q4_k_nibble_unpack op's lowering (which declares its own aux8 and
   /// decodes one super-block), so both emit byte-identical Region-A C. Writes
   /// aux8Array as a side effect; returns nothing.
   void emitQ4_KPlainNibbleUnpack(
@@ -3507,7 +3507,7 @@ private:
   /// *)&utmp[0]. This is the Track B q4_K BRICK 2 vocabulary: the SAME node
   /// sequence is shared VERBATIM by emitQ4_KSuperBlockAux32Core (the monolithic
   /// q4_K/q5_K integer core, which calls this in-loop after the Region-A unpack)
-  /// AND the first-class tcrv_rvv.q4_k_scale_min_bit_dance op's lowering (which
+  /// AND the first-class weft_rvv.q4_k_scale_min_bit_dance op's lowering (which
   /// declares its own utmp and decodes one super-block), so both emit
   /// byte-identical Region-B C. Writes utmpArray as a side effect.
   mlir::Value emitQ4_KScaleMinBitDanceCore(
@@ -3534,7 +3534,7 @@ private:
   /// q4_K BRICK 3 vocabulary: the SAME node sequence is shared VERBATIM by
   /// emitQ4_KSuperBlockAux32Core (the monolithic q4_K/q5_K integer core, which
   /// calls this in-loop after the Region-A unpack + Region-B bit-dance) AND the
-  /// first-class tcrv_rvv.q4_k_scaled_dot op's lowering (which passes the aux8 /
+  /// first-class weft_rvv.q4_k_scaled_dot op's lowering (which passes the aux8 /
   /// scales / q8 ABI input pointers and stores the canonical-8 aux32 observable),
   /// so both emit byte-identical Region-C C.
   mlir::TypedValue<emitc::LValueType> emitQ4_KScaledDotIntoAux32(
@@ -3552,7 +3552,7 @@ private:
   /// is the Track B q4_K BRICK 4 vocabulary half: the SAME node sequence is
   /// shared VERBATIM by emitQ4_KQ8_KBlockDot (the monolithic q4_K/q5_K block dot,
   /// which emits it BEFORE its deferred positive fold) AND the first-class
-  /// tcrv_rvv.q4_k_min_term op's lowering, so both emit byte-identical C. (The
+  /// weft_rvv.q4_k_min_term op's lowering, so both emit byte-identical C. (The
   /// MIN term's two halves are interleaved with the positive fold in the monolith
   /// loop -- the reduction here, the subtract after -- but are data-independent,
   /// so the carve is two byte-exact helpers, NOT one contiguous span.)
@@ -3571,7 +3571,7 @@ private:
   /// `dmin * sumi` is a single fixed-order scalar fp multiply -- no
   /// fp-reassociation seam. The SAME node sequence is shared VERBATIM by
   /// emitQ4_KQ8_KBlockDot (which emits it AFTER its positive fold) AND the
-  /// first-class tcrv_rvv.q4_k_min_term op's lowering, so both emit
+  /// first-class weft_rvv.q4_k_min_term op's lowering, so both emit
   /// byte-identical C.
   void emitQ4_KMinTermSubtract(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -3591,7 +3591,7 @@ private:
   /// the current insertion point. The SAME node sequence is shared VERBATIM by
   /// emitQ4_KQ8_KBlockDot (the monolithic q4_K/q5_K block dot, which emits it
   /// in-loop BETWEEN the two interleaved-but-data-independent MIN-term halves) AND
-  /// the first-class tcrv_rvv.q4_k_sums_fold_scale_d op's lowering, so both emit
+  /// the first-class weft_rvv.q4_k_sums_fold_scale_d op's lowering, so both emit
   /// byte-identical positive-fold C. `dy` is the once-loaded fp32 activation scale
   /// (the monolith loads it at fold_activation_d, shared with the MIN subtract;
   /// the standalone op loads it in its wrapper). The weight pointer type is
@@ -3616,7 +3616,7 @@ private:
   /// the standalone op stores into a local sink) -- it RETURNS the final sumf Value
   /// so each caller can store it. The SAME node sequence is shared VERBATIM by
   /// emitQ4_KQ8_KBlockDot (the monolithic q4_K block dot, which emits it after its
-  /// super-block loop) AND the first-class tcrv_rvv.q4_k_horizontal_fold op's
+  /// super-block loop) AND the first-class weft_rvv.q4_k_horizontal_fold op's
   /// lowering, so both emit byte-identical horizontal-fold C.
   mlir::Value emitQ4_KHorizontalFold(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -3655,7 +3655,7 @@ private:
       mlir::Value ib) const;
 
   /// Emit the ggml ggml_vec_dot_q4_K_q8_K INTEGER CORE (the q4_K K4a increment)
-  /// for one tcrv_rvv.q4_k_q8_k_aux_partial op as fully STRUCTURED emitc nodes
+  /// for one weft_rvv.q4_k_q8_k_aux_partial op as fully STRUCTURED emitc nodes
   /// (I5; no verbatim C-control-flow blob, no raw() -- including the 6-bit
   /// scale/min bit-dance, which is scalar emitc.bitwise_and/_or/_left_shift/
   /// _right_shift). It reproduces ggml _generic's per-super-block INTEGER state
@@ -3690,10 +3690,10 @@ private:
   /// q6_K's emitted bytes stay byte-identical (additive).
   mlir::LogicalResult emitQ4_KQ8_KAux32Partial(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the Track B q4_K BRICK 1 op (tcrv_rvv.q4_k_nibble_unpack) as fully
+  /// Emit the Track B q4_K BRICK 1 op (weft_rvv.q4_k_nibble_unpack) as fully
   /// STRUCTURED emitc nodes: DECLARE the function-scoped int8_t aux8[256] scratch
   /// and fill it with ONE super-block's Region-A plain 4-bit nibble unpack (the
   /// shared emitQ4_KPlainNibbleUnpack helper, byte-identical to the monolithic
@@ -3703,10 +3703,10 @@ private:
   /// literal (the unpack writes aux8 as a side effect; the token has no live use).
   mlir::LogicalResult emitQ4_KNibbleUnpack(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the Track B q4_K BRICK 2 op (tcrv_rvv.q4_k_scale_min_bit_dance) as
+  /// Emit the Track B q4_K BRICK 2 op (weft_rvv.q4_k_scale_min_bit_dance) as
   /// fully STRUCTURED emitc nodes: DECLARE the function-scoped uint32_t utmp[4]
   /// scratch and fill it with ONE super-block's Region-B 6-bit scale/min
   /// bit-dance (the shared emitQ4_KScaleMinBitDanceCore helper, byte-identical to
@@ -3719,10 +3719,10 @@ private:
   /// scale_min as a side effect; the token has no live use).
   mlir::LogicalResult emitQ4_KScaleMinBitDance(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the Track B q4_K BRICK 3 op (tcrv_rvv.q4_k_scaled_dot) as fully
+  /// Emit the Track B q4_K BRICK 3 op (weft_rvv.q4_k_scaled_dot) as fully
   /// STRUCTURED emitc nodes: derive the integer_core_lmul widening chain (the
   /// SAME detail::deriveWideningChain the monolithic q4_K core uses), build the
   /// integer-core context with the WIDE Region-C MAC types, then call the shared
@@ -3740,10 +3740,10 @@ private:
   /// to a zero literal (the dot writes aux32_out as a side effect; no live use).
   mlir::LogicalResult emitQ4_KScaledDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the Track B q4_K BRICK 4 op (tcrv_rvv.q4_k_min_term) as fully
+  /// Emit the Track B q4_K BRICK 4 op (weft_rvv.q4_k_min_term) as fully
   /// STRUCTURED emitc nodes: declare the op's OWN scalar `float sumf = 0.0f`
   /// accumulator + a local sink, load the fp32 activation scale dy once (the
   /// monolith's fold_activation_d, here the op's own setup), then call the SAME
@@ -3760,10 +3760,10 @@ private:
   /// writes sumf as a side effect; no live use).
   mlir::LogicalResult emitQ4_KMinTerm(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the Track B q4_K BRICK 6 op (tcrv_rvv.q4_k_sums_fold_scale_d) as fully
+  /// Emit the Track B q4_K BRICK 6 op (weft_rvv.q4_k_sums_fold_scale_d) as fully
   /// STRUCTURED emitc nodes: declare the op's OWN 8-lane fp32 `vfloat32m2_t sums =
   /// vfmv_v_f_f32m2(0.0f, 8)` accumulator + a local float sums_out[8] sink,
   /// vle32-load the BRICK 3 canonical-8 aux32 from the ABI int32 pointer into a
@@ -3781,10 +3781,10 @@ private:
   /// live use).
   mlir::LogicalResult emitQ4_KSumsFoldScaleD(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the Track B q4_K BRICK 7 op (tcrv_rvv.q4_k_horizontal_fold) as fully
+  /// Emit the Track B q4_K BRICK 7 op (weft_rvv.q4_k_horizontal_fold) as fully
   /// STRUCTURED emitc nodes: declare the op's OWN 8-lane fp32 `vfloat32m2_t sums`
   /// accumulator (vle32-loaded from the ABI const float * source so the fold has
   /// observable input) + a `float sumf` accumulator (seeded 0.0f) + a `float
@@ -3800,7 +3800,7 @@ private:
   /// sumf_out as a side effect; no live use).
   mlir::LogicalResult emitQ4_KHorizontalFold(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Shared context for the q2_K super-block SCALAR integer core + scalar fold
@@ -3901,7 +3901,7 @@ private:
 
   /// Value-level emission of the ggml offset-binary asymmetric i4xi8
   /// decode/product chain, factored so BOTH the standalone
-  /// tcrv_rvv.packed_i4_offset_binary_x_i8_product op (INC-1) AND the block-dot
+  /// weft_rvv.packed_i4_offset_binary_x_i8_product op (INC-1) AND the block-dot
   /// inner loop (INC-2a) drive the SAME structured nodes. Returns the i16
   /// widening product value (low + high halves) for the given already-mapped
   /// i8mf4 weight/activation values, their EmitC types, and the active VL:
@@ -4027,7 +4027,7 @@ private:
 
   /// Emit the M-FLAT forward-elementwise scaffold's typed strip-loop body (the
   /// constructed sibling of emitTypedFlatBlockDotLoopBody) for one
-  /// tcrv_rvv.typed_elementwise_loop_body op as fully STRUCTURED emitc nodes
+  /// weft_rvv.typed_elementwise_loop_body op as fully STRUCTURED emitc nodes
   /// (I5; no verbatim C-string blob -- every value is a node in the IR graph):
   ///   size_t vlmax = __riscv_vsetvl_e32m<L>(n);
   ///   for (size_t i = 0; i < n; i += vlmax) {
@@ -4037,17 +4037,17 @@ private:
   ///     __riscv_vse32_v_f32m<L>(y + i, ny, vl);       // in-place store back
   ///   }
   /// The outer strip loop is owned by the loop-body op; the per-strip body
-  /// (the map) is re-emitted from the region's tcrv_rvv.elementwise_scale_map
+  /// (the map) is re-emitted from the region's weft_rvv.elementwise_scale_map
   /// core brick, whose strip_index MUST be the loop induction variable (region
   /// arg 0, anti-bypass). This is BYTE-EXACT to the retired monolith
-  /// tcrv_rvv.ggml_vec_scale_f32 emit modulo ONLY the source-op provenance
+  /// weft_rvv.ggml_vec_scale_f32 emit modulo ONLY the source-op provenance
   /// token: a bare per-lane fp32 multiply (no FMA -> -ffp-contract cannot bite;
   /// no cross-lane reduction -> LMUL/tail/strip-count are correctness-free). The
   /// strip LMUL is the bounded resource knob (default m8, matching ggml). The
   /// intrinsics are emitc.call_opaque nodes (the one sanctioned opaque piece).
   mlir::LogicalResult emitTypedElementwiseLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the CONSTRUCTED ggml rms_norm reduce-model body (the reduce sibling of
@@ -4056,7 +4056,7 @@ private:
   /// loop op owns the reduce shape (reduce_map_model "reduce": a loop-carried f64
   /// accumulator region arg + the yield that carries it back); this re-emit
   /// sources the whole rms_norm ABI + the byte-exact fold/rsqrt/normalize from
-  /// the region's tcrv_rvv.elementwise_rms_norm_reduce_core brick (anti-bypass):
+  /// the region's weft_rvv.elementwise_rms_norm_reduce_core brick (anti-bypass):
   ///   double sum = 0.0;                          // ggml_float accumulator
   ///   for (size_t i = 0; i < ne00; ++i) {        // SCALAR ascending fold
   ///     float p = x[i] * x[i];                    // f32 product (one f32 round)
@@ -4083,11 +4083,11 @@ private:
   /// the same scalar `scale`. The reduction is emitted as STRUCTURED scalar emitc
   /// nodes (variable/load/mul/cast/add/assign), NOT a raw string. This is
   /// BYTE-EXACT to the retired monolith emit modulo the source-op provenance
-  /// token (tcrv_rvv.ggml_rms_norm_f32 -> tcrv_rvv.elementwise_rms_norm_reduce_core).
+  /// token (weft_rvv.ggml_rms_norm_f32 -> weft_rvv.elementwise_rms_norm_reduce_core).
   mlir::LogicalResult emitElementwiseRmsNormReduceStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-      tcrvrvv::ElementwiseRmsNormReduceCoreOp rmsCore, mlir::Value avlArg,
+      weftrvv::TypedElementwiseLoopBodyOp loopBody,
+      weftrvv::ElementwiseRmsNormReduceCoreOp rmsCore, mlir::Value avlArg,
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -4114,7 +4114,7 @@ private:
   /// Emit the M-FLAT forward-elementwise scaffold's per-strip SILU map (the
   /// SECOND map-family core brick, reusing the SAME typed strip-loop op + map
   /// model + outer-loop machinery scale landed) for ONE
-  /// tcrv_rvv.elementwise_silu_map brick as fully STRUCTURED emitc nodes (I5; no
+  /// weft_rvv.elementwise_silu_map brick as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-string blob -- every value is a node):
   ///   size_t vlmax = __riscv_vsetvl_e32m2(n);
   ///   for (size_t i = 0; i < n; i += vlmax) {
@@ -4125,10 +4125,10 @@ private:
   ///   }
   /// silu = vfneg(x) -> ggml_v_expf_m2 -> vfadd 1.0f -> vfdiv(x, 1+exp). The outer
   /// strip loop is owned by the loop-body op; the per-strip silu is re-emitted
-  /// from the region's tcrv_rvv.elementwise_silu_map core brick, whose strip_index
+  /// from the region's weft_rvv.elementwise_silu_map core brick, whose strip_index
   /// MUST be the loop induction variable (region arg 0, anti-bypass), so the emit
   /// addresses x + i / y + i, not the loop-invariant strip 0. This is BYTE-EXACT
-  /// to the retired monolith tcrv_rvv.ggml_vec_silu_f32 emit modulo ONLY the
+  /// to the retired monolith weft_rvv.ggml_vec_silu_f32 emit modulo ONLY the
   /// source-op provenance token.
   ///
   /// BYTE-EXACTNESS to ggml's REAL vectorized silu hinges on replicating
@@ -4144,8 +4144,8 @@ private:
   /// the m2-tied vbool16_t/vuint32m2_t types), so there is no strip_lmul knob.
   mlir::LogicalResult emitElementwiseSiluMapStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-      tcrvrvv::ElementwiseSiluMapOp siluOp, mlir::Value avlArg,
+      weftrvv::TypedElementwiseLoopBodyOp loopBody,
+      weftrvv::ElementwiseSiluMapOp siluOp, mlir::Value avlArg,
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
@@ -4157,7 +4157,7 @@ private:
   /// The outer loop op owns the reduce shape (reduce_map_model "reduce": a
   /// loop-carried f64m1 WIDENING accumulator region arg + the yield that carries
   /// it back); this re-emit sources the whole soft_max ABI + the byte-exact fused
-  /// strip from the region's tcrv_rvv.elementwise_soft_max_reduce_core brick
+  /// strip from the region's weft_rvv.elementwise_soft_max_reduce_core brick
   /// (anti-bypass: its strip_index is region arg 0 and its acc is region arg 1):
   ///   vfloat64m1_t vsum = __riscv_vfmv_v_f_f64m1(0, 1);
   ///   for (size_t i = 0; i < n; i += vlmax) {
@@ -4178,17 +4178,17 @@ private:
   /// type is the opaque vector vfloat64m1_t. exp(x-max) reuses the SHARED
   /// node-for-node ggml_v_expf_m2 chain (emitGgmlVExpfM2), so y[] and each val
   /// are bit-identical to ggml's silu/soft_max. This is BYTE-EXACT to the retired
-  /// monolith tcrv_rvv.ggml_vec_soft_max_f32 emit modulo ONLY the source-op
+  /// monolith weft_rvv.ggml_vec_soft_max_f32 emit modulo ONLY the source-op
   /// provenance token. Returns the f64 sum value (the dispatch wraps it in the
   /// function's `return`).
   mlir::FailureOr<mlir::Value> emitElementwiseSoftMaxReduceStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the COMPLETE ggml `quantize_row_q8_0` RVV-path forward-pass op (the F4
   /// f32 -> block_q8_0 activation quantizer; riscv/quants.c:32-71) for one
-  /// tcrv_rvv.quantize_row_q8_0 op as fully STRUCTURED emitc nodes (I5; no
+  /// weft_rvv.quantize_row_q8_0 op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-string blob -- every value is a node in the IR graph):
   ///   size_t nb = n / 32;
   ///   for (size_t ib = 0; ib < nb; ib += 1) {
@@ -4227,7 +4227,7 @@ private:
   /// change the rounding mode or fail to compile).
   mlir::LogicalResult emitGgmlQuantizeRowQ80(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit ggml's per-block block_q8_0 amax/scale/narrow body (riscv/quants.c:
@@ -4256,7 +4256,7 @@ private:
                                 llvm::StringRef opName, llvm::StringRef role) const;
 
   /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_1` RVV-path body for the single
-  /// tcrv_rvv.quantize_row_q8_1 op nested under `scope` as fully STRUCTURED emitc
+  /// weft_rvv.quantize_row_q8_1 op nested under `scope` as fully STRUCTURED emitc
   /// nodes (I5). The SIBLING of emitGgmlQuantizeRowQ80: the SAME per-32-block amax
   /// reduction + d = amax/127 + id = d?1/d:0 + fp16 d store + vfmul scale +
   /// vfncvt/vncvt f32->i16->i8 narrow + the 32 int8 qs store, PLUS the extra
@@ -4271,11 +4271,11 @@ private:
   /// brick).
   mlir::LogicalResult emitGgmlQuantizeRowQ81(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_K` RVV-path body for the single
-  /// tcrv_rvv.quantize_row_q8_K op nested under `scope` as fully STRUCTURED emitc
+  /// weft_rvv.quantize_row_q8_K op nested under `scope` as fully STRUCTURED emitc
   /// nodes (I5). The heaviest quantizer: an outer QK_K=256 super-block loop whose
   /// body (1) folds a min AND max over an e32m8 strip loop (vfmax_vv/vfmin_vv)
   /// then vfredmax/vfredmin to scalars, (2) computes amax via fabsf and the
@@ -4288,12 +4288,12 @@ private:
   /// monolith body (wiring, not construction: no typed loop brick).
   mlir::LogicalResult emitGgmlQuantizeRowQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The quantize FRONT DOOR (G3 line-B, the f32->QUANT mirror of
   /// constructOrEmitGgmlDequantizeRow): CONSTRUCT the typed
-  /// tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+  /// weft_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
   /// typed_quantize_row_loop_yield } in place of the abstract per-format quantize op
   /// `quantOp` (with encode_model + the ggml ABI block facts), then LOWER it via
   /// emitTypedQuantizeRowLoopBody. Called by the emitGgmlQuantizeRowQ8{0,1,K} entry
@@ -4302,16 +4302,16 @@ private:
   /// the retired per-format monolith modulo only the source-op provenance token.
   mlir::LogicalResult constructQuantizeRowRegionAndLower(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
+      weftrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
       mlir::Value output, mlir::Value n, llvm::StringRef encodeModel,
       int64_t qk, int64_t stride, int64_t scaleOff, int64_t quantOff,
       mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Lower the CONSTRUCTED streaming quantize_row region
-  /// (tcrv_rvv.typed_quantize_row_loop_body carrying ONE
-  /// tcrv_rvv.quantize_row_encode_core brick + the VOID
-  /// tcrv_rvv.typed_quantize_row_loop_yield). Walks the region, sources the ABI bases
+  /// (weft_rvv.typed_quantize_row_loop_body carrying ONE
+  /// weft_rvv.quantize_row_encode_core brick + the VOID
+  /// weft_rvv.typed_quantize_row_loop_yield). Walks the region, sources the ABI bases
   /// from the brick (anti-bypass I7: block_index == region arg 0), gates encode_model,
   /// and dispatches to the per-format SHARED body emitter
   /// (emitQuantizeRowQ8{0,1,K}BodyShared) -- byte-exact to the retired per-format
@@ -4319,7 +4319,7 @@ private:
   /// emitTypedDequantizeRowLoopBody (f32->QUANT rather than QUANT->f32).
   mlir::LogicalResult emitTypedQuantizeRowLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The per-format CONSTRUCTED quantize_row block-encode leaves: each re-emits the
@@ -4375,39 +4375,39 @@ private:
       llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg) const;
 
   /// Re-emit the CONSTRUCTED forward BINARY map (add/mul) from the region's
-  /// tcrv_rvv.elementwise_binary_map brick: anti-bypass check the strip_index, look
+  /// weft_rvv.elementwise_binary_map brick: anti-bypass check the strip_index, look
   /// up the lhs/rhs/output ABI, then call emitForwardVecMapStrip with the
   /// binary_op-selected vfadd_vv | vfmul_vv combiner (byte-exact to the support-op
   /// emit modulo the source-op provenance token).
   mlir::LogicalResult emitElementwiseBinaryMapStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-      tcrvrvv::ElementwiseBinaryMapOp binaryOp, mlir::Value avlArg,
+      weftrvv::TypedElementwiseLoopBodyOp loopBody,
+      weftrvv::ElementwiseBinaryMapOp binaryOp, mlir::Value avlArg,
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Re-emit the CONSTRUCTED forward COPY map (cpy) from the region's
-  /// tcrv_rvv.elementwise_copy_map brick: anti-bypass, look up input/output, then
+  /// weft_rvv.elementwise_copy_map brick: anti-bypass, look up input/output, then
   /// call emitForwardVecMapStrip with an EMPTY combiner (the pass-through copy).
   mlir::LogicalResult emitElementwiseCopyMapStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-      tcrvrvv::ElementwiseCopyMapOp copyOp, mlir::Value avlArg,
+      weftrvv::TypedElementwiseLoopBodyOp loopBody,
+      weftrvv::ElementwiseCopyMapOp copyOp, mlir::Value avlArg,
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Re-emit the CONSTRUCTED forward GELU map (gelu) from the region's
-  /// tcrv_rvv.elementwise_gelu_map brick: anti-bypass, look up input/output, then
+  /// weft_rvv.elementwise_gelu_map brick: anti-bypass, look up input/output, then
   /// call emitForwardGeluScalarLoop (the scalar per-element tanh gelu).
   mlir::LogicalResult emitElementwiseGeluMapStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-      tcrvrvv::ElementwiseGeluMapOp geluOp, mlir::Value avlArg,
+      weftrvv::TypedElementwiseLoopBodyOp loopBody,
+      weftrvv::ElementwiseGeluMapOp geluOp, mlir::Value avlArg,
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the DISPATCH-WIRED dequantize_row body for the single
-  /// tcrv_rvv.dequantize_row op nested under `scope`. The op's bounded `format`
+  /// weft_rvv.dequantize_row op nested under `scope`. The op's bounded `format`
   /// selects the per-format AoS block-decode: a scalar block loop reproducing
   /// ggml's reference dequantize_row_<format> byte-exactly -- the fp16 block scale
   /// via the `(float)*(const _Float16 *)` seam, then the nibble unpack (q4_0/q4_1),
@@ -4415,7 +4415,7 @@ private:
   /// monolith body (wiring, not construction: no typed loop brick).
   mlir::LogicalResult emitGgmlDequantizeRow(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the DISPATCH-WIRED dequantize_row body for the EXTENDED (non-legacy)
@@ -4445,23 +4445,23 @@ private:
       mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
       llvm::StringRef role) const;
 
-  /// True iff `scope`'s body is exactly ONE tcrv_rvv.typed_dequantize_row_loop_body
+  /// True iff `scope`'s body is exactly ONE weft_rvv.typed_dequantize_row_loop_body
   /// (the FRONT-DOOR CONSTRUCTED streaming dequantize_row region). Mirrors
   /// isTypedFlatBlockDotLoopBody; the recognizer for the constructed dequant path.
-  static bool isTypedDequantizeRowLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedDequantizeRowLoopBody(weftrvv::WithVLOp scope);
 
-  /// True iff `scope`'s body is exactly ONE tcrv_rvv.typed_quantize_row_loop_body
+  /// True iff `scope`'s body is exactly ONE weft_rvv.typed_quantize_row_loop_body
   /// (the PRE-EMITC FRONT-DOOR CONSTRUCTED streaming quantize_row region, from the
   /// RVVQuantizeRowStreamFrontDoor pass -- the abstract quantize_row_q8_{0,1,K} is
   /// already rewritten away). Mirrors isTypedDequantizeRowLoopBody; the recognizer
   /// for the pre-constructed quant path so the emit dispatches to
   /// emitTypedQuantizeRowLoopBody (byte-exact to the in-emitc construct+emit path).
-  static bool isTypedQuantizeRowLoopBody(tcrvrvv::WithVLOp scope);
+  static bool isTypedQuantizeRowLoopBody(weftrvv::WithVLOp scope);
 
   /// Lower the CONSTRUCTED streaming dequantize_row region
-  /// (tcrv_rvv.typed_dequantize_row_loop_body carrying ONE
-  /// tcrv_rvv.dequantize_row_decode_core brick + the VOID
-  /// tcrv_rvv.typed_dequantize_row_loop_yield). Walks the region, sources the ABI
+  /// (weft_rvv.typed_dequantize_row_loop_body carrying ONE
+  /// weft_rvv.dequantize_row_decode_core brick + the VOID
+  /// weft_rvv.typed_dequantize_row_loop_yield). Walks the region, sources the ABI
   /// bases from the brick (anti-bypass I7: block_index == region arg 0), and re-emits
   /// the whole nb block loop + per-block decode via the SHARED body emitter
   /// (emitDequantizeRowQ8_0BodyShared) -- byte-exact to the dispatch-wired q8_0
@@ -4469,18 +4469,18 @@ private:
   /// store is the sink), so it is wired as a kBlockDotKernels entry.
   mlir::LogicalResult emitTypedDequantizeRowLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The dequant FRONT DOOR for the family-head q8_0: CONSTRUCT the typed
-  /// tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
+  /// weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
   /// typed_dequantize_row_loop_yield } in place of the abstract deqOp, then LOWER it
   /// via emitTypedDequantizeRowLoopBody. The other 22 formats fall through to the
   /// dispatch-wired monolith (emitGgmlDequantizeRow). Called from the
   /// isGgmlDequantizeRowBody branch of the emit driver.
   mlir::LogicalResult constructOrEmitGgmlDequantizeRow(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The SHARED q8_0 dequantize_row block-decode body emit: the AoS `nb = k/32`
@@ -4611,7 +4611,7 @@ private:
   /// rotate shape (reduce_map_model "rotate": a per-pair scalar loop with a
   /// loop-carried f32 theta region arg + the yield that carries it back); this
   /// re-emit sources the whole rope ABI + the byte-exact per-pair rotation from
-  /// the region's tcrv_rvv.elementwise_rope_rotate_core brick (anti-bypass: its
+  /// the region's weft_rvv.elementwise_rope_rotate_core brick (anti-bypass: its
   /// pair_index is region arg 0 and its theta is region arg 1):
   ///   float theta = theta_base;                        // the recurrence seed
   ///   size_t n_pairs = n_dims / 2;
@@ -4646,18 +4646,18 @@ private:
   /// rotation (vectorizing would gather scalars into vectors with no exactness
   /// gain). The recurrence theta is a loop-carried emitc.variable lvalue +
   /// emitc.assign (emitc.for has no iter_args), exactly as F3's scalar-double sum.
-  /// This is BYTE-EXACT to the retired monolith tcrv_rvv.ggml_rope_norm_f32 emit
+  /// This is BYTE-EXACT to the retired monolith weft_rvv.ggml_rope_norm_f32 emit
   /// modulo ONLY the source-op provenance token.
   mlir::LogicalResult emitElementwiseRopeRotateStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-      tcrvrvv::ElementwiseRopeRotateCoreOp ropeCore, mlir::Value avlArg,
+      weftrvv::TypedElementwiseLoopBodyOp loopBody,
+      weftrvv::ElementwiseRopeRotateCoreOp ropeCore, mlir::Value avlArg,
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   mlir::LogicalResult emitPackedI4OffsetBinaryXI8Product(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::PackedI4OffsetBinaryXI8ProductOp packed,
+      weftrvv::PackedI4OffsetBinaryXI8ProductOp packed,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -4693,12 +4693,12 @@ private:
   /// codebook emitter's once-above-loop table broadcast.
   mlir::LogicalResult emitCodebookTableBroadcast(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::CodebookTableBroadcastOp table,
+      weftrvv::CodebookTableBroadcastOp table,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   mlir::LogicalResult emitCodebookGatherXI8Product(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::CodebookGatherXI8ProductOp gather,
+      weftrvv::CodebookGatherXI8ProductOp gather,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -4712,7 +4712,7 @@ private:
   /// off the weight LMUL. Pure node construction; no string plan read.
   mlir::LogicalResult emitUnsignedNibbleXI8Product(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::UnsignedNibbleXI8ProductOp product,
+      weftrvv::UnsignedNibbleXI8ProductOp product,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -4728,7 +4728,7 @@ private:
   /// body). Pure node construction; no string plan read.
   mlir::LogicalResult emitFiveBitOffsetBinaryXI8Product(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::FiveBitOffsetBinaryXI8ProductOp product,
+      weftrvv::FiveBitOffsetBinaryXI8ProductOp product,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -4740,7 +4740,7 @@ private:
   /// wholesale after the walk).
   mlir::LogicalResult emitBlockFiveBitQhSource(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::BlockFiveBitQhSourceOp qhSource,
+      weftrvv::BlockFiveBitQhSourceOp qhSource,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -4753,7 +4753,7 @@ private:
   /// vector chunk (the per-chunk macc seed), not a scalar-carry cell.
   mlir::LogicalResult
   emitWideningMAcc(mlir::ConversionPatternRewriter &rewriter,
-                   mlir::Location loc, tcrvrvv::WideningMAccOp macc,
+                   mlir::Location loc, weftrvv::WideningMAccOp macc,
                    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                    mlir::Value bodyVL) const;
 
@@ -4768,7 +4768,7 @@ private:
   /// vwmul/vredsum dtype/lmul derive from the RESULT (i32/m1) vector.
   mlir::LogicalResult
   emitWideningDotReduce(mlir::ConversionPatternRewriter &rewriter,
-                        mlir::Location loc, tcrvrvv::WideningDotReduceOp dot,
+                        mlir::Location loc, weftrvv::WideningDotReduceOp dot,
                         llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                         mlir::Value outBuffer, mlir::Value bodyVL) const;
 
@@ -4782,7 +4782,7 @@ private:
   ///   v<rd>m1 red = __riscv_vredsum_vs_<rd>m1_<rd>m1(mrg, seed, vl);
   mlir::LogicalResult emitMaskedWideningDotReduce(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedWideningDotReduceOp dot,
+      weftrvv::MaskedWideningDotReduceOp dot,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, mlir::Value outBuffer,
       mlir::Value bodyVL) const;
 
@@ -4798,7 +4798,7 @@ private:
   /// Existing single-slice callers pass the default null and emit one add.
   mlir::LogicalResult
   emitStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-            tcrvrvv::StoreOp store,
+            weftrvv::StoreOp store,
             llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
             mlir::Value inductionVar, mlir::Value storeVL,
             mlir::Value extraOffset = {}) const;
@@ -4810,7 +4810,7 @@ private:
   /// `const int32_t vN = base[0];` temp + the vmv_v_x splat.
   mlir::LogicalResult
   emitBroadcastLoad(mlir::ConversionPatternRewriter &rewriter,
-                    mlir::Location loc, tcrvrvv::BroadcastLoadOp broadcast,
+                    mlir::Location loc, weftrvv::BroadcastLoadOp broadcast,
                     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                     mlir::Value bodyVL) const;
 
@@ -4818,7 +4818,7 @@ private:
   /// is a runtime ABI value mapped to a function parameter directly.
   mlir::LogicalResult
   emitSplat(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-            tcrvrvv::SplatOp splat,
+            weftrvv::SplatOp splat,
             llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
             mlir::Value bodyVL) const;
 
@@ -4826,7 +4826,7 @@ private:
   ///   __riscv_v<cmp>_vv_<dtype><lmul>_b<maskbits>(lhs, rhs, vl) -> vbool<n>_t
   mlir::LogicalResult
   emitCompare(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-              tcrvrvv::CompareOp compare,
+              weftrvv::CompareOp compare,
               llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
               mlir::Value bodyVL) const;
 
@@ -4837,7 +4837,7 @@ private:
   /// byte-identical to the legacy compare-select select step.
   mlir::LogicalResult
   emitSelect(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-             tcrvrvv::SelectOp select,
+             weftrvv::SelectOp select,
              llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
              mlir::Value bodyVL) const;
 
@@ -4846,7 +4846,7 @@ private:
   /// composes two predicate masks of the same (sew, lmul) into one mask.
   mlir::LogicalResult
   emitMaskAnd(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-              tcrvrvv::MaskAndOp maskAnd,
+              weftrvv::MaskAndOp maskAnd,
               llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
               mlir::Value bodyVL) const;
 
@@ -4858,7 +4858,7 @@ private:
   /// runtime ABI float value mapped to a function parameter directly.
   mlir::LogicalResult
   emitDequantize(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                 tcrvrvv::DequantizeOp dequantize,
+                 weftrvv::DequantizeOp dequantize,
                  llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                  mlir::Value bodyVL) const;
 
@@ -4874,7 +4874,7 @@ private:
   /// back to the legacy materializer unchanged (no mislower).
   mlir::LogicalResult
   emitDequantizeChain(mlir::ConversionPatternRewriter &rewriter,
-                      mlir::Location loc, tcrvrvv::DequantizeOp dequantize,
+                      mlir::Location loc, weftrvv::DequantizeOp dequantize,
                       mlir::Value source, mlir::Value scale,
                       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                       mlir::Value bodyVL) const;
@@ -4892,7 +4892,7 @@ private:
   /// unsigned widening convert would need `vwcvtu`, which this does NOT emit).
   mlir::LogicalResult
   emitWideningConvert(mlir::ConversionPatternRewriter &rewriter,
-                      mlir::Location loc, tcrvrvv::WideningConvertOp convert,
+                      mlir::Location loc, weftrvv::WideningConvertOp convert,
                       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                       mlir::Value bodyVL) const;
 
@@ -4902,7 +4902,7 @@ private:
   ///   result = __riscv_vmerge_vvm_<dtype><lmul>(passthrough, active, mask, vl);
   mlir::LogicalResult
   emitMaskedBinary(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                   tcrvrvv::MaskedBinaryOp masked,
+                   weftrvv::MaskedBinaryOp masked,
                    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                    mlir::Value bodyVL) const;
 
@@ -4913,7 +4913,7 @@ private:
   /// byte-identical to the legacy plain/scalar-broadcast MAcc compute step
   /// (RVVEmitCRoutePlanning oracle: `vmacc_vv_i32m1(acc_vec, lhs_vec, rhs_vec,
   /// vl)`). The scalar-broadcast rung is the SAME op whose rhs is fed by a
-  /// tcrv_rvv.splat (lowered by emitSplat); only the operand source differs, the
+  /// weft_rvv.splat (lowered by emitSplat); only the operand source differs, the
   /// macc lowering is identical.
   ///
   /// Malformed-body guard: the legacy macc derivation (deriveMAccIntrinsic) is
@@ -4926,7 +4926,7 @@ private:
   /// is created so a non-beachhead config rolls back cleanly.
   mlir::LogicalResult
   emitMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-           tcrvrvv::MAccOp macc,
+           weftrvv::MAccOp macc,
            llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
            mlir::Value bodyVL) const;
 
@@ -4940,7 +4940,7 @@ private:
   /// contract the legacy oracle emits.
   mlir::LogicalResult
   emitMaskedMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                 tcrvrvv::MaskedMAccOp masked,
+                 weftrvv::MaskedMAccOp masked,
                  llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                  mlir::Value bodyVL) const;
 
@@ -4950,7 +4950,7 @@ private:
   ///   __riscv_vlse<sew>_v_<dtype><lmul>(ptr, bytestride, vl)
   mlir::LogicalResult
   emitStridedLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                  tcrvrvv::StridedLoadOp load,
+                  weftrvv::StridedLoadOp load,
                   llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                   mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -4960,7 +4960,7 @@ private:
   ///   __riscv_vsse<sew>_v_<dtype><lmul>(ptr, bytestride, val, vl)
   mlir::LogicalResult
   emitStridedStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                   tcrvrvv::StridedStoreOp store,
+                   weftrvv::StridedStoreOp store,
                    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                    mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -4976,7 +4976,7 @@ private:
     mlir::Type tupleType;
   };
   bool resolveSegment2Facts(mlir::ConversionPatternRewriter &rewriter,
-                            tcrvrvv::VectorType fieldType,
+                            weftrvv::VectorType fieldType,
                             Segment2Facts &out) const;
 
   /// The interleaved segment2 base pointer: `base + (i * 2)`. The interleaved
@@ -4989,14 +4989,14 @@ private:
 
   /// segment2_load(%src,%vl) -> field0, field1. The interleaved deinterleave
   /// load reads one segment2 tuple from the interleaved source, then the two
-  /// tcrv_rvv.move ops extract the fields (emitSegment2FieldExtract via
+  /// weft_rvv.move ops extract the fields (emitSegment2FieldExtract via
   /// emitMove). Here we emit ONLY the tuple load and record (tuple, index) for
   /// each field result so the move-sourced vget can resolve it:
   ///   ptr = src + (i * 2);
   ///   vint<sew>m<lmul>x2_t tuple = __riscv_vlseg2e<sew>_v_<dtype><lmul>x2(ptr, vl)
   mlir::LogicalResult emitSegment2Load(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::Segment2LoadOp segLoad,
+      weftrvv::Segment2LoadOp segLoad,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
           &segmentFieldMap,
@@ -5010,7 +5010,7 @@ private:
   ///   __riscv_vsseg2e<sew>_v_<dtype><lmul>x2(ptr, tuple, vl)
   mlir::LogicalResult
   emitSegment2Store(mlir::ConversionPatternRewriter &rewriter,
-                    mlir::Location loc, tcrvrvv::Segment2StoreOp segStore,
+                    mlir::Location loc, weftrvv::Segment2StoreOp segStore,
                     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                     mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5029,7 +5029,7 @@ private:
   /// back to the legacy validator.
   mlir::LogicalResult emitMaskedSegment2Load(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedSegment2LoadOp segLoad,
+      weftrvv::MaskedSegment2LoadOp segLoad,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5043,7 +5043,7 @@ private:
   /// The mask MUST come from a compare in the same scope; refuse otherwise.
   mlir::LogicalResult emitMaskedSegment2Store(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedSegment2StoreOp segStore,
+      weftrvv::MaskedSegment2StoreOp segStore,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5062,7 +5062,7 @@ private:
   ///      carries no compute, so it maps the result SSA value to the same emitc
   ///      Value -- the legacy oracle emits NO call for it.
   ///
-  ///  (b) segment2 deinterleave family: the move's source is a tcrv_rvv.move-
+  ///  (b) segment2 deinterleave family: the move's source is a weft_rvv.move-
   ///      observed segment2_load field result. The legacy oracle emits a
   ///      __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>(tuple, idx) extract at the
   ///      move's position (role=compute). Detect the segmentFieldMap entry and
@@ -5072,7 +5072,7 @@ private:
   /// back so a semantically meaningful move is never silently dropped.
   mlir::LogicalResult
   emitMove(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-           tcrvrvv::MoveOp move,
+           weftrvv::MoveOp move,
            llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
            llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
                &segmentFieldMap) const;
@@ -5085,7 +5085,7 @@ private:
   /// to the legacy index_load oracle (`__riscv_vle32_v_u32m1(index + i, vl)`).
   mlir::LogicalResult
   emitIndexLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                tcrvrvv::IndexLoadOp indexLoad,
+                weftrvv::IndexLoadOp indexLoad,
                 llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                 mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5093,12 +5093,12 @@ private:
   /// result, or null if the index feeds a plain (base-memory) indexed op. The
   /// computed-mask indexed path scales the index early (see emitIndexLoad); the
   /// plain path scales inside its own emitter.
-  static mlir::Operation *maskedIndexedConsumer(tcrvrvv::IndexLoadOp indexLoad);
+  static mlir::Operation *maskedIndexedConsumer(weftrvv::IndexLoadOp indexLoad);
 
   /// The data (payload) vector type of a masked indexed gather (its loaded
   /// result) or scatter (its stored value), used to size the element->byte
   /// index scale.
-  static tcrvrvv::VectorType
+  static weftrvv::VectorType
   maskedIndexedDataVectorType(mlir::Operation *maskedConsumer);
 
   /// indexed_load(%data,%indices,%vl) -> TWO calls:
@@ -5111,7 +5111,7 @@ private:
   /// indexed_load oracle.
   mlir::LogicalResult
   emitIndexedLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                  tcrvrvv::IndexedLoadOp indexedLoad,
+                  weftrvv::IndexedLoadOp indexedLoad,
                   llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                   mlir::Value bodyVL) const;
 
@@ -5125,7 +5125,7 @@ private:
   /// resolution is not modeled).
   mlir::LogicalResult
   emitIndexedStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                   tcrvrvv::IndexedStoreOp indexedStore,
+                   weftrvv::IndexedStoreOp indexedStore,
                    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                    mlir::Value bodyVL) const;
 
@@ -5139,8 +5139,8 @@ private:
                      mlir::Location loc, llvm::StringRef sourceOpName,
                      llvm::StringRef sourceRole, mlir::Value indices,
                      mlir::Type indexEmitCType,
-                     tcrvrvv::IndexVectorType indexVecType,
-                     tcrvrvv::VectorType dataVectorType,
+                     weftrvv::IndexVectorType indexVecType,
+                     weftrvv::VectorType dataVectorType,
                      mlir::Value bodyVL) const;
 
   /// mask_load(%abi,%vl) -> TWO calls:
@@ -5153,7 +5153,7 @@ private:
   /// which is exactly the legality the negative fixtures require.
   mlir::LogicalResult
   emitMaskLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-               tcrvrvv::MaskLoadOp maskLoad,
+               weftrvv::MaskLoadOp maskLoad,
                llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5168,7 +5168,7 @@ private:
   /// explicit mask_load authority falls back (the negative-fixture contract).
   mlir::LogicalResult
   emitMaskedLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                 tcrvrvv::MaskedLoadOp maskedLoad,
+                 weftrvv::MaskedLoadOp maskedLoad,
                  llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                  mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5182,7 +5182,7 @@ private:
   /// compare): the negative fixture rejects a compare-sourced masked store.
   mlir::LogicalResult
   emitMaskedStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                  tcrvrvv::MaskedStoreOp maskedStore,
+                  weftrvv::MaskedStoreOp maskedStore,
                   llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                   mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5197,7 +5197,7 @@ private:
   /// authority; otherwise the malformed body falls back.
   mlir::LogicalResult emitMaskedStridedLoad(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedStridedLoadOp maskedLoad,
+      weftrvv::MaskedStridedLoadOp maskedLoad,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5210,7 +5210,7 @@ private:
   /// oracle. Byte-stride role + compare/mask_load mask authority required.
   mlir::LogicalResult emitMaskedStridedStore(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedStridedStoreOp maskedStore,
+      weftrvv::MaskedStridedStoreOp maskedStore,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value inductionVar, mlir::Value bodyVL) const;
 
@@ -5225,7 +5225,7 @@ private:
   /// EEW=32 slice with compare/mask_load mask authority is accepted.
   mlir::LogicalResult emitMaskedIndexedLoad(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedIndexedLoadOp maskedLoad,
+      weftrvv::MaskedIndexedLoadOp maskedLoad,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -5239,7 +5239,7 @@ private:
   /// with compare/mask_load mask authority is accepted.
   mlir::LogicalResult emitMaskedIndexedStore(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::MaskedIndexedStoreOp maskedStore,
+      weftrvv::MaskedIndexedStoreOp maskedStore,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
@@ -5255,11 +5255,11 @@ private:
   static bool maskBufferPointeeMatches(mlir::Value bufferValue,
                                        llvm::StringRef dtype);
 
-  /// Convert a `!tcrv_rvv.index_vector<...>` to its EmitC type, accepting only a
+  /// Convert a `!weft_rvv.index_vector<...>` to its EmitC type, accepting only a
   /// genuinely-lowered emitc type (see convertVectorTypeToEmitC for why the
   /// identity fallback must be rejected).
   mlir::Type
-  convertIndexVectorTypeToEmitC(tcrvrvv::IndexVectorType type) const;
+  convertIndexVectorTypeToEmitC(weftrvv::IndexVectorType type) const;
 
   /// Scaled element pointer: off = induction * stride; ptr = base + off.
   /// Mirrors the legacy materializer parseScaledPointerExpression path
@@ -5276,7 +5276,7 @@ private:
   /// ptrdiff_t, then multiply.
   mlir::Value emitByteStride(mlir::ConversionPatternRewriter &rewriter,
                              mlir::Location loc, mlir::Value stride,
-                             tcrvrvv::VectorType vectorType) const;
+                             weftrvv::VectorType vectorType) const;
 
   /// True when the strided op carries a runtime BYTE stride (the base-memory
   /// movement family) rather than an element stride (the elementwise family).
@@ -5288,27 +5288,27 @@ private:
   /// straight from the typed ABI role fact, not a heuristic.
   static bool isByteStride(mlir::Value strideToken);
 
-  /// True when the strided-load result is consumed by a tcrv_rvv.move (the
+  /// True when the strided-load result is consumed by a weft_rvv.move (the
   /// base-memory strided movement shape: strided_load -> move{copy} -> store).
   /// The elementwise strided family feeds its strided_load into a compute op
   /// (binary), never a move, so this cleanly separates the two rungs.
-  static bool loadedFeedsMove(tcrvrvv::StridedLoadOp load);
+  static bool loadedFeedsMove(weftrvv::StridedLoadOp load);
 
-  /// True when the strided-store value is produced by a tcrv_rvv.move (the
+  /// True when the strided-store value is produced by a weft_rvv.move (the
   /// base-memory unit-load -> move{copy} -> strided_store shape). The
   /// elementwise strided store's value comes from a compute op, never a move.
-  static bool storedValueFromMove(tcrvrvv::StridedStoreOp store);
+  static bool storedValueFromMove(weftrvv::StridedStoreOp store);
 
   /// True iff a masked-memory predicate `mask` is produced by an in-family mask
-  /// authority: either an explicit tcrv_rvv.mask_load buffer (the base-memory
-  /// masked family) or a tcrv_rvv.compare in the same VL scope (the
+  /// authority: either an explicit weft_rvv.mask_load buffer (the base-memory
+  /// masked family) or a weft_rvv.compare in the same VL scope (the
   /// computed-mask memory family). Both lower to the byte-identical masked-load
   /// `_tumu` / masked-store `_m` forms, so the converter accepts either; any
   /// other producer is malformed and must fall back.
   static bool isMaskFromMaskLoadOrCompare(mlir::Value mask);
 
   /// True iff a segment2 store's field operand binds the EXPECTED field role,
-  /// resolved structurally from the field vector's defining tcrv_rvv.load buffer
+  /// resolved structurally from the field vector's defining weft_rvv.load buffer
   /// ABI role. The interleave family carries the two field input loads as the
   /// segment2_store field0/field1 operands; a body that swaps them
   /// (segment2_store %dst, %field1, %field0) binds the wrong field role and is a
@@ -5331,17 +5331,17 @@ private:
                                      mlir::Value inductionVar,
                                      mlir::Value stride) const;
 
-  static unsigned vectorElementWidth(tcrvrvv::VectorType type);
+  static unsigned vectorElementWidth(weftrvv::VectorType type);
 
-  /// Convert a `!tcrv_rvv.vector<...>` to its EmitC type, but ONLY accept a
+  /// Convert a `!weft_rvv.vector<...>` to its EmitC type, but ONLY accept a
   /// result the beachhead converter genuinely lowered (an `emitc` type). The
   /// driver registers an identity fallback conversion so unrelated IR is never
   /// illegalized; that identity would otherwise pass an unhandled vector type
   /// (e.g. lmul m2) straight through, letting a half-converted call_opaque keep
-  /// a `!tcrv_rvv.vector<...>` result and silently corrupt the module. Rejecting
+  /// a `!weft_rvv.vector<...>` result and silently corrupt the module. Rejecting
   /// any non-emitc result here makes a non-beachhead family fail the match and
   /// roll back cleanly, so the export seam falls back to the legacy path.
-  mlir::Type convertVectorTypeToEmitC(tcrvrvv::VectorType type) const;
+  mlir::Type convertVectorTypeToEmitC(weftrvv::VectorType type) const;
 
   /// The elementwise binary mnemonic. Integer kinds map to the v-prefixed forms
   /// (vadd/vsub/vmul); float vectors (f32/f64) map to the f-prefixed forms
@@ -5351,7 +5351,7 @@ private:
   static std::optional<llvm::StringRef>
   binaryMnemonic(llvm::StringRef kind, bool isFloat);
 
-  /// The reduction mnemonic for tcrv_rvv.reduce / tcrv_rvv.standalone_reduce,
+  /// The reduction mnemonic for weft_rvv.reduce / weft_rvv.standalone_reduce,
   /// mirroring the legacy getRVVSelectedBodyReductionIntrinsic /
   /// getRVVSelectedBodyStandaloneReductionIntrinsic kind tables (add -> vredsum,
   /// min -> vredmin, max -> vredmax). Unknown kinds fail the match so the body
@@ -5366,7 +5366,7 @@ private:
   static std::optional<llvm::StringRef> compareMnemonic(llvm::StringRef kind,
                                                         bool isFloat);
 
-  /// The mask-composition mnemonic for tcrv_rvv.mask_and. The Stage-2 slice
+  /// The mask-composition mnemonic for weft_rvv.mask_and. The Stage-2 slice
   /// supports only kind = "and" (-> vmand), matching the op's verifier.
   static std::optional<llvm::StringRef> maskAndMnemonic(llvm::StringRef kind);
 };
@@ -5374,6 +5374,6 @@ private:
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft
 
-#endif // TIANCHENRV_CONVERSION_RVV_RVVTOEMITCINTERNAL_H
+#endif // WEFT_CONVERSION_RVV_RVVTOEMITCINTERNAL_H

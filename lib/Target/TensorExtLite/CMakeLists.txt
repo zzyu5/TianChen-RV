@@ -1,15 +1,15 @@
-add_mlir_library(TianChenRVTensorExtLiteTarget
+add_mlir_library(WeftTensorExtLiteTarget
   TensorExtLiteTargetSupportBundle.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTarget
-  TianChenRVTensorExtLiteDialect
-  TianChenRVTensorExtLiteConstructionProtocol
-  TianChenRVTensorExtLiteEmitCRouteProvider
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftPlugin
+  WeftSupport
+  WeftTarget
+  WeftTensorExtLiteDialect
+  WeftTensorExtLiteConstructionProtocol
+  WeftTensorExtLiteEmitCRouteProvider
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

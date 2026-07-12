@@ -1,4 +1,4 @@
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
@@ -7,10 +7,10 @@
 
 #include <string>
 
-namespace tianchenrv::plugin::tensorext_lite {
+namespace weft::plugin::tensorext_lite {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kProtocolVersion(
     "extension-family-construction-protocol.v1");
@@ -18,14 +18,14 @@ constexpr llvm::StringLiteral kArchetype("fragment-mma-like");
 constexpr llvm::StringLiteral kSemanticRoleGraph(
     "configure->load_frag->tile_mma->store_frag");
 constexpr llvm::StringLiteral kInterfaceRealization(
-    "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-    "TCRVEmitCLowerableInterface;load_frag=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;tile_mma=TCRVExtensionOpInterface+"
-    "TCRVComputeOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;store_frag=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface");
+    "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+    "WEFTEmitCLowerableInterface;load_frag=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;tile_mma=WEFTExtensionOpInterface+"
+    "WEFTComputeOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;store_frag=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
     "emitc_route_mapping|materialized_emitc_module");
@@ -85,7 +85,7 @@ constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
     "emitc-cpp-tensorext-lite-fragment-runtime-glue");
 constexpr llvm::StringLiteral kTensorExtLiteLoweringBoundaryOpName(
-    "tcrv_tensorext_lite.lowering_boundary");
+    "weft_tensorext_lite.lowering_boundary");
 constexpr llvm::StringLiteral kTensorExtLiteHeaderRouteID(
     "tensorext-lite-fragment-mma-emitc-route.header");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
@@ -95,52 +95,52 @@ constexpr llvm::StringLiteral kTensorExtLiteMaterializedEmitCBundleComponentGrou
 constexpr llvm::StringLiteral kTensorExtLiteObjectHandoffKind(
     "materialized-emitc-cpp-tensorext-lite-fragment-object");
 constexpr llvm::StringLiteral kTensorExtLiteEmitCToCppRouteID(
-    "tcrv-tensorext-lite-emitc-to-cpp");
+    "weft-tensorext-lite-emitc-to-cpp");
 constexpr llvm::StringLiteral kTensorExtLiteConfigCallee(
-    "tcrv_tensorext_lite_config");
+    "weft_tensorext_lite_config");
 constexpr llvm::StringLiteral kTensorExtLiteLoadFragCallee(
-    "tcrv_tensorext_lite_load_frag");
+    "weft_tensorext_lite_load_frag");
 constexpr llvm::StringLiteral kTensorExtLiteTileMmaCallee(
-    "tcrv_tensorext_lite_tile_mma");
+    "weft_tensorext_lite_tile_mma");
 constexpr llvm::StringLiteral kTensorExtLiteStoreFragCallee(
-    "tcrv_tensorext_lite_store_frag");
+    "weft_tensorext_lite_store_frag");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
-    "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:"
-    "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
+    "configure:tel.role.config:weft_tensorext_lite.config_skeleton:"
+    "WEFTConfigOpInterface:WEFTEmitCLowerableInterface;"
     "load_frag:tel.role.load_frag:"
-    "tcrv_tensorext_lite.load_frag_skeleton:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
+    "weft_tensorext_lite.load_frag_skeleton:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;"
     "tile_mma:tel.role.tile_mma:"
-    "tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:"
-    "TCRVEmitCLowerableInterface;"
+    "weft_tensorext_lite.tile_mma_skeleton:WEFTComputeOpInterface:"
+    "WEFTEmitCLowerableInterface;"
     "store_frag:tel.role.store_frag:"
-    "tcrv_tensorext_lite.store_frag_skeleton:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
+    "weft_tensorext_lite.store_frag_skeleton:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kTensorExtLiteComputeOperationName(
-    "tcrv_tensorext_lite.tile_mma_skeleton");
+    "weft_tensorext_lite.tile_mma_skeleton");
 constexpr llvm::StringLiteral kTensorExtLiteComputeTypedRoleID(
     "tel.role.tile_mma");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 
 const TensorExtLiteConstructionSemanticRole kSemanticRoles[] = {
-    {"configure", 0, "tcrv_tensorext_lite.config_skeleton",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
+    {"configure", 0, "weft_tensorext_lite.config_skeleton",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
      "establish TensorExtLite extension configuration before local execution "
      "roles"},
-    {"load_frag", 1, "tcrv_tensorext_lite.load_frag_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+    {"load_frag", 1, "weft_tensorext_lite.load_frag_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "load IR-modeled memory into TensorExtLite fragment resources"},
-    {"tile_mma", 2, "tcrv_tensorext_lite.tile_mma_skeleton",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "perform the TensorExtLite tile MMA primitive without tcrv.exec compute "
+    {"tile_mma", 2, "weft_tensorext_lite.tile_mma_skeleton",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "perform the TensorExtLite tile MMA primitive without weft.exec compute "
      "semantics"},
-    {"store_frag", 3, "tcrv_tensorext_lite.store_frag_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+    {"store_frag", 3, "weft_tensorext_lite.store_frag_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "store TensorExtLite fragment results back through an IR-modeled memory "
      "role"},
 };
@@ -150,8 +150,8 @@ const TensorExtLiteConstructionManifest kManifest = {
     kArchetype,
     kSemanticRoleGraph,
     {"tensorext_lite",
-     "tcrv.tensorext_lite",
-     "tcrv_tensorext_lite",
+     "weft.tensorext_lite",
+     "weft_tensorext_lite",
      kTensorExtLitePluginName,
      kTensorExtLiteCapabilityID,
      kTensorExtLiteCapabilityKind,
@@ -190,35 +190,35 @@ const TensorExtLiteTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"tel.role.config",
      "configure",
      0,
-     "tcrv_tensorext_lite.config_skeleton",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
-     "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_tensorext_lite.config_skeleton",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
+     "WEFTConfigOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"tel.role.load_frag",
      "load_frag",
      1,
-     "tcrv_tensorext_lite.load_frag_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_tensorext_lite.load_frag_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"tel.role.tile_mma",
      "tile_mma",
      2,
-     "tcrv_tensorext_lite.tile_mma_skeleton",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_tensorext_lite.tile_mma_skeleton",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTComputeOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"tel.role.store_frag",
      "store_frag",
      3,
-     "tcrv_tensorext_lite.store_frag_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_tensorext_lite.store_frag_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
 };
 
 const TensorExtLiteTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -233,40 +233,40 @@ const TensorExtLiteTypedRoleGraphRealization kTypedRoleGraphRealization = {
 
 const TensorExtLiteFragmentMmaRoleStep kFragmentMmaRoleSteps[] = {
     {"configure",
-     "tcrv_tensorext_lite.config_skeleton",
+     "weft_tensorext_lite.config_skeleton",
      "tel.role.config",
-     "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface",
+     "WEFTConfigOpInterface",
+     "WEFTEmitCLowerableInterface",
      kTensorExtLiteConfigCallee,
      0},
     {"load_frag",
-     "tcrv_tensorext_lite.load_frag_skeleton",
+     "weft_tensorext_lite.load_frag_skeleton",
      "tel.role.load_frag",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface",
      kTensorExtLiteLoadFragCallee,
      1},
     {"tile_mma",
-     "tcrv_tensorext_lite.tile_mma_skeleton",
+     "weft_tensorext_lite.tile_mma_skeleton",
      "tel.role.tile_mma",
-     "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface",
+     "WEFTComputeOpInterface",
+     "WEFTEmitCLowerableInterface",
      kTensorExtLiteTileMmaCallee,
      2},
     {"store_frag",
-     "tcrv_tensorext_lite.store_frag_skeleton",
+     "weft_tensorext_lite.store_frag_skeleton",
      "tel.role.store_frag",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface",
      kTensorExtLiteStoreFragCallee,
      3},
 };
 
 const construction::RoleExpectation kRoleExpectations[] = {
-    {"configure", "TCRVConfigOpInterface", false},
-    {"load_frag", "TCRVMemoryOpInterface", true},
-    {"tile_mma", "TCRVComputeOpInterface", true},
-    {"store_frag", "TCRVMemoryOpInterface", true},
+    {"configure", "WEFTConfigOpInterface", false},
+    {"load_frag", "WEFTMemoryOpInterface", true},
+    {"tile_mma", "WEFTComputeOpInterface", true},
+    {"store_frag", "WEFTMemoryOpInterface", true},
 };
 
 const llvm::StringRef kRequiredEvidence[] = {
@@ -276,7 +276,7 @@ const llvm::StringRef kRequiredEvidence[] = {
 
 llvm::Error makeTensorExtLiteConstructionProtocolError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV TensorExtLite construction protocol invalid: ") +
+      llvm::Twine("Weft-RV TensorExtLite construction protocol invalid: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -335,7 +335,7 @@ construction::RoleOpValidationSpec getTensorExtLiteRoleValidationSpec() {
   return {"tile_mma",
           kTensorExtLiteComputeOperationName,
           kTensorExtLiteComputeTypedRoleID,
-          "TCRVComputeOpInterface",
+          "WEFTComputeOpInterface",
           "TensorExtLite tile_mma role op",
           "TensorExtLite tile_mma role op is missing before construction "
           "validation"};
@@ -345,15 +345,15 @@ llvm::Expected<construction::RoleOpValidationSpec>
 getTensorExtLiteRoleValidationSpec(llvm::StringRef sourceRole) {
   if (sourceRole == "configure")
     return construction::RoleOpValidationSpec{
-        "configure", "tcrv_tensorext_lite.config_skeleton",
-        "tel.role.config", "TCRVConfigOpInterface",
+        "configure", "weft_tensorext_lite.config_skeleton",
+        "tel.role.config", "WEFTConfigOpInterface",
         "TensorExtLite configure role op",
         "TensorExtLite configure role op is missing before construction "
         "validation"};
   if (sourceRole == "load_frag")
     return construction::RoleOpValidationSpec{
-        "load_frag", "tcrv_tensorext_lite.load_frag_skeleton",
-        "tel.role.load_frag", "TCRVMemoryOpInterface",
+        "load_frag", "weft_tensorext_lite.load_frag_skeleton",
+        "tel.role.load_frag", "WEFTMemoryOpInterface",
         "TensorExtLite load_frag role op",
         "TensorExtLite load_frag role op is missing before construction "
         "validation"};
@@ -361,8 +361,8 @@ getTensorExtLiteRoleValidationSpec(llvm::StringRef sourceRole) {
     return getTensorExtLiteRoleValidationSpec();
   if (sourceRole == "store_frag")
     return construction::RoleOpValidationSpec{
-        "store_frag", "tcrv_tensorext_lite.store_frag_skeleton",
-        "tel.role.store_frag", "TCRVMemoryOpInterface",
+        "store_frag", "weft_tensorext_lite.store_frag_skeleton",
+        "tel.role.store_frag", "WEFTMemoryOpInterface",
         "TensorExtLite store_frag role op",
         "TensorExtLite store_frag role op is missing before construction "
         "validation"};
@@ -676,4 +676,4 @@ llvm::Error verifyTensorExtLiteComputeRoleOpInterface(
       getTensorExtLiteRoleValidationSpec());
 }
 
-} // namespace tianchenrv::plugin::tensorext_lite
+} // namespace weft::plugin::tensorext_lite

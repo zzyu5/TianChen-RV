@@ -1,13 +1,13 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 
 #include "llvm/ADT/Twine.h"
 
 #include <memory>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVMaskTailPolicyRouteFamilyPlanID(
@@ -2356,4 +2356,4 @@ getRVVSelectedBodyMaskTailPolicyProviderPlan(
   return plan;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

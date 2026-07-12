@@ -1,6 +1,6 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Transforms/Passes.h"
-#include "TianChenRV/Transforms/VariantDispatchSynthesis.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Transforms/Passes.h"
+#include "Weft/Transforms/VariantDispatchSynthesis.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Builders.h"
@@ -14,10 +14,10 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
 
 namespace {
 
@@ -35,33 +35,33 @@ int expect(bool condition, llvm::Twine message) {
 mlir::OwningOpRef<mlir::ModuleOp> parseTestModule(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @synthesis_anchor attributes {} {
-    tcrv.exec.capability @fast_probe {
+  weft.exec.kernel @synthesis_anchor attributes {} {
+    weft.exec.capability @fast_probe {
       id = "generic.fast.probe",
       kind = "runtime",
       status = "missing"
     }
-    tcrv.exec.capability @baseline_capability {
+    weft.exec.capability @baseline_capability {
       id = "generic.baseline",
       kind = "toolchain"
     }
-    tcrv.exec.capability @conflicting_runtime {
+    weft.exec.capability @conflicting_runtime {
       id = "generic.conflicting.runtime",
       kind = "runtime",
-      relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_conflicting_runtime"]>,
+      relations = #weft.capability_relations<conflicts = ["build.policy.disable_conflicting_runtime"]>,
       status = "available"
     }
-    tcrv.exec.capability @conflict_policy {
+    weft.exec.capability @conflict_policy {
       id = "generic.conflict.policy",
       kind = "build-policy",
-      relations = #tcrv.capability_relations<provides = ["build.policy.disable_conflicting_runtime"]>,
+      relations = #weft.capability_relations<provides = ["build.policy.disable_conflicting_runtime"]>,
       status = "available"
     }
-    tcrv.exec.capability @extra_capability {
+    weft.exec.capability @extra_capability {
       id = "generic.extra",
       kind = "toolchain"
     }
-    tcrv.exec.variant @fast_path attributes {
+    weft.exec.variant @fast_path attributes {
       condition = "runtime_probe_available",
       guard = "generic_fast_guard",
       origin = "fast-plugin",
@@ -69,12 +69,12 @@ module {
       requires = [@fast_probe]
     } {
     }
-    tcrv.exec.variant @conflicting_path attributes {
+    weft.exec.variant @conflicting_path attributes {
       origin = "conflicting-plugin",
       requires = [@conflicting_runtime]
     } {
     }
-	    tcrv.exec.variant @baseline_path attributes {
+	    weft.exec.variant @baseline_path attributes {
 	      condition = "baseline_fallback_condition",
 	      fallback_role = "conservative",
 	      origin = "baseline-plugin",
@@ -82,7 +82,7 @@ module {
 	      requires = [@baseline_capability]
     } {
     }
-    tcrv.exec.variant @extra_path attributes {
+    weft.exec.variant @extra_path attributes {
       condition = "extra_condition",
       guard = "extra_guard",
       origin = "extra-plugin",
@@ -92,24 +92,24 @@ module {
     }
   }
 
-  tcrv.exec.kernel @already_dispatched attributes {} {
-    tcrv.exec.capability @baseline_capability {
+  weft.exec.kernel @already_dispatched attributes {} {
+    weft.exec.capability @baseline_capability {
       id = "generic.baseline",
       kind = "toolchain"
     }
-    tcrv.exec.variant @baseline_path attributes {
+    weft.exec.variant @baseline_path attributes {
       origin = "baseline-plugin",
       requires = [@baseline_capability]
     } {
     }
-    tcrv.exec.variant @alternate_path attributes {
+    weft.exec.variant @alternate_path attributes {
       origin = "alternate-plugin",
       requires = [@baseline_capability]
     } {
     }
-    tcrv.exec.dispatch attributes {} {
-      tcrv.exec.case @alternate_path {condition = "existing_generic_guard"}
-      tcrv.exec.fallback @baseline_path
+    weft.exec.dispatch attributes {} {
+      weft.exec.case @alternate_path {condition = "existing_generic_guard"}
+      weft.exec.fallback @baseline_path
     }
   }
 }
@@ -158,7 +158,7 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
   mlir::OpBuilder builder(&context);
   DispatchOp createdDispatch;
   if (int result = expect(mlir::succeeded(
-                              tianchenrv::transforms::synthesizeVariantDispatch(
+                              weft::transforms::synthesizeVariantDispatch(
                                   builder, kernel, &createdDispatch)),
                           "dispatch synthesis succeeds"))
     return result;
@@ -283,7 +283,7 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckCapabilityRequiresPass());
+      weft::transforms::createCheckCapabilityRequiresPass());
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "check-capability-requires accepts synthesized dispatch"))
@@ -306,7 +306,7 @@ int runExistingDispatchTest(mlir::MLIRContext &context) {
   mlir::OpBuilder builder(&context);
   DispatchOp createdDispatch;
   if (int result = expect(mlir::succeeded(
-                              tianchenrv::transforms::synthesizeVariantDispatch(
+                              weft::transforms::synthesizeVariantDispatch(
                                   builder, kernel, &createdDispatch)),
                           "existing dispatch is left unchanged successfully"))
     return result;
@@ -325,7 +325,7 @@ int runExistingDispatchTest(mlir::MLIRContext &context) {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

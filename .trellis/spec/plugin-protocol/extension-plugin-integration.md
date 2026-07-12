@@ -2,7 +2,7 @@
 
 ## Scope
 
-This contract describes how a new extension family integrates with TianChen-RV
+This contract describes how a new extension family integrates with Weft-RV
 without rewriting core passes or turning metadata into executable authority.
 
 RVV is the first and broadest real reference family; per-family build/maturity
@@ -14,17 +14,17 @@ status lives in tasks/journal, not here
 The standard executable flow is:
 
 ```text
-selected tcrv.exec variant
+selected weft.exec variant
   -> typed extension-family body or selected boundary
   -> plugin legality
   -> optional plugin selected-body realization
-  -> plugin-built TCRVEmitCLowerableRoute
+  -> plugin-built WEFTEmitCLowerableRoute
   -> common EmitC materializer
   -> target artifact packaging
   -> runtime/hardware evidence when claimed
 ```
 
-For RVV, the typed body is low-level `tcrv_rvv` vector-level structure.
+For RVV, the typed body is low-level `weft_rvv` vector-level structure.
 
 ## Plugin Adds
 
@@ -58,8 +58,8 @@ construct or infer routes.
 
 Current plugin work may start from:
 
-- hand-written or generated TianChen-RV MLIR;
-- selected `tcrv.exec` variant;
+- hand-written or generated Weft-RV MLIR;
+- selected `weft.exec` variant;
 - typed extension-family body;
 - selected boundary that the origin plugin can legally consume;
 - plugin-owned capability/profile data.
@@ -145,10 +145,10 @@ pieces. Concretely (2026-07-12, code-verified against
 
 1. Declare the entry point in the family header:
    `llvm::Error register<Fam>ExtensionPlugin(ExtensionPluginRegistry &registry);`
-   in `include/TianChenRV/Plugin/<Fam>/<Fam>ExtensionPlugin.h` (definition in
+   in `include/Weft/Plugin/<Fam>/<Fam>ExtensionPlugin.h` (definition in
    `<Fam>ExtensionPlugin.cpp`).
 2. In `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp` add **two lines**:
-   an `#include "TianChenRV/Plugin/<Fam>/<Fam>ExtensionPlugin.h"`, and one row in
+   an `#include "Weft/Plugin/<Fam>/<Fam>ExtensionPlugin.h"`, and one row in
    the `kBuiltinExtensionBundles[]` table:
    `{"<fam>-extension-bundle", register<Fam>ExtensionPlugin},`.
 
@@ -196,7 +196,7 @@ procedure, not reconstructable only by reading core source.
 - [ ] Does executable work start from a typed body or legal selected boundary?
 - [ ] Does plugin legality run before route provider output?
 - [ ] Does selected-body realization consume code-affecting hints/config into body structure?
-- [ ] Does the plugin build `TCRVEmitCLowerableRoute`?
+- [ ] Does the plugin build `WEFTEmitCLowerableRoute`?
 - [ ] Does common EmitC only materialize provider output?
 - [ ] Are manifests/templates/source markers optional provenance only?
 - [ ] Are route ids and artifact kinds mirrors only?
@@ -213,7 +213,7 @@ Good:
 
 ```text
 selected RVV variant
-  -> typed tcrv_rvv body
+  -> typed weft_rvv body
   -> RVV legality / realization
   -> RVV route provider
   -> common EmitC

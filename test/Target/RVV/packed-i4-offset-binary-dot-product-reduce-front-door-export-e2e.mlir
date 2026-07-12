@@ -1,6 +1,6 @@
 // END-TO-END production-export CLOSURE for the C3 (N=3 offset-binary) front door:
 // the front door's OWN auto-constructed nibble integer-core body now flows through
-// the FULL production-export pipeline (--tcrv-materialize-emission-plans) and emits
+// the FULL production-export pipeline (--weft-materialize-emission-plans) and emits
 // correct EmitC. This is the P1e W5 payoff -- the FIRST N=3 descriptor-driven route
 // proven end-to-end, validating the N-operand descriptor refactor: three input
 // buffers (packed-i4 weight + the two plain-i8 q8 activation halves) route through
@@ -9,8 +9,8 @@
 //
 // WHY this is a distinct, load-bearing test (vs the front-door fixture
 // test/Transforms/RVV/rvv-packed-i4-offset-binary-dot-source-front-door.mlir): that
-// fixture runs front-door --> --tcrv-rvv-lower-to-emitc DIRECTLY. This test inserts
-// --tcrv-materialize-emission-plans in the MIDDLE -- the production-export chain --
+// fixture runs front-door --> --weft-rvv-lower-to-emitc DIRECTLY. This test inserts
+// --weft-materialize-emission-plans in the MIDDLE -- the production-export chain --
 // proving the N=3 route survives emission-plan materialization end-to-end, not just
 // the direct lower. The C3 op is ALREADY a first-class typed op that lowers to
 // EmitC; every P1e wall (W1-W4) was an un-migrated consumer of the 3-operand shape,
@@ -41,17 +41,17 @@
 
 // VLEN128 production-export: front door auto-constructs the body, materializes the
 // emission plan, lowers to EmitC.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 // VLEN256 production-export: the SAME generic source, capability tier rv64gcv_zvl256b.
 // The offset-binary integer core does NOT flip -- byte-identical to VLEN128.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv_zvl256b --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 
 // ===================== VLEN128 EMITTED C3 (N=3) CHAIN ========================
 // The 6-arg EmitC signature: w / qlo / qhi = const int8_t*, acc = const int32_t*,
 // out = int32_t*, n = size_t. This is the N=3 descriptor projection (three input
 // buffers), NOT the legacy N=2 lhs/rhs pair.
-// EMITC: emitc.func @tcrv_emitc_rvv_packed_i4_offset_binary_dot_i8_from_source_rvv_packed_i4_offset_binary_dot_i8(
+// EMITC: emitc.func @weft_emitc_rvv_packed_i4_offset_binary_dot_i8_from_source_rvv_packed_i4_offset_binary_dot_i8(
 // EMITC-SAME: %arg0: !emitc.ptr<!emitc.opaque<"const int8_t">>,
 // EMITC-SAME: %arg1: !emitc.ptr<!emitc.opaque<"const int8_t">>,
 // EMITC-SAME: %arg2: !emitc.ptr<!emitc.opaque<"const int8_t">>,
@@ -91,7 +91,7 @@
 // Byte-identical to VLEN128 (integer core VLEN-invariant). Same 6-arg signature,
 // same pinned mf4/mf2/m1 strip, same low->qlo / high->qhi pairing. The EMITC256-NOT
 // lines pin the NO-FLIP: no accidental m1/m2/m4 strip may appear.
-// EMITC256: emitc.func @tcrv_emitc_rvv_packed_i4_offset_binary_dot_i8_from_source_rvv_packed_i4_offset_binary_dot_i8(
+// EMITC256: emitc.func @weft_emitc_rvv_packed_i4_offset_binary_dot_i8_from_source_rvv_packed_i4_offset_binary_dot_i8(
 // EMITC256-SAME: %arg0: !emitc.ptr<!emitc.opaque<"const int8_t">>,
 // EMITC256-SAME: %arg1: !emitc.ptr<!emitc.opaque<"const int8_t">>,
 // EMITC256-SAME: %arg2: !emitc.ptr<!emitc.opaque<"const int8_t">>,
@@ -126,7 +126,7 @@
 // EMITC256-NOT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMITC256: return
 
-module attributes {tcrv_rvv.source_front_door = "bounded_packed_i4_offset_binary_dot_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_packed_i4_offset_binary_dot_source"} {
   func.func @source_packed_i4_dot(%weight: memref<?xi8>, %qlo: memref<?xi8>, %qhi: memref<?xi8>, %acc: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     return
   }

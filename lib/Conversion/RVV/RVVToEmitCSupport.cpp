@@ -1,6 +1,6 @@
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/MLIRContext.h"
@@ -12,12 +12,12 @@
 
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
 
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftrvv = ::weft::rvv;
 namespace emitc = ::mlir::emitc;
 
 //===----------------------------------------------------------------------===//
@@ -688,7 +688,7 @@ unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
 /// The unsigned low-precision widening-product/reduce family (vwmulu/vwredsumu)
 /// keys its intrinsic dtype token and vector C type on this; signed/signless
 /// integers and floats are not unsigned.
-bool isUnsignedVector(tcrvrvv::VectorType type) {
+bool isUnsignedVector(weftrvv::VectorType type) {
   auto intType = llvm::dyn_cast<mlir::IntegerType>(type.getElementType());
   return intType && intType.getSignedness() ==
                         mlir::IntegerType::SignednessSemantics::Unsigned;
@@ -700,7 +700,7 @@ bool isUnsignedVector(tcrvrvv::VectorType type) {
 /// `vfloat<sew>m<lmul>_t` opaque type. The unsigned rung mirrors the legacy
 /// unsigned widening-product oracle (u8mf4 -> __riscv_vle8_v_u8mf4 /
 /// __riscv_vwmulu_vv_u16mf2).
-llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
+llvm::StringRef vectorDType(weftrvv::VectorType type) {
   if (isUnsignedVector(type)) {
     auto intType = llvm::cast<mlir::IntegerType>(type.getElementType());
     switch (intType.getWidth()) {
@@ -733,7 +733,7 @@ llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
 
 /// True for a floating-point vector element (the f32 compare/select/dequant
 /// family uses the f-prefixed RVV intrinsics).
-bool isFloatVector(tcrvrvv::VectorType type) {
+bool isFloatVector(weftrvv::VectorType type) {
   return llvm::isa<mlir::FloatType>(type.getElementType());
 }
 
@@ -741,7 +741,7 @@ bool isFloatVector(tcrvrvv::VectorType type) {
 /// the load/store intrinsics to be type-correct: i32 -> "int32_t", i64 ->
 /// "int64_t", f32 -> "float". Returns "" for an element the converter cannot
 /// name (so the caller fails the match).
-llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
+llvm::StringRef vectorScalarCType(weftrvv::VectorType type) {
   if (isUnsignedVector(type)) {
     auto intType = llvm::cast<mlir::IntegerType>(type.getElementType());
     switch (intType.getWidth()) {
@@ -781,7 +781,7 @@ llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
 /// body the legacy path rejected. Reject it here too (return false -> the caller
 /// fails the match and the body falls back unchanged) rather than emit broken C.
 bool bufferPointeeMatchesVectorElement(mlir::Value bufferValue,
-                                       tcrvrvv::VectorType vectorType) {
+                                       weftrvv::VectorType vectorType) {
   auto pointerType =
       llvm::dyn_cast<emitc::PointerType>(bufferValue.getType());
   if (!pointerType)
@@ -802,16 +802,16 @@ bool bufferPointeeMatchesVectorElement(mlir::Value bufferValue,
 // Provenance comments, byte-identical to the legacy string-route materializer
 // that once rendered them (makeRouteSourceProvenanceComment /
 // makeStepProvenanceComment, since retired). Reproduced so the rendered C
-// carries the same `// tcrv_emitc.*` lines and stays byte-equivalent to the
+// carries the same `// weft_emitc.*` lines and stays byte-equivalent to the
 // hardware-validated golden.
 //===----------------------------------------------------------------------===//
 
-constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";
+constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.route_source_op=" << opName << " role=" << role
+  os << "// weft_emitc.route_source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -821,7 +821,7 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
                         llvm::StringRef callee) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface << " callee=" << callee;
   os.flush();
   return text;
@@ -829,13 +829,13 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
 
 // Function-scoped local variable declaration provenance (the i32 dequant
 // accumulator carried across runtime VL chunks), byte-equivalent to the legacy
-// `// tcrv_emitc.local_variable=...` line so the e2e harness provenance parser
+// `// weft_emitc.local_variable=...` line so the e2e harness provenance parser
 // reads the same `loop_accumulator_source` fact off the converted C.
 std::string localVariableComment(llvm::StringRef varName, llvm::StringRef opName,
                                  llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.local_variable=" << varName << " source_op=" << opName
+  os << "// weft_emitc.local_variable=" << varName << " source_op=" << opName
      << " role=" << role << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -843,12 +843,12 @@ std::string localVariableComment(llvm::StringRef varName, llvm::StringRef opName
 
 // Function-scoped local variable assignment provenance (seed and per-slice
 // accumulator reassignment), byte-equivalent to the legacy
-// `// tcrv_emitc.assign target=...` line.
+// `// weft_emitc.assign target=...` line.
 std::string assignComment(llvm::StringRef target, llvm::StringRef opName,
                           llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.assign target=" << target << " source_op=" << opName
+  os << "// weft_emitc.assign target=" << target << " source_op=" << opName
      << " role=" << role << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -1012,4 +1012,4 @@ WideningChain deriveWideningChain(llvm::StringRef base) {
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

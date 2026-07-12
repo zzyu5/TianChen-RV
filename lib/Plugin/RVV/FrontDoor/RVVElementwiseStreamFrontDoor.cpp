@@ -4,19 +4,19 @@
 //
 // In one line: it runs ONLY the CONSTRUCTION half of the streaming
 // forward-elementwise front door (the shared byte-exact
-// tcrv::rvv::constructTypedElementwiseLoopBody) and STOPS at the realized typed
-// region -- BEFORE --tcrv-rvv-lower-to-emitc -- so the certification walker can walk
-// (and hence machine-certify) the constructed tcrv_rvv.typed_elementwise_loop_body
+// weft::rvv::constructTypedElementwiseLoopBody) and STOPS at the realized typed
+// region -- BEFORE --weft-rvv-lower-to-emitc -- so the certification walker can walk
+// (and hence machine-certify) the constructed weft_rvv.typed_elementwise_loop_body
 // region. NO emit here; the emit half (emitTypedElementwiseLoopBody) is byte-exact
-// unchanged and consumes the region when --tcrv-rvv-lower-to-emitc runs next.
+// unchanged and consumes the region when --weft-rvv-lower-to-emitc runs next.
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVElementwiseStreamConstruction.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Dialect/RVV/IR/RVVElementwiseStreamConstruction.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -28,10 +28,10 @@
 #include <memory>
 #include <optional>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftrvv = ::weft::rvv;
 
 class MaterializeRVVElementwiseStreamFrontDoorPass final
     : public mlir::PassWrapper<
@@ -41,19 +41,19 @@ public:
   MaterializeRVVElementwiseStreamFrontDoorPass() = default;
 
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-forward-elementwise-stream-front-door";
+    return "weft-rvv-materialize-forward-elementwise-stream-front-door";
   }
   llvm::StringRef getDescription() const final {
-    return "Pre-emitc CONSTRUCT the typed tcrv_rvv.typed_elementwise_loop_body "
+    return "Pre-emitc CONSTRUCT the typed weft_rvv.typed_elementwise_loop_body "
            "{ <map/reduce/rotate core brick>; typed_elementwise_loop_yield } region "
-           "in place of each abstract tcrv_rvv.ggml_forward_elementwise (one of the "
+           "in place of each abstract weft_rvv.ggml_forward_elementwise (one of the "
            "5 constructed forward operators scale/silu/rms_norm/soft_max/rope) and "
-           "STOP before --tcrv-rvv-lower-to-emitc so the realized region is walkable "
+           "STOP before --weft-rvv-lower-to-emitc so the realized region is walkable "
            "(the shared byte-exact construction; the emit half is unchanged).";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<tcrvrvv::TCRVRVVDialect>();
+    registry.insert<weftrvv::WEFTRVVDialect>();
   }
 
   void runOnOperation() final {
@@ -62,16 +62,16 @@ public:
 
     // Collect first, then rewrite: constructTypedElementwiseLoopBody erases each
     // abstract op, so mutating during the walk would be unsafe.
-    llvm::SmallVector<tcrvrvv::GgmlForwardElementwiseOp> fwdOps;
+    llvm::SmallVector<weftrvv::GgmlForwardElementwiseOp> fwdOps;
     module.walk(
-        [&](tcrvrvv::GgmlForwardElementwiseOp op) { fwdOps.push_back(op); });
+        [&](weftrvv::GgmlForwardElementwiseOp op) { fwdOps.push_back(op); });
 
-    for (tcrvrvv::GgmlForwardElementwiseOp fwdOp : fwdOps) {
-      std::optional<tcrvrvv::ForwardElementwiseFacts> facts =
-          tcrvrvv::lookupForwardElementwiseFacts(fwdOp.getElementwiseModel());
+    for (weftrvv::GgmlForwardElementwiseOp fwdOp : fwdOps) {
+      std::optional<weftrvv::ForwardElementwiseFacts> facts =
+          weftrvv::lookupForwardElementwiseFacts(fwdOp.getElementwiseModel());
       if (!facts)
         continue; // an unknown model: leave abstract.
-      if (mlir::failed(tcrvrvv::constructTypedElementwiseLoopBody(rewriter, fwdOp,
+      if (mlir::failed(weftrvv::constructTypedElementwiseLoopBody(rewriter, fwdOp,
                                                                  *facts))) {
         fwdOp.emitError()
             << "forward-elementwise-stream front door failed to construct the "
@@ -95,11 +95,11 @@ llvm::Error registerRVVElementwiseStreamFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry & /*registry*/,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin, "tcrv-rvv-materialize-forward-elementwise-stream-front-door",
+      ownerPlugin, "weft-rvv-materialize-forward-elementwise-stream-front-door",
       "Pre-emitc construct the typed streaming forward-elementwise loop-body "
-      "region (tcrv_rvv.typed_elementwise_loop_body { <map/reduce/rotate core "
-      "brick>; yield }) in place of the abstract tcrv_rvv.ggml_forward_elementwise "
-      "so the realized region is walkable before --tcrv-rvv-lower-to-emitc (the "
+      "region (weft_rvv.typed_elementwise_loop_body { <map/reduce/rotate core "
+      "brick>; yield }) in place of the abstract weft_rvv.ggml_forward_elementwise "
+      "so the realized region is walkable before --weft-rvv-lower-to-emitc (the "
       "shared byte-exact construction; scale/silu/rms_norm/soft_max/rope)",
       [] { return createMaterializeRVVElementwiseStreamFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
@@ -107,4 +107,4 @@ llvm::Error registerRVVElementwiseStreamFrontDoorPasses(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

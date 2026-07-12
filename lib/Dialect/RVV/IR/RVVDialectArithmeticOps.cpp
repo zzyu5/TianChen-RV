@@ -13,12 +13,12 @@
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
@@ -33,7 +33,7 @@
 #include <optional>
 #include <string>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
 mlir::LogicalResult BinaryOp::verify() {
   mlir::Operation *op = getOperation();
@@ -43,7 +43,7 @@ mlir::LogicalResult BinaryOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.binary keeps SEW/LMUL/policy on setvl/with_vl, "
+             << "'; weft_rvv.binary keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
 
@@ -61,7 +61,7 @@ mlir::LogicalResult BinaryOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs/rhs generic RVV vector operands, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+              "!weft_rvv.vl operand, and one generic RVV vector result";
   if (getLhs().getType() != getRhs().getType() ||
       getLhs().getType() != getResult().getType())
     return emitOpError()
@@ -69,7 +69,7 @@ mlir::LogicalResult BinaryOp::verify() {
               "vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -89,7 +89,7 @@ mlir::LogicalResult MaskedBinaryOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.masked_binary keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.masked_binary keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -109,7 +109,7 @@ mlir::LogicalResult MaskedBinaryOp::verify() {
     return emitOpError()
            << "requires one generic RVV mask predicate, one passthrough "
               "generic RVV vector, lhs/rhs generic RVV vector operands, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+              "!weft_rvv.vl operand, and one generic RVV vector result";
   if (getPassthrough().getType() != getLhs().getType() ||
       getLhs().getType() != getRhs().getType() ||
       getLhs().getType() != getResult().getType())
@@ -118,7 +118,7 @@ mlir::LogicalResult MaskedBinaryOp::verify() {
               "generic RVV vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -127,16 +127,16 @@ mlir::LogicalResult MaskedBinaryOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_binary";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_binary";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_binary";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_binary";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();
@@ -162,7 +162,7 @@ mlir::LogicalResult CompareOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.compare keeps SEW/LMUL/policy on setvl/with_vl, "
+             << "'; weft_rvv.compare keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
 
@@ -180,13 +180,13 @@ mlir::LogicalResult CompareOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs/rhs generic RVV vector operands, one "
-              "!tcrv_rvv.vl operand, and one generic RVV mask result";
+              "!weft_rvv.vl operand, and one generic RVV mask result";
   if (getLhs().getType() != getRhs().getType())
     return emitOpError()
            << "requires lhs and rhs to have the same generic RVV vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -209,7 +209,7 @@ mlir::LogicalResult MaskAndOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.mask_and keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.mask_and keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -228,7 +228,7 @@ mlir::LogicalResult MaskAndOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs/rhs generic RVV mask operands, one "
-              "!tcrv_rvv.vl operand, and one generic RVV mask result";
+              "!weft_rvv.vl operand, and one generic RVV mask result";
   if (getLhs().getType() != getRhs().getType() ||
       getLhs().getType() != getMask().getType())
     return emitOpError()
@@ -236,7 +236,7 @@ mlir::LogicalResult MaskAndOp::verify() {
               "mask type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -247,20 +247,20 @@ mlir::LogicalResult MaskAndOp::verify() {
   if (!lhsCompare || !rhsCompare)
     return emitOpError()
            << "requires lhs and rhs masks to be produced by "
-              "tcrv_rvv.compare inside the selected RVV typed body";
+              "weft_rvv.compare inside the selected RVV typed body";
   if (lhsCompare == rhsCompare)
     return emitOpError()
            << "requires lhs and rhs masks to come from distinct "
-              "tcrv_rvv.compare operations";
+              "weft_rvv.compare operations";
   if (lhsCompare.getVl() != getVl() || rhsCompare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare operations to "
-              "consume the same !tcrv_rvv.vl token as tcrv_rvv.mask_and";
+           << "requires mask-producing weft_rvv.compare operations to "
+              "consume the same !weft_rvv.vl token as weft_rvv.mask_and";
   if (lhsCompare->getParentOp() != op->getParentOp() ||
       rhsCompare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare operations to be in "
-              "the same tcrv_rvv.with_vl body as tcrv_rvv.mask_and";
+           << "requires mask-producing weft_rvv.compare operations to be in "
+              "the same weft_rvv.with_vl body as weft_rvv.mask_and";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -272,14 +272,14 @@ mlir::LogicalResult MaskAndOp::verify() {
 mlir::LogicalResult SelectOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.select",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.select",
                                          isAllowedSelectAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one generic RVV mask predicate, true/false generic "
-              "RVV vector operands, one !tcrv_rvv.vl operand, and one "
+              "RVV vector operands, one !weft_rvv.vl operand, and one "
               "generic RVV vector result";
   if (getTrueValue().getType() != getFalseValue().getType() ||
       getTrueValue().getType() != getSelected().getType())
@@ -288,7 +288,7 @@ mlir::LogicalResult SelectOp::verify() {
               "vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -298,20 +298,20 @@ mlir::LogicalResult SelectOp::verify() {
   auto maskAnd = getMask().getDefiningOp<MaskAndOp>();
   if (!compare && !maskAnd)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare or "
-              "tcrv_rvv.mask_and inside the selected RVV typed body";
+           << "requires mask operand to be produced by weft_rvv.compare or "
+              "weft_rvv.mask_and inside the selected RVV typed body";
   mlir::Value maskVL = compare ? compare.getVl() : maskAnd.getVl();
   mlir::Operation *maskProducer = compare ? compare.getOperation()
                                           : maskAnd.getOperation();
   if (maskVL != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare or tcrv_rvv.mask_and "
+           << "requires mask-producing weft_rvv.compare or weft_rvv.mask_and "
               "to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.select";
+              "!weft_rvv.vl token as weft_rvv.select";
   if (maskProducer->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare or tcrv_rvv.mask_and "
-              "to be in the same tcrv_rvv.with_vl body as tcrv_rvv.select";
+           << "requires mask-producing weft_rvv.compare or weft_rvv.mask_and "
+              "to be in the same weft_rvv.with_vl body as weft_rvv.select";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();

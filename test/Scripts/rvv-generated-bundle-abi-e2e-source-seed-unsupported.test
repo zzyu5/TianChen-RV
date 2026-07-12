@@ -3,4 +3,4 @@
 
 # CHECK: rvv_generated_bundle_abi_e2e: failed
 # CHECK: legacy RVV --source-seed evidence mode is unsupported during Stage1 residue hygiene
-# CHECK-NOT: tcrv_rvv_generated_bundle_abi_add_ok
+# CHECK-NOT: weft_rvv_generated_bundle_abi_add_ok

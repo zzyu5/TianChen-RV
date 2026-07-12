@@ -36,20 +36,20 @@ DEFAULT_MATERIALIZED_INPUT = Path(
 )
 DEFAULT_TIMEOUT_SECONDS = 60
 
-INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
+INDEX_FILE_NAME = "weft-target-artifact-bundle.index"
 EXPECTED_SELECTED_VARIANT = "tensorext_lite_tile_mma_first_slice"
 EXPECTED_ORIGIN_PLUGIN = "tensorext-lite-plugin"
 EXPECTED_CONSTRUCTION_PROTOCOL = "extension-family-construction-protocol.v1"
 EXPECTED_EXTENSION_ARCHETYPE = "fragment-mma-like"
 EXPECTED_SEMANTIC_ROLE_GRAPH = "configure->load_frag->tile_mma->store_frag"
 EXPECTED_COMMON_INTERFACE_REALIZATION = (
-    "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-    "TCRVEmitCLowerableInterface;load_frag=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;"
-    "tile_mma=TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-    "TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store_frag="
-    "TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface"
+    "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+    "WEFTEmitCLowerableInterface;load_frag=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface;"
+    "tile_mma=WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+    "WEFTResourceOpInterface+WEFTEmitCLowerableInterface;store_frag="
+    "WEFTExtensionOpInterface+WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface"
 )
 EXPECTED_EVIDENCE_PROFILE = (
     "parse_verify|capability|interface|selected_boundary_or_route|"
@@ -63,7 +63,7 @@ EXPECTED_COMPONENT_GROUP = "tensorext-lite-fragment-mma-materialized-emitc-bundl
 EXPECTED_OBJECT_KIND = "riscv-elf-relocatable-object"
 EXPECTED_HEADER_KIND = "runtime-callable-c-header"
 EXPECTED_FUNCTION = (
-    "tcrv_emitc_tensorext_lite_header_export_"
+    "weft_emitc_tensorext_lite_header_export_"
     "tensorext_lite_tile_mma_first_slice"
 )
 EXPECTED_CALL_TRACE = "configure,load_frag,tile_mma,store_frag"
@@ -85,10 +85,10 @@ FORBIDDEN_HEADER_TOKENS = (
     "source_export",
     "int main",
     "return;",
-    "tcrv_tensorext_lite_config(",
-    "tcrv_tensorext_lite_load_frag(",
-    "tcrv_tensorext_lite_tile_mma(",
-    "tcrv_tensorext_lite_store_frag(",
+    "weft_tensorext_lite_config(",
+    "weft_tensorext_lite_load_frag(",
+    "weft_tensorext_lite_tile_mma(",
+    "weft_tensorext_lite_store_frag(",
 )
 
 
@@ -222,10 +222,10 @@ void record_role(char marker, int expected_index) {{
 }}
 }} // namespace
 
-void tcrv_tensorext_lite_config() {{ record_role('C', 0); }}
-void tcrv_tensorext_lite_load_frag() {{ record_role('L', 1); }}
-void tcrv_tensorext_lite_tile_mma() {{ record_role('M', 2); }}
-void tcrv_tensorext_lite_store_frag() {{ record_role('S', 3); }}
+void weft_tensorext_lite_config() {{ record_role('C', 0); }}
+void weft_tensorext_lite_load_frag() {{ record_role('L', 1); }}
+void weft_tensorext_lite_tile_mma() {{ record_role('M', 2); }}
+void weft_tensorext_lite_store_frag() {{ record_role('S', 3); }}
 
 int main() {{
   {EXPECTED_FUNCTION}();
@@ -237,7 +237,7 @@ int main() {{
   }}
 
   std::printf(
-      \"PASS tianchenrv.tensorext_lite.runtime_abi_e2e \"
+      \"PASS weft.tensorext_lite.runtime_abi_e2e \"
       \"selected_variant={EXPECTED_SELECTED_VARIANT} \"
       \"origin_plugin={EXPECTED_ORIGIN_PLUGIN} \"
       \"construction_protocol={EXPECTED_CONSTRUCTION_PROTOCOL} \"
@@ -302,15 +302,15 @@ def validate_generated_source(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     for expected in (
         f'extern "C" void {EXPECTED_FUNCTION}()',
-        "tcrv_tensorext_lite_config();",
-        "tcrv_tensorext_lite_load_frag();",
-        "tcrv_tensorext_lite_tile_mma();",
-        "tcrv_tensorext_lite_store_frag();",
+        "weft_tensorext_lite_config();",
+        "weft_tensorext_lite_load_frag();",
+        "weft_tensorext_lite_tile_mma();",
+        "weft_tensorext_lite_store_frag();",
         "role=configure",
         "role=load_frag",
         "role=tile_mma",
         "role=store_frag",
-        "op_interface=TCRVEmitCLowerableOpInterface",
+        "op_interface=WEFTEmitCLowerableOpInterface",
     ):
         require_contains(text, expected, "generated C++ source")
     for token in ("descriptor", "direct-C", "source-export", "__riscv_", "int main"):
@@ -348,7 +348,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     bundle_dir.mkdir(parents=True)
     negative_dir.mkdir()
 
-    tcrv_translate = ensure_tool(args.tcrv_translate, ("build/bin/tcrv-translate",))
+    weft_translate = ensure_tool(args.weft_translate, ("build/bin/weft-translate",))
     clangxx = ensure_tool(args.clangxx, ("/usr/lib/llvm-20/bin/clang++",))
     readobj = ensure_tool(args.llvm_readobj, ("/usr/lib/llvm-20/bin/llvm-readobj",))
 
@@ -377,9 +377,9 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     run.run(
         "export source artifact bundle front door",
         [
-            tcrv_translate,
-            "--tcrv-source-artifact-bundle-front-door",
-            f"--tcrv-target-artifact-bundle-output-dir={bundle_dir}",
+            weft_translate,
+            "--weft-source-artifact-bundle-front-door",
+            f"--weft-target-artifact-bundle-output-dir={bundle_dir}",
             str(input_path),
         ],
         stdout_path=bundle_stdout,
@@ -387,15 +387,15 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     )
     run.run(
         "export materialized EmitC C++ source",
-        [tcrv_translate, "--tcrv-tensorext-lite-emitc-to-cpp", str(materialized_input_path)],
+        [weft_translate, "--weft-tensorext-lite-emitc-to-cpp", str(materialized_input_path)],
         stdout_path=generated_cpp,
         stderr_path=cpp_stderr,
     )
     run.run(
         "export declaration header",
         [
-            tcrv_translate,
-            "--tcrv-export-target-header-artifact",
+            weft_translate,
+            "--weft-export-target-header-artifact",
             str(materialized_input_path),
         ],
         stdout_path=generated_header,
@@ -403,7 +403,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     )
     run.run(
         "export standalone target object",
-        [tcrv_translate, "--tcrv-export-target-artifact", str(materialized_input_path)],
+        [weft_translate, "--weft-export-target-artifact", str(materialized_input_path)],
         stdout_path=target_object,
         stderr_path=target_object_stderr,
     )
@@ -483,7 +483,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
         stderr_path=harness_stderr,
     )
     harness_output = harness_stdout.read_text(encoding="utf-8")
-    require_contains(harness_output, "PASS tianchenrv.tensorext_lite.runtime_abi_e2e", "harness")
+    require_contains(harness_output, "PASS weft.tensorext_lite.runtime_abi_e2e", "harness")
     require_contains(harness_output, f"selected_variant={EXPECTED_SELECTED_VARIANT}", "harness")
     require_contains(
         harness_output, f"extension_archetype={EXPECTED_EXTENSION_ARCHETYPE}", "harness"
@@ -497,7 +497,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     expect_failure(
         run,
         "negative stale source-front-door metadata is not artifact authority",
-        [tcrv_translate, "--tcrv-tensorext-lite-emitc-to-cpp", str(input_path)],
+        [weft_translate, "--weft-tensorext-lite-emitc-to-cpp", str(input_path)],
         stderr_path=stale_stderr,
         expected=("stale TensorExtLite source-front-door metadata",),
     )
@@ -515,7 +515,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     expect_failure(
         run,
         "negative unsupported artifact kind fails closed",
-        [tcrv_translate, "--tcrv-export-target-artifact", str(unsupported_mlir)],
+        [weft_translate, "--weft-export-target-artifact", str(unsupported_mlir)],
         stderr_path=unsupported_stderr,
         expected=("unsupported artifact_kind", "found none", "metadata-diagnostic"),
     )
@@ -533,7 +533,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     expect_failure(
         run,
         "negative mismatched route identity fails closed",
-        [tcrv_translate, "--tcrv-export-target-header-artifact", str(wrong_route_mlir)],
+        [weft_translate, "--weft-export-target-header-artifact", str(wrong_route_mlir)],
         stderr_path=wrong_route_stderr,
         expected=("found none", "unknown target artifact export route id", "wrong-route"),
     )
@@ -594,7 +594,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--input", default=str(DEFAULT_INPUT))
     parser.add_argument("--materialized-input", default=str(DEFAULT_MATERIALIZED_INPUT))
-    parser.add_argument("--tcrv-translate", default="tcrv-translate")
+    parser.add_argument("--weft-translate", default="weft-translate")
     parser.add_argument("--clangxx", default="clang++")
     parser.add_argument("--llvm-readobj", default="llvm-readobj")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
@@ -605,10 +605,10 @@ def main(argv: list[str]) -> int:
     try:
         summary = create_evidence(parse_args(argv))
     except (EvidenceError, subprocess.TimeoutExpired, OSError) as error:
-        print(f"tianchenrv.tensorext_lite.runtime_abi_e2e: FAIL {error}", file=sys.stderr)
+        print(f"weft.tensorext_lite.runtime_abi_e2e: FAIL {error}", file=sys.stderr)
         return 1
 
-    print("tianchenrv.tensorext_lite.runtime_abi_e2e: PASS")
+    print("weft.tensorext_lite.runtime_abi_e2e: PASS")
     print(f"evidence_dir: {summary['evidence_dir']}")
     print(f"selected_variant: {summary['selected_variant']}")
     print(f"origin_plugin: {summary['origin_plugin']}")

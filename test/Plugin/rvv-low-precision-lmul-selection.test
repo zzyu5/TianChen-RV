@@ -1,4 +1,4 @@
-# RUN: tianchenrv-rvv-low-precision-lmul-selection-test | FileCheck %s
+# RUN: weft-rvv-low-precision-lmul-selection-test | FileCheck %s
 
 # The N3 resource-aware max-legal-LMUL selection: the candidate space is DERIVED
 # from the vector-register-budget resource fact and PRUNED (the prune binds when

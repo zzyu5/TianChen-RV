@@ -2,12 +2,12 @@
 
 ## Non-Goals
 
-TianChen-RV MLIR 不能变成：
+Weft-RV MLIR 不能变成：
 
 - 又一个高层 tensor/tile IR；
 - 一个硬件一个互不相关的 backend dialect；
 - descriptor-driven microkernel/exporter 框架；
-- 带 `tcrv.matmul` / `tcrv.softmax` / `tcrv.reduce` / `tcrv.generic_tile` / `tcrv.generic_mma` 的通用 compute dialect；
+- 带 `weft.matmul` / `weft.softmax` / `weft.reduce` / `weft.generic_tile` / `weft.generic_mma` 的通用 compute dialect；
 - core pass 里一堆硬编码 backend 分支；
 - 保留可执行的 legacy `i32m1` 兼容 route；
 - emission-plan/readiness/dashboard/status 当 route/进度/证据 authority 的系统；
@@ -18,7 +18,7 @@ TianChen-RV MLIR 不能变成：
 
 ## Family 准入边界（N2 identity）
 
-一个 family **正当进入** TianChen-RV，当且仅当：**它的能力可以表达为 RISC-V capability 事实，并被同一 core/common pass 零-core-branch 地消费**——而不是它"能挂到 dispatch 接口上"。判据落在 **capability 模型本身的复用**，不在 pipeline 形状的复用。
+一个 family **正当进入** Weft-RV，当且仅当：**它的能力可以表达为 RISC-V capability 事实，并被同一 core/common pass 零-core-branch 地消费**——而不是它"能挂到 dispatch 接口上"。判据落在 **capability 模型本身的复用**，不在 pipeline 形状的复用。
 
 - **正当（Case A，本质仍是 RISC-V）**：RVV、IME（挂在 RV 核上的矩阵扩展指令）、RVV0.7 / zve 变体、厂商的 RISC-V 矩阵/DSP 自定义扩展。它们有 `march` 串、capability 事实；kernel 经 RV 标量核发射或与 RV 向量协同。RISC-V 的"custom extension"哲学本就允许厂商在 RV 核上加自定义指令/协处理器——这种扩展**本质仍是 RISC-V**，正是 N1（异构扩展作为 capability）与 N2（第二 family 复用同一 capability 模型）要证明的。
 - **越界（Case B，稀释 novelty）**：独立的非-RISC-V 离散加速卡——GPU / TPU / 910B / 寒武纪 MLU，作为自带 ISA/runtime、经 PCIe/offload-queue 交互的独立设备。它们与 RISC-V **无架构关系**；若系统"能容纳"它们，恰说明 N2 接口退化成了通用 backend-dispatch 壳（IREE/XLA/TVM 已有），RISC-V 就从**设计中心**降级为初始用例，novelty 稀释成"又一个 MLIR 后端框架"。**明确排除**——不是"能不能塞进来"，而是塞进来就背离 RISC-V-centric 设计中心。
@@ -38,9 +38,9 @@ TianChen-RV MLIR 不能变成：
 **用**：
 
 ```text
-TianChen-RV 是 high-level MLIR 之后的统一 RISC-V MLIR，组织 capability-scoped extension execution。
+Weft-RV 是 high-level MLIR 之后的统一 RISC-V MLIR，组织 capability-scoped extension execution。
 Capability 对象驱动 variant 生成+selection、fail-closed-gate legality+dispatch（N1 是 substrate——novelty 只在跨 family 复用同一 fact-set、由 N2 证，别把"建模能力对象"本身当独立贡献；见 index Novelty 段）。
-RVV/IME/TensorExt/Offload/未来 vendor 是同一 TCRV 系统内的 extension family，core/common 不按 family 名分支（N2）。
+RVV/IME/TensorExt/Offload/未来 vendor 是同一 WEFT 系统内的 extension family，core/common 不按 family 名分支（N2）。
 Gearbox 是 capability/resource-aware 的跨 family 调优层，把 selected body 变成调优过的可执行 body（N3）。
 当前 lowering route：extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++。
 Sophgo/offload 建模为 runtime-offload capability；IME 是评估 plugin-local 接入的第二 family。
@@ -49,13 +49,13 @@ Sophgo/offload 建模为 runtime-offload capability；IME 是评估 plugin-local
 **避免**：
 
 ```text
-TianChen-RV 是新 tensor IR。
+Weft-RV 是新 tensor IR。
 RVV/IME/TensorExt/Offload 是互不相关的独立 backend dialect。
-tcrv.exec.kernel 是硬件 IR 主体。
+weft.exec.kernel 是硬件 IR 主体。
 Descriptor-driven computation 是架构。
 Legacy i32m1 route table 是受支持的 RVV 架构。
 Source-front-door 生成的 RVV artifact 证明成熟度。
-tcrv.exec 拥有 selected RVV route 或 dtype 语义。
+weft.exec 拥有 selected RVV route 或 dtype 语义。
 Emission-plan status 或 artifact metadata 是 route authority。
 Sophgo 是 RISC-V custom ISA 扩展。
 独立离散加速卡（GPU/TPU/910B/寒武纪 PCIe 设备）是 N2 第二 family 或卖点。

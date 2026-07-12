@@ -5,12 +5,12 @@ add_subdirectory(Plugin)
 add_subdirectory(Target)
 add_subdirectory(Transforms)
 
-add_mlir_library(TianChenRVInitAll
-  InitTianChenRVDialects.cpp
+add_mlir_library(WeftInitAll
+  InitWeftDialects.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVExecDialect
-  TianChenRVPlugin
+  WeftExecDialect
+  WeftPlugin
   MLIRArithDialect
   MLIRFuncDialect
   MLIRIR

@@ -410,7 +410,7 @@ typedef void (*kernel_fn)(const int8_t *, const int8_t *, const int32_t *,
 
 static const char *VARIANT_NAMES[N_VARIANTS] = {{ {names_init} }};
 
-static volatile double tcrv_sink = 0.0;
+static volatile double weft_sink = 0.0;
 
 static inline uint64_t rdcycle_now(void) {{
   uint64_t v;
@@ -458,7 +458,7 @@ static int run_case(size_t n, float scale) {{
   printf("CORRECTNESS n=%zu ok oracle=%.9g\n", n, oracle);
 
   for (int w = 0; w < WARMUPS; ++w)
-    for (int v = 0; v < N_VARIANTS; ++v) {{ fns[v](lhs, rhs, acc, scale, out, n); tcrv_sink += (double)out[0]; }}
+    for (int v = 0; v < N_VARIANTS; ++v) {{ fns[v](lhs, rhs, acc, scale, out, n); weft_sink += (double)out[0]; }}
 
   double best_ns[N_VARIANTS];
   unsigned long long best_cyc[N_VARIANTS];
@@ -468,7 +468,7 @@ static int run_case(size_t n, float scale) {{
     for (int v = 0; v < N_VARIANTS; ++v) {{
       uint64_t c0 = rdcycle_now();
       unsigned long long t0 = now_ns();
-      for (int it = 0; it < ITERS; ++it) {{ fns[v](lhs, rhs, acc, scale, out, n); tcrv_sink += (double)out[0]; }}
+      for (int it = 0; it < ITERS; ++it) {{ fns[v](lhs, rhs, acc, scale, out, n); weft_sink += (double)out[0]; }}
       unsigned long long dt = now_ns() - t0;
       uint64_t dc = rdcycle_now() - c0;
       double per_ns = (double)dt / (double)ITERS;
@@ -493,7 +493,7 @@ int main(void) {{
   printf("CONFIG nvar=%d counts={counts_summary} warmups=%d repeats=%d iters=%d "
          "timing=rdcycle+clock_gettime\n", N_VARIANTS, WARMUPS, REPEATS, ITERS);
   for (size_t i = 0; i < nc; ++i) {{ int s = run_case(counts[i], scale); if (s != 0) return s; }}
-  printf("PASS accumulator-sweep counts={counts_summary} sink=%.9g\n", tcrv_sink);
+  printf("PASS accumulator-sweep counts={counts_summary} sink=%.9g\n", weft_sink);
   return 0;
 }}
 """.lstrip()
@@ -633,7 +633,7 @@ def build_and_run_remote(
     connect_timeout: int,
     timeout: int,
 ) -> dict[str, Any]:
-    remote_dir = f"/tmp/tcrv_accsweep_{kernel_label}_{abi.safe_run_id('p-b1')}"
+    remote_dir = f"/tmp/weft_accsweep_{kernel_label}_{abi.safe_run_id('p-b1')}"
     commands: dict[str, Any] = {"remote_dir": remote_dir}
 
     # write all sources locally first

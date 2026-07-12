@@ -5,7 +5,7 @@
 // oracle -- the q4_0 offset-binary nibble DECODE, the tiled matmul, the
 // ZERO-MODEL plain-GEMM reference, and the test grid are all unchanged -- with
 // EXACTLY ONE difference: the scalar substitute for the batched vmadot MAC leaf
-// (tcrv_ime_vmadot_mac_kloop) is replaced by the REAL `vmadot` inline-asm leaf
+// (weft_ime_vmadot_mac_kloop) is replaced by the REAL `vmadot` inline-asm leaf
 // emitted VERBATIM by the IME backend emitter
 // (lib/Plugin/IME/IMEBackendEmissionDriver.cpp macKloopHelperBody()). So on real
 // K1 silicon the tiled kernel reduces through the actual `vmadot` instruction
@@ -41,8 +41,8 @@
 // the same structured C the IME emitter emits for the region.
 // ---------------------------------------------------------------------------
 
-// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mac_kloop batched_kloop mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot register_resident_accumulate=1 single_vsetvli=1 store_once=1
-static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B, long kt, int32_t *frag) {
+// weft_ime.asm_leaf=weft_ime_vmadot_mac_kloop batched_kloop mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot register_resident_accumulate=1 single_vsetvli=1 store_once=1
+static inline void weft_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B, long kt, int32_t *frag) {
   __asm__ volatile(
       "vsetvli   t0, zero, e8, m1, ta, ma   \n\t"
       "vmv.v.i   v2, 0                       \n\t"
@@ -68,7 +68,7 @@ static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B, l
 }
 
 // The q4_0 offset-binary nibble DECODE (identical to the emitted decode core).
-static inline void tcrv_ime_q4_0_dequant_fragment(const uint8_t *blk,
+static inline void weft_ime_q4_0_dequant_fragment(const uint8_t *blk,
                                                   int8_t *out) {
   const uint8_t *qs = blk + 2; // past the 2-byte fp16 d
   for (int j = 0; j < 16; ++j) {
@@ -81,7 +81,7 @@ static inline void tcrv_ime_q4_0_dequant_fragment(const uint8_t *blk,
 // tile's kt q4_0 blocks are decoded into a contiguous int8 fragment buffer, then
 // ONE register-resident batched MAC runs over the K/8 loop (single vsetvli, one
 // store) -- int32-identical to the old per-fragment form.
-static void tcrv_ime_q4_0_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4,
+static void weft_ime_q4_0_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4,
                                         int32_t *C, long M, long N, long K) {
   const long mt = M / 4, nt = N / 4, kt = K / 8;
   const long q40_block_bytes = 18;
@@ -91,10 +91,10 @@ static void tcrv_ime_q4_0_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4,
       const uint8_t *Bcol = Bq4 + (long)nj * kt * q40_block_bytes;
       int8_t Bdec[kt * 32];
       for (long kf = 0; kf < kt; ++kf)
-        tcrv_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes,
+        weft_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes,
                                        Bdec + kf * 32);
       int32_t frag[16];
-      tcrv_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag);
+      weft_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag);
       for (long r = 0; r < 4; ++r)
         for (long c = 0; c < 4; ++c)
           C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];
@@ -157,7 +157,7 @@ int main(void) {
   for (long blk = 0; blk < (N / 4) * kt; ++blk) {
     const uint8_t *b = Bq4 + blk * q40_block_bytes;
     int8_t frame[32];
-    tcrv_ime_q4_0_dequant_fragment(b, frame);
+    weft_ime_q4_0_dequant_fragment(b, frame);
     const uint8_t *qs = b + 2;
     for (int j = 0; j < 16; ++j) {
       decode_total += 2;
@@ -169,7 +169,7 @@ int main(void) {
   // --- Check (2): tiled kernel int32 output vs plain-GEMM reference ------------
   // On real K1 this reduces through the actual `vmadot` instruction.
   int32_t *Ck = (int32_t *)calloc((size_t)M * N, sizeof(int32_t));
-  tcrv_ime_q4_0_vmadot_matmul(Apack, Bq4, Ck, M, N, K);
+  weft_ime_q4_0_vmadot_matmul(Apack, Bq4, Ck, M, N, K);
 
   long mac_mismatch = 0;
   int32_t maxabs = 0;

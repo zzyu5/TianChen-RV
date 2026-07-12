@@ -1,23 +1,23 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics | FileCheck %s
+// RUN: weft-opt %s --split-input-file --verify-diagnostics | FileCheck %s
 
 // The validated IME1 int8->int32 vmadot MAC envelope (FOUNDATION.md task 3,
 // real-K1 bit-exact). The op carries the structural executable facts plus the
 // selected-path provenance; the fail-closed verifier (I7) admits ONLY this
 // envelope.
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @ime_mma_valid
-  tcrv.exec.kernel @ime_mma_valid {
-    tcrv.exec.capability @spacemit_ime {
+  // CHECK-LABEL: weft.exec.kernel @ime_mma_valid
+  weft.exec.kernel @ime_mma_valid {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available"
     }
-    tcrv.exec.variant @ime_vmadot_mma_slice attributes {
+    weft.exec.variant @ime_vmadot_mma_slice attributes {
       origin = "ime-plugin",
       requires = [@spacemit_ime]
     } {
     }
-    // CHECK: tcrv_ime.mma {accum_bits = 32 : i64
+    // CHECK: weft_ime.mma {accum_bits = 32 : i64
     // CHECK-SAME: available_harts = "0-3"
     // CHECK-SAME: elem_in_bits = 8 : i64
     // CHECK-SAME: ime_op = "vmadot"
@@ -30,7 +30,7 @@ module {
     // CHECK-SAME: selected_variant = @ime_vmadot_mma_slice
     // CHECK-SAME: source_kernel = "ime_mma_valid"
     // CHECK-SAME: status = "role-op-boundary"
-    tcrv_ime.mma {
+    weft_ime.mma {
       origin = "ime-plugin",
       required_capabilities = [@spacemit_ime],
       role = "direct variant",
@@ -50,19 +50,19 @@ module {
 
 // -----
 
-// Fail-closed (I7): the SIGNED tcrv.ime.mma surface admits ONLY `vmadot`; a
+// Fail-closed (I7): the SIGNED weft.ime.mma surface admits ONLY `vmadot`; a
 // different IME1 signedness mnemonic (e.g. the reversed-order mixed-sign sibling
 // vmadotus) is rejected here — the unsigned vmadotu has its own op
-// (tcrv.ime.mma_u) and the modeled mixed-sign vmadotsu has its own op
-// (tcrv.ime.mma_su). No body outside the proven, signedness-correct hardware
+// (weft.ime.mma_u) and the modeled mixed-sign vmadotsu has its own op
+// (weft.ime.mma_su). No body outside the proven, signedness-correct hardware
 // envelope is ever emitted. (vmadotus is a still-rejected sibling: it has no
 // boundary op of its own, so it fails closed on every surface.)
 module {
-  tcrv.exec.kernel @ime_mma_wrong_op {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_wrong_op {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{ime_op must be 'vmadot'; this op only models the validated IME1 int8->int32 MAC instruction of its signedness}}
-    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotus", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    weft_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotus", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
   }
 }
 
@@ -71,11 +71,11 @@ module {
 // Fail-closed (I7): the IME1 vmadot consumes int8 inputs; an out-of-envelope
 // element width (e.g. int4) is rejected.
 module {
-  tcrv.exec.kernel @ime_mma_wrong_elem {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_wrong_elem {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{elem_in_bits must be 8 (IME1 vmadot consumes int8 inputs)}}
-    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_elem", ime_op = "vmadot", elem_in_bits = 4 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    weft_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_elem", ime_op = "vmadot", elem_in_bits = 4 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
   }
 }
 
@@ -84,10 +84,10 @@ module {
 // The op is an IME EXECUTION boundary, not a high-level matmul/tile/tensor op:
 // generic tensor/tile/benchmark or unknown attributes are rejected.
 module {
-  tcrv.exec.kernel @ime_mma_unknown_attr {
-    tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    tcrv.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+  weft.exec.kernel @ime_mma_unknown_attr {
+    weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
+    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{does not accept generic tensor/tile/benchmark or unknown attribute 'shape'}}
-    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_unknown_attr", ime_op = "vmadot", shape = "generic_tensor", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    weft_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_unknown_attr", ime_op = "vmadot", shape = "generic_tensor", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
   }
 }

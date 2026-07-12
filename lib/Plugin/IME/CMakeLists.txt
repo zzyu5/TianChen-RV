@@ -1,30 +1,30 @@
-add_mlir_library(TianChenRVIMEBackendEmitter
+add_mlir_library(WeftIMEBackendEmitter
   IMEBackendEmissionDriver.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVIMEDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftIMEDialect
+  WeftSupport
   MLIREmitCDialect
   MLIRIR
   MLIRSupport
   MLIRTransformUtils
 )
 
-add_mlir_library(TianChenRVIMEPlugin
+add_mlir_library(WeftIMEPlugin
   IMEExtensionPlugin.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVIMEDialect
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftIMEDialect
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRSupport
 )

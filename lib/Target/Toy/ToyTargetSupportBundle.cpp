@@ -1,9 +1,9 @@
-#include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
+#include "Weft/Target/Toy/ToyTargetSupportBundle.h"
 
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
-#include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
-#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyEmitCRouteProvider.h"
+#include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -18,7 +18,7 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::target::toy {
+namespace weft::target::toy {
 namespace {
 
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
@@ -29,7 +29,7 @@ constexpr llvm::StringLiteral kToySourceRoleMetadataKey("toy_source_role");
 constexpr llvm::StringLiteral kToySourceOpInterfaceMetadataKey(
     "toy_source_op_interface");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 
 struct ScopedTempPath {
   llvm::SmallString<128> path;
@@ -50,7 +50,7 @@ const plugin::toy::ToyTemplateEmitCConstructionRoute &getToyRoute() {
 
 llvm::Error makeToyTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Toy materialized EmitC target artifact "
+      llvm::Twine("Weft-RV Toy materialized EmitC target artifact "
                   "bridge failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -133,8 +133,8 @@ ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
   config.headerRouteID = route.headerRouteID;
   config.headerArtifactKind = route.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;
-  config.headerGuard = "TIANCHENRV_TOY_MATERIALIZED_EMITC_HEADER_H";
-  config.evidencePrefix = "tianchenrv.toy";
+  config.headerGuard = "WEFT_TOY_MATERIALIZED_EMITC_HEADER_H";
+  config.evidencePrefix = "weft.toy";
   config.includes = kHeaderIncludes;
   config.selectedVariant = manifest.family.firstSliceVariantName;
   config.emissionKind = route.emissionKind;
@@ -176,7 +176,7 @@ llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
   int sourceFD = -1;
   ScopedTempPath sourcePath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-toy-materialized-emitc", "cpp", sourceFD, sourcePath.path))
+          "weft-toy-materialized-emitc", "cpp", sourceFD, sourcePath.path))
     return makeToyTargetRouteError(
         llvm::Twine("failed to create temporary C++ source: ") +
         error.message());
@@ -197,7 +197,7 @@ llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
   int stderrFD = -1;
   ScopedTempPath stderrPath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-toy-materialized-emitc-clangxx", "stderr", stderrFD,
+          "weft-toy-materialized-emitc-clangxx", "stderr", stderrFD,
           stderrPath.path))
     return makeToyTargetRouteError(
         llvm::Twine("failed to create temporary clang++ stderr file: ") +
@@ -294,4 +294,4 @@ configureToyTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle) {
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::target::toy
+} // namespace weft::target::toy

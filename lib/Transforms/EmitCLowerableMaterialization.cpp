@@ -1,8 +1,8 @@
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -24,24 +24,24 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZEEMITCLOWERABLEROUTES
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::VariantEmissionRole;
+using weft::exec::DiagnosticOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
-namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
+namespace execDiagnostic = weft::exec::diagnostic;
 
 llvm::Error makeEmitCMaterializationPassError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV EmitC lowerable materialization failed: ") +
+      llvm::Twine("Weft-RV EmitC lowerable materialization failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -54,13 +54,13 @@ struct DirectVariantTarget {
 
 std::optional<VariantEmissionRole>
 symbolizeVariantEmissionRole(llvm::StringRef value) {
-  if (value == tianchenrv::plugin::stringifyVariantEmissionRole(
+  if (value == weft::plugin::stringifyVariantEmissionRole(
                    VariantEmissionRole::DirectVariant))
     return VariantEmissionRole::DirectVariant;
-  if (value == tianchenrv::plugin::stringifyVariantEmissionRole(
+  if (value == weft::plugin::stringifyVariantEmissionRole(
                    VariantEmissionRole::DispatchCase))
     return VariantEmissionRole::DispatchCase;
-  if (value == tianchenrv::plugin::stringifyVariantEmissionRole(
+  if (value == weft::plugin::stringifyVariantEmissionRole(
                    VariantEmissionRole::DispatchFallback))
     return VariantEmissionRole::DispatchFallback;
   return std::nullopt;
@@ -109,7 +109,7 @@ llvm::Error collectSelectedEmitCTargetFromDiagnostic(
     return makeEmitCMaterializationPassError(
         llvm::Twine("supported emission-plan diagnostic target @") +
         target.getValue() +
-        " does not resolve to a direct sibling tcrv.exec.variant");
+        " does not resolve to a direct sibling weft.exec.variant");
 
   out.push_back({kernel, variantIt->getValue(), *role});
   return llvm::Error::success();
@@ -196,7 +196,7 @@ findSingleDirectVariantTarget(mlir::ModuleOp module) {
 
   if (targets.empty())
     return makeEmitCMaterializationPassError(
-        "requires exactly one direct tcrv.exec.variant with explicit "
+        "requires exactly one direct weft.exec.variant with explicit "
         "extension-family ops");
   if (targets.size() != 1)
     return makeEmitCMaterializationPassError(
@@ -296,4 +296,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(
   return std::make_unique<MaterializeEmitCLowerableRoutesPass>(registry);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

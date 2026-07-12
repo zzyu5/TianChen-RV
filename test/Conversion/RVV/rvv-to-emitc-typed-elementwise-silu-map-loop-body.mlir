@@ -1,25 +1,25 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/kind = "typed_elementwise_loop_body"/kind = "plain_loop"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed 's/reduce_map_model = "map"/reduce_map_model = "fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMODEL
-// RUN: sed 's/element_sew = 32 : i64/element_sew = 16 : i64/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADSEW
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/kind = "typed_elementwise_loop_body"/kind = "plain_loop"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed 's/reduce_map_model = "map"/reduce_map_model = "fold"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMODEL
+// RUN: sed 's/element_sew = 32 : i64/element_sew = 16 : i64/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADSEW
 
 // M-FLAT forward-elementwise scaffold (line C, ① 之后) — the CONSTRUCTED f32
 // forward-pass silu (y[i] = x[i]*sigmoid(x[i]), sigmoid(x) = 1/(1+e^{-x})), the
 // SECOND forward-elementwise operator flipped dispatch-wired -> constructed
 // (C_construct 29->30). This is a C2 marginal-cost payoff: it REUSES the typed
 // elementwise strip-loop SCAFFOLD scale landed — the SAME loop op
-// tcrv_rvv.typed_elementwise_loop_body (reduce_map_model "map"), the SAME yield
+// weft_rvv.typed_elementwise_loop_body (reduce_map_model "map"), the SAME yield
 // terminator, the SAME emitTypedElementwiseLoopBody outer-loop machinery + [L-8]
 // validator, and the SAME shared node-for-node ggml_v_expf_m2 exp polynomial
 // (which soft_max also consumes) — adding ONLY the per-strip
-// tcrv_rvv.elementwise_silu_map map core brick (its m2 exp decode). The monolith
-// tcrv_rvv.ggml_vec_silu_f32 op + emitGgmlVecSiluF32 opaque helper + recognizer +
+// weft_rvv.elementwise_silu_map map core brick (its m2 exp decode). The monolith
+// weft_rvv.ggml_vec_silu_f32 op + emitGgmlVecSiluF32 opaque helper + recognizer +
 // verifier were RETIRED. The brick's strip_index MUST be the loop induction
 // variable (region arg 0, anti-bypass), so the emit provably addresses x + i /
 // y + i, not the loop-invariant strip 0.
 //
 // This is BYTE-EXACT to the retired monolith emit modulo ONLY the source-op
-// provenance token (tcrv_rvv.ggml_vec_silu_f32 -> tcrv_rvv.elementwise_silu_map):
+// provenance token (weft_rvv.ggml_vec_silu_f32 -> weft_rvv.elementwise_silu_map):
 // ggml's `if (!vcpop_m(c))` is a pure perf short-circuit whose fast/slow paths are
 // bitwise-equal, so the slow-path vmerge value graph is emitted UNCONDITIONALLY.
 // Pinned at m2 (ggml's vsetvl_e32m2 path + the m2-tied vbool16_t/vuint32m2_t
@@ -28,31 +28,31 @@
 // constructed-strong). Numerical bit-exact-vs-ggml is pending-hardware.
 
 module {
-  tcrv.exec.kernel @ggml_vec_silu_f32_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_vec_silu_f32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_silu_f32, sew = 32 : i64, source_kernel = "ggml_vec_silu_f32_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64} {
+  weft.exec.kernel @ggml_vec_silu_f32_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_vec_silu_f32 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %y = weft_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_silu_f32, sew = 32 : i64, source_kernel = "ggml_vec_silu_f32_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64} {
         ^bb0(%strip_index: index):
           // The per-strip silu map core brick: y[i..i+vl] = silu(x[i..i+vl]). Its
           // strip_index is the loop induction variable (region arg 0), the
           // anti-bypass tie. NO strip_lmul knob — silu is m2-pinned (the exp
           // polynomial mask/reinterpret types are m2-tied).
-          tcrv_rvv.elementwise_silu_map %x, %y, %n strip %strip_index : index {kind = "elementwise_silu_map"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-          tcrv_rvv.typed_elementwise_loop_yield
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.elementwise_silu_map %x, %y, %n strip %strip_index : index {kind = "elementwise_silu_map"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.typed_elementwise_loop_yield
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_ggml_vec_silu_f32_kernel_ggml_vec_silu_f32(
+// CHECK: emitc.func @weft_emitc_ggml_vec_silu_f32_kernel_ggml_vec_silu_f32(
 // The outer setvl config (scope frame) is unchanged: vsetvl_e32m1.
 // CHECK: call_opaque "__riscv_vsetvl_e32m1"
 // The pre-loop VLMAX vsetvl (the m2 silu strip anchor) and the m2 f32 strip loop.
@@ -110,7 +110,7 @@ module {
 // CHECK: call_opaque "__riscv_vse32_v_f32m2"
 // The provenance verbatims carry the constructed map brick's op identity, NOT the
 // retired monolith op, and NO opaque C blob leaks into the body.
-// CHECK-NOT: tcrv_rvv.ggml_vec_silu_f32
+// CHECK-NOT: weft_rvv.ggml_vec_silu_f32
 // CHECK-NOT: emitc.verbatim {{.*}}__riscv
 
 // The bounded surface is fail-closed on the loop kind, the reduce_map_model fact,

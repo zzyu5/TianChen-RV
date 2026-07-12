@@ -13,9 +13,9 @@
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "llvm/ADT/STLExtras.h"
@@ -26,12 +26,12 @@
 #include <cstdint>
 #include <string>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
 mlir::LogicalResult LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.load",
                                          isAllowedLoadAttr)))
     return mlir::failure();
 
@@ -43,7 +43,7 @@ mlir::LogicalResult LoadOp::verify() {
   unsigned expectedOperands = hasBlockIndex ? 3 : 2;
   if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
-           << "requires one explicit buffer ABI operand, one !tcrv_rvv.vl "
+           << "requires one explicit buffer ABI operand, one !weft_rvv.vl "
               "operand, one optional block_index induction operand, and one "
               "generic RVV vector result";
   if (hasBlockIndex) {
@@ -65,30 +65,30 @@ mlir::LogicalResult LoadOp::verify() {
   }
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::RHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+           weft::support::RuntimeABIParameterRole::DotLHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::DotRHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::SourceInputBuffer,
+           weft::support::RuntimeABIParameterRole::
                TrueValueInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+           weft::support::RuntimeABIParameterRole::
                FalseValueInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+           weft::support::RuntimeABIParameterRole::OutputBuffer,
+           weft::support::RuntimeABIParameterRole::
                SegmentField0InputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+           weft::support::RuntimeABIParameterRole::
                SegmentField1InputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+           weft::support::RuntimeABIParameterRole::
                SegmentField0OutputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::
+           weft::support::RuntimeABIParameterRole::
                SegmentField1OutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -130,29 +130,29 @@ mlir::LogicalResult LoadOp::verify() {
 mlir::LogicalResult MaskLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.mask_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.mask_load",
                                          isAllowedMaskLoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one explicit mask buffer ABI operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV mask result";
+              "!weft_rvv.vl operand, and one generic RVV mask result";
   if (!isSupportedTypedMaskedMemoryRole(getMaskRole()))
     return emitOpError()
            << "currently supports only mask_role "
-              "\"predicate-mask-input-buffer\" for tcrv_rvv.mask_load";
+              "\"predicate-mask-input-buffer\" for weft_rvv.mask_load";
   if (!isSupportedTypedMaskedMemoryMaskMemoryForm(getMaskMemoryForm()))
     return emitOpError()
            << "currently supports only mask_memory_form "
-              "\"unit-stride-mask-load\" for tcrv_rvv.mask_load";
+              "\"unit-stride-mask-load\" for weft_rvv.mask_load";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getMask(), "mask",
-          {tianchenrv::support::RuntimeABIParameterRole::MaskInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::MaskInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -163,7 +163,7 @@ mlir::LogicalResult MaskLoadOp::verify() {
 mlir::LogicalResult MaskedLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.masked_load",
                                          isAllowedMaskedLoadAttr)))
     return mlir::failure();
 
@@ -171,7 +171,7 @@ mlir::LogicalResult MaskedLoadOp::verify() {
     return emitOpError()
            << "requires one explicit source buffer ABI operand, one generic "
               "RVV mask predicate, one inactive passthrough generic RVV "
-              "vector, one !tcrv_rvv.vl operand, and one generic RVV vector "
+              "vector, one !weft_rvv.vl operand, and one generic RVV vector "
               "result";
   if (getMemoryForm() != "masked-unit-load")
     return emitOpError()
@@ -188,12 +188,12 @@ mlir::LogicalResult MaskedLoadOp::verify() {
               "generic RVV vector type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "masked load source buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -203,26 +203,26 @@ mlir::LogicalResult MaskedLoadOp::verify() {
   if (maskLoad) {
     if (maskLoad.getVl() != getVl())
       return emitOpError()
-             << "requires mask-producing tcrv_rvv.mask_load to consume the "
-                "same !tcrv_rvv.vl token as tcrv_rvv.masked_load";
+             << "requires mask-producing weft_rvv.mask_load to consume the "
+                "same !weft_rvv.vl token as weft_rvv.masked_load";
     if (maskLoad->getParentOp() != op->getParentOp())
       return emitOpError()
-             << "requires mask-producing tcrv_rvv.mask_load to be in the "
-                "same tcrv_rvv.with_vl body as tcrv_rvv.masked_load";
+             << "requires mask-producing weft_rvv.mask_load to be in the "
+                "same weft_rvv.with_vl body as weft_rvv.masked_load";
   } else {
     auto compare = getMask().getDefiningOp<CompareOp>();
     if (!compare)
       return emitOpError()
-             << "requires mask operand to be produced by tcrv_rvv.mask_load "
-                "or tcrv_rvv.compare inside the selected RVV typed body";
+             << "requires mask operand to be produced by weft_rvv.mask_load "
+                "or weft_rvv.compare inside the selected RVV typed body";
     if (compare.getVl() != getVl())
       return emitOpError()
-             << "requires mask-producing tcrv_rvv.compare to consume the "
-                "same !tcrv_rvv.vl token as tcrv_rvv.masked_load";
+             << "requires mask-producing weft_rvv.compare to consume the "
+                "same !weft_rvv.vl token as weft_rvv.masked_load";
     if (compare->getParentOp() != op->getParentOp())
       return emitOpError()
-             << "requires mask-producing tcrv_rvv.compare to be in the same "
-                "tcrv_rvv.with_vl body as tcrv_rvv.masked_load";
+             << "requires mask-producing weft_rvv.compare to be in the same "
+                "weft_rvv.with_vl body as weft_rvv.masked_load";
   }
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
@@ -240,7 +240,7 @@ mlir::LogicalResult MaskedLoadOp::verify() {
 mlir::LogicalResult MaskedStridedLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_strided_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.masked_strided_load",
                                          isAllowedMaskedStridedLoadAttr)))
     return mlir::failure();
 
@@ -249,7 +249,7 @@ mlir::LogicalResult MaskedStridedLoadOp::verify() {
            << "requires one explicit source buffer ABI operand, one generic "
               "RVV mask predicate, one inactive passthrough generic RVV "
               "vector, one runtime source byte stride operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+              "!weft_rvv.vl operand, and one generic RVV vector result";
   if (getMemoryForm() != "masked-strided-load")
     return emitOpError()
            << "currently supports only memory_form \"masked-strided-load\" "
@@ -269,15 +269,15 @@ mlir::LogicalResult MaskedStridedLoadOp::verify() {
               "generic RVV vector type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "masked strided load source buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, getStride(), "masked strided load source byte stride",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceByteStride})))
+          {weft::support::RuntimeABIParameterRole::SourceByteStride})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -286,16 +286,16 @@ mlir::LogicalResult MaskedStridedLoadOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_strided_load";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_strided_load";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_strided_load";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_strided_load";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();
@@ -312,7 +312,7 @@ mlir::LogicalResult MaskedStridedLoadOp::verify() {
 mlir::LogicalResult MaskedIndexedLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_indexed_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.masked_indexed_load",
                                          isAllowedMaskedIndexedLoadAttr)))
     return mlir::failure();
 
@@ -320,17 +320,17 @@ mlir::LogicalResult MaskedIndexedLoadOp::verify() {
     return emitOpError()
            << "requires one explicit source buffer ABI operand, one generic "
               "RVV index vector operand, one generic RVV mask predicate, one "
-              "inactive passthrough generic RVV vector, one !tcrv_rvv.vl "
+              "inactive passthrough generic RVV vector, one !weft_rvv.vl "
               "operand, and one generic RVV vector result";
   if (!isSupportedTypedIndexedGatherIndexEEW(
           static_cast<std::int64_t>(getIndexEew())))
     return emitOpError()
            << "currently supports only index_eew 32 for "
-              "tcrv_rvv.masked_indexed_load";
+              "weft_rvv.masked_indexed_load";
   if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
     return emitOpError()
            << "currently supports only offset_unit \"element\" for "
-              "tcrv_rvv.masked_indexed_load";
+              "weft_rvv.masked_indexed_load";
   if (getMemoryForm() != "masked-indexed-load")
     return emitOpError()
            << "currently supports only memory_form \"masked-indexed-load\" "
@@ -347,11 +347,11 @@ mlir::LogicalResult MaskedIndexedLoadOp::verify() {
               "generic RVV vector type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getData(), "masked indexed load source buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -361,33 +361,33 @@ mlir::LogicalResult MaskedIndexedLoadOp::verify() {
   if (!indexLoad)
     return emitOpError()
            << "requires indices operand to be produced by "
-              "tcrv_rvv.index_load inside the selected RVV typed body";
+              "weft_rvv.index_load inside the selected RVV typed body";
   if (indexLoad.getVl() != getVl())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to consume the "
-              "same !tcrv_rvv.vl token as tcrv_rvv.masked_indexed_load";
+           << "requires index-producing weft_rvv.index_load to consume the "
+              "same !weft_rvv.vl token as weft_rvv.masked_indexed_load";
   if (indexLoad->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to be in the "
-              "same tcrv_rvv.with_vl body as tcrv_rvv.masked_indexed_load";
+           << "requires index-producing weft_rvv.index_load to be in the "
+              "same weft_rvv.with_vl body as weft_rvv.masked_indexed_load";
   if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
       static_cast<std::int64_t>(getIndexEew()))
     return emitOpError()
-           << "requires index_eew to match the producing tcrv_rvv.index_load";
+           << "requires index_eew to match the producing weft_rvv.index_load";
 
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_indexed_load";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_indexed_load";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_indexed_load";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_indexed_load";
 
   if (mlir::failed(
           verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
@@ -407,25 +407,25 @@ mlir::LogicalResult MaskedIndexedLoadOp::verify() {
 mlir::LogicalResult IndexLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.index_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.index_load",
                                          isAllowedIndexLoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one explicit index buffer ABI operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV index vector result";
+              "!weft_rvv.vl operand, and one generic RVV index vector result";
   if (!isSupportedTypedIndexedGatherIndexEEW(
           static_cast<std::int64_t>(getIndexEew())))
     return emitOpError()
-           << "currently supports only index_eew 32 for tcrv_rvv.index_load";
+           << "currently supports only index_eew 32 for weft_rvv.index_load";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getIndex(), "index",
-          {tianchenrv::support::RuntimeABIParameterRole::IndexInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::IndexInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -436,31 +436,31 @@ mlir::LogicalResult IndexLoadOp::verify() {
 mlir::LogicalResult IndexedLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.indexed_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.indexed_load",
                                          isAllowedIndexedLoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one explicit data buffer ABI operand, one generic "
-              "RVV index vector operand, one !tcrv_rvv.vl operand, and one "
+              "RVV index vector operand, one !weft_rvv.vl operand, and one "
               "generic RVV data vector result";
   if (!isSupportedTypedIndexedGatherIndexEEW(
           static_cast<std::int64_t>(getIndexEew())))
     return emitOpError()
            << "currently supports only index_eew 32 for "
-              "tcrv_rvv.indexed_load";
+              "weft_rvv.indexed_load";
   if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
     return emitOpError()
            << "currently supports only offset_unit \"element\" for "
-              "tcrv_rvv.indexed_load";
+              "weft_rvv.indexed_load";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getData(), "data",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -470,19 +470,19 @@ mlir::LogicalResult IndexedLoadOp::verify() {
   if (!indexLoad)
     return emitOpError()
            << "requires indices operand to be produced by "
-              "tcrv_rvv.index_load inside the selected RVV typed body";
+              "weft_rvv.index_load inside the selected RVV typed body";
   if (indexLoad.getVl() != getVl())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to consume the "
-              "same !tcrv_rvv.vl token as tcrv_rvv.indexed_load";
+           << "requires index-producing weft_rvv.index_load to consume the "
+              "same !weft_rvv.vl token as weft_rvv.indexed_load";
   if (indexLoad->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to be in the "
-              "same tcrv_rvv.with_vl body as tcrv_rvv.indexed_load";
+           << "requires index-producing weft_rvv.index_load to be in the "
+              "same weft_rvv.with_vl body as weft_rvv.indexed_load";
   if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
       static_cast<std::int64_t>(getIndexEew()))
     return emitOpError()
-           << "requires index_eew to match the producing tcrv_rvv.index_load";
+           << "requires index_eew to match the producing weft_rvv.index_load";
 
   if (mlir::failed(
           verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
@@ -493,7 +493,7 @@ mlir::LogicalResult IndexedLoadOp::verify() {
 mlir::LogicalResult IndexedStoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.indexed_store",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.indexed_store",
                                          isAllowedIndexedStoreAttr)))
     return mlir::failure();
 
@@ -501,27 +501,27 @@ mlir::LogicalResult IndexedStoreOp::verify() {
     return emitOpError()
            << "requires one explicit destination buffer ABI operand, one "
               "generic RVV index vector operand, one generic RVV data vector "
-              "value operand, one !tcrv_rvv.vl operand, and no results";
+              "value operand, one !weft_rvv.vl operand, and no results";
   if (!isSupportedTypedIndexedGatherIndexEEW(
           static_cast<std::int64_t>(getIndexEew())))
     return emitOpError()
            << "currently supports only index_eew 32 for "
-              "tcrv_rvv.indexed_store";
+              "weft_rvv.indexed_store";
   if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
     return emitOpError()
            << "currently supports only offset_unit \"element\" for "
-              "tcrv_rvv.indexed_store";
+              "weft_rvv.indexed_store";
   if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
     return emitOpError()
            << "requires index_uniqueness \"unique\" because duplicate-index "
-              "scatter policy is unsupported for tcrv_rvv.indexed_store";
+              "scatter policy is unsupported for weft_rvv.indexed_store";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "destination",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -531,19 +531,19 @@ mlir::LogicalResult IndexedStoreOp::verify() {
   if (!indexLoad)
     return emitOpError()
            << "requires indices operand to be produced by "
-              "tcrv_rvv.index_load inside the selected RVV typed body";
+              "weft_rvv.index_load inside the selected RVV typed body";
   if (indexLoad.getVl() != getVl())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to consume the "
-              "same !tcrv_rvv.vl token as tcrv_rvv.indexed_store";
+           << "requires index-producing weft_rvv.index_load to consume the "
+              "same !weft_rvv.vl token as weft_rvv.indexed_store";
   if (indexLoad->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to be in the "
-              "same tcrv_rvv.with_vl body as tcrv_rvv.indexed_store";
+           << "requires index-producing weft_rvv.index_load to be in the "
+              "same weft_rvv.with_vl body as weft_rvv.indexed_store";
   if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
       static_cast<std::int64_t>(getIndexEew()))
     return emitOpError()
-           << "requires index_eew to match the producing tcrv_rvv.index_load";
+           << "requires index_eew to match the producing weft_rvv.index_load";
 
   if (mlir::failed(
           verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
@@ -554,7 +554,7 @@ mlir::LogicalResult IndexedStoreOp::verify() {
 mlir::LogicalResult MaskedIndexedStoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_indexed_store",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.masked_indexed_store",
                                          isAllowedMaskedIndexedStoreAttr)))
     return mlir::failure();
 
@@ -563,21 +563,21 @@ mlir::LogicalResult MaskedIndexedStoreOp::verify() {
            << "requires one explicit destination buffer ABI operand, one "
               "generic RVV index vector operand, one generic RVV mask "
               "predicate, one generic RVV data vector payload, one "
-              "!tcrv_rvv.vl operand, and no results";
+              "!weft_rvv.vl operand, and no results";
   if (!isSupportedTypedIndexedGatherIndexEEW(
           static_cast<std::int64_t>(getIndexEew())))
     return emitOpError()
            << "currently supports only index_eew 32 for "
-              "tcrv_rvv.masked_indexed_store";
+              "weft_rvv.masked_indexed_store";
   if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
     return emitOpError()
            << "currently supports only offset_unit \"element\" for "
-              "tcrv_rvv.masked_indexed_store";
+              "weft_rvv.masked_indexed_store";
   if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
     return emitOpError()
            << "requires index_uniqueness \"unique\" because duplicate-index "
               "masked scatter policy is unsupported for "
-              "tcrv_rvv.masked_indexed_store";
+              "weft_rvv.masked_indexed_store";
   if (getMemoryForm() != "masked-indexed-store")
     return emitOpError()
            << "currently supports only memory_form \"masked-indexed-store\" "
@@ -590,11 +590,11 @@ mlir::LogicalResult MaskedIndexedStoreOp::verify() {
               "must not write the indexed destination buffer";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "masked indexed store destination buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -604,33 +604,33 @@ mlir::LogicalResult MaskedIndexedStoreOp::verify() {
   if (!indexLoad)
     return emitOpError()
            << "requires indices operand to be produced by "
-              "tcrv_rvv.index_load inside the selected RVV typed body";
+              "weft_rvv.index_load inside the selected RVV typed body";
   if (indexLoad.getVl() != getVl())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to consume the "
-              "same !tcrv_rvv.vl token as tcrv_rvv.masked_indexed_store";
+           << "requires index-producing weft_rvv.index_load to consume the "
+              "same !weft_rvv.vl token as weft_rvv.masked_indexed_store";
   if (indexLoad->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires index-producing tcrv_rvv.index_load to be in the "
-              "same tcrv_rvv.with_vl body as tcrv_rvv.masked_indexed_store";
+           << "requires index-producing weft_rvv.index_load to be in the "
+              "same weft_rvv.with_vl body as weft_rvv.masked_indexed_store";
   if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
       static_cast<std::int64_t>(getIndexEew()))
     return emitOpError()
-           << "requires index_eew to match the producing tcrv_rvv.index_load";
+           << "requires index_eew to match the producing weft_rvv.index_load";
 
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_indexed_store";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_indexed_store";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_indexed_store";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_indexed_store";
 
   if (mlir::failed(
           verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
@@ -647,22 +647,22 @@ mlir::LogicalResult MaskedIndexedStoreOp::verify() {
 mlir::LogicalResult Segment2LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.segment2_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.segment2_load",
                                          isAllowedSegment2LoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 2)
     return emitOpError()
            << "requires one explicit interleaved source buffer ABI operand, "
-              "one !tcrv_rvv.vl operand, and two generic RVV vector results";
+              "one !weft_rvv.vl operand, and two generic RVV vector results";
   if (static_cast<std::int64_t>(getSegmentCount()) != 2)
     return emitOpError()
-           << "requires segment_count 2 for tcrv_rvv.segment2_load";
+           << "requires segment_count 2 for weft_rvv.segment2_load";
   if (!isSupportedTypedSegment2SourceMemoryForm(getSourceMemoryForm()))
     return emitOpError()
            << "currently supports only source_memory_form "
               "\"segment2-interleaved-unit-stride-load\" for "
-              "tcrv_rvv.segment2_load";
+              "weft_rvv.segment2_load";
   if (!isSupportedTypedSegment2Field0Role(getField0Role()))
     return emitOpError()
            << "requires field0_role \"segment-field0-output-buffer\"";
@@ -674,11 +674,11 @@ mlir::LogicalResult Segment2LoadOp::verify() {
            << "requires field0_role and field1_role to be distinct";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "source",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -695,7 +695,7 @@ mlir::LogicalResult Segment2LoadOp::verify() {
 mlir::LogicalResult MaskedSegment2LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_segment2_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.masked_segment2_load",
                                          isAllowedMaskedSegment2LoadAttr)))
     return mlir::failure();
 
@@ -703,16 +703,16 @@ mlir::LogicalResult MaskedSegment2LoadOp::verify() {
     return emitOpError()
            << "requires one explicit interleaved source buffer ABI operand, "
               "one generic RVV mask predicate, two inactive field "
-              "passthrough generic RVV vectors, one !tcrv_rvv.vl operand, "
+              "passthrough generic RVV vectors, one !weft_rvv.vl operand, "
               "and two generic RVV vector results";
   if (static_cast<std::int64_t>(getSegmentCount()) != 2)
     return emitOpError()
-           << "requires segment_count 2 for tcrv_rvv.masked_segment2_load";
+           << "requires segment_count 2 for weft_rvv.masked_segment2_load";
   if (!isSupportedTypedSegment2SourceMemoryForm(getSourceMemoryForm()))
     return emitOpError()
            << "currently supports only source_memory_form "
               "\"segment2-interleaved-unit-stride-load\" for "
-              "tcrv_rvv.masked_segment2_load";
+              "weft_rvv.masked_segment2_load";
   if (!isSupportedTypedSegment2Field0Role(getField0Role()))
     return emitOpError()
            << "requires field0_role \"segment-field0-output-buffer\"";
@@ -738,11 +738,11 @@ mlir::LogicalResult MaskedSegment2LoadOp::verify() {
               "RVV vector types";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "interleaved source",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -751,16 +751,16 @@ mlir::LogicalResult MaskedSegment2LoadOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_segment2_load";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_segment2_load";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_segment2_load";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_segment2_load";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();
@@ -784,7 +784,7 @@ mlir::LogicalResult MaskedSegment2LoadOp::verify() {
 mlir::LogicalResult Segment2StoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.segment2_store",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.segment2_store",
                                          isAllowedSegment2StoreAttr)))
     return mlir::failure();
 
@@ -792,16 +792,16 @@ mlir::LogicalResult Segment2StoreOp::verify() {
     return emitOpError()
            << "requires one explicit interleaved destination buffer ABI "
               "operand, field0 and field1 generic RVV vector operands, one "
-              "!tcrv_rvv.vl operand, and no results";
+              "!weft_rvv.vl operand, and no results";
   if (static_cast<std::int64_t>(getSegmentCount()) != 2)
     return emitOpError()
-           << "requires segment_count 2 for tcrv_rvv.segment2_store";
+           << "requires segment_count 2 for weft_rvv.segment2_store";
   if (!isSupportedTypedSegment2InterleavedDestinationMemoryForm(
           getDestinationMemoryForm()))
     return emitOpError()
            << "currently supports only destination_memory_form "
               "\"segment2-interleaved-unit-stride-store\" for "
-              "tcrv_rvv.segment2_store";
+              "weft_rvv.segment2_store";
   if (!isSupportedTypedSegment2Field0InputRole(getField0Role()))
     return emitOpError()
            << "requires field0_role \"segment-field0-input-buffer\"";
@@ -813,12 +813,12 @@ mlir::LogicalResult Segment2StoreOp::verify() {
            << "requires field0_role and field1_role to be distinct";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "interleaved destination",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                SegmentInterleavedOutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -835,7 +835,7 @@ mlir::LogicalResult Segment2StoreOp::verify() {
 mlir::LogicalResult MaskedSegment2StoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_segment2_store",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.masked_segment2_store",
                                          isAllowedMaskedSegment2StoreAttr)))
     return mlir::failure();
 
@@ -843,17 +843,17 @@ mlir::LogicalResult MaskedSegment2StoreOp::verify() {
     return emitOpError()
            << "requires one explicit interleaved destination buffer ABI "
               "operand, one generic RVV mask predicate, field0 and field1 "
-              "generic RVV vector payload operands, one !tcrv_rvv.vl operand, "
+              "generic RVV vector payload operands, one !weft_rvv.vl operand, "
               "and no results";
   if (static_cast<std::int64_t>(getSegmentCount()) != 2)
     return emitOpError()
-           << "requires segment_count 2 for tcrv_rvv.masked_segment2_store";
+           << "requires segment_count 2 for weft_rvv.masked_segment2_store";
   if (!isSupportedTypedSegment2InterleavedDestinationMemoryForm(
           getDestinationMemoryForm()))
     return emitOpError()
            << "currently supports only destination_memory_form "
               "\"segment2-interleaved-unit-stride-store\" for "
-              "tcrv_rvv.masked_segment2_store";
+              "weft_rvv.masked_segment2_store";
   if (!isSupportedTypedSegment2Field0InputRole(getField0Role()))
     return emitOpError()
            << "requires field0_role \"segment-field0-input-buffer\"";
@@ -870,12 +870,12 @@ mlir::LogicalResult MaskedSegment2StoreOp::verify() {
               "must not write the interleaved destination";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "interleaved destination",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                SegmentInterleavedOutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -884,16 +884,16 @@ mlir::LogicalResult MaskedSegment2StoreOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_segment2_store";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_segment2_store";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_segment2_store";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_segment2_store";
 
   if (getField0().getType() != getField1().getType())
     return emitOpError()
@@ -917,21 +917,21 @@ mlir::LogicalResult MaskedSegment2StoreOp::verify() {
 mlir::LogicalResult BroadcastLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.broadcast_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.broadcast_load",
                                          isAllowedBroadcastLoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one explicit RHS buffer ABI operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+              "!weft_rvv.vl operand, and one generic RVV vector result";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "broadcast RHS buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -942,17 +942,17 @@ mlir::LogicalResult BroadcastLoadOp::verify() {
 mlir::LogicalResult SplatOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.splat",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.splat",
                                          isAllowedBroadcastLoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one explicit RHS scalar ABI operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+              "!weft_rvv.vl operand, and one generic RVV vector result";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -962,13 +962,13 @@ mlir::LogicalResult SplatOp::verify() {
     return mlir::failure();
 
   auto resultVector =
-      llvm::cast<tianchenrv::tcrv::rvv::VectorType>(getBroadcast().getType());
+      llvm::cast<weft::rvv::VectorType>(getBroadcast().getType());
   if (resultVector.getElementType().isF32()) {
     if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
             op, getScalar(), "f32 clamp bound scalar",
-            {tianchenrv::support::RuntimeABIParameterRole::
+            {weft::support::RuntimeABIParameterRole::
                  LowerBoundScalarValue,
-             tianchenrv::support::RuntimeABIParameterRole::
+             weft::support::RuntimeABIParameterRole::
                  UpperBoundScalarValue})))
       return mlir::failure();
 
@@ -987,8 +987,8 @@ mlir::LogicalResult SplatOp::verify() {
       (llvm::Twine("i") + llvm::Twine(resultSEW)).str();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getScalar(), "RHS scalar", {resultSEW}, expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue,
-           tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue,
+           weft::support::RuntimeABIParameterRole::
                RHSSecondaryScalarValue})))
     return mlir::failure();
 
@@ -1005,35 +1005,35 @@ mlir::LogicalResult SplatOp::verify() {
 mlir::LogicalResult StridedLoadOp::verify() {
   mlir::Operation *op = getOperation();
 
-  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.strided_load",
+  if (mlir::failed(verifyNoDataflowAttrs(op, "weft_rvv.strided_load",
                                          isAllowedStridedLoadAttr)))
     return mlir::failure();
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one explicit input buffer ABI operand, one runtime "
-              "stride operand, one !tcrv_rvv.vl operand, and one generic RVV "
+              "stride operand, one !weft_rvv.vl operand, and one generic RVV "
               "vector result";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "strided load buffer",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::RHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::DotLHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::DotRHSInputBuffer,
+           weft::support::RuntimeABIParameterRole::SourceInputBuffer,
+           weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, getStride(), "strided load stride",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputStride,
-           tianchenrv::support::RuntimeABIParameterRole::SourceByteStride,
-           tianchenrv::support::RuntimeABIParameterRole::DestinationByteStride,
-           tianchenrv::support::RuntimeABIParameterRole::OutputStride})))
+          {weft::support::RuntimeABIParameterRole::LHSInputStride,
+           weft::support::RuntimeABIParameterRole::RHSInputStride,
+           weft::support::RuntimeABIParameterRole::SourceByteStride,
+           weft::support::RuntimeABIParameterRole::DestinationByteStride,
+           weft::support::RuntimeABIParameterRole::OutputStride})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))

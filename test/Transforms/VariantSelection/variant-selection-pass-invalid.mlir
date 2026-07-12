@@ -1,12 +1,12 @@
-// RUN: not tcrv-opt %s --tcrv-select-variants 2>&1 | FileCheck %s
+// RUN: not weft-opt %s --weft-select-variants 2>&1 | FileCheck %s
 
-tcrv.exec.kernel @pluginless_selection attributes {} {
-  tcrv.exec.capability @generic_base {
+weft.exec.kernel @pluginless_selection attributes {} {
+  weft.exec.capability @generic_base {
     id = "generic.base",
     kind = "toolchain"
   }
-  // CHECK: error: TianChen-RV variant legality verification failed for variant @candidate in kernel @pluginless_selection: unknown origin plugin 'missing-plugin'
-  tcrv.exec.variant @candidate attributes {
+  // CHECK: error: Weft-RV variant legality verification failed for variant @candidate in kernel @pluginless_selection: unknown origin plugin 'missing-plugin'
+  weft.exec.variant @candidate attributes {
     origin = "missing-plugin",
     requires = [@generic_base]
   } {

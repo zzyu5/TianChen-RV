@@ -4,15 +4,15 @@
 // byte-deterministic FileCheck. The two options are a single quoted pass-option
 // argument (space-separated inside the '=').
 //
-// RUN: tcrv-opt %s --tcrv-materialize-plugin-variants --tcrv-check-capability-requires --tcrv-verify-plugin-variant-legality "--tcrv-select-variants=attribution-jsonl=%t.jsonl attribution-jsonl-no-timestamp" -o /dev/null
+// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-check-capability-requires --weft-verify-plugin-variant-legality "--weft-select-variants=attribution-jsonl=%t.jsonl attribution-jsonl-no-timestamp" -o /dev/null
 // RUN: FileCheck %s --input-file=%t.jsonl
 
 module {
   // Exactly one feasible candidate after legality => reason "only_feasible".
   // No prior guard fields appear (asserted by the full-line literal match).
   // CHECK: {"candidates":[{"explicit_preference":true,"fallback_role":"conservative","feasible":true,"origin":"scalar-plugin","rank":0,"requires_runtime_guard":false,"score":1000,"variant":"scalar_fallback_first_slice"}],"chosen":"scalar_fallback_first_slice","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"only_feasible_scalar","keys_evaluated":{"scalar_fallback":"available"},"reason":"only_feasible","ts":"0"}
-  tcrv.exec.kernel @only_feasible_scalar {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @only_feasible_scalar {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
@@ -26,8 +26,8 @@ module {
   // constant ranking score so the ordering is reconstructible. keys_evaluated is
   // the sorted union over both candidates' requires.
   // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":0,"requires_runtime_guard":false,"score":20,"variant":"ime_vmadot_mma_slice"},{"explicit_preference":true,"fallback_role":"conservative","feasible":true,"origin":"scalar-plugin","rank":1,"requires_runtime_guard":false,"score":1000,"variant":"scalar_fallback_first_slice"}],"chosen":"ime_vmadot_mma_slice","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"static_order_ime_and_scalar","keys_evaluated":{"scalar_fallback":"available","spacemit_ime":"available"},"reason":"static_order","ts":"0"}
-  tcrv.exec.kernel @static_order_ime_and_scalar {
-    tcrv.exec.capability @spacemit_ime {
+  weft.exec.kernel @static_order_ime_and_scalar {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
@@ -35,7 +35,7 @@ module {
       vlen_bits = "256",
       available_harts = "0-3"
     }
-    tcrv.exec.capability @scalar_fallback {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"

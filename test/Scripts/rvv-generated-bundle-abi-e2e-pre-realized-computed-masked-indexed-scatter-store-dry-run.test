@@ -1,8 +1,8 @@
-# REQUIRES: tianchenrv-local-rvv-object-clang
+# REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-indexed-scatter-store --overwrite --op-kind computed_masked_indexed_scatter_store_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-indexed-scatter-store --overwrite --op-kind computed_masked_indexed_scatter_store_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-mask-indexed-scatter-store/evidence.json
-# RUN: FileCheck %s --check-prefix=CMISCATTER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-indexed-scatter-store/computed_masked_indexed_scatter_store_unit_load/evidence.json
+# RUN: FileCheck %s --check-prefix=CMISCATTER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-indexed-scatter-store/computed_masked_indexed_scatter_store_unit_load/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-indexed-scatter-store/computed_masked_indexed_scatter_store_unit_load/rvv_generated_bundle_abi_computed_masked_indexed_scatter_store_unit_load_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -16,60 +16,60 @@
 
 # CMISCATTER-DAG: "input_mode": "pre-realized-selected-body"
 # CMISCATTER-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-indexed-scatter-store.mlir"
-# CMISCATTER-DAG: "prototype": "void tcrv_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
-# CMISCATTER-DAG: "expected_function": "tcrv_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store"
+# CMISCATTER-DAG: "prototype": "void weft_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
+# CMISCATTER-DAG: "expected_function": "weft_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store"
 # CMISCATTER-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi.v1"
 # CMISCATTER-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmidx_store"
-# CMISCATTER-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# CMISCATTER-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
-# CMISCATTER-DAG: --tcrv-materialize-selected-lowering-boundaries
+# CMISCATTER-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
+# CMISCATTER-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
+# CMISCATTER-DAG: --weft-materialize-selected-lowering-boundaries
 # CMISCATTER-DAG: "pre_realized_body_consumed": true
-# CMISCATTER-DAG: "typed_compute_op": "tcrv_rvv.masked_indexed_store"
+# CMISCATTER-DAG: "typed_compute_op": "weft_rvv.masked_indexed_store"
 # CMISCATTER-DAG: "memory_form": "computed-mask-unit-load-indexed-scatter-store"
 # CMISCATTER-DAG: "key": "rvv_emitc_lowerable_route"
 # CMISCATTER-DAG: "value": "rvv-generic-computed-masked-indexed-scatter-store-unit-load-emitc-route"
 # CMISCATTER-DAG: "key": "rvv_selected_body_operation"
 # CMISCATTER-DAG: "value": "computed_masked_indexed_scatter_store_unit_load"
 # CMISCATTER-DAG: "key": "rvv_selected_body_typed_compute_op"
-# CMISCATTER-DAG: "value": "tcrv_rvv.masked_indexed_store"
-# CMISCATTER-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# CMISCATTER-DAG: "value": "weft_rvv.masked_indexed_store"
+# CMISCATTER-DAG: "key": "weft_rvv.target_leaf_profile"
 # CMISCATTER-DAG: "value": "rvv-v1-e32m1-computed-mask-indexed-scatter-store-leaf-profile.v1"
-# CMISCATTER-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# CMISCATTER-DAG: "key": "weft_rvv.provider_supported_mirror"
 # CMISCATTER-DAG: "value": "provider_supported_mirror:rvv-computed-mask-indexed-scatter-store-plan-validated"
-# CMISCATTER-DAG: "key": "tcrv_rvv.required_header_declarations"
+# CMISCATTER-DAG: "key": "weft_rvv.required_header_declarations"
 # CMISCATTER-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
-# CMISCATTER-DAG: "key": "tcrv_rvv.c_type_mapping"
+# CMISCATTER-DAG: "key": "weft_rvv.c_type_mapping"
 # CMISCATTER-DAG: "value": "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store"
-# CMISCATTER-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# CMISCATTER-DAG: "key": "weft_rvv.runtime_abi_order"
 # CMISCATTER-DAG: "value": "cmp_lhs,cmp_rhs,src,index,dst,n"
-# CMISCATTER-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# CMISCATTER-DAG: "key": "weft_rvv.route_operand_binding_plan"
 # CMISCATTER-DAG: "value": "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1"
-# CMISCATTER-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# CMISCATTER-DAG: "key": "weft_rvv.route_operand_binding_operands"
 # CMISCATTER-DAG: "value": "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|mistore-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
-# CMISCATTER-DAG: "key": "tcrv_rvv.masked_memory_layout"
+# CMISCATTER-DAG: "key": "weft_rvv.masked_memory_layout"
 # CMISCATTER-DAG: "value": "unit-stride-compare-source-indexed-masked-destination-runtime-abi"
-# CMISCATTER-DAG: "key": "tcrv_rvv.indexed_memory_layout"
+# CMISCATTER-DAG: "key": "weft_rvv.indexed_memory_layout"
 # CMISCATTER-DAG: "value": "unit-stride-compare-source-indexed-masked-destination-runtime-abi"
-# CMISCATTER-DAG: "key": "tcrv_rvv.mask_source"
+# CMISCATTER-DAG: "key": "weft_rvv.mask_source"
 # CMISCATTER-DAG: "value": "compare-produced-mask-same-vl-scope"
-# CMISCATTER-DAG: "key": "tcrv_rvv.index_source"
+# CMISCATTER-DAG: "key": "weft_rvv.index_source"
 # CMISCATTER-DAG: "value": "runtime_abi:index"
-# CMISCATTER-DAG: "key": "tcrv_rvv.index_eew"
+# CMISCATTER-DAG: "key": "weft_rvv.index_eew"
 # CMISCATTER-DAG: "value": "32"
-# CMISCATTER-DAG: "key": "tcrv_rvv.offset_unit"
+# CMISCATTER-DAG: "key": "weft_rvv.offset_unit"
 # CMISCATTER-DAG: "value": "element"
-# CMISCATTER-DAG: "key": "tcrv_rvv.index_uniqueness"
+# CMISCATTER-DAG: "key": "weft_rvv.index_uniqueness"
 # CMISCATTER-DAG: "value": "unique"
-# CMISCATTER-DAG: "key": "tcrv_rvv.source_memory_form"
+# CMISCATTER-DAG: "key": "weft_rvv.source_memory_form"
 # CMISCATTER-DAG: "value": "unit-stride-load"
-# CMISCATTER-DAG: "key": "tcrv_rvv.indexed_destination_memory_form"
+# CMISCATTER-DAG: "key": "weft_rvv.indexed_destination_memory_form"
 # CMISCATTER-DAG: "value": "masked-indexed-store"
 # CMISCATTER-DAG: "mask_coverage_contract": "multi-lane computed_masked_indexed_scatter_store_unit_load cases require compare-produced active and inactive mask lanes"
 # CMISCATTER-DAG: "inactive_lane_contract": "compare-false indexed destination lanes must preserve old destination values"
 # CMISCATTER-DAG: "indexed_scatter_contract": "active lanes store source[i] to destination[index[i]] with unique noncontiguous permuted indices while inactive indexed lanes, source buffers, and destination tail slots preserve sentinels"
 # CMISCATTER-DAG: "status": "dry_run_success"
 
-# HARNESS: tcrv_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store(cmp_lhs, cmp_rhs, src, indices, dst, n);
+# HARNESS: weft_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store(cmp_lhs, cmp_rhs, src, indices, dst, n);
 # HARNESS: int32_t expected = (cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_dst[indices[index]]);
 # HARNESS: inactive lane did not preserve destination
 # HARNESS: noncontiguous_index_lanes

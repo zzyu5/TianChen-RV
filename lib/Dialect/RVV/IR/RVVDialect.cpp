@@ -1,12 +1,12 @@
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -21,28 +21,27 @@
 
 #include <optional>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
-#include "TianChenRV/Dialect/RVV/IR/RVVOpsDialect.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVOpsDialect.cpp.inc"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVEnums.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVEnums.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "TianChenRV/Dialect/RVV/IR/RVVAttrs.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVAttrs.cpp.inc"
 
 #define GET_TYPEDEF_CLASSES
-#include "TianChenRV/Dialect/RVV/IR/RVVTypes.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVTypes.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "TianChenRV/Dialect/RVV/IR/RVVOps.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVOps.cpp.inc"
 
 // The hand-written verification helpers below were historically file-local
-// (anonymous namespace). They are lifted into the named tianchenrv::tcrv::rvv
+// (anonymous namespace). They are lifted into the named weft::rvv
 // namespace (external linkage) so the per-op-category translation units split
 // out of this file can call the shared subset declared in RVVDialectInternal.h.
 // Bodies are byte-identical; only the enclosing namespace changed.
-namespace tianchenrv {
-namespace tcrv {
+namespace weft {
 namespace rvv {
 
 bool containsForbiddenMetadataText(llvm::StringRef text) {
@@ -103,27 +102,27 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kRequiredCapabilitiesAttrName ||
          name == kRVVConstructionProtocolAttrName ||
          name == kRVVEmitCRouteMappingAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
          name ==
-             tianchenrv::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxUnrollAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
+             weft::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSelectorAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSourceAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxOperationAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxUnrollAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxDestSEWAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxDestLMULAttrName ||
          name ==
-             tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName ||
-         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
-         tianchenrv::plugin::rvv::isRVVCompositeResourceAttrName(name);
+             weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName ||
+         weft::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
+         weft::plugin::rvv::isRVVCompositeResourceAttrName(name);
 }
 
 bool isAllowedVSetVLRegionMarkerAttr(llvm::StringRef name) {
@@ -299,9 +298,9 @@ bool isAllowedTypedWideningProductReduceDequantClampF32BodyAttr(
          name == kUpperPredicateKindAttrName || name == kBoundOrderAttrName ||
          name == kSelectLayoutAttrName ||
          name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
-         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+         weft::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
+         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
 }
 
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
@@ -392,7 +391,7 @@ bool isAllowedTypedWideningDotReducePreRealizedBodyAttr(
          // low-precision mirror facts (unlike the dequant body), so the
          // narrow dot-reduce route's header/withVL never inherit them.
          name ==
-             tianchenrv::plugin::rvv::
+             weft::plugin::rvv::
                  kRVVLowPrecisionResourceVectorRegisterBudgetAttrName ||
          // N3 Win-C: the orthogonal reduction-STRUCTURE fact (deferred-accumulate
          // vs per-iteration reduce). Like the budget, it is a pre-realization
@@ -400,7 +399,7 @@ bool isAllowedTypedWideningDotReducePreRealizedBodyAttr(
          // body; it is never a low_precision_resource MIRROR copied onto a
          // realized op (held off isRVVLowPrecisionResourceAttrName on purpose).
          name ==
-             tianchenrv::plugin::rvv::
+             weft::plugin::rvv::
                  kRVVLowPrecisionResourceReductionStructureAttrName;
 }
 
@@ -470,9 +469,9 @@ bool isAllowedTypedWideningProductReduceDequantizePreRealizedBodyAttr(
          name == kProductReductionChainRelationAttrName ||
          name == kDequantRelationAttrName || name == kScaleRoleAttrName ||
          name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
-         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+         weft::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
+         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
 }
 
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
@@ -647,7 +646,7 @@ bool isAllowedTypedSegment2InterleaveMemoryPreRealizedBodyAttr(
 
 bool isAllowedLoadAttr(llvm::StringRef name) {
   // M-FLAT W2 per-block load: the optional loop-offset facts. Any other attr on
-  // tcrv_rvv.load stays disallowed (dataflow attrs must not leak descriptor
+  // weft_rvv.load stays disallowed (dataflow attrs must not leak descriptor
   // residue). The single-block form carries neither.
   return name == "block_stride" || name == "quant_byte_offset";
 }
@@ -785,24 +784,24 @@ bool isAllowedWideningConvertAttr(llvm::StringRef name) {
 
 bool isAllowedDequantizeAttr(llvm::StringRef name) {
   return name == "kind" || name == kDequantRelationAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
          name ==
-             tianchenrv::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxUnrollAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+             weft::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSelectorAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSourceAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxOperationAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxUnrollAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxDestSEWAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxDestLMULAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
 }
 
 bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }
@@ -1935,7 +1934,7 @@ llvm::StringRef getRVVDotReduceProductSourceLMUL(llvm::StringRef relation) {
   if (!rest.consume_front("-to-i32"))
     return {};
   llvm::StringRef accumulatorLMUL =
-      tianchenrv::plugin::rvv::getRVVNextWiderLMUL(sourceLMUL);
+      weft::plugin::rvv::getRVVNextWiderLMUL(sourceLMUL);
   if (accumulatorLMUL.empty())
     return {};
   if (rest != accumulatorLMUL)
@@ -2147,8 +2146,8 @@ bool isSafeCIdentifier(llvm::StringRef value) {
 }
 
 bool isSupportedBoundedRuntimeABIValueCType(
-    tianchenrv::support::RuntimeABIParameterRole role, llvm::StringRef cType) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role, llvm::StringRef cType) {
+  using Role = weft::support::RuntimeABIParameterRole;
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
@@ -2207,8 +2206,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
 }
 
 llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
-    tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
@@ -2259,8 +2258,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
 }
 
 bool isBoundedInputBufferRole(
-    tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer ||
          role == Role::SourceInputBuffer || role == Role::MaskInputBuffer ||
          role == Role::TrueValueInputBuffer ||
@@ -2271,8 +2270,8 @@ bool isBoundedInputBufferRole(
          role == Role::SegmentField1InputBuffer;
 }
 
-bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+bool isBoundedScalarRole(weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::RHSScalarValue ||
          role == Role::RHSSecondaryScalarValue ||
          role == Role::LowerBoundScalarValue ||
@@ -2280,26 +2279,26 @@ bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
 }
 
 bool isBoundedIntegerScalarRole(
-    tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::RHSScalarValue ||
          role == Role::RHSSecondaryScalarValue;
 }
 
-bool isBoundedF32ScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+bool isBoundedF32ScalarRole(weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::LowerBoundScalarValue ||
          role == Role::UpperBoundScalarValue;
 }
 
 bool isBoundedRuntimeABITokenScalarRole(
-    tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::DequantScaleValue;
 }
 
-bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+bool isBoundedBufferRole(weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return isBoundedInputBufferRole(role) || role == Role::IndexInputBuffer ||
          role == Role::OutputBuffer ||
          role == Role::SegmentField0OutputBuffer ||
@@ -2308,16 +2307,16 @@ bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
 }
 
 bool isBoundedRuntimeIndexRole(
-    tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::RuntimeElementCount || role == Role::LHSInputStride ||
          role == Role::RHSInputStride || role == Role::SourceByteStride ||
          role == Role::DestinationByteStride || role == Role::OutputStride;
 }
 
 bool isRuntimeABIExecBindingWriteWindowRole(
-    tianchenrv::support::RuntimeABIParameterRole role) {
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
+    weft::support::RuntimeABIParameterRole role) {
+  using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::OutputBuffer ||
          role == Role::SegmentField0OutputBuffer ||
          role == Role::SegmentField1OutputBuffer ||
@@ -2325,7 +2324,7 @@ bool isRuntimeABIExecBindingWriteWindowRole(
 }
 
 mlir::Operation *
-lookupDirectExecKernelSymbol(tianchenrv::tcrv::exec::KernelOp kernel,
+lookupDirectExecKernelSymbol(weft::exec::KernelOp kernel,
                              llvm::StringRef symbolName) {
   if (!kernel || kernel.getBody().empty())
     return nullptr;
@@ -2367,64 +2366,64 @@ requireExecBindingStringAttr(RuntimeABIValueOp binding, mlir::Operation *target,
 
 mlir::LogicalResult verifyRuntimeABIValueExecBinding(
     RuntimeABIValueOp binding,
-    tianchenrv::support::RuntimeABIParameterRole parsedRole) {
+    weft::support::RuntimeABIParameterRole parsedRole) {
   auto execBinding =
       binding->getAttrOfType<mlir::FlatSymbolRefAttr>(kExecBindingAttrName);
   if (!execBinding)
     return mlir::success();
 
-  tianchenrv::tcrv::exec::KernelOp kernel =
-      binding->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  weft::exec::KernelOp kernel =
+      binding->getParentOfType<weft::exec::KernelOp>();
   if (!kernel)
     return binding.emitOpError()
            << "exec_binding " << execBinding
-           << " requires an enclosing tcrv.exec.kernel";
+           << " requires an enclosing weft.exec.kernel";
 
   mlir::Operation *target =
       lookupDirectExecKernelSymbol(kernel, execBinding.getValue());
   if (!target)
     return binding.emitOpError()
            << "exec_binding " << execBinding
-           << " must resolve to a direct same-kernel tcrv.exec ABI symbol";
+           << " must resolve to a direct same-kernel weft.exec ABI symbol";
 
   llvm::StringRef expectedRole =
-      tianchenrv::support::stringifyRuntimeABIParameterRole(parsedRole);
+      weft::support::stringifyRuntimeABIParameterRole(parsedRole);
 
   if (isBoundedBufferRole(parsedRole)) {
-    auto window = llvm::dyn_cast<tianchenrv::tcrv::exec::MemWindowOp>(target);
+    auto window = llvm::dyn_cast<weft::exec::MemWindowOp>(target);
     if (!window)
       return binding.emitOpError()
              << "exec_binding " << execBinding
              << " for buffer ABI role '" << expectedRole
-             << "' must reference a direct same-kernel tcrv.exec.mem_window";
+             << "' must reference a direct same-kernel weft.exec.mem_window";
 
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window",
+            binding, window.getOperation(), "weft.exec.mem_window",
             "purpose", "runtime-abi-buffer")))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window",
+            binding, window.getOperation(), "weft.exec.mem_window",
             "binding", "kernel-argument")))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window",
+            binding, window.getOperation(), "weft.exec.mem_window",
             "memory_space", "host")))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window",
+            binding, window.getOperation(), "weft.exec.mem_window",
             "abi_role", expectedRole)))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window", "access",
+            binding, window.getOperation(), "weft.exec.mem_window", "access",
             isRuntimeABIExecBindingWriteWindowRole(parsedRole) ? "write"
                                                                : "read")))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window",
+            binding, window.getOperation(), "weft.exec.mem_window",
             "ownership", binding.getOwnership())))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, window.getOperation(), "tcrv.exec.mem_window", "c_type",
+            binding, window.getOperation(), "weft.exec.mem_window", "c_type",
             binding.getCType())))
       return mlir::failure();
     return mlir::success();
@@ -2434,32 +2433,32 @@ mlir::LogicalResult verifyRuntimeABIValueExecBinding(
       isBoundedRuntimeABITokenScalarRole(parsedRole) ||
       isBoundedRuntimeIndexRole(parsedRole)) {
     auto param =
-        llvm::dyn_cast<tianchenrv::tcrv::exec::RuntimeParamOp>(target);
+        llvm::dyn_cast<weft::exec::RuntimeParamOp>(target);
     if (!param)
       return binding.emitOpError()
              << "exec_binding " << execBinding
              << " for scalar/control ABI role '" << expectedRole
              << "' must reference a direct same-kernel "
-                "tcrv.exec.runtime_param";
+                "weft.exec.runtime_param";
 
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            binding, param.getOperation(), "weft.exec.runtime_param",
             "purpose", "runtime-abi-scalar")))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            binding, param.getOperation(), "weft.exec.runtime_param",
             "abi_role", expectedRole)))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            binding, param.getOperation(), "weft.exec.runtime_param",
             "c_name", binding.getCName())))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            binding, param.getOperation(), "weft.exec.runtime_param",
             "c_type", binding.getCType())))
       return mlir::failure();
     if (mlir::failed(requireExecBindingStringAttr(
-            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            binding, param.getOperation(), "weft.exec.runtime_param",
             "ownership", binding.getOwnership())))
       return mlir::failure();
     return mlir::success();
@@ -2476,28 +2475,28 @@ verifyRuntimeABIValueOperand(mlir::Operation *op, mlir::Value value,
   if (!llvm::isa<RuntimeABIValueType>(value.getType()))
     return op->emitOpError()
            << "requires " << operandName
-           << " operand to have !tcrv_rvv.runtime_abi_value type";
+           << " operand to have !weft_rvv.runtime_abi_value type";
 
   auto binding = value.getDefiningOp<RuntimeABIValueOp>();
   if (!binding)
     return op->emitOpError()
            << "requires " << operandName
-           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+           << " operand to be defined by weft_rvv.runtime_abi_value";
 
   return binding;
 }
 
 mlir::LogicalResult verifyRuntimeABIValueOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles) {
   mlir::FailureOr<RuntimeABIValueOp> binding =
       verifyRuntimeABIValueOperand(op, value, operandName);
   if (mlir::failed(binding))
     return mlir::failure();
 
-  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+  std::optional<weft::support::RuntimeABIParameterRole> parsedRole =
+      weft::support::symbolizeRuntimeABIParameterRole(
           (*binding).getRole());
   if (!parsedRole)
     return op->emitOpError()
@@ -2511,9 +2510,9 @@ mlir::LogicalResult verifyRuntimeABIValueOperandRole(
   llvm::raw_string_ostream stream(expected);
   llvm::interleave(
       expectedRoles,
-      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+      [&](weft::support::RuntimeABIParameterRole role) {
         stream << "'"
-               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << weft::support::stringifyRuntimeABIParameterRole(role)
                << "'";
       },
       [&] { stream << " or "; });
@@ -2525,7 +2524,7 @@ mlir::LogicalResult verifyRuntimeABIValueOperandRole(
 
 mlir::LogicalResult verifyRuntimeABIIndexOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles) {
   if (!value.getType().isIndex())
     return op->emitOpError()
@@ -2535,10 +2534,10 @@ mlir::LogicalResult verifyRuntimeABIIndexOperandRole(
   if (!binding)
     return op->emitOpError()
            << "requires " << operandName
-           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+           << " operand to be defined by weft_rvv.runtime_abi_value";
 
-  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+  std::optional<weft::support::RuntimeABIParameterRole> parsedRole =
+      weft::support::symbolizeRuntimeABIParameterRole(
           binding.getRole());
   if (!parsedRole)
     return op->emitOpError()
@@ -2552,9 +2551,9 @@ mlir::LogicalResult verifyRuntimeABIIndexOperandRole(
   llvm::raw_string_ostream stream(expected);
   llvm::interleave(
       expectedRoles,
-      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+      [&](weft::support::RuntimeABIParameterRole role) {
         stream << "'"
-               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << weft::support::stringifyRuntimeABIParameterRole(role)
                << "'";
       },
       [&] { stream << " or "; });
@@ -2568,7 +2567,7 @@ mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
     llvm::ArrayRef<std::int64_t> acceptedScalarWidths,
     llvm::StringRef acceptedScalarTypesMessage,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles) {
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(value.getType());
   if (!integerType || !llvm::is_contained(acceptedScalarWidths,
@@ -2582,10 +2581,10 @@ mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
   if (!binding)
     return op->emitOpError()
            << "requires " << operandName
-           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+           << " operand to be defined by weft_rvv.runtime_abi_value";
 
-  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+  std::optional<weft::support::RuntimeABIParameterRole> parsedRole =
+      weft::support::symbolizeRuntimeABIParameterRole(
           binding.getRole());
   if (!parsedRole)
     return op->emitOpError()
@@ -2599,9 +2598,9 @@ mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
   llvm::raw_string_ostream stream(expected);
   llvm::interleave(
       expectedRoles,
-      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+      [&](weft::support::RuntimeABIParameterRole role) {
         stream << "'"
-               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << weft::support::stringifyRuntimeABIParameterRole(role)
                << "'";
       },
       [&] { stream << " or "; });
@@ -2613,7 +2612,7 @@ mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
 
 mlir::LogicalResult verifyRuntimeABIF32ScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles) {
   if (!value.getType().isF32())
     return op->emitOpError()
@@ -2623,10 +2622,10 @@ mlir::LogicalResult verifyRuntimeABIF32ScalarOperandRole(
   if (!binding)
     return op->emitOpError()
            << "requires " << operandName
-           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+           << " operand to be defined by weft_rvv.runtime_abi_value";
 
-  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+  std::optional<weft::support::RuntimeABIParameterRole> parsedRole =
+      weft::support::symbolizeRuntimeABIParameterRole(
           binding.getRole());
   if (!parsedRole)
     return op->emitOpError()
@@ -2640,9 +2639,9 @@ mlir::LogicalResult verifyRuntimeABIF32ScalarOperandRole(
   llvm::raw_string_ostream stream(expected);
   llvm::interleave(
       expectedRoles,
-      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+      [&](weft::support::RuntimeABIParameterRole role) {
         stream << "'"
-               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << weft::support::stringifyRuntimeABIParameterRole(role)
                << "'";
       },
       [&] { stream << " or "; });
@@ -2654,7 +2653,7 @@ mlir::LogicalResult verifyRuntimeABIF32ScalarOperandRole(
 
 mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles) {
   return verifyRuntimeABIScalarOperandRole(
       op, value, operandName, {getRVVFirstSliceSEWBits()}, "i32",
@@ -2671,10 +2670,10 @@ mlir::LogicalResult verifyRuntimeElementCountOperand(mlir::Operation *op,
   if (!binding)
     return op->emitOpError()
            << "requires runtime n/AVL operand to be defined by "
-              "tcrv_rvv.runtime_abi_value";
+              "weft_rvv.runtime_abi_value";
 
-  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+  std::optional<weft::support::RuntimeABIParameterRole> parsedRole =
+      weft::support::symbolizeRuntimeABIParameterRole(
           binding.getRole());
   if (!parsedRole)
     return op->emitOpError()
@@ -2682,14 +2681,14 @@ mlir::LogicalResult verifyRuntimeElementCountOperand(mlir::Operation *op,
               "supported";
 
   if (*parsedRole ==
-      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount)
+      weft::support::RuntimeABIParameterRole::RuntimeElementCount)
     return mlir::success();
 
   return op->emitOpError()
          << "requires runtime n/AVL operand to bind runtime ABI role "
          << "'"
-         << tianchenrv::support::stringifyRuntimeABIParameterRole(
-                tianchenrv::support::RuntimeABIParameterRole::
+         << weft::support::stringifyRuntimeABIParameterRole(
+                weft::support::RuntimeABIParameterRole::
                     RuntimeElementCount)
          << "'";
 }
@@ -2719,7 +2718,7 @@ bool isI32M1Mask(mlir::Type type) {
 }
 
 llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
-  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  auto vector = llvm::dyn_cast<weft::rvv::VectorType>(type);
   if (!vector)
     return {};
   if (auto elementType =
@@ -2741,7 +2740,7 @@ llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
 
 bool isGenericRVVVectorType(mlir::Type type, std::int64_t sew,
                             llvm::StringRef lmul) {
-  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  auto vector = llvm::dyn_cast<weft::rvv::VectorType>(type);
   if (!vector)
     return false;
   if (auto elementType =
@@ -2754,7 +2753,7 @@ bool isGenericRVVVectorType(mlir::Type type, std::int64_t sew,
 bool isGenericRVVSignedOrSignlessIntegerVectorType(mlir::Type type,
                                                    std::int64_t sew,
                                                    llvm::StringRef lmul) {
-  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  auto vector = llvm::dyn_cast<weft::rvv::VectorType>(type);
   if (!vector)
     return false;
   auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
@@ -2767,7 +2766,7 @@ bool isGenericRVVSignedOrSignlessIntegerVectorType(mlir::Type type,
 
 bool isGenericRVVUnsignedIntegerVectorType(mlir::Type type, std::int64_t sew,
                                            llvm::StringRef lmul) {
-  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  auto vector = llvm::dyn_cast<weft::rvv::VectorType>(type);
   if (!vector)
     return false;
   auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
@@ -2851,7 +2850,7 @@ bool isGenericRVVVectorI64M2(mlir::Type type) {
 }
 
 bool isGenericRVVVectorF32M1(mlir::Type type) {
-  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  auto vector = llvm::dyn_cast<weft::rvv::VectorType>(type);
   if (!vector)
     return false;
   return vector.getElementType().isF32() && vector.getLmul() == getRVVLMULM1();
@@ -2863,7 +2862,7 @@ bool isGenericRVVVectorF64M1(mlir::Type type) {
   // vfwredusum_vs_f32m2_f64m1 destination). Only f64/m1 is in scope (matching
   // getGenericRVVVectorLMUL's f64/m1 rung + the converter's f64 type-converter
   // rung).
-  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  auto vector = llvm::dyn_cast<weft::rvv::VectorType>(type);
   if (!vector)
     return false;
   return vector.getElementType().isF64() && vector.getLmul() == getRVVLMULM1();
@@ -2872,11 +2871,11 @@ bool isGenericRVVVectorF64M1(mlir::Type type) {
 mlir::LogicalResult verifyDequantizeResultVectorForWithVL(
     mlir::Operation *op, mlir::Value value, llvm::StringRef role) {
   auto vector =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(value.getType());
+      llvm::dyn_cast<weft::rvv::VectorType>(value.getType());
   if (!vector)
     return op->emitOpError()
            << "requires " << role
-           << " type to be generic !tcrv_rvv.vector";
+           << " type to be generic !weft_rvv.vector";
   if (!vector.getElementType().isF32())
     return op->emitOpError()
            << "requires " << role
@@ -2896,34 +2895,34 @@ mlir::LogicalResult verifyDequantizeResultVectorForWithVL(
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   if (!expectedSEW)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW "
               "metadata for dequantization result dataflow";
   if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl SEW32 metadata for the "
+           << "requires enclosing weft_rvv.with_vl SEW32 metadata for the "
               "bounded i32-to-f32 dequantization route";
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedLMUL)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit LMUL "
               "metadata for dequantization result dataflow";
   if (expectedLMUL.getValue() != getRVVLMULM1())
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl LMUL \"m1\" metadata for "
+           << "requires enclosing weft_rvv.with_vl LMUL \"m1\" metadata for "
               "the bounded i32-to-f32 dequantization route";
 
   if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for dequantization result dataflow";
 
   return mlir::success();
 }
 
 llvm::StringRef getGenericRVVMaskLMUL(mlir::Type type) {
-  auto mask = llvm::dyn_cast<tianchenrv::tcrv::rvv::MaskType>(type);
+  auto mask = llvm::dyn_cast<weft::rvv::MaskType>(type);
   if (!mask)
     return {};
   if (mask.getElementType().isF32())
@@ -2940,11 +2939,11 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
                                                      mlir::Value value,
                                                      llvm::StringRef role) {
   auto vector =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(value.getType());
+      llvm::dyn_cast<weft::rvv::VectorType>(value.getType());
   if (!vector)
     return op->emitOpError()
            << "requires " << role
-           << " type to be generic !tcrv_rvv.vector";
+           << " type to be generic !weft_rvv.vector";
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
   bool isF32 = vector.getElementType().isF32();
   bool isF64 = vector.getElementType().isF64();
@@ -2970,7 +2969,7 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   if (!expectedSEW)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV vector dataflow";
   std::int64_t elementWidth =
       integerType ? integerType.getWidth()
@@ -2979,24 +2978,24 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires " << role << " element width "
            << elementWidth
-           << " to agree with enclosing tcrv_rvv.with_vl SEW"
+           << " to agree with enclosing weft_rvv.with_vl SEW"
            << expectedSEW.getInt() << " metadata";
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedLMUL)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit LMUL "
               "metadata for generic RVV vector dataflow";
   if (expectedLMUL.getValue() != valueLMUL)
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
-           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << " to agree with enclosing weft_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
 
   if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for generic RVV vector dataflow";
 
   return mlir::success();
@@ -3007,11 +3006,11 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
                                                      mlir::Value value,
                                                      llvm::StringRef role) {
   auto vector =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(value.getType());
+      llvm::dyn_cast<weft::rvv::VectorType>(value.getType());
   if (!vector)
     return op->emitOpError()
            << "requires " << role
-           << " type to be generic !tcrv_rvv.vector";
+           << " type to be generic !weft_rvv.vector";
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
   if (!integerType)
     return op->emitOpError()
@@ -3026,7 +3025,7 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   if (!expectedSEW)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW "
               "metadata for standalone reduction scalar result dataflow";
   // The scalar accumulator/result channel of the Track B byte-anchor WIDENING
   // dot-reduce is the i32 reduction TARGET, which is structurally wider than the
@@ -3048,7 +3047,7 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires " << role << " element width "
            << integerType.getWidth()
-           << " to agree with enclosing tcrv_rvv.with_vl SEW"
+           << " to agree with enclosing weft_rvv.with_vl SEW"
            << expectedSEW.getInt()
            << " metadata for standalone reduction scalar result channel";
 
@@ -3056,19 +3055,19 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedLMUL)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit LMUL "
               "metadata for standalone reduction scalar result dataflow";
   if (vector.getLmul() != getRVVLMULM1())
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
            << " to use LMUL \"m1\" as the scalar standalone reduction "
               "accumulator/result channel; the source/work vector channel "
-              "continues to follow enclosing tcrv_rvv.with_vl LMUL metadata '"
+              "continues to follow enclosing weft_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
 
   if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for standalone reduction scalar result dataflow";
 
   return mlir::success();
@@ -3077,12 +3076,12 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
 mlir::LogicalResult verifyGenericIndexVectorTypeForWithVL(
     mlir::Operation *op, mlir::Value value, llvm::StringRef role) {
   auto vector =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::IndexVectorType>(
+      llvm::dyn_cast<weft::rvv::IndexVectorType>(
           value.getType());
   if (!vector)
     return op->emitOpError()
            << "requires " << role
-           << " type to be generic !tcrv_rvv.index_vector";
+           << " type to be generic !weft_rvv.index_vector";
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
   if (!integerType)
     return op->emitOpError()
@@ -3104,28 +3103,28 @@ mlir::LogicalResult verifyGenericIndexVectorTypeForWithVL(
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   if (!expectedSEW)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW "
               "metadata for indexed memory dataflow";
   if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
     return op->emitOpError()
            << "requires indexed gather data SEW32 in the enclosing "
-              "tcrv_rvv.with_vl metadata";
+              "weft_rvv.with_vl metadata";
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedLMUL)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit LMUL "
               "metadata for indexed memory dataflow";
   if (expectedLMUL.getValue() != vector.getLmul())
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
-           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << " to agree with enclosing weft_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
 
   if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for indexed memory dataflow";
 
   return mlir::success();
@@ -3135,10 +3134,10 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
                                                    mlir::Value value,
                                                    llvm::StringRef role) {
   auto mask =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::MaskType>(value.getType());
+      llvm::dyn_cast<weft::rvv::MaskType>(value.getType());
   if (!mask)
     return op->emitOpError()
-           << "requires " << role << " type to be generic !tcrv_rvv.mask";
+           << "requires " << role << " type to be generic !weft_rvv.mask";
   auto integerElement =
       llvm::dyn_cast<mlir::IntegerType>(mask.getElementType());
   bool isF32Mask = mask.getElementType().isF32();
@@ -3170,7 +3169,7 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   if (!expectedSEW)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV mask dataflow";
   std::int64_t elementWidth =
       integerElement ? integerElement.getWidth() : getRVVFirstSliceSEWBits();
@@ -3178,24 +3177,24 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires " << role
            << " element width " << elementWidth
-           << " to agree with enclosing tcrv_rvv.with_vl SEW metadata "
+           << " to agree with enclosing weft_rvv.with_vl SEW metadata "
            << expectedSEW.getInt();
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedLMUL)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit LMUL "
               "metadata for generic RVV mask dataflow";
   if (expectedLMUL.getValue() != valueLMUL)
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
-           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << " to agree with enclosing weft_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
 
   if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for generic RVV mask dataflow";
 
   return mlir::success();
@@ -3207,9 +3206,9 @@ mlir::LogicalResult verifyGenericMaskMatchesVector(mlir::Operation *op,
                                                    llvm::StringRef maskRole,
                                                    llvm::StringRef vectorRole) {
   auto mask =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::MaskType>(maskValue.getType());
+      llvm::dyn_cast<weft::rvv::MaskType>(maskValue.getType());
   auto vector =
-      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(vectorValue.getType());
+      llvm::dyn_cast<weft::rvv::VectorType>(vectorValue.getType());
   if (!mask || !vector)
     return mlir::success();
   if (mask.getElementType() != vector.getElementType() ||
@@ -3688,7 +3687,7 @@ bool isBoundedCodebookGatherChainSourceLoad(LoadOp load, WithVLOp withVL) {
 
   // The load must feed ONLY a codebook-gather product (as the packed-i4 weight or
   // one of the two plain-i8 activation operands). The codebook TABLE operand comes
-  // from tcrv_rvv.codebook_table_broadcast (NOT a load), so it is not a load user.
+  // from weft_rvv.codebook_table_broadcast (NOT a load), so it is not a load user.
   bool hasGatherUse = false;
   for (mlir::Operation *user : load.getLoaded().getUsers()) {
     auto gather = llvm::dyn_cast<CodebookGatherXI8ProductOp>(user);
@@ -3837,7 +3836,7 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
   if (valueLMUL.empty())
     return op->emitOpError()
            << "requires " << role
-           << " type to be !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2";
+           << " type to be !weft_rvv.i32m1 or !weft_rvv.i32m2";
 
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
   if (!withVL)
@@ -3847,29 +3846,29 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   if (!expectedSEW)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+           << "requires enclosing weft_rvv.with_vl to carry explicit SEW "
               "metadata for bounded RVV i32 dataflow";
   if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
     return op->emitOpError()
            << "requires " << role
-           << " type to agree with enclosing tcrv_rvv.with_vl SEW32 "
+           << " type to agree with enclosing weft_rvv.with_vl SEW32 "
               "metadata";
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedLMUL)
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+           << "requires enclosing weft_rvv.with_vl to carry explicit LMUL "
               "metadata for bounded RVV i32 dataflow";
   if (expectedLMUL.getValue() != valueLMUL)
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
-           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << " to agree with enclosing weft_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
 
   if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for bounded RVV i32 dataflow";
 
   return mlir::success();
@@ -3880,12 +3879,12 @@ mlir::LogicalResult verifyI32M1VectorTypeForWithVL(mlir::Operation *op,
                                                    llvm::StringRef role) {
   if (!isI32M1Vector(value.getType()))
     return op->emitOpError()
-           << "requires " << role << " type to be !tcrv_rvv.i32m1";
+           << "requires " << role << " type to be !weft_rvv.i32m1";
   return verifyI32VectorTypeForWithVL(op, value, role);
 }
 
 mlir::FailureOr<WithVLOp> verifyNestedDataflowOp(mlir::Operation *op) {
-  // The nearest enclosing tcrv_rvv.with_vl -- normally the direct parent, but a
+  // The nearest enclosing weft_rvv.with_vl -- normally the direct parent, but a
   // region-carrying dataflow op (the M-FLAT typed_flat_block_dot_loop_body block
   // loop) may sit between this op and its vl scope. Walking to the nearest
   // ancestor keeps the single-block strong routes valid (their direct parent IS
@@ -3902,7 +3901,7 @@ mlir::FailureOr<WithVLOp> verifyNestedDataflowOp(mlir::Operation *op) {
   }
   if (!withVL)
     return op->emitOpError()
-           << "must be nested within a tcrv_rvv.with_vl body";
+           << "must be nested within a weft_rvv.with_vl body";
 
   if (op->getNumRegions() != 0)
     return op->emitOpError() << "does not own regions";
@@ -3952,8 +3951,8 @@ mlir::LogicalResult verifyDataflowVLOperandMatchesWithVL(mlir::Operation *op,
 
   if (vl != withVL.getVl())
     return op->emitOpError()
-           << "requires RVV dataflow op to consume the !tcrv_rvv.vl token "
-              "owned by the surrounding tcrv_rvv.with_vl";
+           << "requires RVV dataflow op to consume the !weft_rvv.vl token "
+              "owned by the surrounding weft_rvv.with_vl";
 
   return mlir::success();
 }
@@ -3980,204 +3979,203 @@ mlir::LogicalResult verifyNoDataflowAttrs(mlir::Operation *op,
 }
 
 } // namespace rvv
-} // namespace tcrv
-} // namespace tianchenrv
+} // namespace weft
 
-llvm::StringRef RuntimeABIValueOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef RuntimeABIValueOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef RuntimeABIValueOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef RuntimeABIValueOp::getWEFTEmitCLowerableSourceRole() {
   return "runtime_abi";
 }
 
-llvm::StringRef SetVLOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef SetVLOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef SetVLOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef SetVLOp::getWEFTEmitCLowerableSourceRole() {
   return "configure";
 }
 
-llvm::StringRef WithVLOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef WithVLOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef WithVLOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef WithVLOp::getWEFTEmitCLowerableSourceRole() {
   return "scope";
 }
 
-llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef LoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef LoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef MaskLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef MaskedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef MaskedStridedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedStridedLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedStridedLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedStridedLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef MaskedIndexedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedIndexedLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedIndexedLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedIndexedLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef MaskedSegment2LoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedSegment2LoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedSegment2LoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedSegment2LoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef BroadcastLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef BroadcastLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef BroadcastLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef BroadcastLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef SplatOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef SplatOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef SplatOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef SplatOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef StridedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef StridedLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef StridedLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef StridedLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef IndexLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef IndexLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef IndexLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef IndexLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef IndexedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef IndexedLoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef IndexedLoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef IndexedLoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef IndexedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef IndexedStoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef IndexedStoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef IndexedStoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef MaskedIndexedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedIndexedStoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedIndexedStoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedIndexedStoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef Segment2LoadOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef Segment2LoadOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef Segment2LoadOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef Segment2LoadOp::getWEFTEmitCLowerableSourceRole() {
   return "load";
 }
 
-llvm::StringRef Segment2StoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef Segment2StoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef Segment2StoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef Segment2StoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef MaskedSegment2StoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedSegment2StoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedSegment2StoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedSegment2StoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef StoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef StoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef MaskedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedStoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedStoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedStoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef MaskedStridedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MaskedStridedStoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MaskedStridedStoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MaskedStridedStoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-llvm::StringRef StridedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef StridedStoreOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef StridedStoreOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef StridedStoreOp::getWEFTEmitCLowerableSourceRole() {
   return "store";
 }
 
-void TCRVRVVDialect::initialize() {
+void WEFTRVVDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TianChenRV/Dialect/RVV/IR/RVVOps.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVOps.cpp.inc"
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "TianChenRV/Dialect/RVV/IR/RVVAttrs.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVAttrs.cpp.inc"
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "TianChenRV/Dialect/RVV/IR/RVVTypes.cpp.inc"
+#include "Weft/Dialect/RVV/IR/RVVTypes.cpp.inc"
       >();
 }

@@ -1,15 +1,15 @@
 # RVV Plugin
 
-RVV 是 TianChen-RV 当前的主真实硬件 family，也是第一个走通 typed-body → plugin-owned route → 公共 EmitC → `ssh rvv` 证据的完整 family。它是 N1/N2/N3 的第一个证据点，但 **RVV-first ≠ RVV-only**：同一套 plugin 协议要能让 IME / offload 复用（N2）。（注：N1/N2/N3 **不是**三个 coequal 卖点——N1 是 substrate、非独立贡献，其 novelty 只在跨 family 复用同一 fact-set、由 N2 证；N3 是 N1+N2 的 corollary、mechanism-thin；见 [index](../index.md) Novelty 段。）
+RVV 是 Weft-RV 当前的主真实硬件 family，也是第一个走通 typed-body → plugin-owned route → 公共 EmitC → `ssh rvv` 证据的完整 family。它是 N1/N2/N3 的第一个证据点，但 **RVV-first ≠ RVV-only**：同一套 plugin 协议要能让 IME / offload 复用（N2）。（注：N1/N2/N3 **不是**三个 coequal 卖点——N1 是 substrate、非独立贡献，其 novelty 只在跨 family 复用同一 fact-set、由 N2 证；N3 是 N1+N2 的 corollary、mechanism-thin；见 [index](../index.md) Novelty 段。）
 
 durable 路径（authority chain，全项目唯一权威版本）：
 
 ```text
-tcrv.exec envelope
+weft.exec envelope
   -> selected RVV variant
-  -> typed low-level tcrv_rvv vector-level body
+  -> typed low-level weft_rvv vector-level body
   -> RVV plugin-owned legality / selected-body realization(Gearbox) / route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
   -> 公共 EmitC materializer
   -> RVV intrinsic C/C++
   -> target artifact
@@ -22,34 +22,34 @@ tcrv.exec envelope
 
 谁拥有什么。这是 RVV 线最容易被 AI 搞错的地方（从 ABI 名/route id/artifact 名反推 compute）。底层规则见 [core-invariants](../architecture/core-invariants.md) I2/I3/I5；下面是 RVV 的具体落点。
 
-**`tcrv.exec`** 只拥有 execution envelope：kernel、capability scope、selected variants、requires、dispatch/fallback、diagnostics、`mem_window`/`runtime_param` 的 ABI 角色声明。它**不**拥有 RVV compute 语义、dtype、schedule、intrinsic 拼写或 selected route authority。
+**`weft.exec`** 只拥有 execution envelope：kernel、capability scope、selected variants、requires、dispatch/fallback、diagnostics、`mem_window`/`runtime_param` 的 ABI 角色声明。它**不**拥有 RVV compute 语义、dtype、schedule、intrinsic 拼写或 selected route authority。
 
-**selected `tcrv_rvv` body** 拥有 typed vector-level 执行结构：typed vector 值与 element dtype、SEW/LMUL/vtype policy、VL/AVL/setvl、load/store 与 memory form、arithmetic/compare/select/FMA、reduction/accumulator、mask/tail、movement/layout/conversion、runtime ABI 值消费。dtype/config/operation 事实**只**经 typed 值、config、body 结构进入——不从 route id、C ABI 串、参数名、artifact 名、test 名、`__riscv_*_i32m1` 拼写、旧 `!tcrv_rvv.i32m1` helper 名推断（I5）。
+**selected `weft_rvv` body** 拥有 typed vector-level 执行结构：typed vector 值与 element dtype、SEW/LMUL/vtype policy、VL/AVL/setvl、load/store 与 memory form、arithmetic/compare/select/FMA、reduction/accumulator、mask/tail、movement/layout/conversion、runtime ABI 值消费。dtype/config/operation 事实**只**经 typed 值、config、body 结构进入——不从 route id、C ABI 串、参数名、artifact 名、test 名、`__riscv_*_i32m1` 拼写、旧 `!weft_rvv.i32m1` helper 名推断（I5）。
 
 期望的 typed 形态：
 
 ```mlir
-!tcrv_rvv.vector<elem = i32, lmul = m1>
-%vl = tcrv_rvv.setvl %remaining {sew = 32, lmul = m1, policy = ...}
-%a  = tcrv_rvv.load %lhs[%i], %vl
-%c  = tcrv_rvv.binary {kind = add} %a, %b, %vl
-tcrv_rvv.store %out[%i], %c, %vl
+!weft_rvv.vector<elem = i32, lmul = m1>
+%vl = weft_rvv.setvl %remaining {sew = 32, lmul = m1, policy = ...}
+%a  = weft_rvv.load %lhs[%i], %vl
+%c  = weft_rvv.binary {kind = add} %a, %b, %vl
+weft_rvv.store %out[%i], %c, %vl
 ```
 
 **RVV 插件** 拥有：RVV body/config/control/dataflow 的 legality；hints/config/profile 影响生成代码时的 selected-body realization；route 支持与 route provider 输出；intrinsic 映射；C/RVV 向量类型映射；ABI 映射；fail-closed 诊断。Common/core 只调插件 interface + 校验通用结构，**不**按 RVV 语义分支、不选 intrinsic、不推 dtype、不建 schedule、不合成 body（I3）。
 
-**公共 EmitC/export** 只做中性 materialization 与打包，materialize provider 建好的 `TCRVEmitCLowerableRoute`。它**不**发明 RVV compute、dtype、SEW/LMUL、schedule、intrinsic 选择或 ABI 角色语义。
+**公共 EmitC/export** 只做中性 materialization 与打包，materialize provider 建好的 `WEFTEmitCLowerableRoute`。它**不**发明 RVV compute、dtype、SEW/LMUL、schedule、intrinsic 选择或 ABI 角色语义。
 
 ## Parameter Flow
 
-`mem_window` / `runtime_param` 声明 ABI/runtime 角色（lhs/rhs/out/n、buffer/scalar、runtime count、C ABI 拼写/provenance）。selected `tcrv_rvv` body 必须显式 bind/import 这些值，再经 typed control/dataflow 消费：
+`mem_window` / `runtime_param` 声明 ABI/runtime 角色（lhs/rhs/out/n、buffer/scalar、runtime count、C ABI 拼写/provenance）。selected `weft_rvv` body 必须显式 bind/import 这些值，再经 typed control/dataflow 消费：
 
 ```mlir
-%lhs = tcrv_rvv.runtime_abi_value @lhs
-%n   = tcrv_rvv.runtime_abi_value @n
+%lhs = weft_rvv.runtime_abi_value @lhs
+%n   = weft_rvv.runtime_abi_value @n
 ```
 
-然后经 `setvl`、load/store、compute、mask、reduction、movement 使用。`tcrv.exec` 不从 ABI 角色名 / C 类型串 / artifact metadata 推断 add/mul/reduce/dtype。
+然后经 `setvl`、load/store、compute、mask、reduction、movement 使用。`weft.exec` 不从 ABI 角色名 / C 类型串 / artifact metadata 推断 add/mul/reduce/dtype。
 
 ## Route Provider —— 一个通用契约
 
@@ -70,7 +70,7 @@ RVV route provider 从 typed body 事实派生 route，事实包括：operation 
 
 性能来自 RVV plugin-local 的 selected-body realization——即 Gearbox。它把 selected pre-realized body 变成 realized（调优过的）body，可 materialize：dynamic VL/setvl 放置、合法 SEW/LMUL/policy、memory form、mask/tail、register-pressure-safe unroll、prefetch/software-pipeline、accumulator/reduction layout。
 
-它的 durable 契约（候选枚举/剪枝、resource model、autotuning 模式、跨 family 复用、"怎么判断是否真 resource-aware"）统一在 [variant-pipeline / generation-selection-tuning](../variant-pipeline/generation-selection-tuning.md)，RVV 不重述。RVV 这里只承诺：影响生成代码的选择在 route 构造前 realize 进 `tcrv_rvv` 结构，不外溢到公共 EmitC 或 artifact metadata。
+它的 durable 契约（候选枚举/剪枝、resource model、autotuning 模式、跨 family 复用、"怎么判断是否真 resource-aware"）统一在 [variant-pipeline / generation-selection-tuning](../variant-pipeline/generation-selection-tuning.md)，RVV 不重述。RVV 这里只承诺：影响生成代码的选择在 route 构造前 realize 进 `weft_rvv` 结构，不外溢到公共 EmitC 或 artifact metadata。
 
 ## 计算类契约面（coverage surface，按结构化计算类）
 

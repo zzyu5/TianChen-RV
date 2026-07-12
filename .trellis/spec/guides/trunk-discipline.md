@@ -1,6 +1,6 @@
 # Trunk Discipline — 选什么、不选什么
 
-给驱动 TianChen-RV 的 agent（Claude / Codex / supervisor）：怎么决定下一步做什么。**这不是门禁，是判断依据。** 历史上 loop 反复挑小问题、不推主干，本文件就是为了对抗那个引力。
+给驱动 Weft-RV 的 agent（Claude / Codex / supervisor）：怎么决定下一步做什么。**这不是门禁，是判断依据。** 历史上 loop 反复挑小问题、不推主干，本文件就是为了对抗那个引力。
 
 ## 唯一标尺
 

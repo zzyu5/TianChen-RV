@@ -1,9 +1,9 @@
-# REQUIRES: tianchenrv-local-rvv-object-clang
+# REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-masked-typed-derivation --overwrite --op-kind masked_i64_add --op-kind masked_lmul_m2_sub --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-masked-typed-derivation --overwrite --op-kind masked_i64_add --op-kind masked_lmul_m2_sub --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-masked-typed-derivation/evidence.json
-# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/evidence.json
-# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-masked-typed-derivation/masked_lmul_m2_sub/evidence.json
+# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/evidence.json
+# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-masked-typed-derivation/masked_lmul_m2_sub/evidence.json
 # RUN: FileCheck %s --check-prefix=I64CPP < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=M2CPP < %t.artifacts/pre-realized-masked-typed-derivation/masked_lmul_m2_sub/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=I64HARNESS < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/rvv_generated_bundle_abi_masked_i64_add_harness.c
@@ -20,14 +20,14 @@
 # I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-masked-i64-add.mlir"
 # I64-DAG: "expected_runtime_abi_name": "rvv-generic-masked-add-callable-c-abi.v1"
 # I64-DAG: "expected_selected_variant": "pre_realized_body_rvv_masked_i64_add"
-# I64-DAG: "authority": "provider-derived typed tcrv_rvv masked elementwise body/config/runtime facts"
+# I64-DAG: "authority": "provider-derived typed weft_rvv masked elementwise body/config/runtime facts"
 # I64-DAG: "mask_c_type": "vbool64_t"
-# I64-DAG: "mask_type": "!tcrv_rvv.mask<i64, \"m1\">"
+# I64-DAG: "mask_type": "!weft_rvv.mask<i64, \"m1\">"
 # I64-DAG: "compare_intrinsic": "__riscv_vmseq_vv_i64m1_b64"
 # I64-DAG: "active_compute_intrinsic": "__riscv_vadd_vv_i64m1"
 # I64-DAG: "masked_merge_intrinsic": "__riscv_vmerge_vvm_i64m1"
 # I64-DAG: "vector_c_type": "vint64m1_t"
-# I64-DAG: "vector_type": "!tcrv_rvv.vector<i64, \"m1\">"
+# I64-DAG: "vector_type": "!weft_rvv.vector<i64, \"m1\">"
 # I64-DAG: "sew": "64"
 # I64-DAG: "lmul": "m1"
 # I64-DAG: "runtime_counts": [
@@ -43,14 +43,14 @@
 # M2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-masked-lmul-m2-sub.mlir"
 # M2-DAG: "expected_runtime_abi_name": "rvv-generic-masked-sub-callable-c-abi.v1"
 # M2-DAG: "expected_selected_variant": "pre_realized_body_rvv_masked_lmul_m2_sub"
-# M2-DAG: "authority": "provider-derived typed tcrv_rvv masked elementwise body/config/runtime facts"
+# M2-DAG: "authority": "provider-derived typed weft_rvv masked elementwise body/config/runtime facts"
 # M2-DAG: "mask_c_type": "vbool16_t"
-# M2-DAG: "mask_type": "!tcrv_rvv.mask<i32, \"m2\">"
+# M2-DAG: "mask_type": "!weft_rvv.mask<i32, \"m2\">"
 # M2-DAG: "compare_intrinsic": "__riscv_vmseq_vv_i32m2_b16"
 # M2-DAG: "active_compute_intrinsic": "__riscv_vsub_vv_i32m2"
 # M2-DAG: "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m2"
 # M2-DAG: "vector_c_type": "vint32m2_t"
-# M2-DAG: "vector_type": "!tcrv_rvv.vector<i32, \"m2\">"
+# M2-DAG: "vector_type": "!weft_rvv.vector<i32, \"m2\">"
 # M2-DAG: "sew": "32"
 # M2-DAG: "lmul": "m2"
 # M2-DAG: "runtime_counts_are_execution_cases_not_policy_authority": true

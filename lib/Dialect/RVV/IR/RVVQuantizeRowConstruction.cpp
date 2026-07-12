@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
+#include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@
 #include "mlir/IR/Value.h"
 #include "llvm/Support/Casting.h"
 
-namespace tianchenrv::tcrv::rvv {
+namespace weft::rvv {
 
 std::optional<QuantizeRowStreamFacts>
 lookupQuantizeRowStreamFacts(llvm::StringRef encodeModel) {
@@ -101,4 +101,4 @@ mlir::LogicalResult constructTypedQuantizeRowLoopBody(
   return mlir::success();
 }
 
-} // namespace tianchenrv::tcrv::rvv
+} // namespace weft::rvv

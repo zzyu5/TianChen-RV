@@ -1,6 +1,6 @@
 # Testing Specs
 
-This layer defines required tests and evidence for TianChen-RV MLIR.
+This layer defines required tests and evidence for Weft-RV MLIR.
 
 ## Pre-Development Checklist
 
@@ -29,4 +29,4 @@ This layer defines required tests and evidence for TianChen-RV MLIR.
 - Dialect syntax, parser/printer, verifier, pass rewrite, and diagnostics need lit/FileCheck tests.
 - C++ tests are appropriate for compiler APIs that are not naturally visible in textual MLIR.
 - Python tests may validate tooling scripts, but they do not replace MLIR behavior tests.
-- Positive generated artifact tests are allowed only for corrected generic typed `tcrv_rvv` routes, not old `RVVI32M1*` / `rvv-i32m1-*` paths.
+- Positive generated artifact tests are allowed only for corrected generic typed `weft_rvv` routes, not old `RVVI32M1*` / `rvv-i32m1-*` paths.

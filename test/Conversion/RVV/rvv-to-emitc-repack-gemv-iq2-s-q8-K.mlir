@@ -1,8 +1,8 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=GATHER
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=SIGN
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=SCALE
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=GATHER
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=SIGN
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=SCALE
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
 // The ggml iq2_s x q8_K 16x1-REPACKED GEVM (decode) hot kernel -- the 1024-entry GRID
 // CODEBOOK + EXPLICIT-SIGN-PLANE, DUAL-per-sub-block-scale sibling of the iq2_xs repack.
@@ -19,39 +19,39 @@
 // is scaled by 0.125 before vse32. block_iq2_sx16 stride 1824; activation block_q8_K 292.
 
 module {
-  tcrv.exec.kernel @ggml_repack_gemv_iq2_s_q8_K_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_repack_gemv_iq2_s_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "iq2-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_iq2_s_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_iq2_s_q8_K_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.fp16-grid-explicitsign-dualscale-nomin-eighth", qk = 256 : i64, weight_block_stride = 1824 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 288 : i64, activation_quant_byte_offset = 4 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "grid_sign_dualscale_eighth"} {
-        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">):
+  weft.exec.kernel @ggml_repack_gemv_iq2_s_q8_K_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_repack_gemv_iq2_s_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "iq2-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_iq2_s_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_iq2_s_q8_K_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.fp16-grid-explicitsign-dualscale-nomin-eighth", qk = 256 : i64, weight_block_stride = 1824 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 288 : i64, activation_quant_byte_offset = 4 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "grid_sign_dualscale_eighth"} {
+        ^bb0(%block_index: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">):
           // The block_index-tied dual-ls GRID integer-core BRICK (decode_model "iq2_s"):
           // per-block lane-wise 1024-grid + EXPLICIT signs256 memory-gather DUAL-ls-scaled
           // dot -> the numHalves (2) per-strip i32 sumi. The typed emitter re-emits the whole
           // byte-exact iq2_s dual-ls body (u16 assembled grid gather + signs256 gather + i32
           // dot + ls1/ls2 vmacc fold) from this brick's identity + its grid/ls/sign offsets.
-          %sumi:2 = tcrv_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq2_s", weight_quant_byte_offset = 288 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 1312 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
-          tcrv_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
-      } : !tcrv_rvv.vl
+          %sumi:2 = weft_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq2_s", weight_quant_byte_offset = 288 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 1312 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
+          weft_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
+      } : !weft_rvv.vl
     }
   }
 }
 
 // The front door leaves NO typed op behind (fully lowered to emitc).
-// CHECK-NOT: tcrv_rvv.repack_gemv_grid_core %
-// CHECK-NOT: tcrv_rvv.typed_repack_gemv_loop_body
+// CHECK-NOT: weft_rvv.repack_gemv_grid_core %
+// CHECK-NOT: weft_rvv.typed_repack_gemv_loop_body
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_ggml_repack_gemv_iq2_s_q8_K_kernel_ggml_repack_gemv_iq2_s_q8_K(
+// CHECK: emitc.func @weft_emitc_ggml_repack_gemv_iq2_s_q8_K_kernel_ggml_repack_gemv_iq2_s_q8_K(
 // The FIXED 1024-entry GRID-of-8 table + the UNIVERSAL 256-byte signs256 +-1 plane, ONCE.
-// CHECK: verbatim "static const int64_t tcrv_iq2s_grid[1024] = {0x0808080808080808ULL
-// CHECK: verbatim "static const int8_t tcrv_iq2s_signs256[2048] = {1
+// CHECK: verbatim "static const int64_t weft_iq2s_grid[1024] = {0x0808080808080808ULL
+// CHECK: verbatim "static const int8_t weft_iq2s_signs256[2048] = {1
 // CHECK: literal "1824"
 // CHECK: literal "292"
 // CHECK: call_opaque "*(const float *)"
@@ -66,7 +66,7 @@ module {
 
 // ===== The REAL EXPLICIT-SIGN-PLANE application: signs256[sel*8+j], indexed DIRECTLY by
 // the raw 8-bit sign byte (vzext to the u16 gather offset), vmul onto grid. ==
-// SIGN: literal "tcrv_iq2s_signs256"
+// SIGN: literal "weft_iq2s_signs256"
 // SIGN: call_opaque "__riscv_vle8_v_u8mf2"
 // SIGN: call_opaque "__riscv_vzext_vf2_u16m1"
 // SIGN: call_opaque "__riscv_vluxei16_v_i8mf2"

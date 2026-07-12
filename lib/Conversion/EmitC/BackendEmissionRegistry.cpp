@@ -1,12 +1,12 @@
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OwningOpRef.h"
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace emitc {
 
@@ -24,7 +24,7 @@ BackendEmissionRegistry::tryConvertModuleClone(mlir::ModuleOp source) const {
     // to fall back. So convert a CLONE — the live IR is never mutated — and
     // swallow the speculative "failed to legalize" diagnostics rather than leak
     // a spurious error to stderr; the real conversion seams (and the
-    // `--tcrv-rvv-lower-to-emitc` pass) still surface diagnostics normally.
+    // `--weft-rvv-lower-to-emitc` pass) still surface diagnostics normally.
     mlir::OwningOpRef<mlir::ModuleOp> convertedModule(source.clone());
     bool fullyConverted = false;
     {
@@ -42,4 +42,4 @@ BackendEmissionRegistry::tryConvertModuleClone(mlir::ModuleOp source) const {
 
 } // namespace emitc
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

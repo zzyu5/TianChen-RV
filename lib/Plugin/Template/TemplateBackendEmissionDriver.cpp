@@ -1,12 +1,12 @@
-#include "TianChenRV/Plugin/Template/TemplateBackendEmissionDriver.h"
+#include "Weft/Plugin/Template/TemplateBackendEmissionDriver.h"
 
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/Template/IR/TemplateDialect.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -19,16 +19,16 @@
 
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace plugin {
 namespace template_ext {
 
 namespace {
 
 namespace emitc = ::mlir::emitc;
-namespace tcrvemitc = ::tianchenrv::conversion::emitc;
+namespace weftemitc = ::weft::conversion::emitc;
 
-constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";
+constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 
 mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
                                      llvm::StringRef cType) {
@@ -44,7 +44,7 @@ mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.route_source_op=" << opName << " role=" << role
+  os << "// weft_emitc.route_source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -54,28 +54,28 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
                         llvm::StringRef callee) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface << " callee=" << callee;
   os.flush();
   return text;
 }
 
-/// Lowers a selected `tcrv_template.compute_skeleton` boundary into a standalone
+/// Lowers a selected `weft_template.compute_skeleton` boundary into a standalone
 /// top-level EmitC function, byte-equivalent to the route+materializer output:
 ///   #include <stdint.h>
-///   int32_t tcrv_template_compute_skeleton();
-///   extern "C" void tcrv_emitc_<kernel>_<variant>() {
+///   int32_t weft_template_compute_skeleton();
+///   extern "C" void weft_emitc_<kernel>_<variant>() {
 ///     // route_source_op + source_op provenance comments
-///     int32_t v1 = tcrv_template_compute_skeleton();
+///     int32_t v1 = weft_template_compute_skeleton();
 ///   }
 class TemplateComputeSkeletonToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::template_ext::ComputeSkeletonOp> {
+    : public mlir::OpConversionPattern<weft::template_ext::ComputeSkeletonOp> {
 public:
   using mlir::OpConversionPattern<
-      tcrv::template_ext::ComputeSkeletonOp>::OpConversionPattern;
+      weft::template_ext::ComputeSkeletonOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::template_ext::ComputeSkeletonOp compute,
+  matchAndRewrite(weft::template_ext::ComputeSkeletonOp compute,
                   OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::MLIRContext *context = compute.getContext();
@@ -90,7 +90,7 @@ public:
           compute, "compute_skeleton requires selected_variant and "
                    "source_kernel attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     // Plugin legality gate: the conversion's convert-set MUST equal the plugin
@@ -100,11 +100,11 @@ public:
     // emitted (I7). Decline so the legacy plugin route-build still owns the
     // fail-closed diagnostic. The Template compute_skeleton boundary lives at
     // kernel scope; resolve the selected variant op by its symbol.
-    auto kernelOp = compute->getParentOfType<tcrv::exec::KernelOp>();
+    auto kernelOp = compute->getParentOfType<weft::exec::KernelOp>();
     if (!kernelOp)
       return rewriter.notifyMatchFailure(compute, "compute has no kernel");
-    tcrv::exec::VariantOp variantOp;
-    kernelOp.walk([&](tcrv::exec::VariantOp candidate) {
+    weft::exec::VariantOp variantOp;
+    kernelOp.walk([&](weft::exec::VariantOp candidate) {
       if (candidate.getSymName() == variant.getValue())
         variantOp = candidate;
     });
@@ -131,8 +131,8 @@ public:
         getTemplateRuntimeABIParameters();
 
     llvm::StringRef sourceOpName =
-        compute.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = compute.getTCRVEmitCLowerableSourceRole();
+        compute.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = compute.getWEFTEmitCLowerableSourceRole();
 
     auto module = compute->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -202,7 +202,7 @@ public:
 };
 
 class TemplateBackendEmissionDriver final
-    : public tcrvemitc::TypedBackendEmissionDriver {
+    : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "template"; }
 
@@ -210,7 +210,7 @@ public:
       mlir::TypeConverter & /*typeConverter*/) const override {}
 
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
-    target.addIllegalOp<tcrv::template_ext::ComputeSkeletonOp>();
+    target.addIllegalOp<weft::template_ext::ComputeSkeletonOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -227,7 +227,7 @@ public:
     bool hasTemplate = false;
     module.walk([&](mlir::Operation *op) {
       if (op->getName().getDialectNamespace() ==
-          tcrv::template_ext::TCRVTemplateDialect::getDialectNamespace()) {
+          weft::template_ext::WEFTTemplateDialect::getDialectNamespace()) {
         hasTemplate = true;
         return mlir::WalkResult::interrupt();
       }
@@ -258,11 +258,11 @@ llvm::LogicalResult TemplateBackendEmissionDriver::postConversionCleanup(
 } // namespace
 
 void registerTemplateBackendEmitter(
-    tcrvemitc::BackendEmissionRegistry &registry) {
+    weftemitc::BackendEmissionRegistry &registry) {
   static const TemplateBackendEmissionDriver driver;
   registry.registerBackend(driver);
 }
 
 } // namespace template_ext
 } // namespace plugin
-} // namespace tianchenrv
+} // namespace weft

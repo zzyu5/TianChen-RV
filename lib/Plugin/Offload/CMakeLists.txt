@@ -1,10 +1,10 @@
-add_mlir_library(TianChenRVOffloadPlugin
+add_mlir_library(WeftOffloadPlugin
   OffloadExtensionPlugin.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVOffloadDialect
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftOffloadDialect
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRSupport
 )

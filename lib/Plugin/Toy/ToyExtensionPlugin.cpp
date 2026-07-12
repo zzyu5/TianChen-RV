@@ -1,12 +1,12 @@
-#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
+#include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
-#include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/Toy/ToySourceFrontDoor.h"
-#include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Dialect/Toy/IR/ToyDialect.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyEmitCRouteProvider.h"
+#include "Weft/Plugin/Toy/ToySourceFrontDoor.h"
+#include "Weft/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kToyPluginName("toy-plugin");
@@ -31,23 +31,23 @@ constexpr llvm::StringLiteral kToyTemplatePreferredCapabilitySymbol(
 constexpr llvm::StringLiteral kToyTemplateFirstSliceVariantName(
     "toy_template_first_slice");
 constexpr llvm::StringLiteral kToyTemplateABIAttrName(
-    "tcrv_toy.template_abi");
+    "weft_toy.template_abi");
 constexpr llvm::StringLiteral kToyHandoffKindAttrName(
-    "tcrv_toy.handoff_kind");
+    "weft_toy.handoff_kind");
 constexpr llvm::StringLiteral kToyConstructionProtocolAttrName(
-    "tcrv_toy.construction_protocol");
+    "weft_toy.construction_protocol");
 constexpr llvm::StringLiteral kToyConstructionArchetypeAttrName(
-    "tcrv_toy.archetype");
+    "weft_toy.archetype");
 constexpr llvm::StringLiteral kToySemanticRoleGraphAttrName(
-    "tcrv_toy.semantic_role_graph");
+    "weft_toy.semantic_role_graph");
 constexpr llvm::StringLiteral kToyCommonInterfaceRealizationAttrName(
-    "tcrv_toy.common_interface_realization");
+    "weft_toy.common_interface_realization");
 constexpr llvm::StringLiteral kToyTypedRoleRealizationAttrName(
-    "tcrv_toy.typed_role_realization");
+    "weft_toy.typed_role_realization");
 constexpr llvm::StringLiteral kToyEmitCRouteMappingAttrName(
-    "tcrv_toy.emitc_route_mapping");
+    "weft_toy.emitc_route_mapping");
 constexpr llvm::StringLiteral kToyEvidenceProfileAttrName(
-    "tcrv_toy.evidence_profile");
+    "weft_toy.evidence_profile");
 constexpr llvm::StringLiteral kExpectedTemplateABI(
     "toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
@@ -75,7 +75,7 @@ constexpr llvm::StringLiteral kToyComputeTypedRoleID(
     "toy.role.compute.compute_skeleton");
 constexpr llvm::StringLiteral kToyComputeSourceRole("compute");
 constexpr llvm::StringLiteral kToyComputeRoleSpecificInterface(
-    "TCRVComputeOpInterface");
+    "WEFTComputeOpInterface");
 constexpr llvm::StringLiteral kToyRouteArtifactMetadataKey(
     "toy_emitc_lowerable_route");
 constexpr llvm::StringLiteral kToySourceOpArtifactMetadataKey(
@@ -107,7 +107,7 @@ struct ToyTemplateCapabilityView {
 
 llvm::Error makeToyPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Toy extension plugin template failed: ") +
+      llvm::Twine("Weft-RV Toy extension plugin template failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -333,12 +333,12 @@ mlir::Operation *materializeToyComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::MLIRContext *context = builder.getContext();
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
 
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  mlir::OperationState state(variant.getLoc(), "tcrv_toy.compute_skeleton");
+  mlir::OperationState state(variant.getLoc(), "weft_toy.compute_skeleton");
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
@@ -421,7 +421,7 @@ llvm::ArrayRef<PluginCapability> ToyExtensionPlugin::getCapabilities() const {
 
 void ToyExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::toy::TCRVToyDialect>();
+  registry.insert<weft::toy::WEFTToyDialect>();
 }
 
 llvm::Error ToyExtensionPlugin::verifyExecutableConstructionConformance()
@@ -473,7 +473,7 @@ llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
-      getName(), "tcrv-toy-materialize-template-source-front-door",
+      getName(), "weft-toy-materialize-template-source-front-door",
       "Materialize one bounded Toy construction-template source marker into "
       "the Toy selected compute_skeleton front door",
       [] { return createMaterializeToyTemplateSourceFrontDoorPass(); },
@@ -497,7 +497,7 @@ llvm::Error ToyExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeToyPluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
 
   out = VariantCostEstimate();
   out.setScore(50.0);
@@ -517,10 +517,10 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeToyPluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeToyPluginError(
-        "emission readiness requires an enclosing tcrv.exec.kernel");
+        "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -532,7 +532,7 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -554,11 +554,11 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeToyPluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
 
   if (!request.getKernel())
     return makeToyPluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -570,7 +570,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -589,7 +589,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
       constructionRoute.emissionKind, constructionRoute.routeID,
       constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "Toy selected compute_skeleton route materializes a verified EmitC "
-      "module through the common TCRVEmitCLowerableRoute materializer and "
+      "module through the common WEFTEmitCLowerableRoute materializer and "
       "exports a relocatable object with an object-backed declaration header "
       "and bundle");
   out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
@@ -626,17 +626,17 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
 llvm::Error ToyExtensionPlugin::materializeSelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeToyPluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!kernel)
     return makeToyPluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
@@ -660,11 +660,11 @@ llvm::Error ToyExtensionPlugin::materializeSelectedLoweringBoundary(
 
 llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
-  auto boundary = llvm::dyn_cast_if_present<tcrv::toy::ComputeSkeletonOp>(
+  auto boundary = llvm::dyn_cast_if_present<weft::toy::ComputeSkeletonOp>(
       request.getBoundary());
   if (!boundary)
     return makeToyPluginError(
-        "selected Toy path requires a tcrv_toy.compute_skeleton operation");
+        "selected Toy path requires a weft_toy.compute_skeleton operation");
 
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(),
@@ -730,7 +730,7 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
 
 llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
-  bundle.addRequiredDialectName("tcrv_toy");
+  bundle.addRequiredDialectName("weft_toy");
   return target::toy::configureToyTargetSupportExtensionBundle(bundle);
 }
 
@@ -740,4 +740,4 @@ llvm::Error registerToyExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinToyExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

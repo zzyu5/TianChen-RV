@@ -1,4 +1,4 @@
-add_mlir_dialect_library(TianChenRVExecDialect
+add_mlir_dialect_library(WeftExecDialect
   CapabilityProviderComposition.cpp
   ExecOps.cpp
 

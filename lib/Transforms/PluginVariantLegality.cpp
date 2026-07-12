@@ -1,6 +1,6 @@
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Visitors.h"
@@ -11,16 +11,16 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_VERIFYPLUGINVARIANTLEGALITY
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::KernelOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::support::TargetCapabilitySet;
+using weft::exec::KernelOp;
 
 class VerifyPluginVariantLegalityPass final
     : public impl::VerifyPluginVariantLegalityBase<
@@ -87,4 +87,4 @@ std::unique_ptr<::mlir::Pass> createVerifyPluginVariantLegalityPass(
   return std::make_unique<VerifyPluginVariantLegalityPass>(registry);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

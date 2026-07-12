@@ -15,9 +15,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVContractionPathSelection.h"
+#include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 // ============================================================================
 // GGML OPPONENT ROSTER -- verified cell-by-cell (READ-ONLY) against
@@ -143,4 +143,4 @@ selectContractionAlgorithm(const ContractionOpponentFacts &facts,
           "block-dot-decline-q4_0-vlen256-decode-k1-loss"};
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

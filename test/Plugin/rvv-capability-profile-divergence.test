@@ -1,4 +1,4 @@
-# RUN: tianchenrv-rvv-capability-profile-divergence-test | FileCheck %s
+# RUN: weft-rvv-capability-profile-divergence-test | FileCheck %s
 
 # The N1 probe->capability authority derives the capability DIVERGENCE axes
 # (supported_sew / supported_lmul) from the real RVV probe ISA evidence, so a

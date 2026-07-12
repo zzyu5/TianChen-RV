@@ -13,13 +13,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
-#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -32,7 +32,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::Error requireRVVSelectedBodyContractionPlanField(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
@@ -1152,7 +1152,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
     const RVVLowPrecisionContractionResourceSelection &selection) {
   const std::int64_t expectedRegionCount = selection.vsetvlRegionCount;
   // Single-scope typed dequant body (Stage 3 flip): the realization no longer
-  // emits tcrv_rvv.vsetvl_region_marker placeholders -- the loop/region structure
+  // emits weft_rvv.vsetvl_region_marker placeholders -- the loop/region structure
   // is expressed as typed ops (inline product/reduce slices + with_vl unroll_factor
   // + the typed dequant chain) and synthesized structurally by the conversion. The
   // marker-walk below is retired for this form; the region-index ORDERING invariant
@@ -1185,7 +1185,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
         llvm::Twine(context) +
         " selected-body realization low-precision direct-contraction "
         "structure requires " + llvm::Twine(expectedRegionCount) +
-        " tcrv_rvv.vsetvl_region_marker ops matching realized resource "
+        " weft_rvv.vsetvl_region_marker ops matching realized resource "
         "facts, but found " +
         llvm::Twine(slice.vsetvlRegionMarkers.size()));
 
@@ -1224,7 +1224,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " selected-body realization low-precision direct-contraction "
-          "structure requires each tcrv_rvv.vsetvl_region_marker to consume "
+          "structure requires each weft_rvv.vsetvl_region_marker to consume "
           "the selected with_vl token");
     auto planningContract =
         marker->getAttrOfType<mlir::StringAttr>("planning_contract");
@@ -1232,7 +1232,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " selected-body realization low-precision direct-contraction "
-          "structure requires each tcrv_rvv.vsetvl_region_marker to carry "
+          "structure requires each weft_rvv.vsetvl_region_marker to carry "
           "planning_contract from the selected resource plan");
     if (planningContract.getValue() != selection.planningContract)
       return makeRVVEmitCRouteProviderError(
@@ -1281,7 +1281,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
 llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
     RVVSelectedBodyRouteSlice &slice, llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection) {
-  tcrv::rvv::GearboxCrossRegionHandoffOp handoff =
+  weft::rvv::GearboxCrossRegionHandoffOp handoff =
       slice.gearboxCrossRegionHandoffOp;
   const llvm::StringRef expectedResourceDecision = selection.realizationDecision;
   if (expectedResourceDecision.empty())
@@ -1293,7 +1293,7 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         selection.selectedCandidateID + "'");
   if (!handoff) {
     // Single-scope typed dequant body (Stage 3 flip): no cross-region handoff
-    // carrier exists -- the i32 product-reduction result feeds tcrv_rvv.dequantize
+    // carrier exists -- the i32 product-reduction result feeds weft_rvv.dequantize
     // directly. The fail-closed structural equivalence is that the dequant source
     // is the selected standalone_reduce result; the handoff's RESOURCE facts (the
     // operand_form / packing_layout / unpack_intent / candidate-set cross-checks
@@ -1305,7 +1305,7 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " selected-body realization low-precision direct-contraction "
-          "single-scope structure requires tcrv_rvv.dequantize to consume the "
+          "single-scope structure requires weft_rvv.dequantize to consume the "
           "selected standalone_reduce i32 result");
     return llvm::Error::success();
   }
@@ -1315,14 +1315,14 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " selected-body realization low-precision direct-contraction "
-        "structure requires tcrv_rvv.gearbox_cross_region_handoff to forward "
-        "the selected standalone_reduce result to tcrv_rvv.dequantize");
+        "structure requires weft_rvv.gearbox_cross_region_handoff to forward "
+        "the selected standalone_reduce result to weft_rvv.dequantize");
   if (handoff.getVl() != slice.withVL.getVl() ||
       handoff.getRuntimeAvl() != slice.setvl.getAvl())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " selected-body realization low-precision direct-contraction "
-        "structure requires tcrv_rvv.gearbox_cross_region_handoff to consume "
+        "structure requires weft_rvv.gearbox_cross_region_handoff to consume "
         "the selected with_vl token and runtime n/AVL SSA value");
   if (handoff.getContract() !=
           "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
@@ -1924,7 +1924,7 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context) {
-  using namespace tianchenrv::plugin::rvv;
+  using namespace weft::plugin::rvv;
   RVVLowPrecisionContractionResourceSelection selection;
   selection.hasSelection = true;
 
@@ -2804,7 +2804,7 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
           context, selection, "widening product multiplicand roles",
           selection.wideningProductMultiplicandRoleSummary,
           getContractionMultiplicandRoleSummary(
-              "tcrv_rvv.widening_product",
+              "weft_rvv.widening_product",
               /*isSigned=*/!isUnsignedWideningProduct)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
@@ -3584,8 +3584,8 @@ llvm::StringRef getRVVLowPrecisionPrimitiveKind(
   if (plan.usesWideningProduct) {
     if (plan.wideningProductRelation ==
         getContractionWideningProductRelation(
-            tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-            tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+            weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+            weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
             /*isUnsigned=*/true))
       return kRVVLowPrecisionPrimitiveUnsignedProductKind;
     return kRVVLowPrecisionPrimitiveSignedProductKind;
@@ -3597,8 +3597,8 @@ llvm::StringRef getRVVLowPrecisionPrimitiveKind(
   if (plan.usesProductReductionChain) {
     if (plan.wideningProductRelation ==
         getContractionWideningProductRelation(
-            tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-            tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+            weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+            weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
             /*isUnsigned=*/true))
       return kRVVLowPrecisionPrimitiveUnsignedProductReductionKind;
     return kRVVLowPrecisionPrimitiveSignedProductReductionKind;
@@ -3616,8 +3616,8 @@ llvm::StringRef getRVVLowPrecisionPrimitiveSourceSignedness(
   if ((plan.usesWideningProduct || plan.usesProductReductionChain) &&
       plan.wideningProductRelation ==
           getContractionWideningProductRelation(
-              tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-              tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+              weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+              weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
               /*isUnsigned=*/true))
     return kRVVLowPrecisionResourceSourceSignednessUnsigned;
   if (plan.usesWideningProduct || plan.usesProductReductionChain)
@@ -3642,8 +3642,8 @@ llvm::StringRef getRVVLowPrecisionPrimitiveSourceExtensionKind(
   if ((plan.usesWideningProduct || plan.usesProductReductionChain) &&
       plan.wideningProductRelation ==
           getContractionWideningProductRelation(
-              tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-              tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+              weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+              weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
               /*isUnsigned=*/true))
     return kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind;
   if (plan.usesWideningProduct || plan.usesProductReductionChain)
@@ -3656,8 +3656,8 @@ static bool isRVVUnsignedLowPrecisionWideningProductPlan(
   return (plan.usesWideningProduct || plan.usesProductReductionChain) &&
          plan.wideningProductRelation ==
              getContractionWideningProductRelation(
-                 tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-                 tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+                 weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+                 weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
                  /*isUnsigned=*/true);
 }
 
@@ -3670,7 +3670,7 @@ llvm::StringRef getRVVWideningProductMultiplicandRoleSummary(
   // Roles). This is the producer feeding plan/description.widening-
   // ProductMultiplicandRoleSummary.
   return getContractionMultiplicandRoleSummary(
-      "tcrv_rvv.widening_product",
+      "weft_rvv.widening_product",
       /*isSigned=*/!isRVVUnsignedLowPrecisionWideningProductPlan(plan));
 }
 
@@ -3953,64 +3953,64 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts
         llvm::Twine(expected) + " but saw " + llvm::Twine(actual));
   };
 
-#define TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)   \
+#define WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)   \
   if (llvm::Error error = requireString((FIELD), (ACTUAL), (EXPECTED)))        \
     return error
-#define TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)  \
+#define WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)  \
   if (llvm::Error error = requireInteger((FIELD), (ACTUAL), (EXPECTED)))       \
     return error
 
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "contract", payload.contractID,
       primitiveFacts.lowPrecisionPrimitiveContractID);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "kind", payload.kind, primitiveFacts.lowPrecisionPrimitiveKind);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "source dtype", payload.sourceElementTypeName,
       primitiveFacts.sourceElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "source signedness", payload.sourceSignedness,
       primitiveFacts.sourceSignedness);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "source load", payload.sourceLoadKind, primitiveFacts.sourceLoadKind);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "source extension", payload.sourceExtensionKind,
       primitiveFacts.sourceExtensionKind);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "product dtype", payload.productElementTypeName,
       primitiveFacts.productElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "accumulator dtype", payload.accumulatorElementTypeName,
       primitiveFacts.accumulatorElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "result dtype", payload.resultElementTypeName,
       primitiveFacts.finalResultElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
       "source SEW", payload.sourceSEW, primitiveFacts.sourceSEW);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "source LMUL", payload.sourceLMUL, primitiveFacts.sourceLMUL);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
       "product SEW", payload.productSEW, primitiveFacts.productSEW);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "product LMUL", payload.productLMUL, primitiveFacts.productLMUL);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
       "accumulator SEW", payload.accumulatorSEW,
       primitiveFacts.accumulatorSEW);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "accumulator LMUL", payload.accumulatorLMUL,
       primitiveFacts.accumulatorLMUL);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
       "result SEW", payload.resultSEW, primitiveFacts.reductionResultSEW);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "result LMUL", payload.resultLMUL, primitiveFacts.reductionResultLMUL);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "tail policy", payload.tailPolicy, tailPolicy);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "mask policy", payload.maskPolicy, maskPolicy);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "runtime control plan", payload.runtimeControlPlanID,
       runtimeControlPlanID);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "runtime AVL source", payload.runtimeAVLASource, runtimeAVLASource);
   // P1e C3 (offset-binary N=3): the provider-owned primitive facts derive the
   // config-keyed signed widening relation (signed-i8mf4xi8mf4-to-i16mf2), but
@@ -4034,33 +4034,33 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts
        payload.wideningProductRelation == kRVVCodebookProductRelation)
           ? llvm::StringRef(payload.wideningProductRelation)
           : llvm::StringRef(primitiveFacts.wideningProductRelation);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "widening product relation", payload.wideningProductRelation,
       expectedWideningProductRelation);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "product-reduction chain relation",
       payload.productReductionChainRelation,
       primitiveFacts.productReductionChainRelation);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "widening product intrinsic", payload.wideningProductIntrinsic,
       primitiveFacts.wideningProductIntrinsic);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "reduction intrinsic", payload.reductionIntrinsic,
       primitiveFacts.reductionIntrinsic);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "scalar seed splat intrinsic", payload.scalarSeedSplatIntrinsic,
       primitiveFacts.scalarSeedSplatIntrinsic);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "accumulator layout", payload.accumulatorLayout,
       primitiveFacts.accumulatorLayout);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "result layout", payload.resultLayout, primitiveFacts.resultLayout);
-  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "reduction store VL", payload.reductionStoreVL,
       primitiveFacts.reductionStoreVL);
 
-#undef TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING
-#undef TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER
+#undef WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING
+#undef WEFT_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER
 
   return llvm::Error::success();
 }
@@ -4134,106 +4134,106 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
       return error;
   }
 
-#define TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)         \
+#define WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)         \
   if (llvm::Error error = requireString((FIELD), (ACTUAL), (EXPECTED)))        \
     return error
-#define TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)        \
+#define WEFT_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)        \
   if (llvm::Error error = requireInteger((FIELD), (ACTUAL), (EXPECTED)))       \
     return error
 
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "contract", payload.contractID, plan.lowPrecisionPrimitiveContractID);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "kind", payload.kind, plan.lowPrecisionPrimitiveKind);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "source dtype", payload.sourceElementTypeName,
       plan.lowPrecisionPrimitiveSourceElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "source signedness", payload.sourceSignedness,
       plan.lowPrecisionPrimitiveSourceSignedness);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "source load", payload.sourceLoadKind,
       plan.lowPrecisionPrimitiveSourceLoadKind);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "source extension", payload.sourceExtensionKind,
       plan.lowPrecisionPrimitiveSourceExtensionKind);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "product dtype", payload.productElementTypeName,
       plan.lowPrecisionPrimitiveProductElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "accumulator dtype", payload.accumulatorElementTypeName,
       plan.lowPrecisionPrimitiveAccumulatorElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "result dtype", payload.resultElementTypeName,
       plan.lowPrecisionPrimitiveResultElementTypeName);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER("source SEW", payload.sourceSEW,
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER("source SEW", payload.sourceSEW,
                                          plan.sourceSEW);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("source LMUL", payload.sourceLMUL,
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING("source LMUL", payload.sourceLMUL,
                                         plan.sourceLMUL);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(
       "product SEW", payload.productSEW,
       plan.usesProductReductionChain ? plan.productSEW : plan.sew);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "product LMUL", payload.productLMUL,
       plan.usesProductReductionChain ? plan.productLMUL : plan.lmul);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(
       "accumulator SEW", payload.accumulatorSEW,
       plan.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
           ? 0
           : plan.sew);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "accumulator LMUL", payload.accumulatorLMUL,
       plan.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
           ? llvm::StringRef()
           : plan.lmul);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER("result SEW", payload.resultSEW,
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER("result SEW", payload.resultSEW,
                                          plan.sew);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("result LMUL", payload.resultLMUL,
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING("result LMUL", payload.resultLMUL,
                                         plan.lmul);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("tail policy", payload.tailPolicy,
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING("tail policy", payload.tailPolicy,
                                         plan.tailPolicy);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("mask policy", payload.maskPolicy,
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING("mask policy", payload.maskPolicy,
                                         plan.maskPolicy);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "runtime control plan", payload.runtimeControlPlanID,
       plan.runtimeControlPlan.controlPlanID);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "runtime AVL source", payload.runtimeAVLASource,
       plan.runtimeControlPlan.runtimeAVLASource);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "widening product relation", payload.wideningProductRelation,
       plan.wideningProductRelation);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "widening product intrinsic", payload.wideningProductIntrinsic,
       plan.wideningProductIntrinsic);
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "product-reduction chain relation",
       payload.productReductionChainRelation,
       plan.usesProductReductionChain ? plan.productReductionChainRelation
                                      : llvm::StringRef());
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "reduction intrinsic", payload.reductionIntrinsic,
       plan.usesProductReductionChain ? plan.contractionComputeIntrinsic
                                      : llvm::StringRef());
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "scalar seed splat intrinsic", payload.scalarSeedSplatIntrinsic,
       plan.usesProductReductionChain ? plan.scalarSeedSplatIntrinsic
                                      : llvm::StringRef());
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "accumulator layout", payload.accumulatorLayout,
       plan.usesProductReductionChain ? plan.accumulatorLayout
                                      : llvm::StringRef());
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "result layout", payload.resultLayout,
       plan.usesProductReductionChain ? plan.resultLayout
                                      : llvm::StringRef());
-  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+  WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
       "reduction store VL", payload.reductionStoreVL,
       plan.usesProductReductionChain ? plan.reductionStoreVL
                                      : llvm::StringRef());
 
-#undef TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING
-#undef TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER
+#undef WEFT_REQUIRE_PRIMITIVE_PAYLOAD_STRING
+#undef WEFT_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER
 
   return llvm::Error::success();
 }
@@ -4826,4 +4826,4 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
 }
 
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

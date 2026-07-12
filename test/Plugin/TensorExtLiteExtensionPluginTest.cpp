@@ -1,11 +1,11 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -21,29 +21,29 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::SourceFrontDoorPassRegistration;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalDecline;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::tensorext_lite::ConfigSkeletonOp;
-using tianchenrv::tcrv::tensorext_lite::LoadFragSkeletonOp;
-using tianchenrv::tcrv::tensorext_lite::TileMmaSkeletonOp;
-using tianchenrv::tcrv::tensorext_lite::LoweringBoundaryOp;
-using tianchenrv::tcrv::tensorext_lite::StoreFragSkeletonOp;
-using tianchenrv::transforms::VariantSelectionKind;
-using tianchenrv::transforms::VariantSelectionPlan;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::SourceFrontDoorPassRegistration;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalDecline;
+using weft::plugin::VariantProposalRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::tensorext_lite::ConfigSkeletonOp;
+using weft::tensorext_lite::LoadFragSkeletonOp;
+using weft::tensorext_lite::TileMmaSkeletonOp;
+using weft::tensorext_lite::LoweringBoundaryOp;
+using weft::tensorext_lite::StoreFragSkeletonOp;
+using weft::transforms::VariantSelectionKind;
+using weft::transforms::VariantSelectionPlan;
 
 namespace {
 
@@ -151,9 +151,9 @@ void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
   mlir::Block &body = variant.getBody().front();
   builder.setInsertionPointToEnd(&body);
   auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
+  llvm::ArrayRef<weft::plugin::tensorext_lite::
                      TensorExtLiteFragmentMmaRoleStep>
-      roleSteps = tianchenrv::plugin::tensorext_lite::
+      roleSteps = weft::plugin::tensorext_lite::
           getTensorExtLiteFragmentMmaRoleSteps();
   const unsigned orderedIndices[] = {0, 1, 2, 3};
   const unsigned reorderedIndices[] = {0, 2, 1, 3};
@@ -170,11 +170,11 @@ void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
                                                     variant.getSymName()));
     state.addAttribute("origin",
                        builder.getStringAttr(
-                           tianchenrv::plugin::tensorext_lite::
+                           weft::plugin::tensorext_lite::
                                getTensorExtLiteExtensionPluginName()));
     state.addAttribute(
         "role",
-        builder.getStringAttr(tianchenrv::plugin::stringifyVariantEmissionRole(
+        builder.getStringAttr(weft::plugin::stringifyVariantEmissionRole(
             VariantEmissionRole::DirectVariant)));
     state.addAttribute("status", builder.getStringAttr("role-op-boundary"));
     state.addAttribute("required_capabilities", variantRequires);
@@ -214,26 +214,26 @@ int expectProposalStringAttr(const VariantProposal &proposal,
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(registry),
                         "register TensorExtLite plugin"))
     return result;
 
   const auto *plugin = registry.lookupPlugin(
-      tianchenrv::plugin::tensorext_lite::getTensorExtLiteExtensionPluginName());
+      weft::plugin::tensorext_lite::getTensorExtLiteExtensionPluginName());
   if (int result = expect(plugin, "registered TensorExtLite plugin is visible"))
     return result;
   if (int result =
           expect(plugin->getVersion() ==
-                     tianchenrv::plugin::tensorext_lite::getTensorExtLiteExtensionPluginVersion(),
+                     weft::plugin::tensorext_lite::getTensorExtLiteExtensionPluginVersion(),
                  "TensorExtLite plugin version is stable"))
     return result;
 
   const PluginCapability *capability = registry.lookupCapabilityByID(
-      tianchenrv::plugin::tensorext_lite::getTensorExtLiteFragmentCapabilityID());
+      weft::plugin::tensorext_lite::getTensorExtLiteFragmentCapabilityID());
   if (int result =
           expect(capability &&
                      capability->getKind() ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteFragmentCapabilityKind(),
                  "TensorExtLite fragment capability metadata is registered"))
     return result;
@@ -250,14 +250,14 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
   if (int result =
           expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
-                     tianchenrv::plugin::tensorext_lite::
+                     weft::plugin::tensorext_lite::
                          getTensorExtLiteExtensionPluginName(),
                  "TensorExtLite source front-door pass is owned by "
                  "TensorExtLite plugin"))
     return result;
   if (int result =
           expect(sourceFrontDoorPasses.front().getArgument() ==
-                     "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door",
+                     "weft-tensorext-lite-materialize-fragment-mma-source-front-door",
                  "TensorExtLite source front-door pass keeps the public pass "
                  "argument"))
     return result;
@@ -267,21 +267,21 @@ int runRegistrationAndCapabilityMetadataTest() {
                           "present"))
     return result;
 
-  tianchenrv::plugin::ExtensionBundle bundle(
+  weft::plugin::ExtensionBundle bundle(
       "tensorext-lite-extension-bundle",
-      tianchenrv::plugin::tensorext_lite::
+      weft::plugin::tensorext_lite::
           getTensorExtLiteExtensionPluginName(),
-      tianchenrv::plugin::registerTensorExtLiteExtensionPlugin);
+      weft::plugin::registerTensorExtLiteExtensionPlugin);
   if (int result = expectSuccess(
           plugin->configureTargetSupportExtensionBundle(bundle),
           "TensorExtLite target-support extension bundle configures"))
     return result;
-  const auto &route = tianchenrv::plugin::tensorext_lite::
+  const auto &route = weft::plugin::tensorext_lite::
       getTensorExtLiteFragmentMmaEmitCConstructionRoute();
   if (int result =
           expect(bundle.getRequiredDialectNames().size() == 1 &&
                      bundle.getRequiredDialectNames().front() ==
-                         "tcrv_tensorext_lite" &&
+                         "weft_tensorext_lite" &&
                      bundle.getLoweringBoundaryOps().size() == 1 &&
                      bundle.getLoweringBoundaryOps().front() ==
                          route.loweringBoundaryOpName &&
@@ -294,41 +294,41 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
 
   const auto &manifest =
-      tianchenrv::plugin::tensorext_lite::getTensorExtLiteConstructionManifest();
+      weft::plugin::tensorext_lite::getTensorExtLiteConstructionManifest();
   const auto &realization =
-      tianchenrv::plugin::tensorext_lite::getTensorExtLiteTypedRoleGraphRealization();
+      weft::plugin::tensorext_lite::getTensorExtLiteTypedRoleGraphRealization();
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::verifyTensorExtLiteConstructionManifest(manifest),
+          weft::plugin::tensorext_lite::verifyTensorExtLiteConstructionManifest(manifest),
           "TensorExtLite construction manifest verifies"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::verifyTensorExtLiteTypedRoleGraphRealization(
+          weft::plugin::tensorext_lite::verifyTensorExtLiteTypedRoleGraphRealization(
               manifest, realization),
           "TensorExtLite typed role graph verifies"))
     return result;
   if (int result =
           expect(realization.roles.size() == 4 &&
                      realization.roles[0].operationName ==
-                         "tcrv_tensorext_lite.config_skeleton" &&
+                         "weft_tensorext_lite.config_skeleton" &&
                      realization.roles[1].operationName ==
-                         "tcrv_tensorext_lite.load_frag_skeleton" &&
+                         "weft_tensorext_lite.load_frag_skeleton" &&
                      realization.roles[2].role == "tile_mma" &&
                      realization.roles[2].operationName ==
-                         "tcrv_tensorext_lite.tile_mma_skeleton" &&
+                         "weft_tensorext_lite.tile_mma_skeleton" &&
                      realization.roles[2].roleSpecificInterface ==
-                         "TCRVComputeOpInterface" &&
+                         "WEFTComputeOpInterface" &&
                      realization.roles[2].emitCLowerableInterface ==
-                         "TCRVEmitCLowerableInterface" &&
+                         "WEFTEmitCLowerableInterface" &&
                      realization.roles[3].operationName ==
-                         "tcrv_tensorext_lite.store_frag_skeleton" &&
+                         "weft_tensorext_lite.store_frag_skeleton" &&
                      realization.roles[3].emitCLowerableInterface ==
-                         "TCRVEmitCLowerableInterface",
+                         "WEFTEmitCLowerableInterface",
                  "TensorExtLite typed role graph preserves ordered role sequence"))
     return result;
 
-  llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
+  llvm::ArrayRef<weft::plugin::tensorext_lite::
                      TensorExtLiteFragmentMmaRoleStep>
-      roleSteps = tianchenrv::plugin::tensorext_lite::
+      roleSteps = weft::plugin::tensorext_lite::
           getTensorExtLiteFragmentMmaRoleSteps();
   if (int result =
           expect(roleSteps.size() == realization.roles.size() &&
@@ -339,12 +339,12 @@ int runRegistrationAndCapabilityMetadataTest() {
                          realization.roles[2].typedRoleID &&
                      roleSteps[3].callee ==
                          route.storeFragCallee &&
-                     tianchenrv::plugin::tensorext_lite::
+                     weft::plugin::tensorext_lite::
                          getTensorExtLiteFragmentMmaSourceOps() ==
-                         "tcrv_tensorext_lite.config_skeleton->"
-                         "tcrv_tensorext_lite.load_frag_skeleton->"
-                         "tcrv_tensorext_lite.tile_mma_skeleton->"
-                         "tcrv_tensorext_lite.store_frag_skeleton",
+                         "weft_tensorext_lite.config_skeleton->"
+                         "weft_tensorext_lite.load_frag_skeleton->"
+                         "weft_tensorext_lite.tile_mma_skeleton->"
+                         "weft_tensorext_lite.store_frag_skeleton",
                  "TensorExtLite construction protocol exposes ordered "
                  "role-step and route-callee data"))
     return result;
@@ -359,12 +359,12 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "with bounded object artifact authority"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteConstructionProtocolReady(),
           "TensorExtLite construction protocol ready check validates active route"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
                   route.routeID, route.emissionKind, route.artifactKind,
                   route.runtimeABI, route.runtimeABIKind, route.runtimeABIName,
@@ -372,7 +372,7 @@ int runRegistrationAndCapabilityMetadataTest() {
           "TensorExtLite active EmitC route mapping validates"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteFragmentMmaTargetArtifactBundleMapping(
                   route.headerRouteID, route.headerArtifactKind,
                   route.bundleComponentGroup, route.objectHandoffKind,
@@ -380,34 +380,34 @@ int runRegistrationAndCapabilityMetadataTest() {
           "TensorExtLite target artifact bundle mapping validates"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteFragmentMmaArtifactMetadata(
-                  tianchenrv::plugin::tensorext_lite::
+                  weft::plugin::tensorext_lite::
                       getTensorExtLiteFragmentMmaArtifactMetadata(),
                   "TensorExtLite construction test"),
           "TensorExtLite artifact metadata validates from protocol"))
     return result;
-  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 12>
+  llvm::SmallVector<weft::support::ArtifactMetadataEntry, 12>
       staleProtocolMetadata(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               getTensorExtLiteFragmentMmaArtifactMetadata()
                   .begin(),
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               getTensorExtLiteFragmentMmaArtifactMetadata()
                   .end());
-  staleProtocolMetadata[2].value = "tcrv_tensorext_lite.stale_skeleton";
+  staleProtocolMetadata[2].value = "weft_tensorext_lite.stale_skeleton";
   if (int result = expectErrorContains(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteFragmentMmaArtifactMetadata(
                   staleProtocolMetadata,
                   "TensorExtLite construction test stale metadata"),
-          {tianchenrv::plugin::tensorext_lite::
+          {weft::plugin::tensorext_lite::
                getTensorExtLiteSourceOpsMetadataName(),
-           tianchenrv::plugin::tensorext_lite::
+           weft::plugin::tensorext_lite::
                getTensorExtLiteFragmentMmaSourceOps()}))
     return result;
   if (int result = expectErrorContains(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
                   "tensorext-lite-fragment-mma-no-active-emitc-route",
                   route.emissionKind, route.artifactKind, route.runtimeABI,
@@ -417,15 +417,15 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(registry),
-      {"duplicate TianChen-RV extension plugin", "tensorext-lite-plugin"});
+      weft::plugin::registerTensorExtLiteExtensionPlugin(registry),
+      {"duplicate Weft-RV extension plugin", "tensorext-lite-plugin"});
 }
 
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @available_tensorext_lite attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @available_tensorext_lite attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "available",
@@ -434,11 +434,11 @@ module {
     }
   }
 
-  tcrv.exec.kernel @missing_tensorext_lite attributes {} {
+  weft.exec.kernel @missing_tensorext_lite attributes {} {
   }
 
-  tcrv.exec.kernel @unavailable_tensorext_lite attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @unavailable_tensorext_lite attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "unavailable",
@@ -447,8 +447,8 @@ module {
     }
   }
 
-  tcrv.exec.kernel @malformed_tensorext_lite attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @malformed_tensorext_lite attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "available",
@@ -474,7 +474,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(registry),
                         "register TensorExtLite plugin for proposal gating"))
     return result;
 
@@ -497,42 +497,42 @@ module {
   const VariantProposal &proposal = proposals.front();
   if (int result =
           expect(proposal.getVariantName() ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteFragmentFirstSliceVariantName() &&
                      proposal.getOriginPlugin() ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteExtensionPluginName() &&
                      proposal.getPolicy() ==
-                         tianchenrv::plugin::tensorext_lite::getTensorExtLiteFragmentPolicy(),
+                         weft::plugin::tensorext_lite::getTensorExtLiteFragmentPolicy(),
                  "TensorExtLite proposal preserves stable generic metadata"))
     return result;
   if (int result =
           expect(proposal.getRequiredCapabilityIDs().size() == 1 &&
                      proposal.getRequiredCapabilityIDs().front() ==
-                         tianchenrv::plugin::tensorext_lite::getTensorExtLiteFragmentCapabilityID(),
+                         weft::plugin::tensorext_lite::getTensorExtLiteFragmentCapabilityID(),
                  "TensorExtLite proposal requires tensorext_lite.tile_mma capability id"))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, tianchenrv::plugin::tensorext_lite::getTensorExtLiteFragmentABIAttrName(),
-          tianchenrv::plugin::tensorext_lite::getTensorExtLiteExpectedFragmentABI()))
+          proposal, weft::plugin::tensorext_lite::getTensorExtLiteFragmentABIAttrName(),
+          weft::plugin::tensorext_lite::getTensorExtLiteExpectedFragmentABI()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, tianchenrv::plugin::tensorext_lite::getTensorExtLiteHandoffKindAttrName(),
-          tianchenrv::plugin::tensorext_lite::getTensorExtLiteExpectedHandoffKind()))
+          proposal, weft::plugin::tensorext_lite::getTensorExtLiteHandoffKindAttrName(),
+          weft::plugin::tensorext_lite::getTensorExtLiteExpectedHandoffKind()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_tensorext_lite.construction_protocol",
-          tianchenrv::plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+          proposal, "weft_tensorext_lite.construction_protocol",
+          weft::plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
               .protocolVersion))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_tensorext_lite.semantic_role_graph",
-          tianchenrv::plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+          proposal, "weft_tensorext_lite.semantic_role_graph",
+          weft::plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
               .semanticRoleGraph))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_tensorext_lite.typed_role_realization",
-          tianchenrv::plugin::tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary()))
+          proposal, "weft_tensorext_lite.typed_role_realization",
+          weft::plugin::tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary()))
     return result;
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
@@ -568,7 +568,7 @@ module {
     return result;
   return expect(proposals.empty() && declines.size() == 1 &&
                     declines.front().getPluginName() ==
-                        tianchenrv::plugin::tensorext_lite::getTensorExtLiteExtensionPluginName() &&
+                        weft::plugin::tensorext_lite::getTensorExtLiteExtensionPluginName() &&
                     declines.front().getReason().contains("fragment_abi"),
                 "malformed TensorExtLite capability records plugin-local decline");
 }
@@ -576,8 +576,8 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @tensorext_lite_tile_mma_kernel attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @tensorext_lite_tile_mma_kernel attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "available",
@@ -598,7 +598,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(registry),
                         "register TensorExtLite plugin for pipeline hook"))
     return result;
 
@@ -607,7 +607,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize TensorExtLite proposal"))
     return result;
@@ -618,22 +618,22 @@ module {
 
   VariantOp tensorext_liteVariant = findVariant(
       kernel,
-      tianchenrv::plugin::tensorext_lite::getTensorExtLiteFragmentFirstSliceVariantName());
+      weft::plugin::tensorext_lite::getTensorExtLiteFragmentFirstSliceVariantName());
   if (int result = expect(tensorext_liteVariant, "TensorExtLite variant is materialized"))
     return result;
   if (int result =
           expect(tensorext_liteVariant->getAttrOfType<mlir::StringAttr>("origin")
                          .getValue() ==
-                     tianchenrv::plugin::tensorext_lite::getTensorExtLiteExtensionPluginName(),
+                     weft::plugin::tensorext_lite::getTensorExtLiteExtensionPluginName(),
                  "TensorExtLite variant has TensorExtLite origin"))
     return result;
   if (int result =
           expect(tensorext_liteVariant
                          ->getAttrOfType<mlir::StringAttr>(
-                             tianchenrv::plugin::tensorext_lite::
+                             weft::plugin::tensorext_lite::
                                  getTensorExtLiteFragmentABIAttrName())
                          .getValue() ==
-                     tianchenrv::plugin::tensorext_lite::getTensorExtLiteExpectedFragmentABI(),
+                     weft::plugin::tensorext_lite::getTensorExtLiteExpectedFragmentABI(),
                  "TensorExtLite variant carries fragment ABI metadata"))
     return result;
 
@@ -656,14 +656,14 @@ module {
           expect(estimate.hasScore() && estimate.getScore() == 50.0 &&
                      estimate.hasExplicitPreference() &&
                      estimate.getOriginPlugin() ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteExtensionPluginName() &&
                      estimate.getVariantSymbol() == tensorext_liteVariant.getSymName(),
                  "TensorExtLite cost metadata is plugin-owned"))
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("TensorExtLite selection planning failed: " +
@@ -678,7 +678,7 @@ module {
 
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize TensorExtLite selected marker"))
     return result;
@@ -686,7 +686,7 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          weft::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
           "materialize TensorExtLite selected boundary"))
     return result;
@@ -709,11 +709,11 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteRoleOpInterface(
-                  tianchenrv::plugin::tensorext_lite::
+                  weft::plugin::tensorext_lite::
                       getTensorExtLiteConstructionManifest(),
-                  tianchenrv::plugin::tensorext_lite::
+                  weft::plugin::tensorext_lite::
                       getTensorExtLiteTypedRoleGraphRealization(),
                   nestedComputeRole.getOperation(), "tile_mma"),
           "TensorExtLite tile_mma role op validates through construction interface"))
@@ -728,13 +728,13 @@ module {
               status),
           "TensorExtLite emission readiness sees active explicit role route"))
     return result;
-  const auto &routeMetadata = tianchenrv::plugin::tensorext_lite::
+  const auto &routeMetadata = weft::plugin::tensorext_lite::
       getTensorExtLiteFragmentMmaEmitCConstructionRoute();
-  const auto &manifest = tianchenrv::plugin::tensorext_lite::
+  const auto &manifest = weft::plugin::tensorext_lite::
       getTensorExtLiteConstructionManifest();
-  llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
+  llvm::ArrayRef<weft::plugin::tensorext_lite::
                      TensorExtLiteFragmentMmaRoleStep>
-      roleSteps = tianchenrv::plugin::tensorext_lite::
+      roleSteps = weft::plugin::tensorext_lite::
           getTensorExtLiteFragmentMmaRoleSteps();
   if (int result =
           expect(status.isSupported() &&
@@ -755,7 +755,7 @@ module {
   if (int result =
           expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
@@ -776,79 +776,79 @@ module {
                          routeMetadata.runtimeGlueRole &&
                      emissionPlan.getLoweringBoundaryOpName() ==
                          routeMetadata.loweringBoundaryOpName &&
-                     tianchenrv::support::runtimeABIParametersEqual(
+                     weft::support::runtimeABIParametersEqual(
                          emissionPlan.getRuntimeABIParameters(),
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteFragmentMmaRuntimeABIParameters()) &&
                      emissionPlan.getExplanation().contains(
                          "relocatable object artifact") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteFragmentPreferredCapabilitySymbol() &&
                      emissionPlan.getArtifactMetadata().size() == 12 &&
                      emissionPlan.getArtifactMetadata()[0].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteEmitCLowerableRouteMetadataName() &&
                      emissionPlan.getArtifactMetadata()[0].value ==
                          routeMetadata.routeID &&
                      emissionPlan.getArtifactMetadata()[1].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteRoleSequenceMetadataName() &&
                      emissionPlan.getArtifactMetadata()[1].value ==
                          manifest.semanticRoleGraph &&
                      emissionPlan.getArtifactMetadata()[2].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteSourceOpsMetadataName() &&
                      emissionPlan.getArtifactMetadata()[2].value ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteFragmentMmaSourceOps() &&
                      emissionPlan.getArtifactMetadata()[3].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteSourceRolesMetadataName() &&
                      emissionPlan.getArtifactMetadata()[3].value ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteFragmentMmaSourceRoles() &&
                      emissionPlan.getArtifactMetadata()[4].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteSourceOpInterfaceMetadataName() &&
                      emissionPlan.getArtifactMetadata()[4].value ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteEmitCLowerableOpInterfaceName() &&
                      emissionPlan.getArtifactMetadata()[5].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteConstructionProtocolMetadataName() &&
                      emissionPlan.getArtifactMetadata()[5].value ==
                          manifest.protocolVersion &&
                      emissionPlan.getArtifactMetadata()[6].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteConstructionArchetypeMetadataName() &&
                      emissionPlan.getArtifactMetadata()[6].value ==
                          manifest.archetype &&
                      emissionPlan.getArtifactMetadata()[7].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteSemanticRoleGraphMetadataName() &&
                      emissionPlan.getArtifactMetadata()[7].value ==
                          manifest.semanticRoleGraph &&
                      emissionPlan.getArtifactMetadata()[8].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteCommonInterfaceRealizationMetadataName() &&
                      emissionPlan.getArtifactMetadata()[8].value ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteConstructionInterfaceRealization() &&
                      emissionPlan.getArtifactMetadata()[9].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteTypedRoleRealizationMetadataName() &&
                      emissionPlan.getArtifactMetadata()[9].value ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteTypedRoleRealizationSummary() &&
                      emissionPlan.getArtifactMetadata()[10].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteEmitCRouteMappingMetadataName() &&
                      emissionPlan.getArtifactMetadata()[10].value ==
                          manifest.emitcRoute.routeID &&
                      emissionPlan.getArtifactMetadata()[11].key ==
-                         tianchenrv::plugin::tensorext_lite::
+                         weft::plugin::tensorext_lite::
                              getTensorExtLiteEvidenceProfileMetadataName() &&
                      emissionPlan.getArtifactMetadata()[11].value ==
                          manifest.evidenceProfile,
@@ -856,7 +856,7 @@ module {
                  "candidate backed by EmitC route provenance"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::
+          weft::plugin::tensorext_lite::
               verifyTensorExtLiteFragmentMmaArtifactMetadata(
                   emissionPlan.getArtifactMetadata(),
                   "TensorExtLite emission plan metadata"),
@@ -869,8 +869,8 @@ module {
 int runRoleSequenceOrderingNegativeTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @reordered_tensorext_lite_tile_mma_kernel attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @reordered_tensorext_lite_tile_mma_kernel attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "available",
@@ -893,7 +893,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(
                             registry),
                         "register TensorExtLite plugin for reordered role "
                         "negative"))
@@ -905,14 +905,14 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize TensorExtLite proposal for reordered role negative"))
     return result;
 
   VariantOp tensorext_liteVariant = findVariant(
       kernel,
-      tianchenrv::plugin::tensorext_lite::
+      weft::plugin::tensorext_lite::
           getTensorExtLiteFragmentFirstSliceVariantName());
   if (int result =
           expect(tensorext_liteVariant,
@@ -920,7 +920,7 @@ module {
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("TensorExtLite reordered role selection planning failed: " +
@@ -928,7 +928,7 @@ module {
   VariantSelectionPlan selectionPlan = std::move(*planOrError);
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize TensorExtLite selected marker for reordered role "
           "negative"))
@@ -941,10 +941,10 @@ module {
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+      weft::plugin::materializeSelectedLoweringBoundaries(
           kernel, capabilities, registry),
       {"selected TensorExtLite role ops must appear in",
-       tianchenrv::plugin::tensorext_lite::
+       weft::plugin::tensorext_lite::
            getTensorExtLiteConstructionManifest()
                .semanticRoleGraph,
        "order"});
@@ -954,8 +954,8 @@ int runPartialRoleSequenceMaterializationNegativeTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @partial_tensorext_lite_tile_mma_kernel attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @partial_tensorext_lite_tile_mma_kernel attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "available",
@@ -978,7 +978,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(
                             registry),
                         "register TensorExtLite plugin for partial role "
                         "negative"))
@@ -990,14 +990,14 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize TensorExtLite proposal for partial role negative"))
     return result;
 
   VariantOp tensorext_liteVariant = findVariant(
       kernel,
-      tianchenrv::plugin::tensorext_lite::
+      weft::plugin::tensorext_lite::
           getTensorExtLiteFragmentFirstSliceVariantName());
   if (int result =
           expect(tensorext_liteVariant,
@@ -1005,7 +1005,7 @@ module {
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("TensorExtLite partial role selection planning failed: " +
@@ -1013,7 +1013,7 @@ module {
   VariantSelectionPlan selectionPlan = std::move(*planOrError);
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize TensorExtLite selected marker for partial role negative"))
     return result;
@@ -1027,10 +1027,10 @@ module {
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+      weft::plugin::materializeSelectedLoweringBoundaries(
           kernel, capabilities, registry),
       {"partial materialized role sequence",
-       tianchenrv::plugin::tensorext_lite::
+       weft::plugin::tensorext_lite::
            getTensorExtLiteConstructionManifest()
                .semanticRoleGraph});
 }
@@ -1039,8 +1039,8 @@ int runDuplicateRoleSequenceMaterializationNegativeTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @duplicate_tensorext_lite_tile_mma_kernel attributes {} {
-    tcrv.exec.capability @tensorext_lite_tile_mma {
+  weft.exec.kernel @duplicate_tensorext_lite_tile_mma_kernel attributes {} {
+    weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",
       status = "available",
@@ -1063,7 +1063,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(
                             registry),
                         "register TensorExtLite plugin for duplicate role "
                         "negative"))
@@ -1075,14 +1075,14 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize TensorExtLite proposal for duplicate role negative"))
     return result;
 
   VariantOp tensorext_liteVariant = findVariant(
       kernel,
-      tianchenrv::plugin::tensorext_lite::
+      weft::plugin::tensorext_lite::
           getTensorExtLiteFragmentFirstSliceVariantName());
   if (int result =
           expect(tensorext_liteVariant,
@@ -1090,7 +1090,7 @@ module {
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("TensorExtLite duplicate role selection planning failed: " +
@@ -1098,7 +1098,7 @@ module {
   VariantSelectionPlan selectionPlan = std::move(*planOrError);
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize TensorExtLite selected marker for duplicate role negative"))
     return result;
@@ -1113,10 +1113,10 @@ module {
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+      weft::plugin::materializeSelectedLoweringBoundaries(
           kernel, capabilities, registry),
       {"duplicate materialized role op",
-       "tcrv_tensorext_lite.config_skeleton"});
+       "weft_tensorext_lite.config_skeleton"});
 }
 
 } // namespace
@@ -1124,14 +1124,14 @@ module {
 int main() {
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+          expectSuccess(weft::plugin::registerTensorExtLiteExtensionPlugin(
                             dialectPlugins),
                         "register TensorExtLite plugin for dialect setup"))
     return result;
 
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
+  weft::registerPluginDialects(dialectPlugins, dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 

@@ -1,6 +1,6 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-rvv-materialize-vector-compare-select-source-front-door
+// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-rvv-materialize-vector-compare-select-source-front-door
 
-module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_vector_compare_select_source"} {
   // expected-error@+1 {{bounded RVV vector-compare-select source front door failed: source function inputs must be lhs/rhs/out rank-1 i32 memrefs and one runtime n index}}
   func.func @bad_dtype(%lhs: memref<?xf32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
@@ -17,7 +17,7 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_s
 
 // -----
 
-module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_vector_compare_select_source"} {
   // expected-error@+1 {{bounded RVV vector-compare-select source front door failed: source function must have exactly four inputs and no results: lhs/rhs/out memref<?xi32> plus n index}}
   func.func @missing_runtime_n(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>) {
     %c0 = arith.constant 0 : index
@@ -33,9 +33,9 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_s
 
 // -----
 
-module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
-  // expected-error@+1 {{bounded RVV vector-compare-select source front door failed: source materializer requires RVV source-only MLIR input; pre-existing tcrv.exec/tcrv_rvv/tcrv_toy/tcrv_tensorext_lite selected-boundary or variant residue is not accepted}}
-  tcrv.exec.kernel @stale_selected_boundary {
+module attributes {weft_rvv.source_front_door = "bounded_vector_compare_select_source"} {
+  // expected-error@+1 {{bounded RVV vector-compare-select source front door failed: source materializer requires RVV source-only MLIR input; pre-existing weft.exec/weft_rvv/weft_toy/weft_tensorext_lite selected-boundary or variant residue is not accepted}}
+  weft.exec.kernel @stale_selected_boundary {
   }
 
   func.func @source_vector_cmp_select_eq(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
@@ -52,8 +52,8 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_s
 
 // -----
 
-// expected-error@+1 {{RVV vector source-front-door family registry failed: family 'bounded-vector-compare-select-source-front-door' rejected stale tcrv_rvv.lowering_seed metadata as RVV source-route authority}}
-module attributes {tcrv_rvv.lowering_seed = "stale-route", tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
+// expected-error@+1 {{RVV vector source-front-door family registry failed: family 'bounded-vector-compare-select-source-front-door' rejected stale weft_rvv.lowering_seed metadata as RVV source-route authority}}
+module attributes {weft_rvv.lowering_seed = "stale-route", weft_rvv.source_front_door = "bounded_vector_compare_select_source"} {
   func.func @stale_lowering_seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i32
@@ -68,7 +68,7 @@ module attributes {tcrv_rvv.lowering_seed = "stale-route", tcrv_rvv.source_front
 
 // -----
 
-module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_vector_compare_select_source"} {
   func.func @unsupported_predicate(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i32
@@ -84,7 +84,7 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_s
 
 // -----
 
-module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_vector_compare_select_source"} {
   func.func @unsupported_select_layout(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i32

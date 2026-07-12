@@ -1,6 +1,6 @@
 # Capability Model Specs
 
-Capability model is the first core of TianChen-RV MLIR. It turns target facts into MLIR-visible objects that affect passes.
+Capability model is the first core of Weft-RV MLIR. It turns target facts into MLIR-visible objects that affect passes.
 
 ## Pre-Development Checklist
 
@@ -11,7 +11,7 @@ Capability model is the first core of TianChen-RV MLIR. It turns target facts in
 - [ ] Are current and future target profiles kept distinct?
 - [ ] Is the capability model implemented as C++/MLIR compiler objects, not Python/JSON-only structures?
 - [ ] Are capability facts used only to constrain legality/realization, rather than creating RVV dtype/config/body/route identities?
-- [ ] If RVV dtype/config affects executable lowering, is it structural in typed `tcrv_rvv` body or consumed into realized body before route construction?
+- [ ] If RVV dtype/config affects executable lowering, is it structural in typed `weft_rvv` body or consumed into realized body before route construction?
 
 ## Guidelines Index
 
@@ -29,6 +29,6 @@ Capability model is the first core of TianChen-RV MLIR. It turns target facts in
 - A family is a capability-declaration + ownership boundary, not instruction density; "capability-gate families" (e.g. the vector-absent scalar family) are legal ([S-8]).
 - Capability cannot be a plain string attached after lowering.
 - Capability facts such as VLEN, dtype throughput, preferred LMUL, or toolchain support must not directly become route ids, dtype authority, intrinsic choices, or artifact names.
-- If a variant requires an extension, the requirement must be represented in `#tcrv.requires<...>` or equivalent structured data.
+- If a variant requires an extension, the requirement must be represented in `#weft.requires<...>` or equivalent structured data.
 - If a hardware/runtime/toolchain feature is absent, the system must either reject the variant or generate a dispatch/fallback path with diagnostics.
 - Capability model behavior requires lit/FileCheck coverage for IR syntax/verification and C++ tests for registry/helper APIs where appropriate.

@@ -1,6 +1,6 @@
 # 模板五大件 → 目录映射（外来者 30 分钟定位图）+ 命名统一基准
 
-> **用途**：TianChen-RV 的头条 = 「可复制 / 可扩展的能力驱动执行层软件栈**参考模板**」。
+> **用途**：Weft-RV 的头条 = 「可复制 / 可扩展的能力驱动执行层软件栈**参考模板**」。
 > 一个外来贡献者读完 README + 本图，应能在 **30 分钟内** 定位模板的每一大件、并知道
 > 接入一个新家族要动哪些格位。本图补 [TEMPLATE-AUDIT] 认定的**头号定位债**（R1）。
 > **本 doc 只描述结构与命名约定，不改任何 code / schema / 选择逻辑 / 测量数据。**
@@ -34,9 +34,9 @@
 | # | 大件 | 主目录 | 代表文件（30 秒可辨） | 定位度 |
 |---|---|---|---|---|
 | **①** | **schema**（能力 / coverage / roster / pattern / cert / retire） | `schema/`（顶层单目录，清洁独立） | `capability.schema.v1.json` · `coverage-sixstate.v1.json`（84 certified 源）· `coverage-roster.v1.json`（93 格分母）· `pattern-registry.v1.json` · `cert-lineage.v1.json` · `retired-index.generated.json`（机生） | **HIGH** |
-| **②** | **插件五件套**（每家族·**真实 6 目录根**，见 §2） | `lib/Plugin/<家族>/` + `include/TianChenRV/Plugin/<家族>/` + `lib/Dialect/<家族>/IR/`（+ include 镜像）+ `lib/Target/<家族>/`（+ include 镜像） | 参考范本 `Template/`：`TemplateExtensionPlugin` · `TemplateVariantLegality` · `TemplateConstructionProtocol` · `TemplateEmitCRouteProvider` · `TemplateBackendEmissionDriver`（文件五件，= 交付 [P-2] 的 realization；真触碰集 6 根/20 文件，见 §2 [GAP-P4-TOUCHSET]） | **MEDIUM**（RVV 家族 R2/R3 已分子目录；触碰集 6 根非 5 文件） |
+| **②** | **插件五件套**（每家族·**真实 6 目录根**，见 §2） | `lib/Plugin/<家族>/` + `include/Weft/Plugin/<家族>/` + `lib/Dialect/<家族>/IR/`（+ include 镜像）+ `lib/Target/<家族>/`（+ include 镜像） | 参考范本 `Template/`：`TemplateExtensionPlugin` · `TemplateVariantLegality` · `TemplateConstructionProtocol` · `TemplateEmitCRouteProvider` · `TemplateBackendEmissionDriver`（文件五件，= 交付 [P-2] 的 realization；真触碰集 6 根/20 文件，见 §2 [GAP-P4-TOUCHSET]） | **MEDIUM**（RVV 家族 R2/R3 已分子目录；触碰集 6 根非 5 文件） |
 | **③** | **前门**（front-door 构造：抽象 contraction → in-compiler 构造 typed 区域） | 散在 `lib/Plugin/RVV/*SourceFrontDoor.cpp` + `lib/Plugin/RVV/RVVLowerQuantContraction.cpp` + `lib/Plugin/Construction/` + `lib/Dialect/RVV/IR/RVV*Construction.cpp` | `RVVMonolithicBlockDotSourceFrontDoor.cpp` · `RVVDequantDotSourceFrontDoor.cpp` · `RVVCodebookDotSourceFrontDoor.cpp` · `RVVLowerQuantContraction.cpp` · `Construction/ConstructionProtocol.cpp` | **LOW-MEDIUM**（无专属 `FrontDoor/` 目录，靠命名约定；见 R3） |
-| **④** | **选择器**（能力键控 cost-model / 先验） | 二层散：`lib/Transforms/VariantSelection.cpp` + 各插件 `estimateVariantCost` + `include/.../Plugin/RVV/RVVRepackTilingSelection.h` + `schema/tiling-measurements.v1.json`（先验/测量契约） | `lib/Transforms/VariantSelection.cpp`（通用能力键控 pass）· `include/TianChenRV/Plugin/ExtensionPlugin.h`（`estimateVariantCost` 接口声明） | **MEDIUM**（无单一 `selector/` 目录；四处二层，需 R5 co-locate 文档） |
+| **④** | **选择器**（能力键控 cost-model / 先验） | 二层散：`lib/Transforms/VariantSelection.cpp` + 各插件 `estimateVariantCost` + `include/.../Plugin/RVV/RVVRepackTilingSelection.h` + `schema/tiling-measurements.v1.json`（先验/测量契约） | `lib/Transforms/VariantSelection.cpp`（通用能力键控 pass）· `include/Weft/Plugin/ExtensionPlugin.h`（`estimateVariantCost` 接口声明） | **MEDIUM**（无单一 `selector/` 目录；四处二层，需 R5 co-locate 文档） |
 | **⑤** | **falsifier 组**（机检验收 [F-1..F-6]） | `tools/lint/` + `tools/fuzz/` + `.trellis/scripts/` + `.github/workflows/falsifier-gate.yml` + `test/` 语料 | **见 [FALSIFIER-INDEX.md](./FALSIFIER-INDEX.md)（R4：F-1..F-6 → 文件逐条映射）** | **MEDIUM-HIGH** |
 | **⑥** | **测量库**（板上 A/B harness + 双账本） | `tools/e2e-harness/`（清洁独立家）+ `schema/tiling-measurements.v1.json`（double_ledger 数据契约） | `tools/e2e-harness/run_e2e.sh` · `board/*driver.c` · `aggregate_e2e.py` · `board_ab.sh` | **HIGH** |
 
@@ -48,7 +48,7 @@
 
 ## 2. 插件五件套（文件轴 · = 交付轴 [P-2] 的 realization · 一个家族落齐这五件）
 
-参考范本 = `lib/Plugin/Template/`（+ `include/TianChenRV/Plugin/Template/` 头）：
+参考范本 = `lib/Plugin/Template/`（+ `include/Weft/Plugin/Template/` 头）：
 
 | 件（文件轴） | Template 范本文件 | 承载的交付 [P-2] | 职责 |
 |---|---|---|---|
@@ -67,17 +67,17 @@
 「复制 5 个 `lib/Plugin/<Fam>/` 文件」只是**名义**起点。参考范本 `Template/` 家族的**真实
 可链接触碰集 = 6 个目录根 / 20 个源文件 / 6 个 `CMakeLists` + 1 个共享注册文件**——因为
 插件库经 CMake **传递依赖**一个家族 `Dialect` 库和一个家族 `Target` 库（`lib/Plugin/Template/CMakeLists.txt`：
-`TianChenRVTemplatePlugin LINK_LIBS … TianChenRVTemplateDialect TianChenRVTemplateTarget`）。只复制
-5 个 plugin 文件跑 `cmake --build` **会在链接期撞** 缺失的 `TianChenRV<Fam>Dialect` /
-`TianChenRV<Fam>Target` target：
+`WeftTemplatePlugin LINK_LIBS … WeftTemplateDialect WeftTemplateTarget`）。只复制
+5 个 plugin 文件跑 `cmake --build` **会在链接期撞** 缺失的 `Weft<Fam>Dialect` /
+`Weft<Fam>Target` target：
 
 ```
 lib/Plugin/<Fam>/                      5 .cpp + CMakeLists  → 4 库（Plugin/ConstructionProtocol/EmitCRouteProvider/BackendEmitter）
-include/TianChenRV/Plugin/<Fam>/       4 头
-lib/Dialect/<Fam>/ + IR/               <Fam>Dialect.cpp + 2 CMakeLists → 库 TianChenRV<Fam>Dialect   ← 五件套未列·MANDATORY
-include/TianChenRV/Dialect/<Fam>/ + IR/  <Fam>Dialect.h + <Fam>Ops.td + 2 CMakeLists（ODS/TableGen）
-lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → 库 TianChenRV<Fam>Target  ← 五件套未列·MANDATORY
-include/TianChenRV/Target/<Fam>/       <Fam>TargetSupportBundle.h
+include/Weft/Plugin/<Fam>/       4 头
+lib/Dialect/<Fam>/ + IR/               <Fam>Dialect.cpp + 2 CMakeLists → 库 Weft<Fam>Dialect   ← 五件套未列·MANDATORY
+include/Weft/Dialect/<Fam>/ + IR/  <Fam>Dialect.h + <Fam>Ops.td + 2 CMakeLists（ODS/TableGen）
+lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → 库 Weft<Fam>Target  ← 五件套未列·MANDATORY
+include/Weft/Target/<Fam>/       <Fam>TargetSupportBundle.h
 lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 共享注册（[GAP-P4-REGISTER]）              ← 五件套+[F-3] 均未列
 ```
 
@@ -101,8 +101,8 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 
 | 记号 | 所指 | 出处 | 语义 |
 |---|---|---|---|
-| **P1-(a)** | **宽 LMUL 分组** | `docs/canon/TianChen-RV_科研目标总纲v2.md:121` | 一个 schedule/emit 优化模式（LMUL 宽度旋钮） |
-| **P1-(b)** | **N-operand 构造统一**（4 前门已机制化） | `docs/canon/TianChen-RV_执行总纲v2.md:91`「P1 已机制化」 | 构造协议主张（本 = T3p 的 P1；构造轴 validated-REAL / perf-novelty RETIRED） |
+| **P1-(a)** | **宽 LMUL 分组** | `docs/canon/Weft-RV_科研目标总纲v2.md:121` | 一个 schedule/emit 优化模式（LMUL 宽度旋钮） |
+| **P1-(b)** | **N-operand 构造统一**（4 前门已机制化） | `docs/canon/Weft-RV_执行总纲v2.md:91`「P1 已机制化」 | 构造协议主张（本 = T3p 的 P1；构造轴 validated-REAL / perf-novelty RETIRED） |
 | **P1-(c)** | **[GAP-P1]** = 宽 VLEN 喂饱 schedule 的 roofline gap | T8 `q4_0-gevm-k1-vlen256` 行 | 一个具名性能 GAP（misselection：selector 只键 isRVV0p7、不键 VLEN128-vs-256） |
 
 **统一建议（供 RENAME 裁）**：三者互不相关，**不应共享「P1」字面**。建议保留 [GAP-P1] 为 GAP-域记号
@@ -112,7 +112,7 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 **✅ [RENAME] 部分执行（2026-07-12 · 本节唯一权威碰撞记录 · 以本节为准）**：
 - **P1-(b) N-operand 构造**：仓库内仅有的 **in-domain（代码）** 裸「P1」footprint 已消歧（behavior-preserving·仅注释）——
   `lib/Plugin/RVV/Construction/RVVContractionRouteIdentity.cpp`（3 处：`P1 generic ABI-order`×2 + `NOT consumed by the P1`）
-  + `include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h`（1 处：`P1 N-operand descriptor refactor`）
+  + `include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h`（1 处：`P1 N-operand descriptor refactor`）
   一律改为自描述的 **「N-operand generic ABI-order」/「N-operand descriptor refactor」**，裸「P1」token 自代码退役。
   其**建议 pattern_id = `CONSTRUCT-N-OPERAND-ROUTE`**，pending `schema/pattern-registry.v1.json` 注册（见下 ⏸）。
 - **P1-(c) = [GAP-P1]**：**保留**（GAP-域自洽命名，§3.3 已裁不与 (a)/(b) 合并），无动作。
@@ -155,7 +155,7 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 [GAP-FLAT-E2E]               FLAT kernel 赢未过 micro∧e2e
 [GAP-FLAT-E2E-ROUTING]       FLAT/K-quant VLEN128 未路由进 forward
 [GAP-IME-LEAF-PIPELINE]      IME 发射器 per-fragment leaf 未流水（4× loss）
-[GAP-IME-E2E-INTEGRATION]    tcrv IME 未 wire 进 llama forward
+[GAP-IME-E2E-INTEGRATION]    weft IME 未 wire 进 llama forward
 [GAP-KQUANT-E2E-INTEGRATION] q4_K vl16 未部署 + 无 board 模型
 [GAP-DEQ-KQUANT-UNPACK]      dequant super-block scale-unpack compute-bound
 [GAP-FWD-M8-VSETVL]          forward 显式 m8 map 的 per-iter vsetvl

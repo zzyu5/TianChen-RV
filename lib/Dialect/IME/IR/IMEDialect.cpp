@@ -1,7 +1,7 @@
-#include "TianChenRV/Dialect/IME/IR/IMEDialect.h"
+#include "Weft/Dialect/IME/IR/IMEDialect.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -9,12 +9,12 @@
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 
-using namespace tianchenrv::tcrv::ime;
+using namespace weft::ime;
 
-#include "TianChenRV/Dialect/IME/IR/IMEOpsDialect.cpp.inc"
+#include "Weft/Dialect/IME/IR/IMEOpsDialect.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "TianChenRV/Dialect/IME/IR/IMEOps.cpp.inc"
+#include "Weft/Dialect/IME/IR/IMEOps.cpp.inc"
 
 namespace {
 
@@ -31,11 +31,11 @@ constexpr llvm::StringLiteral kAccumBitsAttrName("accum_bits");
 constexpr llvm::StringLiteral kMacMAttrName("mac_m");
 constexpr llvm::StringLiteral kMacNAttrName("mac_n");
 constexpr llvm::StringLiteral kMacKAttrName("mac_k");
-// Whole-matrix problem dims carried ONLY by tcrv.ime.matmul (the tiled op).
+// Whole-matrix problem dims carried ONLY by weft.ime.matmul (the tiled op).
 constexpr llvm::StringLiteral kMatMAttrName("mat_m");
 constexpr llvm::StringLiteral kMatNAttrName("mat_n");
 constexpr llvm::StringLiteral kMatKAttrName("mat_k");
-// The sliding-window stride FACT carried ONLY by tcrv.ime.mma_slide (1/2/3).
+// The sliding-window stride FACT carried ONLY by weft.ime.mma_slide (1/2/3).
 constexpr llvm::StringLiteral kSlideAttrName("slide");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
@@ -45,21 +45,21 @@ constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kSourceRoleValue("compute");
 // The validated IME1 int8->int32 envelope (FOUNDATION.md task 3). The verifier
 // admits ONLY this envelope, so no body outside the proven hardware envelope
-// is ever emitted (I7 fail-closed). tcrv.ime.mma is the SIGNED `vmadot`;
-// tcrv.ime.mma_u is the UNSIGNED `vmadotu` — both IME1 signedness forms over the
+// is ever emitted (I7 fail-closed). weft.ime.mma is the SIGNED `vmadot`;
+// weft.ime.mma_u is the UNSIGNED `vmadotu` — both IME1 signedness forms over the
 // SAME elem_in/accum/MAC-fragment envelope, distinguished only by the mnemonic.
 constexpr llvm::StringLiteral kExpectedSignedIMEOp("vmadot");
 constexpr llvm::StringLiteral kExpectedUnsignedIMEOp("vmadotu");
-// tcrv.ime.mma_su is the MIXED-SIGN `vmadotsu` (signed*unsigned int8 MAC) — the
+// weft.ime.mma_su is the MIXED-SIGN `vmadotsu` (signed*unsigned int8 MAC) — the
 // fourth IME1 signedness form over the SAME elem_in/accum/MAC-fragment envelope,
 // distinguished only by the mnemonic.
 constexpr llvm::StringLiteral kExpectedMixedSignIMEOp("vmadotsu");
-// tcrv.ime.mma_us is the REVERSED-ORDER MIXED-SIGN `vmadotus` (unsigned A *
+// weft.ime.mma_us is the REVERSED-ORDER MIXED-SIGN `vmadotus` (unsigned A *
 // signed B int8 MAC) — the fourth signedness form, completing the family over
 // the SAME elem_in/accum/MAC-fragment envelope, distinguished only by the
 // mnemonic.
 constexpr llvm::StringLiteral kExpectedMixedSignUSIMEOp("vmadotus");
-// tcrv.ime.mma_slide is the SLIDING-WINDOW family `vmadot{1,2,3}` (Xsmti8i32mm_slide,
+// weft.ime.mma_slide is the SLIDING-WINDOW family `vmadot{1,2,3}` (Xsmti8i32mm_slide,
 // funct7 111001 / e6..., DISTINCT from the non-slide 111000 / e2...). The expected
 // mnemonic is selected by the `slide` FACT (1=>vmadot1, 2=>vmadot2, 3=>vmadot3) over
 // the SAME elem_in/accum/MAC-fragment envelope as the non-slide MAC.
@@ -211,43 +211,43 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
     return mlir::failure();
   }
 
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  auto kernel = op->getParentOfType<weft::exec::KernelOp>();
   if (!kernel) {
-    diag << "must be nested directly in a tcrv.exec.kernel";
+    diag << "must be nested directly in a weft.exec.kernel";
     return mlir::failure();
   }
   if (op->getParentOp() != kernel.getOperation()) {
-    diag << "must be a direct child of the enclosing tcrv.exec.kernel";
+    diag << "must be a direct child of the enclosing weft.exec.kernel";
     return mlir::failure();
   }
 
   auto sourceKernel =
       op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
   if (sourceKernel.getValue() != kernel.getSymName()) {
-    diag << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
+    diag << "source_kernel must match enclosing weft.exec.kernel symbol @"
          << kernel.getSymName();
     return mlir::failure();
   }
 
   if (kernel.getBody().empty()) {
-    diag << "requires enclosing tcrv.exec.kernel to have a body block";
+    diag << "requires enclosing weft.exec.kernel to have a body block";
     return mlir::failure();
   }
 
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet> capabilitiesOrError =
-      tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+  llvm::Expected<weft::support::TargetCapabilitySet> capabilitiesOrError =
+      weft::support::TargetCapabilitySet::buildFromKernelChecked(kernel);
   if (!capabilitiesOrError) {
     std::string message = llvm::toString(capabilitiesOrError.takeError());
     diag << message;
     return mlir::failure();
   }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
+  const weft::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
 
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
+  weft::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     if (auto variant =
-            llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
+            llvm::dyn_cast<weft::exec::VariantOp>(sibling)) {
       if (variant.getSymName() == selectedVariant.getValue()) {
         resolvedVariant = variant;
         break;
@@ -256,8 +256,8 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
   }
   if (!resolvedVariant) {
     diag << "selected_variant @" << selectedVariant.getValue()
-         << " must resolve to a direct sibling tcrv.exec.variant in the "
-            "enclosing tcrv.exec.kernel";
+         << " must resolve to a direct sibling weft.exec.variant in the "
+            "enclosing weft.exec.kernel";
     return mlir::failure();
   }
 
@@ -270,7 +270,7 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
     }
     if (!capabilities.lookupBySymbolName(symbolRef.getValue())) {
       diag << "requires unknown capability @" << symbolRef.getValue()
-           << " in enclosing tcrv.exec.kernel";
+           << " in enclosing weft.exec.kernel";
       return mlir::failure();
     }
   }
@@ -289,7 +289,7 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
 } // namespace
 
 /// The shared fail-closed (I7) verifier for an IME MAC boundary op. The ONLY
-/// difference between tcrv.ime.mma (signed `vmadot`) and tcrv.ime.mma_u
+/// difference between weft.ime.mma (signed `vmadot`) and weft.ime.mma_u
 /// (unsigned `vmadotu`) is the admitted mnemonic; everything else (the
 /// int8->int32 envelope, the capability-derived MAC fragment shape, the
 /// selected-path binding, the no-benchmark-claim rule) is identical, so the
@@ -383,11 +383,11 @@ verifyIMEMACBoundary(mlir::Operation *op, llvm::StringRef expectedIMEOp,
   return mlir::success();
 }
 
-llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MMAOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MMAOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -397,11 +397,11 @@ mlir::LogicalResult MMAOp::verify() {
                               [this]() { return emitOpError(); });
 }
 
-llvm::StringRef MMAUOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MMAUOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MMAUOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MMAUOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -411,11 +411,11 @@ mlir::LogicalResult MMAUOp::verify() {
                               [this]() { return emitOpError(); });
 }
 
-llvm::StringRef MMASUOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MMASUOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MMASUOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MMASUOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -425,11 +425,11 @@ mlir::LogicalResult MMASUOp::verify() {
                               [this]() { return emitOpError(); });
 }
 
-llvm::StringRef MMAUSOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MMAUSOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MMAUSOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MMAUSOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -439,11 +439,11 @@ mlir::LogicalResult MMAUSOp::verify() {
                               [this]() { return emitOpError(); });
 }
 
-llvm::StringRef MMASlideOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MMASlideOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MMASlideOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MMASlideOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -455,7 +455,7 @@ mlir::LogicalResult MMASlideOp::verify() {
   int64_t slide = getSlide();
   if (slide < 1 || slide > 3)
     return emitOpError() << "slide must be in {1,2,3} (vmadot1/vmadot2/vmadot3); "
-                            "slide=0 is the non-slide tcrv.ime.mma and slide>=4 is "
+                            "slide=0 is the non-slide weft.ime.mma and slide>=4 is "
                             "outside the documented IME1 slide family (fail-closed, "
                             "I7)";
   llvm::StringRef expectedIMEOp = slide == 1   ? kExpectedSlide1IMEOp
@@ -466,11 +466,11 @@ mlir::LogicalResult MMASlideOp::verify() {
                               [this]() { return emitOpError(); });
 }
 
-llvm::StringRef MatMulOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef MatMulOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef MatMulOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef MatMulOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -579,11 +579,11 @@ mlir::LogicalResult Q40MatMulTileYieldOp::verify() {
   return mlir::success();
 }
 
-llvm::StringRef Q40MatMulTileOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef Q40MatMulTileOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef Q40MatMulTileOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef Q40MatMulTileOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -635,13 +635,13 @@ mlir::LogicalResult Q40MatMulTileOp::verify() {
   auto macLeaves = block.getOps<VmadotMacLeafOp>();
   if (std::distance(dequantCores.begin(), dequantCores.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.q4_0_dequant_core weight-decode brick";
+                            "weft.ime.q4_0_dequant_core weight-decode brick";
   if (std::distance(macLeaves.begin(), macLeaves.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.vmadot_mac_leaf MAC brick";
+                            "weft.ime.vmadot_mac_leaf MAC brick";
   if (!llvm::isa<Q40MatMulTileYieldOp>(block.getTerminator()))
     return emitOpError() << "typed region must be terminated by "
-                            "tcrv.ime.q4_0_matmul_tile_yield";
+                            "weft.ime.q4_0_matmul_tile_yield";
   // No brick outside the three-op decomposed vocabulary (anti-opaque).
   for (mlir::Operation &nested : block) {
     if (!llvm::isa<Q40DequantCoreOp, VmadotMacLeafOp, Q40MatMulTileYieldOp>(
@@ -695,11 +695,11 @@ mlir::LogicalResult Q80MatMulTileYieldOp::verify() {
   return mlir::success();
 }
 
-llvm::StringRef Q80MatMulTileOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef Q80MatMulTileOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef Q80MatMulTileOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef Q80MatMulTileOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -750,13 +750,13 @@ mlir::LogicalResult Q80MatMulTileOp::verify() {
   auto macLeaves = block.getOps<VmadotMacLeafOp>();
   if (std::distance(dequantCores.begin(), dequantCores.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.q8_0_dequant_core weight-decode brick";
+                            "weft.ime.q8_0_dequant_core weight-decode brick";
   if (std::distance(macLeaves.begin(), macLeaves.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.vmadot_mac_leaf MAC brick";
+                            "weft.ime.vmadot_mac_leaf MAC brick";
   if (!llvm::isa<Q80MatMulTileYieldOp>(block.getTerminator()))
     return emitOpError() << "typed region must be terminated by "
-                            "tcrv.ime.q8_0_matmul_tile_yield";
+                            "weft.ime.q8_0_matmul_tile_yield";
   // No brick outside the three-op decomposed vocabulary (anti-opaque).
   for (mlir::Operation &nested : block) {
     if (!llvm::isa<Q80DequantCoreOp, VmadotMacLeafOp, Q80MatMulTileYieldOp>(
@@ -870,11 +870,11 @@ mlir::LogicalResult Q4KMatMulTileYieldOp::verify() {
   return mlir::success();
 }
 
-llvm::StringRef Q4KMatMulTileOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef Q4KMatMulTileOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef Q4KMatMulTileOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef Q4KMatMulTileOp::getWEFTEmitCLowerableSourceRole() {
   return kSourceRoleValue;
 }
 
@@ -932,26 +932,26 @@ mlir::LogicalResult Q4KMatMulTileOp::verify() {
   auto minBiasAccums = block.getOps<Q4KMinBiasAccumOp>();
   if (std::distance(dequantCores.begin(), dequantCores.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.q4_K_dequant_core weight-decode brick";
+                            "weft.ime.q4_K_dequant_core weight-decode brick";
   if (std::distance(scaleMinCores.begin(), scaleMinCores.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.q4_K_scale_min_unpack_core brick";
+                            "weft.ime.q4_K_scale_min_unpack_core brick";
   if (std::distance(macLeaves.begin(), macLeaves.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.vmadot_mac_leaf MAC brick";
+                            "weft.ime.vmadot_mac_leaf MAC brick";
   if (std::distance(scaleAccums.begin(), scaleAccums.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.q4_K_scale_weighted_accum brick (the "
+                            "weft.ime.q4_K_scale_weighted_accum brick (the "
                             "per-sub-block scale weighting; dropping it is the "
                             "HOLLOW bare-MAC q4_K representation)";
   if (std::distance(minBiasAccums.begin(), minBiasAccums.end()) != 1)
     return emitOpError() << "typed region must contain exactly one "
-                            "tcrv.ime.q4_K_min_bias_accum brick (the min bias; "
+                            "weft.ime.q4_K_min_bias_accum brick (the min bias; "
                             "dropping it is the HOLLOW bare-MAC q4_K "
                             "representation)";
   if (!llvm::isa<Q4KMatMulTileYieldOp>(block.getTerminator()))
     return emitOpError() << "typed region must be terminated by "
-                            "tcrv.ime.q4_K_matmul_tile_yield";
+                            "weft.ime.q4_K_matmul_tile_yield";
   // No brick outside the six-op decomposed vocabulary (anti-opaque).
   for (mlir::Operation &nested : block) {
     if (!llvm::isa<Q4KDequantCoreOp, Q4KScaleMinUnpackCoreOp, VmadotMacLeafOp,
@@ -966,9 +966,9 @@ mlir::LogicalResult Q4KMatMulTileOp::verify() {
   return mlir::success();
 }
 
-void TCRVIMEDialect::initialize() {
+void WEFTIMEDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TianChenRV/Dialect/IME/IR/IMEOps.cpp.inc"
+#include "Weft/Dialect/IME/IR/IMEOps.cpp.inc"
       >();
 }

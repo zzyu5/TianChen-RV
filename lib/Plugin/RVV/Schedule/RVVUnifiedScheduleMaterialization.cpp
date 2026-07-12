@@ -1,6 +1,6 @@
 //===- RVVUnifiedScheduleMaterialization.cpp ------------------------------===//
 //
-// The ONE walk-all RVV schedule-materialize pass (tcrv-rvv-materialize-schedule).
+// The ONE walk-all RVV schedule-materialize pass (weft-rvv-materialize-schedule).
 // It needs NO per-op code: it walks every op implementing
 // TunableScheduleOpInterface (auto-discovery via dyn_cast, NOT a hardcoded
 // op-type list) and runs the SAME shared select+stamp loop the six per-kernel
@@ -9,20 +9,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 #include <memory>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZERVVSCHEDULE
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -45,4 +45,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeRVVSchedulePass() {
   return std::make_unique<MaterializeRVVSchedulePass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

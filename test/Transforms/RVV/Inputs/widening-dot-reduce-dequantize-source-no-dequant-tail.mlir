@@ -4,7 +4,7 @@
 // scale + f32 store tail and the 6-arg dequant signature. Referenced via %S/Inputs
 // by rvv-widening-dot-reduce-dequantize-source-front-door.mlir; not a standalone
 // lit test (Inputs/lit.local.cfg sets config.suffixes = []).
-module attributes {tcrv_rvv.source_front_door = "bounded_widening_dot_reduce_dequantize_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_dequantize_source"} {
   func.func @source_no_dequant_tail(%lhs: memref<?xi8>, %rhs: memref<?xi8>, %out: memref<?xi32>, %acc: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i8

@@ -1,17 +1,17 @@
-#include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
+#include "Weft/Target/RVV/RVVTargetSupportBundle.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
-#include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
+#include "Weft/Target/TargetArtifactExport.h"
+#include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/SmallVector.h"
@@ -31,7 +31,7 @@
 #include <tuple>
 #include <utility>
 
-namespace tianchenrv::target::rvv {
+namespace weft::target::rvv {
 namespace {
 
 struct ScopedTempPath {
@@ -65,8 +65,8 @@ struct ScopedTempDir {
 // -- only clang's header search is augmented, and only bodies that #include a
 // hosted header ever consult the shim.
 constexpr llvm::StringLiteral kFreestandingLibmShimHeader =
-    "#ifndef TCRV_RVV_FREESTANDING_LIBM_SHIM\n"
-    "#define TCRV_RVV_FREESTANDING_LIBM_SHIM\n"
+    "#ifndef WEFT_RVV_FREESTANDING_LIBM_SHIM\n"
+    "#define WEFT_RVV_FREESTANDING_LIBM_SHIM\n"
     "#ifdef __cplusplus\n"
     "extern \"C\" {\n"
     "#endif\n"
@@ -84,7 +84,7 @@ constexpr llvm::StringLiteral kFreestandingLibmShimHeader =
 
 llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV materialized EmitC target artifact bridge "
+      llvm::Twine("Weft-RV RVV materialized EmitC target artifact bridge "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -186,15 +186,15 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         " provenance must mirror selected typed RVV body operation '" +
         expectedOperation + "' but was '" + selectedBodyOperation + "'");
   llvm::StringRef comparePredicateKind = lookupCandidateMetadataValue(
-      candidate, "tcrv_rvv.compare_predicate_kind");
+      candidate, "weft_rvv.compare_predicate_kind");
   if (!description.comparePredicateKind.empty()) {
     if (comparePredicateKind.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.compare_predicate_kind provenance");
+          "weft_rvv.compare_predicate_kind provenance");
     if (comparePredicateKind != description.comparePredicateKind)
       return makeRVVTargetRouteError(
-          llvm::Twine("candidate tcrv_rvv.compare_predicate_kind provenance "
+          llvm::Twine("candidate weft_rvv.compare_predicate_kind provenance "
                       "must mirror selected typed RVV body predicate '") +
           description.comparePredicateKind + "' but was '" +
           comparePredicateKind + "'");
@@ -204,17 +204,17 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         "selected typed RVV body route without a compare predicate");
   }
   llvm::StringRef routeOperandBindingPlan = lookupCandidateMetadataValue(
-      candidate, "tcrv_rvv.route_operand_binding_plan");
+      candidate, "weft_rvv.route_operand_binding_plan");
   llvm::StringRef routeOperandBindingOperands = lookupCandidateMetadataValue(
-      candidate, "tcrv_rvv.route_operand_binding_operands");
+      candidate, "weft_rvv.route_operand_binding_operands");
   if (!description.routeOperandBindingPlanID.empty()) {
     if (routeOperandBindingPlan.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.route_operand_binding_plan provenance");
+          "weft_rvv.route_operand_binding_plan provenance");
     if (routeOperandBindingPlan != description.routeOperandBindingPlanID)
       return makeRVVTargetRouteError(
-          llvm::Twine("candidate tcrv_rvv.route_operand_binding_plan "
+          llvm::Twine("candidate weft_rvv.route_operand_binding_plan "
                       "provenance must mirror selected typed RVV body binding "
                       "plan '") +
           description.routeOperandBindingPlanID + "' but was '" +
@@ -222,10 +222,10 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     if (routeOperandBindingOperands.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.route_operand_binding_operands provenance");
+          "weft_rvv.route_operand_binding_operands provenance");
     if (routeOperandBindingOperands != description.routeOperandBindingSummary)
       return makeRVVTargetRouteError(
-          llvm::Twine("candidate tcrv_rvv.route_operand_binding_operands "
+          llvm::Twine("candidate weft_rvv.route_operand_binding_operands "
                       "provenance must mirror selected typed RVV body binding "
                       "summary '") +
           description.routeOperandBindingSummary + "' but was '" +
@@ -238,33 +238,33 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
   }
 
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.exec_abi_bindings",
+          candidate, "weft_rvv.exec_abi_bindings",
           description.execABIBindingSummary,
-          "selected tcrv.exec ABI binding summary"))
+          "selected weft.exec ABI binding summary"))
     return error;
 
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.provider_supported_mirror",
+          candidate, "weft_rvv.provider_supported_mirror",
           description.providerSupportedMirror,
           "selected typed RVV body provider support"))
     return error;
 
   llvm::StringRef targetCapabilityProviderMirror =
       lookupCandidateMetadataValue(
-          candidate, "tcrv_rvv.target_capability_provider_mirror");
+          candidate, "weft_rvv.target_capability_provider_mirror");
   llvm::StringRef targetCapabilityLegalityMirror =
       lookupCandidateMetadataValue(
-          candidate, "tcrv_rvv.target_capability_legality_mirror");
+          candidate, "weft_rvv.target_capability_legality_mirror");
   if (!description.targetCapabilityProviderMirror.empty()) {
     if (targetCapabilityProviderMirror.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.target_capability_provider_mirror provenance");
+          "weft_rvv.target_capability_provider_mirror provenance");
     if (targetCapabilityProviderMirror !=
         llvm::StringRef(description.targetCapabilityProviderMirror))
       return makeRVVTargetRouteError(
           llvm::Twine(
-              "candidate tcrv_rvv.target_capability_provider_mirror "
+              "candidate weft_rvv.target_capability_provider_mirror "
               "provenance must mirror selected RVV target capability facts '") +
           description.targetCapabilityProviderMirror + "' but was '" +
           targetCapabilityProviderMirror + "'");
@@ -277,12 +277,12 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     if (targetCapabilityLegalityMirror.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.target_capability_legality_mirror provenance");
+          "weft_rvv.target_capability_legality_mirror provenance");
     if (targetCapabilityLegalityMirror !=
         llvm::StringRef(description.targetCapabilityLegalityMirror))
       return makeRVVTargetRouteError(
           llvm::Twine(
-              "candidate tcrv_rvv.target_capability_legality_mirror "
+              "candidate weft_rvv.target_capability_legality_mirror "
               "provenance must mirror selected RVV target capability facts '") +
           description.targetCapabilityLegalityMirror + "' but was '" +
           targetCapabilityLegalityMirror + "'");
@@ -292,18 +292,18 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         "for a selected typed RVV body route without provider facts");
   }
   llvm::StringRef selectedDispatchCaseMirror = lookupCandidateMetadataValue(
-      candidate, "tcrv_rvv.selected_dispatch_case_mirror");
+      candidate, "weft_rvv.selected_dispatch_case_mirror");
   llvm::StringRef selectedDispatchFallbackMirror = lookupCandidateMetadataValue(
-      candidate, "tcrv_rvv.selected_dispatch_fallback_mirror");
+      candidate, "weft_rvv.selected_dispatch_fallback_mirror");
   if (!description.selectedDispatchCaseMirror.empty()) {
     if (selectedDispatchCaseMirror.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.selected_dispatch_case_mirror provenance");
+          "weft_rvv.selected_dispatch_case_mirror provenance");
     if (selectedDispatchCaseMirror !=
         llvm::StringRef(description.selectedDispatchCaseMirror))
       return makeRVVTargetRouteError(
-          llvm::Twine("candidate tcrv_rvv.selected_dispatch_case_mirror "
+          llvm::Twine("candidate weft_rvv.selected_dispatch_case_mirror "
                       "provenance must mirror selected dispatch case facts '") +
           description.selectedDispatchCaseMirror + "' but was '" +
           selectedDispatchCaseMirror + "'");
@@ -316,12 +316,12 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     if (selectedDispatchFallbackMirror.empty())
       return makeRVVTargetRouteError(
           "candidate metadata must carry "
-          "tcrv_rvv.selected_dispatch_fallback_mirror provenance");
+          "weft_rvv.selected_dispatch_fallback_mirror provenance");
     if (selectedDispatchFallbackMirror !=
         llvm::StringRef(description.selectedDispatchFallbackMirror))
       return makeRVVTargetRouteError(
           llvm::Twine(
-              "candidate tcrv_rvv.selected_dispatch_fallback_mirror "
+              "candidate weft_rvv.selected_dispatch_fallback_mirror "
               "provenance must mirror selected dispatch fallback facts '") +
           description.selectedDispatchFallbackMirror + "' but was '" +
           selectedDispatchFallbackMirror + "'");
@@ -353,24 +353,24 @@ parseCandidateEmissionRole(const TargetArtifactCandidate &candidate) {
       "' is not supported by the RVV materialized EmitC artifact bridge");
 }
 
-llvm::Expected<tcrv::exec::VariantOp>
+llvm::Expected<weft::exec::VariantOp>
 resolveCandidateSelectedVariant(const TargetArtifactCandidate &candidate) {
   if (!candidate.kernel)
     return makeRVVTargetRouteError(
         "candidate selected variant cannot be cross-checked without an "
-        "enclosing tcrv.exec.kernel");
-  tcrv::exec::KernelOp kernel = candidate.kernel;
+        "enclosing weft.exec.kernel");
+  weft::exec::KernelOp kernel = candidate.kernel;
   if (kernel.getBody().empty())
     return makeRVVTargetRouteError(
         "candidate selected variant cannot be cross-checked because the "
-        "enclosing tcrv.exec.kernel body is empty");
+        "enclosing weft.exec.kernel body is empty");
   if (candidate.selectedVariant.empty())
     return makeRVVTargetRouteError(
         "candidate selected variant must be non-empty before RVV artifact "
         "route cross-check");
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
     if (variant && variant.getSymName() == candidate.selectedVariant)
       return variant;
   }
@@ -378,7 +378,7 @@ resolveCandidateSelectedVariant(const TargetArtifactCandidate &candidate) {
   return makeRVVTargetRouteError(
       llvm::Twine("candidate selected variant @") +
       candidate.selectedVariant +
-      " must resolve to a direct sibling tcrv.exec.variant before RVV "
+      " must resolve to a direct sibling weft.exec.variant before RVV "
       "artifact route cross-check");
 }
 
@@ -388,10 +388,10 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   if (!candidate.kernel)
     return makeRVVTargetRouteError(
         "selected RVV materialized EmitC candidate requires an enclosing "
-        "tcrv.exec.kernel so target export can validate the selected typed "
-        "tcrv_rvv body before consuming route metadata");
+        "weft.exec.kernel so target export can validate the selected typed "
+        "weft_rvv body before consuming route metadata");
 
-  llvm::Expected<tcrv::exec::VariantOp> selectedVariant =
+  llvm::Expected<weft::exec::VariantOp> selectedVariant =
       resolveCandidateSelectedVariant(candidate);
   if (!selectedVariant)
     return selectedVariant.takeError();
@@ -437,7 +437,7 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
       return std::move(error);
 
     // The two former route-only checks are subsumed for the converted path:
-    //  - source provenance ("exactly one tcrv_rvv.with_vl scope") is
+    //  - source provenance ("exactly one weft_rvv.with_vl scope") is
     //    guaranteed by convertRVVModuleToEmitC fully legalizing the body — the
     //    conversion target only illegalizes a variant that carries a with_vl
     //    boundary and the elementwise pattern lowers exactly that one scope, so
@@ -522,7 +522,7 @@ llvm::Error validateRVVConfigArtifactMetadataMirrorsSelectedBody(
   llvm::SmallVector<support::ArtifactMetadataEntry, 16> actual;
   for (const support::ArtifactMetadataEntry &entry :
        candidate.artifactMetadata) {
-    if (llvm::StringRef(entry.key).starts_with("tcrv_rvv."))
+    if (llvm::StringRef(entry.key).starts_with("weft_rvv."))
       actual.push_back(entry);
   }
 
@@ -535,7 +535,7 @@ llvm::Error validateRVVConfigArtifactMetadataMirrorsSelectedBody(
     return makeRVVTargetRouteError(
         llvm::Twine("candidate metadata must carry exactly ") +
         llvm::Twine(expected.size()) +
-        " tcrv_rvv selected-body config/runtime-VL artifact metadata entries "
+        " weft_rvv selected-body config/runtime-VL artifact metadata entries "
         "derived from the provider route description");
 
   for (auto [index, pair] : llvm::enumerate(llvm::zip(actual, expected))) {
@@ -543,19 +543,19 @@ llvm::Error validateRVVConfigArtifactMetadataMirrorsSelectedBody(
     const support::ArtifactMetadataEntry &want = std::get<1>(pair);
     if (got.key != want.key)
       return makeRVVTargetRouteError(
-          llvm::Twine("candidate tcrv_rvv selected-body metadata[") +
+          llvm::Twine("candidate weft_rvv selected-body metadata[") +
           llvm::Twine(index) + "] key must mirror provider route description "
                                "key '" +
           want.key + "' but was '" + got.key + "'");
     if (got.value != want.value)
       return makeRVVTargetRouteError(
-          llvm::Twine("candidate tcrv_rvv selected-body metadata key '") +
+          llvm::Twine("candidate weft_rvv selected-body metadata key '") +
           want.key + "' must mirror provider route description value '" +
           want.value + "' but was '" + got.value + "'");
   }
 
   return makeRVVTargetRouteError(
-      "candidate tcrv_rvv selected-body config/runtime-VL artifact metadata "
+      "candidate weft_rvv selected-body config/runtime-VL artifact metadata "
       "must mirror the provider route description");
 }
 
@@ -640,9 +640,9 @@ llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
 void appendRVVConfigVLMetadataEvidence(
     llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence>
         &out) {
-  constexpr llvm::StringLiteral kRVVMetadataPrefix("tcrv_rvv.");
+  constexpr llvm::StringLiteral kRVVMetadataPrefix("weft_rvv.");
   for (const support::ArtifactMetadataEntry &entry :
-       tcrv::rvv::getRVVSelectedBodyConfigArtifactMetadata()) {
+       weft::rvv::getRVVSelectedBodyConfigArtifactMetadata()) {
     llvm::StringRef key(entry.key);
     llvm::StringRef commentName = key;
     if (key.starts_with(kRVVMetadataPrefix))
@@ -668,47 +668,47 @@ void appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(
       plugin::rvv::getRVVLowPrecisionPrimitivePayloadMirrorTransportContract());
   constexpr llvm::StringLiteral kPayloadMirrorMetadata[][2] = {
       {"low_precision_primitive.payload_mirror.contract",
-       "tcrv_rvv.low_precision_primitive.contract"},
+       "weft_rvv.low_precision_primitive.contract"},
       {"low_precision_primitive.payload_mirror.kind",
-       "tcrv_rvv.low_precision_primitive.kind"},
+       "weft_rvv.low_precision_primitive.kind"},
       {"low_precision_primitive.payload_mirror.source_dtype",
-       "tcrv_rvv.low_precision_primitive.source_dtype"},
+       "weft_rvv.low_precision_primitive.source_dtype"},
       {"low_precision_primitive.payload_mirror.source_signedness",
-       "tcrv_rvv.low_precision_primitive.source_signedness"},
+       "weft_rvv.low_precision_primitive.source_signedness"},
       {"low_precision_primitive.payload_mirror.source_load",
-       "tcrv_rvv.low_precision_primitive.source_load"},
+       "weft_rvv.low_precision_primitive.source_load"},
       {"low_precision_primitive.payload_mirror.source_extension",
-       "tcrv_rvv.low_precision_primitive.source_extension"},
+       "weft_rvv.low_precision_primitive.source_extension"},
       {"low_precision_primitive.payload_mirror.product_dtype",
-       "tcrv_rvv.low_precision_primitive.product_dtype"},
+       "weft_rvv.low_precision_primitive.product_dtype"},
       {"low_precision_primitive.payload_mirror.accumulator_dtype",
-       "tcrv_rvv.low_precision_primitive.accumulator_dtype"},
+       "weft_rvv.low_precision_primitive.accumulator_dtype"},
       {"low_precision_primitive.payload_mirror.result_dtype",
-       "tcrv_rvv.low_precision_primitive.result_dtype"},
+       "weft_rvv.low_precision_primitive.result_dtype"},
       {"low_precision_primitive.payload_mirror.source_sew",
-       "tcrv_rvv.low_precision_primitive.source_sew"},
+       "weft_rvv.low_precision_primitive.source_sew"},
       {"low_precision_primitive.payload_mirror.source_lmul",
-       "tcrv_rvv.low_precision_primitive.source_lmul"},
+       "weft_rvv.low_precision_primitive.source_lmul"},
       {"low_precision_primitive.payload_mirror.product_sew",
-       "tcrv_rvv.low_precision_primitive.product_sew"},
+       "weft_rvv.low_precision_primitive.product_sew"},
       {"low_precision_primitive.payload_mirror.product_lmul",
-       "tcrv_rvv.low_precision_primitive.product_lmul"},
+       "weft_rvv.low_precision_primitive.product_lmul"},
       {"low_precision_primitive.payload_mirror.accumulator_sew",
-       "tcrv_rvv.low_precision_primitive.accumulator_sew"},
+       "weft_rvv.low_precision_primitive.accumulator_sew"},
       {"low_precision_primitive.payload_mirror.accumulator_lmul",
-       "tcrv_rvv.low_precision_primitive.accumulator_lmul"},
+       "weft_rvv.low_precision_primitive.accumulator_lmul"},
       {"low_precision_primitive.payload_mirror.result_sew",
-       "tcrv_rvv.low_precision_primitive.result_sew"},
+       "weft_rvv.low_precision_primitive.result_sew"},
       {"low_precision_primitive.payload_mirror.result_lmul",
-       "tcrv_rvv.low_precision_primitive.result_lmul"},
+       "weft_rvv.low_precision_primitive.result_lmul"},
       {"low_precision_primitive.payload_mirror.tail_policy",
-       "tcrv_rvv.low_precision_primitive.tail_policy"},
+       "weft_rvv.low_precision_primitive.tail_policy"},
       {"low_precision_primitive.payload_mirror.mask_policy",
-       "tcrv_rvv.low_precision_primitive.mask_policy"},
+       "weft_rvv.low_precision_primitive.mask_policy"},
       {"low_precision_primitive.payload_mirror.runtime_control_plan",
-       "tcrv_rvv.low_precision_primitive.runtime_control_plan"},
+       "weft_rvv.low_precision_primitive.runtime_control_plan"},
       {"low_precision_primitive.payload_mirror.runtime_avl_source",
-       "tcrv_rvv.low_precision_primitive.runtime_avl_source"},
+       "weft_rvv.low_precision_primitive.runtime_avl_source"},
   };
   for (const auto &entry : kPayloadMirrorMetadata)
     out.push_back({entry[0], entry[1], /*expectedValue=*/"",
@@ -762,97 +762,97 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
   });
   appendRVVConfigVLMetadataEvidence(evidence);
   evidence.append({
-      {"compare_predicate_kind", "tcrv_rvv.compare_predicate_kind", "",
+      {"compare_predicate_kind", "weft_rvv.compare_predicate_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"memory_form", "tcrv_rvv.memory_form", "",
+      {"memory_form", "weft_rvv.memory_form", "",
        /*allowDynamicValue=*/true},
-      {"strided_memory_layout", "tcrv_rvv.strided_memory_layout", "",
+      {"strided_memory_layout", "weft_rvv.strided_memory_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"lhs_stride_source", "tcrv_rvv.lhs_stride_source", "",
+      {"lhs_stride_source", "weft_rvv.lhs_stride_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"rhs_stride_source", "tcrv_rvv.rhs_stride_source", "",
+      {"rhs_stride_source", "weft_rvv.rhs_stride_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"source_stride_source", "tcrv_rvv.source_stride_source", "",
+      {"source_stride_source", "weft_rvv.source_stride_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"destination_stride_source", "tcrv_rvv.destination_stride_source", "",
+      {"destination_stride_source", "weft_rvv.destination_stride_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"source_memory_form", "tcrv_rvv.source_memory_form", "",
+      {"source_memory_form", "weft_rvv.source_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"destination_memory_form", "tcrv_rvv.destination_memory_form", "",
+      {"destination_memory_form", "weft_rvv.destination_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"mask_role", "tcrv_rvv.mask_role", "",
+      {"mask_role", "weft_rvv.mask_role", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"mask_source", "tcrv_rvv.mask_source", "",
+      {"mask_source", "weft_rvv.mask_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"mask_memory_form", "tcrv_rvv.mask_memory_form", "",
+      {"mask_memory_form", "weft_rvv.mask_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"mask_tail_policy_route_family_plan",
-       "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+       "weft_rvv.mask_tail_policy_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"mask_tail_policy_owner", "tcrv_rvv.mask_tail_policy_owner", "",
+      {"mask_tail_policy_owner", "weft_rvv.mask_tail_policy_owner", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"secondary_compare_predicate_kind",
-       "tcrv_rvv.secondary_compare_predicate_kind", "",
+       "weft_rvv.secondary_compare_predicate_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"mask_composition", "tcrv_rvv.mask_composition", "",
+      {"mask_composition", "weft_rvv.mask_composition", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"inactive_lane_contract", "tcrv_rvv.inactive_lane_contract", "",
+      {"inactive_lane_contract", "weft_rvv.inactive_lane_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"masked_passthrough_layout", "tcrv_rvv.masked_passthrough_layout", "",
+      {"masked_passthrough_layout", "weft_rvv.masked_passthrough_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"masked_memory_layout", "tcrv_rvv.masked_memory_layout", "",
+      {"masked_memory_layout", "weft_rvv.masked_memory_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"select_layout", "tcrv_rvv.select_layout", "",
+      {"select_layout", "weft_rvv.select_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"indexed_memory_layout", "tcrv_rvv.indexed_memory_layout", "",
+      {"indexed_memory_layout", "weft_rvv.indexed_memory_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"indexed_write_side_contract",
-       "tcrv_rvv.indexed_write_side_contract", "",
+       "weft_rvv.indexed_write_side_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"index_source", "tcrv_rvv.index_source", "",
+      {"index_source", "weft_rvv.index_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"index_eew", "tcrv_rvv.index_eew", "",
+      {"index_eew", "weft_rvv.index_eew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"offset_unit", "tcrv_rvv.offset_unit", "",
+      {"offset_unit", "weft_rvv.offset_unit", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"index_uniqueness", "tcrv_rvv.index_uniqueness", "",
+      {"index_uniqueness", "weft_rvv.index_uniqueness", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"indexed_data_memory_form", "tcrv_rvv.indexed_data_memory_form", "",
+      {"indexed_data_memory_form", "weft_rvv.indexed_data_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"indexed_destination_memory_form",
-       "tcrv_rvv.indexed_destination_memory_form", "",
+       "weft_rvv.indexed_destination_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"source_sew", "tcrv_rvv.source_sew", "",
+      {"source_sew", "weft_rvv.source_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"source_lmul", "tcrv_rvv.source_lmul", "",
+      {"source_lmul", "weft_rvv.source_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"product_sew", "tcrv_rvv.product_sew", "",
+      {"product_sew", "weft_rvv.product_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"product_lmul", "tcrv_rvv.product_lmul", "",
+      {"product_lmul", "weft_rvv.product_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"product_vector_type", "tcrv_rvv.product_vector_type", "",
+      {"product_vector_type", "weft_rvv.product_vector_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"product_vector_c_type", "tcrv_rvv.product_vector_c_type", "",
+      {"product_vector_c_type", "weft_rvv.product_vector_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"dest_sew", "tcrv_rvv.dest_sew", "",
+      {"dest_sew", "weft_rvv.dest_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"dest_lmul", "tcrv_rvv.dest_lmul", "",
+      {"dest_lmul", "weft_rvv.dest_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"conversion_relation", "tcrv_rvv.conversion_relation", "",
+      {"conversion_relation", "weft_rvv.conversion_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"dequantization_relation", "tcrv_rvv.dequantization_relation", "",
+      {"dequantization_relation", "weft_rvv.dequantization_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"dequantize_convert_intrinsic",
-       "tcrv_rvv.dequantize_convert_intrinsic", "",
+       "weft_rvv.dequantize_convert_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"dequantize_scale_intrinsic",
-       "tcrv_rvv.dequantize_scale_intrinsic", "",
+       "weft_rvv.dequantize_scale_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"dequant_scale_role", "tcrv_rvv.dequant_scale_role", "",
+      {"dequant_scale_role", "weft_rvv.dequant_scale_role", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"dequant_scale_c_type", "tcrv_rvv.dequant_scale_c_type", "",
+      {"dequant_scale_c_type", "weft_rvv.dequant_scale_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"dequant_scale_name", "tcrv_rvv.dequant_scale_name", "",
+      {"dequant_scale_name", "weft_rvv.dequant_scale_name", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
   });
   appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(evidence);
@@ -861,800 +861,800 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       plugin::rvv::getRVVLowPrecisionResourceOwnerMirrorTransportContract());
   evidence.append({
       {"low_precision_resource.candidate_set",
-       "tcrv_rvv.low_precision_resource.candidate_set", "",
+       "weft_rvv.low_precision_resource.candidate_set", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_candidate",
-       "tcrv_rvv.low_precision_resource.selected_candidate", "",
+       "weft_rvv.low_precision_resource.selected_candidate", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.candidate_count",
-       "tcrv_rvv.low_precision_resource.candidate_count", "",
+       "weft_rvv.low_precision_resource.candidate_count", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.legal_candidate_count",
-       "tcrv_rvv.low_precision_resource.legal_candidate_count", "",
+       "weft_rvv.low_precision_resource.legal_candidate_count", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_candidate_index",
-       "tcrv_rvv.low_precision_resource.selected_candidate_index", "",
+       "weft_rvv.low_precision_resource.selected_candidate_index", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selection_reason",
-       "tcrv_rvv.low_precision_resource.selection_reason", "",
+       "weft_rvv.low_precision_resource.selection_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.planning_contract",
-       "tcrv_rvv.low_precision_resource.planning_contract", "",
+       "weft_rvv.low_precision_resource.planning_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.legality_scope",
-       "tcrv_rvv.low_precision_resource.legality_scope", "",
+       "weft_rvv.low_precision_resource.legality_scope", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.source_dtype",
-       "tcrv_rvv.low_precision_resource.source_dtype", "",
+       "weft_rvv.low_precision_resource.source_dtype", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.source_sew",
-       "tcrv_rvv.low_precision_resource.source_sew", "",
+       "weft_rvv.low_precision_resource.source_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.source_lmul",
-       "tcrv_rvv.low_precision_resource.source_lmul", "",
+       "weft_rvv.low_precision_resource.source_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.operand_form",
-       "tcrv_rvv.low_precision_resource.operand_form", "",
+       "weft_rvv.low_precision_resource.operand_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.source_signedness",
-       "tcrv_rvv.low_precision_resource.source_signedness", "",
+       "weft_rvv.low_precision_resource.source_signedness", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.storage_element_width",
-       "tcrv_rvv.low_precision_resource.storage_element_width", "",
+       "weft_rvv.low_precision_resource.storage_element_width", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.effective_element_width",
-       "tcrv_rvv.low_precision_resource.effective_element_width", "",
+       "weft_rvv.low_precision_resource.effective_element_width", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.packing_layout",
-       "tcrv_rvv.low_precision_resource.packing_layout", "",
+       "weft_rvv.low_precision_resource.packing_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.unpack_intent",
-       "tcrv_rvv.low_precision_resource.unpack_intent", "",
+       "weft_rvv.low_precision_resource.unpack_intent", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.packed_load_unpack_contract",
-       "tcrv_rvv.low_precision_resource.packed_load_unpack_contract", "",
+       "weft_rvv.low_precision_resource.packed_load_unpack_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.packed_storage_load",
-       "tcrv_rvv.low_precision_resource.packed_storage_load", "",
+       "weft_rvv.low_precision_resource.packed_storage_load", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.packed_unpack_plan",
-       "tcrv_rvv.low_precision_resource.packed_unpack_plan", "",
+       "weft_rvv.low_precision_resource.packed_unpack_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.packed_unpacked_source",
-       "tcrv_rvv.low_precision_resource.packed_unpacked_source", "",
+       "weft_rvv.low_precision_resource.packed_unpacked_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.product_dtype",
-       "tcrv_rvv.low_precision_resource.product_dtype", "",
+       "weft_rvv.low_precision_resource.product_dtype", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.product_sew",
-       "tcrv_rvv.low_precision_resource.product_sew", "",
+       "weft_rvv.low_precision_resource.product_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.product_lmul",
-       "tcrv_rvv.low_precision_resource.product_lmul", "",
+       "weft_rvv.low_precision_resource.product_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.product_emul",
-       "tcrv_rvv.low_precision_resource.product_emul", "",
+       "weft_rvv.low_precision_resource.product_emul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.accumulator_dtype",
-       "tcrv_rvv.low_precision_resource.accumulator_dtype", "",
+       "weft_rvv.low_precision_resource.accumulator_dtype", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.accumulator_sew",
-       "tcrv_rvv.low_precision_resource.accumulator_sew", "",
+       "weft_rvv.low_precision_resource.accumulator_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.accumulator_lmul",
-       "tcrv_rvv.low_precision_resource.accumulator_lmul", "",
+       "weft_rvv.low_precision_resource.accumulator_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.accumulator_emul",
-       "tcrv_rvv.low_precision_resource.accumulator_emul", "",
+       "weft_rvv.low_precision_resource.accumulator_emul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.result_dtype",
-       "tcrv_rvv.low_precision_resource.result_dtype", "",
+       "weft_rvv.low_precision_resource.result_dtype", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.result_sew",
-       "tcrv_rvv.low_precision_resource.result_sew", "",
+       "weft_rvv.low_precision_resource.result_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.result_lmul",
-       "tcrv_rvv.low_precision_resource.result_lmul", "",
+       "weft_rvv.low_precision_resource.result_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.memory_form",
-       "tcrv_rvv.low_precision_resource.memory_form", "",
+       "weft_rvv.low_precision_resource.memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.tail_policy",
-       "tcrv_rvv.low_precision_resource.tail_policy", "",
+       "weft_rvv.low_precision_resource.tail_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.mask_policy",
-       "tcrv_rvv.low_precision_resource.mask_policy", "",
+       "weft_rvv.low_precision_resource.mask_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.unroll_factor",
-       "tcrv_rvv.low_precision_resource.unroll_factor", "",
+       "weft_rvv.low_precision_resource.unroll_factor", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.accumulator_count",
-       "tcrv_rvv.low_precision_resource.accumulator_count", "",
+       "weft_rvv.low_precision_resource.accumulator_count", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.reduction_layout",
-       "tcrv_rvv.low_precision_resource.reduction_layout", "",
+       "weft_rvv.low_precision_resource.reduction_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.vsetvl_region_count",
-       "tcrv_rvv.low_precision_resource.vsetvl_region_count", "",
+       "weft_rvv.low_precision_resource.vsetvl_region_count", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.peak_live_vector_groups",
-       "tcrv_rvv.low_precision_resource.peak_live_vector_groups", "",
+       "weft_rvv.low_precision_resource.peak_live_vector_groups", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.vector_register_budget",
-       "tcrv_rvv.low_precision_resource.vector_register_budget", "",
+       "weft_rvv.low_precision_resource.vector_register_budget", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.runtime_avl_source",
-       "tcrv_rvv.low_precision_resource.runtime_avl_source", "",
+       "weft_rvv.low_precision_resource.runtime_avl_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.runtime_abi_order",
-       "tcrv_rvv.low_precision_resource.runtime_abi_order", "",
+       "weft_rvv.low_precision_resource.runtime_abi_order", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.route_family_plan",
-       "tcrv_rvv.low_precision_resource.route_family_plan", "",
+       "weft_rvv.low_precision_resource.route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.provider_supported_mirror",
-       "tcrv_rvv.low_precision_resource.provider_supported_mirror", "",
+       "weft_rvv.low_precision_resource.provider_supported_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_contract",
-       "tcrv_rvv.low_precision_resource.primitive_contract", "",
+       "weft_rvv.low_precision_resource.primitive_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_kind",
-       "tcrv_rvv.low_precision_resource.primitive_kind", "",
+       "weft_rvv.low_precision_resource.primitive_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_chain_contract",
-       "tcrv_rvv.low_precision_resource.primitive_chain_contract", "",
+       "weft_rvv.low_precision_resource.primitive_chain_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_chain_kind",
-       "tcrv_rvv.low_precision_resource.primitive_chain_kind", "",
+       "weft_rvv.low_precision_resource.primitive_chain_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.widening_product_multiplicand_roles",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "widening_product_multiplicand_roles",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.widening_product_extension_policy",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "widening_product_extension_policy",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.widening_product_candidate_fact",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "widening_product_candidate_fact",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.reduction_candidate_fact",
-       "tcrv_rvv.low_precision_resource.reduction_candidate_fact", "",
+       "weft_rvv.low_precision_resource.reduction_candidate_fact", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_source_load",
-       "tcrv_rvv.low_precision_resource.primitive_source_load", "",
+       "weft_rvv.low_precision_resource.primitive_source_load", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_source_extension",
-       "tcrv_rvv.low_precision_resource.primitive_source_extension", "",
+       "weft_rvv.low_precision_resource.primitive_source_extension", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_widening_product_relation",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "primitive_widening_product_relation",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_product_reduction_chain_relation",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "primitive_product_reduction_chain_relation",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_widening_product_intrinsic",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "primitive_widening_product_intrinsic",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_reduction_intrinsic",
-       "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic", "",
+       "weft_rvv.low_precision_resource.primitive_reduction_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_scalar_seed_splat_intrinsic",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "primitive_scalar_seed_splat_intrinsic",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_accumulator_layout",
-       "tcrv_rvv.low_precision_resource.primitive_accumulator_layout", "",
+       "weft_rvv.low_precision_resource.primitive_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_result_layout",
-       "tcrv_rvv.low_precision_resource.primitive_result_layout", "",
+       "weft_rvv.low_precision_resource.primitive_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_reduction_store_vl",
-       "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl", "",
+       "weft_rvv.low_precision_resource.primitive_reduction_store_vl", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.realization_producer",
-       "tcrv_rvv.low_precision_resource.realization_producer", "",
+       "weft_rvv.low_precision_resource.realization_producer", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.realization_decision",
-       "tcrv_rvv.low_precision_resource.realization_decision", "",
+       "weft_rvv.low_precision_resource.realization_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_contract",
-       "tcrv_rvv.low_precision_resource.realization_admission_contract", "",
+       "weft_rvv.low_precision_resource.realization_admission_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_decision",
-       "tcrv_rvv.low_precision_resource.realization_admission_decision", "",
+       "weft_rvv.low_precision_resource.realization_admission_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_evidence",
-       "tcrv_rvv.low_precision_resource.realization_admission_evidence", "",
+       "weft_rvv.low_precision_resource.realization_admission_evidence", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_dispatch_policy",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "realization_admission_dispatch_policy",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_schedule_decision_contract",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "realization_admission_schedule_decision_contract",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_schedule_decision",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "realization_admission_schedule_decision",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_schedule_decision_reason",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "realization_admission_schedule_decision_reason",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.realized_unroll_factor",
-       "tcrv_rvv.low_precision_resource.realized_unroll_factor", "",
+       "weft_rvv.low_precision_resource.realized_unroll_factor", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.realized_vsetvl_region_count",
-       "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count", "",
+       "weft_rvv.low_precision_resource.realized_vsetvl_region_count", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.realized_peak_live_vector_groups",
-       "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups", "",
+       "weft_rvv.low_precision_resource.realized_peak_live_vector_groups", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.product_region_index",
-       "tcrv_rvv.low_precision_resource.product_region_index", "",
+       "weft_rvv.low_precision_resource.product_region_index", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.dequant_region_index",
-       "tcrv_rvv.low_precision_resource.dequant_region_index", "",
+       "weft_rvv.low_precision_resource.dequant_region_index", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.product_phase",
-       "tcrv_rvv.low_precision_resource.product_phase", "",
+       "weft_rvv.low_precision_resource.product_phase", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.dequant_phase",
-       "tcrv_rvv.low_precision_resource.dequant_phase", "",
+       "weft_rvv.low_precision_resource.dequant_phase", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.clamp_region_index",
-       "tcrv_rvv.low_precision_resource.clamp_region_index", "",
+       "weft_rvv.low_precision_resource.clamp_region_index", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.clamp_phase",
-       "tcrv_rvv.low_precision_resource.clamp_phase", "",
+       "weft_rvv.low_precision_resource.clamp_phase", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.clamp_compare_select_phase",
-       "tcrv_rvv.low_precision_resource.clamp_compare_select_phase", "",
+       "weft_rvv.low_precision_resource.clamp_compare_select_phase", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.clamp_select_layout",
-       "tcrv_rvv.low_precision_resource.clamp_select_layout", "",
+       "weft_rvv.low_precision_resource.clamp_select_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_feedback",
-       "tcrv_rvv.low_precision_resource.performance_feedback", "",
+       "weft_rvv.low_precision_resource.performance_feedback", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_baseline",
-       "tcrv_rvv.low_precision_resource.performance_baseline", "",
+       "weft_rvv.low_precision_resource.performance_baseline", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_best_speedup_range",
-       "tcrv_rvv.low_precision_resource.performance_best_speedup_range", "",
+       "weft_rvv.low_precision_resource.performance_best_speedup_range", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_action",
-       "tcrv_rvv.low_precision_resource.performance_action", "",
+       "weft_rvv.low_precision_resource.performance_action", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_handoff_contract",
-       "tcrv_rvv.low_precision_resource.remediation_handoff_contract", "",
+       "weft_rvv.low_precision_resource.remediation_handoff_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_diagnosis",
-       "tcrv_rvv.low_precision_resource.remediation_diagnosis", "",
+       "weft_rvv.low_precision_resource.remediation_diagnosis", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_measurement_evidence",
-       "tcrv_rvv.low_precision_resource.remediation_measurement_evidence", "",
+       "weft_rvv.low_precision_resource.remediation_measurement_evidence", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_decision",
-       "tcrv_rvv.low_precision_resource.remediation_decision", "",
+       "weft_rvv.low_precision_resource.remediation_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_action",
-       "tcrv_rvv.low_precision_resource.remediation_action", "",
+       "weft_rvv.low_precision_resource.remediation_action", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_dispatch_preference",
-       "tcrv_rvv.low_precision_resource.remediation_dispatch_preference", "",
+       "weft_rvv.low_precision_resource.remediation_dispatch_preference", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_blocker",
-       "tcrv_rvv.low_precision_resource.remediation_blocker", "",
+       "weft_rvv.low_precision_resource.remediation_blocker", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_plan_contract",
-       "tcrv_rvv.low_precision_resource.remediation_plan_contract", "",
+       "weft_rvv.low_precision_resource.remediation_plan_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_plan",
-       "tcrv_rvv.low_precision_resource.remediation_plan", "",
+       "weft_rvv.low_precision_resource.remediation_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_statement_strategy",
-       "tcrv_rvv.low_precision_resource.remediation_statement_strategy", "",
+       "weft_rvv.low_precision_resource.remediation_statement_strategy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_vector_budget",
-       "tcrv_rvv.low_precision_resource.remediation_vector_budget", "",
+       "weft_rvv.low_precision_resource.remediation_vector_budget", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_schedule_contract",
-       "tcrv_rvv.low_precision_resource.remediation_schedule_contract", "",
+       "weft_rvv.low_precision_resource.remediation_schedule_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_unpack_plan",
-       "tcrv_rvv.low_precision_resource.remediation_unpack_plan", "",
+       "weft_rvv.low_precision_resource.remediation_unpack_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_product_plan",
-       "tcrv_rvv.low_precision_resource.remediation_product_plan", "",
+       "weft_rvv.low_precision_resource.remediation_product_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_reduction_plan",
-       "tcrv_rvv.low_precision_resource.remediation_reduction_plan", "",
+       "weft_rvv.low_precision_resource.remediation_reduction_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "remediation_vl_plan",
-       "tcrv_rvv.low_precision_resource.remediation_vl_plan", "",
+       "weft_rvv.low_precision_resource.remediation_vl_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.schedule_decision_contract",
-       "tcrv_rvv.low_precision_resource.schedule_decision_contract", "",
+       "weft_rvv.low_precision_resource.schedule_decision_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.schedule_decision",
-       "tcrv_rvv.low_precision_resource.schedule_decision", "",
+       "weft_rvv.low_precision_resource.schedule_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.schedule_decision_reason",
-       "tcrv_rvv.low_precision_resource.schedule_decision_reason", "",
+       "weft_rvv.low_precision_resource.schedule_decision_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.resource_cost_contract",
-       "tcrv_rvv.low_precision_resource.resource_cost_contract", "",
+       "weft_rvv.low_precision_resource.resource_cost_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.resource_cost_model",
-       "tcrv_rvv.low_precision_resource.resource_cost_model", "",
+       "weft_rvv.low_precision_resource.resource_cost_model", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.resource_cost_loop_body_steps",
-       "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps", "",
+       "weft_rvv.low_precision_resource.resource_cost_loop_body_steps", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.resource_cost_blocker",
-       "tcrv_rvv.low_precision_resource.resource_cost_blocker", "",
+       "weft_rvv.low_precision_resource.resource_cost_blocker", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_admission_decision",
-       "tcrv_rvv.low_precision_resource.performance_admission_decision", "",
+       "weft_rvv.low_precision_resource.performance_admission_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_admission_closure",
-       "tcrv_rvv.low_precision_resource.performance_admission_closure", "",
+       "weft_rvv.low_precision_resource.performance_admission_closure", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_admission_reopen_requirement",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "performance_admission_reopen_requirement",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "beyond_local_repair_admission_contract",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "beyond_local_repair_admission_contract",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "beyond_local_repair_admission_decision",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "beyond_local_repair_admission_decision",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "beyond_local_repair_admission_blocker",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "beyond_local_repair_admission_blocker",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "beyond_local_repair_admission_reopen_requirement",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "beyond_local_repair_admission_reopen_requirement",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_maturity",
-       "tcrv_rvv.low_precision_resource.performance_maturity", "",
+       "weft_rvv.low_precision_resource.performance_maturity", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_maturity_evidence",
-       "tcrv_rvv.low_precision_resource.performance_maturity_evidence", "",
+       "weft_rvv.low_precision_resource.performance_maturity_evidence", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_maturity_outcome",
-       "tcrv_rvv.low_precision_resource.performance_maturity_outcome", "",
+       "weft_rvv.low_precision_resource.performance_maturity_outcome", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "performance_selection_eligible",
-       "tcrv_rvv.low_precision_resource.performance_selection_eligible", "",
+       "weft_rvv.low_precision_resource.performance_selection_eligible", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "selected_dispatch_policy_contract",
-       "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
+       "weft_rvv.low_precision_resource.selected_dispatch_policy_contract",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "dispatch_policy_path",
-       "tcrv_rvv.low_precision_resource.dispatch_policy_path", "",
+       "weft_rvv.low_precision_resource.dispatch_policy_path", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "selected_dispatch_preference",
-       "tcrv_rvv.low_precision_resource.selected_dispatch_preference", "",
+       "weft_rvv.low_precision_resource.selected_dispatch_preference", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "performance_preference_denial_reason",
-       "tcrv_rvv.low_precision_resource."
+       "weft_rvv.low_precision_resource."
        "performance_preference_denial_reason",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "fallback_reason",
-       "tcrv_rvv.low_precision_resource.fallback_reason", "",
+       "weft_rvv.low_precision_resource.fallback_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "route_support_allowed",
-       "tcrv_rvv.low_precision_resource.route_support_allowed", "",
+       "weft_rvv.low_precision_resource.route_support_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "correctness_execution_allowed",
-       "tcrv_rvv.low_precision_resource.correctness_execution_allowed", "",
+       "weft_rvv.low_precision_resource.correctness_execution_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "performance_selection_allowed",
-       "tcrv_rvv.low_precision_resource.performance_selection_allowed", "",
+       "weft_rvv.low_precision_resource.performance_selection_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "performance_win_claim_allowed",
-       "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", "",
+       "weft_rvv.low_precision_resource.performance_win_claim_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "correctness_fallback_path_selected",
-       "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+       "weft_rvv.low_precision_resource.correctness_fallback_path_selected",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.selected_dispatch_policy_output_mirror."
        "performance_preferred_path_selected",
-       "tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+       "weft_rvv.low_precision_resource.performance_preferred_path_selected",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.measurement_disposition_evidence_mirror."
        "dispatch_preference",
-       "tcrv_rvv.low_precision_resource.dispatch_preference", "",
+       "weft_rvv.low_precision_resource.dispatch_preference", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.target_capability_provider_mirror",
-       "tcrv_rvv.low_precision_resource.target_capability_provider_mirror", "",
+       "weft_rvv.low_precision_resource.target_capability_provider_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.target_capability_legality_mirror",
-       "tcrv_rvv.low_precision_resource.target_capability_legality_mirror", "",
+       "weft_rvv.low_precision_resource.target_capability_legality_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.legality",
-       "tcrv_rvv.low_precision_resource.legality", "",
+       "weft_rvv.low_precision_resource.legality", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.rejection_reason",
-       "tcrv_rvv.low_precision_resource.rejection_reason", "",
+       "weft_rvv.low_precision_resource.rejection_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_route_family_plan",
-       "tcrv_rvv.composite_route_family_plan", "",
+       "weft_rvv.composite_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_typed_compute_chain",
-       "tcrv_rvv.composite_typed_compute_chain", "",
+       "weft_rvv.composite_typed_compute_chain", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.candidate_set",
-       "tcrv_rvv.composite_resource.candidate_set", "",
+       "weft_rvv.composite_resource.candidate_set", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.selected_candidate",
-       "tcrv_rvv.composite_resource.selected_candidate", "",
+       "weft_rvv.composite_resource.selected_candidate", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.selection_reason",
-       "tcrv_rvv.composite_resource.selection_reason", "",
+       "weft_rvv.composite_resource.selection_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.legality_scope",
-       "tcrv_rvv.composite_resource.legality_scope", "",
+       "weft_rvv.composite_resource.legality_scope", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.operation",
-       "tcrv_rvv.composite_resource.operation", "",
+       "weft_rvv.composite_resource.operation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.memory_form",
-       "tcrv_rvv.composite_resource.memory_form", "",
+       "weft_rvv.composite_resource.memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"composite_resource.sew", "tcrv_rvv.composite_resource.sew", "",
+      {"composite_resource.sew", "weft_rvv.composite_resource.sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"composite_resource.lmul", "tcrv_rvv.composite_resource.lmul", "",
+      {"composite_resource.lmul", "weft_rvv.composite_resource.lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.tail_policy",
-       "tcrv_rvv.composite_resource.tail_policy", "",
+       "weft_rvv.composite_resource.tail_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.mask_policy",
-       "tcrv_rvv.composite_resource.mask_policy", "",
+       "weft_rvv.composite_resource.mask_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.vl_policy",
-       "tcrv_rvv.composite_resource.vl_policy", "",
+       "weft_rvv.composite_resource.vl_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.accumulator_layout",
-       "tcrv_rvv.composite_resource.accumulator_layout", "",
+       "weft_rvv.composite_resource.accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.unroll_factor",
-       "tcrv_rvv.composite_resource.unroll_factor", "",
+       "weft_rvv.composite_resource.unroll_factor", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.pipeline_intent",
-       "tcrv_rvv.composite_resource.pipeline_intent", "",
+       "weft_rvv.composite_resource.pipeline_intent", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.prefetch_intent",
-       "tcrv_rvv.composite_resource.prefetch_intent", "",
+       "weft_rvv.composite_resource.prefetch_intent", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.vsetvl_region_count",
-       "tcrv_rvv.composite_resource.vsetvl_region_count", "",
+       "weft_rvv.composite_resource.vsetvl_region_count", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.peak_live_vector_groups",
-       "tcrv_rvv.composite_resource.peak_live_vector_groups", "",
+       "weft_rvv.composite_resource.peak_live_vector_groups", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.vector_register_budget",
-       "tcrv_rvv.composite_resource.vector_register_budget", "",
+       "weft_rvv.composite_resource.vector_register_budget", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.runtime_avl_source",
-       "tcrv_rvv.composite_resource.runtime_avl_source", "",
+       "weft_rvv.composite_resource.runtime_avl_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.runtime_abi_order",
-       "tcrv_rvv.composite_resource.runtime_abi_order", "",
+       "weft_rvv.composite_resource.runtime_abi_order", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.target_capability_provider_mirror",
-       "tcrv_rvv.composite_resource.target_capability_provider_mirror", "",
+       "weft_rvv.composite_resource.target_capability_provider_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.target_capability_legality_mirror",
-       "tcrv_rvv.composite_resource.target_capability_legality_mirror", "",
+       "weft_rvv.composite_resource.target_capability_legality_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.legality",
-       "tcrv_rvv.composite_resource.legality", "",
+       "weft_rvv.composite_resource.legality", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"composite_resource.rejection_reason",
-       "tcrv_rvv.composite_resource.rejection_reason", "",
+       "weft_rvv.composite_resource.rejection_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_candidate_set", "tcrv_rvv.gearbox.candidate_set", "",
+      {"gearbox_candidate_set", "weft_rvv.gearbox.candidate_set", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"gearbox_selected_candidate",
-       "tcrv_rvv.gearbox.selected_candidate", "",
+       "weft_rvv.gearbox.selected_candidate", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_selection_reason", "tcrv_rvv.gearbox.selection_reason", "",
+      {"gearbox_selection_reason", "weft_rvv.gearbox.selection_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_legality_scope", "tcrv_rvv.gearbox.legality_scope", "",
+      {"gearbox_legality_scope", "weft_rvv.gearbox.legality_scope", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_schedule_id", "tcrv_rvv.gearbox.schedule_id", "",
+      {"gearbox_schedule_id", "weft_rvv.gearbox.schedule_id", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_selector", "tcrv_rvv.gearbox.selector", "",
+      {"gearbox_selector", "weft_rvv.gearbox.selector", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_source", "tcrv_rvv.gearbox.source", "",
+      {"gearbox_source", "weft_rvv.gearbox.source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_operation", "tcrv_rvv.gearbox.operation", "",
+      {"gearbox_operation", "weft_rvv.gearbox.operation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_unroll", "tcrv_rvv.gearbox.unroll", "",
+      {"gearbox_unroll", "weft_rvv.gearbox.unroll", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_vl_policy", "tcrv_rvv.gearbox.vl_policy", "",
+      {"gearbox_vl_policy", "weft_rvv.gearbox.vl_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_source_sew", "tcrv_rvv.gearbox.source_sew", "",
+      {"gearbox_source_sew", "weft_rvv.gearbox.source_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_source_lmul", "tcrv_rvv.gearbox.source_lmul", "",
+      {"gearbox_source_lmul", "weft_rvv.gearbox.source_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_dest_sew", "tcrv_rvv.gearbox.dest_sew", "",
+      {"gearbox_dest_sew", "weft_rvv.gearbox.dest_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_dest_lmul", "tcrv_rvv.gearbox.dest_lmul", "",
+      {"gearbox_dest_lmul", "weft_rvv.gearbox.dest_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"gearbox_runtime_avl_source",
-       "tcrv_rvv.gearbox.runtime_avl_source", "",
+       "weft_rvv.gearbox.runtime_avl_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_producer_scope", "tcrv_rvv.gearbox.producer_scope", "",
+      {"gearbox_producer_scope", "weft_rvv.gearbox.producer_scope", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"gearbox_consumer_scope", "tcrv_rvv.gearbox.consumer_scope", "",
+      {"gearbox_consumer_scope", "weft_rvv.gearbox.consumer_scope", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"accumulator_sew", "tcrv_rvv.accumulator_sew", "",
+      {"accumulator_sew", "weft_rvv.accumulator_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"accumulator_lmul", "tcrv_rvv.accumulator_lmul", "",
+      {"accumulator_lmul", "weft_rvv.accumulator_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"result_sew", "tcrv_rvv.result_sew", "",
+      {"result_sew", "weft_rvv.result_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"result_lmul", "tcrv_rvv.result_lmul", "",
+      {"result_lmul", "weft_rvv.result_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"macc_accumulator_layout", "tcrv_rvv.macc_accumulator_layout", "",
+      {"macc_accumulator_layout", "weft_rvv.macc_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"macc_result_layout", "tcrv_rvv.macc_result_layout", "",
+      {"macc_result_layout", "weft_rvv.macc_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"macc_arithmetic_kind", "tcrv_rvv.macc_arithmetic_kind", "",
+      {"macc_arithmetic_kind", "weft_rvv.macc_arithmetic_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_macc_accumulator_layout",
-       "tcrv_rvv.widening_macc_accumulator_layout", "",
+       "weft_rvv.widening_macc_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_macc_result_layout",
-       "tcrv_rvv.widening_macc_result_layout", "",
+       "weft_rvv.widening_macc_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"widening_macc_relation", "tcrv_rvv.widening_macc_relation", "",
+      {"widening_macc_relation", "weft_rvv.widening_macc_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"widening_product_relation", "tcrv_rvv.widening_product_relation", "",
+      {"widening_product_relation", "weft_rvv.widening_product_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_product_multiplicand_roles",
-       "tcrv_rvv.widening_product_multiplicand_roles", "",
+       "weft_rvv.widening_product_multiplicand_roles", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_product_extension_policy",
-       "tcrv_rvv.widening_product_extension_policy", "",
+       "weft_rvv.widening_product_extension_policy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_product_intrinsic",
-       "tcrv_rvv.widening_product_intrinsic", "",
+       "weft_rvv.widening_product_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"product_reduction_chain_relation",
-       "tcrv_rvv.product_reduction_chain_relation", "",
+       "weft_rvv.product_reduction_chain_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_reduction_intrinsic",
-       "tcrv_rvv.widening_reduction_intrinsic", "",
+       "weft_rvv.widening_reduction_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"scalar_seed_splat_intrinsic",
-       "tcrv_rvv.scalar_seed_splat_intrinsic", "",
+       "weft_rvv.scalar_seed_splat_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_dot_accumulator_layout",
-       "tcrv_rvv.widening_dot_accumulator_layout", "",
+       "weft_rvv.widening_dot_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"widening_dot_result_layout", "tcrv_rvv.widening_dot_result_layout",
+      {"widening_dot_result_layout", "weft_rvv.widening_dot_result_layout",
        "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"widening_dot_relation", "tcrv_rvv.widening_dot_relation", "",
+      {"widening_dot_relation", "weft_rvv.widening_dot_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_dot_source_accumulator_result_contract",
-       "tcrv_rvv.widening_dot_source_accumulator_result_contract", "",
+       "weft_rvv.widening_dot_source_accumulator_result_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_dot_reduction_store_vl",
-       "tcrv_rvv.widening_dot_reduction_store_vl", "",
+       "weft_rvv.widening_dot_reduction_store_vl", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"reduction_accumulator_layout",
-       "tcrv_rvv.reduction_accumulator_layout", "",
+       "weft_rvv.reduction_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"reduction_result_layout", "tcrv_rvv.reduction_result_layout", "",
+      {"reduction_result_layout", "weft_rvv.reduction_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"reduction_kind", "tcrv_rvv.reduction_kind", "",
+      {"reduction_kind", "weft_rvv.reduction_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"reduction_store_vl", "tcrv_rvv.reduction_store_vl", "",
+      {"reduction_store_vl", "weft_rvv.reduction_store_vl", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"target_leaf_profile", "tcrv_rvv.target_leaf_profile", "",
+      {"target_leaf_profile", "weft_rvv.target_leaf_profile", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"runtime_control_plan", "tcrv_rvv.runtime_control_plan", "",
+      {"runtime_control_plan", "weft_rvv.runtime_control_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"provider_supported_mirror", "tcrv_rvv.provider_supported_mirror", "",
+      {"provider_supported_mirror", "weft_rvv.provider_supported_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"target_capability_provider_mirror",
-       "tcrv_rvv.target_capability_provider_mirror", "",
+       "weft_rvv.target_capability_provider_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"target_capability_legality_mirror",
-       "tcrv_rvv.target_capability_legality_mirror", "",
+       "weft_rvv.target_capability_legality_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"selected_dispatch_case_mirror",
-       "tcrv_rvv.selected_dispatch_case_mirror", "",
+       "weft_rvv.selected_dispatch_case_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"selected_dispatch_fallback_mirror",
-       "tcrv_rvv.selected_dispatch_fallback_mirror", "",
+       "weft_rvv.selected_dispatch_fallback_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"route_operand_binding_plan",
-       "tcrv_rvv.route_operand_binding_plan", "",
+       "weft_rvv.route_operand_binding_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"route_operand_binding_operands",
-       "tcrv_rvv.route_operand_binding_operands", "",
+       "weft_rvv.route_operand_binding_operands", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"exec_abi_bindings", "tcrv_rvv.exec_abi_bindings", "",
+      {"exec_abi_bindings", "weft_rvv.exec_abi_bindings", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"contraction_route_family_plan",
-       "tcrv_rvv.contraction_route_family_plan", "",
+       "weft_rvv.contraction_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"computed_mask_select_route_family_plan",
-       "tcrv_rvv.computed_mask_select_route_family_plan", "",
+       "weft_rvv.computed_mask_select_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"computed_mask_select_mask_producer_source",
-       "tcrv_rvv.computed_mask_select_mask_producer_source", "",
+       "weft_rvv.computed_mask_select_mask_producer_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"computed_mask_memory_route_family_plan",
-       "tcrv_rvv.computed_mask_memory_route_family_plan", "",
+       "weft_rvv.computed_mask_memory_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"computed_mask_memory_mask_producer_source",
-       "tcrv_rvv.computed_mask_memory_mask_producer_source", "",
+       "weft_rvv.computed_mask_memory_mask_producer_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"mask_tail_policy_route_family_plan",
-       "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+       "weft_rvv.mask_tail_policy_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"mask_tail_policy_owner", "tcrv_rvv.mask_tail_policy_owner", "",
+      {"mask_tail_policy_owner", "weft_rvv.mask_tail_policy_owner", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"secondary_compare_predicate_kind",
-       "tcrv_rvv.secondary_compare_predicate_kind", "",
+       "weft_rvv.secondary_compare_predicate_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"lower_bound_role", "tcrv_rvv.lower_bound_role", "",
+      {"lower_bound_role", "weft_rvv.lower_bound_role", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"upper_bound_role", "tcrv_rvv.upper_bound_role", "",
+      {"upper_bound_role", "weft_rvv.upper_bound_role", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"lower_bound_c_type", "tcrv_rvv.lower_bound_c_type", "",
+      {"lower_bound_c_type", "weft_rvv.lower_bound_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"upper_bound_c_type", "tcrv_rvv.upper_bound_c_type", "",
+      {"upper_bound_c_type", "weft_rvv.upper_bound_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"bound_order", "tcrv_rvv.bound_order", "",
+      {"bound_order", "weft_rvv.bound_order", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"clamp_relation", "tcrv_rvv.clamp_relation", "",
+      {"clamp_relation", "weft_rvv.clamp_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"source_memory_form", "tcrv_rvv.source_memory_form", "",
+      {"source_memory_form", "weft_rvv.source_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"destination_memory_form", "tcrv_rvv.destination_memory_form", "",
+      {"destination_memory_form", "weft_rvv.destination_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"select_layout", "tcrv_rvv.select_layout", "",
+      {"select_layout", "weft_rvv.select_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"base_memory_movement_route_family_plan",
-       "tcrv_rvv.base_memory_movement_route_family_plan", "",
+       "weft_rvv.base_memory_movement_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"elementwise_arithmetic_route_family_plan",
-       "tcrv_rvv.elementwise_arithmetic_route_family_plan", "",
+       "weft_rvv.elementwise_arithmetic_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"scalar_broadcast_elementwise_route_family_plan",
-       "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan", "",
+       "weft_rvv.scalar_broadcast_elementwise_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"scalar_broadcast_macc_route_family_plan",
-       "tcrv_rvv.scalar_broadcast_macc_route_family_plan", "",
+       "weft_rvv.scalar_broadcast_macc_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"plain_macc_route_family_plan",
-       "tcrv_rvv.plain_macc_route_family_plan", "",
+       "weft_rvv.plain_macc_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"plain_compare_select_route_family_plan",
-       "tcrv_rvv.plain_compare_select_route_family_plan", "",
+       "weft_rvv.plain_compare_select_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"segment2_memory_route_family_plan",
-       "tcrv_rvv.segment2_memory_route_family_plan", "",
+       "weft_rvv.segment2_memory_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_conversion_route_family_plan",
-       "tcrv_rvv.widening_conversion_route_family_plan", "",
+       "weft_rvv.widening_conversion_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"dequantization_route_family_plan",
-       "tcrv_rvv.dequantization_route_family_plan", "",
+       "weft_rvv.dequantization_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_route_family_plan",
-       "tcrv_rvv.standalone_reduction_route_family_plan", "",
+       "weft_rvv.standalone_reduction_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_source_vector_type",
-       "tcrv_rvv.standalone_reduction_source_vector_type", "",
+       "weft_rvv.standalone_reduction_source_vector_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_source_vector_c_type",
-       "tcrv_rvv.standalone_reduction_source_vector_c_type", "",
+       "weft_rvv.standalone_reduction_source_vector_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_scalar_result_vector_type",
-       "tcrv_rvv.standalone_reduction_scalar_result_vector_type", "",
+       "weft_rvv.standalone_reduction_scalar_result_vector_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_scalar_result_vector_c_type",
-       "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type", "",
+       "weft_rvv.standalone_reduction_scalar_result_vector_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_scalar_result_runtime_boundary",
-       "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary", "",
+       "weft_rvv.standalone_reduction_scalar_result_runtime_boundary", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulation_route_family_plan",
-       "tcrv_rvv.accumulation_route_family_plan", "",
+       "weft_rvv.accumulation_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulation_compute_suffix",
-       "tcrv_rvv.accumulation_compute_suffix", "",
+       "weft_rvv.accumulation_compute_suffix", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulation_mask_producer_source",
-       "tcrv_rvv.accumulation_mask_producer_source", "",
+       "weft_rvv.accumulation_mask_producer_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulation_accumulator_contract",
-       "tcrv_rvv.accumulation_accumulator_contract", "",
+       "weft_rvv.accumulation_accumulator_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulation_result_contract",
-       "tcrv_rvv.accumulation_result_contract", "",
+       "weft_rvv.accumulation_result_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulation_scalar_carry_contract",
-       "tcrv_rvv.accumulation_scalar_carry_contract", "",
+       "weft_rvv.accumulation_scalar_carry_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"required_header_declarations",
-       "tcrv_rvv.required_header_declarations", "",
+       "weft_rvv.required_header_declarations", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"c_type_mapping", "tcrv_rvv.c_type_mapping", "",
+      {"c_type_mapping", "weft_rvv.c_type_mapping", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"segment2_update_arithmetic_kind",
-       "tcrv_rvv.segment2_update_arithmetic_kind", "",
+       "weft_rvv.segment2_update_arithmetic_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"inactive_lane_zeroing_requirement",
-       "tcrv_rvv.inactive_lane_zeroing_requirement", "",
+       "weft_rvv.inactive_lane_zeroing_requirement", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
   });
   return evidence;
@@ -1693,7 +1693,7 @@ llvm::Error compileRVVGeneratedSourceToObjectWithMarch(llvm::StringRef source,
   int sourceFD = -1;
   ScopedTempPath sourcePath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-rvv-materialized-emitc", "cpp", sourceFD, sourcePath.path))
+          "weft-rvv-materialized-emitc", "cpp", sourceFD, sourcePath.path))
     return makeRVVTargetRouteError(
         llvm::Twine("failed to create temporary C++ source: ") +
         error.message());
@@ -1714,7 +1714,7 @@ llvm::Error compileRVVGeneratedSourceToObjectWithMarch(llvm::StringRef source,
   int stderrFD = -1;
   ScopedTempPath stderrPath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-rvv-materialized-emitc-clang", "stderr", stderrFD,
+          "weft-rvv-materialized-emitc-clang", "stderr", stderrFD,
           stderrPath.path))
     return makeRVVTargetRouteError(
         llvm::Twine("failed to create temporary clang stderr file: ") +
@@ -1730,7 +1730,7 @@ llvm::Error compileRVVGeneratedSourceToObjectWithMarch(llvm::StringRef source,
   // byte-identical; only bodies that #include a hosted header consult the shim.
   ScopedTempDir libmShimDir;
   if (std::error_code error = llvm::sys::fs::createUniqueDirectory(
-          "tcrv-rvv-libm-shim", libmShimDir.path))
+          "weft-rvv-libm-shim", libmShimDir.path))
     return makeRVVTargetRouteError(
         llvm::Twine("failed to create freestanding libm shim directory: ") +
         error.message());
@@ -1823,7 +1823,7 @@ llvm::Error compileRVVGeneratedSourceToObjectZvfh(llvm::StringRef source,
 // wiring, generalized from chunk2's q4_K-only mirror.
 //
 // A monolithic ggml block-dot selected body is ONE plugin-owned typed op
-// (tcrv_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
+// (weft_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
 // ...) that lowers DIRECTLY through the RVV->EmitC DialectConversion; there is no
 // decomposed route slice for the slice-based describeRVVSelectedBodyEmitCRoute to
 // walk (it fails fail-closed on the monolithic op). Chunk 1 wired the
@@ -1990,11 +1990,11 @@ llvm::Error validateRVVMonolithicBlockDotTargetArtifactCandidate(
         llvm::Twine("candidate metadata must carry ") +
         fc.scaleModelMetadataKey + " provenance");
 
-  // The monolithic route honestly carries NO decomposed-route tcrv_rvv.* config
+  // The monolithic route honestly carries NO decomposed-route weft_rvv.* config
   // metadata (the slice-based describe never ran); assert none leaked in, which
   // is what positively distinguishes it from a decomposed selected-body route.
   for (const support::ArtifactMetadataEntry &meta : candidate.artifactMetadata)
-    if (llvm::StringRef(meta.key).starts_with("tcrv_rvv."))
+    if (llvm::StringRef(meta.key).starts_with("weft_rvv."))
       return makeRVVTargetRouteError(
           llvm::Twine("monolithic ggml block-dot candidate must not carry "
                       "decomposed-route config metadata '") +
@@ -2072,8 +2072,8 @@ getRVVSelectedBodyArtifactAdapterConfig() {
   config.headerRouteID = mapping.headerRouteID;
   config.headerArtifactKind = mapping.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;
-  config.headerGuard = "TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H";
-  config.evidencePrefix = "tianchenrv.rvv";
+  config.headerGuard = "WEFT_RVV_MATERIALIZED_EMITC_HEADER_H";
+  config.evidencePrefix = "weft.rvv";
   config.includes = kHeaderIncludes;
   config.selectedVariant = "";
   config.emissionKind = plugin::rvv::getRVVSelectedBodyEmissionKind();
@@ -2135,7 +2135,7 @@ llvm::Error exportRVVSelectedBodyHeaderArtifact(mlir::ModuleOp module,
 // DialectConversion (materializeSelectedEmitCArtifactModule ->
 // tryConvertModuleWithRegisteredBackend), which chunk 1 already made lower the
 // monolithic op, so the exported EmitC is byte-identical to the CORE
-// --tcrv-rvv-lower-to-emitc emit. This config is used ONLY by the monolithic
+// --weft-rvv-lower-to-emitc emit. This config is used ONLY by the monolithic
 // OBJECT export fns (below); it is never handed to the header/object bundle
 // registration helper, so no monolithic composite is registered and decomposed
 // routes are byte-exact untouched.
@@ -2312,7 +2312,7 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
 
   // The option-2 quant_contraction BRIDGE repacked-GEVM peer OBJECT route: the
   // q4_0 16x1-repacked GEVM the front door constructs as the typed
-  // tcrv_rvv.typed_repack_gemv_loop_body region flows through the SAME monolithic
+  // weft_rvv.typed_repack_gemv_loop_body region flows through the SAME monolithic
   // emission-plan + object-export mechanism as the flat/super-block block-dots,
   // on its own RepackGemv route id. Registered as a bare object exporter like its
   // block-dot siblings; idempotent-guarded.
@@ -2323,7 +2323,7 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
 
   // The option-2 quant_contraction BRIDGE repacked-GEMM (prefill) peer OBJECT
   // route: the q4_0 16x1-repacked block-as-lane GEMM the front door constructs as
-  // the typed tcrv_rvv.typed_repack_gemm_loop_body region flows through the SAME
+  // the typed weft_rvv.typed_repack_gemm_loop_body region flows through the SAME
   // monolithic emission-plan + object-export mechanism as the GEVM / block-dots, on
   // its own RepackGemm route id. Registered as a bare object exporter like its
   // siblings; idempotent-guarded.
@@ -2375,4 +2375,4 @@ llvm::Error registerRVVTargetSupportTargetTranslateRoutes(
       exportMaterializedRVVEmitCToCpp));
 }
 
-} // namespace tianchenrv::target::rvv
+} // namespace weft::target::rvv

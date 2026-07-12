@@ -1,0 +1,9 @@
+#ifndef WEFT_CONVERSION_EMITC_WEFTEMITCLOWERABLEOPINTERFACE_H
+#define WEFT_CONVERSION_EMITC_WEFTEMITCLOWERABLEOPINTERFACE_H
+
+#include "mlir/IR/OpDefinition.h"
+#include "llvm/ADT/StringRef.h"
+
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h.inc"
+
+#endif // WEFT_CONVERSION_EMITC_WEFTEMITCLOWERABLEOPINTERFACE_H

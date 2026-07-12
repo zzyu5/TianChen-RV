@@ -1,10 +1,10 @@
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/STLExtras.h"
@@ -12,18 +12,18 @@
 
 #include <utility>
 
-namespace tianchenrv::plugin::tensorext_lite {
+namespace weft::plugin::tensorext_lite {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
-namespace emitc = tianchenrv::conversion::emitc;
+namespace construction = weft::plugin::construction;
+namespace emitc = weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRoleAttrName("role");
 
 llvm::Error makeTensorExtLiteEmitCRouteProviderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV TensorExtLite EmitC route provider failed: ") +
+      llvm::Twine("Weft-RV TensorExtLite EmitC route provider failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -31,14 +31,14 @@ llvm::Error makeTensorExtLiteEmitCRouteProviderError(llvm::Twine message) {
 llvm::Expected<llvm::SmallVector<construction::SelectedExecutableRoleStep, 4>>
 findSelectedTensorExtLiteRoleSequence(
     const VariantEmitCLowerableRequest &request) {
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!kernel)
     return makeTensorExtLiteEmitCRouteProviderError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+        "EmitC route construction requires an enclosing weft.exec.kernel");
   if (!variant)
     return makeTensorExtLiteEmitCRouteProviderError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
+        "EmitC route construction requires a materialized weft.exec.variant");
   if (kernel.getBody().empty())
     return makeTensorExtLiteEmitCRouteProviderError(
         "selected TensorExtLite EmitC route requires a materialized kernel "
@@ -64,7 +64,7 @@ findSelectedTensorExtLiteRoleSequence(
   return construction::collectSelectedExecutableRoleSequence(spec);
 }
 
-llvm::Expected<emitc::TCRVEmitCSourceOpProvenance>
+llvm::Expected<emitc::WEFTEmitCSourceOpProvenance>
 getTensorExtLiteRoleSourceProvenance(
     const construction::SelectedExecutableRoleStep &step) {
   if (llvm::Error error = verifyTensorExtLiteRoleOpInterface(
@@ -74,15 +74,15 @@ getTensorExtLiteRoleSourceProvenance(
     return std::move(error);
 
   auto lowerable =
-      llvm::dyn_cast<emitc::TCRVEmitCLowerableOpInterface>(step.operation);
+      llvm::dyn_cast<emitc::WEFTEmitCLowerableOpInterface>(step.operation);
   if (!lowerable)
     return makeTensorExtLiteEmitCRouteProviderError(
         llvm::Twine(step.constructionStep->operationName) + " must implement "
-        "TCRVEmitCLowerableOpInterface before route construction");
+        "WEFTEmitCLowerableOpInterface before route construction");
 
-  emitc::TCRVEmitCSourceOpProvenance source;
-  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
-  source.role = lowerable.getTCRVEmitCLowerableSourceRole().str();
+  emitc::WEFTEmitCSourceOpProvenance source;
+  source.opName = lowerable.getWEFTEmitCLowerableSourceOpName().str();
+  source.role = lowerable.getWEFTEmitCLowerableSourceRole().str();
   source.opInterface = getTensorExtLiteEmitCLowerableOpInterfaceName().str();
   return source;
 }
@@ -91,7 +91,7 @@ getTensorExtLiteRoleSourceProvenance(
 
 llvm::Error validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
-    llvm::SmallVectorImpl<emitc::TCRVEmitCSourceOpProvenance> &outSources) {
+    llvm::SmallVectorImpl<emitc::WEFTEmitCSourceOpProvenance> &outSources) {
   outSources.clear();
   if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady())
     return error;
@@ -114,7 +114,7 @@ llvm::Error validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
     return error;
 
   for (const construction::SelectedExecutableRoleStep &step : *steps) {
-    llvm::Expected<emitc::TCRVEmitCSourceOpProvenance> source =
+    llvm::Expected<emitc::WEFTEmitCSourceOpProvenance> source =
         getTensorExtLiteRoleSourceProvenance(step);
     if (!source)
       return source.takeError();
@@ -124,4 +124,4 @@ llvm::Error validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::tensorext_lite
+} // namespace weft::plugin::tensorext_lite

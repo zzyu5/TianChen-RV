@@ -1,7 +1,7 @@
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id macc-add --overwrite --op-kind macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id macc-add --overwrite --op-kind macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/macc-add/evidence.json
-# RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/macc-add/macc_add/evidence.json
+# RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/macc-add/macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/macc-add/macc_add/rvv_generated_bundle_abi_macc_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -13,7 +13,7 @@
 
 # MACC-DAG: "input_mode": "explicit-selected-body"
 # MACC-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir"
-# MACC-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add"
+# MACC-DAG: "expected_function": "weft_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add"
 # MACC-DAG: "expected_runtime_abi_name": "rvv-generic-macc-add-callable-c-abi.v1"
 # MACC-DAG: "expected_selected_variant": "explicit_selected_body_rvv_macc_add"
 # MACC-DAG: "key": "rvv_emitc_lowerable_route"
@@ -21,20 +21,20 @@
 # MACC-DAG: "key": "rvv_selected_body_operation"
 # MACC-DAG: "value": "macc_add"
 # MACC-DAG: "key": "rvv_selected_body_typed_compute_op"
-# MACC-DAG: "value": "tcrv_rvv.macc"
-# MACC-DAG: "key": "tcrv_rvv.runtime_control_plan"
+# MACC-DAG: "value": "weft_rvv.macc"
+# MACC-DAG: "key": "weft_rvv.runtime_control_plan"
 # MACC-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
-# MACC-DAG: "key": "tcrv_rvv.plain_macc_route_family_plan"
+# MACC-DAG: "key": "weft_rvv.plain_macc_route_family_plan"
 # MACC-DAG: "value": "rvv-plain-macc-route-family-plan.v1"
-# MACC-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# MACC-DAG: "key": "weft_rvv.target_leaf_profile"
 # MACC-DAG: "value": "rvv-v1-typed-plain-macc-add-leaf-profile.v1"
-# MACC-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# MACC-DAG: "key": "weft_rvv.provider_supported_mirror"
 # MACC-DAG: "value": "provider_supported_mirror:rvv-plain-macc-add-plan-validated"
-# MACC-DAG: "key": "tcrv_rvv.c_type_mapping"
+# MACC-DAG: "key": "weft_rvv.c_type_mapping"
 # MACC-DAG: "value": "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector"
-# MACC-DAG: "key": "tcrv_rvv.macc_accumulator_layout"
+# MACC-DAG: "key": "weft_rvv.macc_accumulator_layout"
 # MACC-DAG: "value": "separate-i32-vector-accumulator-input"
-# MACC-DAG: "key": "tcrv_rvv.macc_result_layout"
+# MACC-DAG: "key": "weft_rvv.macc_result_layout"
 # MACC-DAG: "value": "store-multiply-accumulate-result-to-output-buffer"
 # MACC-DAG: "selected_source_abi": {
 # MACC-DAG: "lhs": "lhs-input-buffer"
@@ -54,7 +54,7 @@
 # MACC-DAG: "accumulator_layout": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "result_layout": "store-multiply-accumulate-result-to-output-buffer"
 # MACC-DAG: "multiply_accumulate_boundary": {
-# MACC-DAG: "authority": "provider-derived typed tcrv_rvv multiply-accumulate body/config/runtime facts"
+# MACC-DAG: "authority": "provider-derived typed weft_rvv multiply-accumulate body/config/runtime facts"
 # MACC-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # MACC-DAG: "macc_kind": "add"
 # MACC-DAG: "macc_intrinsic": "__riscv_vmacc_vv_i32m1"
@@ -63,13 +63,13 @@
 # MACC-DAG: "store_advances_by_loop_induction": true
 # MACC-DAG: "store_pointer": "out + loop_induction"
 # MACC-DAG: "runtime_counts_are_execution_cases_not_macc_authority": true
-# MACC-DAG: "typed_compute_op": "tcrv_rvv.macc"
+# MACC-DAG: "typed_compute_op": "weft_rvv.macc"
 # MACC-DAG: "status": "dry_run_success"
 
 # HARNESS: static int32_t init_lhs(size_t index, int pattern)
 # HARNESS: static int32_t init_rhs(size_t index, int pattern)
 # HARNESS: static int32_t init_acc(size_t index, int pattern)
-# HARNESS: tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add(lhs, rhs, acc, out, n);
+# HARNESS: weft_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]));
 # HARNESS: source_preserved tail_preserved
 # HARNESS: const size_t counts[] = {0, 1, 16, 17, 257};

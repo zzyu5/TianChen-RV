@@ -1,11 +1,11 @@
-#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
+#include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
-#include "TianChenRV/Plugin/Template/TemplateEmitCRouteProvider.h"
-#include "TianChenRV/Target/Template/TemplateTargetSupportBundle.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Dialect/Template/IR/TemplateDialect.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateEmitCRouteProvider.h"
+#include "Weft/Target/Template/TemplateTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kTemplatePluginName("template-plugin");
@@ -30,23 +30,23 @@ constexpr llvm::StringLiteral kTemplateExtensionPreferredCapabilitySymbol(
 constexpr llvm::StringLiteral kTemplateExtensionFirstSliceVariantName(
     "template_zero_core_first_slice");
 constexpr llvm::StringLiteral kTemplateIntegrationContractAttrName(
-    "tcrv_template.integration_contract");
+    "weft_template.integration_contract");
 constexpr llvm::StringLiteral kTemplateHandoffKindAttrName(
-    "tcrv_template.handoff_kind");
+    "weft_template.handoff_kind");
 constexpr llvm::StringLiteral kTemplateConstructionProtocolAttrName(
-    "tcrv_template.construction_protocol");
+    "weft_template.construction_protocol");
 constexpr llvm::StringLiteral kTemplateConstructionArchetypeAttrName(
-    "tcrv_template.archetype");
+    "weft_template.archetype");
 constexpr llvm::StringLiteral kTemplateSemanticRoleGraphAttrName(
-    "tcrv_template.semantic_role_graph");
+    "weft_template.semantic_role_graph");
 constexpr llvm::StringLiteral kTemplateCommonInterfaceRealizationAttrName(
-    "tcrv_template.common_interface_realization");
+    "weft_template.common_interface_realization");
 constexpr llvm::StringLiteral kTemplateTypedRoleRealizationAttrName(
-    "tcrv_template.typed_role_realization");
+    "weft_template.typed_role_realization");
 constexpr llvm::StringLiteral kTemplateEmitCRouteMappingAttrName(
-    "tcrv_template.emitc_route_mapping");
+    "weft_template.emitc_route_mapping");
 constexpr llvm::StringLiteral kTemplateEvidenceProfileAttrName(
-    "tcrv_template.evidence_profile");
+    "weft_template.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "template-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -76,7 +76,7 @@ constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
 constexpr unsigned kTemplateComputeRoleOrder = 2;
 constexpr llvm::StringLiteral kTemplateComputeSourceRole("compute");
 constexpr llvm::StringLiteral kTemplateComputeRoleSpecificInterface(
-    "TCRVComputeOpInterface");
+    "WEFTComputeOpInterface");
 
 struct TemplateExtensionCapabilityView {
   std::string integrationContract;
@@ -85,7 +85,7 @@ struct TemplateExtensionCapabilityView {
 
 llvm::Error makeTemplatePluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Template extension plugin template failed: ") +
+      llvm::Twine("Weft-RV Template extension plugin template failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -317,12 +317,12 @@ mlir::Operation *materializeTemplateComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::MLIRContext *context = builder.getContext();
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
 
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  mlir::OperationState state(variant.getLoc(), "tcrv_template.compute_skeleton");
+  mlir::OperationState state(variant.getLoc(), "weft_template.compute_skeleton");
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
@@ -413,7 +413,7 @@ llvm::ArrayRef<PluginCapability> TemplateExtensionPlugin::getCapabilities() cons
 
 void TemplateExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::template_ext::TCRVTemplateDialect>();
+  registry.insert<weft::template_ext::WEFTTemplateDialect>();
 }
 
 llvm::Error
@@ -475,7 +475,7 @@ llvm::Error TemplateExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeTemplatePluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
 
   out = VariantCostEstimate();
   out.setScore(50.0);
@@ -496,10 +496,10 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeTemplatePluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeTemplatePluginError(
-        "emission readiness requires an enclosing tcrv.exec.kernel");
+        "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -511,7 +511,7 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -534,11 +534,11 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeTemplatePluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
 
   if (!request.getKernel())
     return makeTemplatePluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -550,7 +550,7 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
@@ -570,7 +570,7 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
       constructionRoute.emissionKind, constructionRoute.routeID,
       constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "Template selected compute_skeleton route materializes a verified EmitC "
-      "module through the common TCRVEmitCLowerableRoute materializer and "
+      "module through the common WEFTEmitCLowerableRoute materializer and "
       "exports generated C++ through the MLIR EmitC C/C++ emitter");
   out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
   out.setRuntimeABIName(constructionRoute.runtimeABIName);
@@ -605,17 +605,17 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
 llvm::Error TemplateExtensionPlugin::materializeSelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeTemplatePluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!kernel)
     return makeTemplatePluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
@@ -640,11 +640,11 @@ llvm::Error TemplateExtensionPlugin::materializeSelectedLoweringBoundary(
 llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   auto boundary =
-      llvm::dyn_cast_if_present<tcrv::template_ext::ComputeSkeletonOp>(
+      llvm::dyn_cast_if_present<weft::template_ext::ComputeSkeletonOp>(
           request.getBoundary());
   if (!boundary)
     return makeTemplatePluginError(
-        "selected Template path requires a tcrv_template.compute_skeleton operation");
+        "selected Template path requires a weft_template.compute_skeleton operation");
 
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(),
@@ -713,7 +713,7 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
 
 llvm::Error TemplateExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
-  bundle.addRequiredDialectName("tcrv_template");
+  bundle.addRequiredDialectName("weft_template");
   return target::template_ext::configureTemplateTargetSupportExtensionBundle(
       bundle);
 }
@@ -730,4 +730,4 @@ llvm::Error registerTemplateExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinTemplateExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

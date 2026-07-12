@@ -13,22 +13,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "RVVEmitCRoutePlanningInternal.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -52,14 +52,14 @@
 
 
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 namespace {
 // Restore the pre-split single-namespace overload set so unqualified calls to
 // the relocated (sew, lmul) primitive builders resolve identically.
-using ::tianchenrv::plugin::rvv::getRVVSelectedBodyArithmeticIntrinsic;
-using ::tianchenrv::plugin::rvv::getRVVSelectedBodyMaskAndIntrinsic;
-using ::tianchenrv::plugin::rvv::getRVVSelectedBodySelectIntrinsic;
+using ::weft::plugin::rvv::getRVVSelectedBodyArithmeticIntrinsic;
+using ::weft::plugin::rvv::getRVVSelectedBodyMaskAndIntrinsic;
+using ::weft::plugin::rvv::getRVVSelectedBodySelectIntrinsic;
 
 // Parse the i16 SOURCE LMUL ({mf2,m1,m2,m4}) out of a dot-reduce product
 // relation "signed-i16<L>xi16<L>-to-i32<W>" where <W> is exactly <L> widened one
@@ -119,7 +119,7 @@ llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one supported "
-        "generic tcrv_rvv.binary op");
+        "generic weft_rvv.binary op");
   slice.arithmeticOp = op;
   slice.arithmeticKind = kind;
   slice.arithmeticLhs = lhs;
@@ -129,15 +129,15 @@ llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodyCompare(RVVSelectedBodyRouteSlice &slice,
-                                         tcrv::rvv::CompareOp compare) {
+                                         weft::rvv::CompareOp compare) {
   if (slice.compareOp && slice.secondaryCompareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route supports at most two generic "
-        "tcrv_rvv.compare ops for the dual runtime scalar mask-and route");
+        "weft_rvv.compare ops for the dual runtime scalar mask-and route");
   if (compare.getKind() != "eq" && compare.getKind() != "slt" &&
       compare.getKind() != "sle")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.compare kind '") +
+        llvm::Twine("unsupported generic weft_rvv.compare kind '") +
         compare.getKind() + "' for bounded RVV EmitC route");
   if (slice.compareOp) {
     slice.secondaryCompareOp = compare;
@@ -154,14 +154,14 @@ llvm::Error recordRVVSelectedBodyCompare(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodyMaskAnd(RVVSelectedBodyRouteSlice &slice,
-                                         tcrv::rvv::MaskAndOp maskAnd) {
+                                         weft::rvv::MaskAndOp maskAnd) {
   if (slice.maskAndOp)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.mask_and op "
+        "bounded RVV EmitC route requires exactly one weft_rvv.mask_and op "
         "for the dual runtime scalar mask composition route");
   if (maskAnd.getKind() != "and")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.mask_and kind '") +
+        llvm::Twine("unsupported generic weft_rvv.mask_and kind '") +
         maskAnd.getKind() + "' for bounded RVV EmitC route");
   slice.maskAndOp = maskAnd;
   slice.composedMask = maskAnd.getMask();
@@ -173,7 +173,7 @@ parseRVVSelectedBodyMaskedBinaryKind(llvm::StringRef kind);
 
 llvm::Error
 recordRVVSelectedBodyMaskedBinary(RVVSelectedBodyRouteSlice &slice,
-                                  tcrv::rvv::MaskedBinaryOp maskedBinary) {
+                                  weft::rvv::MaskedBinaryOp maskedBinary) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
@@ -193,10 +193,10 @@ recordRVVSelectedBodyMaskedBinary(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodySelect(RVVSelectedBodyRouteSlice &slice,
-                                        tcrv::rvv::SelectOp select) {
+                                        weft::rvv::SelectOp select) {
   if (slice.selectOp && slice.secondarySelectOp)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route supports at most two tcrv_rvv.select ops "
+        "bounded RVV EmitC route supports at most two weft_rvv.select ops "
         "for the f32 clamp/select route");
   if (slice.selectOp) {
     const bool extendsProductReductionDequantClamp =
@@ -249,32 +249,32 @@ llvm::Error recordRVVSelectedBodySelect(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodyReduction(RVVSelectedBodyRouteSlice &slice,
-                                           tcrv::rvv::ReduceOp reduce) {
+                                           weft::rvv::ReduceOp reduce) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (reduce.getKind() != "add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.reduce kind '") +
+        llvm::Twine("unsupported generic weft_rvv.reduce kind '") +
         reduce.getKind() + "' for bounded RVV reduction route");
   std::optional<llvm::StringRef> accumulatorLayout =
       reduce.getAccumulatorLayout();
   if (!accumulatorLayout)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV reduction route requires tcrv_rvv.reduce to carry "
+        "bounded RVV reduction route requires weft_rvv.reduce to carry "
         "accumulator_layout 'rhs-vector-seed-lane0-per-vl-chunk'");
   if (*accumulatorLayout != kRVVReductionAccumulatorLayout)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.reduce accumulator_layout '") +
+        llvm::Twine("unsupported generic weft_rvv.reduce accumulator_layout '") +
         *accumulatorLayout + "' for bounded RVV reduction route");
   std::optional<llvm::StringRef> resultLayout = reduce.getResultLayout();
   if (!resultLayout)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV reduction route requires tcrv_rvv.reduce to carry "
+        "bounded RVV reduction route requires weft_rvv.reduce to carry "
         "result_layout 'store-reduction-lane0-to-output-chunk-base'");
   if (*resultLayout != kRVVReductionResultLayout)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.reduce result_layout '") +
+        llvm::Twine("unsupported generic weft_rvv.reduce result_layout '") +
         *resultLayout + "' for bounded RVV reduction route");
   slice.reduceOp = reduce;
   slice.arithmeticOp = reduce.getOperation();
@@ -297,7 +297,7 @@ parseRVVSelectedBodyStandaloneReductionKind(llvm::StringRef kind) {
       kind == "unsigned_widening_reduce_add")
     return RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce kind '") +
+      llvm::Twine("unsupported generic weft_rvv.standalone_reduce kind '") +
       kind + "' for bounded RVV standalone reduction route");
 }
 
@@ -310,13 +310,13 @@ parseRVVSelectedBodyComputedMaskStandaloneReductionKind(llvm::StringRef kind) {
   if (kind == "max")
     return RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax;
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce kind '") +
+      llvm::Twine("unsupported generic weft_rvv.masked_standalone_reduce kind '") +
       kind + "' for bounded RVV computed-mask standalone reduction route");
 }
 
 llvm::Error recordRVVSelectedBodyStandaloneReduction(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::StandaloneReduceOp standaloneReduce) {
+    weft::rvv::StandaloneReduceOp standaloneReduce) {
   llvm::Expected<RVVSelectedBodyOperationKind> reductionKind =
       parseRVVSelectedBodyStandaloneReductionKind(standaloneReduce.getKind());
   if (!reductionKind)
@@ -326,14 +326,14 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
       standaloneReduce.getAccumulatorLayout() !=
           kRVVStandaloneReductionI64AccumulatorLayout)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.standalone_reduce "
                     "accumulator_layout '") +
         standaloneReduce.getAccumulatorLayout() +
         "' for bounded RVV standalone reduction route");
   if (standaloneReduce.getResultLayout() !=
       kRVVStandaloneReductionResultLayout)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.standalone_reduce "
                     "result_layout '") +
         standaloneReduce.getResultLayout() +
         "' for bounded RVV standalone reduction route");
@@ -364,18 +364,18 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
               RVVSelectedBodyOperationKind::StandaloneReduceAdd)
         return makeRVVEmitCRouteProviderError(
             "deferred-wide i16 dot-reduce RVV route requires a signed "
-            "tcrv_rvv.widening_product -> tcrv_rvv.deferred_accumulate -> "
-            "tcrv_rvv.standalone_reduce add chain");
+            "weft_rvv.widening_product -> weft_rvv.deferred_accumulate -> "
+            "weft_rvv.standalone_reduce add chain");
       if (!productSlotIsSigned(slice) || standaloneReduce.getKind() != "add")
         return makeRVVEmitCRouteProviderError(
             "deferred-wide i16 dot-reduce RVV route requires the trailing "
-            "tcrv_rvv.standalone_reduce to be a signed i32m8 -> i32m1 add "
+            "weft_rvv.standalone_reduce to be a signed i32m8 -> i32m1 add "
             "reduction of the deferred accumulate");
       if (standaloneReduce.getInput() != reduceInputSlotResult(slice))
         return makeRVVEmitCRouteProviderError(
             "deferred-wide i16 dot-reduce RVV route requires "
-            "tcrv_rvv.standalone_reduce input to consume the selected "
-            "tcrv_rvv.deferred_accumulate i32m8 result");
+            "weft_rvv.standalone_reduce input to consume the selected "
+            "weft_rvv.deferred_accumulate i32m8 result");
       slice.standaloneReduceOp = standaloneReduce;
       slice.arithmeticOp = standaloneReduce.getOperation();
       slice.arithmeticKind = RVVSelectedBodyOperationKind::
@@ -397,19 +397,19 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
               RVVSelectedBodyOperationKind::StandaloneReduceAdd)
         return makeRVVEmitCRouteProviderError(
             "deferred-wide low-precision product-reduction RVV route requires a "
-            "signed tcrv_rvv.widening_product -> tcrv_rvv.widening_accumulate -> "
-            "tcrv_rvv.standalone_reduce add chain");
+            "signed weft_rvv.widening_product -> weft_rvv.widening_accumulate -> "
+            "weft_rvv.standalone_reduce add chain");
       if (!productSlotIsSigned(slice) ||
           standaloneReduce.getKind() != "add")
         return makeRVVEmitCRouteProviderError(
             "deferred-wide low-precision product-reduction RVV route requires "
-            "the trailing tcrv_rvv.standalone_reduce to be a signed i32m8 -> "
+            "the trailing weft_rvv.standalone_reduce to be a signed i32m8 -> "
             "i32m1 add reduction of the deferred accumulate");
       if (standaloneReduce.getInput() != reduceInputSlotResult(slice))
         return makeRVVEmitCRouteProviderError(
             "deferred-wide low-precision product-reduction RVV route requires "
-            "tcrv_rvv.standalone_reduce input to consume the selected "
-            "tcrv_rvv.widening_accumulate i32m8 result");
+            "weft_rvv.standalone_reduce input to consume the selected "
+            "weft_rvv.widening_accumulate i32m8 result");
       slice.standaloneReduceOp = standaloneReduce;
       slice.arithmeticOp = standaloneReduce.getOperation();
       slice.arithmeticKind = RVVSelectedBodyOperationKind::
@@ -428,9 +428,9 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
             RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires exactly one selected compute op "
-          "unless a typed tcrv_rvv.widening_product or "
-          "tcrv_rvv.packed_i4_nibble_unpack_product feeds a matching "
-          "signed or unsigned tcrv_rvv.standalone_reduce widening add chain");
+          "unless a typed weft_rvv.widening_product or "
+          "weft_rvv.packed_i4_nibble_unpack_product feeds a matching "
+          "signed or unsigned weft_rvv.standalone_reduce widening add chain");
     const bool isSignedProductReduction =
         productSlotIsSigned(slice) &&
         standaloneReduce.getKind() == "signed_widening_reduce_add";
@@ -445,8 +445,8 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
     if (standaloneReduce.getInput() != productSlotResult(slice))
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction RVV route requires "
-          "tcrv_rvv.standalone_reduce input to consume the selected "
-          "tcrv_rvv.widening_product result");
+          "weft_rvv.standalone_reduce input to consume the selected "
+          "weft_rvv.widening_product result");
     slice.standaloneReduceOp = standaloneReduce;
     slice.arithmeticOp = standaloneReduce.getOperation();
     slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningProductReduceAdd;
@@ -470,7 +470,7 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
 
 llvm::Error recordRVVSelectedBodyMaskedStandaloneReduction(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedStandaloneReduceOp maskedStandaloneReduce) {
+    weft::rvv::MaskedStandaloneReduceOp maskedStandaloneReduce) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
@@ -481,20 +481,20 @@ llvm::Error recordRVVSelectedBodyMaskedStandaloneReduction(
     return reductionKind.takeError();
   if (maskedStandaloneReduce.getMaskRole() != kRVVMaskedPredicateMaskRole)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.masked_standalone_reduce "
                     "mask_role '") +
         maskedStandaloneReduce.getMaskRole() +
         "' for bounded RVV computed-mask standalone reduction route");
   if (maskedStandaloneReduce.getMaskSource() != kRVVMaskedCompareMaskSource)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.masked_standalone_reduce "
                     "mask_source '") +
         maskedStandaloneReduce.getMaskSource() +
         "' for bounded RVV computed-mask standalone reduction route");
   if (maskedStandaloneReduce.getMaskMemoryForm() !=
       kRVVComputedMaskMemoryMaskMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.masked_standalone_reduce "
                     "mask_memory_form '") +
         maskedStandaloneReduce.getMaskMemoryForm() +
         "' for bounded RVV computed-mask standalone reduction route");
@@ -503,14 +503,14 @@ llvm::Error recordRVVSelectedBodyMaskedStandaloneReduction(
       maskedStandaloneReduce.getAccumulatorLayout() !=
           kRVVStandaloneReductionI64AccumulatorLayout)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.masked_standalone_reduce "
                     "accumulator_layout '") +
         maskedStandaloneReduce.getAccumulatorLayout() +
         "' for bounded RVV computed-mask standalone reduction route");
   if (maskedStandaloneReduce.getResultLayout() !=
       kRVVStandaloneReductionResultLayout)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce "
+        llvm::Twine("unsupported generic weft_rvv.masked_standalone_reduce "
                     "result_layout '") +
         maskedStandaloneReduce.getResultLayout() +
         "' for bounded RVV computed-mask standalone reduction route");
@@ -530,34 +530,34 @@ llvm::Error recordRVVSelectedBodyMaskedStandaloneReduction(
 }
 
 llvm::Error recordRVVSelectedBodyMAcc(RVVSelectedBodyRouteSlice &slice,
-                                      tcrv::rvv::MAccOp macc) {
+                                      weft::rvv::MAccOp macc) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (macc.getKind() != "add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.macc kind '") +
+        llvm::Twine("unsupported generic weft_rvv.macc kind '") +
         macc.getKind() + "' for bounded RVV multiply-accumulate route");
   std::optional<llvm::StringRef> accumulatorLayout =
       macc.getAccumulatorLayout();
   if (!accumulatorLayout)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV multiply-accumulate route requires tcrv_rvv.macc to "
+        "bounded RVV multiply-accumulate route requires weft_rvv.macc to "
         "carry accumulator_layout 'separate-i32-vector-accumulator-input'");
   if (*accumulatorLayout != getRVVSelectedBodyMAccAccumulatorLayout())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(
-            "unsupported generic tcrv_rvv.macc accumulator_layout '") +
+            "unsupported generic weft_rvv.macc accumulator_layout '") +
         *accumulatorLayout + "' for bounded RVV multiply-accumulate route");
   std::optional<llvm::StringRef> resultLayout = macc.getResultLayout();
   if (!resultLayout)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV multiply-accumulate route requires tcrv_rvv.macc to "
+        "bounded RVV multiply-accumulate route requires weft_rvv.macc to "
         "carry result_layout "
         "'store-multiply-accumulate-result-to-output-buffer'");
   if (*resultLayout != getRVVSelectedBodyMAccResultLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.macc result_layout '") +
+        llvm::Twine("unsupported generic weft_rvv.macc result_layout '") +
         *resultLayout + "' for bounded RVV multiply-accumulate route");
   slice.maccOp = macc;
   slice.arithmeticOp = macc.getOperation();
@@ -570,37 +570,37 @@ llvm::Error recordRVVSelectedBodyMAcc(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodyMaskedMAcc(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedMAccOp macc) {
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedMAccOp macc) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (macc.getKind() != "add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc kind '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_macc kind '") +
         macc.getKind() + "' for bounded RVV computed-mask macc route");
   if (macc.getMaskRole() != kRVVMaskedPredicateMaskRole)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc mask_role '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_macc mask_role '") +
         macc.getMaskRole() + "' for bounded RVV computed-mask macc route");
   if (macc.getMaskSource() != kRVVMaskedCompareMaskSource)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc mask_source '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_macc mask_source '") +
         macc.getMaskSource() + "' for bounded RVV computed-mask macc route");
   if (macc.getMaskMemoryForm() != kRVVComputedMaskMemoryMaskMemoryForm)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(
-            "unsupported generic tcrv_rvv.masked_macc mask_memory_form '") +
+            "unsupported generic weft_rvv.masked_macc mask_memory_form '") +
         macc.getMaskMemoryForm() +
         "' for bounded RVV computed-mask macc route");
   if (macc.getAccumulatorLayout() != getRVVSelectedBodyMAccAccumulatorLayout())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(
-            "unsupported generic tcrv_rvv.masked_macc accumulator_layout '") +
+            "unsupported generic weft_rvv.masked_macc accumulator_layout '") +
         macc.getAccumulatorLayout() +
         "' for bounded RVV computed-mask macc route");
   if (macc.getResultLayout() != getRVVSelectedBodyMAccResultLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc "
+        llvm::Twine("unsupported generic weft_rvv.masked_macc "
                     "result_layout '") +
         macc.getResultLayout() +
         "' for bounded RVV computed-mask macc route");
@@ -619,33 +619,33 @@ llvm::Error recordRVVSelectedBodyMaskedMAcc(
 
 llvm::Error
 recordRVVSelectedBodyWideningMAcc(RVVSelectedBodyRouteSlice &slice,
-                                  tcrv::rvv::WideningMAccOp macc) {
+                                  weft::rvv::WideningMAccOp macc) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (macc.getKind() != "signed_widening_macc_add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_macc kind '") +
+        llvm::Twine("unsupported generic weft_rvv.widening_macc kind '") +
         macc.getKind() +
         "' for bounded RVV widening multiply-accumulate route");
   if (macc.getAccumulatorLayout() !=
       getRVVSelectedBodyContractionExpectedWideningMAccAccumulatorLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_macc "
+        llvm::Twine("unsupported generic weft_rvv.widening_macc "
                     "accumulator_layout '") +
         macc.getAccumulatorLayout() +
         "' for bounded RVV widening multiply-accumulate route");
   if (macc.getResultLayout() !=
       getRVVSelectedBodyContractionExpectedWideningMAccResultLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_macc "
+        llvm::Twine("unsupported generic weft_rvv.widening_macc "
                     "result_layout '") +
         macc.getResultLayout() +
         "' for bounded RVV widening multiply-accumulate route");
   if (macc.getMaccRelation() !=
       getRVVSelectedBodyContractionExpectedWideningMAccRelation())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_macc "
+        llvm::Twine("unsupported generic weft_rvv.widening_macc "
                     "macc_relation '") +
         macc.getMaccRelation() +
         "' for bounded RVV widening multiply-accumulate route");
@@ -661,7 +661,7 @@ recordRVVSelectedBodyWideningMAcc(RVVSelectedBodyRouteSlice &slice,
 
 llvm::Error
 recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
-                                     tcrv::rvv::WideningProductOp product) {
+                                     weft::rvv::WideningProductOp product) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
@@ -696,7 +696,7 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   // at the default budget and a narrower m2/m4 or mf2/m1 rung at a constrained
   // budget. Accept any such signed i16 dot-reduce product relation ADDITIVELY --
   // the narrow + byte branches above are byte-untouched. The relation is read
-  // structurally from the typed op (I5); a downstream tcrv_rvv.deferred_accumulate
+  // structurally from the typed op (I5); a downstream weft_rvv.deferred_accumulate
   // is required to complete the chain.
   const bool isSignedDeferredWideDotProduct =
       product.getKind() == "signed_widening_product" &&
@@ -704,7 +704,7 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   if (!isSignedProduct && !isUnsignedProduct && !isSignedDeferredWideProduct &&
       !isSignedNonDeferredWideProduct && !isSignedDeferredWideDotProduct)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_product kind '") +
+        llvm::Twine("unsupported generic weft_rvv.widening_product kind '") +
         product.getKind() +
         "' for bounded RVV low-precision widening-product route");
   slice.wideningProductOp = product;
@@ -726,45 +726,45 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
 // product-reduce-dequant chain threads unchanged.
 llvm::Error recordRVVSelectedBodyWideningAccumulate(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::WideningAccumulateOp accumulate) {
+    weft::rvv::WideningAccumulateOp accumulate) {
   if (slice.wideningAccumulateOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one "
-        "tcrv_rvv.widening_accumulate op for the deferred-wide low-precision "
+        "weft_rvv.widening_accumulate op for the deferred-wide low-precision "
         "product-reduction chain");
   if (slice.arithmeticKind != RVVSelectedBodyOperationKind::WideningProduct ||
       !slice.wideningProductOp)
     return makeRVVEmitCRouteProviderError(
         "deferred-wide low-precision product-reduction RVV route requires "
-        "tcrv_rvv.widening_accumulate to follow the selected signed "
-        "tcrv_rvv.widening_product head");
+        "weft_rvv.widening_accumulate to follow the selected signed "
+        "weft_rvv.widening_product head");
   if (slice.wideningProductOp.getProductRelation() !=
       "signed-i8m2xi8m2-to-i16m4")
     return makeRVVEmitCRouteProviderError(
         "deferred-wide low-precision product-reduction RVV route requires the "
-        "tcrv_rvv.widening_accumulate to follow the wide "
+        "weft_rvv.widening_accumulate to follow the wide "
         "signed-i8m2xi8m2-to-i16m4 product head");
   if (accumulate.getKind() != "signed_widening_accumulate_add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_accumulate kind '") +
+        llvm::Twine("unsupported generic weft_rvv.widening_accumulate kind '") +
         accumulate.getKind() +
         "' for bounded RVV deferred-wide low-precision accumulate route");
   if (accumulate.getAccumulateRelation() != "signed-i16m4-into-i32m8-deferred-add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_accumulate "
+        llvm::Twine("unsupported generic weft_rvv.widening_accumulate "
                     "accumulate_relation '") +
         accumulate.getAccumulateRelation() +
         "' for bounded RVV deferred-wide low-precision accumulate route");
   if (accumulate.getProduct() != slice.wideningProductOp.getResult())
     return makeRVVEmitCRouteProviderError(
         "deferred-wide low-precision product-reduction RVV route requires "
-        "tcrv_rvv.widening_accumulate to consume the selected "
-        "tcrv_rvv.widening_product i16m4 result");
+        "weft_rvv.widening_accumulate to consume the selected "
+        "weft_rvv.widening_product i16m4 result");
   if (accumulate.getVl() != slice.wideningProductOp.getVl())
     return makeRVVEmitCRouteProviderError(
         "deferred-wide low-precision product-reduction RVV route requires "
-        "tcrv_rvv.widening_accumulate to consume the same !tcrv_rvv.vl token as "
-        "the selected tcrv_rvv.widening_product");
+        "weft_rvv.widening_accumulate to consume the same !weft_rvv.vl token as "
+        "the selected weft_rvv.widening_product");
   slice.wideningAccumulateOp = accumulate;
   slice.arithmeticOp = accumulate.getOperation();
   slice.arithmeticKind =
@@ -776,7 +776,7 @@ llvm::Error recordRVVSelectedBodyWideningAccumulate(
 // Record the typed deferred-wide DOT-REDUCE accumulate (the N3 resource-aware
 // max-legal-LMUL winner for the 2nd kernel family, signed i16 widening
 // dot-reduce): an i16m4 x i16m4 -> i32m8 widening product feeds a loop-carried
-// i32m8 vector accumulate. Unlike the byte path's tcrv_rvv.widening_accumulate
+// i32m8 vector accumulate. Unlike the byte path's weft_rvv.widening_accumulate
 // (the i16m4 -> i32m8 WIDENING vwadd.wv), here the product is ALREADY i32m8, so
 // the deferred accumulate is a SAME-WIDTH vadd.vv. It must follow the wide signed
 // widening_product head and consume its i32m8 result; kind/relation are read
@@ -785,18 +785,18 @@ llvm::Error recordRVVSelectedBodyWideningAccumulate(
 // (reduceInputSlotResult), so the rest of the dot-reduce chain threads unchanged.
 llvm::Error recordRVVSelectedBodyDeferredAccumulate(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::DeferredAccumulateOp accumulate) {
+    weft::rvv::DeferredAccumulateOp accumulate) {
   if (slice.deferredAccumulateOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one "
-        "tcrv_rvv.deferred_accumulate op for the deferred-wide i16 dot-reduce "
+        "weft_rvv.deferred_accumulate op for the deferred-wide i16 dot-reduce "
         "chain");
   if (slice.arithmeticKind != RVVSelectedBodyOperationKind::WideningProduct ||
       !slice.wideningProductOp)
     return makeRVVEmitCRouteProviderError(
         "deferred-wide i16 dot-reduce RVV route requires "
-        "tcrv_rvv.deferred_accumulate to follow the selected signed "
-        "tcrv_rvv.widening_product head");
+        "weft_rvv.deferred_accumulate to follow the selected signed "
+        "weft_rvv.widening_product head");
   // The product head's source LMUL <L> is PARSED (the budget-selected rung), not
   // pinned to m4; the deferred accumulate's accumulator LMUL <W> must be exactly
   // <L> widened one step (the i32 product IS the accumulator width).
@@ -805,11 +805,11 @@ llvm::Error recordRVVSelectedBodyDeferredAccumulate(
   if (productSourceLMUL.empty())
     return makeRVVEmitCRouteProviderError(
         "deferred-wide i16 dot-reduce RVV route requires the "
-        "tcrv_rvv.deferred_accumulate to follow a wide "
+        "weft_rvv.deferred_accumulate to follow a wide "
         "signed-i16<L>xi16<L>-to-i32<W> product head");
   if (accumulate.getKind() != "signed_deferred_accumulate_add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.deferred_accumulate kind '") +
+        llvm::Twine("unsupported generic weft_rvv.deferred_accumulate kind '") +
         accumulate.getKind() +
         "' for bounded RVV deferred-wide i16 dot-reduce accumulate route");
   const llvm::StringRef accumulatorLMUL =
@@ -817,20 +817,20 @@ llvm::Error recordRVVSelectedBodyDeferredAccumulate(
   if (accumulatorLMUL.empty() ||
       getRVVNextWiderLMUL(productSourceLMUL) != accumulatorLMUL)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.deferred_accumulate "
+        llvm::Twine("unsupported generic weft_rvv.deferred_accumulate "
                     "accumulate_relation '") +
         accumulate.getAccumulateRelation() +
         "' for bounded RVV deferred-wide i16 dot-reduce accumulate route");
   if (accumulate.getProduct() != slice.wideningProductOp.getResult())
     return makeRVVEmitCRouteProviderError(
         "deferred-wide i16 dot-reduce RVV route requires "
-        "tcrv_rvv.deferred_accumulate to consume the selected "
-        "tcrv_rvv.widening_product i32m8 result");
+        "weft_rvv.deferred_accumulate to consume the selected "
+        "weft_rvv.widening_product i32m8 result");
   if (accumulate.getVl() != slice.wideningProductOp.getVl())
     return makeRVVEmitCRouteProviderError(
         "deferred-wide i16 dot-reduce RVV route requires "
-        "tcrv_rvv.deferred_accumulate to consume the same !tcrv_rvv.vl token as "
-        "the selected tcrv_rvv.widening_product");
+        "weft_rvv.deferred_accumulate to consume the same !weft_rvv.vl token as "
+        "the selected weft_rvv.widening_product");
   slice.deferredAccumulateOp = accumulate;
   slice.arithmeticOp = accumulate.getOperation();
   slice.arithmeticKind =
@@ -847,7 +847,7 @@ llvm::Error recordRVVSelectedBodyDeferredAccumulate(
 // same WideningProduct->StandaloneReduce->Dequantize promotion path.
 llvm::Error recordRVVSelectedBodyNibbleUnpackProduct(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::PackedI4NibbleUnpackProductOp product) {
+    weft::rvv::PackedI4NibbleUnpackProductOp product) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
@@ -855,7 +855,7 @@ llvm::Error recordRVVSelectedBodyNibbleUnpackProduct(
       product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(
-            "unsupported generic tcrv_rvv.packed_i4_nibble_unpack_product kind '") +
+            "unsupported generic weft_rvv.packed_i4_nibble_unpack_product kind '") +
         product.getKind() +
         "' for bounded RVV low-precision packed-i4 nibble-unpack product route");
   slice.nibbleProductOp = product;
@@ -880,7 +880,7 @@ llvm::Error recordRVVSelectedBodyNibbleUnpackProduct(
 // uniqueness rejection (WALL 2); nothing yet binds the third source.
 llvm::Error recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product) {
+    weft::rvv::PackedI4OffsetBinaryXI8ProductOp product) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
@@ -888,7 +888,7 @@ llvm::Error recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
       product.getProductRelation() != "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.packed_i4_offset_binary_x_i8_product kind '") +
+                    "weft_rvv.packed_i4_offset_binary_x_i8_product kind '") +
         product.getKind() +
         "' for bounded RVV low-precision packed-i4 offset-binary x i8 product "
         "route");
@@ -912,11 +912,11 @@ llvm::Error recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
 // Dormant for every non-codebook route (the op only appears in a codebook body).
 llvm::Error recordRVVSelectedBodyCodebookTableBroadcast(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::CodebookTableBroadcastOp table) {
+    weft::rvv::CodebookTableBroadcastOp table) {
   if (slice.codebookTableBroadcastOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC codebook route requires exactly one "
-        "tcrv_rvv.codebook_table_broadcast source");
+        "weft_rvv.codebook_table_broadcast source");
   slice.codebookTableBroadcastOp = table;
   return llvm::Error::success();
 }
@@ -933,7 +933,7 @@ llvm::Error recordRVVSelectedBodyCodebookTableBroadcast(
 // exactly like C3.
 llvm::Error recordRVVSelectedBodyCodebookGatherProduct(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::CodebookGatherXI8ProductOp product) {
+    weft::rvv::CodebookGatherXI8ProductOp product) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
@@ -941,7 +941,7 @@ llvm::Error recordRVVSelectedBodyCodebookGatherProduct(
       product.getProductRelation() != "codebook-gather-i8-x-i8x2-to-i16")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.codebook_gather_x_i8_product kind '") +
+                    "weft_rvv.codebook_gather_x_i8_product kind '") +
         product.getKind() +
         "' for bounded RVV low-precision codebook-gather x i8 product route");
   // The codebook product's `table` operand must be the recorded broadcast source
@@ -951,7 +951,7 @@ llvm::Error recordRVVSelectedBodyCodebookGatherProduct(
       product.getTable() != slice.codebookTableBroadcastOp.getResult())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV codebook-gather product route requires the `table` operand "
-        "to consume the selected tcrv_rvv.codebook_table_broadcast result");
+        "to consume the selected weft_rvv.codebook_table_broadcast result");
   slice.codebookGatherProductOp = product;
   slice.arithmeticOp = product.getOperation();
   slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningProduct;
@@ -963,34 +963,34 @@ llvm::Error recordRVVSelectedBodyCodebookGatherProduct(
 
 llvm::Error recordRVVSelectedBodyWideningDotReduce(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::WideningDotReduceOp dotReduce) {
+    weft::rvv::WideningDotReduceOp dotReduce) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (dotReduce.getKind() != "signed_widening_dot_reduce_add")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(
-            "unsupported generic tcrv_rvv.widening_dot_reduce kind '") +
+            "unsupported generic weft_rvv.widening_dot_reduce kind '") +
         dotReduce.getKind() +
         "' for bounded RVV widening dot-product reduction route");
   if (dotReduce.getAccumulatorLayout() !=
       getRVVSelectedBodyContractionExpectedWideningDotProductAccumulatorLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_dot_reduce "
+        llvm::Twine("unsupported generic weft_rvv.widening_dot_reduce "
                     "accumulator_layout '") +
         dotReduce.getAccumulatorLayout() +
         "' for bounded RVV widening dot-product reduction route");
   if (dotReduce.getResultLayout() !=
       getRVVSelectedBodyContractionExpectedWideningDotProductResultLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_dot_reduce "
+        llvm::Twine("unsupported generic weft_rvv.widening_dot_reduce "
                     "result_layout '") +
         dotReduce.getResultLayout() +
         "' for bounded RVV widening dot-product reduction route");
   if (dotReduce.getDotProductRelation() !=
       getRVVSelectedBodyContractionExpectedWideningDotProductRelation())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_dot_reduce "
+        llvm::Twine("unsupported generic weft_rvv.widening_dot_reduce "
                     "dot_product_relation '") +
         dotReduce.getDotProductRelation() +
         "' for bounded RVV widening dot-product reduction route");
@@ -1007,35 +1007,35 @@ llvm::Error recordRVVSelectedBodyWideningDotReduce(
 
 llvm::Error recordRVVSelectedBodyMaskedWideningDotReduce(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedWideningDotReduceOp dotReduce) {
+    weft::rvv::MaskedWideningDotReduceOp dotReduce) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (dotReduce.getKind() != "signed_masked_widening_dot_reduce_add")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(
-            "unsupported generic tcrv_rvv.masked_widening_dot_reduce kind '") +
+            "unsupported generic weft_rvv.masked_widening_dot_reduce kind '") +
         dotReduce.getKind() +
         "' for bounded RVV computed-mask widening dot-product reduction "
         "route");
   if (dotReduce.getMaskRole() != kRVVMaskedPredicateMaskRole)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.masked_widening_dot_reduce mask_role '") +
+                    "weft_rvv.masked_widening_dot_reduce mask_role '") +
         dotReduce.getMaskRole() +
         "' for bounded RVV computed-mask widening dot-product reduction "
         "route");
   if (dotReduce.getMaskSource() != kRVVMaskedCompareMaskSource)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.masked_widening_dot_reduce mask_source '") +
+                    "weft_rvv.masked_widening_dot_reduce mask_source '") +
         dotReduce.getMaskSource() +
         "' for bounded RVV computed-mask widening dot-product reduction "
         "route");
   if (dotReduce.getMaskMemoryForm() != kRVVComputedMaskMemoryMaskMemoryForm)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.masked_widening_dot_reduce mask_memory_form '") +
+                    "weft_rvv.masked_widening_dot_reduce mask_memory_form '") +
         dotReduce.getMaskMemoryForm() +
         "' for bounded RVV computed-mask widening dot-product reduction "
         "route");
@@ -1043,7 +1043,7 @@ llvm::Error recordRVVSelectedBodyMaskedWideningDotReduce(
       getRVVSelectedBodyContractionExpectedWideningDotProductAccumulatorLayout())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.masked_widening_dot_reduce "
+                    "weft_rvv.masked_widening_dot_reduce "
                     "accumulator_layout '") +
         dotReduce.getAccumulatorLayout() +
         "' for bounded RVV computed-mask widening dot-product reduction "
@@ -1052,7 +1052,7 @@ llvm::Error recordRVVSelectedBodyMaskedWideningDotReduce(
       getRVVSelectedBodyContractionExpectedWideningDotProductResultLayout())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.masked_widening_dot_reduce result_layout '") +
+                    "weft_rvv.masked_widening_dot_reduce result_layout '") +
         dotReduce.getResultLayout() +
         "' for bounded RVV computed-mask widening dot-product reduction "
         "route");
@@ -1060,7 +1060,7 @@ llvm::Error recordRVVSelectedBodyMaskedWideningDotReduce(
       getRVVSelectedBodyContractionExpectedWideningDotProductRelation())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic "
-                    "tcrv_rvv.masked_widening_dot_reduce "
+                    "weft_rvv.masked_widening_dot_reduce "
                     "dot_product_relation '") +
         dotReduce.getDotProductRelation() +
         "' for bounded RVV computed-mask widening dot-product reduction "
@@ -1083,14 +1083,14 @@ llvm::Error recordRVVSelectedBodyMaskedWideningDotReduce(
 
 llvm::Error recordRVVSelectedBodyWideningConvert(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::WideningConvertOp conversion) {
+    weft::rvv::WideningConvertOp conversion) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
   if (conversion.getKind() != "widen_i32_to_i64" &&
       conversion.getKind() != "sign_extend_widen_vf2")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_convert kind '") +
+        llvm::Twine("unsupported generic weft_rvv.widening_convert kind '") +
         conversion.getKind() + "' for bounded RVV widening conversion route");
   slice.wideningConvertOp = conversion;
   slice.arithmeticOp = conversion.getOperation();
@@ -1107,40 +1107,40 @@ llvm::Error recordRVVSelectedBodyWideningConvert(
 
 llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::GearboxCrossRegionHandoffOp handoff,
+    weft::rvv::GearboxCrossRegionHandoffOp handoff,
     const support::RuntimeABIParameter &runtimeElementCountABI) {
   if (slice.gearboxCrossRegionHandoffOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one "
-        "tcrv_rvv.gearbox_cross_region_handoff op for the low-precision "
+        "weft_rvv.gearbox_cross_region_handoff op for the low-precision "
         "product-reduction dequantization cross-region boundary");
   if (slice.arithmeticKind !=
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       !slice.standaloneReduceOp || !hasProductHead(slice))
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff to follow the selected "
-        "tcrv_rvv.widening_product -> tcrv_rvv.standalone_reduce chain");
+        "weft_rvv.gearbox_cross_region_handoff to follow the selected "
+        "weft_rvv.widening_product -> weft_rvv.standalone_reduce chain");
   if (handoff.getInput() != slice.standaloneReduceOp.getResult())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff input to consume the selected "
-        "tcrv_rvv.standalone_reduce i32 result");
+        "weft_rvv.gearbox_cross_region_handoff input to consume the selected "
+        "weft_rvv.standalone_reduce i32 result");
   if (handoff.getVl() != slice.setvl.getVl())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff to consume the selected "
-        "!tcrv_rvv.vl token");
+        "weft_rvv.gearbox_cross_region_handoff to consume the selected "
+        "!weft_rvv.vl token");
   if (handoff.getRuntimeAvl() != slice.setvl.getAvl())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff runtime AVL operand to be the "
-        "same runtime n/AVL SSA value consumed by tcrv_rvv.setvl");
+        "weft_rvv.gearbox_cross_region_handoff runtime AVL operand to be the "
+        "same runtime n/AVL SSA value consumed by weft_rvv.setvl");
   if (runtimeElementCountABI.role !=
       support::RuntimeABIParameterRole::RuntimeElementCount)
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff runtime AVL source to bind "
+        "weft_rvv.gearbox_cross_region_handoff runtime AVL source to bind "
         "runtime-element-count");
   const std::int64_t expectedLowPrecisionRegionCount =
       getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
@@ -1164,7 +1164,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
       handoff.getProducerScope() == handoff.getConsumerScope())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff contract/from_phase/to_phase/"
+        "weft_rvv.gearbox_cross_region_handoff contract/from_phase/to_phase/"
         "region_count/runtime_avl_source/resource_decision/producer_scope/"
         "consumer_scope to match the "
         "RVV-owned Gearbox cross-region handoff contract");
@@ -1174,7 +1174,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           handoff.getResourceSelectedCandidate()))
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff resource_selected_candidate "
+        "weft_rvv.gearbox_cross_region_handoff resource_selected_candidate "
         "to belong to the provider-owned resource_candidate_set");
   auto planningContract =
       handoff->getAttrOfType<mlir::StringAttr>(
@@ -1182,12 +1182,12 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
   if (!planningContract)
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff planning_contract from the "
+        "weft_rvv.gearbox_cross_region_handoff planning_contract from the "
         "selected resource plan");
   if (planningContract.getValue() != kRVVLowPrecisionResourcePlanningContract)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "route requires weft_rvv.gearbox_cross_region_handoff "
                     "planning_contract to match provider-owned resource "
                     "planning contract '") +
         kRVVLowPrecisionResourcePlanningContract + "' but found '" +
@@ -1199,7 +1199,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
       expectedDecisionFromCandidate != handoff.getResourceDecision())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff resource_decision to match "
+        "weft_rvv.gearbox_cross_region_handoff resource_decision to match "
         "the selected resource candidate");
   const bool isPackedI4Resource =
       isRVVLowPrecisionResourcePackedI4CandidateID(
@@ -1220,7 +1220,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
       handoff.getUnpackIntent() != expectedUnpackIntent)
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff operand form, packing layout, "
+        "weft_rvv.gearbox_cross_region_handoff operand form, packing layout, "
         "and unpack intent to match the selected resource candidate");
 
   auto requireOptionalPackedI4LoadUnpackFact =
@@ -1237,14 +1237,14 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
     if (!attr)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("low-precision product-reduction dequantization RVV "
-                      "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                      "route requires weft_rvv.gearbox_cross_region_handoff "
                       "packed-i4 load/unpack fact '") +
           attrName + "' before route support");
     if (attr.getValue() == expected)
       return llvm::Error::success();
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "route requires weft_rvv.gearbox_cross_region_handoff "
                     "packed-i4 load/unpack fact '") +
         attrName + "' to match provider-owned resource fact '" + expected +
         "' but found '" + attr.getValue() + "'");
@@ -1269,14 +1269,14 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           handoff.getResourceSelectedCandidate()))
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff peak_live_vector_groups to "
+        "weft_rvv.gearbox_cross_region_handoff peak_live_vector_groups to "
         "match the selected resource candidate");
   if (static_cast<std::int64_t>(handoff.getVectorRegisterBudget()) !=
           kRVVLowPrecisionResourceVectorRegisterBudget ||
       handoff.getPeakLiveVectorGroups() > handoff.getVectorRegisterBudget())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff vector_register_budget to "
+        "weft_rvv.gearbox_cross_region_handoff vector_register_budget to "
         "contain the selected peak live vector-group estimate");
   if (static_cast<std::int64_t>(handoff.getProductRegionIndex()) !=
           getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
@@ -1289,7 +1289,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
       handoff.getDequantRegionIndex() > handoff.getRegionCount())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff product/dequant region indexes "
+        "weft_rvv.gearbox_cross_region_handoff product/dequant region indexes "
         "to match the selected resource decision and realized region count");
 
   auto requireHandoffPrimitiveFact =
@@ -1299,7 +1299,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
       return llvm::Error::success();
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "route requires weft_rvv.gearbox_cross_region_handoff "
                     "primitive-chain fact '") +
         field + "' to match provider-owned resource fact '" + expected +
         "' but found '" + actual + "'");
@@ -1397,14 +1397,14 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
     if (!attr)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("low-precision product-reduction dequantization RVV "
-                      "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                      "route requires weft_rvv.gearbox_cross_region_handoff "
                       "packed-i4 remediation fact '") +
           attrName + "' before route support");
     if (attr.getValue() == expected)
       return llvm::Error::success();
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "route requires weft_rvv.gearbox_cross_region_handoff "
                     "packed-i4 remediation fact '") +
         attrName + "' to match provider-owned resource fact '" + expected +
         "' but found '" + attr.getValue() + "'");
@@ -1462,22 +1462,22 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
 }
 
 llvm::Error recordRVVSelectedBodyDequantize(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::DequantizeOp dequantize) {
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::DequantizeOp dequantize) {
   if (dequantize.getKind() != kRVVDequantizeI32ToF32Kind)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.dequantize kind '") +
+        llvm::Twine("unsupported generic weft_rvv.dequantize kind '") +
         dequantize.getKind() +
         "' for bounded RVV i32-to-f32 dequantization route");
   if (dequantize.getDequantRelation() != kRVVDequantizeI32ToF32Relation)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.dequantize "
+        llvm::Twine("unsupported generic weft_rvv.dequantize "
                     "dequant_relation '") +
         dequantize.getDequantRelation() +
         "' for bounded RVV i32-to-f32 dequantization route");
 
   llvm::Expected<support::RuntimeABIParameter> scaleABI =
       getRuntimeABIParameterBindingFromValue(
-          dequantize.getScale(), "tcrv_rvv.dequantize runtime scale operand",
+          dequantize.getScale(), "weft_rvv.dequantize runtime scale operand",
           {support::RuntimeABIParameterRole::DequantScaleValue});
   if (!scaleABI)
     return scaleABI.takeError();
@@ -1493,7 +1493,7 @@ llvm::Error recordRVVSelectedBodyDequantize(
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires exactly one selected compute op "
           "unless a low-precision product-reduction result feeds a "
-          "tcrv_rvv.dequantize i32-to-f32 chain");
+          "weft_rvv.dequantize i32-to-f32 chain");
     // Two carriers of the i32 product-reduction result feed the dequant:
     //   - legacy two-scope: the gearbox_cross_region_handoff output (carrier);
     //   - single-scope typed body (Stage 3 flip + the deferred-wide chain): the
@@ -1503,14 +1503,14 @@ llvm::Error recordRVVSelectedBodyDequantize(
           slice.gearboxCrossRegionHandoffOp.getOutput())
         return makeRVVEmitCRouteProviderError(
             "low-precision product-reduction dequantization RVV route requires "
-            "tcrv_rvv.dequantize source to consume the selected "
-            "tcrv_rvv.gearbox_cross_region_handoff output");
+            "weft_rvv.dequantize source to consume the selected "
+            "weft_rvv.gearbox_cross_region_handoff output");
     } else if (dequantize.getSource() !=
                slice.standaloneReduceOp.getResult()) {
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction dequantization RVV route requires "
-          "tcrv_rvv.dequantize source to consume the selected "
-          "tcrv_rvv.standalone_reduce i32 result");
+          "weft_rvv.dequantize source to consume the selected "
+          "weft_rvv.standalone_reduce i32 result");
     }
     slice.dequantizeOp = dequantize;
     slice.arithmeticOp = dequantize.getOperation();
@@ -1540,44 +1540,44 @@ llvm::Error recordRVVSelectedBodyDequantize(
 }
 
 llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
-                                      tcrv::rvv::MoveOp move);
+                                      weft::rvv::MoveOp move);
 llvm::Error recordRVVSelectedBodyMaskedMove(RVVSelectedBodyRouteSlice &slice,
-                                            tcrv::rvv::MaskedMoveOp move);
+                                            weft::rvv::MaskedMoveOp move);
 llvm::Error recordRVVSelectedBodyMaskedLoad(RVVSelectedBodyRouteSlice &slice,
-                                            tcrv::rvv::MaskedLoadOp load);
+                                            weft::rvv::MaskedLoadOp load);
 llvm::Error
 recordRVVSelectedBodyMaskedStridedLoad(RVVSelectedBodyRouteSlice &slice,
-                                       tcrv::rvv::MaskedStridedLoadOp load);
+                                       weft::rvv::MaskedStridedLoadOp load);
 llvm::Error
 recordRVVSelectedBodyMaskedIndexedLoad(RVVSelectedBodyRouteSlice &slice,
-                                       tcrv::rvv::MaskedIndexedLoadOp load);
+                                       weft::rvv::MaskedIndexedLoadOp load);
 llvm::Error
 recordRVVSelectedBodyMaskedIndexedStore(RVVSelectedBodyRouteSlice &slice,
-                                        tcrv::rvv::MaskedIndexedStoreOp store);
+                                        weft::rvv::MaskedIndexedStoreOp store);
 llvm::Error
 recordRVVSelectedBodyMaskedSegment2Load(RVVSelectedBodyRouteSlice &slice,
-                                        tcrv::rvv::MaskedSegment2LoadOp load);
+                                        weft::rvv::MaskedSegment2LoadOp load);
 llvm::Error
 recordRVVSelectedBodyMaskedSegment2Store(RVVSelectedBodyRouteSlice &slice,
-                                         tcrv::rvv::MaskedSegment2StoreOp store);
+                                         weft::rvv::MaskedSegment2StoreOp store);
 llvm::Error recordRVVSelectedBodyMaskedStore(RVVSelectedBodyRouteSlice &slice,
-                                             tcrv::rvv::MaskedStoreOp store);
+                                             weft::rvv::MaskedStoreOp store);
 llvm::Error
 recordRVVSelectedBodyMaskedStridedStore(RVVSelectedBodyRouteSlice &slice,
-                                        tcrv::rvv::MaskedStridedStoreOp store);
+                                        weft::rvv::MaskedStridedStoreOp store);
 llvm::Expected<RVVSelectedBodyOperationKind>
 parseRVVSelectedBodyBinaryKind(llvm::StringRef kind);
 
 bool isRVVGearboxProductReduceDequantConsumerScope(
-    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp candidate) {
+    weft::rvv::WithVLOp producerWithVL, weft::rvv::WithVLOp candidate) {
   if (!producerWithVL || !candidate || producerWithVL == candidate ||
       candidate.getVl() != producerWithVL.getVl() ||
       !producerWithVL->isProperAncestor(candidate.getOperation()))
     return false;
 
-  auto isHandoffConsumingDequantize = [&](tcrv::rvv::DequantizeOp dequantize) {
+  auto isHandoffConsumingDequantize = [&](weft::rvv::DequantizeOp dequantize) {
     auto handoff = dequantize.getSource()
-                       .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+                       .getDefiningOp<weft::rvv::GearboxCrossRegionHandoffOp>();
     return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
            dequantize->getParentOp() == candidate.getOperation() &&
            dequantize.getVl() == producerWithVL.getVl();
@@ -1590,12 +1590,12 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       mlir::Value current = worklist.pop_back_val();
       if (!seen.insert(current).second)
         continue;
-      if (auto dequantize = current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+      if (auto dequantize = current.getDefiningOp<weft::rvv::DequantizeOp>()) {
         if (isHandoffConsumingDequantize(dequantize))
           return true;
         continue;
       }
-      auto select = current.getDefiningOp<tcrv::rvv::SelectOp>();
+      auto select = current.getDefiningOp<weft::rvv::SelectOp>();
       if (!select || select->getParentOp() != candidate.getOperation() ||
           select.getVl() != producerWithVL.getVl())
         continue;
@@ -1609,7 +1609,7 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
   bool hasHandoffDequantize = false;
   bool hasStore = false;
   for (mlir::Operation &op : candidate.getBody().front()) {
-    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+    if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
       hasRegionMarker =
           marker.getVl() == producerWithVL.getVl() &&
           marker.getPhase() == "dequant-store" &&
@@ -1628,12 +1628,12 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
               marker.getResourceDecision());
       continue;
     }
-    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+    if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op)) {
       if (isHandoffConsumingDequantize(dequantize))
         hasHandoffDequantize = true;
       continue;
     }
-    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+    if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
       if (store.getVl() == producerWithVL.getVl() &&
           valueUsesHandoffDequantize(store.getValue()))
         hasStore = true;
@@ -1643,14 +1643,14 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
   return hasRegionMarker && hasHandoffDequantize && hasStore;
 }
 
-tcrv::rvv::GearboxCrossRegionHandoffOp
-findDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
-  tcrv::rvv::GearboxCrossRegionHandoffOp handoff;
+weft::rvv::GearboxCrossRegionHandoffOp
+findDirectRVVGearboxCrossRegionHandoff(weft::rvv::WithVLOp withVL) {
+  weft::rvv::GearboxCrossRegionHandoffOp handoff;
   if (!withVL)
     return handoff;
   for (mlir::Operation &op : withVL.getBody().front()) {
     auto candidate =
-        llvm::dyn_cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(op);
+        llvm::dyn_cast<weft::rvv::GearboxCrossRegionHandoffOp>(op);
     if (!candidate)
       continue;
     if (handoff)
@@ -1661,8 +1661,8 @@ findDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
 }
 
 bool isRVVGearboxConsumerScopeOrderedAfterHandoff(
-    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp consumerWithVL,
-    tcrv::rvv::GearboxCrossRegionHandoffOp handoff) {
+    weft::rvv::WithVLOp producerWithVL, weft::rvv::WithVLOp consumerWithVL,
+    weft::rvv::GearboxCrossRegionHandoffOp handoff) {
   if (!producerWithVL || !consumerWithVL || !handoff)
     return false;
   bool sawHandoff = false;
@@ -1679,110 +1679,110 @@ bool isRVVGearboxConsumerScopeOrderedAfterHandoff(
 
 llvm::Error recordRVVSelectedBodyScopedRouteOp(
     RVVSelectedBodyRouteSlice &slice, mlir::Operation &op,
-    llvm::SmallVectorImpl<tcrv::rvv::LoadOp> &genericLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::StridedLoadOp> &genericStridedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::IndexLoadOp> &genericIndexLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::IndexedLoadOp> &genericIndexedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::IndexedStoreOp> &genericIndexedStores,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskLoadOp> &genericMaskLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedLoadOp> &genericMaskedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedStridedLoadOp>
+    llvm::SmallVectorImpl<weft::rvv::LoadOp> &genericLoads,
+    llvm::SmallVectorImpl<weft::rvv::StridedLoadOp> &genericStridedLoads,
+    llvm::SmallVectorImpl<weft::rvv::IndexLoadOp> &genericIndexLoads,
+    llvm::SmallVectorImpl<weft::rvv::IndexedLoadOp> &genericIndexedLoads,
+    llvm::SmallVectorImpl<weft::rvv::IndexedStoreOp> &genericIndexedStores,
+    llvm::SmallVectorImpl<weft::rvv::MaskLoadOp> &genericMaskLoads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedLoadOp> &genericMaskedLoads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedStridedLoadOp>
         &genericMaskedStridedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedLoadOp>
+    llvm::SmallVectorImpl<weft::rvv::MaskedIndexedLoadOp>
         &genericMaskedIndexedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedStoreOp>
+    llvm::SmallVectorImpl<weft::rvv::MaskedIndexedStoreOp>
         &genericMaskedIndexedStores,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2LoadOp>
+    llvm::SmallVectorImpl<weft::rvv::MaskedSegment2LoadOp>
         &genericMaskedSegment2Loads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2StoreOp>
+    llvm::SmallVectorImpl<weft::rvv::MaskedSegment2StoreOp>
         &genericMaskedSegment2Stores,
-    llvm::SmallVectorImpl<tcrv::rvv::Segment2LoadOp> &genericSegment2Loads,
-    llvm::SmallVectorImpl<tcrv::rvv::Segment2StoreOp> &genericSegment2Stores,
-    llvm::SmallVectorImpl<tcrv::rvv::VSetVLRegionMarkerOp>
+    llvm::SmallVectorImpl<weft::rvv::Segment2LoadOp> &genericSegment2Loads,
+    llvm::SmallVectorImpl<weft::rvv::Segment2StoreOp> &genericSegment2Stores,
+    llvm::SmallVectorImpl<weft::rvv::VSetVLRegionMarkerOp>
         &vsetvlRegionMarkers,
-    llvm::SmallVectorImpl<tcrv::rvv::BroadcastLoadOp> &genericBroadcastLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::SplatOp> &genericScalarSplats,
-    llvm::SmallVectorImpl<tcrv::rvv::StoreOp> &genericStores,
+    llvm::SmallVectorImpl<weft::rvv::BroadcastLoadOp> &genericBroadcastLoads,
+    llvm::SmallVectorImpl<weft::rvv::SplatOp> &genericScalarSplats,
+    llvm::SmallVectorImpl<weft::rvv::StoreOp> &genericStores,
     unsigned &storeCount, unsigned &stridedStoreCount,
     const support::RuntimeABIParameter &runtimeElementCountABI) {
-  if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+  if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
     vsetvlRegionMarkers.push_back(marker);
     return llvm::Error::success();
   }
   if (auto handoff =
-          llvm::dyn_cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(op))
+          llvm::dyn_cast<weft::rvv::GearboxCrossRegionHandoffOp>(op))
     return recordRVVSelectedBodyGearboxCrossRegionHandoff(
         slice, handoff, runtimeElementCountABI);
-  if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
+  if (auto load = llvm::dyn_cast<weft::rvv::LoadOp>(op)) {
     genericLoads.push_back(load);
     return llvm::Error::success();
   }
-  if (auto stridedLoad = llvm::dyn_cast<tcrv::rvv::StridedLoadOp>(op)) {
+  if (auto stridedLoad = llvm::dyn_cast<weft::rvv::StridedLoadOp>(op)) {
     genericStridedLoads.push_back(stridedLoad);
     return llvm::Error::success();
   }
-  if (auto indexLoad = llvm::dyn_cast<tcrv::rvv::IndexLoadOp>(op)) {
+  if (auto indexLoad = llvm::dyn_cast<weft::rvv::IndexLoadOp>(op)) {
     genericIndexLoads.push_back(indexLoad);
     return llvm::Error::success();
   }
-  if (auto indexedLoad = llvm::dyn_cast<tcrv::rvv::IndexedLoadOp>(op)) {
+  if (auto indexedLoad = llvm::dyn_cast<weft::rvv::IndexedLoadOp>(op)) {
     genericIndexedLoads.push_back(indexedLoad);
     return llvm::Error::success();
   }
-  if (auto indexedStore = llvm::dyn_cast<tcrv::rvv::IndexedStoreOp>(op)) {
+  if (auto indexedStore = llvm::dyn_cast<weft::rvv::IndexedStoreOp>(op)) {
     genericIndexedStores.push_back(indexedStore);
     return llvm::Error::success();
   }
-  if (auto maskLoad = llvm::dyn_cast<tcrv::rvv::MaskLoadOp>(op)) {
+  if (auto maskLoad = llvm::dyn_cast<weft::rvv::MaskLoadOp>(op)) {
     genericMaskLoads.push_back(maskLoad);
     return llvm::Error::success();
   }
-  if (auto maskedLoad = llvm::dyn_cast<tcrv::rvv::MaskedLoadOp>(op)) {
+  if (auto maskedLoad = llvm::dyn_cast<weft::rvv::MaskedLoadOp>(op)) {
     genericMaskedLoads.push_back(maskedLoad);
     return recordRVVSelectedBodyMaskedLoad(slice, maskedLoad);
   }
   if (auto maskedStridedLoad =
-          llvm::dyn_cast<tcrv::rvv::MaskedStridedLoadOp>(op)) {
+          llvm::dyn_cast<weft::rvv::MaskedStridedLoadOp>(op)) {
     genericMaskedStridedLoads.push_back(maskedStridedLoad);
     return recordRVVSelectedBodyMaskedStridedLoad(slice, maskedStridedLoad);
   }
   if (auto maskedIndexedLoad =
-          llvm::dyn_cast<tcrv::rvv::MaskedIndexedLoadOp>(op)) {
+          llvm::dyn_cast<weft::rvv::MaskedIndexedLoadOp>(op)) {
     genericMaskedIndexedLoads.push_back(maskedIndexedLoad);
     return recordRVVSelectedBodyMaskedIndexedLoad(slice, maskedIndexedLoad);
   }
   if (auto maskedIndexedStore =
-          llvm::dyn_cast<tcrv::rvv::MaskedIndexedStoreOp>(op)) {
+          llvm::dyn_cast<weft::rvv::MaskedIndexedStoreOp>(op)) {
     genericMaskedIndexedStores.push_back(maskedIndexedStore);
     return recordRVVSelectedBodyMaskedIndexedStore(slice, maskedIndexedStore);
   }
   if (auto maskedSegment2Load =
-          llvm::dyn_cast<tcrv::rvv::MaskedSegment2LoadOp>(op)) {
+          llvm::dyn_cast<weft::rvv::MaskedSegment2LoadOp>(op)) {
     genericMaskedSegment2Loads.push_back(maskedSegment2Load);
     return recordRVVSelectedBodyMaskedSegment2Load(slice, maskedSegment2Load);
   }
   if (auto maskedSegment2Store =
-          llvm::dyn_cast<tcrv::rvv::MaskedSegment2StoreOp>(op)) {
+          llvm::dyn_cast<weft::rvv::MaskedSegment2StoreOp>(op)) {
     genericMaskedSegment2Stores.push_back(maskedSegment2Store);
     return recordRVVSelectedBodyMaskedSegment2Store(slice, maskedSegment2Store);
   }
-  if (auto segment2Load = llvm::dyn_cast<tcrv::rvv::Segment2LoadOp>(op)) {
+  if (auto segment2Load = llvm::dyn_cast<weft::rvv::Segment2LoadOp>(op)) {
     genericSegment2Loads.push_back(segment2Load);
     return llvm::Error::success();
   }
-  if (auto segment2Store = llvm::dyn_cast<tcrv::rvv::Segment2StoreOp>(op)) {
+  if (auto segment2Store = llvm::dyn_cast<weft::rvv::Segment2StoreOp>(op)) {
     genericSegment2Stores.push_back(segment2Store);
     return llvm::Error::success();
   }
-  if (auto broadcast = llvm::dyn_cast<tcrv::rvv::BroadcastLoadOp>(op)) {
+  if (auto broadcast = llvm::dyn_cast<weft::rvv::BroadcastLoadOp>(op)) {
     genericBroadcastLoads.push_back(broadcast);
     return llvm::Error::success();
   }
-  if (auto splat = llvm::dyn_cast<tcrv::rvv::SplatOp>(op)) {
+  if (auto splat = llvm::dyn_cast<weft::rvv::SplatOp>(op)) {
     genericScalarSplats.push_back(splat);
     return llvm::Error::success();
   }
-  if (auto binary = llvm::dyn_cast<tcrv::rvv::BinaryOp>(op)) {
+  if (auto binary = llvm::dyn_cast<weft::rvv::BinaryOp>(op)) {
     llvm::Expected<RVVSelectedBodyOperationKind> kind =
         parseRVVSelectedBodyBinaryKind(binary.getKind());
     if (!kind)
@@ -1791,108 +1791,108 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
                                           binary.getLhs(), binary.getRhs(),
                                           binary.getResult());
   }
-  if (auto compare = llvm::dyn_cast<tcrv::rvv::CompareOp>(op))
+  if (auto compare = llvm::dyn_cast<weft::rvv::CompareOp>(op))
     return recordRVVSelectedBodyCompare(slice, compare);
-  if (auto maskAnd = llvm::dyn_cast<tcrv::rvv::MaskAndOp>(op))
+  if (auto maskAnd = llvm::dyn_cast<weft::rvv::MaskAndOp>(op))
     return recordRVVSelectedBodyMaskAnd(slice, maskAnd);
-  if (auto maskedBinary = llvm::dyn_cast<tcrv::rvv::MaskedBinaryOp>(op))
+  if (auto maskedBinary = llvm::dyn_cast<weft::rvv::MaskedBinaryOp>(op))
     return recordRVVSelectedBodyMaskedBinary(slice, maskedBinary);
-  if (auto select = llvm::dyn_cast<tcrv::rvv::SelectOp>(op))
+  if (auto select = llvm::dyn_cast<weft::rvv::SelectOp>(op))
     return recordRVVSelectedBodySelect(slice, select);
-  if (auto reduce = llvm::dyn_cast<tcrv::rvv::ReduceOp>(op))
+  if (auto reduce = llvm::dyn_cast<weft::rvv::ReduceOp>(op))
     return recordRVVSelectedBodyReduction(slice, reduce);
   if (auto standaloneReduce =
-          llvm::dyn_cast<tcrv::rvv::StandaloneReduceOp>(op))
+          llvm::dyn_cast<weft::rvv::StandaloneReduceOp>(op))
     return recordRVVSelectedBodyStandaloneReduction(slice, standaloneReduce);
   if (auto maskedStandaloneReduce =
-          llvm::dyn_cast<tcrv::rvv::MaskedStandaloneReduceOp>(op))
+          llvm::dyn_cast<weft::rvv::MaskedStandaloneReduceOp>(op))
     return recordRVVSelectedBodyMaskedStandaloneReduction(slice,
                                                           maskedStandaloneReduce);
-  if (auto macc = llvm::dyn_cast<tcrv::rvv::MAccOp>(op))
+  if (auto macc = llvm::dyn_cast<weft::rvv::MAccOp>(op))
     return recordRVVSelectedBodyMAcc(slice, macc);
-  if (auto maskedMAcc = llvm::dyn_cast<tcrv::rvv::MaskedMAccOp>(op))
+  if (auto maskedMAcc = llvm::dyn_cast<weft::rvv::MaskedMAccOp>(op))
     return recordRVVSelectedBodyMaskedMAcc(slice, maskedMAcc);
-  if (auto wideningMAcc = llvm::dyn_cast<tcrv::rvv::WideningMAccOp>(op))
+  if (auto wideningMAcc = llvm::dyn_cast<weft::rvv::WideningMAccOp>(op))
     return recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc);
-  if (auto product = llvm::dyn_cast<tcrv::rvv::WideningProductOp>(op))
+  if (auto product = llvm::dyn_cast<weft::rvv::WideningProductOp>(op))
     return recordRVVSelectedBodyWideningProduct(slice, product);
-  if (auto accumulate = llvm::dyn_cast<tcrv::rvv::WideningAccumulateOp>(op))
+  if (auto accumulate = llvm::dyn_cast<weft::rvv::WideningAccumulateOp>(op))
     return recordRVVSelectedBodyWideningAccumulate(slice, accumulate);
   if (auto deferredAccumulate =
-          llvm::dyn_cast<tcrv::rvv::DeferredAccumulateOp>(op))
+          llvm::dyn_cast<weft::rvv::DeferredAccumulateOp>(op))
     return recordRVVSelectedBodyDeferredAccumulate(slice, deferredAccumulate);
   if (auto nibbleProduct =
-          llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op))
+          llvm::dyn_cast<weft::rvv::PackedI4NibbleUnpackProductOp>(op))
     return recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct);
   if (auto offsetBinaryProduct =
-          llvm::dyn_cast<tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp>(op))
+          llvm::dyn_cast<weft::rvv::PackedI4OffsetBinaryXI8ProductOp>(op))
     return recordRVVSelectedBodyPackedI4OffsetBinaryProduct(slice,
                                                             offsetBinaryProduct);
   if (auto codebookTable =
-          llvm::dyn_cast<tcrv::rvv::CodebookTableBroadcastOp>(op))
+          llvm::dyn_cast<weft::rvv::CodebookTableBroadcastOp>(op))
     return recordRVVSelectedBodyCodebookTableBroadcast(slice, codebookTable);
   if (auto codebookProduct =
-          llvm::dyn_cast<tcrv::rvv::CodebookGatherXI8ProductOp>(op))
+          llvm::dyn_cast<weft::rvv::CodebookGatherXI8ProductOp>(op))
     return recordRVVSelectedBodyCodebookGatherProduct(slice, codebookProduct);
-  if (auto dotReduce = llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op))
+  if (auto dotReduce = llvm::dyn_cast<weft::rvv::WideningDotReduceOp>(op))
     return recordRVVSelectedBodyWideningDotReduce(slice, dotReduce);
   if (auto maskedDotReduce =
-          llvm::dyn_cast<tcrv::rvv::MaskedWideningDotReduceOp>(op))
+          llvm::dyn_cast<weft::rvv::MaskedWideningDotReduceOp>(op))
     return recordRVVSelectedBodyMaskedWideningDotReduce(slice, maskedDotReduce);
-  if (auto conversion = llvm::dyn_cast<tcrv::rvv::WideningConvertOp>(op))
+  if (auto conversion = llvm::dyn_cast<weft::rvv::WideningConvertOp>(op))
     return recordRVVSelectedBodyWideningConvert(slice, conversion);
-  if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op))
+  if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op))
     return recordRVVSelectedBodyDequantize(slice, dequantize);
-  if (auto move = llvm::dyn_cast<tcrv::rvv::MoveOp>(op))
+  if (auto move = llvm::dyn_cast<weft::rvv::MoveOp>(op))
     return recordRVVSelectedBodyMove(slice, move);
-  if (auto maskedMove = llvm::dyn_cast<tcrv::rvv::MaskedMoveOp>(op))
+  if (auto maskedMove = llvm::dyn_cast<weft::rvv::MaskedMoveOp>(op))
     return recordRVVSelectedBodyMaskedMove(slice, maskedMove);
-  if (auto maskedStore = llvm::dyn_cast<tcrv::rvv::MaskedStoreOp>(op))
+  if (auto maskedStore = llvm::dyn_cast<weft::rvv::MaskedStoreOp>(op))
     return recordRVVSelectedBodyMaskedStore(slice, maskedStore);
   if (auto maskedStridedStore =
-          llvm::dyn_cast<tcrv::rvv::MaskedStridedStoreOp>(op))
+          llvm::dyn_cast<weft::rvv::MaskedStridedStoreOp>(op))
     return recordRVVSelectedBodyMaskedStridedStore(slice, maskedStridedStore);
-  if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+  if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
     slice.genericStore = store;
     genericStores.push_back(store);
     ++storeCount;
     return llvm::Error::success();
   }
-  if (auto stridedStore = llvm::dyn_cast<tcrv::rvv::StridedStoreOp>(op)) {
+  if (auto stridedStore = llvm::dyn_cast<weft::rvv::StridedStoreOp>(op)) {
     slice.stridedStore = stridedStore;
     ++stridedStoreCount;
     return llvm::Error::success();
   }
-  if (op.getName().getStringRef().starts_with("tcrv_rvv.i32_"))
+  if (op.getName().getStringRef().starts_with("weft_rvv.i32_"))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("legacy selected-body op '") + op.getName().getStringRef() +
         "' is fail-closed during RVV Stage1; Stage2 routes must use generic "
-        "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
-        "tcrv_rvv.splat, tcrv_rvv.strided_load, tcrv_rvv.binary, "
-        "tcrv_rvv.index_load, tcrv_rvv.indexed_load, tcrv_rvv.segment2_load, "
-        "tcrv_rvv.segment2_store, "
-        "tcrv_rvv.indexed_store, tcrv_rvv.mask_load, tcrv_rvv.compare, "
-        "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
-        "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
-        "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
-        "tcrv_rvv.widening_product, tcrv_rvv.widening_accumulate, "
-        "tcrv_rvv.deferred_accumulate, "
-        "tcrv_rvv.widening_convert, "
-        "tcrv_rvv.gearbox_cross_region_handoff, "
-        "tcrv_rvv.move, "
-        "tcrv_rvv.widening_dot_reduce, "
-        "tcrv_rvv.masked_widening_dot_reduce, "
-        "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
-        "tcrv_rvv.masked_strided_load, tcrv_rvv.masked_indexed_load, "
-        "tcrv_rvv.masked_indexed_store, "
-        "tcrv_rvv.masked_segment2_load, tcrv_rvv.masked_store, "
-        "tcrv_rvv.masked_strided_store, "
-        "tcrv_rvv.store, and "
-        "tcrv_rvv.strided_store body structure");
+        "weft_rvv.load, weft_rvv.broadcast_load, "
+        "weft_rvv.splat, weft_rvv.strided_load, weft_rvv.binary, "
+        "weft_rvv.index_load, weft_rvv.indexed_load, weft_rvv.segment2_load, "
+        "weft_rvv.segment2_store, "
+        "weft_rvv.indexed_store, weft_rvv.mask_load, weft_rvv.compare, "
+        "weft_rvv.masked_binary, weft_rvv.select, weft_rvv.reduce, "
+        "weft_rvv.standalone_reduce, weft_rvv.masked_standalone_reduce, "
+        "weft_rvv.macc, weft_rvv.masked_macc, "
+        "weft_rvv.widening_product, weft_rvv.widening_accumulate, "
+        "weft_rvv.deferred_accumulate, "
+        "weft_rvv.widening_convert, "
+        "weft_rvv.gearbox_cross_region_handoff, "
+        "weft_rvv.move, "
+        "weft_rvv.widening_dot_reduce, "
+        "weft_rvv.masked_widening_dot_reduce, "
+        "weft_rvv.masked_move, weft_rvv.masked_load, "
+        "weft_rvv.masked_strided_load, weft_rvv.masked_indexed_load, "
+        "weft_rvv.masked_indexed_store, "
+        "weft_rvv.masked_segment2_load, weft_rvv.masked_store, "
+        "weft_rvv.masked_strided_store, "
+        "weft_rvv.store, and "
+        "weft_rvv.strided_store body structure");
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("bounded RVV EmitC route does not support op '") +
       op.getName().getStringRef() +
-      "' inside tcrv_rvv.with_vl; expected generic load, broadcast_load, "
+      "' inside weft_rvv.with_vl; expected generic load, broadcast_load, "
       "splat, strided_load, index_load, indexed_load, indexed_store, "
       "mask_load, segment2_load, segment2_store, binary, compare, "
       "masked_binary, select, reduce, standalone_reduce, "
@@ -1908,19 +1908,19 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
 }
 
 llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
-                                      tcrv::rvv::MoveOp move) {
+                                      weft::rvv::MoveOp move) {
   if (auto segment2Load =
-          move.getSource().getDefiningOp<tcrv::rvv::Segment2LoadOp>()) {
+          move.getSource().getDefiningOp<weft::rvv::Segment2LoadOp>()) {
     if (move.getKind() != "copy")
       return makeRVVEmitCRouteProviderError(
-          llvm::Twine("unsupported generic tcrv_rvv.move kind '") +
+          llvm::Twine("unsupported generic weft_rvv.move kind '") +
           move.getKind() +
           "' for bounded RVV segment2 deinterleave route");
     if (move.getSource() == segment2Load.getField0()) {
       if (slice.field0MoveOperation)
         return makeRVVEmitCRouteProviderError(
             "bounded RVV segment2 deinterleave route requires a unique "
-            "field0 tcrv_rvv.move");
+            "field0 weft_rvv.move");
       slice.field0MoveOp = move;
       slice.field0MoveOperation = move.getOperation();
       slice.field0LoadedValue = move.getSource();
@@ -1929,15 +1929,15 @@ llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
       if (slice.field1MoveOperation)
         return makeRVVEmitCRouteProviderError(
             "bounded RVV segment2 deinterleave route requires a unique "
-            "field1 tcrv_rvv.move");
+            "field1 weft_rvv.move");
       slice.field1MoveOp = move;
       slice.field1MoveOperation = move.getOperation();
       slice.field1LoadedValue = move.getSource();
       slice.field1Value = move.getResult();
     } else {
       return makeRVVEmitCRouteProviderError(
-          "bounded RVV segment2 deinterleave route requires tcrv_rvv.move to "
-          "consume field0 or field1 from tcrv_rvv.segment2_load");
+          "bounded RVV segment2 deinterleave route requires weft_rvv.move to "
+          "consume field0 or field1 from weft_rvv.segment2_load");
     }
     if (!slice.arithmeticOp)
       slice.arithmeticOp = move.getOperation();
@@ -1954,7 +1954,7 @@ llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
         "movement op");
   if (move.getKind() != "copy")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.move kind '") +
+        llvm::Twine("unsupported generic weft_rvv.move kind '") +
         move.getKind() + "' for bounded RVV strided memory movement route");
   slice.moveOp = move;
   slice.arithmeticOp = move.getOperation();
@@ -1965,18 +1965,18 @@ llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodyMaskedMove(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedMoveOp move) {
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedMoveOp move) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement op");
   if (move.getKind() != "active-source-preserve-old-destination")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_move kind '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_move kind '") +
         move.getKind() + "' for bounded RVV masked memory route");
   slice.maskedMoveOp = move;
   slice.arithmeticOp = move.getOperation();
-  slice.arithmeticKind = move.getMask().getDefiningOp<tcrv::rvv::CompareOp>()
+  slice.arithmeticKind = move.getMask().getDefiningOp<weft::rvv::CompareOp>()
                              ? RVVSelectedBodyOperationKind::
                                    ComputedMaskUnitLoadStore
                              : RVVSelectedBodyOperationKind::
@@ -1991,25 +1991,25 @@ llvm::Error recordRVVSelectedBodyMaskedMove(
 }
 
 llvm::Error recordRVVSelectedBodyMaskedLoad(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedLoadOp load) {
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedLoadOp load) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/load op");
   if (load.getMemoryForm() != kRVVMaskedLoadMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_load memory_form '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_load memory_form '") +
         load.getMemoryForm() + "' for bounded RVV masked memory route");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV masked memory route");
   slice.maskedLoadOp = load;
   slice.maskedLoadOperation = load.getOperation();
   slice.arithmeticOp = load.getOperation();
-  slice.arithmeticKind = load.getMask().getDefiningOp<tcrv::rvv::CompareOp>()
+  slice.arithmeticKind = load.getMask().getDefiningOp<weft::rvv::CompareOp>()
                              ? RVVSelectedBodyOperationKind::
                                    ComputedMaskUnitLoadStore
                              : RVVSelectedBodyOperationKind::
@@ -2025,33 +2025,33 @@ llvm::Error recordRVVSelectedBodyMaskedLoad(
 
 llvm::Error recordRVVSelectedBodyMaskedStridedLoad(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedStridedLoadOp load) {
+    weft::rvv::MaskedStridedLoadOp load) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/load op");
   if (load.getMemoryForm() != kRVVMaskedStridedLoadSourceMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_load "
                     "memory_form '") +
         load.getMemoryForm() +
         "' for bounded RVV computed-mask strided load route");
   if (load.getStrideUnit() != "byte")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_load "
                     "stride_unit '") +
         load.getStrideUnit() +
         "' for bounded RVV computed-mask strided load route");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask strided load route");
-  if (!load.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+  if (!load.getMask().getDefiningOp<weft::rvv::CompareOp>())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask strided load route requires "
-        "tcrv_rvv.masked_strided_load to consume a tcrv_rvv.compare mask");
+        "weft_rvv.masked_strided_load to consume a weft_rvv.compare mask");
   slice.maskedStridedLoadOp = load;
   slice.maskedStridedLoadOperation = load.getOperation();
   slice.arithmeticOp = load.getOperation();
@@ -2069,20 +2069,20 @@ llvm::Error recordRVVSelectedBodyMaskedStridedLoad(
 
 llvm::Error recordRVVSelectedBodyMaskedIndexedLoad(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedIndexedLoadOp load) {
+    weft::rvv::MaskedIndexedLoadOp load) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/load op");
   if (load.getMemoryForm() != kRVVMaskedIndexedLoadSourceMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_load "
                     "memory_form '") +
         load.getMemoryForm() +
         "' for bounded RVV computed-mask indexed gather-load route");
   if (load.getOffsetUnit() != kRVVIndexedGatherOffsetUnit)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_load "
                     "offset_unit '") +
         load.getOffsetUnit() +
         "' for bounded RVV computed-mask indexed gather-load route");
@@ -2092,14 +2092,14 @@ llvm::Error recordRVVSelectedBodyMaskedIndexedLoad(
         "index_eew 32");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask indexed gather-load route");
-  if (!load.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+  if (!load.getMask().getDefiningOp<weft::rvv::CompareOp>())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask indexed gather-load route requires "
-        "tcrv_rvv.masked_indexed_load to consume a tcrv_rvv.compare mask");
+        "weft_rvv.masked_indexed_load to consume a weft_rvv.compare mask");
   slice.maskedIndexedLoadOp = load;
   slice.maskedIndexedLoadOperation = load.getOperation();
   slice.arithmeticOp = load.getOperation();
@@ -2118,20 +2118,20 @@ llvm::Error recordRVVSelectedBodyMaskedIndexedLoad(
 
 llvm::Error recordRVVSelectedBodyMaskedIndexedStore(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedIndexedStoreOp store) {
+    weft::rvv::MaskedIndexedStoreOp store) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/store op");
   if (store.getMemoryForm() != kRVVMaskedIndexedStoreDestinationMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_store "
                     "memory_form '") +
         store.getMemoryForm() +
         "' for bounded RVV computed-mask indexed scatter-store route");
   if (store.getOffsetUnit() != kRVVIndexedGatherOffsetUnit)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_store "
                     "offset_unit '") +
         store.getOffsetUnit() +
         "' for bounded RVV computed-mask indexed scatter-store route");
@@ -2141,21 +2141,21 @@ llvm::Error recordRVVSelectedBodyMaskedIndexedStore(
         "index_eew 32");
   if (store.getIndexUniqueness() != kRVVIndexedScatterIndexUniqueness)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_store "
                     "index_uniqueness '") +
         store.getIndexUniqueness() +
         "' for bounded RVV computed-mask indexed scatter-store route");
   if (store.getInactiveLanePolicy() !=
       "preserve-output-on-false-lanes")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_store "
                     "inactive_lane_policy '") +
         store.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask indexed scatter-store route");
-  if (!store.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+  if (!store.getMask().getDefiningOp<weft::rvv::CompareOp>())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask indexed scatter-store route requires "
-        "tcrv_rvv.masked_indexed_store to consume a tcrv_rvv.compare mask");
+        "weft_rvv.masked_indexed_store to consume a weft_rvv.compare mask");
   slice.maskedIndexedStore = store;
   slice.maskedIndexedStoreOperation = store.getOperation();
   slice.storeOperation = store.getOperation();
@@ -2176,14 +2176,14 @@ llvm::Error recordRVVSelectedBodyMaskedIndexedStore(
 
 llvm::Error recordRVVSelectedBodyMaskedSegment2Load(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedSegment2LoadOp load) {
+    weft::rvv::MaskedSegment2LoadOp load) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/load op");
   if (load.getSourceMemoryForm() != kRVVSegment2SourceMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_segment2_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_segment2_load "
                     "source_memory_form '") +
         load.getSourceMemoryForm() +
         "' for bounded RVV computed-mask segment2 load route");
@@ -2198,14 +2198,14 @@ llvm::Error recordRVVSelectedBodyMaskedSegment2Load(
         "to mirror segment output buffers");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_segment2_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_segment2_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask segment2 load route");
-  if (!load.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+  if (!load.getMask().getDefiningOp<weft::rvv::CompareOp>())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask segment2 load route requires "
-        "tcrv_rvv.masked_segment2_load to consume a tcrv_rvv.compare mask");
+        "weft_rvv.masked_segment2_load to consume a weft_rvv.compare mask");
 
   slice.maskedSegment2LoadOp = load;
   slice.maskedSegment2LoadOperation = load.getOperation();
@@ -2226,7 +2226,7 @@ llvm::Error recordRVVSelectedBodyMaskedSegment2Load(
 
 llvm::Error recordRVVSelectedBodyMaskedSegment2Store(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedSegment2StoreOp store) {
+    weft::rvv::MaskedSegment2StoreOp store) {
   const bool composesBinaryUpdate =
       slice.arithmeticOp &&
       slice.arithmeticKind == RVVSelectedBodyOperationKind::Add &&
@@ -2240,7 +2240,7 @@ llvm::Error recordRVVSelectedBodyMaskedSegment2Store(
   if (store.getDestinationMemoryForm() !=
       kRVVSegment2InterleavedDestinationMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_segment2_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_segment2_store "
                     "destination_memory_form '") +
         store.getDestinationMemoryForm() +
         "' for bounded RVV computed-mask segment2 store route");
@@ -2255,14 +2255,14 @@ llvm::Error recordRVVSelectedBodyMaskedSegment2Store(
         "to mirror segment input buffers");
   if (store.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_segment2_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_segment2_store "
                     "inactive_lane_policy '") +
         store.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask segment2 store route");
-  if (!store.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+  if (!store.getMask().getDefiningOp<weft::rvv::CompareOp>())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask segment2 store route requires "
-        "tcrv_rvv.masked_segment2_store to consume a tcrv_rvv.compare mask");
+        "weft_rvv.masked_segment2_store to consume a weft_rvv.compare mask");
 
   slice.maskedSegment2Store = store;
   slice.maskedSegment2StoreOperation = store.getOperation();
@@ -2291,19 +2291,19 @@ llvm::Error recordRVVSelectedBodyMaskedSegment2Store(
 }
 
 llvm::Error recordRVVSelectedBodyMaskedStore(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedStoreOp store) {
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedStoreOp store) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/store op");
   if (store.getMemoryForm() != kRVVMaskedStoreDestinationMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_store memory_form '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_store memory_form '") +
         store.getMemoryForm() + "' for bounded RVV masked store route");
   if (store.getInactiveLanePolicy() !=
       "preserve-output-on-false-lanes")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_store "
                     "inactive_lane_policy '") +
         store.getInactiveLanePolicy() +
         "' for bounded RVV masked store route");
@@ -2324,33 +2324,33 @@ llvm::Error recordRVVSelectedBodyMaskedStore(
 
 llvm::Error recordRVVSelectedBodyMaskedStridedStore(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedStridedStoreOp store) {
+    weft::rvv::MaskedStridedStoreOp store) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute or "
         "movement/store op");
   if (store.getMemoryForm() != kRVVMaskedStridedStoreDestinationMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_store "
                     "memory_form '") +
         store.getMemoryForm() +
         "' for bounded RVV computed-mask strided store route");
   if (store.getStrideUnit() != "byte")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_store "
                     "stride_unit '") +
         store.getStrideUnit() +
         "' for bounded RVV computed-mask strided store route");
   if (store.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_store "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_store "
                     "inactive_lane_policy '") +
         store.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask strided store route");
-  if (!store.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+  if (!store.getMask().getDefiningOp<weft::rvv::CompareOp>())
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask strided store route requires "
-        "tcrv_rvv.masked_strided_store to consume a tcrv_rvv.compare mask");
+        "weft_rvv.masked_strided_store to consume a weft_rvv.compare mask");
   slice.maskedStridedStore = store;
   slice.maskedStridedStoreOperation = store.getOperation();
   slice.storeOperation = store.getOperation();
@@ -2376,7 +2376,7 @@ parseRVVSelectedBodyBinaryKind(llvm::StringRef kind) {
   if (kind == "mul")
     return RVVSelectedBodyOperationKind::Mul;
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("unsupported generic tcrv_rvv.binary kind '") + kind +
+      llvm::Twine("unsupported generic weft_rvv.binary kind '") + kind +
       "' for bounded RVV EmitC route");
 }
 
@@ -2389,7 +2389,7 @@ parseRVVSelectedBodyMaskedBinaryKind(llvm::StringRef kind) {
   if (kind == "mul")
     return RVVSelectedBodyOperationKind::MaskedMul;
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("unsupported generic tcrv_rvv.masked_binary kind '") +
+      llvm::Twine("unsupported generic weft_rvv.masked_binary kind '") +
       kind + "' for bounded RVV masked route");
 }
 
@@ -2411,26 +2411,26 @@ getRVVScalarBroadcastOperationKind(RVVSelectedBodyOperationKind binaryKind) {
 }
 
 bool isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
-    tcrv::rvv::WithVLOp withVL) {
-  tcrv::rvv::SplatOp runtimeScalarSplat;
-  tcrv::rvv::CompareOp compare;
-  tcrv::rvv::IndexLoadOp indexLoad;
-  tcrv::rvv::MaskedIndexedLoadOp indexedGather;
-  tcrv::rvv::MaskedMAccOp maskedMAcc;
-  tcrv::rvv::MaskedIndexedStoreOp indexedScatter;
+    weft::rvv::WithVLOp withVL) {
+  weft::rvv::SplatOp runtimeScalarSplat;
+  weft::rvv::CompareOp compare;
+  weft::rvv::IndexLoadOp indexLoad;
+  weft::rvv::MaskedIndexedLoadOp indexedGather;
+  weft::rvv::MaskedMAccOp maskedMAcc;
+  weft::rvv::MaskedIndexedStoreOp indexedScatter;
 
   for (mlir::Operation &op : withVL.getBody().front()) {
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::SplatOp>(op))
+    if (auto candidate = llvm::dyn_cast<weft::rvv::SplatOp>(op))
       runtimeScalarSplat = candidate;
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::CompareOp>(op))
+    if (auto candidate = llvm::dyn_cast<weft::rvv::CompareOp>(op))
       compare = candidate;
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::IndexLoadOp>(op))
+    if (auto candidate = llvm::dyn_cast<weft::rvv::IndexLoadOp>(op))
       indexLoad = candidate;
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedIndexedLoadOp>(op))
+    if (auto candidate = llvm::dyn_cast<weft::rvv::MaskedIndexedLoadOp>(op))
       indexedGather = candidate;
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedMAccOp>(op))
+    if (auto candidate = llvm::dyn_cast<weft::rvv::MaskedMAccOp>(op))
       maskedMAcc = candidate;
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedIndexedStoreOp>(op))
+    if (auto candidate = llvm::dyn_cast<weft::rvv::MaskedIndexedStoreOp>(op))
       indexedScatter = candidate;
   }
 
@@ -2447,73 +2447,73 @@ llvm::Error requireRVVCompositeSelectedVL(mlir::Value actual,
     return llvm::Error::success();
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("Stage2 RVV composite gather-MAcc-scatter route requires ") +
-      context + " to consume the selected !tcrv_rvv.vl token");
+      context + " to consume the selected !weft_rvv.vl token");
 }
 
 llvm::Error
 recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
     RVVSelectedBodyRouteSlice &slice,
     const support::RuntimeABIParameter &runtimeElementCountABI) {
-  tcrv::rvv::SplatOp runtimeScalarSplat;
-  tcrv::rvv::CompareOp compare;
-  tcrv::rvv::IndexLoadOp indexLoad;
-  tcrv::rvv::MaskedIndexedLoadOp indexedGather;
-  tcrv::rvv::MaskedMAccOp maskedMAcc;
-  tcrv::rvv::MaskedIndexedStoreOp indexedScatter;
-  llvm::SmallVector<tcrv::rvv::LoadOp, 4> genericLoads;
+  weft::rvv::SplatOp runtimeScalarSplat;
+  weft::rvv::CompareOp compare;
+  weft::rvv::IndexLoadOp indexLoad;
+  weft::rvv::MaskedIndexedLoadOp indexedGather;
+  weft::rvv::MaskedMAccOp maskedMAcc;
+  weft::rvv::MaskedIndexedStoreOp indexedScatter;
+  llvm::SmallVector<weft::rvv::LoadOp, 4> genericLoads;
 
   for (mlir::Operation &op : slice.withVL.getBody().front()) {
-    if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
+    if (auto load = llvm::dyn_cast<weft::rvv::LoadOp>(op)) {
       genericLoads.push_back(load);
       continue;
     }
-    if (auto splat = llvm::dyn_cast<tcrv::rvv::SplatOp>(op)) {
+    if (auto splat = llvm::dyn_cast<weft::rvv::SplatOp>(op)) {
       if (runtimeScalarSplat)
         return makeRVVEmitCRouteProviderError(
             "Stage2 RVV composite gather-MAcc-scatter route requires a unique "
-            "tcrv_rvv.splat runtime scalar threshold");
+            "weft_rvv.splat runtime scalar threshold");
       runtimeScalarSplat = splat;
       continue;
     }
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::CompareOp>(op)) {
+    if (auto candidate = llvm::dyn_cast<weft::rvv::CompareOp>(op)) {
       if (compare)
         return makeRVVEmitCRouteProviderError(
             "Stage2 RVV composite gather-MAcc-scatter route requires a unique "
-            "tcrv_rvv.compare mask producer");
+            "weft_rvv.compare mask producer");
       compare = candidate;
       continue;
     }
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::IndexLoadOp>(op)) {
+    if (auto candidate = llvm::dyn_cast<weft::rvv::IndexLoadOp>(op)) {
       if (indexLoad)
         return makeRVVEmitCRouteProviderError(
             "Stage2 RVV composite gather-MAcc-scatter route requires a unique "
-            "tcrv_rvv.index_load");
+            "weft_rvv.index_load");
       indexLoad = candidate;
       continue;
     }
     if (auto candidate =
-            llvm::dyn_cast<tcrv::rvv::MaskedIndexedLoadOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedIndexedLoadOp>(op)) {
       if (indexedGather)
         return makeRVVEmitCRouteProviderError(
             "Stage2 RVV composite gather-MAcc-scatter route requires a unique "
-            "tcrv_rvv.masked_indexed_load gather");
+            "weft_rvv.masked_indexed_load gather");
       indexedGather = candidate;
       continue;
     }
-    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedMAccOp>(op)) {
+    if (auto candidate = llvm::dyn_cast<weft::rvv::MaskedMAccOp>(op)) {
       if (maskedMAcc)
         return makeRVVEmitCRouteProviderError(
             "Stage2 RVV composite gather-MAcc-scatter route requires a unique "
-            "tcrv_rvv.masked_macc");
+            "weft_rvv.masked_macc");
       maskedMAcc = candidate;
       continue;
     }
     if (auto candidate =
-            llvm::dyn_cast<tcrv::rvv::MaskedIndexedStoreOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedIndexedStoreOp>(op)) {
       if (indexedScatter)
         return makeRVVEmitCRouteProviderError(
             "Stage2 RVV composite gather-MAcc-scatter route requires a unique "
-            "tcrv_rvv.masked_indexed_store scatter");
+            "weft_rvv.masked_indexed_store scatter");
       indexedScatter = candidate;
       continue;
     }
@@ -2526,29 +2526,29 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
   if (genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires exactly four "
-        "tcrv_rvv.load ops for compare lhs, payload RHS, accumulator, and old "
+        "weft_rvv.load ops for compare lhs, payload RHS, accumulator, and old "
         "scatter destination passthrough");
   if (!runtimeScalarSplat || !compare || !indexLoad || !indexedGather ||
       !maskedMAcc || !indexedScatter)
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.splat, compare, index_load, masked_indexed_load, "
+        "weft_rvv.splat, compare, index_load, masked_indexed_load, "
         "masked_macc, and masked_indexed_store in one selected with_vl body");
 
-  tcrv::rvv::LoadOp compareLhsLoad;
-  tcrv::rvv::LoadOp payloadLoad;
-  tcrv::rvv::LoadOp accumulatorLoad;
-  tcrv::rvv::LoadOp oldDestinationLoad;
+  weft::rvv::LoadOp compareLhsLoad;
+  weft::rvv::LoadOp payloadLoad;
+  weft::rvv::LoadOp accumulatorLoad;
+  weft::rvv::LoadOp oldDestinationLoad;
   support::RuntimeABIParameter compareLhsABI;
   support::RuntimeABIParameter payloadABI;
   support::RuntimeABIParameter accumulatorABI;
   support::RuntimeABIParameter oldDestinationABI;
 
-  for (tcrv::rvv::LoadOp load : genericLoads) {
+  for (weft::rvv::LoadOp load : genericLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
             load.getBuffer(),
-            "Stage2 RVV composite gather-MAcc-scatter tcrv_rvv.load buffer "
+            "Stage2 RVV composite gather-MAcc-scatter weft_rvv.load buffer "
             "operand",
             {support::RuntimeABIParameterRole::LHSInputBuffer,
              support::RuntimeABIParameterRole::DotRHSInputBuffer,
@@ -2614,7 +2614,7 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
   llvm::Expected<support::RuntimeABIParameter> rhsABI =
       getRuntimeABIParameterBindingFromValue(
           runtimeScalarSplat.getScalar(),
-          "Stage2 RVV composite gather-MAcc-scatter tcrv_rvv.splat scalar "
+          "Stage2 RVV composite gather-MAcc-scatter weft_rvv.splat scalar "
           "operand",
           {support::RuntimeABIParameterRole::RHSScalarValue});
   if (!rhsABI)
@@ -2627,7 +2627,7 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
   llvm::Expected<support::RuntimeABIParameter> indexABI =
       getRuntimeABIParameterBindingFromValue(
           indexLoad.getIndex(),
-          "Stage2 RVV composite gather-MAcc-scatter tcrv_rvv.index_load index "
+          "Stage2 RVV composite gather-MAcc-scatter weft_rvv.index_load index "
           "operand",
           {support::RuntimeABIParameterRole::IndexInputBuffer});
   if (!indexABI)
@@ -2640,7 +2640,7 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
       getRuntimeABIParameterBindingFromValue(
           indexedGather.getData(),
           "Stage2 RVV composite gather-MAcc-scatter "
-          "tcrv_rvv.masked_indexed_load source operand",
+          "weft_rvv.masked_indexed_load source operand",
           {support::RuntimeABIParameterRole::SourceInputBuffer});
   if (!sourceABI)
     return sourceABI.takeError();
@@ -2652,7 +2652,7 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
       getRuntimeABIParameterBindingFromValue(
           indexedScatter.getDestination(),
           "Stage2 RVV composite gather-MAcc-scatter "
-          "tcrv_rvv.masked_indexed_store destination operand",
+          "weft_rvv.masked_indexed_store destination operand",
           {support::RuntimeABIParameterRole::OutputBuffer});
   if (!scatterABI)
     return scatterABI.takeError();
@@ -2669,11 +2669,11 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires the old "
         "destination passthrough load to read the same output buffer used by "
-        "tcrv_rvv.masked_indexed_store");
+        "weft_rvv.masked_indexed_store");
   if (indexedGather.getPassthrough() != oldDestinationLoad.getLoaded())
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_indexed_load passthrough to consume the old "
+        "weft_rvv.masked_indexed_load passthrough to consume the old "
         "destination load result");
 
   if (llvm::Error error = recordRVVSelectedBodyCompare(slice, compare))
@@ -2683,40 +2683,40 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
       indexedScatter.getMask() != slice.compareMask)
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires gather, "
-        "MAcc, and scatter to consume the mask produced by tcrv_rvv.compare");
+        "MAcc, and scatter to consume the mask produced by weft_rvv.compare");
   if (compare.getLhs() != compareLhsLoad.getLoaded() ||
       compare.getRhs() != runtimeScalarSplat.getBroadcast())
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.compare to consume the compare lhs load and runtime scalar "
+        "weft_rvv.compare to consume the compare lhs load and runtime scalar "
         "splat result");
   if (indexedGather.getIndices() != slice.indexValue ||
       indexedScatter.getIndices() != slice.indexValue)
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires gather and "
-        "scatter to consume the index vector produced by tcrv_rvv.index_load");
+        "scatter to consume the index vector produced by weft_rvv.index_load");
   if (maskedMAcc.getLhs() != indexedGather.getLoaded())
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_macc lhs to consume the indexed gather result");
+        "weft_rvv.masked_macc lhs to consume the indexed gather result");
   if (maskedMAcc.getRhs() != payloadLoad.getLoaded())
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_macc rhs to consume the payload RHS load result");
+        "weft_rvv.masked_macc rhs to consume the payload RHS load result");
   if (maskedMAcc.getAccumulator() != accumulatorLoad.getLoaded())
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_macc accumulator to consume the accumulator input "
+        "weft_rvv.masked_macc accumulator to consume the accumulator input "
         "load result");
   if (indexedScatter.getValue() != maskedMAcc.getResult())
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_indexed_store to consume the tcrv_rvv.masked_macc "
+        "weft_rvv.masked_indexed_store to consume the weft_rvv.masked_macc "
         "result");
 
   if (maskedMAcc.getKind() != "add")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc kind '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_macc kind '") +
         maskedMAcc.getKind() +
         "' for Stage2 RVV composite gather-MAcc-scatter route");
   if (maskedMAcc.getMaskRole() != kRVVMaskedPredicateMaskRole ||
@@ -2724,18 +2724,18 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
       maskedMAcc.getMaskMemoryForm() != kRVVComputedMaskMemoryMaskMemoryForm)
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_macc mask role/source/memory form to mirror the "
+        "weft_rvv.masked_macc mask role/source/memory form to mirror the "
         "compare-produced predicate mask");
   if (maskedMAcc.getAccumulatorLayout() !=
       getRVVSelectedBodyMAccAccumulatorLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc "
+        llvm::Twine("unsupported generic weft_rvv.masked_macc "
                     "accumulator_layout '") +
         maskedMAcc.getAccumulatorLayout() +
         "' for Stage2 RVV composite gather-MAcc-scatter route");
   if (maskedMAcc.getResultLayout() != getRVVSelectedBodyMAccResultLayout())
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_macc result_layout '") +
+        llvm::Twine("unsupported generic weft_rvv.masked_macc result_layout '") +
         maskedMAcc.getResultLayout() +
         "' for Stage2 RVV composite gather-MAcc-scatter route");
   if (indexedScatter.getMemoryForm() !=
@@ -2748,7 +2748,7 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
           "preserve-output-on-false-lanes")
     return makeRVVEmitCRouteProviderError(
         "Stage2 RVV composite gather-MAcc-scatter route requires "
-        "tcrv_rvv.masked_indexed_store to carry indexed scatter destination "
+        "weft_rvv.masked_indexed_store to carry indexed scatter destination "
         "memory form, element offsets, i32 indices, unique index policy, and "
         "preserve-output inactive-lane policy");
 
@@ -2823,33 +2823,33 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
 // slice.gearboxConsumerWithVL. Extracted verbatim from
 // collectRVVSelectedBodyRouteSlice (phase 2); reads withVLs, mutates slice.
 llvm::Error resolveGearboxProducerConsumerWithVL(
-    llvm::ArrayRef<tcrv::rvv::WithVLOp> withVLs,
+    llvm::ArrayRef<weft::rvv::WithVLOp> withVLs,
     RVVSelectedBodyRouteSlice &slice) {
   if (withVLs.size() == 1) {
     slice.withVL = withVLs.front();
   } else if (withVLs.size() == 2) {
-    tcrv::rvv::GearboxCrossRegionHandoffOp producerHandoff;
-    for (tcrv::rvv::WithVLOp withVL : withVLs) {
-      tcrv::rvv::GearboxCrossRegionHandoffOp handoff =
+    weft::rvv::GearboxCrossRegionHandoffOp producerHandoff;
+    for (weft::rvv::WithVLOp withVL : withVLs) {
+      weft::rvv::GearboxCrossRegionHandoffOp handoff =
           findDirectRVVGearboxCrossRegionHandoff(withVL);
       if (!handoff)
         continue;
       if (producerHandoff)
         return makeRVVEmitCRouteProviderError(
             "bounded Gearbox multi-with_vl RVV route requires a unique "
-            "producer tcrv_rvv.with_vl with a direct "
-            "tcrv_rvv.gearbox_cross_region_handoff");
+            "producer weft_rvv.with_vl with a direct "
+            "weft_rvv.gearbox_cross_region_handoff");
       slice.gearboxProducerWithVL = withVL;
       producerHandoff = handoff;
     }
     if (!slice.gearboxProducerWithVL)
       return makeRVVEmitCRouteProviderError(
-          "bounded RVV EmitC route supports multiple tcrv_rvv.with_vl ops "
+          "bounded RVV EmitC route supports multiple weft_rvv.with_vl ops "
           "only for Gearbox product-reduction/dequant producer-consumer "
           "route collection with a direct "
-          "tcrv_rvv.gearbox_cross_region_handoff");
+          "weft_rvv.gearbox_cross_region_handoff");
 
-    for (tcrv::rvv::WithVLOp withVL : withVLs) {
+    for (weft::rvv::WithVLOp withVL : withVLs) {
       if (withVL == slice.gearboxProducerWithVL)
         continue;
       if (!isRVVGearboxProductReduceDequantConsumerScope(
@@ -2858,26 +2858,26 @@ llvm::Error resolveGearboxProducerConsumerWithVL(
       if (slice.gearboxConsumerWithVL)
         return makeRVVEmitCRouteProviderError(
             "bounded Gearbox multi-with_vl RVV route requires a unique "
-            "consumer tcrv_rvv.with_vl carrying the dequant-store scope");
+            "consumer weft_rvv.with_vl carrying the dequant-store scope");
       slice.gearboxConsumerWithVL = withVL;
     }
     if (!slice.gearboxConsumerWithVL)
       return makeRVVEmitCRouteProviderError(
           "bounded Gearbox multi-with_vl RVV route requires a nested consumer "
-          "tcrv_rvv.with_vl that consumes the same VL and carries "
+          "weft_rvv.with_vl that consumes the same VL and carries "
           "dequant-store marker/dequant/store facts");
     if (!isRVVGearboxConsumerScopeOrderedAfterHandoff(
             slice.gearboxProducerWithVL, slice.gearboxConsumerWithVL,
             producerHandoff))
       return makeRVVEmitCRouteProviderError(
           "bounded Gearbox multi-with_vl RVV route requires the consumer "
-          "tcrv_rvv.with_vl to be structurally ordered after the producer "
-          "tcrv_rvv.gearbox_cross_region_handoff");
+          "weft_rvv.with_vl to be structurally ordered after the producer "
+          "weft_rvv.gearbox_cross_region_handoff");
     slice.withVL = slice.gearboxProducerWithVL;
   } else {
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.with_vl op, "
-        "or exactly two Gearbox producer/consumer tcrv_rvv.with_vl ops");
+        "bounded RVV EmitC route requires exactly one weft_rvv.with_vl op, "
+        "or exactly two Gearbox producer/consumer weft_rvv.with_vl ops");
   }
   return llvm::Error::success();
 }
@@ -2889,24 +2889,24 @@ llvm::Error resolveGearboxProducerConsumerWithVL(
 llvm::Error collectGenericRouteSliceOps(
     RVVSelectedBodyRouteSlice &slice,
     const support::RuntimeABIParameter &runtimeElementCountABIValue,
-    llvm::SmallVectorImpl<tcrv::rvv::LoadOp> &genericLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::StridedLoadOp> &genericStridedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::IndexLoadOp> &genericIndexLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::IndexedLoadOp> &genericIndexedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::IndexedStoreOp> &genericIndexedStores,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskLoadOp> &genericMaskLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedLoadOp> &genericMaskedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedStridedLoadOp> &genericMaskedStridedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedLoadOp> &genericMaskedIndexedLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedStoreOp> &genericMaskedIndexedStores,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2LoadOp> &genericMaskedSegment2Loads,
-    llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
-    llvm::SmallVectorImpl<tcrv::rvv::Segment2LoadOp> &genericSegment2Loads,
-    llvm::SmallVectorImpl<tcrv::rvv::Segment2StoreOp> &genericSegment2Stores,
-    llvm::SmallVectorImpl<tcrv::rvv::VSetVLRegionMarkerOp> &vsetvlRegionMarkers,
-    llvm::SmallVectorImpl<tcrv::rvv::BroadcastLoadOp> &genericBroadcastLoads,
-    llvm::SmallVectorImpl<tcrv::rvv::SplatOp> &genericScalarSplats,
-    llvm::SmallVectorImpl<tcrv::rvv::StoreOp> &genericStores, unsigned &storeCount,
+    llvm::SmallVectorImpl<weft::rvv::LoadOp> &genericLoads,
+    llvm::SmallVectorImpl<weft::rvv::StridedLoadOp> &genericStridedLoads,
+    llvm::SmallVectorImpl<weft::rvv::IndexLoadOp> &genericIndexLoads,
+    llvm::SmallVectorImpl<weft::rvv::IndexedLoadOp> &genericIndexedLoads,
+    llvm::SmallVectorImpl<weft::rvv::IndexedStoreOp> &genericIndexedStores,
+    llvm::SmallVectorImpl<weft::rvv::MaskLoadOp> &genericMaskLoads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedLoadOp> &genericMaskedLoads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedStridedLoadOp> &genericMaskedStridedLoads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedIndexedLoadOp> &genericMaskedIndexedLoads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedIndexedStoreOp> &genericMaskedIndexedStores,
+    llvm::SmallVectorImpl<weft::rvv::MaskedSegment2LoadOp> &genericMaskedSegment2Loads,
+    llvm::SmallVectorImpl<weft::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
+    llvm::SmallVectorImpl<weft::rvv::Segment2LoadOp> &genericSegment2Loads,
+    llvm::SmallVectorImpl<weft::rvv::Segment2StoreOp> &genericSegment2Stores,
+    llvm::SmallVectorImpl<weft::rvv::VSetVLRegionMarkerOp> &vsetvlRegionMarkers,
+    llvm::SmallVectorImpl<weft::rvv::BroadcastLoadOp> &genericBroadcastLoads,
+    llvm::SmallVectorImpl<weft::rvv::SplatOp> &genericScalarSplats,
+    llvm::SmallVectorImpl<weft::rvv::StoreOp> &genericStores, unsigned &storeCount,
     unsigned &stridedStoreCount) {
   const support::RuntimeABIParameter *runtimeElementCountABI =
       &runtimeElementCountABIValue;
@@ -2925,21 +2925,21 @@ llvm::Error collectGenericRouteSliceOps(
     bool sawHandoff = false;
     bool sawConsumerScope = false;
     for (mlir::Operation &op : slice.gearboxProducerWithVL.getBody().front()) {
-      if (auto nestedWithVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op)) {
+      if (auto nestedWithVL = llvm::dyn_cast<weft::rvv::WithVLOp>(op)) {
         if (nestedWithVL != slice.gearboxConsumerWithVL)
           return makeRVVEmitCRouteProviderError(
               "bounded Gearbox multi-with_vl RVV route does not support "
-              "unrelated nested tcrv_rvv.with_vl scopes in the producer body");
+              "unrelated nested weft_rvv.with_vl scopes in the producer body");
         if (!sawHandoff)
           return makeRVVEmitCRouteProviderError(
               "bounded Gearbox multi-with_vl RVV route requires the consumer "
-              "tcrv_rvv.with_vl to appear after the producer handoff");
+              "weft_rvv.with_vl to appear after the producer handoff");
         sawConsumerScope = true;
         continue;
       }
       if (llvm::Error error = recordScopedRouteOp(op))
         return std::move(error);
-      if (llvm::isa<tcrv::rvv::GearboxCrossRegionHandoffOp>(op))
+      if (llvm::isa<weft::rvv::GearboxCrossRegionHandoffOp>(op))
         sawHandoff = true;
     }
     if (!sawHandoff || !sawConsumerScope)
@@ -2947,52 +2947,52 @@ llvm::Error collectGenericRouteSliceOps(
           "bounded Gearbox multi-with_vl RVV route requires direct producer "
           "handoff and nested consumer scope in structural order");
     for (mlir::Operation &op : slice.gearboxConsumerWithVL.getBody().front()) {
-      if (llvm::isa<tcrv::rvv::WithVLOp>(op))
+      if (llvm::isa<weft::rvv::WithVLOp>(op))
         return makeRVVEmitCRouteProviderError(
             "bounded Gearbox multi-with_vl RVV route does not support nested "
-            "tcrv_rvv.with_vl below the consumer dequant-store scope");
+            "weft_rvv.with_vl below the consumer dequant-store scope");
       if (llvm::Error error = recordScopedRouteOp(op))
         return std::move(error);
     }
   } else {
   for (mlir::Operation &op : slice.withVL.getBody().front()) {
-    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+    if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
       vsetvlRegionMarkers.push_back(marker);
       continue;
     }
     if (auto handoff =
-            llvm::dyn_cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(op)) {
+            llvm::dyn_cast<weft::rvv::GearboxCrossRegionHandoffOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyGearboxCrossRegionHandoff(
                   slice, handoff, *runtimeElementCountABI))
         return std::move(error);
       continue;
     }
-    if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
+    if (auto load = llvm::dyn_cast<weft::rvv::LoadOp>(op)) {
       genericLoads.push_back(load);
       continue;
     }
-    if (auto stridedLoad = llvm::dyn_cast<tcrv::rvv::StridedLoadOp>(op)) {
+    if (auto stridedLoad = llvm::dyn_cast<weft::rvv::StridedLoadOp>(op)) {
       genericStridedLoads.push_back(stridedLoad);
       continue;
     }
-    if (auto indexLoad = llvm::dyn_cast<tcrv::rvv::IndexLoadOp>(op)) {
+    if (auto indexLoad = llvm::dyn_cast<weft::rvv::IndexLoadOp>(op)) {
       genericIndexLoads.push_back(indexLoad);
       continue;
     }
-    if (auto indexedLoad = llvm::dyn_cast<tcrv::rvv::IndexedLoadOp>(op)) {
+    if (auto indexedLoad = llvm::dyn_cast<weft::rvv::IndexedLoadOp>(op)) {
       genericIndexedLoads.push_back(indexedLoad);
       continue;
     }
-    if (auto indexedStore = llvm::dyn_cast<tcrv::rvv::IndexedStoreOp>(op)) {
+    if (auto indexedStore = llvm::dyn_cast<weft::rvv::IndexedStoreOp>(op)) {
       genericIndexedStores.push_back(indexedStore);
       continue;
     }
-    if (auto maskLoad = llvm::dyn_cast<tcrv::rvv::MaskLoadOp>(op)) {
+    if (auto maskLoad = llvm::dyn_cast<weft::rvv::MaskLoadOp>(op)) {
       genericMaskLoads.push_back(maskLoad);
       continue;
     }
-    if (auto maskedLoad = llvm::dyn_cast<tcrv::rvv::MaskedLoadOp>(op)) {
+    if (auto maskedLoad = llvm::dyn_cast<weft::rvv::MaskedLoadOp>(op)) {
       genericMaskedLoads.push_back(maskedLoad);
       if (llvm::Error error =
               recordRVVSelectedBodyMaskedLoad(slice, maskedLoad))
@@ -3000,7 +3000,7 @@ llvm::Error collectGenericRouteSliceOps(
       continue;
     }
     if (auto maskedStridedLoad =
-            llvm::dyn_cast<tcrv::rvv::MaskedStridedLoadOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedStridedLoadOp>(op)) {
       genericMaskedStridedLoads.push_back(maskedStridedLoad);
       if (llvm::Error error = recordRVVSelectedBodyMaskedStridedLoad(
               slice, maskedStridedLoad))
@@ -3008,7 +3008,7 @@ llvm::Error collectGenericRouteSliceOps(
       continue;
     }
     if (auto maskedIndexedLoad =
-            llvm::dyn_cast<tcrv::rvv::MaskedIndexedLoadOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedIndexedLoadOp>(op)) {
       genericMaskedIndexedLoads.push_back(maskedIndexedLoad);
       if (llvm::Error error = recordRVVSelectedBodyMaskedIndexedLoad(
               slice, maskedIndexedLoad))
@@ -3016,7 +3016,7 @@ llvm::Error collectGenericRouteSliceOps(
       continue;
     }
     if (auto maskedIndexedStore =
-            llvm::dyn_cast<tcrv::rvv::MaskedIndexedStoreOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedIndexedStoreOp>(op)) {
       genericMaskedIndexedStores.push_back(maskedIndexedStore);
       if (llvm::Error error = recordRVVSelectedBodyMaskedIndexedStore(
               slice, maskedIndexedStore))
@@ -3024,7 +3024,7 @@ llvm::Error collectGenericRouteSliceOps(
       continue;
     }
     if (auto maskedSegment2Load =
-            llvm::dyn_cast<tcrv::rvv::MaskedSegment2LoadOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedSegment2LoadOp>(op)) {
       genericMaskedSegment2Loads.push_back(maskedSegment2Load);
       if (llvm::Error error = recordRVVSelectedBodyMaskedSegment2Load(
               slice, maskedSegment2Load))
@@ -3032,30 +3032,30 @@ llvm::Error collectGenericRouteSliceOps(
       continue;
     }
     if (auto maskedSegment2Store =
-            llvm::dyn_cast<tcrv::rvv::MaskedSegment2StoreOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedSegment2StoreOp>(op)) {
       genericMaskedSegment2Stores.push_back(maskedSegment2Store);
       if (llvm::Error error = recordRVVSelectedBodyMaskedSegment2Store(
               slice, maskedSegment2Store))
         return std::move(error);
       continue;
     }
-    if (auto segment2Load = llvm::dyn_cast<tcrv::rvv::Segment2LoadOp>(op)) {
+    if (auto segment2Load = llvm::dyn_cast<weft::rvv::Segment2LoadOp>(op)) {
       genericSegment2Loads.push_back(segment2Load);
       continue;
     }
-    if (auto segment2Store = llvm::dyn_cast<tcrv::rvv::Segment2StoreOp>(op)) {
+    if (auto segment2Store = llvm::dyn_cast<weft::rvv::Segment2StoreOp>(op)) {
       genericSegment2Stores.push_back(segment2Store);
       continue;
     }
-    if (auto broadcast = llvm::dyn_cast<tcrv::rvv::BroadcastLoadOp>(op)) {
+    if (auto broadcast = llvm::dyn_cast<weft::rvv::BroadcastLoadOp>(op)) {
       genericBroadcastLoads.push_back(broadcast);
       continue;
     }
-    if (auto splat = llvm::dyn_cast<tcrv::rvv::SplatOp>(op)) {
+    if (auto splat = llvm::dyn_cast<weft::rvv::SplatOp>(op)) {
       genericScalarSplats.push_back(splat);
       continue;
     }
-    if (auto binary = llvm::dyn_cast<tcrv::rvv::BinaryOp>(op)) {
+    if (auto binary = llvm::dyn_cast<weft::rvv::BinaryOp>(op)) {
       llvm::Expected<RVVSelectedBodyOperationKind> kind =
           parseRVVSelectedBodyBinaryKind(binary.getKind());
       if (!kind)
@@ -3066,34 +3066,34 @@ llvm::Error collectGenericRouteSliceOps(
         return std::move(error);
       continue;
     }
-    if (auto compare = llvm::dyn_cast<tcrv::rvv::CompareOp>(op)) {
+    if (auto compare = llvm::dyn_cast<weft::rvv::CompareOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyCompare(slice, compare))
         return std::move(error);
       continue;
     }
-    if (auto maskAnd = llvm::dyn_cast<tcrv::rvv::MaskAndOp>(op)) {
+    if (auto maskAnd = llvm::dyn_cast<weft::rvv::MaskAndOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyMaskAnd(slice, maskAnd))
         return std::move(error);
       continue;
     }
-    if (auto maskedBinary = llvm::dyn_cast<tcrv::rvv::MaskedBinaryOp>(op)) {
+    if (auto maskedBinary = llvm::dyn_cast<weft::rvv::MaskedBinaryOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyMaskedBinary(slice, maskedBinary))
         return std::move(error);
       continue;
     }
-    if (auto select = llvm::dyn_cast<tcrv::rvv::SelectOp>(op)) {
+    if (auto select = llvm::dyn_cast<weft::rvv::SelectOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodySelect(slice, select))
         return std::move(error);
       continue;
     }
-    if (auto reduce = llvm::dyn_cast<tcrv::rvv::ReduceOp>(op)) {
+    if (auto reduce = llvm::dyn_cast<weft::rvv::ReduceOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyReduction(slice, reduce))
         return std::move(error);
       continue;
     }
     if (auto standaloneReduce =
-            llvm::dyn_cast<tcrv::rvv::StandaloneReduceOp>(op)) {
+            llvm::dyn_cast<weft::rvv::StandaloneReduceOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyStandaloneReduction(slice,
                                                        standaloneReduce))
@@ -3101,171 +3101,171 @@ llvm::Error collectGenericRouteSliceOps(
       continue;
     }
     if (auto maskedStandaloneReduce =
-            llvm::dyn_cast<tcrv::rvv::MaskedStandaloneReduceOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedStandaloneReduceOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyMaskedStandaloneReduction(
                   slice, maskedStandaloneReduce))
         return std::move(error);
       continue;
     }
-    if (auto macc = llvm::dyn_cast<tcrv::rvv::MAccOp>(op)) {
+    if (auto macc = llvm::dyn_cast<weft::rvv::MAccOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyMAcc(slice, macc))
         return std::move(error);
       continue;
     }
-    if (auto maskedMAcc = llvm::dyn_cast<tcrv::rvv::MaskedMAccOp>(op)) {
+    if (auto maskedMAcc = llvm::dyn_cast<weft::rvv::MaskedMAccOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyMaskedMAcc(slice, maskedMAcc))
         return std::move(error);
       continue;
     }
     if (auto wideningMAcc =
-            llvm::dyn_cast<tcrv::rvv::WideningMAccOp>(op)) {
+            llvm::dyn_cast<weft::rvv::WideningMAccOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc))
         return std::move(error);
       continue;
     }
-    if (auto product = llvm::dyn_cast<tcrv::rvv::WideningProductOp>(op)) {
+    if (auto product = llvm::dyn_cast<weft::rvv::WideningProductOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyWideningProduct(slice, product))
         return std::move(error);
       continue;
     }
     if (auto accumulate =
-            llvm::dyn_cast<tcrv::rvv::WideningAccumulateOp>(op)) {
+            llvm::dyn_cast<weft::rvv::WideningAccumulateOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyWideningAccumulate(slice, accumulate))
         return std::move(error);
       continue;
     }
     if (auto deferredAccumulate =
-            llvm::dyn_cast<tcrv::rvv::DeferredAccumulateOp>(op)) {
+            llvm::dyn_cast<weft::rvv::DeferredAccumulateOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyDeferredAccumulate(
               slice, deferredAccumulate))
         return std::move(error);
       continue;
     }
     if (auto nibbleProduct =
-            llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op)) {
+            llvm::dyn_cast<weft::rvv::PackedI4NibbleUnpackProductOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct))
         return std::move(error);
       continue;
     }
     if (auto offsetBinaryProduct =
-            llvm::dyn_cast<tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
+            llvm::dyn_cast<weft::rvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
               slice, offsetBinaryProduct))
         return std::move(error);
       continue;
     }
     if (auto codebookTable =
-            llvm::dyn_cast<tcrv::rvv::CodebookTableBroadcastOp>(op)) {
+            llvm::dyn_cast<weft::rvv::CodebookTableBroadcastOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyCodebookTableBroadcast(slice, codebookTable))
         return std::move(error);
       continue;
     }
     if (auto codebookProduct =
-            llvm::dyn_cast<tcrv::rvv::CodebookGatherXI8ProductOp>(op)) {
+            llvm::dyn_cast<weft::rvv::CodebookGatherXI8ProductOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyCodebookGatherProduct(slice, codebookProduct))
         return std::move(error);
       continue;
     }
     if (auto dotReduce =
-            llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op)) {
+            llvm::dyn_cast<weft::rvv::WideningDotReduceOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyWideningDotReduce(slice, dotReduce))
         return std::move(error);
       continue;
     }
     if (auto maskedDotReduce =
-            llvm::dyn_cast<tcrv::rvv::MaskedWideningDotReduceOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedWideningDotReduceOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyMaskedWideningDotReduce(
               slice, maskedDotReduce))
         return std::move(error);
       continue;
     }
-    if (auto conversion = llvm::dyn_cast<tcrv::rvv::WideningConvertOp>(op)) {
+    if (auto conversion = llvm::dyn_cast<weft::rvv::WideningConvertOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyWideningConvert(slice, conversion))
         return std::move(error);
       continue;
     }
-    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+    if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyDequantize(slice, dequantize))
         return std::move(error);
       continue;
     }
-    if (auto move = llvm::dyn_cast<tcrv::rvv::MoveOp>(op)) {
+    if (auto move = llvm::dyn_cast<weft::rvv::MoveOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyMove(slice, move))
         return std::move(error);
       continue;
     }
-    if (auto maskedMove = llvm::dyn_cast<tcrv::rvv::MaskedMoveOp>(op)) {
+    if (auto maskedMove = llvm::dyn_cast<weft::rvv::MaskedMoveOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyMaskedMove(slice, maskedMove))
         return std::move(error);
       continue;
     }
-    if (auto maskedStore = llvm::dyn_cast<tcrv::rvv::MaskedStoreOp>(op)) {
+    if (auto maskedStore = llvm::dyn_cast<weft::rvv::MaskedStoreOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyMaskedStore(slice, maskedStore))
         return std::move(error);
       continue;
     }
     if (auto maskedStridedStore =
-            llvm::dyn_cast<tcrv::rvv::MaskedStridedStoreOp>(op)) {
+            llvm::dyn_cast<weft::rvv::MaskedStridedStoreOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyMaskedStridedStore(
               slice, maskedStridedStore))
         return std::move(error);
       continue;
     }
-    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+    if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
       slice.genericStore = store;
       genericStores.push_back(store);
       ++storeCount;
       continue;
     }
-    if (auto stridedStore = llvm::dyn_cast<tcrv::rvv::StridedStoreOp>(op)) {
+    if (auto stridedStore = llvm::dyn_cast<weft::rvv::StridedStoreOp>(op)) {
       slice.stridedStore = stridedStore;
       ++stridedStoreCount;
       continue;
     }
-    if (op.getName().getStringRef().starts_with("tcrv_rvv.i32_"))
+    if (op.getName().getStringRef().starts_with("weft_rvv.i32_"))
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("legacy selected-body op '") +
           op.getName().getStringRef() +
           "' is fail-closed during RVV Stage1; Stage2 routes must use generic "
-          "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
-          "tcrv_rvv.splat, tcrv_rvv.strided_load, tcrv_rvv.binary, "
-          "tcrv_rvv.index_load, tcrv_rvv.indexed_load, tcrv_rvv.segment2_load, "
-          "tcrv_rvv.segment2_store, "
-          "tcrv_rvv.indexed_store, tcrv_rvv.mask_load, tcrv_rvv.compare, "
-          "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
-          "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
-          "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
-          "tcrv_rvv.widening_product, tcrv_rvv.widening_accumulate, "
-        "tcrv_rvv.deferred_accumulate, "
-          "tcrv_rvv.widening_convert, "
-          "tcrv_rvv.gearbox_cross_region_handoff, "
-          "tcrv_rvv.move, "
-          "tcrv_rvv.widening_dot_reduce, "
-          "tcrv_rvv.masked_widening_dot_reduce, "
-          "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
-          "tcrv_rvv.masked_strided_load, tcrv_rvv.masked_indexed_load, "
-          "tcrv_rvv.masked_indexed_store, "
-          "tcrv_rvv.masked_segment2_load, tcrv_rvv.masked_store, "
-          "tcrv_rvv.masked_strided_store, "
-          "tcrv_rvv.store, and "
-          "tcrv_rvv.strided_store body structure");
+          "weft_rvv.load, weft_rvv.broadcast_load, "
+          "weft_rvv.splat, weft_rvv.strided_load, weft_rvv.binary, "
+          "weft_rvv.index_load, weft_rvv.indexed_load, weft_rvv.segment2_load, "
+          "weft_rvv.segment2_store, "
+          "weft_rvv.indexed_store, weft_rvv.mask_load, weft_rvv.compare, "
+          "weft_rvv.masked_binary, weft_rvv.select, weft_rvv.reduce, "
+          "weft_rvv.standalone_reduce, weft_rvv.masked_standalone_reduce, "
+          "weft_rvv.macc, weft_rvv.masked_macc, "
+          "weft_rvv.widening_product, weft_rvv.widening_accumulate, "
+        "weft_rvv.deferred_accumulate, "
+          "weft_rvv.widening_convert, "
+          "weft_rvv.gearbox_cross_region_handoff, "
+          "weft_rvv.move, "
+          "weft_rvv.widening_dot_reduce, "
+          "weft_rvv.masked_widening_dot_reduce, "
+          "weft_rvv.masked_move, weft_rvv.masked_load, "
+          "weft_rvv.masked_strided_load, weft_rvv.masked_indexed_load, "
+          "weft_rvv.masked_indexed_store, "
+          "weft_rvv.masked_segment2_load, weft_rvv.masked_store, "
+          "weft_rvv.masked_strided_store, "
+          "weft_rvv.store, and "
+          "weft_rvv.strided_store body structure");
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("bounded RVV EmitC route does not support op '") +
         op.getName().getStringRef() +
-        "' inside tcrv_rvv.with_vl; expected generic load, broadcast_load, "
+        "' inside weft_rvv.with_vl; expected generic load, broadcast_load, "
         "splat, strided_load, index_load, indexed_load, indexed_store, "
         "mask_load, segment2_load, segment2_store, binary, compare, "
         "masked_binary, select, reduce, standalone_reduce, "
@@ -3331,21 +3331,21 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route currently supports "
-          "only tcrv_rvv.compare {kind = \"slt\"} or {kind = \"sle\"}");
+          "only weft_rvv.compare {kind = \"slt\"} or {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route requires "
-          "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
+          "weft_rvv.compare to consume compare lhs/rhs generic load results");
     if (slice.selectOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route requires "
-          "tcrv_rvv.select to consume the mask produced by tcrv_rvv.compare");
+          "weft_rvv.select to consume the mask produced by weft_rvv.compare");
     if (slice.arithmeticLhs != slice.trueValue ||
         slice.arithmeticRhs != slice.falseValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route requires "
-          "tcrv_rvv.select to consume true-value load as true value and "
+          "weft_rvv.select to consume true-value load as true value and "
           "false-value load as false value");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.selectOp.getVl() != slice.setvl.getVl() ||
@@ -3354,7 +3354,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route requires compare, "
           "select, and true/false loads to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
     if (slice.sourceLoadOperation || slice.accumulatorLoadOperation ||
         slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -3374,7 +3374,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.secondaryCompareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar dual-compare mask-and select "
-          "route currently supports only tcrv_rvv.compare {kind = \"sle\"} "
+          "route currently supports only weft_rvv.compare {kind = \"sle\"} "
           "for both predicates");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
@@ -3395,16 +3395,16 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.composedMask != slice.maskAndOp.getMask())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar dual-compare mask-and select "
-          "route requires tcrv_rvv.mask_and to compose the two compare masks");
+          "route requires weft_rvv.mask_and to compose the two compare masks");
     if (slice.selectOp.getMask() != slice.composedMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar dual-compare mask-and select "
-          "route requires tcrv_rvv.select to consume the composed mask");
+          "route requires weft_rvv.select to consume the composed mask");
     if (slice.arithmeticLhs != slice.trueValue ||
         slice.arithmeticRhs != slice.falseValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar dual-compare mask-and select "
-          "route requires tcrv_rvv.select to consume true-value load as true "
+          "route requires weft_rvv.select to consume true-value load as true "
           "value and false-value load as false value");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.secondaryCompareOp.getVl() != slice.setvl.getVl() ||
@@ -3418,7 +3418,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar dual-compare mask-and select "
           "route requires splats, compares, mask_and, select, and true/false "
-          "loads to consume the selected !tcrv_rvv.vl token");
+          "loads to consume the selected !weft_rvv.vl token");
     if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue ||
         slice.secondaryCompareLhsABI.role !=
             support::RuntimeABIParameterRole::RHSInputBuffer ||
@@ -3442,21 +3442,21 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar compare/select route currently "
-          "supports only tcrv_rvv.compare {kind = \"sle\"}");
+          "supports only weft_rvv.compare {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar compare/select route requires "
-          "tcrv_rvv.compare to consume lhs load and rhs scalar splat results");
+          "weft_rvv.compare to consume lhs load and rhs scalar splat results");
     if (slice.selectOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar compare/select route requires "
-          "tcrv_rvv.select to consume the mask produced by tcrv_rvv.compare");
+          "weft_rvv.select to consume the mask produced by weft_rvv.compare");
     if (slice.arithmeticLhs != slice.trueValue ||
         slice.arithmeticRhs != slice.falseValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar compare/select route requires "
-          "tcrv_rvv.select to consume true-value load as true value and "
+          "weft_rvv.select to consume true-value load as true value and "
           "false-value load as false value");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.selectOp.getVl() != slice.setvl.getVl() ||
@@ -3466,7 +3466,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar compare/select route requires "
           "splat, compare, select, and true/false loads to consume the "
-          "selected !tcrv_rvv.vl token");
+          "selected !weft_rvv.vl token");
     if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar compare/select route requires "
@@ -3484,23 +3484,23 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask store route "
-          "currently supports only tcrv_rvv.compare {kind = \"sle\"}");
+          "currently supports only weft_rvv.compare {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask store route "
-          "requires tcrv_rvv.compare to consume lhs load and rhs scalar "
+          "requires weft_rvv.compare to consume lhs load and rhs scalar "
           "splat results");
     if (slice.maskedStore.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask store route "
-          "requires tcrv_rvv.masked_store to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "requires weft_rvv.masked_store to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.maskedActiveValue != slice.sourceValue ||
         slice.storeValue != slice.sourceValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask store route "
-          "requires tcrv_rvv.masked_store to consume the source payload load "
+          "requires weft_rvv.masked_store to consume the source payload load "
           "as its active store value");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.rhsScalarSplat.getVl() != slice.setvl.getVl() ||
@@ -3509,7 +3509,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask store route "
           "requires splat, compare, payload source load, and masked_store to "
-          "consume the selected !tcrv_rvv.vl token");
+          "consume the selected !weft_rvv.vl token");
     if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask store route "
@@ -3530,42 +3530,42 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "requires one source-input-buffer tcrv_rvv.masked_load for active "
+          "requires one source-input-buffer weft_rvv.masked_load for active "
           "source values");
     if (!slice.maskedLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "requires one tcrv_rvv.masked_load");
+          "requires one weft_rvv.masked_load");
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "requires an output-buffer tcrv_rvv.load for old-destination "
+          "requires an output-buffer weft_rvv.load for old-destination "
           "preservation");
     if (slice.accumulatorBuffer != slice.outBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
           "requires the old-destination load to consume the same output "
-          "buffer as tcrv_rvv.store");
+          "buffer as weft_rvv.store");
     if (slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "currently supports only tcrv_rvv.compare {kind = \"sle\"}");
+          "currently supports only weft_rvv.compare {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "requires tcrv_rvv.compare to consume lhs load and rhs scalar "
+          "requires weft_rvv.compare to consume lhs load and rhs scalar "
           "splat results");
     if (slice.maskedLoadOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "requires tcrv_rvv.masked_load to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "requires weft_rvv.masked_load to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.maskedActiveValue != slice.sourceValue ||
         slice.maskedInactivePassthrough != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
-          "requires tcrv_rvv.masked_load to load source-input lanes and "
+          "requires weft_rvv.masked_load to load source-input lanes and "
           "consume old-destination load as inactive passthrough");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.rhsScalarSplat.getVl() != slice.setvl.getVl() ||
@@ -3574,7 +3574,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
           "requires splat, compare, old-destination load, and masked_load to "
-          "consume the selected !tcrv_rvv.vl token");
+          "consume the selected !weft_rvv.vl token");
     if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask load-store route "
@@ -3594,42 +3594,42 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV compare/select route requires tcrv_rvv.compare "
+          "bounded generic RVV compare/select route requires weft_rvv.compare "
           "to consume lhs/rhs generic load results");
     if (slice.selectOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV compare/select route requires tcrv_rvv.select "
-          "to consume the mask produced by tcrv_rvv.compare");
+          "bounded generic RVV compare/select route requires weft_rvv.select "
+          "to consume the mask produced by weft_rvv.compare");
     if (slice.arithmeticLhs != slice.lhsValue ||
         slice.arithmeticRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV compare/select route requires tcrv_rvv.select "
+          "bounded generic RVV compare/select route requires weft_rvv.select "
           "to consume lhs as true value and rhs as false value");
   } else if (isMaskedArithmetic) {
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked elementwise route requires "
-          "tcrv_rvv.compare to consume lhs/rhs generic load results");
+          "weft_rvv.compare to consume lhs/rhs generic load results");
     if (slice.maskedBinaryOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked elementwise route requires "
-          "tcrv_rvv.masked_binary to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "weft_rvv.masked_binary to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.maskedPassthrough != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked elementwise route requires "
-          "tcrv_rvv.masked_binary passthrough to consume the lhs load result");
+          "weft_rvv.masked_binary passthrough to consume the lhs load result");
     if (slice.arithmeticLhs != slice.lhsValue ||
         slice.arithmeticRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked elementwise route requires "
-          "tcrv_rvv.masked_binary to consume lhs/rhs generic load results");
+          "weft_rvv.masked_binary to consume lhs/rhs generic load results");
   } else if (isComputedMaskedMAccAdd) {
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
-          "requires one accumulator-input-buffer tcrv_rvv.load");
+          "requires one accumulator-input-buffer weft_rvv.load");
     if (!slice.dotLHSLoadOperation || !slice.dotRHSLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
@@ -3656,34 +3656,34 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.compareOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
-          "requires one tcrv_rvv.compare producer");
+          "requires one weft_rvv.compare producer");
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
-          "currently supports only tcrv_rvv.compare {kind = \"slt\"}");
+          "currently supports only weft_rvv.compare {kind = \"slt\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
-          "requires tcrv_rvv.compare to consume compare lhs/rhs generic load "
+          "requires weft_rvv.compare to consume compare lhs/rhs generic load "
           "results");
     if (slice.maskedMAccOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
-          "requires tcrv_rvv.masked_macc to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "requires weft_rvv.masked_macc to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.arithmeticLhs != slice.dotLHSValue ||
         slice.arithmeticRhs != slice.dotRHSValue ||
         slice.arithmeticAccumulator != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
-          "requires tcrv_rvv.masked_macc to consume payload lhs/rhs loads and "
+          "requires weft_rvv.masked_macc to consume payload lhs/rhs loads and "
           "the accumulator-input-buffer load result");
     auto accumulatorLoad =
         slice.accumulatorLoadOperation
-            ? llvm::dyn_cast<tcrv::rvv::LoadOp>(
+            ? llvm::dyn_cast<weft::rvv::LoadOp>(
                   slice.accumulatorLoadOperation)
-            : tcrv::rvv::LoadOp();
+            : weft::rvv::LoadOp();
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.maskedMAccOp.getVl() != slice.setvl.getVl() ||
         slice.lhsGenericLoad.getVl() != slice.setvl.getVl() ||
@@ -3695,7 +3695,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask multiply-accumulate route "
           "requires compare, masked_macc, compare loads, payload loads, and "
-          "accumulator load to consume the selected !tcrv_rvv.vl token");
+          "accumulator load to consume the selected !weft_rvv.vl token");
     if (slice.maskLoadOperation || slice.sourceLoadOperation ||
         slice.indexLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -3706,7 +3706,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
           "multiply-accumulate route requires one accumulator-input-buffer "
-          "tcrv_rvv.load");
+          "weft_rvv.load");
     if (!slice.dotLHSLoadOperation || !slice.dotRHSLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
@@ -3715,7 +3715,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.rhsScalarSplat)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
-          "multiply-accumulate route requires one tcrv_rvv.splat from the "
+          "multiply-accumulate route requires one weft_rvv.splat from the "
           "rhs-scalar-value threshold");
     if (slice.dotLHSABI.role !=
             support::RuntimeABIParameterRole::DotLHSInputBuffer ||
@@ -3744,36 +3744,36 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.compareOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
-          "multiply-accumulate route requires one tcrv_rvv.compare producer");
+          "multiply-accumulate route requires one weft_rvv.compare producer");
     if (slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
           "multiply-accumulate route currently supports only "
-          "tcrv_rvv.compare {kind = \"sle\"}");
+          "weft_rvv.compare {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
-          "multiply-accumulate route requires tcrv_rvv.compare to consume "
+          "multiply-accumulate route requires weft_rvv.compare to consume "
           "the compare lhs load and splatted rhs scalar threshold");
     if (slice.maskedMAccOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
-          "multiply-accumulate route requires tcrv_rvv.masked_macc to "
-          "consume the mask produced by tcrv_rvv.compare");
+          "multiply-accumulate route requires weft_rvv.masked_macc to "
+          "consume the mask produced by weft_rvv.compare");
     if (slice.arithmeticLhs != slice.dotLHSValue ||
         slice.arithmeticRhs != slice.dotRHSValue ||
         slice.arithmeticAccumulator != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask "
-          "multiply-accumulate route requires tcrv_rvv.masked_macc to "
+          "multiply-accumulate route requires weft_rvv.masked_macc to "
           "consume payload lhs/rhs loads and the accumulator-input-buffer "
           "load result");
     auto accumulatorLoad =
         slice.accumulatorLoadOperation
-            ? llvm::dyn_cast<tcrv::rvv::LoadOp>(
+            ? llvm::dyn_cast<weft::rvv::LoadOp>(
                   slice.accumulatorLoadOperation)
-            : tcrv::rvv::LoadOp();
+            : weft::rvv::LoadOp();
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.rhsScalarSplat.getVl() != slice.setvl.getVl() ||
         slice.maskedMAccOp.getVl() != slice.setvl.getVl() ||
@@ -3786,7 +3786,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
           "bounded generic RVV runtime scalar computed-mask "
           "multiply-accumulate route requires compare, scalar splat, "
           "masked_macc, compare load, payload loads, and accumulator load to "
-          "consume the selected !tcrv_rvv.vl token");
+          "consume the selected !weft_rvv.vl token");
     if (slice.maskLoadOperation || slice.sourceLoadOperation ||
         slice.indexLoadOperation || slice.rhsGenericLoad)
       return makeRVVEmitCRouteProviderError(
@@ -3797,13 +3797,13 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.rhsScalarSplat)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV scalar-broadcast multiply-accumulate "
-          "composition route requires one tcrv_rvv.splat producer for the "
+          "composition route requires one weft_rvv.splat producer for the "
           "RHS scalar vector");
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV scalar-broadcast multiply-accumulate "
           "composition route requires one accumulator-input-buffer "
-          "tcrv_rvv.load");
+          "weft_rvv.load");
     if (slice.rhsGenericLoad || slice.rhsBroadcastLoad)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV scalar-broadcast multiply-accumulate "
@@ -3829,14 +3829,14 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.arithmeticAccumulator != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV scalar-broadcast multiply-accumulate "
-          "composition route requires tcrv_rvv.macc to consume the lhs load, "
+          "composition route requires weft_rvv.macc to consume the lhs load, "
           "the RHS scalar splat result, and the accumulator-input-buffer load "
           "result");
     auto accumulatorLoad =
         slice.accumulatorLoadOperation
-            ? llvm::dyn_cast<tcrv::rvv::LoadOp>(
+            ? llvm::dyn_cast<weft::rvv::LoadOp>(
                   slice.accumulatorLoadOperation)
-            : tcrv::rvv::LoadOp();
+            : weft::rvv::LoadOp();
     if (slice.rhsScalarSplat.getVl() != slice.setvl.getVl() ||
         slice.maccOp.getVl() != slice.setvl.getVl() ||
         slice.lhsGenericLoad.getVl() != slice.setvl.getVl() ||
@@ -3846,7 +3846,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
           "bounded generic RVV scalar-broadcast multiply-accumulate "
           "composition route requires lhs load, RHS scalar splat, "
           "accumulator load, and macc to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
     if (slice.compareOp || slice.maskLoadOperation || slice.sourceLoadOperation ||
         slice.indexLoadOperation || slice.maskedMAccOp)
       return makeRVVEmitCRouteProviderError(
@@ -3857,7 +3857,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV multiply-accumulate route requires one "
-          "accumulator-input-buffer tcrv_rvv.load");
+          "accumulator-input-buffer weft_rvv.load");
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
       return makeRVVEmitCRouteProviderError(
@@ -3873,13 +3873,13 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.arithmeticAccumulator != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
         "bounded generic RVV multiply-accumulate route requires "
-        "tcrv_rvv.macc to consume lhs/rhs generic load results and the "
+        "weft_rvv.macc to consume lhs/rhs generic load results and the "
         "accumulator-input-buffer load result");
   } else if (isWideningMAccAdd) {
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV widening multiply-accumulate route requires "
-          "one accumulator-input-buffer tcrv_rvv.load");
+          "one accumulator-input-buffer weft_rvv.load");
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
       return makeRVVEmitCRouteProviderError(
@@ -3895,7 +3895,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.arithmeticAccumulator != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV widening multiply-accumulate route requires "
-          "tcrv_rvv.widening_macc to consume lhs/rhs source loads and the "
+          "weft_rvv.widening_macc to consume lhs/rhs source loads and the "
           "accumulator-input-buffer load result");
   } else if (isWideningProduct) {
     if (slice.accumulatorLoadOperation || slice.accumulatorBuffer ||
@@ -3913,8 +3913,8 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.storeValue != slice.arithmeticResult)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision widening-product route requires "
-          "tcrv_rvv.widening_product to consume lhs/rhs source loads and "
-          "tcrv_rvv.store to store the product result");
+          "weft_rvv.widening_product to consume lhs/rhs source loads and "
+          "weft_rvv.store to store the product result");
     if (slice.wideningProductOp.getVl() != slice.setvl.getVl() ||
         slice.lhsGenericLoad.getVl() != slice.setvl.getVl() ||
         slice.rhsGenericLoad.getVl() != slice.setvl.getVl() ||
@@ -3922,7 +3922,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision widening-product route requires "
           "source loads, widening_product, and store to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
   } else if (isWideningProductReductionChain) {
     const bool hasProductReductionDequantization =
         isWideningProductReduceDequantize ||
@@ -3946,7 +3946,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (hasProductReductionDequantization && !slice.dequantizeOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
-          "dequantization route requires a tcrv_rvv.dequantize consumer");
+          "dequantization route requires a weft_rvv.dequantize consumer");
     // Single-scope typed dequant bodies (Stage 3 flip) carry the i32 carry on
     // the standalone_reduce result directly and have no handoff op; only the
     // legacy two-scope body has the gearbox_cross_region_handoff carrier.
@@ -4040,11 +4040,11 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
           dequantI32Carrier != slice.dequantizeOp.getSource())))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
-          "tcrv_rvv.widening_product to consume lhs/rhs i8 source loads, "
-          "tcrv_rvv.standalone_reduce to consume the product and scalar "
+          "weft_rvv.widening_product to consume lhs/rhs i8 source loads, "
+          "weft_rvv.standalone_reduce to consume the product and scalar "
           "accumulator seed boundary, optional "
-          "tcrv_rvv.gearbox_cross_region_handoff to forward the i32 "
-          "reduction result into tcrv_rvv.dequantize, and tcrv_rvv.store to "
+          "weft_rvv.gearbox_cross_region_handoff to forward the i32 "
+          "reduction result into weft_rvv.dequantize, and weft_rvv.store to "
           "store the final chain result");
     if (isWideningProductReduceDequantClamp) {
       if (slice.lowerBoundABI.role !=
@@ -4100,15 +4100,15 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
           "bounded generic RVV low-precision product-reduction route requires "
           "source loads, widening_product, standalone_reduce, optional "
           "gearbox_cross_region_handoff, dequantize, and store to consume "
-          "the selected !tcrv_rvv.vl token");
+          "the selected !weft_rvv.vl token");
     if (hasProductReductionDequantization &&
         slice.gearboxCrossRegionHandoffOp &&
         slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
             slice.setvl.getAvl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
-          "dequantization route requires tcrv_rvv.gearbox_cross_region_handoff "
-          "runtime AVL operand to match the selected tcrv_rvv.setvl AVL "
+          "dequantization route requires weft_rvv.gearbox_cross_region_handoff "
+          "runtime AVL operand to match the selected weft_rvv.setvl AVL "
           "runtime SSA value");
   } else if (isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) {
     if (slice.accumulatorABI.role !=
@@ -4125,7 +4125,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.arithmeticAccumulator != slice.accumulatorBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV widening dot-product reduction route requires "
-          "tcrv_rvv.widening_dot_reduce to consume lhs/rhs source loads and "
+          "weft_rvv.widening_dot_reduce to consume lhs/rhs source loads and "
           "the accumulator-input-buffer scalar seed boundary");
     if (slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4138,7 +4138,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV strided-input widening dot-product reduction "
           "route requires both strided source loads to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
   } else if (isStandaloneReduction) {
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
@@ -4153,7 +4153,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.arithmeticAccumulator != slice.accumulatorBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV standalone reduction route requires "
-          "tcrv_rvv.standalone_reduce to consume the input vector load and "
+          "weft_rvv.standalone_reduce to consume the input vector load and "
           "the accumulator-input-buffer scalar seed boundary");
     if (slice.accumulatorLoadOperation || slice.rhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4164,7 +4164,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.lhsGenericLoad.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV standalone reduction route requires input load "
-          "and standalone_reduce to consume the selected !tcrv_rvv.vl token");
+          "and standalone_reduce to consume the selected !weft_rvv.vl token");
   } else if (isComputedMaskStandaloneReduction) {
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
@@ -4179,11 +4179,11 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.compareOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
-          "requires one tcrv_rvv.compare producer");
+          "requires one weft_rvv.compare producer");
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
-          "requires one source-input-buffer tcrv_rvv.load");
+          "requires one source-input-buffer weft_rvv.load");
     if (slice.sourceABI.role !=
         support::RuntimeABIParameterRole::SourceInputBuffer)
       return makeRVVEmitCRouteProviderError(
@@ -4192,23 +4192,23 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
-          "currently supports only tcrv_rvv.compare {kind = \"sle\"}");
+          "currently supports only weft_rvv.compare {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
-          "requires tcrv_rvv.compare to consume compare lhs/rhs generic load "
+          "requires weft_rvv.compare to consume compare lhs/rhs generic load "
           "results");
     if (slice.maskedStandaloneReduceOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
-          "requires tcrv_rvv.masked_standalone_reduce to consume the mask "
-          "produced by tcrv_rvv.compare");
+          "requires weft_rvv.masked_standalone_reduce to consume the mask "
+          "produced by weft_rvv.compare");
     if (slice.arithmeticLhs != slice.sourceValue ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
-          "requires tcrv_rvv.masked_standalone_reduce to consume the "
+          "requires weft_rvv.masked_standalone_reduce to consume the "
           "source-input load and accumulator-input-buffer scalar seed "
           "boundary");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
@@ -4219,7 +4219,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask standalone reduction route "
           "requires compare, source load, and masked_standalone_reduce to "
-          "consume the selected !tcrv_rvv.vl token");
+          "consume the selected !weft_rvv.vl token");
     if (slice.accumulatorLoadOperation || slice.maskLoadOperation ||
         slice.dotLHSLoadOperation || slice.dotRHSLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4245,15 +4245,15 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.compareOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
-          "reduction route requires one tcrv_rvv.compare producer");
+          "reduction route requires one weft_rvv.compare producer");
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
-          "reduction route requires one source-input-buffer tcrv_rvv.load");
+          "reduction route requires one source-input-buffer weft_rvv.load");
     if (!slice.rhsScalarSplat)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
-          "reduction route requires one tcrv_rvv.splat from the "
+          "reduction route requires one weft_rvv.splat from the "
           "rhs-scalar-value threshold");
     if (slice.sourceABI.role !=
         support::RuntimeABIParameterRole::SourceInputBuffer)
@@ -4265,23 +4265,23 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
           "reduction route currently supports only "
-          "tcrv_rvv.compare {kind = \"sle\"}");
+          "weft_rvv.compare {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
-          "reduction route requires tcrv_rvv.compare to consume compare lhs "
+          "reduction route requires weft_rvv.compare to consume compare lhs "
           "load and splatted rhs scalar threshold");
     if (slice.maskedStandaloneReduceOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
-          "reduction route requires tcrv_rvv.masked_standalone_reduce to "
-          "consume the mask produced by tcrv_rvv.compare");
+          "reduction route requires weft_rvv.masked_standalone_reduce to "
+          "consume the mask produced by weft_rvv.compare");
     if (slice.arithmeticLhs != slice.sourceValue ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
-          "reduction route requires tcrv_rvv.masked_standalone_reduce to "
+          "reduction route requires weft_rvv.masked_standalone_reduce to "
           "consume the source-input load and accumulator-input-buffer scalar "
           "seed boundary");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
@@ -4292,7 +4292,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
           "reduction route requires compare, scalar splat, source load, and "
-          "masked_standalone_reduce to consume the selected !tcrv_rvv.vl "
+          "masked_standalone_reduce to consume the selected !weft_rvv.vl "
           "token");
     if (slice.accumulatorLoadOperation || slice.maskLoadOperation ||
         slice.dotLHSLoadOperation || slice.dotRHSLoadOperation ||
@@ -4318,7 +4318,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.compareOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
-          "route requires one tcrv_rvv.compare producer");
+          "route requires one weft_rvv.compare producer");
     if (!slice.dotLHSLoadOperation || !slice.dotRHSLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
@@ -4335,18 +4335,18 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
-          "route currently supports only tcrv_rvv.compare {kind = \"slt\"}");
+          "route currently supports only weft_rvv.compare {kind = \"slt\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
-          "route requires tcrv_rvv.compare to consume compare lhs/rhs "
+          "route requires weft_rvv.compare to consume compare lhs/rhs "
           "generic load results");
     if (slice.maskedWideningDotReduceOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
-          "route requires tcrv_rvv.masked_widening_dot_reduce to consume the "
-          "mask produced by tcrv_rvv.compare");
+          "route requires weft_rvv.masked_widening_dot_reduce to consume the "
+          "mask produced by weft_rvv.compare");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.maskedWideningDotReduceOp.getVl() != slice.setvl.getVl() ||
         slice.lhsGenericLoad.getVl() != slice.setvl.getVl() ||
@@ -4354,27 +4354,27 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
           "route requires compare, masked dot-reduction, and compare loads "
-          "to consume the selected !tcrv_rvv.vl token");
+          "to consume the selected !weft_rvv.vl token");
     if (isComputedMaskWideningDotReduceAdd &&
         (slice.dotLHSGenericLoad.getVl() != slice.setvl.getVl() ||
          slice.dotRHSGenericLoad.getVl() != slice.setvl.getVl()))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
           "route requires dot lhs/rhs unit-stride loads to consume the "
-          "selected !tcrv_rvv.vl token");
+          "selected !weft_rvv.vl token");
     if (isComputedMaskStridedInputWideningDotReduceAdd &&
         (slice.lhsStridedLoad.getVl() != slice.setvl.getVl() ||
          slice.rhsStridedLoad.getVl() != slice.setvl.getVl()))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-input widening "
           "dot-product reduction route requires dot lhs/rhs strided loads to "
-          "consume the selected !tcrv_rvv.vl token");
+          "consume the selected !weft_rvv.vl token");
     if (slice.arithmeticLhs != slice.dotLHSValue ||
         slice.arithmeticRhs != slice.dotRHSValue ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask widening dot-product reduction "
-          "route requires tcrv_rvv.masked_widening_dot_reduce to consume "
+          "route requires weft_rvv.masked_widening_dot_reduce to consume "
           "dot lhs/rhs source loads and the accumulator-input-buffer scalar "
           "seed boundary");
     if (slice.accumulatorLoadOperation || slice.maskLoadOperation ||
@@ -4387,7 +4387,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.conversionSource != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV widening conversion route requires "
-          "tcrv_rvv.widening_convert to consume the lhs source load result");
+          "weft_rvv.widening_convert to consume the lhs source load result");
     if (slice.accumulatorLoadOperation || slice.rhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV widening conversion route does not support RHS "
@@ -4396,7 +4396,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.arithmeticLhs != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV strided-load to unit-stride-store route "
-          "requires tcrv_rvv.move to consume the strided source load result");
+          "requires weft_rvv.move to consume the strided source load result");
     if (slice.rhsLoadOperation || slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV strided-load to unit-stride-store route does "
@@ -4405,7 +4405,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.arithmeticLhs != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV unit-load to strided-store route requires "
-          "tcrv_rvv.move to consume the unit-stride source load result");
+          "weft_rvv.move to consume the unit-stride source load result");
     if (slice.rhsLoadOperation || slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV unit-load to strided-store route does not "
@@ -4413,7 +4413,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
   } else if (isIndexedGatherUnitStore) {
     if (slice.arithmeticLhs != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV indexed gather route requires tcrv_rvv.move "
+          "bounded generic RVV indexed gather route requires weft_rvv.move "
           "to consume the indexed data load result");
     if (slice.rhsLoadOperation || slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4422,7 +4422,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
   } else if (isIndexedScatterUnitLoad) {
     if (slice.arithmeticLhs != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV indexed scatter route requires tcrv_rvv.move "
+          "bounded generic RVV indexed scatter route requires weft_rvv.move "
           "to consume the unit-stride source load result");
     if (slice.rhsLoadOperation || slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4432,25 +4432,25 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires one "
-          "tcrv_rvv.mask_load");
+          "weft_rvv.mask_load");
     if (!slice.maskedLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires one "
-          "tcrv_rvv.masked_load");
+          "weft_rvv.masked_load");
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires an "
-          "output-buffer tcrv_rvv.load for old-destination preservation");
+          "output-buffer weft_rvv.load for old-destination preservation");
     if (slice.accumulatorBuffer != slice.outBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires the "
           "old-destination load to consume the same output buffer as "
-          "tcrv_rvv.store");
+          "weft_rvv.store");
     if (slice.maskedActiveValue != slice.lhsValue ||
         slice.maskedInactivePassthrough != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires "
-          "tcrv_rvv.masked_load to load source lanes and consume the "
+          "weft_rvv.masked_load to load source lanes and consume the "
           "old-destination load as inactive passthrough");
     if (slice.rhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4460,7 +4460,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked store route requires one "
-          "tcrv_rvv.mask_load");
+          "weft_rvv.mask_load");
     if (slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked store route must not load the old "
@@ -4468,7 +4468,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (slice.maskedActiveValue != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked store route requires "
-          "tcrv_rvv.masked_store to consume the payload source load value");
+          "weft_rvv.masked_store to consume the payload source load value");
     if (slice.rhsLoadOperation || slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked store route does not support RHS or "
@@ -4477,34 +4477,34 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires one "
-          "source-input-buffer tcrv_rvv.masked_load for active source values");
+          "source-input-buffer weft_rvv.masked_load for active source values");
     if (!slice.maskedLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires one "
-          "tcrv_rvv.masked_load");
+          "weft_rvv.masked_load");
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires an "
-          "output-buffer tcrv_rvv.load for old-destination preservation");
+          "output-buffer weft_rvv.load for old-destination preservation");
     if (slice.accumulatorBuffer != slice.outBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires the "
           "old-destination load to consume the same output buffer as "
-          "tcrv_rvv.store");
+          "weft_rvv.store");
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route currently supports "
-          "only tcrv_rvv.compare {kind = \"slt\"}");
+          "only weft_rvv.compare {kind = \"slt\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires "
-          "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
+          "weft_rvv.compare to consume compare lhs/rhs generic load results");
     if (slice.maskedActiveValue != slice.sourceValue ||
         slice.maskedInactivePassthrough != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires "
-          "tcrv_rvv.masked_load to load source-input lanes and consume "
+          "weft_rvv.masked_load to load source-input lanes and consume "
           "old-destination load as inactive passthrough");
     if (slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4514,7 +4514,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires one "
-          "source-input-buffer tcrv_rvv.load for active source values");
+          "source-input-buffer weft_rvv.load for active source values");
     if (slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route must not "
@@ -4523,20 +4523,20 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.maskedStridedStoreOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires one "
-          "tcrv_rvv.masked_strided_store op");
+          "weft_rvv.masked_strided_store op");
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route currently "
-          "supports only tcrv_rvv.compare {kind = \"slt\"}");
+          "supports only weft_rvv.compare {kind = \"slt\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
-          "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
+          "weft_rvv.compare to consume compare lhs/rhs generic load results");
     if (slice.maskedActiveValue != slice.sourceValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
-          "tcrv_rvv.masked_strided_store to consume the source-input load "
+          "weft_rvv.masked_strided_store to consume the source-input load "
           "as payload value");
     if (slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4546,35 +4546,35 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires one "
-          "source-input-buffer tcrv_rvv.masked_strided_load for active source "
+          "source-input-buffer weft_rvv.masked_strided_load for active source "
           "values");
     if (!slice.maskedStridedLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires one "
-          "tcrv_rvv.masked_strided_load op");
+          "weft_rvv.masked_strided_load op");
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires an "
-          "output-buffer tcrv_rvv.load for old-destination passthrough");
+          "output-buffer weft_rvv.load for old-destination passthrough");
     if (slice.accumulatorBuffer != slice.outBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires the "
           "old-destination load to consume the same output buffer as "
-          "tcrv_rvv.store");
+          "weft_rvv.store");
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route currently "
-          "supports only tcrv_rvv.compare {kind = \"slt\"}");
+          "supports only weft_rvv.compare {kind = \"slt\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires "
-          "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
+          "weft_rvv.compare to consume compare lhs/rhs generic load results");
     if (slice.maskedActiveValue != slice.sourceValue ||
         slice.maskedInactivePassthrough != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires "
-          "tcrv_rvv.masked_strided_load to load source-input lanes and "
+          "weft_rvv.masked_strided_load to load source-input lanes and "
           "consume old-destination load as inactive passthrough");
     if (slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4584,44 +4584,44 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires one source-input-buffer tcrv_rvv.masked_indexed_load for "
+          "requires one source-input-buffer weft_rvv.masked_indexed_load for "
           "active source values");
     if (!slice.maskedIndexedLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires one tcrv_rvv.masked_indexed_load op");
+          "requires one weft_rvv.masked_indexed_load op");
     if (!slice.indexLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires one tcrv_rvv.index_load op for the explicit index vector");
+          "requires one weft_rvv.index_load op for the explicit index vector");
     if (!slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires an output-buffer tcrv_rvv.load for old-destination "
+          "requires an output-buffer weft_rvv.load for old-destination "
           "passthrough");
     if (slice.accumulatorBuffer != slice.outBuffer)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
           "requires the old-destination load to consume the same output "
-          "buffer as tcrv_rvv.store");
+          "buffer as weft_rvv.store");
     llvm::StringRef expectedIndexedGatherPredicate =
         isRuntimeScalarComputedMaskIndexedGatherLoadUnitStore ? "sle" : "slt";
     if (slice.compareOp.getKind() != expectedIndexedGatherPredicate)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
           "currently supports only the operation-specific bounded "
-          "tcrv_rvv.compare predicate");
+          "weft_rvv.compare predicate");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires tcrv_rvv.compare to consume compare lhs/rhs generic load "
+          "requires weft_rvv.compare to consume compare lhs/rhs generic load "
           "results");
     if (slice.maskedActiveValue != slice.sourceValue ||
         slice.maskedInactivePassthrough != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires tcrv_rvv.masked_indexed_load to load source-input lanes "
+          "requires weft_rvv.masked_indexed_load to load source-input lanes "
           "and consume old-destination load as inactive passthrough");
     if (slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4631,16 +4631,16 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires one source-input-buffer tcrv_rvv.load for active payload "
+          "requires one source-input-buffer weft_rvv.load for active payload "
           "values");
     if (!slice.maskedIndexedStoreOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires one tcrv_rvv.masked_indexed_store op");
+          "requires one weft_rvv.masked_indexed_store op");
     if (!slice.indexLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires one tcrv_rvv.index_load op for the explicit index vector");
+          "requires one weft_rvv.index_load op for the explicit index vector");
     if (slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route must "
@@ -4652,7 +4652,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         !slice.rhsScalarSplat)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask indexed "
-          "scatter-store route requires one tcrv_rvv.splat from the "
+          "scatter-store route requires one weft_rvv.splat from the "
           "rhs-scalar-value threshold");
     if (isRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad &&
         slice.rhsGenericLoad)
@@ -4664,17 +4664,17 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
           "currently supports only the operation-specific bounded "
-          "tcrv_rvv.compare predicate");
+          "weft_rvv.compare predicate");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires tcrv_rvv.compare to consume compare lhs and selected RHS "
+          "requires weft_rvv.compare to consume compare lhs and selected RHS "
           "producer results");
     if (slice.maskedActiveValue != slice.sourceValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires tcrv_rvv.masked_indexed_store to consume the source-input "
+          "requires weft_rvv.masked_indexed_store to consume the source-input "
           "load as payload value");
     if (slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -4684,7 +4684,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.maskedSegment2LoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 load route requires one "
-          "tcrv_rvv.masked_segment2_load op");
+          "weft_rvv.masked_segment2_load op");
     if (!slice.field0LoadOperation || !slice.field1LoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 load route requires "
@@ -4697,7 +4697,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       if (!slice.rhsScalarSplat)
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV runtime scalar computed-mask segment2 load "
-            "route requires one tcrv_rvv.splat from the rhs-scalar-value "
+            "route requires one weft_rvv.splat from the rhs-scalar-value "
             "threshold");
       if (slice.rhsGenericLoad)
         return makeRVVEmitCRouteProviderError(
@@ -4706,23 +4706,23 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       if (slice.compareOp.getKind() != "sle")
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV runtime scalar computed-mask segment2 load "
-            "route currently supports only tcrv_rvv.compare {kind = \"sle\"}");
+            "route currently supports only weft_rvv.compare {kind = \"sle\"}");
       if (slice.compareLhs != slice.lhsValue ||
           slice.compareRhs != slice.rhsValue)
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV runtime scalar computed-mask segment2 load "
-            "route requires tcrv_rvv.compare to consume lhs load and "
+            "route requires weft_rvv.compare to consume lhs load and "
             "rhs_scalar splat results");
     } else {
       if (slice.compareOp.getKind() != "slt")
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV computed-mask segment2 load route currently "
-            "supports only tcrv_rvv.compare {kind = \"slt\"}");
+            "supports only weft_rvv.compare {kind = \"slt\"}");
       if (slice.compareLhs != slice.lhsValue ||
           slice.compareRhs != slice.rhsValue)
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV computed-mask segment2 load route requires "
-            "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
+            "weft_rvv.compare to consume compare lhs/rhs generic load results");
     }
     if (slice.maskedSegment2LoadOp.getPassthrough0() !=
             slice.field0PassthroughValue ||
@@ -4746,7 +4746,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     if (!slice.maskedSegment2StoreOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store/update route "
-          "requires one tcrv_rvv.masked_segment2_store op");
+          "requires one weft_rvv.masked_segment2_store op");
     if (!slice.field0LoadOperation || !slice.field1LoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store/update route "
@@ -4760,7 +4760,7 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       if (!slice.rhsScalarSplat)
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV runtime scalar computed-mask segment2 store "
-            "route requires one tcrv_rvv.splat from the rhs-scalar-value "
+            "route requires one weft_rvv.splat from the rhs-scalar-value "
             "threshold");
       if (slice.rhsGenericLoad)
         return makeRVVEmitCRouteProviderError(
@@ -4769,18 +4769,18 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       if (slice.compareOp.getKind() != "sle")
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV runtime scalar computed-mask segment2 store "
-            "route currently supports only tcrv_rvv.compare {kind = \"sle\"}");
+            "route currently supports only weft_rvv.compare {kind = \"sle\"}");
     } else if (slice.compareOp.getKind() != "slt") {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store/update route "
-          "currently supports only tcrv_rvv.compare {kind = \"slt\"}");
+          "currently supports only weft_rvv.compare {kind = \"slt\"}");
     }
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store/update route "
           "requires "
-          "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
+          "weft_rvv.compare to consume compare lhs/rhs generic load results");
     if (isComputedMaskSegment2UpdateUnitLoad) {
       if (slice.arithmeticLhs != slice.field0LoadedValue ||
           slice.arithmeticRhs != slice.field1LoadedValue ||
@@ -4835,8 +4835,8 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.rhsScalarSplat.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar splat-store route requires "
-          "tcrv_rvv.store to consume the vector produced by tcrv_rvv.splat in "
-          "the selected !tcrv_rvv.vl scope");
+          "weft_rvv.store to consume the vector produced by weft_rvv.splat in "
+          "the selected !weft_rvv.vl scope");
     if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar splat-store route requires the "
@@ -4904,7 +4904,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
         slice.secondaryCompareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV f32 clamp/select route currently supports only "
-          "two tcrv_rvv.compare {kind = \"slt\"} comparisons");
+          "two weft_rvv.compare {kind = \"slt\"} comparisons");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.lowerBoundValue)
       return makeRVVEmitCRouteProviderError(
@@ -4947,9 +4947,9 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
           "bounded generic RVV f32 clamp/select route requires load, splats, "
           "compares, selects, and store to share the selected VL token");
     auto inputVector =
-        llvm::dyn_cast<tcrv::rvv::VectorType>(slice.lhsValue.getType());
+        llvm::dyn_cast<weft::rvv::VectorType>(slice.lhsValue.getType());
     if (!inputVector || !inputVector.getElementType().isF32() ||
-        inputVector.getLmul() != tcrv::rvv::getRVVLMULM1())
+        inputVector.getLmul() != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV f32 clamp/select route requires f32 LMUL m1 "
           "input vector type");
@@ -4958,7 +4958,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     if (!slice.dequantizeOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV dequant-clamp epilogue route requires one "
-          "tcrv_rvv.dequantize producer before clamp/select");
+          "weft_rvv.dequantize producer before clamp/select");
     if (!slice.lowerBoundScalarSplat || !slice.upperBoundScalarSplat)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV dequant-clamp epilogue route requires "
@@ -4989,7 +4989,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
         slice.dequantizeOp.getScale() != slice.dequantScale)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV dequant-clamp epilogue route requires "
-          "tcrv_rvv.dequantize to consume the i32 source load and runtime "
+          "weft_rvv.dequantize to consume the i32 source load and runtime "
           "scale ABI value");
     if (slice.dequantizeOp.getKind() != "i32_to_f32_scaled" ||
         slice.dequantizeOp.getDequantRelation() !=
@@ -5002,7 +5002,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
         slice.secondaryCompareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV dequant-clamp epilogue route currently "
-          "supports only two tcrv_rvv.compare {kind = \"slt\"} comparisons");
+          "supports only two weft_rvv.compare {kind = \"slt\"} comparisons");
     if (slice.compareLhs != dequantized ||
         slice.compareRhs != slice.lowerBoundValue)
       return makeRVVEmitCRouteProviderError(
@@ -5049,13 +5049,13 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
           "dequantize, splats, compares, selects, and store to share the "
           "selected VL token");
     auto sourceVector =
-        llvm::dyn_cast<tcrv::rvv::VectorType>(slice.lhsValue.getType());
+        llvm::dyn_cast<weft::rvv::VectorType>(slice.lhsValue.getType());
     auto resultVector =
-        llvm::dyn_cast<tcrv::rvv::VectorType>(dequantized.getType());
+        llvm::dyn_cast<weft::rvv::VectorType>(dequantized.getType());
     if (!sourceVector || !sourceVector.getElementType().isInteger(32) ||
-        sourceVector.getLmul() != tcrv::rvv::getRVVLMULM1() ||
+        sourceVector.getLmul() != weft::rvv::getRVVLMULM1() ||
         !resultVector || !resultVector.getElementType().isF32() ||
-        resultVector.getLmul() != tcrv::rvv::getRVVLMULM1())
+        resultVector.getLmul() != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV dequant-clamp epilogue route requires i32 "
           "LMUL m1 source vector and f32 LMUL m1 dequant/clamp vector type");
@@ -5064,7 +5064,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             slice.standaloneReduceOp.getAccumulatorSeed(),
-            "tcrv_rvv.standalone_reduce accumulator_seed operand in "
+            "weft_rvv.standalone_reduce accumulator_seed operand in "
             "product-reduction chain",
             {support::RuntimeABIParameterRole::AccumulatorInputBuffer});
     if (!accumulatorABI)
@@ -5075,9 +5075,9 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
   }
   if (isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) {
     // The narrow dot-reduce body carries the runtime accumulator seed on the
-    // fused tcrv_rvv.widening_dot_reduce op; the deferred-wide i16 realization
+    // fused weft_rvv.widening_dot_reduce op; the deferred-wide i16 realization
     // (2nd kernel family) has NO fused op -- its seed is on the trailing
-    // tcrv_rvv.standalone_reduce (the deferred chain's epilogue), exactly like the
+    // weft_rvv.standalone_reduce (the deferred chain's epilogue), exactly like the
     // product-reduction chain. Read the seed from whichever op is structurally
     // present (I5), so the null narrow op is never dereferenced for the wide path.
     mlir::Value accumulatorSeed =
@@ -5087,7 +5087,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             accumulatorSeed,
-            "tcrv_rvv.widening_dot_reduce accumulator_seed operand",
+            "weft_rvv.widening_dot_reduce accumulator_seed operand",
             {support::RuntimeABIParameterRole::AccumulatorInputBuffer});
     if (!accumulatorABI)
       return accumulatorABI.takeError();
@@ -5099,7 +5099,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             slice.maskedWideningDotReduceOp.getAccumulatorSeed(),
-            "tcrv_rvv.masked_widening_dot_reduce accumulator_seed operand",
+            "weft_rvv.masked_widening_dot_reduce accumulator_seed operand",
             {support::RuntimeABIParameterRole::AccumulatorInputBuffer});
     if (!accumulatorABI)
       return accumulatorABI.takeError();
@@ -5111,7 +5111,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             slice.standaloneReduceOp.getAccumulatorSeed(),
-            "tcrv_rvv.standalone_reduce accumulator_seed operand",
+            "weft_rvv.standalone_reduce accumulator_seed operand",
             {support::RuntimeABIParameterRole::AccumulatorInputBuffer});
     if (!accumulatorABI)
       return accumulatorABI.takeError();
@@ -5123,7 +5123,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             slice.maskedStandaloneReduceOp.getAccumulatorSeed(),
-            "tcrv_rvv.masked_standalone_reduce accumulator_seed operand",
+            "weft_rvv.masked_standalone_reduce accumulator_seed operand",
             {support::RuntimeABIParameterRole::AccumulatorInputBuffer});
     if (!accumulatorABI)
       return accumulatorABI.takeError();
@@ -5135,7 +5135,7 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             slice.maskedStandaloneReduceOp.getAccumulatorSeed(),
-            "tcrv_rvv.masked_standalone_reduce accumulator_seed operand",
+            "weft_rvv.masked_standalone_reduce accumulator_seed operand",
             {support::RuntimeABIParameterRole::AccumulatorInputBuffer});
     if (!accumulatorABI)
       return accumulatorABI.takeError();
@@ -5152,22 +5152,22 @@ llvm::Error bindRVVSelectedBodyEpilogueABI(
 // collectRVVSelectedBodyRouteSlice (tail, generic-memory ABI binding).
 llvm::Error bindRVVSelectedBodyGenericMemoryABI(
     RVVSelectedBodyRouteSlice &slice,
-    const llvm::SmallVectorImpl<tcrv::rvv::LoadOp> &genericLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::StridedLoadOp> &genericStridedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::IndexLoadOp> &genericIndexLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::IndexedLoadOp> &genericIndexedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::IndexedStoreOp> &genericIndexedStores,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskLoadOp> &genericMaskLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedLoadOp> &genericMaskedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedStridedLoadOp> &genericMaskedStridedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedLoadOp> &genericMaskedIndexedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedStoreOp> &genericMaskedIndexedStores,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2LoadOp> &genericMaskedSegment2Loads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
-    const llvm::SmallVectorImpl<tcrv::rvv::Segment2LoadOp> &genericSegment2Loads,
-    const llvm::SmallVectorImpl<tcrv::rvv::Segment2StoreOp> &genericSegment2Stores,
-    const llvm::SmallVectorImpl<tcrv::rvv::BroadcastLoadOp> &genericBroadcastLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::SplatOp> &genericScalarSplats,
+    const llvm::SmallVectorImpl<weft::rvv::LoadOp> &genericLoads,
+    const llvm::SmallVectorImpl<weft::rvv::StridedLoadOp> &genericStridedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::IndexLoadOp> &genericIndexLoads,
+    const llvm::SmallVectorImpl<weft::rvv::IndexedLoadOp> &genericIndexedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::IndexedStoreOp> &genericIndexedStores,
+    const llvm::SmallVectorImpl<weft::rvv::MaskLoadOp> &genericMaskLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedLoadOp> &genericMaskedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedStridedLoadOp> &genericMaskedStridedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedIndexedLoadOp> &genericMaskedIndexedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedIndexedStoreOp> &genericMaskedIndexedStores,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedSegment2LoadOp> &genericMaskedSegment2Loads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
+    const llvm::SmallVectorImpl<weft::rvv::Segment2LoadOp> &genericSegment2Loads,
+    const llvm::SmallVectorImpl<weft::rvv::Segment2StoreOp> &genericSegment2Stores,
+    const llvm::SmallVectorImpl<weft::rvv::BroadcastLoadOp> &genericBroadcastLoads,
+    const llvm::SmallVectorImpl<weft::rvv::SplatOp> &genericScalarSplats,
     bool isComputedMaskIndexedGatherLike,
     bool isComputedMaskIndexedScatterLike,
     bool isComputedMaskSegment2LoadLike,
@@ -5183,10 +5183,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
     bool isSegment2DeinterleaveUnitStore, bool isSegment2InterleaveUnitLoad,
     bool isStandaloneReduction, bool isStridedLoadUnitStore,
     bool isUnitLoadStridedStore, bool isWideningConversion) {
-  for (tcrv::rvv::LoadOp load : genericLoads) {
+  for (weft::rvv::LoadOp load : genericLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getBuffer(), "tcrv_rvv.load buffer operand",
+            load.getBuffer(), "weft_rvv.load buffer operand",
             {support::RuntimeABIParameterRole::LHSInputBuffer,
              support::RuntimeABIParameterRole::RHSInputBuffer,
              support::RuntimeABIParameterRole::SourceInputBuffer,
@@ -5205,10 +5205,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
     if (llvm::Error error = assignRVVGenericLoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::BroadcastLoadOp broadcast : genericBroadcastLoads) {
+  for (weft::rvv::BroadcastLoadOp broadcast : genericBroadcastLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            broadcast.getBuffer(), "tcrv_rvv.broadcast_load buffer operand",
+            broadcast.getBuffer(), "weft_rvv.broadcast_load buffer operand",
             {support::RuntimeABIParameterRole::RHSInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5216,10 +5216,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericBroadcastBinding(slice, broadcast, *parameter))
       return error;
   }
-  for (tcrv::rvv::SplatOp splat : genericScalarSplats) {
+  for (weft::rvv::SplatOp splat : genericScalarSplats) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            splat.getScalar(), "tcrv_rvv.splat scalar operand",
+            splat.getScalar(), "weft_rvv.splat scalar operand",
             {support::RuntimeABIParameterRole::RHSScalarValue,
              support::RuntimeABIParameterRole::RHSSecondaryScalarValue,
              support::RuntimeABIParameterRole::LowerBoundScalarValue,
@@ -5232,10 +5232,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
   }
   if (isScalarBroadcastMAccAdd)
     slice.memoryForm = RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc;
-  for (tcrv::rvv::StridedLoadOp load : genericStridedLoads) {
+  for (weft::rvv::StridedLoadOp load : genericStridedLoads) {
     llvm::Expected<support::RuntimeABIParameter> bufferParameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getBuffer(), "tcrv_rvv.strided_load buffer operand",
+            load.getBuffer(), "weft_rvv.strided_load buffer operand",
             {support::RuntimeABIParameterRole::LHSInputBuffer,
              support::RuntimeABIParameterRole::RHSInputBuffer,
              support::RuntimeABIParameterRole::DotLHSInputBuffer,
@@ -5246,7 +5246,7 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
       return bufferParameter.takeError();
     llvm::Expected<support::RuntimeABIParameter> strideParameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getStride(), "tcrv_rvv.strided_load stride operand",
+            load.getStride(), "weft_rvv.strided_load stride operand",
             {support::RuntimeABIParameterRole::LHSInputStride,
              support::RuntimeABIParameterRole::RHSInputStride,
              support::RuntimeABIParameterRole::SourceByteStride,
@@ -5258,10 +5258,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             slice, load, *bufferParameter, *strideParameter))
       return error;
   }
-  for (tcrv::rvv::IndexLoadOp load : genericIndexLoads) {
+  for (weft::rvv::IndexLoadOp load : genericIndexLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getIndex(), "tcrv_rvv.index_load index operand",
+            load.getIndex(), "weft_rvv.index_load index operand",
             {support::RuntimeABIParameterRole::IndexInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5269,10 +5269,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericIndexLoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::IndexedLoadOp load : genericIndexedLoads) {
+  for (weft::rvv::IndexedLoadOp load : genericIndexedLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getData(), "tcrv_rvv.indexed_load data operand",
+            load.getData(), "weft_rvv.indexed_load data operand",
             {support::RuntimeABIParameterRole::LHSInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5280,10 +5280,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericIndexedLoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::IndexedStoreOp store : genericIndexedStores) {
+  for (weft::rvv::IndexedStoreOp store : genericIndexedStores) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            store.getDestination(), "tcrv_rvv.indexed_store destination operand",
+            store.getDestination(), "weft_rvv.indexed_store destination operand",
             {support::RuntimeABIParameterRole::OutputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5291,10 +5291,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericIndexedStoreBinding(slice, store, *parameter))
       return error;
   }
-  for (tcrv::rvv::MaskLoadOp load : genericMaskLoads) {
+  for (weft::rvv::MaskLoadOp load : genericMaskLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getMask(), "tcrv_rvv.mask_load mask operand",
+            load.getMask(), "weft_rvv.mask_load mask operand",
             {support::RuntimeABIParameterRole::MaskInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5302,10 +5302,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericMaskLoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::MaskedLoadOp load : genericMaskedLoads) {
+  for (weft::rvv::MaskedLoadOp load : genericMaskedLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getBuffer(), "tcrv_rvv.masked_load buffer operand",
+            load.getBuffer(), "weft_rvv.masked_load buffer operand",
             {support::RuntimeABIParameterRole::LHSInputBuffer,
              support::RuntimeABIParameterRole::SourceInputBuffer});
     if (!parameter)
@@ -5314,16 +5314,16 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericMaskedLoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::MaskedStridedLoadOp load : genericMaskedStridedLoads) {
+  for (weft::rvv::MaskedStridedLoadOp load : genericMaskedStridedLoads) {
     llvm::Expected<support::RuntimeABIParameter> bufferParameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getBuffer(), "tcrv_rvv.masked_strided_load buffer operand",
+            load.getBuffer(), "weft_rvv.masked_strided_load buffer operand",
             {support::RuntimeABIParameterRole::SourceInputBuffer});
     if (!bufferParameter)
       return bufferParameter.takeError();
     llvm::Expected<support::RuntimeABIParameter> strideParameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getStride(), "tcrv_rvv.masked_strided_load stride operand",
+            load.getStride(), "weft_rvv.masked_strided_load stride operand",
             {support::RuntimeABIParameterRole::SourceByteStride});
     if (!strideParameter)
       return strideParameter.takeError();
@@ -5331,10 +5331,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             slice, load, *bufferParameter, *strideParameter))
       return error;
   }
-  for (tcrv::rvv::MaskedIndexedLoadOp load : genericMaskedIndexedLoads) {
+  for (weft::rvv::MaskedIndexedLoadOp load : genericMaskedIndexedLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getData(), "tcrv_rvv.masked_indexed_load source operand",
+            load.getData(), "weft_rvv.masked_indexed_load source operand",
             {support::RuntimeABIParameterRole::SourceInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5342,11 +5342,11 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericMaskedIndexedLoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::MaskedIndexedStoreOp store : genericMaskedIndexedStores) {
+  for (weft::rvv::MaskedIndexedStoreOp store : genericMaskedIndexedStores) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
             store.getDestination(),
-            "tcrv_rvv.masked_indexed_store destination operand",
+            "weft_rvv.masked_indexed_store destination operand",
             {support::RuntimeABIParameterRole::OutputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5355,10 +5355,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
     slice.indexedDestinationBuffer = store.getDestination();
     slice.outABI = *parameter;
   }
-  for (tcrv::rvv::MaskedSegment2LoadOp load : genericMaskedSegment2Loads) {
+  for (weft::rvv::MaskedSegment2LoadOp load : genericMaskedSegment2Loads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getSource(), "tcrv_rvv.masked_segment2_load source operand",
+            load.getSource(), "weft_rvv.masked_segment2_load source operand",
             {support::RuntimeABIParameterRole::SourceInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5366,12 +5366,12 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericMaskedSegment2LoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::MaskedSegment2StoreOp store :
+  for (weft::rvv::MaskedSegment2StoreOp store :
        genericMaskedSegment2Stores) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
             store.getDestination(),
-            "tcrv_rvv.masked_segment2_store destination operand",
+            "weft_rvv.masked_segment2_store destination operand",
             {support::RuntimeABIParameterRole::
                  SegmentInterleavedOutputBuffer});
     if (!parameter)
@@ -5380,10 +5380,10 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             slice, store, *parameter))
       return error;
   }
-  for (tcrv::rvv::Segment2LoadOp load : genericSegment2Loads) {
+  for (weft::rvv::Segment2LoadOp load : genericSegment2Loads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
-            load.getSource(), "tcrv_rvv.segment2_load source operand",
+            load.getSource(), "weft_rvv.segment2_load source operand",
             {support::RuntimeABIParameterRole::LHSInputBuffer});
     if (!parameter)
       return parameter.takeError();
@@ -5391,11 +5391,11 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
             assignRVVGenericSegment2LoadBinding(slice, load, *parameter))
       return error;
   }
-  for (tcrv::rvv::Segment2StoreOp store : genericSegment2Stores) {
+  for (weft::rvv::Segment2StoreOp store : genericSegment2Stores) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
             store.getDestination(),
-            "tcrv_rvv.segment2_store destination operand",
+            "weft_rvv.segment2_store destination operand",
             {support::RuntimeABIParameterRole::
                  SegmentInterleavedOutputBuffer});
     if (!parameter)
@@ -5408,154 +5408,154 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
     if (slice.indexedLoad.getIndices() != slice.indexValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV indexed gather route requires "
-          "tcrv_rvv.indexed_load to consume the index vector produced by "
-          "tcrv_rvv.index_load");
+          "weft_rvv.indexed_load to consume the index vector produced by "
+          "weft_rvv.index_load");
     if (slice.indexLoad.getVl() != slice.setvl.getVl() ||
         slice.indexedLoad.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV indexed gather route requires index_load and "
-          "indexed_load to consume the selected !tcrv_rvv.vl token");
+          "indexed_load to consume the selected !weft_rvv.vl token");
   }
   if (isIndexedScatterUnitLoad) {
     if (slice.indexedStore.getIndices() != slice.indexValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV indexed scatter route requires "
-          "tcrv_rvv.indexed_store to consume the index vector produced by "
-          "tcrv_rvv.index_load");
+          "weft_rvv.indexed_store to consume the index vector produced by "
+          "weft_rvv.index_load");
     if (slice.indexLoad.getVl() != slice.setvl.getVl() ||
         slice.indexedStore.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV indexed scatter route requires index_load and "
-          "indexed_store to consume the selected !tcrv_rvv.vl token");
+          "indexed_store to consume the selected !weft_rvv.vl token");
   }
   if (isMaskedUnitLoadStore) {
     if (slice.maskedLoadOp.getMask() != slice.maskValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires "
-          "tcrv_rvv.masked_load to consume the mask produced by "
-          "tcrv_rvv.mask_load");
+          "weft_rvv.masked_load to consume the mask produced by "
+          "weft_rvv.mask_load");
     if (slice.maskLoad.getVl() != slice.setvl.getVl() ||
         slice.maskedLoadOp.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked memory route requires mask_load and "
-          "masked_load to consume the selected !tcrv_rvv.vl token");
+          "masked_load to consume the selected !weft_rvv.vl token");
   }
   if (isMaskedUnitStore) {
     if (slice.maskedStore.getMask() != slice.maskValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked store route requires "
-          "tcrv_rvv.masked_store to consume the mask produced by "
-          "tcrv_rvv.mask_load");
+          "weft_rvv.masked_store to consume the mask produced by "
+          "weft_rvv.mask_load");
     if (slice.maskLoad.getVl() != slice.setvl.getVl() ||
         slice.maskedStore.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV masked store route requires mask_load and "
-          "masked_store to consume the selected !tcrv_rvv.vl token");
+          "masked_store to consume the selected !weft_rvv.vl token");
   }
   if (isComputedMaskUnitLoadStore) {
     if (slice.maskedLoadOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires "
-          "tcrv_rvv.masked_load to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "weft_rvv.masked_load to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.maskedLoadOp.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask memory route requires compare "
-          "and masked_load to consume the selected !tcrv_rvv.vl token");
+          "and masked_load to consume the selected !weft_rvv.vl token");
   }
   if (isComputedMaskStridedStore) {
     if (slice.maskedStridedStore.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
-          "tcrv_rvv.masked_strided_store to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "weft_rvv.masked_strided_store to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.maskedStridedStore.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
           "compare and masked_strided_store to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
   }
   if (isComputedMaskStridedLoadUnitStore) {
     if (slice.maskedStridedLoadOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires "
-          "tcrv_rvv.masked_strided_load to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "weft_rvv.masked_strided_load to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.maskedStridedLoadOp.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-load route requires "
           "compare and masked_strided_load to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
   }
   if (isComputedMaskIndexedGatherLike) {
     if (slice.maskedIndexedLoadOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires tcrv_rvv.masked_indexed_load to consume the mask produced "
-          "by tcrv_rvv.compare");
+          "requires weft_rvv.masked_indexed_load to consume the mask produced "
+          "by weft_rvv.compare");
     if (slice.maskedIndexedLoadOp.getIndices() != slice.indexValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
-          "requires tcrv_rvv.masked_indexed_load to consume the index vector "
-          "produced by tcrv_rvv.index_load");
+          "requires weft_rvv.masked_indexed_load to consume the index vector "
+          "produced by weft_rvv.index_load");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.indexLoad.getVl() != slice.setvl.getVl() ||
         slice.maskedIndexedLoadOp.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed gather-load route "
           "requires compare, index_load, and masked_indexed_load to consume "
-          "the selected !tcrv_rvv.vl token");
+          "the selected !weft_rvv.vl token");
   }
   if (isComputedMaskIndexedScatterLike) {
     if (slice.maskedIndexedStore.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires tcrv_rvv.masked_indexed_store to consume the mask produced "
-          "by tcrv_rvv.compare");
+          "requires weft_rvv.masked_indexed_store to consume the mask produced "
+          "by weft_rvv.compare");
     if (slice.maskedIndexedStore.getIndices() != slice.indexValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
-          "requires tcrv_rvv.masked_indexed_store to consume the index vector "
-          "produced by tcrv_rvv.index_load");
+          "requires weft_rvv.masked_indexed_store to consume the index vector "
+          "produced by weft_rvv.index_load");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.indexLoad.getVl() != slice.setvl.getVl() ||
         slice.maskedIndexedStore.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask indexed scatter-store route "
           "requires compare, index_load, and masked_indexed_store to consume "
-          "the selected !tcrv_rvv.vl token");
+          "the selected !weft_rvv.vl token");
   }
   if (isComputedMaskSegment2LoadLike) {
     if (slice.maskedSegment2LoadOp.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 load route requires "
-          "tcrv_rvv.masked_segment2_load to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "weft_rvv.masked_segment2_load to consume the mask produced by "
+          "weft_rvv.compare");
     if (slice.maskedSegment2LoadOp.getPassthrough0() !=
             slice.field0PassthroughValue ||
         slice.maskedSegment2LoadOp.getPassthrough1() !=
             slice.field1PassthroughValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 load route requires "
-          "tcrv_rvv.masked_segment2_load to consume field0 and field1 old "
+          "weft_rvv.masked_segment2_load to consume field0 and field1 old "
           "destination loads as inactive passthrough vectors");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         slice.maskedSegment2LoadOp.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 load route requires "
           "compare and masked_segment2_load to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
   }
   if (isComputedMaskSegment2StoreLike) {
     if (slice.maskedSegment2Store.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store/update route "
           "requires "
-          "tcrv_rvv.masked_segment2_store to consume the mask produced by "
-          "tcrv_rvv.compare");
+          "weft_rvv.masked_segment2_store to consume the mask produced by "
+          "weft_rvv.compare");
     if (isComputedMaskSegment2UpdateUnitLoad) {
       if (slice.arithmeticKind !=
               RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad ||
@@ -5565,30 +5565,30 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
           slice.maskedSegment2Store.getField1() != slice.field1LoadedValue)
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV computed-mask segment2 update route requires "
-            "tcrv_rvv.binary {kind = \"add\"} to consume field0/field1 source "
+            "weft_rvv.binary {kind = \"add\"} to consume field0/field1 source "
             "loads and masked_segment2_store to consume the add result as "
             "field0 plus the original field1 load");
-      if (slice.arithmeticOp->getName().getStringRef() != "tcrv_rvv.binary")
+      if (slice.arithmeticOp->getName().getStringRef() != "weft_rvv.binary")
         return makeRVVEmitCRouteProviderError(
             "bounded generic RVV computed-mask segment2 update route requires "
-            "the selected arithmetic producer to be tcrv_rvv.binary");
+            "the selected arithmetic producer to be weft_rvv.binary");
     } else if (slice.maskedSegment2Store.getField0() != slice.field0Value ||
                slice.maskedSegment2Store.getField1() != slice.field1Value) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store route requires "
-          "tcrv_rvv.masked_segment2_store to consume matching field0 and "
+          "weft_rvv.masked_segment2_store to consume matching field0 and "
           "field1 payload load results");
     }
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
         !slice.field0LoadOperation || !slice.field1LoadOperation ||
         slice.maskedSegment2Store.getVl() != slice.setvl.getVl() ||
         (isComputedMaskSegment2UpdateUnitLoad &&
-         llvm::cast<tcrv::rvv::BinaryOp>(slice.arithmeticOp).getVl() !=
+         llvm::cast<weft::rvv::BinaryOp>(slice.arithmeticOp).getVl() !=
              slice.setvl.getVl()))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask segment2 store/update route "
           "requires compare, field0/field1 payload loads, optional add, and "
-          "masked_segment2_store to consume the selected !tcrv_rvv.vl token");
+          "masked_segment2_store to consume the selected !weft_rvv.vl token");
   }
   if (isSegment2DeinterleaveUnitStore) {
     if (slice.segment2Load.getVl() != slice.setvl.getVl() ||
@@ -5597,7 +5597,7 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV segment2 deinterleave route requires "
           "segment2_load and both move ops to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
     if (slice.field0MoveOp.getSource() != slice.segment2Load.getField0() ||
         slice.field1MoveOp.getSource() != slice.segment2Load.getField1())
       return makeRVVEmitCRouteProviderError(
@@ -5611,7 +5611,7 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV segment2 interleave route requires field0 "
           "load, field1 load, and segment2_store to consume the selected "
-          "!tcrv_rvv.vl token");
+          "!weft_rvv.vl token");
     if (slice.segment2Store.getField0() != slice.field0Value ||
         slice.segment2Store.getField1() != slice.field1Value)
       return makeRVVEmitCRouteProviderError(
@@ -5654,7 +5654,7 @@ llvm::Error bindRVVSelectedBodyGenericMemoryABI(
 // hoisted resolvedOutABI by reference.
 llvm::Error resolveRVVSelectedBodyOutABIAndForm(
     RVVSelectedBodyRouteSlice &slice,
-    const llvm::SmallVectorImpl<tcrv::rvv::StoreOp> &genericStores,
+    const llvm::SmallVectorImpl<weft::rvv::StoreOp> &genericStores,
     support::RuntimeABIParameter &resolvedOutABI, bool hasScalarBroadcast,
     bool hasStridedMemory,
     bool isComputedMaskIndexedGatherLike,
@@ -5679,10 +5679,10 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
     bool isStridedLoadUnitStore, bool isUnitLoadStridedStore,
     bool isWideningProductReduceDequantClamp) {
   if (isSegment2DeinterleaveUnitStore || isComputedMaskSegment2LoadLike) {
-    for (tcrv::rvv::StoreOp store : genericStores) {
+    for (weft::rvv::StoreOp store : genericStores) {
       llvm::Expected<support::RuntimeABIParameter> parameter =
           getRuntimeABIParameterBindingFromValue(
-              store.getBuffer(), "tcrv_rvv.segment2 store buffer operand",
+              store.getBuffer(), "weft_rvv.segment2 store buffer operand",
               {support::RuntimeABIParameterRole::SegmentField0OutputBuffer,
                support::RuntimeABIParameterRole::SegmentField1OutputBuffer});
       if (!parameter)
@@ -5692,7 +5692,7 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
         if (slice.field0StoreOperation)
           return makeRVVEmitCRouteProviderError(
               "bounded generic RVV segment2 deinterleave route requires a "
-              "unique field0 tcrv_rvv.store");
+              "unique field0 weft_rvv.store");
         slice.field0Store = store;
         slice.field0StoreOperation = store.getOperation();
         if (isComputedMaskSegment2LoadLike &&
@@ -5707,7 +5707,7 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
         if (slice.field1StoreOperation)
           return makeRVVEmitCRouteProviderError(
               "bounded generic RVV segment2 deinterleave route requires a "
-              "unique field1 tcrv_rvv.store");
+              "unique field1 weft_rvv.store");
         slice.field1Store = store;
         slice.field1StoreOperation = store.getOperation();
         if (isComputedMaskSegment2LoadLike &&
@@ -5743,44 +5743,44 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
         isComputedMaskStridedStore
             ? getRuntimeABIParameterBindingFromValue(
                   slice.maskedStridedStore.getBuffer(),
-                  "tcrv_rvv.masked_strided_store buffer operand",
+                  "weft_rvv.masked_strided_store buffer operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
         : isComputedMaskStridedLoadUnitStore
             ? getRuntimeABIParameterBindingFromValue(
                   slice.genericStore.getBuffer(),
-                  "tcrv_rvv.computed_masked_strided_load store buffer operand",
+                  "weft_rvv.computed_masked_strided_load store buffer operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
         : hasStridedMemory && !isStridedLoadUnitStore &&
                 !isStridedInputWideningDotReduceAdd &&
                 !isComputedMaskStridedInputWideningDotReduceAdd
             ? getRuntimeABIParameterBindingFromValue(
                   slice.stridedStore.getBuffer(),
-                  "tcrv_rvv.strided_store buffer operand",
+                  "weft_rvv.strided_store buffer operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
         : isIndexedScatterUnitLoad
             ? getRuntimeABIParameterBindingFromValue(
                   slice.indexedStore.getDestination(),
-                  "tcrv_rvv.indexed_store destination operand",
+                  "weft_rvv.indexed_store destination operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
         : isComputedMaskIndexedScatterLike
             ? getRuntimeABIParameterBindingFromValue(
                   slice.maskedIndexedStore.getDestination(),
-                  "tcrv_rvv.masked_indexed_store destination operand",
+                  "weft_rvv.masked_indexed_store destination operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
         : isMaskedUnitStore
             ? getRuntimeABIParameterBindingFromValue(
                   slice.maskedStore.getBuffer(),
-                  "tcrv_rvv.masked_store destination operand",
+                  "weft_rvv.masked_store destination operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
         : isRuntimeScalarComputedMaskStore
             ? getRuntimeABIParameterBindingFromValue(
                   slice.maskedStore.getBuffer(),
-                  "tcrv_rvv.runtime_scalar_computed_mask_store destination "
+                  "weft_rvv.runtime_scalar_computed_mask_store destination "
                   "operand",
                   {support::RuntimeABIParameterRole::OutputBuffer})
             : getRuntimeABIParameterBindingFromValue(
                   slice.genericStore.getBuffer(),
-                  "tcrv_rvv.store buffer operand",
+                  "weft_rvv.store buffer operand",
                   {support::RuntimeABIParameterRole::OutputBuffer});
     if (!outABI)
       return outABI.takeError();
@@ -5794,7 +5794,7 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
     llvm::Expected<support::RuntimeABIParameter> outStrideABI =
         getRuntimeABIParameterBindingFromValue(
             slice.stridedStore.getStride(),
-            "tcrv_rvv.strided_store stride operand",
+            "weft_rvv.strided_store stride operand",
             {support::RuntimeABIParameterRole::OutputStride,
              support::RuntimeABIParameterRole::DestinationByteStride});
     if (!outStrideABI)
@@ -5814,7 +5814,7 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
     llvm::Expected<support::RuntimeABIParameter> outStrideABI =
         getRuntimeABIParameterBindingFromValue(
             slice.maskedStridedStore.getStride(),
-            "tcrv_rvv.masked_strided_store stride operand",
+            "weft_rvv.masked_strided_store stride operand",
             {support::RuntimeABIParameterRole::DestinationByteStride});
     if (!outStrideABI)
       return outStrideABI.takeError();
@@ -5970,7 +5970,7 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
                isRuntimeScalarComputedMaskLoadStore ||
                isRuntimeScalarComputedMaskedMAccAdd ||
                isRuntimeScalarComputedMaskStandaloneReduction) {
-      // Runtime-threshold computed-mask consumers use tcrv_rvv.splat for the
+      // Runtime-threshold computed-mask consumers use weft_rvv.splat for the
       // compare RHS, but their route identity is not scalar-broadcast
       // elementwise arithmetic.
       if (isRuntimeScalarComputedMaskedMAccAdd)
@@ -5996,21 +5996,21 @@ llvm::Error resolveRVVSelectedBodyOutABIAndForm(
 // validation leaf extracted verbatim from collectRVVSelectedBodyRouteSlice.
 llvm::Error checkRVVSelectedBodyShapeGuards(
     const RVVSelectedBodyRouteSlice &slice,
-    const llvm::SmallVectorImpl<tcrv::rvv::LoadOp> &genericLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::StridedLoadOp> &genericStridedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::IndexLoadOp> &genericIndexLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::IndexedLoadOp> &genericIndexedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::IndexedStoreOp> &genericIndexedStores,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskLoadOp> &genericMaskLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedLoadOp> &genericMaskedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedStridedLoadOp> &genericMaskedStridedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedLoadOp> &genericMaskedIndexedLoads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedStoreOp> &genericMaskedIndexedStores,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2LoadOp> &genericMaskedSegment2Loads,
-    const llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
-    const llvm::SmallVectorImpl<tcrv::rvv::Segment2LoadOp> &genericSegment2Loads,
-    const llvm::SmallVectorImpl<tcrv::rvv::Segment2StoreOp> &genericSegment2Stores,
-    const llvm::SmallVectorImpl<tcrv::rvv::BroadcastLoadOp> &genericBroadcastLoads,
+    const llvm::SmallVectorImpl<weft::rvv::LoadOp> &genericLoads,
+    const llvm::SmallVectorImpl<weft::rvv::StridedLoadOp> &genericStridedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::IndexLoadOp> &genericIndexLoads,
+    const llvm::SmallVectorImpl<weft::rvv::IndexedLoadOp> &genericIndexedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::IndexedStoreOp> &genericIndexedStores,
+    const llvm::SmallVectorImpl<weft::rvv::MaskLoadOp> &genericMaskLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedLoadOp> &genericMaskedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedStridedLoadOp> &genericMaskedStridedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedIndexedLoadOp> &genericMaskedIndexedLoads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedIndexedStoreOp> &genericMaskedIndexedStores,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedSegment2LoadOp> &genericMaskedSegment2Loads,
+    const llvm::SmallVectorImpl<weft::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
+    const llvm::SmallVectorImpl<weft::rvv::Segment2LoadOp> &genericSegment2Loads,
+    const llvm::SmallVectorImpl<weft::rvv::Segment2StoreOp> &genericSegment2Stores,
+    const llvm::SmallVectorImpl<weft::rvv::BroadcastLoadOp> &genericBroadcastLoads,
     unsigned storeCount, unsigned stridedStoreCount,
     bool hasRHSBroadcastLike, bool hasScalarBroadcast, bool hasStridedMemory,
     bool hasIndexedMemory, bool hasMaskedMemory, bool hasSegmentedMemory,
@@ -6098,7 +6098,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
                                RVVSelectedBodyOperationKind::Add))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly one "
-        "tcrv_rvv.binary {kind = \"add\"} compute op");
+        "weft_rvv.binary {kind = \"add\"} compute op");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isComputedMaskStridedStore &&
@@ -6108,21 +6108,21 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericStridedLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly two "
-        "tcrv_rvv.strided_load ops for lhs and rhs");
+        "weft_rvv.strided_load ops for lhs and rhs");
   if (hasStridedMemory && isUnitLoadStridedStore &&
       genericStridedLoads.size() != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV unit-load to strided-store route must use "
-        "unit-stride tcrv_rvv.load source, not tcrv_rvv.strided_load");
+        "unit-stride weft_rvv.load source, not weft_rvv.strided_load");
   if (hasStridedMemory && isUnitLoadStridedStore && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV unit-load to strided-store route requires "
-        "exactly one unit-stride tcrv_rvv.load source op");
+        "exactly one unit-stride weft_rvv.load source op");
   if (hasStridedMemory && isStridedLoadUnitStore &&
       genericStridedLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route requires "
-        "exactly one tcrv_rvv.strided_load source op");
+        "exactly one weft_rvv.strided_load source op");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore && !isComputedMaskStridedStore &&
       !isComputedMaskStridedLoadUnitStore &&
@@ -6131,64 +6131,64 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       stridedStoreCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly one "
-        "tcrv_rvv.strided_store op");
+        "weft_rvv.strided_store op");
   if (hasStridedMemory && isUnitLoadStridedStore && stridedStoreCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV unit-load to strided-store route requires "
-        "exactly one tcrv_rvv.strided_store op");
+        "exactly one weft_rvv.strided_store op");
   if (hasStridedMemory && isStridedLoadUnitStore && stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route must use "
-        "unit-stride tcrv_rvv.store, not tcrv_rvv.strided_store");
+        "unit-stride weft_rvv.store, not weft_rvv.strided_store");
   if (hasStridedMemory && isStridedLoadUnitStore && storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route requires "
-        "exactly one unit-stride tcrv_rvv.store op");
+        "exactly one unit-stride weft_rvv.store op");
   if ((isStridedInputWideningDotReduceAdd ||
        isComputedMaskStridedInputWideningDotReduceAdd) &&
       stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-input widening dot-product reduction "
-        "route must use unit-stride scalar tcrv_rvv.store, not "
-        "tcrv_rvv.strided_store");
+        "route must use unit-stride scalar weft_rvv.store, not "
+        "weft_rvv.strided_store");
   if ((isStridedInputWideningDotReduceAdd ||
        isComputedMaskStridedInputWideningDotReduceAdd) &&
       storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-input widening dot-product reduction "
-        "route requires exactly one unit-stride scalar tcrv_rvv.store op");
+        "route requires exactly one unit-stride scalar weft_rvv.store op");
   if (hasStridedMemory && isUnitLoadStridedStore && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV unit-load to strided-store route must use "
-        "tcrv_rvv.strided_store, not unit-stride tcrv_rvv.store");
+        "weft_rvv.strided_store, not unit-stride weft_rvv.store");
   if (hasIndexedMemory && genericIndexLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed memory route requires exactly one "
-        "tcrv_rvv.index_load op");
+        "weft_rvv.index_load op");
   if (isIndexedGatherUnitStore && genericIndexedLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route requires exactly one "
-        "tcrv_rvv.indexed_load op");
+        "weft_rvv.indexed_load op");
   if (isIndexedGatherUnitStore && genericIndexedStores.size() != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route must use unit-stride "
-        "tcrv_rvv.store, not tcrv_rvv.indexed_store");
+        "weft_rvv.store, not weft_rvv.indexed_store");
   if (isIndexedGatherUnitStore && storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route requires exactly one "
-        "unit-stride tcrv_rvv.store op");
+        "unit-stride weft_rvv.store op");
   if (isIndexedScatterUnitLoad && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route requires exactly one "
-        "unit-stride tcrv_rvv.load source op");
+        "unit-stride weft_rvv.load source op");
   if (isIndexedScatterUnitLoad && genericIndexedLoads.size() != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route must use unit-stride "
-        "tcrv_rvv.load source, not tcrv_rvv.indexed_load");
+        "weft_rvv.load source, not weft_rvv.indexed_load");
   if (isIndexedScatterUnitLoad && genericIndexedStores.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route requires exactly one "
-        "tcrv_rvv.indexed_store op");
+        "weft_rvv.indexed_store op");
   if (hasIndexedMemory &&
       (isMAccAdd || isScalarBroadcastMAccAdd || isComputedMaskedMAccAdd ||
        isRuntimeScalarComputedMaskedMAccAdd || isWideningMAccAdd ||
@@ -6351,7 +6351,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericMaskedSegment2Loads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route requires "
-        "exactly one tcrv_rvv.masked_segment2_load op");
+        "exactly one weft_rvv.masked_segment2_load op");
   if (!isComputedMaskSegment2LoadLike &&
       !genericMaskedSegment2Loads.empty())
     return makeRVVEmitCRouteProviderError(
@@ -6362,7 +6362,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericMaskedSegment2Stores.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 store route requires "
-        "exactly one tcrv_rvv.masked_segment2_store op");
+        "exactly one weft_rvv.masked_segment2_store op");
  if (!isComputedMaskSegment2StoreLike &&
       !genericMaskedSegment2Stores.empty())
     return makeRVVEmitCRouteProviderError(
@@ -6373,200 +6373,200 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
   if (isComputedMaskSegment2LoadLike && storeCount != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route requires "
-        "exactly two unit-stride tcrv_rvv.store ops for field0 and field1");
+        "exactly two unit-stride weft_rvv.store ops for field0 and field1");
   if (isComputedMaskSegment2LoadUnitStore && genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route requires "
-        "exactly four tcrv_rvv.load ops for compare lhs, compare rhs, "
+        "exactly four weft_rvv.load ops for compare lhs, compare rhs, "
         "field0 old passthrough, and field1 old passthrough");
   if (isRuntimeScalarComputedMaskSegment2LoadUnitStore &&
       genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask segment2 load route "
-        "requires exactly three tcrv_rvv.load ops for compare lhs, field0 "
+        "requires exactly three weft_rvv.load ops for compare lhs, field0 "
         "old passthrough, and field1 old passthrough; compare rhs must be "
-        "tcrv_rvv.splat");
+        "weft_rvv.splat");
   if (isComputedMaskSegment2StoreLike &&
       !isRuntimeScalarComputedMaskSegment2StoreUnitLoad &&
       genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 store route requires "
-        "exactly four tcrv_rvv.load ops for compare lhs, compare rhs, "
+        "exactly four weft_rvv.load ops for compare lhs, compare rhs, "
         "field0 payload, and field1 payload");
   if (isRuntimeScalarComputedMaskSegment2StoreUnitLoad &&
       genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask segment2 store route "
-        "requires exactly three tcrv_rvv.load ops for compare lhs, field0 "
-        "payload, and field1 payload; compare rhs must be tcrv_rvv.splat");
+        "requires exactly three weft_rvv.load ops for compare lhs, field0 "
+        "payload, and field1 payload; compare rhs must be weft_rvv.splat");
   if (isSegment2DeinterleaveUnitStore && genericSegment2Loads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires exactly "
-        "one tcrv_rvv.segment2_load op");
+        "one weft_rvv.segment2_load op");
   if (isSegment2DeinterleaveUnitStore &&
       (!slice.field0MoveOp || !slice.field1MoveOp))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires exactly one "
-        "field0 move and one field1 move from tcrv_rvv.segment2_load");
+        "field0 move and one field1 move from weft_rvv.segment2_load");
   if (isSegment2DeinterleaveUnitStore && storeCount != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires exactly two "
-        "unit-stride tcrv_rvv.store ops for field0 and field1");
+        "unit-stride weft_rvv.store ops for field0 and field1");
   if (isSegment2InterleaveUnitLoad && genericSegment2Stores.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route requires exactly one "
-        "tcrv_rvv.segment2_store op");
+        "weft_rvv.segment2_store op");
   if (isSegment2InterleaveUnitLoad && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route requires exactly two "
-        "unit-stride tcrv_rvv.load ops for field0 and field1");
+        "unit-stride weft_rvv.load ops for field0 and field1");
   if (isMaskedUnitLoadStore && slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime-mask memory route must not contain "
-        "tcrv_rvv.compare; computed masks require "
+        "weft_rvv.compare; computed masks require "
         "computed_masked_unit_load_store");
   if (isMaskedUnitStore && slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime-mask store route must not contain "
-        "tcrv_rvv.compare; this slice requires explicit mask_load authority");
+        "weft_rvv.compare; this slice requires explicit mask_load authority");
   if (isComputedMaskUnitLoadStore && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask memory route requires one "
-        "tcrv_rvv.compare producer before tcrv_rvv.masked_load");
+        "weft_rvv.compare producer before weft_rvv.masked_load");
   if (isRuntimeScalarComputedMaskStore && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route requires "
-        "one tcrv_rvv.compare producer before tcrv_rvv.masked_store");
+        "one weft_rvv.compare producer before weft_rvv.masked_store");
   if (isRuntimeScalarComputedMaskLoadStore && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask load-store route "
-        "requires one tcrv_rvv.compare producer before "
-        "tcrv_rvv.masked_load");
+        "requires one weft_rvv.compare producer before "
+        "weft_rvv.masked_load");
   if (isComputedMaskStridedStore && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route requires one "
-        "tcrv_rvv.compare producer before tcrv_rvv.masked_strided_store");
+        "weft_rvv.compare producer before weft_rvv.masked_strided_store");
   if (isComputedMaskStridedLoadUnitStore && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-load route requires one "
-        "tcrv_rvv.compare producer before tcrv_rvv.masked_strided_load");
+        "weft_rvv.compare producer before weft_rvv.masked_strided_load");
   if (isComputedMaskIndexedGatherLike && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed gather-load route "
-        "requires one tcrv_rvv.compare producer before "
-        "tcrv_rvv.masked_indexed_load");
+        "requires one weft_rvv.compare producer before "
+        "weft_rvv.masked_indexed_load");
   if (isComputedMaskIndexedScatterLike && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route "
-        "requires one tcrv_rvv.compare producer before "
-        "tcrv_rvv.masked_indexed_store");
+        "requires one weft_rvv.compare producer before "
+        "weft_rvv.masked_indexed_store");
   if ((isComputedMaskSegment2LoadLike ||
        isComputedMaskSegment2StoreLike) &&
       !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 route requires one "
-        "tcrv_rvv.compare producer before masked segment2 memory movement");
+        "weft_rvv.compare producer before masked segment2 memory movement");
   if ((isMaskedUnitLoadStore || isMaskedUnitStore) &&
       genericMaskLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route requires exactly one "
-        "tcrv_rvv.mask_load op");
+        "weft_rvv.mask_load op");
   if (isComputedMaskUnitLoadStore && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask memory route must not consume "
-        "tcrv_rvv.mask_load; the mask must be produced by tcrv_rvv.compare");
+        "weft_rvv.mask_load; the mask must be produced by weft_rvv.compare");
   if (isRuntimeScalarComputedMaskStore && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route must not "
-        "consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if (isRuntimeScalarComputedMaskLoadStore && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask load-store route "
-        "must not consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "must not consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if (isComputedMaskStridedStore && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route must not "
-        "consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if (isComputedMaskStridedLoadUnitStore && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-load route must not "
-        "consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if (isComputedMaskIndexedGatherLike && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed gather-load route must not "
-        "consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if (isComputedMaskIndexedScatterLike && !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route must not "
-        "consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if ((isComputedMaskSegment2LoadLike ||
        isComputedMaskSegment2StoreLike) &&
       !genericMaskLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 route must not "
-        "consume tcrv_rvv.mask_load; the mask must be produced by "
-        "tcrv_rvv.compare");
+        "consume weft_rvv.mask_load; the mask must be produced by "
+        "weft_rvv.compare");
   if (isMaskedUnitLoadStore && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route requires exactly one "
-        "tcrv_rvv.load op for old destination; source must be "
-        "tcrv_rvv.masked_load");
+        "weft_rvv.load op for old destination; source must be "
+        "weft_rvv.masked_load");
   if (isMaskedUnitStore && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked store route requires exactly one "
-        "tcrv_rvv.load op for the payload source");
+        "weft_rvv.load op for the payload source");
   if (isRuntimeScalarComputedMaskStore && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route requires "
-        "exactly two tcrv_rvv.load ops for lhs and active payload source");
+        "exactly two weft_rvv.load ops for lhs and active payload source");
   if (isRuntimeScalarComputedMaskLoadStore && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask load-store route "
-        "requires exactly two tcrv_rvv.load ops for lhs and old destination; "
-        "active source must be tcrv_rvv.masked_load");
+        "requires exactly two weft_rvv.load ops for lhs and old destination; "
+        "active source must be weft_rvv.masked_load");
   if (isComputedMaskUnitLoadStore && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask memory route requires exactly "
-        "three tcrv_rvv.load ops for compare lhs, compare rhs, and old "
-        "destination; active source must be tcrv_rvv.masked_load");
+        "three weft_rvv.load ops for compare lhs, compare rhs, and old "
+        "destination; active source must be weft_rvv.masked_load");
   if (isComputedMaskStridedStore && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route requires "
-        "exactly three unit-stride tcrv_rvv.load ops for compare lhs, "
+        "exactly three unit-stride weft_rvv.load ops for compare lhs, "
         "compare rhs, and active source");
   if (isComputedMaskStridedLoadUnitStore && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-load route requires "
-        "exactly three unit-stride tcrv_rvv.load ops for compare lhs, "
+        "exactly three unit-stride weft_rvv.load ops for compare lhs, "
         "compare rhs, and old destination passthrough");
   if (isComputedMaskIndexedGatherLoadUnitStore && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed gather-load route requires "
-        "exactly three unit-stride tcrv_rvv.load ops for compare lhs, "
+        "exactly three unit-stride weft_rvv.load ops for compare lhs, "
         "compare rhs, and old destination passthrough");
   if (isRuntimeScalarComputedMaskIndexedGatherLoadUnitStore &&
       genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask indexed gather-load "
-        "route requires exactly two unit-stride tcrv_rvv.load ops for lhs "
-        "and old destination passthrough; compare rhs must be tcrv_rvv.splat");
+        "route requires exactly two unit-stride weft_rvv.load ops for lhs "
+        "and old destination passthrough; compare rhs must be weft_rvv.splat");
   if (isRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad &&
       genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask indexed "
-        "scatter-store route requires exactly two unit-stride tcrv_rvv.load "
+        "scatter-store route requires exactly two unit-stride weft_rvv.load "
         "ops for lhs and active payload source; compare rhs must be "
-        "tcrv_rvv.splat");
+        "weft_rvv.splat");
   if (isComputedMaskIndexedScatterStoreUnitLoad && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route requires "
-        "exactly three unit-stride tcrv_rvv.load ops for compare lhs, "
+        "exactly three unit-stride weft_rvv.load ops for compare lhs, "
         "compare rhs, and active payload source");
   if (isComputedMaskStridedStore && !genericStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
@@ -6575,43 +6575,43 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
   if (isComputedMaskStridedLoadUnitStore && !genericStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-load route must use "
-        "tcrv_rvv.masked_strided_load, not tcrv_rvv.strided_load");
+        "weft_rvv.masked_strided_load, not weft_rvv.strided_load");
   if (isComputedMaskIndexedGatherLike &&
       !genericStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed gather-load route must use "
-        "tcrv_rvv.masked_indexed_load, not tcrv_rvv.strided_load");
+        "weft_rvv.masked_indexed_load, not weft_rvv.strided_load");
   if (isComputedMaskIndexedScatterLike &&
       !genericStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route must use "
-        "tcrv_rvv.masked_indexed_store, not tcrv_rvv.strided_load");
+        "weft_rvv.masked_indexed_store, not weft_rvv.strided_load");
   if ((isComputedMaskSegment2LoadLike ||
        isComputedMaskSegment2StoreLike) &&
       !genericStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 route must use unit-stride "
-        "segment2 memory movement, not tcrv_rvv.strided_load");
+        "segment2 memory movement, not weft_rvv.strided_load");
   if (isMaskedUnitStore && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked store route must use "
-        "tcrv_rvv.masked_store, not unit-stride tcrv_rvv.store");
+        "weft_rvv.masked_store, not unit-stride weft_rvv.store");
   if (isRuntimeScalarComputedMaskStore && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route must use "
-        "tcrv_rvv.masked_store, not unit-stride tcrv_rvv.store");
+        "weft_rvv.masked_store, not unit-stride weft_rvv.store");
   if (isRuntimeScalarComputedMaskLoadStore && storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask load-store route "
-        "requires exactly one unit-stride tcrv_rvv.store op");
+        "requires exactly one unit-stride weft_rvv.store op");
   if (isMaskedUnitStore && !slice.maskedStoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked store route requires exactly one "
-        "tcrv_rvv.masked_store op");
+        "weft_rvv.masked_store op");
   if (isRuntimeScalarComputedMaskStore && !slice.maskedStoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route requires "
-        "exactly one tcrv_rvv.masked_store op");
+        "exactly one weft_rvv.masked_store op");
   if ((isMaskedUnitLoadStore || isComputedMaskUnitLoadStore ||
        isRuntimeScalarComputedMaskLoadStore ||
        isComputedMaskStridedLoadUnitStore ||
@@ -6619,13 +6619,13 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route requires exactly one "
-        "unit-stride tcrv_rvv.store op");
+        "unit-stride weft_rvv.store op");
   if ((isMaskedUnitLoadStore || isComputedMaskUnitLoadStore ||
        isRuntimeScalarComputedMaskLoadStore) &&
       genericMaskedLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route requires exactly one "
-        "tcrv_rvv.masked_load op");
+        "weft_rvv.masked_load op");
   if ((!isMaskedUnitLoadStore && !isComputedMaskUnitLoadStore &&
        !isRuntimeScalarComputedMaskLoadStore) &&
       !genericMaskedLoads.empty())
@@ -6637,7 +6637,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericMaskedStridedLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-load route requires "
-        "exactly one tcrv_rvv.masked_strided_load op");
+        "exactly one weft_rvv.masked_strided_load op");
   if (!isComputedMaskStridedLoadUnitStore &&
       !genericMaskedStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
@@ -6647,7 +6647,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericMaskedIndexedLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed gather-load route requires "
-        "exactly one tcrv_rvv.masked_indexed_load op");
+        "exactly one weft_rvv.masked_indexed_load op");
   if (!isComputedMaskIndexedGatherLike &&
       !genericMaskedIndexedLoads.empty())
     return makeRVVEmitCRouteProviderError(
@@ -6657,7 +6657,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericMaskedIndexedStores.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route requires "
-        "exactly one tcrv_rvv.masked_indexed_store op");
+        "exactly one weft_rvv.masked_indexed_store op");
   if (!isComputedMaskIndexedScatterLike &&
       !genericMaskedIndexedStores.empty())
     return makeRVVEmitCRouteProviderError(
@@ -6666,32 +6666,32 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
   if (isComputedMaskStridedStore && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route must use "
-        "tcrv_rvv.strided_store, not unit-stride tcrv_rvv.store");
+        "weft_rvv.strided_store, not unit-stride weft_rvv.store");
   if (isComputedMaskStridedLoadUnitStore && stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-load route must use "
-        "unit-stride tcrv_rvv.store, not tcrv_rvv.strided_store");
+        "unit-stride weft_rvv.store, not weft_rvv.strided_store");
   if (isComputedMaskIndexedGatherLike && stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed gather-load route must use "
-        "unit-stride tcrv_rvv.store, not tcrv_rvv.strided_store");
+        "unit-stride weft_rvv.store, not weft_rvv.strided_store");
   if (isComputedMaskIndexedScatterLike && stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route must use "
-        "tcrv_rvv.masked_indexed_store, not tcrv_rvv.strided_store");
+        "weft_rvv.masked_indexed_store, not weft_rvv.strided_store");
   if (isComputedMaskIndexedScatterLike &&
       !slice.maskedIndexedStoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask indexed scatter-store route requires "
-        "exactly one tcrv_rvv.masked_indexed_store op");
+        "exactly one weft_rvv.masked_indexed_store op");
   if (isComputedMaskStridedStore && stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route must use "
-        "tcrv_rvv.masked_strided_store, not tcrv_rvv.strided_store");
+        "weft_rvv.masked_strided_store, not weft_rvv.strided_store");
   if (isComputedMaskStridedStore && !slice.maskedStridedStoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route requires "
-        "exactly one tcrv_rvv.masked_strided_store op");
+        "exactly one weft_rvv.masked_strided_store op");
   if (isMAccAdd && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV multiply-accumulate route requires explicit "
@@ -6749,32 +6749,32 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
   if (isMAccAdd && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV multiply-accumulate route requires exactly three "
-        "tcrv_rvv.load ops for lhs, rhs, and accumulator-input-buffer");
+        "weft_rvv.load ops for lhs, rhs, and accumulator-input-buffer");
   if (isScalarBroadcastMAccAdd && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV scalar-broadcast multiply-accumulate composition "
-        "route requires exactly two tcrv_rvv.load ops for lhs and "
+        "route requires exactly two weft_rvv.load ops for lhs and "
         "accumulator-input-buffer plus one RHS scalar splat");
   if (isComputedMaskedMAccAdd && genericLoads.size() != 5)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask multiply-accumulate route requires "
-        "exactly five tcrv_rvv.load ops for compare lhs, compare rhs, "
+        "exactly five weft_rvv.load ops for compare lhs, compare rhs, "
         "payload lhs, payload rhs, and accumulator-input-buffer");
   if (isRuntimeScalarComputedMaskedMAccAdd && genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask "
-        "multiply-accumulate route requires exactly four tcrv_rvv.load ops "
+        "multiply-accumulate route requires exactly four weft_rvv.load ops "
         "for compare lhs, payload lhs, payload rhs, and "
         "accumulator-input-buffer plus one runtime scalar splat threshold");
   if (isWideningMAccAdd && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening multiply-accumulate route requires "
-        "exactly three tcrv_rvv.load ops for lhs, rhs, and "
+        "exactly three weft_rvv.load ops for lhs, rhs, and "
         "accumulator-input-buffer");
   if (isWideningDotReduceAdd && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening dot-product reduction route requires "
-        "exactly two tcrv_rvv.load ops for lhs and rhs; the accumulator seed "
+        "exactly two weft_rvv.load ops for lhs and rhs; the accumulator seed "
         "is a scalar runtime ABI boundary");
   // P1e (arity guard-flip): the product-reduction route's i8 source-load count
   // is the descriptor's product-factor arity, not the hardcoded 2. Every N=2
@@ -6794,39 +6794,39 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericLoads.size() != expectedProductReductionLoadCount)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV low-precision product-reduction route requires "
-        "exactly two tcrv_rvv.load ops for i8 lhs and rhs; the accumulator "
+        "exactly two weft_rvv.load ops for i8 lhs and rhs; the accumulator "
         "seed is a scalar runtime ABI boundary");
   if (isStandaloneReduction && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV standalone reduction route requires exactly one "
-        "tcrv_rvv.load op for lhs; the accumulator seed is a scalar runtime "
+        "weft_rvv.load op for lhs; the accumulator seed is a scalar runtime "
         "ABI boundary");
   if (isComputedMaskStandaloneReduction && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask standalone reduction route requires "
-        "exactly three tcrv_rvv.load ops for compare lhs, compare rhs, and "
+        "exactly three weft_rvv.load ops for compare lhs, compare rhs, and "
         "source input; the accumulator seed is a scalar runtime ABI boundary");
   if (isRuntimeScalarComputedMaskStandaloneReduction &&
       genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask standalone "
-        "reduction route requires exactly two tcrv_rvv.load ops for compare "
+        "reduction route requires exactly two weft_rvv.load ops for compare "
         "lhs and source input plus one runtime scalar splat threshold; the "
         "accumulator seed is a scalar runtime ABI boundary");
   if (isStridedInputWideningDotReduceAdd && genericLoads.size() != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-input widening dot-product reduction "
-        "route must use tcrv_rvv.strided_load for lhs/rhs sources, not "
-        "unit-stride tcrv_rvv.load");
+        "route must use weft_rvv.strided_load for lhs/rhs sources, not "
+        "unit-stride weft_rvv.load");
   if (isStridedInputWideningDotReduceAdd && genericStridedLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-input widening dot-product reduction "
-        "route requires exactly two tcrv_rvv.strided_load ops for lhs and rhs; "
+        "route requires exactly two weft_rvv.strided_load ops for lhs and rhs; "
         "the accumulator seed is a scalar runtime ABI boundary");
   if (isComputedMaskWideningDotReduceAdd && genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask widening dot-product reduction "
-        "route requires exactly four tcrv_rvv.load ops for compare lhs, "
+        "route requires exactly four weft_rvv.load ops for compare lhs, "
         "compare rhs, dot lhs, and dot rhs; the accumulator seed is a scalar "
         "runtime ABI boundary");
   if (isComputedMaskStridedInputWideningDotReduceAdd &&
@@ -6834,42 +6834,42 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-input widening "
         "dot-product reduction route requires exactly two unit-stride "
-        "tcrv_rvv.load ops for compare lhs and compare rhs");
+        "weft_rvv.load ops for compare lhs and compare rhs");
   if (isComputedMaskStridedInputWideningDotReduceAdd &&
       genericStridedLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-input widening "
-        "dot-product reduction route requires exactly two tcrv_rvv.strided_load "
+        "dot-product reduction route requires exactly two weft_rvv.strided_load "
         "ops for dot lhs and dot rhs; the accumulator seed is a scalar "
         "runtime ABI boundary");
   if (isComputedMaskSelect && genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask select route requires exactly four "
-        "tcrv_rvv.load ops for compare lhs, compare rhs, true value, and "
+        "weft_rvv.load ops for compare lhs, compare rhs, true value, and "
         "false value");
   if (isRuntimeScalarCompareSelect && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar compare/select route requires "
-        "exactly three tcrv_rvv.load ops for lhs, true value, and false value");
+        "exactly three weft_rvv.load ops for lhs, true value, and false value");
   if (isRuntimeScalarDualCompareMaskAndSelect && genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar dual-compare mask-and select "
-        "route requires exactly four tcrv_rvv.load ops for compare lhs A, "
+        "route requires exactly four weft_rvv.load ops for compare lhs A, "
         "compare lhs B, true value, and false value");
   if (isF32ClampSelect && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV f32 clamp/select route requires exactly one "
-        "tcrv_rvv.load op for the f32 input plus lower and upper runtime "
+        "weft_rvv.load op for the f32 input plus lower and upper runtime "
         "scalar splats");
   if (isDequantClampF32Epilogue && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV dequant-clamp f32 epilogue route requires "
-        "exactly one tcrv_rvv.load op for the i32 input plus runtime scale "
+        "exactly one weft_rvv.load op for the i32 input plus runtime scale "
         "dequantize and lower/upper runtime scalar splats");
   if (isRuntimeScalarComputedMaskStore && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route requires "
-        "exactly two tcrv_rvv.load ops for lhs and payload source");
+        "exactly two weft_rvv.load ops for lhs and payload source");
   if (hasScalarBroadcast &&
       (!slice.arithmeticOp ||
        (slice.arithmeticKind != RVVSelectedBodyOperationKind::Add &&
@@ -6922,18 +6922,18 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV scalar-broadcast route currently requires "
         "either pure runtime_scalar_splat_store splat/store structure, exactly "
-        "one tcrv_rvv.binary {kind = \"add\", \"sub\", or \"mul\"} compute "
+        "one weft_rvv.binary {kind = \"add\", \"sub\", or \"mul\"} compute "
         "op, a bounded runtime scalar compare/select structure, or a bounded "
         "runtime scalar computed-mask masked-store, masked-load-store, "
         "indexed gather/scatter, or segment2 load/store structure");
   if (isWideningConversion && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route requires exactly one "
-        "tcrv_rvv.load source op");
+        "weft_rvv.load source op");
   if (isDequantization && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV dequantization route requires exactly one "
-        "tcrv_rvv.load source op");
+        "weft_rvv.load source op");
   if (isWideningConversion &&
       (slice.compareOp || slice.maskedBinaryOp || slice.selectOp ||
        slice.reduceOp || slice.maccOp || slice.wideningMAccOp ||
@@ -6982,7 +6982,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV vector-load route requires exactly two "
-        "tcrv_rvv.load ops");
+        "weft_rvv.load ops");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMAccAdd &&
       !isScalarBroadcastMAccAdd &&
@@ -7014,7 +7014,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       !genericBroadcastLoads.empty() && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV broadcast route requires exactly one "
-        "tcrv_rvv.load op and one tcrv_rvv.broadcast_load op");
+        "weft_rvv.load op and one weft_rvv.broadcast_load op");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMAccAdd &&
       !isScalarBroadcastMAccAdd &&
@@ -7046,7 +7046,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV scalar-broadcast route requires exactly one "
-        "tcrv_rvv.load op and one tcrv_rvv.splat op");
+        "weft_rvv.load op and one weft_rvv.splat op");
   if (isRuntimeScalarSplatStore && !genericLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar splat-store route must not contain "
@@ -7062,21 +7062,21 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       !slice.genericStore)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires exactly one "
-        "tcrv_rvv.store op");
+        "weft_rvv.store op");
   if (!slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires exactly one supported "
-        "tcrv_rvv.binary, tcrv_rvv.select, tcrv_rvv.reduce, tcrv_rvv.macc, "
-        "tcrv_rvv.masked_macc, "
-        "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
-        "tcrv_rvv.widening_macc, "
-        "tcrv_rvv.widening_product, tcrv_rvv.widening_dot_reduce, "
-        "tcrv_rvv.masked_widening_dot_reduce, tcrv_rvv.widening_convert, "
-        "tcrv_rvv.dequantize, tcrv_rvv.move, tcrv_rvv.masked_move, "
-        "tcrv_rvv.masked_load, tcrv_rvv.masked_strided_load, "
-        "tcrv_rvv.masked_indexed_load, tcrv_rvv.masked_segment2_load, "
-        "tcrv_rvv.masked_segment2_store, tcrv_rvv.masked_store, or "
-        "tcrv_rvv.masked_strided_store op");
+        "weft_rvv.binary, weft_rvv.select, weft_rvv.reduce, weft_rvv.macc, "
+        "weft_rvv.masked_macc, "
+        "weft_rvv.standalone_reduce, weft_rvv.masked_standalone_reduce, "
+        "weft_rvv.widening_macc, "
+        "weft_rvv.widening_product, weft_rvv.widening_dot_reduce, "
+        "weft_rvv.masked_widening_dot_reduce, weft_rvv.widening_convert, "
+        "weft_rvv.dequantize, weft_rvv.move, weft_rvv.masked_move, "
+        "weft_rvv.masked_load, weft_rvv.masked_strided_load, "
+        "weft_rvv.masked_indexed_load, weft_rvv.masked_segment2_load, "
+        "weft_rvv.masked_segment2_store, weft_rvv.masked_store, or "
+        "weft_rvv.masked_strided_store op");
   if (((!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
         !isMaskedUnitStore && !isRuntimeScalarComputedMaskStore &&
         !isRuntimeScalarDualCompareMaskAndSelect &&
@@ -7087,7 +7087,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
        isComputedMaskIndexedGatherLike) &&
       storeCount != 1)
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV EmitC route requires exactly one tcrv_rvv.store "
+        "bounded generic RVV EmitC route requires exactly one weft_rvv.store "
         "op");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isStridedInputWideningDotReduceAdd &&
@@ -7095,8 +7095,8 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedGatherLike && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV strided route must use tcrv_rvv.strided_store "
-        "instead of tcrv_rvv.store");
+        "bounded generic RVV strided route must use weft_rvv.strided_store "
+        "instead of weft_rvv.store");
   if ((isCompareSelect || isComputedMaskSelect ||
        isRuntimeScalarCompareSelect ||
        isRuntimeScalarDualCompareMaskAndSelect ||
@@ -7121,12 +7121,12 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
       "bounded generic RVV mask-consuming route requires one "
-      "tcrv_rvv.compare op before the mask-consuming compute op");
+      "weft_rvv.compare op before the mask-consuming compute op");
   if (isRuntimeScalarDualCompareMaskAndSelect &&
       (!slice.secondaryCompareOp || !slice.maskAndOp))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar dual-compare mask-and select "
-        "route requires two compare ops and one tcrv_rvv.mask_and op");
+        "route requires two compare ops and one weft_rvv.mask_and op");
   if (!isCompareSelect && !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect &&
       !isRuntimeScalarDualCompareMaskAndSelect &&
@@ -7151,11 +7151,11 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
       slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV non-mask route does not support a standalone "
-        "tcrv_rvv.compare op");
+        "weft_rvv.compare op");
   if (!isRuntimeScalarDualCompareMaskAndSelect && slice.maskAndOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV non-mask-composition route does not support a "
-        "standalone tcrv_rvv.mask_and op");
+        "standalone weft_rvv.mask_and op");
   if ((isCompareSelect || isComputedMaskSelect) && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV compare/select route requires an explicit RHS "
@@ -7184,7 +7184,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
   return llvm::Error::success();
 }
 
-// Validate the total tcrv_rvv op count against the per-shape expected count
+// Validate the total weft_rvv op count against the per-shape expected count
 // (plus handoff/marker/consumer-scope adjustments). Pure validation leaf
 // extracted verbatim from collectRVVSelectedBodyRouteSlice (tail).
 llvm::Error checkRVVSelectedBodyExpectedOpCount(
@@ -7225,7 +7225,7 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
     bool isWideningProductReductionChain) {
   // P1e (arity guard-flip): the plain product-reduction body carries a fixed
   // 8-op frame (acc/out/n runtime_abi_value + setvl + with_vl + product head +
-  // standalone_reduce + store) plus exactly 2 tcrv_rvv ops per product-factor
+  // standalone_reduce + store) plus exactly 2 weft_rvv ops per product-factor
   // source (its runtime_abi_value input-buffer param + its load). So its total
   // op count is 8 + 2*arity. For every N=2 product-reduction route arity is 2 ->
   // 12, byte-identical to the former literal; the C3 N=3 offset-binary route ->
@@ -7339,11 +7339,11 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
           ? 1u
           : 0u;
   // The deferred-wide (N3) realization inserts one extra in-loop
-  // tcrv_rvv.widening_accumulate op between the widening_product and the trailing
+  // weft_rvv.widening_accumulate op between the widening_product and the trailing
   // standalone_reduce; account for it structurally from the slice (I5).
   //
   // The i16 dot-reduce deferred-wide realization (2nd kernel family) replaces the
-  // narrow body's ONE fused tcrv_rvv.widening_dot_reduce with the THREE-op chain
+  // narrow body's ONE fused weft_rvv.widening_dot_reduce with the THREE-op chain
   // widening_product + deferred_accumulate + standalone_reduce -- a +2 delta over
   // the isWideningDotReduceAdd base of 11. Both deltas are read structurally from
   // the slice (the carried op presence), I5.
@@ -7352,7 +7352,7 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
       : slice.deferredAccumulateOp ? 2u
                                    : 0u;
   // The C4 codebook route carries ONE extra in-loop op the 8+2*arity frame does
-  // not: the tcrv_rvv.codebook_table_broadcast (the ConstantTableLoad aux, which
+  // not: the weft_rvv.codebook_table_broadcast (the ConstantTableLoad aux, which
   // is neither part of the fixed frame nor a per-factor load/param pair). Account
   // for it structurally from the slice (I5). Zero for every non-codebook route.
   const unsigned expectedCodebookTableAdjust =
@@ -7383,37 +7383,37 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
 } // namespace
 
 llvm::Expected<RVVSelectedBodyRouteSlice>
-collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
-  llvm::SmallVector<tcrv::rvv::SetVLOp, 2> setvls;
-  llvm::SmallVector<tcrv::rvv::WithVLOp, 2> withVLs;
+collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
+  llvm::SmallVector<weft::rvv::SetVLOp, 2> setvls;
+  llvm::SmallVector<weft::rvv::WithVLOp, 2> withVLs;
   unsigned rvvOpCount = 0;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (op->getName().getDialectNamespace() != "weft_rvv")
       return;
     ++rvvOpCount;
-    if (auto setvl = llvm::dyn_cast<tcrv::rvv::SetVLOp>(op))
+    if (auto setvl = llvm::dyn_cast<weft::rvv::SetVLOp>(op))
       setvls.push_back(setvl);
-    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
+    if (auto withVL = llvm::dyn_cast<weft::rvv::WithVLOp>(op))
       withVLs.push_back(withVL);
   });
 
   if (setvls.size() != 1)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.setvl op");
+        "bounded RVV EmitC route requires exactly one weft_rvv.setvl op");
 
   RVVSelectedBodyRouteSlice slice;
   slice.setvl = setvls.front();
   if (llvm::Error error = resolveGearboxProducerConsumerWithVL(withVLs, slice))
     return std::move(error);
 
-  tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
-      tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(slice.setvl,
+  weft::rvv::RVVConfigContractDiagnostic configDiagnostic =
+      weft::rvv::validateRVVSelectedBodyConfigVLStructure(slice.setvl,
                                                           slice.withVL);
   if (!configDiagnostic.ok)
     return makeRVVEmitCRouteProviderError(configDiagnostic.message);
   if (slice.gearboxConsumerWithVL) {
-    tcrv::rvv::RVVConfigContractDiagnostic consumerConfigDiagnostic =
-        tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(
+    weft::rvv::RVVConfigContractDiagnostic consumerConfigDiagnostic =
+        weft::rvv::validateRVVSelectedBodyConfigVLStructure(
             slice.setvl, slice.gearboxConsumerWithVL);
     if (!consumerConfigDiagnostic.ok)
       return makeRVVEmitCRouteProviderError(consumerConfigDiagnostic.message);
@@ -7421,7 +7421,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
 
   llvm::Expected<support::RuntimeABIParameter> runtimeElementCountABI =
       getRuntimeABIParameterBindingFromValue(
-          slice.setvl.getAvl(), "tcrv_rvv.setvl AVL operand",
+          slice.setvl.getAvl(), "weft_rvv.setvl AVL operand",
           {support::RuntimeABIParameterRole::RuntimeElementCount});
   if (!runtimeElementCountABI)
     return runtimeElementCountABI.takeError();
@@ -7436,30 +7436,30 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return slice;
   }
 
-  llvm::SmallVector<tcrv::rvv::LoadOp, 2> genericLoads;
-  llvm::SmallVector<tcrv::rvv::StridedLoadOp, 2> genericStridedLoads;
-  llvm::SmallVector<tcrv::rvv::IndexLoadOp, 1> genericIndexLoads;
-  llvm::SmallVector<tcrv::rvv::IndexedLoadOp, 1> genericIndexedLoads;
-  llvm::SmallVector<tcrv::rvv::IndexedStoreOp, 1> genericIndexedStores;
-  llvm::SmallVector<tcrv::rvv::MaskLoadOp, 1> genericMaskLoads;
-  llvm::SmallVector<tcrv::rvv::MaskedLoadOp, 1> genericMaskedLoads;
-  llvm::SmallVector<tcrv::rvv::MaskedStridedLoadOp, 1>
+  llvm::SmallVector<weft::rvv::LoadOp, 2> genericLoads;
+  llvm::SmallVector<weft::rvv::StridedLoadOp, 2> genericStridedLoads;
+  llvm::SmallVector<weft::rvv::IndexLoadOp, 1> genericIndexLoads;
+  llvm::SmallVector<weft::rvv::IndexedLoadOp, 1> genericIndexedLoads;
+  llvm::SmallVector<weft::rvv::IndexedStoreOp, 1> genericIndexedStores;
+  llvm::SmallVector<weft::rvv::MaskLoadOp, 1> genericMaskLoads;
+  llvm::SmallVector<weft::rvv::MaskedLoadOp, 1> genericMaskedLoads;
+  llvm::SmallVector<weft::rvv::MaskedStridedLoadOp, 1>
       genericMaskedStridedLoads;
-  llvm::SmallVector<tcrv::rvv::MaskedIndexedLoadOp, 1>
+  llvm::SmallVector<weft::rvv::MaskedIndexedLoadOp, 1>
       genericMaskedIndexedLoads;
-  llvm::SmallVector<tcrv::rvv::MaskedIndexedStoreOp, 1>
+  llvm::SmallVector<weft::rvv::MaskedIndexedStoreOp, 1>
       genericMaskedIndexedStores;
-  llvm::SmallVector<tcrv::rvv::MaskedSegment2LoadOp, 1>
+  llvm::SmallVector<weft::rvv::MaskedSegment2LoadOp, 1>
       genericMaskedSegment2Loads;
-  llvm::SmallVector<tcrv::rvv::MaskedSegment2StoreOp, 1>
+  llvm::SmallVector<weft::rvv::MaskedSegment2StoreOp, 1>
       genericMaskedSegment2Stores;
-  llvm::SmallVector<tcrv::rvv::Segment2LoadOp, 1> genericSegment2Loads;
-  llvm::SmallVector<tcrv::rvv::Segment2StoreOp, 1> genericSegment2Stores;
-  llvm::SmallVector<tcrv::rvv::VSetVLRegionMarkerOp, 4>
+  llvm::SmallVector<weft::rvv::Segment2LoadOp, 1> genericSegment2Loads;
+  llvm::SmallVector<weft::rvv::Segment2StoreOp, 1> genericSegment2Stores;
+  llvm::SmallVector<weft::rvv::VSetVLRegionMarkerOp, 4>
       vsetvlRegionMarkers;
-  llvm::SmallVector<tcrv::rvv::BroadcastLoadOp, 1> genericBroadcastLoads;
-  llvm::SmallVector<tcrv::rvv::SplatOp, 2> genericScalarSplats;
-  llvm::SmallVector<tcrv::rvv::StoreOp, 2> genericStores;
+  llvm::SmallVector<weft::rvv::BroadcastLoadOp, 1> genericBroadcastLoads;
+  llvm::SmallVector<weft::rvv::SplatOp, 2> genericScalarSplats;
+  llvm::SmallVector<weft::rvv::StoreOp, 2> genericStores;
   unsigned storeCount = 0;
   unsigned stridedStoreCount = 0;
   if (llvm::Error error = collectGenericRouteSliceOps(
@@ -7564,7 +7564,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     if (!slice.moveOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV indexed memory route requires exactly one "
-          "tcrv_rvv.move {kind = \"copy\"} movement op");
+          "weft_rvv.move {kind = \"copy\"} movement op");
     slice.arithmeticKind =
         genericIndexedStores.empty()
             ? RVVSelectedBodyOperationKind::IndexedGatherUnitStore
@@ -7698,7 +7698,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV runtime scalar computed-mask standalone "
           "reduction route currently supports only "
-          "tcrv_rvv.masked_standalone_reduce {kind = \"add\", \"min\", or "
+          "weft_rvv.masked_standalone_reduce {kind = \"add\", \"min\", or "
           "\"max\"}");
     slice.memoryForm = RVVSelectedBodyMemoryForm::
         RuntimeScalarComputedMaskUnitStrideStandaloneReduction;
@@ -7797,7 +7797,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd;
   // The deferred-wide terminal kind is the SAME logical product-reduce-dequant
-  // route (single-scope, no handoff) with one extra in-loop tcrv_rvv.widening_
+  // route (single-scope, no handoff) with one extra in-loop weft_rvv.widening_
   // accumulate op; it shares the dequant route handling and its op count is one
   // greater (added back below via expectedDeferredWideAdjust).
   const bool isWideningProductDeferredAccumulateReduceDequantize =
@@ -7824,7 +7824,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   // shares the narrow widening_dot_reduce route IDENTITY (same leaf profile / ABI
   // / route id) but its realized body is the widening_product ->
   // deferred_accumulate -> standalone_reduce chain (3 compute ops where the narrow
-  // body has ONE fused tcrv_rvv.widening_dot_reduce). Treat it as a dot-reduce-add
+  // body has ONE fused weft_rvv.widening_dot_reduce). Treat it as a dot-reduce-add
   // route for the route-family handling below; the +2 op-count delta + the wide
   // strip config are applied via the dedicated deferred-wide-dot adjustments.
   const bool isDeferredWideDotReduceAdd =
@@ -7961,7 +7961,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       storeCount == 1 && stridedStoreCount == 0 && !hasStridedMemory &&
       !hasIndexedMemory && !hasSegmentedMemory && !hasMaskedMemory;
   if (isRuntimeScalarSplatStore) {
-    tcrv::rvv::SplatOp splat = genericScalarSplats.front();
+    weft::rvv::SplatOp splat = genericScalarSplats.front();
     slice.arithmeticKind = RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
     slice.memoryForm = RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
     slice.arithmeticOp = splat.getOperation();
@@ -7970,21 +7970,21 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (!slice.vsetvlRegionMarkers.empty() &&
       !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route accepts tcrv_rvv.vsetvl_region_marker only "
+        "bounded RVV EmitC route accepts weft_rvv.vsetvl_region_marker only "
         "for low-precision product-reduction dequantization/dequant-clamp "
         "selected-body realization");
   if (slice.gearboxCrossRegionHandoffOp &&
       !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route accepts "
-        "tcrv_rvv.gearbox_cross_region_handoff only for low-precision "
+        "weft_rvv.gearbox_cross_region_handoff only for low-precision "
         "product-reduction dequantization/dequant-clamp selected-body "
         "realization");
   // The dequant/dequant-clamp selected body has two structurally legal forms:
   //   - legacy two-scope: a gearbox_cross_region_handoff carrier + a nested
   //     consumer with_vl (producer/consumer split). BOTH must be present.
   //   - single-scope typed body (Stage 3 flip): no handoff, no consumer scope --
-  //     the i32 carry feeds tcrv_rvv.dequantize directly inside the one with_vl.
+  //     the i32 carry feeds weft_rvv.dequantize directly inside the one with_vl.
   // A handoff present without a consumer scope (or vice versa) is a malformed
   // partial two-scope body and stays fail-closed.
   if (isWideningProductReduceDequantGearboxRoute &&
@@ -7993,8 +7993,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded Gearbox product-reduction dequantization/dequant-clamp RVV "
         "route requires either a complete two-scope producer/consumer body "
-        "(both tcrv_rvv.gearbox_cross_region_handoff and the nested consumer "
-        "tcrv_rvv.with_vl) or a single-scope typed body with neither; a "
+        "(both weft_rvv.gearbox_cross_region_handoff and the nested consumer "
+        "weft_rvv.with_vl) or a single-scope typed body with neither; a "
         "partial two-scope body is not route authority");
   if (slice.gearboxConsumerWithVL && !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
@@ -8021,11 +8021,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isDequantClampF32Epilogue && !isWideningProductReduceDequantClamp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires at most one "
-        "tcrv_rvv.splat op");
+        "weft_rvv.splat op");
   if (genericBroadcastLoads.size() > 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires at most one "
-        "tcrv_rvv.broadcast_load op");
+        "weft_rvv.broadcast_load op");
   const bool hasRHSBroadcastLike =
       !genericBroadcastLoads.empty() || hasScalarBroadcast;
   if (!genericBroadcastLoads.empty() && hasScalarBroadcast)
@@ -8206,9 +8206,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
 namespace {
 // Restore the pre-split single-namespace overload set so unqualified calls to
 // the relocated (sew, lmul) primitive builders resolve identically.
-using ::tianchenrv::plugin::rvv::getRVVSelectedBodyArithmeticIntrinsic;
-using ::tianchenrv::plugin::rvv::getRVVSelectedBodyMaskAndIntrinsic;
-using ::tianchenrv::plugin::rvv::getRVVSelectedBodySelectIntrinsic;
+using ::weft::plugin::rvv::getRVVSelectedBodyArithmeticIntrinsic;
+using ::weft::plugin::rvv::getRVVSelectedBodyMaskAndIntrinsic;
+using ::weft::plugin::rvv::getRVVSelectedBodySelectIntrinsic;
 
 struct RVVOrderedRoleOperations {
   llvm::SmallVector<mlir::Operation *, 12> operations;
@@ -8218,10 +8218,10 @@ struct RVVOrderedRoleOperations {
 unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
                                   mlir::Operation *op) {
   auto getRuntimeABI =
-      [](mlir::Value value) -> tcrv::rvv::RuntimeABIValueOp {
+      [](mlir::Value value) -> weft::rvv::RuntimeABIValueOp {
     if (!value)
       return nullptr;
-    return value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+    return value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   };
   auto lhsABI =
       getRuntimeABI(slice.lhsBuffer);
@@ -8269,19 +8269,19 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       getRuntimeABI(slice.setvl ? slice.setvl.getAvl() : mlir::Value());
   auto lhsStrideABI =
       slice.lhsStride
-          ? slice.lhsStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.lhsStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   auto rhsStrideABI =
       slice.rhsStride
-          ? slice.rhsStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.rhsStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   auto sourceStrideABI =
       slice.sourceStride
-          ? slice.sourceStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.sourceStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   auto outStrideABI =
       slice.outStride
-          ? slice.outStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.outStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   const bool isStrided =
       slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
@@ -9000,7 +9000,7 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return isWideningProductReduceDequantize ? 9 : 8;
     if (op == productSlotOperation(slice))
       return isWideningProductReduceDequantize ? 10 : 9;
-    // The deferred-wide (N3) chain inserts tcrv_rvv.widening_accumulate at order
+    // The deferred-wide (N3) chain inserts weft_rvv.widening_accumulate at order
     // 11, between the product (10) and the trailing standalone_reduce; the reduce/
     // dequant/store roles below shift up by one when the accumulate is present
     // (structural, mirrors the role-step list insertion).
@@ -9317,7 +9317,7 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (op == slice.rhsLoadOperation)
       return 8;
     // The deferred-wide i16 dot-reduce body (2nd kernel family) decomposes the
-    // narrow single fused tcrv_rvv.widening_dot_reduce (order 9) into the chain
+    // narrow single fused weft_rvv.widening_dot_reduce (order 9) into the chain
     // widening_product (9) -> deferred_accumulate (10) -> standalone_reduce (11),
     // shifting the store to 12. Mirrors the parallel role-step insertion (I5,
     // structural from the realized ops).
@@ -9656,16 +9656,16 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
 }
 
 RVVOrderedRoleOperations
-collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
+collectRVVRoleOperationsInBodyOrder(weft::exec::VariantOp variant,
                                     RVVSelectedBodyRouteSlice &slice) {
   RVVOrderedRoleOperations ordered;
   if (!variant || variant.getBody().empty())
     return ordered;
 
   auto recordRoleOp = [&](mlir::Operation &op) {
-    if (op.getName().getDialectNamespace() != "tcrv_rvv")
+    if (op.getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(op))
+    if (llvm::isa<weft::rvv::VSetVLRegionMarkerOp>(op))
       return;
     // P1f C4: the codebook_table_broadcast is an inert ConstantTableLoad aux source
     // (accounted separately in the op-count frame; its table operand is structurally
@@ -9674,19 +9674,19 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
     // role sequence -- the codebook body's remaining ops then match the same N=3
     // 14-step spec as the C3 offset-binary route. Dormant for every non-codebook
     // route (no other body carries this op) -> byte-exact.
-    if (llvm::isa<tcrv::rvv::CodebookTableBroadcastOp>(op))
+    if (llvm::isa<weft::rvv::CodebookTableBroadcastOp>(op))
       return;
     ordered.operations.push_back(&op);
     ordered.constructionOrders.push_back(getRVVCanonicalRoleOrder(slice, &op));
   };
 
   for (mlir::Operation &op : variant.getBody().front()) {
-    if (op.getName().getDialectNamespace() != "tcrv_rvv")
+    if (op.getName().getDialectNamespace() != "weft_rvv")
       continue;
-    if (llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(op))
+    if (llvm::isa<weft::rvv::VSetVLRegionMarkerOp>(op))
       continue;
     recordRoleOp(op);
-    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op)) {
+    if (auto withVL = llvm::dyn_cast<weft::rvv::WithVLOp>(op)) {
       for (mlir::Operation &nested : withVL.getBody().front()) {
         recordRoleOp(nested);
         if (slice.gearboxConsumerWithVL &&
@@ -9707,10 +9707,10 @@ llvm::Error verifySelectedRVVRoleSequence(
     const VariantEmitCLowerableRequest &request,
     const RVVSelectedBodyConstructionRoute &constructionRoute) {
   auto getRuntimeABI =
-      [](mlir::Value value) -> tcrv::rvv::RuntimeABIValueOp {
+      [](mlir::Value value) -> weft::rvv::RuntimeABIValueOp {
     if (!value)
       return nullptr;
-    return value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+    return value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   };
   auto lhsABI =
       getRuntimeABI(slice.lhsBuffer);
@@ -9758,19 +9758,19 @@ llvm::Error verifySelectedRVVRoleSequence(
       getRuntimeABI(slice.setvl ? slice.setvl.getAvl() : mlir::Value());
   auto lhsStrideABI =
       slice.lhsStride
-          ? slice.lhsStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.lhsStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   auto rhsStrideABI =
       slice.rhsStride
-          ? slice.rhsStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.rhsStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   auto sourceStrideABI =
       slice.sourceStride
-          ? slice.sourceStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.sourceStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   auto outStrideABI =
       slice.outStride
-          ? slice.outStride.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>()
+          ? slice.outStride.getDefiningOp<weft::rvv::RuntimeABIValueOp>()
           : nullptr;
   const bool isStrided =
       slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
@@ -9985,7 +9985,7 @@ llvm::Error verifySelectedRVVRoleSequence(
       (isSegment2InterleaveUnitLoad && (!rhsABI || !outABI)))
     return makeRVVEmitCRouteProviderError(
         "selected RVV construction role sequence requires runtime ABI values "
-        "to be explicit tcrv_rvv.runtime_abi_value ops");
+        "to be explicit weft_rvv.runtime_abi_value ops");
 
   if (isStridedLoadUnitStore) {
     if (slice.lhsABI.role !=
@@ -10050,7 +10050,7 @@ llvm::Error verifySelectedRVVRoleSequence(
           "widening_product_reduce_dequant_clamp_f32";
   // The deferred-wide i16 dot-reduce realized body (2nd kernel family) is the
   // structural chain widening_product -> deferred_accumulate -> standalone_reduce
-  // (NOT the narrow fused tcrv_rvv.widening_dot_reduce). Report that chain from
+  // (NOT the narrow fused weft_rvv.widening_dot_reduce). Report that chain from
   // the realized structural ops (I5) so the role-sequence verifier matches the
   // realized body. The narrow dot-reduce keeps its single fused op name.
   const bool isDeferredWideDotReduceConstructionRoute =
@@ -10062,9 +10062,9 @@ llvm::Error verifySelectedRVVRoleSequence(
                 slice, constructionRoute.operationMnemonic ==
                            "widening_product_reduce_dequant_clamp_f32")
       : isDeferredWideDotReduceConstructionRoute
-          ? llvm::StringRef("tcrv_rvv.widening_product+"
-                            "tcrv_rvv.deferred_accumulate+"
-                            "tcrv_rvv.standalone_reduce")
+          ? llvm::StringRef("weft_rvv.widening_product+"
+                            "weft_rvv.deferred_accumulate+"
+                            "weft_rvv.standalone_reduce")
       : (isWideningProductReduceConstructionRoute ||
          isRuntimeScalarCompositeConstructionRoute)
           ? constructionRoute.typedComputeOpName
@@ -10156,4 +10156,4 @@ llvm::Error verifySelectedRVVRoleSequence(
 }
 
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

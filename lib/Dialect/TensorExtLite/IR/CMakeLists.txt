@@ -1,13 +1,13 @@
-add_mlir_dialect_library(TianChenRVTensorExtLiteDialect
+add_mlir_dialect_library(WeftTensorExtLiteDialect
   TensorExtLiteDialect.cpp
 
   DEPENDS
   MLIRTensorExtLiteOpsIncGen
-  MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRWEFTEmitCLowerableOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftSupport
   MLIRIR
 )

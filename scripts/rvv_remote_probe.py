@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Collect bounded RVV hardware/toolchain evidence from ``ssh rvv``.
 
-The probe is evidence tooling only. It does not implement TianChen-RV compiler
+The probe is evidence tooling only. It does not implement Weft-RV compiler
 IR, plugin logic, lowering, emission, runtime glue, correctness, or
 performance measurement.
 """
@@ -22,7 +22,7 @@ import time
 from typing import Any
 
 
-PROBE_NAME = "tianchenrv-rvv-remote-probe"
+PROBE_NAME = "weft-rvv-remote-probe"
 SCHEMA_VERSION = 5
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_probe")
 DEFAULT_SSH_TARGET = "rvv"
@@ -63,7 +63,7 @@ RVV_PROBE_SOURCE = r"""
 #include <stdio.h>
 #include <riscv_vector.h>
 
-static size_t tcrv_read_vlenb(void) {
+static size_t weft_read_vlenb(void) {
   size_t value = 0;
   __asm__ volatile("csrr %0, vlenb" : "=r"(value));
   return value;
@@ -86,7 +86,7 @@ int main(void) {
     fprintf(stderr, "invalid first vl=%zu\n", first_vl);
     return 2;
   }
-  size_t vlenb = tcrv_read_vlenb();
+  size_t vlenb = weft_read_vlenb();
   if (vlenb == 0) {
     fprintf(stderr, "invalid vlenb=%zu\n", vlenb);
     return 4;
@@ -477,15 +477,15 @@ def run_rvv_compile_probe(
         compile_run["commands"] = ["clang_path", "clang_version"]
         return compile_run
 
-    remote_dir = f"/tmp/tianchenrv_rvv_probe_{safe_run_id(run_id)}"
+    remote_dir = f"/tmp/weft_rvv_probe_{safe_run_id(run_id)}"
     remote_source = f"{remote_dir}/rvv_probe.c"
     remote_binary = f"{remote_dir}/rvv_probe"
     setup_command = (
         f"rm -rf {quote_remote_path(remote_dir)} && "
         f"mkdir -p {quote_remote_path(remote_dir)} && "
-        f"cat > {quote_remote_path(remote_source)} <<'TCRV_RVV_PROBE_SOURCE'\n"
+        f"cat > {quote_remote_path(remote_source)} <<'WEFT_RVV_PROBE_SOURCE'\n"
         f"{RVV_PROBE_SOURCE}"
-        "TCRV_RVV_PROBE_SOURCE\n"
+        "WEFT_RVV_PROBE_SOURCE\n"
         "if command -v sha256sum >/dev/null 2>&1; then "
         f"sha256sum {quote_remote_path(remote_source)}; "
         "else echo 'sha256sum unavailable'; fi"

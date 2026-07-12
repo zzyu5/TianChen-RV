@@ -1,8 +1,8 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/Passes.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/Passes.h"
+#include "Weft/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -22,14 +22,14 @@
 #include <string>
 #include <utility>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 namespace {
 
@@ -110,24 +110,24 @@ module {
     return
   }
 
-  tcrv.exec.kernel @materialization_anchor attributes {} {
-    tcrv.exec.capability @generic_alpha {
+  weft.exec.kernel @materialization_anchor attributes {} {
+    weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "generic-execution"
     }
-    tcrv.exec.capability @generic_beta {
+    weft.exec.capability @generic_beta {
       id = "generic.beta",
       kind = "toolchain",
       status = "available"
     }
   }
 
-  tcrv.exec.kernel @duplicate_anchor attributes {} {
-    tcrv.exec.capability @generic_alpha {
+  weft.exec.kernel @duplicate_anchor attributes {} {
+    weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "generic-execution"
     }
-    tcrv.exec.variant @existing_path attributes {
+    weft.exec.variant @existing_path attributes {
       origin = "existing-plugin",
       requires = [@generic_alpha]
     } {
@@ -218,7 +218,7 @@ int expectDirectMaterializationError(
 
   unsigned beforeCount = collectDirectVariants(kernel).size();
   if (int result = expectErrorContains(
-          tianchenrv::transforms::materializeVariantProposals(
+          weft::transforms::materializeVariantProposals(
               builder, request, llvm::ArrayRef<VariantProposal>(proposal)),
           fragments))
     return result;
@@ -282,7 +282,7 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 4> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "collect and materialize variant proposals"))
     return result;
@@ -358,7 +358,7 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
-      tianchenrv::transforms::createCheckCapabilityRequiresPass());
+      weft::transforms::createCheckCapabilityRequiresPass());
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "check-capability-requires accepts materialized requirements"))
@@ -376,7 +376,7 @@ int runNegativeMaterializationTests(mlir::MLIRContext &context) {
     mlir::OpBuilder builder(&context);
     VariantProposal proposal = makeProposal("missing_kernel_path", "origin");
     if (int result = expectErrorContains(
-            tianchenrv::transforms::materializeVariantProposals(
+            weft::transforms::materializeVariantProposals(
                 builder, request, llvm::ArrayRef<VariantProposal>(proposal)),
             {"kernel anchor"}))
       return result;
@@ -395,7 +395,7 @@ int runNegativeMaterializationTests(mlir::MLIRContext &context) {
     proposal.addRequiredCapabilityID("generic.alpha");
     unsigned beforeCount = collectDirectVariants(kernel).size();
     if (int result = expectErrorContains(
-            tianchenrv::transforms::materializeVariantProposals(
+            weft::transforms::materializeVariantProposals(
                 builder, request, llvm::ArrayRef<VariantProposal>(proposal)),
             {"duplicate", "existing_path", "duplicate_anchor"}))
       return result;
@@ -461,7 +461,7 @@ int runNegativeMaterializationTests(mlir::MLIRContext &context) {
     if (int result = expectDirectMaterializationError(
             context, proposal,
             {"colliding_attr_path", "origin", "collides",
-             "tcrv.exec.variant"}))
+             "weft.exec.variant"}))
       return result;
   }
 
@@ -516,7 +516,7 @@ int runNegativeMaterializationTests(mlir::MLIRContext &context) {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
   dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);

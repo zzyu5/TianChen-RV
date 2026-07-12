@@ -1,6 +1,6 @@
 // Track B auto-lowering, the DEQUANT rung -- one step ABOVE the bare-dot MVP
 // (rvv-widening-dot-reduce-source-front-door.mlir). The COMPILER auto-CONSTRUCTS
-// the tcrv_rvv RVV-dialect widening int8 dot-reduce body WITH a runtime-f32-scale
+// the weft_rvv RVV-dialect widening int8 dot-reduce body WITH a runtime-f32-scale
 // dequant tail from a GENERIC vector-dialect source (vector.transfer_read x2 +
 // arith.extsi x2 + arith.muli + vector.multi_reduction <add> + arith.sitofp +
 // arith.mulf %scale + f32 memref.store), instead of a per-kernel hand emitter.
@@ -25,21 +25,21 @@
 // second auto-lowered block; the per-block fp16-scale loop is a later rung.
 
 // The auto-constructed dequant body (the e8m2 VLEN128 anchor).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY
 //
 // The capability-FLIP, asserted on the emitted INTRINSICS (not a metadata mirror):
 // the SAME generic source emits e8m2/i16m4 at VLEN128 and e8m1/i16m2 at VLEN256,
 // both ending in the i32->f32 runtime-scale dequant epilogue.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
 //
 // FAIL-CLOSED (I7): a structurally non-conforming source -- the missing-dequant-tail
 // negative module below (a bare i32 dot store, NO sitofp/mulf %scale) -- is REJECTED,
 // not silently lowered: the dequant front door requires the full sitofp + mulf scale
 // + f32 store tail (and the 6-arg dequant signature).
-// RUN: not tcrv-opt %S/Inputs/widening-dot-reduce-dequantize-source-no-dequant-tail.mlir --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv 2>&1 | FileCheck %s --check-prefix=NODEQUANT
+// RUN: not weft-opt %S/Inputs/widening-dot-reduce-dequantize-source-no-dequant-tail.mlir --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv 2>&1 | FileCheck %s --check-prefix=NODEQUANT
 
-module attributes {tcrv_rvv.source_front_door = "bounded_widening_dot_reduce_dequantize_source"} {
+module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_dequantize_source"} {
   func.func @source_dequant_dot(%lhs: memref<?xi8>, %rhs: memref<?xi8>, %out: memref<?xf32>, %acc: memref<?xi32>, %scale: f32, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i8
@@ -57,45 +57,45 @@ module attributes {tcrv_rvv.source_front_door = "bounded_widening_dot_reduce_deq
   }
 }
 
-// ===================== AUTO-CONSTRUCTED tcrv_rvv DEQUANT BODY ===============
-// The generic vector source becomes a tcrv.exec.kernel with the auto-built
+// ===================== AUTO-CONSTRUCTED weft_rvv DEQUANT BODY ===============
+// The generic vector source becomes a weft.exec.kernel with the auto-built
 // load/widening_product/standalone_reduce/DEQUANTIZE/store dequant body. NO
 // per-kernel emitter authored this -- the front-door matcher constructed it from
 // the VLEN128 gearbox-selected m2 byte anchor, adding the runtime-f32-scale
 // dequant on top of the MVP's bare-dot body.
-// BODY: tcrv.exec.kernel @rvv_widening_dot_reduce_dequantize_i8_from_vector_source
-// BODY: tcrv.exec.variant @rvv_widening_dot_reduce_dequantize_i8
+// BODY: weft.exec.kernel @rvv_widening_dot_reduce_dequantize_i8_from_vector_source
+// BODY: weft.exec.variant @rvv_widening_dot_reduce_dequantize_i8
 // The runtime f32 dequant scale ABI value (c_type "float", role dequant-scale-value).
-// BODY: tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "widening-dot-reduce-dequantize:scale", role = "dequant-scale-value"}
-// BODY: tcrv_rvv.setvl
+// BODY: weft_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "widening-dot-reduce-dequantize:scale", role = "dequant-scale-value"}
+// BODY: weft_rvv.setvl
 // BODY-SAME: lmul = "m2"
 // BODY-SAME: sew = 8
-// BODY: tcrv_rvv.load
-// BODY-SAME: -> !tcrv_rvv.vector<i8, "m2">
-// BODY: tcrv_rvv.load
-// BODY-SAME: -> !tcrv_rvv.vector<i8, "m2">
-// BODY: tcrv_rvv.widening_product
+// BODY: weft_rvv.load
+// BODY-SAME: -> !weft_rvv.vector<i8, "m2">
+// BODY: weft_rvv.load
+// BODY-SAME: -> !weft_rvv.vector<i8, "m2">
+// BODY: weft_rvv.widening_product
 // BODY-SAME: signed-i8m2xi8m2-to-i16m4
-// BODY-SAME: -> !tcrv_rvv.vector<i16, "m4">
-// BODY: tcrv_rvv.standalone_reduce
+// BODY-SAME: -> !weft_rvv.vector<i16, "m4">
+// BODY: weft_rvv.standalone_reduce
 // BODY-SAME: kind = "signed_widening_reduce_add"
-// BODY-SAME: -> !tcrv_rvv.vector<i32, "m1">
-// BODY: tcrv_rvv.dequantize
+// BODY-SAME: -> !weft_rvv.vector<i32, "m1">
+// BODY: weft_rvv.dequantize
 // BODY-SAME: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
 // BODY-SAME: kind = "i32_to_f32_scaled"
-// BODY-SAME: -> !tcrv_rvv.vector<f32, "m1">
-// BODY: tcrv_rvv.store
+// BODY-SAME: -> !weft_rvv.vector<f32, "m1">
+// BODY: weft_rvv.store
 // The conservative fallback is authored by the fallback-owning plugin.
-// BODY: tcrv.exec.variant @rvv_widening_dot_reduce_dequantize_i8_scalar_fallback
+// BODY: weft.exec.variant @rvv_widening_dot_reduce_dequantize_i8_scalar_fallback
 // BODY-SAME: fallback_role = "conservative"
-// BODY: tcrv.exec.case @rvv_widening_dot_reduce_dequantize_i8
-// BODY: tcrv.exec.fallback @rvv_widening_dot_reduce_dequantize_i8_scalar_fallback
+// BODY: weft.exec.case @rvv_widening_dot_reduce_dequantize_i8
+// BODY: weft.exec.fallback @rvv_widening_dot_reduce_dequantize_i8_scalar_fallback
 
 // ===================== VLEN128 (rv64gcv) -- the e8m2 anchor + dequant ========
 // The gearbox selects the m2 byte anchor at the VLEN-128 tier -- vsetvl_e8m2, i8m2
 // loads, the i16m4 widening product, the vwredsum_i16m4_i32m1 reduce, then the
 // i32->f32 runtime-scale dequant epilogue (vfmv -> store f32).
-// VLEN128: emitc.func @tcrv_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
+// VLEN128: emitc.func @weft_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
 // VLEN128: call_opaque "__riscv_vsetvl_e8m2"
 // VLEN128-NOT: call_opaque "__riscv_vsetvl_e8m1"
 // VLEN128: call_opaque "__riscv_vle8_v_i8m2"
@@ -110,7 +110,7 @@ module attributes {tcrv_rvv.source_front_door = "bounded_widening_dot_reduce_deq
 // The REAL VLEN fact FLIPS the anchor to m1: a BYTE-DIFFERENT kernel. vsetvl_e8m1
 // (NOT e8m2), i8m1 loads, the i16m2 product (NOT i16m4), the vwredsum_i16m2_i32m1
 // reduce -- ending in the SAME i32->f32 runtime-scale dequant epilogue.
-// VLEN256: emitc.func @tcrv_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
+// VLEN256: emitc.func @weft_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
 // VLEN256: call_opaque "__riscv_vsetvl_e8m1"
 // VLEN256-NOT: call_opaque "__riscv_vsetvl_e8m2"
 // VLEN256: call_opaque "__riscv_vle8_v_i8m1"

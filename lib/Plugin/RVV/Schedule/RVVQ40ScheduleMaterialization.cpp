@@ -23,23 +23,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 #include <memory>
 
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftrvv = ::weft::rvv;
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZERVVQ40SCHEDULE
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -53,7 +53,7 @@ public:
   void runOnOperation() override {
     plugin::rvv::runRVVScheduleMaterializationViaInterface(
         getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
-        mlir::TypeID::get<tcrvrvv::GgmlBlockDotQ40Q80Op>());
+        mlir::TypeID::get<weftrvv::GgmlBlockDotQ40Q80Op>());
   }
 };
 
@@ -63,4 +63,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeRVVQ40SchedulePass() {
   return std::make_unique<MaterializeRVVQ40SchedulePass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

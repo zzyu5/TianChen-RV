@@ -1,16 +1,16 @@
-#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
+#include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 
-#include "TianChenRV/Plugin/ConstructionProtocol.h"
+#include "Weft/Plugin/ConstructionProtocol.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Errc.h"
 
-namespace tianchenrv::target {
+namespace weft::target {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
@@ -19,7 +19,7 @@ constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
 
 llvm::Error makeConstructionTemplateAdapterError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV construction-template artifact adapter "
+      llvm::Twine("Weft-RV construction-template artifact adapter "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -97,16 +97,16 @@ llvm::Error validateSelectedLoweringBoundaryConfig(
 llvm::Expected<mlir::Operation *> findSelectedLoweringBoundary(
     const SelectedEmitCArtifactTarget &target,
     const ConstructionTemplateArtifactAdapterConfig &config) {
-  tcrv::exec::KernelOp kernel = target.kernel;
-  tcrv::exec::VariantOp variant = target.variant;
+  weft::exec::KernelOp kernel = target.kernel;
+  weft::exec::VariantOp variant = target.variant;
   if (!kernel)
     return makeConstructionTemplateAdapterError(
         "selected lowering-boundary validation requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
   if (!variant)
     return makeConstructionTemplateAdapterError(
         "selected lowering-boundary validation requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
   if (kernel.getBody().empty())
     return makeConstructionTemplateAdapterError(
         "selected lowering-boundary validation requires a materialized kernel "
@@ -206,8 +206,8 @@ llvm::Error validateSelectedLoweringBoundary(
     const ConstructionTemplateArtifactAdapterConfig &config) {
   if (!config.selectedLoweringBoundary.required)
     return llvm::Error::success();
-  tcrv::exec::KernelOp kernel = target.kernel;
-  tcrv::exec::VariantOp variant = target.variant;
+  weft::exec::KernelOp kernel = target.kernel;
+  weft::exec::VariantOp variant = target.variant;
 
   if (llvm::StringRef(target.candidate.loweringBoundary) !=
       config.loweringBoundary)
@@ -490,4 +490,4 @@ llvm::Error registerConstructionTemplateArtifactAdapterExporters(
                     config, objectExportFn, headerExportFn));
 }
 
-} // namespace tianchenrv::target
+} // namespace weft::target

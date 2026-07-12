@@ -12,12 +12,12 @@
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
@@ -32,7 +32,7 @@
 #include <optional>
 #include <string>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
 mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
@@ -55,9 +55,9 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if ((op->getNumOperands() != 4 && op->getNumOperands() != 7) ||
       op->getNumResults() != 0)
@@ -89,11 +89,11 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
     return mlir::failure();
@@ -102,7 +102,7 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   if (getMemoryForm() == "vector-rhs-load") {
     if (mlir::failed(verifyRuntimeABIValueOperandRole(
             op, getRhs(), "rhs",
-            {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+            {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
       return mlir::failure();
     if (!strides.empty())
       return emitOpError()
@@ -114,7 +114,7 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   if (getMemoryForm() == "rhs-scalar-broadcast") {
     if (mlir::failed(verifyRuntimeABIScalarOperandRole(
             op, getRhs(), "rhs scalar",
-            {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+            {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
       return mlir::failure();
     if (!strides.empty())
       return emitOpError()
@@ -129,7 +129,7 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
               "\"strided-load-store\"";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (strides.size() != 3)
     return emitOpError()
@@ -137,15 +137,15 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
               "\"strided-load-store\"";
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, strides[0], "lhs stride",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride})))
+          {weft::support::RuntimeABIParameterRole::LHSInputStride})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, strides[1], "rhs stride",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputStride})))
+          {weft::support::RuntimeABIParameterRole::RHSInputStride})))
     return mlir::failure();
   return verifyRuntimeABIIndexOperandRole(
       op, strides[2], "out stride",
-      {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
+      {weft::support::RuntimeABIParameterRole::OutputStride});
 }
 
 mlir::LogicalResult
@@ -170,9 +170,9 @@ TypedRuntimeScalarSplatStorePreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 0)
     return emitOpError()
@@ -202,11 +202,11 @@ TypedRuntimeScalarSplatStorePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getScalar(), "runtime scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -233,9 +233,9 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 0)
     return emitOpError()
@@ -275,15 +275,15 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -311,9 +311,9 @@ mlir::LogicalResult TypedCompareSelectPreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 0)
     return emitOpError()
@@ -356,15 +356,15 @@ mlir::LogicalResult TypedCompareSelectPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -394,9 +394,9 @@ mlir::LogicalResult TypedComputedMaskSelectPreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 0)
     return emitOpError()
@@ -452,25 +452,25 @@ mlir::LogicalResult TypedComputedMaskSelectPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareRhs(), "compare rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getTrueValue(), "true value",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                TrueValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getFalseValue(), "false value",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                FalseValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -502,9 +502,9 @@ TypedRuntimeScalarCompareSelectPreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 0)
     return emitOpError()
@@ -568,12 +568,12 @@ TypedRuntimeScalarCompareSelectPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold", {sew},
           expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   auto rhsScalarBinding = getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
   if (!rhsScalarBinding || rhsScalarBinding.getCType() != expectedScalarCType)
@@ -583,17 +583,17 @@ TypedRuntimeScalarCompareSelectPreRealizedBodyOp::verify() {
            << "' to match typed runtime scalar compare/select SEW";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getTrueValue(), "true value",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                TrueValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getFalseValue(), "false value",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                FalseValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -629,9 +629,9 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 8 || op->getNumResults() != 0)
     return emitOpError()
@@ -712,36 +712,36 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhsA(), "compare lhs A",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalarA(), "rhs scalar threshold A",
           {sew}, expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhsB(), "compare lhs B",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalarB(), "rhs scalar threshold B",
           {sew}, expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                RHSSecondaryScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getTrueValue(), "true value",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                TrueValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getFalseValue(), "false value",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                FalseValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp compareLHSABinding =
@@ -831,9 +831,9 @@ TypedF32ClampSelectPreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -881,21 +881,21 @@ TypedF32ClampSelectPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getInput(), "input",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
           op, getLowerBound(), "lower bound scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                LowerBoundScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
           op, getUpperBound(), "upper bound scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                UpperBoundScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp inputBinding =
@@ -953,9 +953,9 @@ TypedDequantClampF32EpiloguePreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 0)
     return emitOpError()
@@ -1018,26 +1018,26 @@ TypedDequantClampF32EpiloguePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getScale(), "runtime scale",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                DequantScaleValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
           op, getLowerBound(), "lower bound scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                LowerBoundScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
           op, getUpperBound(), "upper bound scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                UpperBoundScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -1101,9 +1101,9 @@ TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -1171,20 +1171,20 @@ TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
           {sew}, expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "active source",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "destination",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -1249,9 +1249,9 @@ TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -1321,20 +1321,20 @@ TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
           {sew}, expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "active source",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "destination/passthrough",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -1395,9 +1395,9 @@ mlir::LogicalResult TypedReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 0)
     return emitOpError()
@@ -1440,15 +1440,15 @@ mlir::LogicalResult TypedReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "input",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "result output",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -1478,9 +1478,9 @@ mlir::LogicalResult TypedStandaloneReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 0)
     return emitOpError()
@@ -1528,16 +1528,16 @@ mlir::LogicalResult TypedStandaloneReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "input",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "scalar output",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -1588,9 +1588,9 @@ TypedComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 0)
     return emitOpError()
@@ -1663,24 +1663,24 @@ TypedComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareRhs(), "compare rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "source",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "scalar output",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp compareLHSBinding =
@@ -1733,9 +1733,9 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 0)
     return emitOpError()
@@ -1826,25 +1826,25 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
           {sew}, expectedScalarType,
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "source",
-          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::SourceInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "scalar output",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp compareLHSBinding =
@@ -1915,9 +1915,9 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -1976,27 +1976,27 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (scalarBroadcastMAcc) {
     if (mlir::failed(verifyRuntimeABIScalarOperandRole(
             op, getRhs(), "rhs scalar",
-            {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+            {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
       return mlir::failure();
   } else {
     if (mlir::failed(verifyRuntimeABIValueOperandRole(
             op, getRhs(), "rhs",
-            {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+            {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
       return mlir::failure();
   }
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
@@ -2050,9 +2050,9 @@ mlir::LogicalResult TypedComputedMaskMAccPreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 7 || op->getNumResults() != 0)
     return emitOpError()
@@ -2117,28 +2117,28 @@ mlir::LogicalResult TypedComputedMaskMAccPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareRhs(), "compare rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs payload",
-          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs payload",
-          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp cmpLHSBinding =
@@ -2206,9 +2206,9 @@ TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 7 || op->getNumResults() != 0)
     return emitOpError()
@@ -2285,28 +2285,28 @@ TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {weft::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs payload",
-          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs payload",
-          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp cmpLHSBinding =
@@ -2374,9 +2374,9 @@ mlir::LogicalResult TypedWideningMAccPreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -2432,20 +2432,20 @@ mlir::LogicalResult TypedWideningMAccPreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -2500,9 +2500,9 @@ mlir::LogicalResult TypedWideningDotReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -2561,20 +2561,20 @@ mlir::LogicalResult TypedWideningDotReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -2632,9 +2632,9 @@ TypedStridedInputWideningDotReducePreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 7 || op->getNumResults() != 0)
     return emitOpError()
@@ -2704,20 +2704,20 @@ TypedStridedInputWideningDotReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -2745,11 +2745,11 @@ TypedStridedInputWideningDotReducePreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, getLhsStride(), "lhs stride",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride})))
+          {weft::support::RuntimeABIParameterRole::LHSInputStride})))
     return mlir::failure();
   return verifyRuntimeABIIndexOperandRole(
       op, getRhsStride(), "rhs stride",
-      {tianchenrv::support::RuntimeABIParameterRole::RHSInputStride});
+      {weft::support::RuntimeABIParameterRole::RHSInputStride});
 }
 
 mlir::LogicalResult
@@ -2786,9 +2786,9 @@ TypedComputedMaskWideningDotReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 7 || op->getNumResults() != 0)
     return emitOpError()
@@ -2870,28 +2870,28 @@ TypedComputedMaskWideningDotReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareRhs(), "compare rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "dot lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "dot rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp cmpLhsBinding =
@@ -2963,9 +2963,9 @@ TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp::verify() {
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 9 || op->getNumResults() != 0)
     return emitOpError()
@@ -3060,28 +3060,28 @@ TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareRhs(), "compare rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "dot lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "dot rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp cmpLhsBinding =
@@ -3120,11 +3120,11 @@ TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, getLhsStride(), "lhs stride",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride})))
+          {weft::support::RuntimeABIParameterRole::LHSInputStride})))
     return mlir::failure();
   return verifyRuntimeABIIndexOperandRole(
       op, getRhsStride(), "rhs stride",
-      {tianchenrv::support::RuntimeABIParameterRole::RHSInputStride});
+      {weft::support::RuntimeABIParameterRole::RHSInputStride});
 }
 
 mlir::LogicalResult
@@ -3160,9 +3160,9 @@ TypedWideningProductReducePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
@@ -3262,20 +3262,20 @@ TypedWideningProductReducePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -3352,9 +3352,9 @@ TypedWideningProductReduceDequantizePreRealizedBodyOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 0)
     return emitOpError()
@@ -3451,24 +3451,24 @@ TypedWideningProductReduceDequantizePreRealizedBodyOp::verify() {
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator seed/carry",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getScale(), "runtime scale",
-          {tianchenrv::support::RuntimeABIParameterRole::DequantScaleValue})))
+          {weft::support::RuntimeABIParameterRole::DequantScaleValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
@@ -3542,9 +3542,9 @@ verifyTypedWideningProductReduceDequantClampF32Body(BodyOp body,
              << attr.getName() << "'";
   }
 
-  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+  if (!llvm::isa<weft::exec::VariantOp>(op->getParentOp()))
     return body.emitOpError()
-           << "must be nested directly in a selected tcrv.exec.variant";
+           << "must be nested directly in a selected weft.exec.variant";
 
   if (op->getNumOperands() != 8 || op->getNumResults() != 0)
     return body.emitOpError()
@@ -3663,34 +3663,34 @@ verifyTypedWideningProductReduceDequantClampF32Body(BodyOp body,
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, body.getLhs(), "lhs",
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, body.getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+          {weft::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, body.getAcc(), "accumulator seed/carry",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, body.getScale(), "runtime scale",
-          {tianchenrv::support::RuntimeABIParameterRole::DequantScaleValue})))
+          {weft::support::RuntimeABIParameterRole::DequantScaleValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
           op, body.getLowerBound(), "lower bound scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                LowerBoundScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
           op, body.getUpperBound(), "upper bound scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                UpperBoundScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, body.getOut(), "out",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+          {weft::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
 
   RuntimeABIValueOp lhsBinding =

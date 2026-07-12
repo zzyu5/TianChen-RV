@@ -9,9 +9,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Dialect/RVV/IR/RVVElementwiseStreamConstruction.h"
+#include "Weft/Dialect/RVV/IR/RVVElementwiseStreamConstruction.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -22,7 +22,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
-namespace tianchenrv::tcrv::rvv {
+namespace weft::rvv {
 
 std::optional<ForwardElementwiseFacts>
 lookupForwardElementwiseFacts(llvm::StringRef model) {
@@ -221,4 +221,4 @@ constructTypedElementwiseLoopBody(mlir::RewriterBase &rewriter,
   return mlir::success();
 }
 
-} // namespace tianchenrv::tcrv::rvv
+} // namespace weft::rvv

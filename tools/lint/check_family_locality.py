@@ -9,7 +9,7 @@ keeps the idiomatic MLIR layered layout (lib/{Dialect,Conversion,Plugin,Target}/
 include/ mirrors), and each family declares its OWNED source territory in the manifest.
 
 The gate asserts, over SOURCE CODE only (tracked *.cpp/*.h/*.td under lib/ and
-include/TianChenRV/ -- where the '(no core-file edits)' claim bites and the per-family
+include/Weft/ -- where the '(no core-file edits)' claim bites and the per-family
 directories are clean):
 
   * [default / whole-repo consistency]
@@ -53,8 +53,8 @@ SOURCE_EXTS = (".cpp", ".h", ".td")
 # The four family roots (+ their include mirrors) under which per-family subdirs live.
 FAMILY_ROOTS = [
     "lib/Dialect", "lib/Conversion", "lib/Plugin", "lib/Target",
-    "include/TianChenRV/Dialect", "include/TianChenRV/Conversion",
-    "include/TianChenRV/Plugin", "include/TianChenRV/Target",
+    "include/Weft/Dialect", "include/Weft/Conversion",
+    "include/Weft/Plugin", "include/Weft/Target",
 ]
 
 
@@ -76,10 +76,10 @@ def matches_range(rel, ranges):
 
 
 def is_source_code(rel):
-    """A tracked lib/ or include/TianChenRV/ code file (the enforced containment scope)."""
+    """A tracked lib/ or include/Weft/ code file (the enforced containment scope)."""
     if not rel.endswith(SOURCE_EXTS):
         return False
-    return rel.startswith("lib/") or rel.startswith("include/TianChenRV/")
+    return rel.startswith("lib/") or rel.startswith("include/Weft/")
 
 
 def matched_families(rel, families):

@@ -1,6 +1,6 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Attributes.h"
@@ -19,16 +19,16 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantLegalityRequest;
-using tianchenrv::support::CapabilityDescriptor;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::CapabilityOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantLegalityRequest;
+using weft::support::CapabilityDescriptor;
+using weft::support::TargetCapabilitySet;
+using weft::exec::CapabilityOp;
+using weft::exec::DispatchOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 namespace {
 
@@ -201,17 +201,17 @@ std::string printModule(mlir::ModuleOp module) {
 int runSingleVariantRoutingTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @single_anchor attributes {} {
-    tcrv.exec.capability @generic_alpha {
+  weft.exec.kernel @single_anchor attributes {} {
+    weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "toolchain"
     }
-    tcrv.exec.capability @generic_beta {
+    weft.exec.capability @generic_beta {
       id = "generic.beta",
       kind = "runtime",
       status = "available"
     }
-    tcrv.exec.variant @alpha_path attributes {
+    weft.exec.variant @alpha_path attributes {
       origin = "alpha",
       requires = [@generic_alpha]
     } {
@@ -277,28 +277,28 @@ module {
 int runKernelOrderAndNoMutationTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @ordered_anchor attributes {} {
-    tcrv.exec.capability @generic_alpha {
+  weft.exec.kernel @ordered_anchor attributes {} {
+    weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "toolchain"
     }
-    tcrv.exec.capability @generic_beta {
+    weft.exec.capability @generic_beta {
       id = "generic.beta",
       kind = "runtime"
     }
-    tcrv.exec.variant @first_path attributes {
+    weft.exec.variant @first_path attributes {
       origin = "first",
       requires = [@generic_alpha]
     } {
     }
-    tcrv.exec.variant @second_path attributes {
+    weft.exec.variant @second_path attributes {
       origin = "second",
       requires = [@generic_beta]
     } {
     }
-    tcrv.exec.dispatch attributes {} {
-      tcrv.exec.case @second_path {policy = "preserve_existing_dispatch"}
-      tcrv.exec.fallback @first_path
+    weft.exec.dispatch attributes {} {
+      weft.exec.case @second_path {policy = "preserve_existing_dispatch"}
+      weft.exec.fallback @first_path
     }
   }
 }
@@ -362,27 +362,27 @@ module {
 int runNegativeLegalityTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @negative_anchor attributes {} {
-    tcrv.exec.capability @generic_alpha {
+  weft.exec.kernel @negative_anchor attributes {} {
+    weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "toolchain"
     }
-    tcrv.exec.variant @unknown_path attributes {
+    weft.exec.variant @unknown_path attributes {
       origin = "missing-plugin",
       requires = [@generic_alpha]
     } {
     }
-    tcrv.exec.variant @disabled_path attributes {
+    weft.exec.variant @disabled_path attributes {
       origin = "disabled",
       requires = [@generic_alpha]
     } {
     }
-    tcrv.exec.variant @failing_path attributes {
+    weft.exec.variant @failing_path attributes {
       origin = "rejecting",
       requires = [@generic_alpha]
     } {
     }
-    tcrv.exec.variant @well_formed_path attributes {
+    weft.exec.variant @well_formed_path attributes {
       origin = "well-formed",
       requires = [@generic_alpha]
     } {
@@ -455,7 +455,7 @@ module {
     VariantLegalityRequest request(VariantOp(), kernel, capabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
-                                {"requires a materialized tcrv.exec.variant",
+                                {"requires a materialized weft.exec.variant",
                                  "<missing>", "negative_anchor"}))
       return result;
   }
@@ -467,7 +467,7 @@ module {
         emptyCapabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
-                                {"requires an enclosing tcrv.exec.kernel",
+                                {"requires an enclosing weft.exec.kernel",
                                  "well_formed_path", "<missing>"}))
       return result;
   }
@@ -476,7 +476,7 @@ module {
     ExtensionPluginRegistry registry;
     if (int result =
             expectErrorContains(registry.verifyKernelVariantLegality(KernelOp()),
-                                {"requires a tcrv.exec.kernel", "<missing>"}))
+                                {"requires a weft.exec.kernel", "<missing>"}))
       return result;
   }
 
@@ -487,16 +487,16 @@ int runDuplicateCapabilitySetStopsLegalityConsumerTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @duplicate_identity_anchor attributes {} {
-    tcrv.exec.capability @generic_alpha {
+  weft.exec.kernel @duplicate_identity_anchor attributes {} {
+    weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "toolchain"
     }
-    tcrv.exec.capability @generic_beta {
+    weft.exec.capability @generic_beta {
       id = "generic.beta",
       kind = "toolchain"
     }
-    tcrv.exec.variant @alpha_path attributes {
+    weft.exec.variant @alpha_path attributes {
       origin = "alpha",
       requires = [@generic_alpha]
     } {
@@ -542,7 +542,7 @@ module {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

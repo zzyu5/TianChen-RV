@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreOperandBindingPlanID(
@@ -72,7 +72,7 @@ constexpr llvm::StringLiteral
         "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVBaseMemoryVLType("size_t");
 constexpr llvm::StringLiteral kRVVBaseMemoryVectorTypeName(
-    "!tcrv_rvv.vector<i32, \"m1\">");
+    "!weft_rvv.vector<i32, \"m1\">");
 constexpr llvm::StringLiteral kRVVBaseMemoryVectorCType("vint32m1_t");
 constexpr llvm::StringLiteral kRVVBaseMemorySetVLIntrinsic(
     "__riscv_vsetvl_e32m1");
@@ -225,15 +225,15 @@ bool isPreRealizedMaskedMemoryMovementInactiveLanePolicy(
          policy == "preserve-output-on-false-lanes";
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedBaseMemoryRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(llvm::Twine(context) +
                                           " must be defined by explicit "
-                                          "tcrv_rvv.runtime_abi_value");
+                                          "weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -252,13 +252,13 @@ requirePreRealizedBaseMemoryRuntimeABIValue(
 
 template <typename BodyOpT>
 llvm::Error rejectMixedPreRealizedBaseMemoryBody(
-    tcrv::exec::VariantOp variant, mlir::Operation *bodyOp,
+    weft::exec::VariantOp variant, mlir::Operation *bodyOp,
     llvm::StringRef bodyDescription) {
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp, BodyOpT>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp, BodyOpT>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -271,7 +271,7 @@ llvm::Error rejectMixedPreRealizedBaseMemoryBody(
 }
 
 llvm::Error requireBaseMemorySelectedVariantRequires(
-    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+    weft::exec::VariantOp variant, llvm::StringRef context) {
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
     return makeRVVEmitCRouteProviderError(
@@ -683,16 +683,16 @@ llvm::SmallVector<support::RuntimeABIParameter, 8>
 getBaseMemoryMovementRuntimeABIParameters(RVVSelectedBodyOperationKind op) {
   switch (op) {
   case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
-    return tcrv::rvv::getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
+    return weft::rvv::getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-    return tcrv::rvv::getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
+    return weft::rvv::getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
-    return tcrv::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
+    return weft::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-    return tcrv::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+    return weft::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
   case RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return tcrv::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+    return weft::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
   default:
     return {};
   }
@@ -1008,8 +1008,8 @@ getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
   RVVBaseMemoryMovementRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = getBaseMemoryMovementRouteFamilyMemoryForm(operation);
-  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.sew = weft::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = weft::rvv::getRVVLMULM1();
   facts.tailPolicy =
       isStaticMaskStore ? llvm::StringRef("undisturbed")
                         : llvm::StringRef("agnostic");
@@ -1027,7 +1027,7 @@ getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.routeOperandBindingPlanID =
       *getExpectedRVVSelectedBodyBaseMemoryRouteOperandBindingPlanID(operation);
   facts.routeFamilyPlanID = kRVVBaseMemoryMovementRouteFamilyPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.move";
+  facts.typedComputeOpName = "weft_rvv.move";
   facts.vlCType = kRVVBaseMemoryVLType;
   facts.vectorTypeName = kRVVBaseMemoryVectorTypeName;
   facts.vectorCType = kRVVBaseMemoryVectorCType;
@@ -1215,8 +1215,8 @@ llvm::Error validateRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "base memory movement route-family plan requires element bit width "
         "to mirror provider-derived SEW");
-  if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      plan.lmul != tcrv::rvv::getRVVLMULM1())
+  if (plan.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      plan.lmul != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "base memory movement route-family plan currently supports only "
         "typed SEW32 LMUL m1 data config");
@@ -1418,8 +1418,8 @@ deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
   const bool isIndexed = isIndexedGather || isIndexedScatter;
   const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
 
-  if (typedFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      typedFacts.lmul != tcrv::rvv::getRVVLMULM1())
+  if (typedFacts.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      typedFacts.lmul != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "base memory movement route-family plan currently supports only "
         "typed SEW32 LMUL m1 vector configuration facts");
@@ -1515,7 +1515,7 @@ deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           getBaseMemoryMovementRuntimeABIOrder(operation),
           "base memory movement route-family plan");
@@ -2019,8 +2019,8 @@ deriveRVVSelectedBodyBaseMemoryRouteOperandBindingPlan(
 
 llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedStridedMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV strided memory realization requires a pre-realized "
@@ -2028,11 +2028,11 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided memory realization requires a "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided memory body must be a direct child "
-        "of the selected tcrv.exec.variant");
+        "of the selected weft.exec.variant");
 
   if (!isPreRealizedStridedMemoryMovementOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -2047,35 +2047,35 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
         "pre-realized RVV selected strided memory body currently supports "
         "only stride_unit 'byte'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided memory body requires SEW32 LMUL "
         "m1");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided memory body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getSource(), "pre-realized RVV strided source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getOut(), "pre-realized RVV strided output operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getN(), "pre-realized RVV strided runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> sourceStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> sourceStride =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getSourceStride(),
           "pre-realized RVV source byte stride operand",
@@ -2085,7 +2085,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedBaseMemoryBody<
-              tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedStridedMemoryPreRealizedBodyOp>(
               variant, body.getOperation(), "strided memory"))
     return error;
   return requireBaseMemorySelectedVariantRequires(variant, "strided memory");
@@ -2093,8 +2093,8 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
 
 llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedStridedStoreMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV strided-store realization requires a pre-realized "
@@ -2102,11 +2102,11 @@ llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-store realization requires a "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-store body must be a direct child "
-        "of the selected tcrv.exec.variant");
+        "of the selected weft.exec.variant");
 
   if (!isPreRealizedStridedStoreMemoryMovementOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -2122,35 +2122,35 @@ llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
         "pre-realized RVV selected strided-store body currently supports "
         "only stride_unit 'byte'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-store body requires SEW32 LMUL "
         "m1");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-store body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getSource(), "pre-realized RVV strided-store source operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> dst =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> dst =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getDst(), "pre-realized RVV strided-store destination operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!dst)
     return dst.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getN(), "pre-realized RVV strided-store runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destinationStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destinationStride =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getDestinationStride(),
           "pre-realized RVV destination byte stride operand",
@@ -2160,7 +2160,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedBaseMemoryBody<
-              tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(
               variant, body.getOperation(), "strided-store"))
     return error;
   return requireBaseMemorySelectedVariantRequires(variant, "strided-store");
@@ -2168,8 +2168,8 @@ llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
 
 llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV indexed gather realization requires a pre-realized "
@@ -2177,11 +2177,11 @@ llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed gather realization requires a "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed gather body must be a direct child "
-        "of the selected tcrv.exec.variant");
+        "of the selected weft.exec.variant");
 
   if (!isPreRealizedIndexedGatherMemoryMovementOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -2203,35 +2203,35 @@ llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
         "pre-realized RVV selected indexed gather body currently supports "
         "only offset_unit 'element'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed gather body requires SEW32 LMUL "
         "m1 data config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed gather body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> data =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> data =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getData(), "pre-realized RVV indexed gather data operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!data)
     return data.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> index =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getIndex(), "pre-realized RVV indexed gather index operand",
           support::RuntimeABIParameterRole::IndexInputBuffer);
   if (!index)
     return index.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getOut(), "pre-realized RVV indexed gather output operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getN(), "pre-realized RVV indexed gather runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -2240,7 +2240,7 @@ llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedBaseMemoryBody<
-              tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(
               variant, body.getOperation(), "indexed gather"))
     return error;
   return requireBaseMemorySelectedVariantRequires(variant,
@@ -2249,8 +2249,8 @@ llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
 
 llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV indexed scatter realization requires a pre-realized "
@@ -2258,11 +2258,11 @@ llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed scatter realization requires a "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed scatter body must be a direct "
-        "child of the selected tcrv.exec.variant");
+        "child of the selected weft.exec.variant");
 
   if (!isPreRealizedIndexedScatterMemoryMovementOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -2290,36 +2290,36 @@ llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
         "index_uniqueness unique because duplicate-index scatter policy is "
         "unsupported");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed scatter body requires SEW32 LMUL "
         "m1 data config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected indexed scatter body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getSource(), "pre-realized RVV indexed scatter source operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> index =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getIndex(), "pre-realized RVV indexed scatter index operand",
           support::RuntimeABIParameterRole::IndexInputBuffer);
   if (!index)
     return index.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV indexed scatter destination operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getN(), "pre-realized RVV indexed scatter runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -2328,7 +2328,7 @@ llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedBaseMemoryBody<
-              tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(
               variant, body.getOperation(), "indexed scatter"))
     return error;
   return requireBaseMemorySelectedVariantRequires(variant,
@@ -2337,8 +2337,8 @@ llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
 
 llvm::Error validatePreRealizedRVVSelectedMaskedMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedMaskedMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV masked memory realization requires a pre-realized "
@@ -2346,11 +2346,11 @@ llvm::Error validatePreRealizedRVVSelectedMaskedMemoryBody(
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected masked memory realization requires a "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected masked memory body must be a direct child "
-        "of the selected tcrv.exec.variant");
+        "of the selected weft.exec.variant");
 
   const bool isMaskedUnitLoadStore =
       body.getOpKind() == "masked_unit_load_store";
@@ -2397,42 +2397,42 @@ llvm::Error validatePreRealizedRVVSelectedMaskedMemoryBody(
         "inactive_lane_policy 'preserve-output-on-false-lanes' for "
         "masked_unit_store");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected masked memory body requires SEW32 LMUL m1 "
         "data/mask config");
   if (isMaskedUnitLoadStore &&
-      !tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+      !weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected masked memory body requires tail "
         "agnostic, mask agnostic policy for masked_unit_load_store");
   if (isMaskedUnitStore &&
-      !tcrv::rvv::isRVVUndisturbedPolicy(body.getPolicy()))
+      !weft::rvv::isRVVUndisturbedPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected masked memory body requires tail "
         "undisturbed, mask undisturbed policy for masked_unit_store");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getSource(), "pre-realized RVV masked memory source operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> mask =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> mask =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getMask(), "pre-realized RVV masked memory mask operand",
           support::RuntimeABIParameterRole::MaskInputBuffer);
   if (!mask)
     return mask.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV masked memory destination operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedBaseMemoryRuntimeABIValue(
           body.getN(), "pre-realized RVV masked memory runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -2441,10 +2441,10 @@ llvm::Error validatePreRealizedRVVSelectedMaskedMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedBaseMemoryBody<
-              tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedMaskedMemoryPreRealizedBodyOp>(
               variant, body.getOperation(), "masked memory"))
     return error;
   return requireBaseMemorySelectedVariantRequires(variant, "masked memory");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

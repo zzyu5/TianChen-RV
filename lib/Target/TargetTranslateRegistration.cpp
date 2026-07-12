@@ -1,4 +1,4 @@
-#include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -6,12 +6,12 @@
 
 #include <utility>
 
-namespace tianchenrv::target {
+namespace weft::target {
 namespace {
 
 llvm::Error makeTranslateRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV target translate route registry failed: ") +
+      llvm::Twine("Weft-RV target translate route registry failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -56,4 +56,4 @@ TargetTranslateRouteRegistry::lookup(llvm::StringRef routeID) const {
   return nullptr;
 }
 
-} // namespace tianchenrv::target
+} // namespace weft::target

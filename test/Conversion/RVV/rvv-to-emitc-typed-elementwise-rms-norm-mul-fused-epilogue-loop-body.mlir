@@ -1,15 +1,15 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/kind = "elementwise_mul_map"/kind = "elementwise_bogus_map"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMULKIND
-// RUN: sed 's/!tcrv_rvv.vector<f32, "m8">/!tcrv_rvv.vector<f32, "m4">/g' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADCHAINLMUL
-// RUN: sed 's/tcrv_rvv.elementwise_mul_map %vy, %w, %z/tcrv_rvv.elementwise_mul_map %vy, %w, %w/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADOUTPUT
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/kind = "elementwise_mul_map"/kind = "elementwise_bogus_map"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMULKIND
+// RUN: sed 's/!weft_rvv.vector<f32, "m8">/!weft_rvv.vector<f32, "m4">/g' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADCHAINLMUL
+// RUN: sed 's/weft_rvv.elementwise_mul_map %vy, %w, %z/weft_rvv.elementwise_mul_map %vy, %w, %w/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADOUTPUT
 
 // G2 [FUSE] tracer — the CONSTRUCTED fused rms_norm->mul, llama's attn_norm /
 // ffn_norm (`ggml_rms_norm` immediately followed by `ggml_mul` against a learned
 // weight vector). It BUILDS the L1 chain declaration + L2 region splice on TOP of
 // the forward-elementwise reduce scaffold: the rms_norm reduce core brick
-// (tcrv_rvv.elementwise_rms_norm_reduce_core) now carries an OPTIONAL single-block
+// (weft_rvv.elementwise_rms_norm_reduce_core) now carries an OPTIONAL single-block
 // $epilogue region whose entry argument is the per-strip normalized vector `vy`
-// and which holds ONE tcrv_rvv.elementwise_mul_map consumer brick. The reduce-body
+// and which holds ONE weft_rvv.elementwise_mul_map consumer brick. The reduce-body
 // emitter SPLICES the mul into the normalize strip: the normalized vy (a
 // register-resident vfmul_vf result) flows STRAIGHT into a per-lane vfmul_vv
 // against the loaded weight strip and stores the fused z[] once.
@@ -31,43 +31,43 @@
 // Numerical bit-exact-vs-ggml is pending-hardware.
 
 module {
-  tcrv.exec.kernel @ggml_rms_norm_mul_f32_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_rms_norm_mul_f32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "ne00", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %w = tcrv_rvv.runtime_abi_value {c_name = "w", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %z = tcrv_rvv.runtime_abi_value {c_name = "z", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %eps = tcrv_rvv.runtime_abi_value {c_name = "eps", c_type = "float", ownership = "target-export-abi-owned", purpose = "eps", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_rms_norm_mul_f32, sew = 32 : i64, source_kernel = "ggml_rms_norm_mul_f32_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %z, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
+  weft.exec.kernel @ggml_rms_norm_mul_f32_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_rms_norm_mul_f32 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "ne00", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %w = weft_rvv.runtime_abi_value {c_name = "w", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %z = weft_rvv.runtime_abi_value {c_name = "z", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %eps = weft_rvv.runtime_abi_value {c_name = "eps", c_type = "float", ownership = "target-export-abi-owned", purpose = "eps", role = "dequant-scale-value"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_rms_norm_mul_f32, sew = 32 : i64, source_kernel = "ggml_rms_norm_mul_f32_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_elementwise_loop_body %x, %z, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
         ^bb0(%strip_index: index, %acc: f64):
           // The rms_norm reduce core PRODUCER carries the fused mul EPILOGUE: its
           // $epilogue region's entry argument %vy is the per-strip normalized
           // vector (the register-kept vfmul_vf result), and the single
-          // tcrv_rvv.elementwise_mul_map consumer multiplies it by the weight
+          // weft_rvv.elementwise_mul_map consumer multiplies it by the weight
           // strip w[] and stores the fused result to z[] (== the producer output,
           // a single fused destination). anti-bypass: mul strip_index is the loop
           // induction variable (region arg 0); mul chain is %vy (epilogue region
           // arg 0). strip_lmul = "m8" pins the normalize + the mul.
-          %acc_next = tcrv_rvv.elementwise_rms_norm_reduce_core %x, %z, %eps, %n strip %strip_index acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f64 -> f64 epilogue {
-          ^bb0(%vy: !tcrv_rvv.vector<f32, "m8">):
-            tcrv_rvv.elementwise_mul_map %vy, %w, %z, %n strip %strip_index {kind = "elementwise_mul_map"} : !tcrv_rvv.vector<f32, "m8">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
+          %acc_next = weft_rvv.elementwise_rms_norm_reduce_core %x, %z, %eps, %n strip %strip_index acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, f64 -> f64 epilogue {
+          ^bb0(%vy: !weft_rvv.vector<f32, "m8">):
+            weft_rvv.elementwise_mul_map %vy, %w, %z, %n strip %strip_index {kind = "elementwise_mul_map"} : !weft_rvv.vector<f32, "m8">, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
           }
-          tcrv_rvv.typed_elementwise_loop_yield %acc_next : f64
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.typed_elementwise_loop_yield %acc_next : f64
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // The fused TU still calls scalar libm (1/sqrtf(mean+eps)), so it self-includes
 // <math.h> (keyed on the reduce core brick, unchanged by the epilogue).
 // CHECK: emitc.include <"math.h">
-// CHECK: emitc.func @tcrv_emitc_ggml_rms_norm_mul_f32_kernel_ggml_rms_norm_mul_f32(
+// CHECK: emitc.func @weft_emitc_ggml_rms_norm_mul_f32_kernel_ggml_rms_norm_mul_f32(
 //
 // ===== rms_norm reduce is BYTE-IDENTICAL to the unfused path =====
 // The scalar-double accumulator + ascending fold (step is the literal 1, NOT a
@@ -92,7 +92,7 @@ module {
 // CHECK: %[[VY:.*]] = call_opaque "__riscv_vfmul_vf_f32m8"
 // The mul epilogue provenance verbatim carries the CONSTRUCTED consumer brick's
 // identity (elementwise_mul_map), NOT an opaque helper -- the region splice.
-// CHECK: route_source_op=tcrv_rvv.elementwise_mul_map
+// CHECK: route_source_op=weft_rvv.elementwise_mul_map
 // The w[] strip load, then the FUSED vfmul_vv whose FIRST operand is the
 // register-kept vy (proving vy flows straight in -- no norm[] store/reload
 // between the normalize and the multiply).

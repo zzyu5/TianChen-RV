@@ -1,15 +1,15 @@
-add_mlir_library(TianChenRVRVVTarget
+add_mlir_library(WeftRVVTarget
   RVVTargetSupportBundle.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVPlugin
-  TianChenRVRVVEmitCRouteProvider
-  TianChenRVRVVDialect
-  TianChenRVSupport
-  TianChenRVTransforms
-  TianChenRVTarget
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftPlugin
+  WeftRVVEmitCRouteProvider
+  WeftRVVDialect
+  WeftSupport
+  WeftTransforms
+  WeftTarget
   MLIRIR
   MLIRPass
   MLIRSupport

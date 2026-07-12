@@ -1,8 +1,8 @@
-#include "TianChenRV/Target/Scalar/ScalarTargetSupportBundle.h"
+#include "Weft/Target/Scalar/ScalarTargetSupportBundle.h"
 
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Plugin/Scalar/ScalarEmitCRouteProvider.h"
-#include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
+#include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OwningOpRef.h"
@@ -12,18 +12,18 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::target::scalar_ext {
+namespace weft::target::scalar_ext {
 namespace {
 
 llvm::Error makeScalarTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV portable-scalar materialized EmitC target "
+      llvm::Twine("Weft-RV portable-scalar materialized EmitC target "
                   "translate route failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
-/// Lowers a selected `tcrv_scalar.compute_skeleton` body to a standalone EmitC
+/// Lowers a selected `weft_scalar.compute_skeleton` body to a standalone EmitC
 /// module through the shared typed-emission backend registry (which runs the
 /// scalar backend emission driver on a clone), then renders it as pure-scalar
 /// C/C++ through the upstream MLIR EmitC C/C++ emitter. The live module is
@@ -60,4 +60,4 @@ llvm::Error registerScalarTargetSupportTargetTranslateRoutes(
       exportScalarEmitCToCpp));
 }
 
-} // namespace tianchenrv::target::scalar_ext
+} // namespace weft::target::scalar_ext

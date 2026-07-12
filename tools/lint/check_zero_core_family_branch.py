@@ -68,7 +68,7 @@ def build_family_key_re(keys):
 
 def build_family_enum_re(keys):
     """Bareword family enum in a switch/comparison, e.g. `case RVV:` / `== Family::IME` /
-    `!= tcrv::Scalar`. Capitalised family token as a whole word (optionally namespace-
+    `!= weft::Scalar`. Capitalised family token as a whole word (optionally namespace-
     qualified). Kept separate from the string-literal detector."""
     caps = sorted({k[:1].upper() + k[1:] for k in keys} | {k.upper() for k in keys})
     alt = "|".join(re.escape(c) for c in caps)
@@ -249,15 +249,15 @@ def run_self_test():
     check('comment "// does not branch on RVV, IME, scalar" -> GREEN',
           not is_branch('    // does not branch on RVV, scalar fallback, IME, offload,'))
     check('leading-* doc line mentioning rvv -> GREEN',
-          not is_branch('   * mirrors the --tcrv-rvv-lower-to-emitc pass'))
-    check('pass mnemonic Pass<"tcrv-rvv-lower-to-emitc"> -> GREEN',
-          not is_branch('  : Pass<"tcrv-rvv-lower-to-emitc", "::mlir::ModuleOp"> {'))
-    check('dependentDialect "::tianchenrv::tcrv::rvv::TCRVRVVDialect" -> GREEN',
-          not is_branch('    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"'))
+          not is_branch('   * mirrors the --weft-rvv-lower-to-emitc pass'))
+    check('pass mnemonic Pass<"weft-rvv-lower-to-emitc"> -> GREEN',
+          not is_branch('  : Pass<"weft-rvv-lower-to-emitc", "::mlir::ModuleOp"> {'))
+    check('dependentDialect "::weft::rvv::WEFTRVVDialect" -> GREEN',
+          not is_branch('    "::weft::rvv::WEFTRVVDialect"'))
     check('registration table entry rvv::registerRVVBackendEmitter, -> GREEN',
           not is_branch('    rvv::registerRVVBackendEmitter,'))
     check('registration entry ::...::ime::registerIMEBackendEmitter, -> GREEN',
-          not is_branch('    ::tianchenrv::plugin::ime::registerIMEBackendEmitter,'))
+          not is_branch('    ::weft::plugin::ime::registerIMEBackendEmitter,'))
     check('identity-by-origin (no family literal) -> GREEN',
           not is_branch('  if (candidate.origin == selectedRoute.originPlugin) keep();'))
     check('namespace-arg impliedClosureAvoidsNamespace(seed, "rvv") -> GREEN',
@@ -266,8 +266,8 @@ def run_self_test():
           not is_branch('    if (id == namespacePrefix || id.starts_with(namespacePrefix))'))
     check('role mnemonic return "rhs-scalar-value"; -> GREEN',
           not is_branch('    return "rhs-scalar-value";'))
-    check('dialect doc "tcrv.rvv, tcrv.ime, tcrv.offload, scalar" in comment -> GREEN',
-          not is_branch('    // by extension dialects such as tcrv.rvv, tcrv.ime, scalar'))
+    check('dialect doc "weft.rvv, weft.ime, weft.offload, scalar" in comment -> GREEN',
+          not is_branch('    // by extension dialects such as weft.rvv, weft.ime, scalar'))
 
     # --- the committed manifest must load + enumerate a non-empty core scope ---
     try:

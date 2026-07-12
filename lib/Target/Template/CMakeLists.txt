@@ -1,14 +1,14 @@
-add_mlir_library(TianChenRVTemplateTarget
+add_mlir_library(WeftTemplateTarget
   TemplateTargetSupportBundle.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTarget
-  TianChenRVTemplateConstructionProtocol
-  TianChenRVTemplateEmitCRouteProvider
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftPlugin
+  WeftSupport
+  WeftTarget
+  WeftTemplateConstructionProtocol
+  WeftTemplateEmitCRouteProvider
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

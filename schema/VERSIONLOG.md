@@ -18,3 +18,4 @@ v<semver> | <RFC-id> | <sha256> | <additive|breaking> | note
 ## Log
 
 v1.0.0 | SCHEMA-RFC-0001 | 653127c6c4d51b3ecea17b1c9e09e68059ff269c52779ffda2e06f74e2173c7a | additive | initial declaration — TARGET six-item shape ([S-5]); intentionally divergent from current code (tracked conformance gap, closed by E4/E5/G6/P2)
+v1.1.0 | SCHEMA-RFC-0001 | bff751040d99b1add9eacd7cf0ff3940bb8cb4763ae79748ac7d6d370a838401 | additive | [RENAME 2026-07-12·裁四 F-2′预案] mechanical project rename TianChen-RV/TCRV → Weft; SHAPE UNCHANGED (same keys/enum/relations) — only identifier string VALUES renamed (include/TianChenRV→include/Weft path refs, tcrv.exec.target→weft.exec.target prose); extension-not-modification, minor bump so the report gate re-seals the post-rename canonical bytes without rewriting the sealed v1.0.0 hash

@@ -1,7 +1,7 @@
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-macc-add --overwrite --op-kind computed_masked_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-macc-add --overwrite --op-kind computed_masked_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-masked-macc-add/evidence.json
-# RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-masked-macc-add/computed_masked_macc_add/evidence.json
+# RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-computed-masked-macc-add/computed_masked_macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-masked-macc-add/computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -14,33 +14,33 @@
 
 # MACC-DAG: "input_mode": "pre-realized-selected-body"
 # MACC-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-macc-add.mlir"
-# MACC-DAG: "expected_function": "tcrv_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add"
+# MACC-DAG: "expected_function": "weft_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add"
 # MACC-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1"
 # MACC-DAG: "expected_selected_variant": "pre_realized_body_rvv_computed_masked_macc_add"
-# MACC-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# MACC-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# MACC-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
+# MACC-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
 # MACC-DAG: "route_entry_realization": false
 # MACC-DAG: "pre_realized_body_consumed": true
-# MACC-DAG: "typed_compute_op": "tcrv_rvv.masked_macc"
-# MACC-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# MACC-DAG: "typed_compute_op": "weft_rvv.masked_macc"
+# MACC-DAG: "key": "weft_rvv.route_operand_binding_plan"
 # MACC-DAG: "value": "rvv-route-operand-binding:computed_masked_macc_add.v1"
-# MACC-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# MACC-DAG: "key": "weft_rvv.route_operand_binding_operands"
 # MACC-DAG: "value": "rvv-route-operand-binding:computed_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
-# MACC-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# MACC-DAG: "key": "weft_rvv.runtime_abi_order"
 # MACC-DAG: "value": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
-# MACC-DAG: "key": "tcrv_rvv.accumulation_route_family_plan"
+# MACC-DAG: "key": "weft_rvv.accumulation_route_family_plan"
 # MACC-DAG: "value": "rvv-computed-mask-accumulation-route-family-plan.v1"
-# MACC-DAG: "key": "tcrv_rvv.accumulation_compute_suffix"
+# MACC-DAG: "key": "weft_rvv.accumulation_compute_suffix"
 # MACC-DAG: "value": "vector-masked-macc-add"
-# MACC-DAG: "key": "tcrv_rvv.accumulation_mask_producer_source"
+# MACC-DAG: "key": "weft_rvv.accumulation_mask_producer_source"
 # MACC-DAG: "value": "vector-compare-rhs-load"
-# MACC-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# MACC-DAG: "key": "weft_rvv.provider_supported_mirror"
 # MACC-DAG: "value": "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated"
-# MACC-DAG: "key": "tcrv_rvv.required_header_declarations"
+# MACC-DAG: "key": "weft_rvv.required_header_declarations"
 # MACC-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
-# MACC-DAG: "key": "tcrv_rvv.c_type_mapping"
+# MACC-DAG: "key": "weft_rvv.c_type_mapping"
 # MACC-DAG: "value": "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector"
-# MACC-DAG: "key": "tcrv_rvv.inactive_lane_contract"
+# MACC-DAG: "key": "weft_rvv.inactive_lane_contract"
 # MACC-DAG: "value": "masked-macc-false-lanes-preserve-accumulator"
 # MACC-DAG: "computed_masked_macc_boundary"
 # MACC-DAG: "active_lane_contract": "accumulator + lhs * rhs where compare mask is true"
@@ -52,8 +52,8 @@
 # MACC-DAG: "rhs": "dot-rhs-input-buffer"
 # MACC-DAG: "mask_role": "predicate-mask-produced-by-compare"
 # MACC-DAG: "mask_source": "compare-produced-mask-same-vl-scope"
-# MACC-DAG: "tcrv_rvv.source_memory_form": "unit-stride-load"
-# MACC-DAG: "tcrv_rvv.destination_memory_form": "unit-stride-store"
+# MACC-DAG: "weft_rvv.source_memory_form": "unit-stride-load"
+# MACC-DAG: "weft_rvv.destination_memory_form": "unit-stride-store"
 # MACC-DAG: "macc_kind": "add"
 # MACC-DAG: "macc_operand_order": "acc,lhs,rhs,vl"
 # MACC-DAG: "merge_operand_order": "acc,active_macc,mask,vl"
@@ -64,7 +64,7 @@
 
 # HARNESS: static int32_t init_cmp_lhs(size_t index, int pattern)
 # HARNESS: static int32_t init_lhs(size_t index, int pattern)
-# HARNESS: tcrv_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n);
+# HARNESS: weft_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n);
 # HARNESS: source buffer mutated
 # HARNESS: inactive_acc_preserved
 # HARNESS: add_only_distinguishing

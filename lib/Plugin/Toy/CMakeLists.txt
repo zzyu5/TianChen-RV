@@ -1,63 +1,63 @@
-add_mlir_library(TianChenRVToyConstructionProtocol
+add_mlir_library(WeftToyConstructionProtocol
   ToyConstructionProtocol.cpp
   ToyVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVExecDialect
-  TianChenRVPluginConstructionProtocol
-  TianChenRVSupport
+  WeftExecDialect
+  WeftPluginConstructionProtocol
+  WeftSupport
   MLIRIR
   MLIRSupport
 )
 
-add_mlir_library(TianChenRVToyEmitCRouteProvider
+add_mlir_library(WeftToyEmitCRouteProvider
   ToyEmitCRouteProvider.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVPlugin
-  TianChenRVToyConstructionProtocol
-  TianChenRVSupport
-  TianChenRVToyDialect
+  WeftConversionEmitC
+  WeftPlugin
+  WeftToyConstructionProtocol
+  WeftSupport
+  WeftToyDialect
   MLIRIR
   MLIRSupport
 )
 
-add_mlir_library(TianChenRVToyBackendEmitter
+add_mlir_library(WeftToyBackendEmitter
   ToyBackendEmissionDriver.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVToyConstructionProtocol
-  TianChenRVSupport
-  TianChenRVToyDialect
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftToyConstructionProtocol
+  WeftSupport
+  WeftToyDialect
   MLIREmitCDialect
   MLIRIR
   MLIRSupport
   MLIRTransformUtils
 )
 
-add_mlir_library(TianChenRVToyPlugin
+add_mlir_library(WeftToyPlugin
   ToyExtensionPlugin.cpp
   ToySourceFrontDoor.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVToyConstructionProtocol
-  TianChenRVToyDialect
-  TianChenRVToyEmitCRouteProvider
-  TianChenRVToyTarget
+  WeftConversionEmitC
+  WeftPlugin
+  WeftSupport
+  WeftToyConstructionProtocol
+  WeftToyDialect
+  WeftToyEmitCRouteProvider
+  WeftToyTarget
   MLIRFuncDialect
   MLIRIR
   MLIRPass

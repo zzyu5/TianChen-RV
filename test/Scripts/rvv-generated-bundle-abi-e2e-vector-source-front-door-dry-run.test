@@ -1,5 +1,5 @@
 # RUN: rm -rf %t.artifacts
-# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --artifact-root %t.artifacts --run-id vector-source-front-door --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 0 --runtime-count 1 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=FAIL
+# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --artifact-root %t.artifacts --run-id vector-source-front-door --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 0 --runtime-count 1 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=FAIL
 
 # FAIL: rvv_generated_bundle_abi_e2e: failed
 # FAIL: RVV --vector-source-front-door generated-bundle mode is retired for current Stage1/Stage2
@@ -7,5 +7,5 @@
 # FAIL-SAME: cannot claim route-supported or executable artifacts
 # FAIL-SAME: use explicit selected-body or pre-realized selected-body fixtures for artifact evidence
 # FAIL-NOT: dry_run_success
-# FAIL-NOT: --tcrv-rvv-materialize-vector-binary-source-front-door
-# FAIL-NOT: --tcrv-export-target-artifact-bundle
+# FAIL-NOT: --weft-rvv-materialize-vector-binary-source-front-door
+# FAIL-NOT: --weft-export-target-artifact-bundle

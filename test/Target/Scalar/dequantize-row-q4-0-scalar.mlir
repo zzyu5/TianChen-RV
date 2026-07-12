@@ -1,13 +1,13 @@
-// RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: tcrv-opt %s --tcrv-check-capability-requires --tcrv-materialize-plugin-variants --tcrv-verify-plugin-variant-legality --tcrv-select-variants | tcrv-translate --tcrv-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="tcrv_rvv"
-// RUN: tcrv-translate --tcrv-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="tcrv_rvv"
-// RUN: tcrv-translate --tcrv-scalar-emitc-to-cpp %s | diff %S/dequantize-row-q4-0-scalar.golden.c -
+// RUN: weft-translate --help | FileCheck %s --check-prefix=HELP
+// RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
+// RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
+// RUN: weft-translate --weft-scalar-emitc-to-cpp %s | diff %S/dequantize-row-q4-0-scalar.golden.c -
 
 // X-SCALAR family #4: a REAL 4-bit nibble dequantize scalar fallback kernel. A
-// hand-written portable-scalar tcrv_scalar.dequantize_row_q4_0 boundary flows
+// hand-written portable-scalar weft_scalar.dequantize_row_q4_0 boundary flows
 // through the generic capability/variant planning passes and then the scalar
 // backend emission driver lowers it to a standalone EmitC module that the
-// --tcrv-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
+// --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
 // `dequantize_row_q4_0` block expansion as nested C loops. NO __riscv_
 // intrinsics, NO XOR-popcount codebook, NO vector machinery -- each packed byte
 // decodes its low nibble `(q & 0x0F) - 8` and high nibble `(q >> 4) - 8`, and
@@ -23,18 +23,18 @@
 // The last RUN is a strict byte-exact gate versus the captured golden C (the
 // ggml scalar q4_0 reference), sibling dequantize-row-q4-0-scalar.golden.c.
 //
-// NOTE: --tcrv-materialize-emission-plans is intentionally NOT in the pipe (the
+// NOTE: --weft-materialize-emission-plans is intentionally NOT in the pipe (the
 // scalar plugin's emission-readiness still fail-closes as Unsupported, locked by
 // test/Plugin/ScalarExtensionPluginTest.cpp); the translate route lowers the
 // selected typed body directly through the shared backend-emission registry.
 
-// HELP: --tcrv-scalar-emitc-to-cpp
+// HELP: --weft-scalar-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter
 
 module {
-  tcrv.exec.kernel @q4_0_dequant_kernel {
-    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
-    tcrv_scalar.dequantize_row_q4_0 {
+  weft.exec.kernel @q4_0_dequant_kernel {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft_scalar.dequantize_row_q4_0 {
       source_kernel = "q4_0_dequant_kernel",
       selected_variant = @scalar_fallback_first_slice,
       qk = 32 : i64,
@@ -46,8 +46,8 @@ module {
 }
 
 // SOURCE: #include <stdint.h>
-// SOURCE: extern "C" void tcrv_emitc_q4_0_dequant_kernel_scalar_fallback_first_slice(int v{{[0-9]+}}, float* v{{[0-9]+}}, const uint8_t* v{{[0-9]+}})
-// SOURCE: tcrv_emitc.route_source_op=tcrv_scalar.dequantize_row_q4_0 role=compute op_interface=TCRVEmitCLowerableOpInterface
+// SOURCE: extern "C" void weft_emitc_q4_0_dequant_kernel_scalar_fallback_first_slice(int v{{[0-9]+}}, float* v{{[0-9]+}}, const uint8_t* v{{[0-9]+}})
+// SOURCE: weft_emitc.route_source_op=weft_scalar.dequantize_row_q4_0 role=compute op_interface=WEFTEmitCLowerableOpInterface
 
 // block count nb = (size_t)n / 32  (qk attribute).
 // SOURCE: size_t v[[N:[0-9]+]] = (size_t) v{{[0-9]+}};

@@ -1,5 +1,5 @@
-// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-FAIL --implicit-check-not="rvv-generic-binary-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
-// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=NO-OBJECT --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: not weft-opt %s --weft-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-FAIL --implicit-check-not="rvv-generic-binary-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: not weft-opt %s --weft-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=NO-OBJECT --implicit-check-not="weft.target_artifact_bundle_export: complete"
 
 // Source-only RVV MLIR is no longer a default production artifact front door.
 // The explicit RVV materializer pass may still be used as a non-default
@@ -23,8 +23,8 @@ module {
   }
 }
 
-// PIPE-FAIL: TianChen-RV execution plan coherence check failed for kernel <missing>
-// PIPE-FAIL-SAME: requires at least one tcrv.exec.kernel
+// PIPE-FAIL: Weft-RV execution plan coherence check failed for kernel <missing>
+// PIPE-FAIL-SAME: requires at least one weft.exec.kernel
 
-// NO-OBJECT: TianChen-RV execution plan coherence check failed for kernel <missing>
-// NO-OBJECT-SAME: requires at least one tcrv.exec.kernel
+// NO-OBJECT: Weft-RV execution plan coherence check failed for kernel <missing>
+// NO-OBJECT-SAME: requires at least one weft.exec.kernel

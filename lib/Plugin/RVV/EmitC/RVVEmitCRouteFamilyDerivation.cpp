@@ -13,22 +13,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "RVVEmitCRoutePlanningInternal.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -52,13 +52,13 @@
 
 
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::StringRef getRVVStandaloneReductionAccumulatorLayoutForSEW(
     std::int64_t sew) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
     return kRVVStandaloneReductionAccumulatorLayout;
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
+  if (sew == weft::rvv::getRVVSEW64Bits())
     return kRVVStandaloneReductionI64AccumulatorLayout;
   return {};
 }
@@ -1040,8 +1040,8 @@ deriveRVVSelectedBodyConfigProfile(
         description.maskPolicy != "undisturbed")
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (isMaskedStorePolicy &&
-        (description.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-         description.lmul != tcrv::rvv::getRVVLMULM1()))
+        (description.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+         description.lmul != weft::rvv::getRVVLMULM1()))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (isRuntimeScalarComputedMaskStore &&
         !isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
@@ -1052,38 +1052,38 @@ deriveRVVSelectedBodyConfigProfile(
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
-  const tcrv::rvv::RVVSelectedBodyConfigVLContract *configContract = nullptr;
-  if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1()) {
+  const weft::rvv::RVVSelectedBodyConfigVLContract *configContract = nullptr;
+  if (description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == weft::rvv::getRVVLMULM1()) {
     configContract =
         usesUndisturbedPolicy
-            ? &tcrv::rvv::getRVVSelectedBodyM1UndisturbedConfigVLContract()
-            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m1");
-  } else if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-             description.lmul == tcrv::rvv::getRVVLMULM2()) {
+            ? &weft::rvv::getRVVSelectedBodyM1UndisturbedConfigVLContract()
+            : &weft::rvv::getRVVSelectedBodyConfigVLContract("m1");
+  } else if (description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+             description.lmul == weft::rvv::getRVVLMULM2()) {
     configContract =
         usesUndisturbedPolicy
-            ? &tcrv::rvv::getRVVSelectedBodyM2UndisturbedConfigVLContract()
-            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m2");
-  } else if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
-             description.lmul == tcrv::rvv::getRVVLMULM1()) {
+            ? &weft::rvv::getRVVSelectedBodyM2UndisturbedConfigVLContract()
+            : &weft::rvv::getRVVSelectedBodyConfigVLContract("m2");
+  } else if (description.sew == weft::rvv::getRVVSEW64Bits() &&
+             description.lmul == weft::rvv::getRVVLMULM1()) {
     configContract =
         usesUndisturbedPolicy
-            ? &tcrv::rvv::getRVVSelectedBodyI64M1UndisturbedConfigVLContract()
-            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m1");
-  } else if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
-             description.lmul == tcrv::rvv::getRVVLMULM2() &&
+            ? &weft::rvv::getRVVSelectedBodyI64M1UndisturbedConfigVLContract()
+            : &weft::rvv::getRVVSelectedBodyConfigVLContract(64, "m1");
+  } else if (description.sew == weft::rvv::getRVVSEW64Bits() &&
+             description.lmul == weft::rvv::getRVVLMULM2() &&
              description.tailPolicy == "agnostic" &&
              description.maskPolicy == "agnostic") {
-    configContract = &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m2");
+    configContract = &weft::rvv::getRVVSelectedBodyConfigVLContract(64, "m2");
   } else if (description.operation ==
                  RVVSelectedBodyOperationKind::WideningProduct &&
-             description.sew == tcrv::rvv::getRVVSEW16Bits() &&
-             description.lmul == tcrv::rvv::getRVVLMULMF2() &&
+             description.sew == weft::rvv::getRVVSEW16Bits() &&
+             description.lmul == weft::rvv::getRVVLMULMF2() &&
              description.tailPolicy == "agnostic" &&
              description.maskPolicy == "agnostic") {
     configContract =
-        &tcrv::rvv::getRVVSelectedBodyConfigVLContract(16, "mf2");
+        &weft::rvv::getRVVSelectedBodyConfigVLContract(16, "mf2");
   } else {
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
@@ -1352,16 +1352,16 @@ llvm::StringRef getRVVSelectedBodyWideningConversionIntrinsic(
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     llvm::StringRef conversionRelation) {
   const bool isI32ToI64 =
-      sourceSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULM1() &&
-      resultSEW == tcrv::rvv::getRVVSEW64Bits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULM2() &&
+      sourceSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+      sourceLMUL == weft::rvv::getRVVLMULM1() &&
+      resultSEW == weft::rvv::getRVVSEW64Bits() &&
+      resultLMUL == weft::rvv::getRVVLMULM2() &&
       conversionRelation == kRVVWideningConversionRelation;
   const bool isI16ToI32 =
-      sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULM1() &&
+      sourceSEW == weft::rvv::getRVVSEW16Bits() &&
+      sourceLMUL == weft::rvv::getRVVLMULMF2() &&
+      resultSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == weft::rvv::getRVVLMULM1() &&
       conversionRelation == kRVVWidenI16ToI32ConversionRelation;
   if (!isI32ToI64 && !isI16ToI32)
     return {};
@@ -1384,9 +1384,9 @@ llvm::StringRef getRVVSelectedBodyWideningConversionIntrinsic(
 llvm::StringRef getRVVSelectedBodyMAccIntrinsic(std::int64_t sew,
                                                 llvm::StringRef lmul) {
   static llvm::StringSet<> leafPool;
-  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      (lmul != tcrv::rvv::getRVVLMULM1() &&
-       lmul != tcrv::rvv::getRVVLMULM2()))
+  if (sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      (lmul != weft::rvv::getRVVLMULM1() &&
+       lmul != weft::rvv::getRVVLMULM2()))
     return {};
   return leafPool
       .insert((llvm::Twine("__riscv_vmacc_vv_i") + llvm::Twine(sew) + lmul)
@@ -1401,7 +1401,7 @@ llvm::StringRef getRVVSelectedBodyReductionIntrinsicForMnemonic(
     return {};
   return internRVVSelectedBodyDerivedText(
       (llvm::Twine("__riscv_") + mnemonic + "_vs_i" + llvm::Twine(sew) +
-       lmul + "_i" + llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+       lmul + "_i" + llvm::Twine(sew) + weft::rvv::getRVVLMULM1())
           .str());
 }
 
@@ -1417,8 +1417,8 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
     RVVSelectedBodyOperationKind operation, std::int64_t sew,
     llvm::StringRef lmul) {
   if (operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) {
-    if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        lmul != tcrv::rvv::getRVVLMULM1())
+    if (sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        lmul != weft::rvv::getRVVLMULM1())
       return {};
     return "__riscv_vwredsum_vs_i16mf2_i32m1";
   }
@@ -1460,7 +1460,7 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
                        RuntimeScalarComputedMaskStandaloneReduceMax)
     return getRVVSelectedBodyStandaloneReductionIntrinsic(
         operation, config.sew, config.lmul);
-  if (config.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (config.sew != weft::rvv::getRVVFirstSliceSEWBits())
     return {};
   return getRVVSelectedBodyStandaloneReductionIntrinsic(operation, config.sew,
                                                        config.lmul);
@@ -1469,7 +1469,7 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
 llvm::StringRef
 getRVVSelectedBodyEqualCompareIntrinsic(llvm::StringRef lmul) {
   return getRVVSelectedBodyCompareIntrinsicForPredicate(
-      "eq", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
+      "eq", weft::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef
@@ -1482,7 +1482,7 @@ getRVVSelectedBodyEqualCompareIntrinsic(
 llvm::StringRef
 getRVVSelectedBodySignedLessThanCompareIntrinsic(llvm::StringRef lmul) {
   return getRVVSelectedBodyCompareIntrinsicForPredicate(
-      "slt", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
+      "slt", weft::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef getRVVSelectedBodySignedLessThanCompareIntrinsic(
@@ -1494,7 +1494,7 @@ llvm::StringRef getRVVSelectedBodySignedLessThanCompareIntrinsic(
 llvm::StringRef
 getRVVSelectedBodySignedLessEqualCompareIntrinsic(llvm::StringRef lmul) {
   return getRVVSelectedBodyCompareIntrinsicForPredicate(
-      "sle", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
+      "sle", weft::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef getRVVSelectedBodySignedLessEqualCompareIntrinsic(
@@ -1528,13 +1528,13 @@ llvm::StringRef getRVVSelectedBodyCompareIntrinsic(
 
 llvm::StringRef getRVVSelectedBodyMaskFromI32Intrinsic(llvm::StringRef lmul) {
   return getRVVSelectedBodyCompareIntrinsicForPredicate(
-      "ne_vx", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
+      "ne_vx", weft::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodySelectIntrinsic(llvm::StringRef lmul) {
   return getRVVSelectedBodySelectIntrinsic(
-      tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
+      weft::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef
@@ -1579,8 +1579,8 @@ bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
 
 bool isRVVRuntimeScalarSplatStoreSupportedTypedConfig(std::int64_t sew,
                                                       llvm::StringRef lmul) {
-  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         lmul == tcrv::rvv::getRVVLMULM1();
+  return sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+         lmul == weft::rvv::getRVVLMULM1();
 }
 
 llvm::Error requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
@@ -1619,7 +1619,7 @@ llvm::Error validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlanImpl(
   if (!isRVVRuntimeScalarSplatStoreSupportedTypedConfig(plan.sew, plan.lmul))
     return makeRVVEmitCRouteProviderError(
         "runtime scalar splat-store route-family plan currently supports only "
-        "typed SEW32 LMUL m1 config derived from tcrv_rvv body/config facts");
+        "typed SEW32 LMUL m1 config derived from weft_rvv body/config facts");
   RVVSelectedBodyEmitCRouteDescription expectedDescription;
   expectedDescription.operation = plan.operation;
   expectedDescription.memoryForm = plan.memoryForm;
@@ -1745,7 +1745,7 @@ deriveRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
                                                         configProfile.lmul))
     return makeRVVEmitCRouteProviderError(
         "runtime scalar splat-store route-family plan currently requires "
-        "typed SEW32 LMUL m1 config derived from tcrv_rvv body/config facts");
+        "typed SEW32 LMUL m1 config derived from weft_rvv body/config facts");
   if (analysis.slice.rhsABI.role !=
           support::RuntimeABIParameterRole::RHSScalarValue ||
       analysis.slice.outABI.role !=
@@ -1758,7 +1758,7 @@ deriveRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           kRVVRuntimeScalarSplatStoreRuntimeABIOrder,
           "runtime scalar splat-store route-family plan");
@@ -1950,7 +1950,7 @@ llvm::Error validateRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
   if (!isSupportedPlainCompareSelectPredicateKind(plan.comparePredicateKind))
     return makeRVVEmitCRouteProviderError(
         "plain compare-select route-family plan requires active compare "
-        "predicate kind eq, slt, or sle from typed tcrv_rvv.compare");
+        "predicate kind eq, slt, or sle from typed weft_rvv.compare");
   if (llvm::Error error =
           requireRVVSelectedBodyPlainCompareSelectPlanField(
               plan, "setvl leaf", plan.setVLIntrinsic,
@@ -2092,7 +2092,7 @@ deriveRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
           analysis.slice.compareOp.getKind()))
     return makeRVVEmitCRouteProviderError(
         "plain compare-select route-family plan requires compare predicate "
-        "kind eq, slt, or sle from typed tcrv_rvv.compare");
+        "kind eq, slt, or sle from typed weft_rvv.compare");
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       analysis.slice.rhsABI.role !=
@@ -2107,7 +2107,7 @@ deriveRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           kRVVGenericBinaryRuntimeABIOrder,
           "plain compare-select route-family plan");
@@ -2257,17 +2257,17 @@ buildRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
   const bool isI16ToI32 =
       operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
   const std::int64_t sourceSEW =
-      isI16ToI32 ? tcrv::rvv::getRVVSEW16Bits()
-                 : tcrv::rvv::getRVVFirstSliceSEWBits();
+      isI16ToI32 ? weft::rvv::getRVVSEW16Bits()
+                 : weft::rvv::getRVVFirstSliceSEWBits();
   const llvm::StringRef sourceLMUL =
-      isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
-                 : tcrv::rvv::getRVVLMULM1();
+      isI16ToI32 ? weft::rvv::getRVVLMULMF2()
+                 : weft::rvv::getRVVLMULM1();
   const std::int64_t resultSEW =
-      isI16ToI32 ? tcrv::rvv::getRVVFirstSliceSEWBits()
-                 : tcrv::rvv::getRVVSEW64Bits();
+      isI16ToI32 ? weft::rvv::getRVVFirstSliceSEWBits()
+                 : weft::rvv::getRVVSEW64Bits();
   const llvm::StringRef resultLMUL =
-      isI16ToI32 ? tcrv::rvv::getRVVLMULM1()
-                 : tcrv::rvv::getRVVLMULM2();
+      isI16ToI32 ? weft::rvv::getRVVLMULM1()
+                 : weft::rvv::getRVVLMULM2();
   const llvm::StringRef conversionRelation =
       isI16ToI32 ? kRVVWidenI16ToI32ConversionRelation
                  : kRVVWideningConversionRelation;
@@ -2308,7 +2308,7 @@ buildRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
       getRVVSelectedBodyWideningConversionCTypeMappingSummary(operation);
   facts.routeOperandBindingPlanID = routeOperandBindingPlanID;
   facts.routeFamilyPlanID = kRVVWideningConversionRouteFamilyPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.widening_convert";
+  facts.typedComputeOpName = "weft_rvv.widening_convert";
   facts.sourceSEW = sourceSEW;
   facts.sourceLMUL = sourceLMUL;
   facts.resultSEW = resultSEW;
@@ -2343,18 +2343,18 @@ buildRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
        resultConfigUse + "|" + relationUse +
        "|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
           .str();
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "lhs", getRVVSelectedBodyConstInputPointerCType(sourceSEW),
-      tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      weft::support::RuntimeABIParameterRole::LHSInputBuffer,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "out", getRVVSelectedBodyOutputPointerCType(resultSEW),
-      tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      weft::support::RuntimeABIParameterRole::OutputBuffer,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "n", "size_t",
-      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+      weft::support::RuntimeABIParameterRole::RuntimeElementCount,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
   return facts;
 }
 
@@ -2581,7 +2581,7 @@ deriveRVVSelectedBodyWideningConversionRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           kRVVWideningConversionRuntimeABIOrder,
           "widening conversion route-family plan");
@@ -2679,10 +2679,10 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
   if (!isRVVSelectedBodyDequantizationRouteOperation(operation))
     return std::nullopt;
 
-  const std::int64_t sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-  const llvm::StringRef sourceLMUL = tcrv::rvv::getRVVLMULM1();
-  const std::int64_t resultSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-  const llvm::StringRef resultLMUL = tcrv::rvv::getRVVLMULM1();
+  const std::int64_t sourceSEW = weft::rvv::getRVVFirstSliceSEWBits();
+  const llvm::StringRef sourceLMUL = weft::rvv::getRVVLMULM1();
+  const std::int64_t resultSEW = weft::rvv::getRVVFirstSliceSEWBits();
+  const llvm::StringRef resultLMUL = weft::rvv::getRVVLMULM1();
 
   RVVDequantizationRouteFacts facts;
   facts.operation = operation;
@@ -2703,7 +2703,7 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.cTypeMappingSummary = kRVVDequantizeI32ToF32CTypeMappingSummary;
   facts.routeOperandBindingPlanID = kRVVDequantizeI32ToF32OperandBindingPlanID;
   facts.routeFamilyPlanID = kRVVDequantizationRouteFamilyPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.dequantize";
+  facts.typedComputeOpName = "weft_rvv.dequantize";
   facts.sourceSEW = sourceSEW;
   facts.sourceLMUL = sourceLMUL;
   facts.resultSEW = resultSEW;
@@ -2761,22 +2761,22 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
        "relation-signed-i32m1-to-f32m1-scale-f32|hdr;"
        "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
           .str();
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "lhs", getRVVSelectedBodyConstInputPointerCType(sourceSEW),
-      tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      weft::support::RuntimeABIParameterRole::LHSInputBuffer,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "scale", "float",
-      tianchenrv::support::RuntimeABIParameterRole::DequantScaleValue,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      weft::support::RuntimeABIParameterRole::DequantScaleValue,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "out", getRVVSelectedBodyFloatOutputPointerCType(resultSEW),
-      tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
-  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      weft::support::RuntimeABIParameterRole::OutputBuffer,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(weft::support::RuntimeABIParameter(
       "n", "size_t",
-      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount,
-      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+      weft::support::RuntimeABIParameterRole::RuntimeElementCount,
+      weft::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
   return facts;
 }
 
@@ -2933,24 +2933,24 @@ llvm::Error requireRVVDequantizationGearboxFactsOnOp(
           facts.gearboxRuntimeAVLSource))
     return error;
   if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, "tcrv_rvv.gearbox.producer_scope",
+          op, context, "weft_rvv.gearbox.producer_scope",
           facts.gearboxProducerScope))
     return error;
   if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, "tcrv_rvv.gearbox.consumer_scope",
+          op, context, "weft_rvv.gearbox.consumer_scope",
           facts.gearboxConsumerScope))
     return error;
   return llvm::Error::success();
 }
 
 llvm::Error requireRVVDequantizationGearboxFacts(
-    tcrv::rvv::WithVLOp withVL, tcrv::rvv::DequantizeOp dequantize,
+    weft::rvv::WithVLOp withVL, weft::rvv::DequantizeOp dequantize,
     const RVVDequantizationRouteFacts &facts) {
   if (llvm::Error error = requireRVVDequantizationGearboxFactsOnOp(
-          withVL.getOperation(), "tcrv_rvv.with_vl", facts))
+          withVL.getOperation(), "weft_rvv.with_vl", facts))
     return error;
   if (llvm::Error error = requireRVVDequantizationGearboxFactsOnOp(
-          dequantize.getOperation(), "tcrv_rvv.dequantize", facts))
+          dequantize.getOperation(), "weft_rvv.dequantize", facts))
     return error;
   return llvm::Error::success();
 }
@@ -3237,7 +3237,7 @@ deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
       analysis.slice.rhsLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "dequantization route-family plan requires exactly one i32 source "
-        "load, one tcrv_rvv.dequantize op, and one f32 result store body "
+        "load, one weft_rvv.dequantize op, and one f32 result store body "
         "structure");
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
@@ -3268,7 +3268,7 @@ deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           kRVVDequantizeI32ToF32RuntimeABIOrder,
           "dequantization route-family plan");
@@ -3436,12 +3436,12 @@ bool usesDualCompareMaskAndSelect(RVVSelectedBodyOperationKind op) {
 
 bool isSupportedTypedComputedMaskSelectRouteConfig(std::int64_t sew,
                                                    llvm::StringRef lmul) {
-  if (tcrv::rvv::isRVVSelectedBodyM1Config(sew, lmul))
+  if (weft::rvv::isRVVSelectedBodyM1Config(sew, lmul))
     return true;
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == weft::rvv::getRVVLMULM2())
     return true;
-  return tcrv::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
+  return weft::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
 }
 
 llvm::StringRef getComputedMaskSelectElementTypeForSEW(std::int64_t sew) {
@@ -3670,8 +3670,8 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
         "SEW/LMUL/policy/contract facts to mirror runtime AVL/VL control "
         "facts");
   if (isF32ClampSelect || isDequantClampF32Epilogue) {
-    if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        plan.lmul != tcrv::rvv::getRVVLMULM1())
+    if (plan.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        plan.lmul != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "computed-mask select route-family plan supports f32 clamp/select "
           "and dequant-clamp epilogue only for SEW32 LMUL m1");
@@ -3758,16 +3758,16 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   if (isDequantClampF32Epilogue &&
       (plan.sourceVectorTypeName !=
            getRVVSelectedBodyVectorTypeName(
-               tcrv::rvv::getRVVFirstSliceSEWBits(),
-               tcrv::rvv::getRVVLMULM1()) ||
+               weft::rvv::getRVVFirstSliceSEWBits(),
+               weft::rvv::getRVVLMULM1()) ||
        plan.sourceVectorCType !=
            getRVVSelectedBodySignedVectorCType(
-               tcrv::rvv::getRVVFirstSliceSEWBits(),
-               tcrv::rvv::getRVVLMULM1()) ||
+               weft::rvv::getRVVFirstSliceSEWBits(),
+               weft::rvv::getRVVLMULM1()) ||
        plan.sourceVectorLoadIntrinsic !=
            getRVVSelectedBodyVectorLoadIntrinsic(
-               tcrv::rvv::getRVVFirstSliceSEWBits(),
-               tcrv::rvv::getRVVLMULM1()) ||
+               weft::rvv::getRVVFirstSliceSEWBits(),
+               weft::rvv::getRVVLMULM1()) ||
        plan.dequantizeConvertIntrinsic != "__riscv_vfcvt_f_x_v_f32m1" ||
        plan.dequantizeScaleIntrinsic != "__riscv_vfmul_vf_f32m1"))
     return makeRVVEmitCRouteProviderError(
@@ -3789,7 +3789,7 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask select route-family plan requires vector predicates "
         "slt or sle, runtime-scalar predicate kind sle, or f32 clamp "
-        "predicate kind slt from typed tcrv_rvv.compare");
+        "predicate kind slt from typed weft_rvv.compare");
   if (plan.compareIntrinsic.empty())
     return makeRVVEmitCRouteProviderError(
         "computed-mask select route-family plan requires a provider-derived "
@@ -3981,8 +3981,8 @@ deriveRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
         "'slt' or 'sle', runtime-scalar predicate_kind 'sle', or f32 "
         "clamp predicate_kind 'slt'");
   if (isF32ClampSelect || isDequantClampF32Epilogue) {
-    if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    if (configProfile.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        configProfile.lmul != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "computed-mask select route-family plan supports f32 clamp/select "
           "and dequant-clamp epilogue only for SEW32 LMUL m1");
@@ -4057,7 +4057,7 @@ deriveRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           getComputedMaskSelectRuntimeABIOrder(
               analysis.slice.arithmeticKind),
@@ -4113,11 +4113,11 @@ deriveRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   plan.vectorCType = configProfile.vectorCType;
   if (isDequantClampF32Epilogue) {
     plan.sourceVectorTypeName = getRVVSelectedBodyVectorTypeName(
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+        weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
     plan.sourceVectorCType = getRVVSelectedBodySignedVectorCType(
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+        weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
     plan.sourceVectorLoadIntrinsic = getRVVSelectedBodyVectorLoadIntrinsic(
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+        weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
     plan.dequantizeConvertIntrinsic = "__riscv_vfcvt_f_x_v_f32m1";
     plan.dequantizeScaleIntrinsic = "__riscv_vfmul_vf_f32m1";
   }
@@ -4258,8 +4258,8 @@ void applyRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   }
   if (plan.operation ==
       RVVSelectedBodyOperationKind::DequantClampF32Epilogue) {
-    description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-    description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
+    description.sourceSEW = weft::rvv::getRVVFirstSliceSEWBits();
+    description.sourceLMUL = weft::rvv::getRVVLMULM1();
     description.sourceElementTypeName =
         getRVVSelectedBodyIntegerElementTypeName(description.sourceSEW);
     description.sourceVectorTypeName =
@@ -4273,7 +4273,7 @@ void applyRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
                                               description.sourceLMUL);
     description.resultElementTypeName =
         getRVVSelectedBodyFloatElementTypeName(
-            tcrv::rvv::getRVVFirstSliceSEWBits());
+            weft::rvv::getRVVFirstSliceSEWBits());
     description.conversionKind = kRVVDequantizeI32ToF32Kind;
     description.dequantizationRelation = kRVVDequantizeI32ToF32Relation;
     description.dequantizeConvertIntrinsic =
@@ -4999,8 +4999,8 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
       return makeRVVEmitCRouteProviderError(
           "computed-mask memory route-family plan requires element C type to "
           "mirror typed runtime scalar memory config");
-  } else if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-             plan.lmul != tcrv::rvv::getRVVLMULM1()) {
+  } else if (plan.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+             plan.lmul != weft::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan currently requires non-runtime "
         "computed-mask memory config to be SEW32 LMUL m1");
@@ -5609,8 +5609,8 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           "computed-mask memory route-family plan requires runtime scalar "
           "computed-mask memory config to be SEW32 LMUL m1, SEW32 LMUL m2, "
           "or SEW64 LMUL m1");
-  } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-             configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
+  } else if (configProfile.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+             configProfile.lmul != weft::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan currently "
         "requires SEW32 LMUL m1 typed config");
@@ -5677,7 +5677,7 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           getComputedMaskMemoryRuntimeABIOrder(operation),
           "computed-mask memory route-family consumer");
@@ -6314,8 +6314,8 @@ deriveRVVSelectedBodySegment2MemoryRouteFamilyPlan(
       isRVVSelectedBodySegment2DeinterleaveRoute(operation);
   const bool isInterleave =
       isRVVSelectedBodySegment2InterleaveRoute(operation);
-  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+  if (configProfile.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "plain segment2 memory route-family plan currently requires SEW32 "
         "LMUL m1 typed config");
@@ -6338,7 +6338,7 @@ deriveRVVSelectedBodySegment2MemoryRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           getSegment2MemoryRuntimeABIOrder(operation),
           "plain segment2 memory route-family consumer");
@@ -6547,7 +6547,7 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
         "' with exactly " + llvm::Twine(expectedSize) + " parameters");
 
   llvm::StringRef expectedScalarCType =
-      plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW64Bits()
+      plan.runtimeControlPlan.sew == weft::rvv::getRVVSEW64Bits()
           ? "int64_t"
           : "int32_t";
   llvm::StringRef expectedSourceScalarCType =
@@ -6681,11 +6681,11 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       expectedConfig->vectorLoadIntrinsic;
   if (isWideningStandalone) {
     expectedSourceVectorType = getRVVSelectedBodyVectorTypeName(
-        tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+        weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2());
     expectedSourceVectorCType = getRVVSelectedBodySignedVectorCType(
-        tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+        weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2());
     expectedVectorLoadIntrinsic = getRVVSelectedBodyVectorLoadIntrinsic(
-        tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+        weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2());
   }
   llvm::StringRef expectedCompareIntrinsic =
       isComputedMask ? getRVVSelectedBodyCompareIntrinsic("sle",
@@ -6963,7 +6963,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   if (isWideningStandalone) {
     if (!isRVVSelectedBodyStandaloneReductionScalarChannelConfig(
             configProfile.sew, configProfile.lmul) ||
-        configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+        configProfile.lmul != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "standalone reduction route-family plan requires widening "
           "standalone reduction result config to be SEW32 LMUL m1 with an "
@@ -6990,31 +6990,31 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       isComputedMask ? analysis.slice.maskedStandaloneReduceOp.getInput()
                      : analysis.slice.standaloneReduceOp.getInput();
   auto resultVector =
-      llvm::dyn_cast<tcrv::rvv::VectorType>(reductionResult.getType());
+      llvm::dyn_cast<weft::rvv::VectorType>(reductionResult.getType());
   auto resultElementType =
       resultVector ? llvm::dyn_cast<mlir::IntegerType>(
                          resultVector.getElementType())
                    : mlir::IntegerType();
   auto inputVector =
-      llvm::dyn_cast<tcrv::rvv::VectorType>(reductionInput.getType());
+      llvm::dyn_cast<weft::rvv::VectorType>(reductionInput.getType());
   auto inputElementType =
       inputVector ? llvm::dyn_cast<mlir::IntegerType>(
                         inputVector.getElementType())
                   : mlir::IntegerType();
   if (!resultVector || !resultElementType ||
       resultElementType.getWidth() != configProfile.sew ||
-      resultVector.getLmul() != tcrv::rvv::getRVVLMULM1())
+      resultVector.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires the typed body to "
         "carry a scalar accumulator/result channel with the selected result "
         "SEW and LMUL m1 result layout");
   if (isWideningStandalone) {
     if (!inputVector || !inputElementType ||
-        inputElementType.getWidth() != tcrv::rvv::getRVVSEW16Bits() ||
-        inputVector.getLmul() != tcrv::rvv::getRVVLMULMF2())
+        inputElementType.getWidth() != weft::rvv::getRVVSEW16Bits() ||
+        inputVector.getLmul() != weft::rvv::getRVVLMULMF2())
       return makeRVVEmitCRouteProviderError(
           "standalone reduction route-family plan requires widening "
-          "standalone reduction source input to be !tcrv_rvv.vector<i16, "
+          "standalone reduction source input to be !weft_rvv.vector<i16, "
           "\"mf2\">");
   } else if (!inputVector || !inputElementType ||
              inputElementType.getWidth() != configProfile.sew ||
@@ -7047,7 +7047,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           routeFacts->runtimeABIOrder,
           "standalone reduction route-family plan");
@@ -7074,13 +7074,13 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.vectorCType = configProfile.vectorCType;
   plan.sourceVectorTypeName =
       isWideningStandalone
-          ? getRVVSelectedBodyVectorTypeName(tcrv::rvv::getRVVSEW16Bits(),
-                                             tcrv::rvv::getRVVLMULMF2())
+          ? getRVVSelectedBodyVectorTypeName(weft::rvv::getRVVSEW16Bits(),
+                                             weft::rvv::getRVVLMULMF2())
           : configProfile.vectorTypeName;
   plan.sourceVectorCType =
       isWideningStandalone
           ? getRVVSelectedBodySignedVectorCType(
-                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2())
+                weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2())
           : configProfile.vectorCType;
   plan.scalarCType = configProfile.scalarCType;
   plan.scalarResultVectorTypeName =
@@ -7093,7 +7093,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.vectorLoadIntrinsic =
       isWideningStandalone
           ? getRVVSelectedBodyVectorLoadIntrinsic(
-                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2())
+                weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2())
           : configProfile.vectorLoadIntrinsic;
   plan.sourceSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
   plan.rhsScalarSplatIntrinsic =
@@ -7219,4 +7219,4 @@ void applyRVVRuntimeAVLVLControlPlanToDescription(
   description.multiVL = plan.multiVL;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

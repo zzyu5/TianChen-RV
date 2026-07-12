@@ -1,18 +1,18 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/ConstructionProtocol.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
-#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
-#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
-#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/ConstructionProtocol.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
+#include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
+#include "Weft/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -38,60 +38,60 @@
 #include <type_traits>
 #include <utility>
 
-using tianchenrv::plugin::construction::Manifest;
-using tianchenrv::plugin::construction::TypedRoleGraphRealization;
-using tianchenrv::plugin::construction::ExecutableRoleStep;
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmitCLowerableRequest;
-using tianchenrv::support::ArtifactMetadataEntry;
+using weft::plugin::construction::Manifest;
+using weft::plugin::construction::TypedRoleGraphRealization;
+using weft::plugin::construction::ExecutableRoleStep;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmitCLowerableRequest;
+using weft::support::ArtifactMetadataEntry;
 
 static_assert(std::is_same<
-              tianchenrv::plugin::template_ext::TemplateConstructionManifest,
+              weft::plugin::template_ext::TemplateConstructionManifest,
               Manifest>::value,
               "Template manifest must use the common construction model");
-static_assert(std::is_same<tianchenrv::plugin::toy::ToyConstructionManifest,
+static_assert(std::is_same<weft::plugin::toy::ToyConstructionManifest,
                            Manifest>::value,
               "Toy manifest must use the common construction model");
 static_assert(
     std::is_same<
-        tianchenrv::plugin::tensorext_lite::
+        weft::plugin::tensorext_lite::
             TensorExtLiteConstructionManifest,
         Manifest>::value,
     "TensorExtLite manifest must use the common construction model");
-static_assert(std::is_same<tianchenrv::plugin::rvv::RVVConstructionManifest,
+static_assert(std::is_same<weft::plugin::rvv::RVVConstructionManifest,
                            Manifest>::value,
               "RVV manifest must use the common construction model");
 
 static_assert(
     std::is_same<
-        tianchenrv::plugin::template_ext::TemplateTypedRoleGraphRealization,
+        weft::plugin::template_ext::TemplateTypedRoleGraphRealization,
         TypedRoleGraphRealization>::value,
     "Template typed roles must use the common construction model");
 static_assert(std::is_same<
-              tianchenrv::plugin::toy::ToyTypedRoleGraphRealization,
+              weft::plugin::toy::ToyTypedRoleGraphRealization,
               TypedRoleGraphRealization>::value,
               "Toy typed roles must use the common construction model");
 static_assert(
     std::is_same<
-        tianchenrv::plugin::tensorext_lite::
+        weft::plugin::tensorext_lite::
             TensorExtLiteTypedRoleGraphRealization,
         TypedRoleGraphRealization>::value,
     "TensorExtLite typed roles must use the common construction model");
 static_assert(
-    std::is_same<tianchenrv::plugin::rvv::RVVTypedRoleGraphRealization,
+    std::is_same<weft::plugin::rvv::RVVTypedRoleGraphRealization,
                  TypedRoleGraphRealization>::value,
     "RVV typed roles must use the common construction model");
 static_assert(
     std::is_same<
-        tianchenrv::plugin::tensorext_lite::TensorExtLiteFragmentMmaRoleStep,
+        weft::plugin::tensorext_lite::TensorExtLiteFragmentMmaRoleStep,
         ExecutableRoleStep>::value,
     "TensorExtLite executable role steps must use the common conformance "
     "model");
 static_assert(
-    std::is_same<tianchenrv::plugin::rvv::
+    std::is_same<weft::plugin::rvv::
                      RVVSelectedBodyExecutableRoleStep,
                  ExecutableRoleStep>::value,
     "RVV executable role steps must use the common conformance model");
@@ -153,7 +153,7 @@ public:
   }
 
   llvm::Error verifyExecutableConstructionConformance() const override {
-    namespace toy = tianchenrv::plugin::toy;
+    namespace toy = weft::plugin::toy;
     llvm::SmallVector<ArtifactMetadataEntry, 8> staleMetadata(
         toy::getToyTemplateConstructionArtifactMetadata().begin(),
         toy::getToyTemplateConstructionArtifactMetadata().end());
@@ -178,7 +178,7 @@ public:
   }
 
   llvm::Error verifyExecutableConstructionConformance() const override {
-    namespace template_ext = tianchenrv::plugin::template_ext;
+    namespace template_ext = weft::plugin::template_ext;
     llvm::SmallVector<ArtifactMetadataEntry, 8> staleMetadata(
         template_ext::getTemplateConstructionArtifactMetadata().begin(),
         template_ext::getTemplateConstructionArtifactMetadata().end());
@@ -196,8 +196,8 @@ int expectErrorContains(llvm::Error error,
 
 namespace template_consumer {
 
-namespace construction = tianchenrv::plugin::construction;
-namespace emitc = tianchenrv::conversion::emitc;
+namespace construction = weft::plugin::construction;
+namespace emitc = weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kPluginName("template-consumer-plugin");
 constexpr llvm::StringLiteral kCapabilityID("template_consumer.compute");
@@ -210,17 +210,17 @@ constexpr llvm::StringLiteral kArchetype(
 constexpr llvm::StringLiteral kSemanticRoleGraph("compute");
 constexpr llvm::StringLiteral kFamilyName("template_consumer");
 constexpr llvm::StringLiteral kArchitecturalNamespace(
-    "tcrv.template_consumer");
-constexpr llvm::StringLiteral kConcreteNamespace("tcrv_template_consumer");
+    "weft.template_consumer");
+constexpr llvm::StringLiteral kConcreteNamespace("weft_template_consumer");
 constexpr llvm::StringLiteral kVariantName("template_consumer_first_slice");
 constexpr llvm::StringLiteral kComputeOperationName(
-    "tcrv_template_consumer.compute_sentinel");
+    "weft_template_consumer.compute_sentinel");
 constexpr llvm::StringLiteral kTypedRoleID(
     "template_consumer.role.compute.compute_sentinel");
 constexpr llvm::StringLiteral kRoleSpecificInterface(
-    "TCRVComputeOpInterface");
+    "WEFTComputeOpInterface");
 constexpr llvm::StringLiteral kEmitCLowerableInterface(
-    "TCRVEmitCLowerableInterface");
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kRouteID(
     "template-consumer-compute-sentinel-emitc-route");
 constexpr llvm::StringLiteral kEmissionKind(
@@ -232,19 +232,19 @@ constexpr llvm::StringLiteral kRuntimeABIKind("plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kRuntimeGlueRole(
     "emitc-cpp-template-consumer-runtime-glue");
 constexpr llvm::StringLiteral kInterfaceRealization(
-    "compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-    "TCRVResourceOpInterface+TCRVEmitCLowerableInterface");
+    "compute=WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+    "WEFTResourceOpInterface+WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "compute:template_consumer.role.compute.compute_sentinel:"
-    "tcrv_template_consumer.compute_sentinel:TCRVComputeOpInterface:"
-    "TCRVEmitCLowerableInterface");
+    "weft_template_consumer.compute_sentinel:WEFTComputeOpInterface:"
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
     "emitc_route_mapping|materialized_emitc_module");
 constexpr llvm::StringLiteral kCallee(
-    "tcrv_template_consumer_compute_sentinel");
+    "weft_template_consumer_compute_sentinel");
 constexpr llvm::StringLiteral kSourceOpInterfaceName(
-    "TCRVEmitCLowerableInterface");
+    "WEFTEmitCLowerableInterface");
 
 constexpr llvm::StringLiteral kRouteMetadataName(
     "template_consumer_emitc_route_mapping");
@@ -263,8 +263,8 @@ constexpr llvm::StringLiteral kTypedRoleMetadataName(
 
 const construction::SemanticRole kSemanticRoles[] = {
     {"compute", 0, kComputeOperationName,
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "bounded test-local compute role for construction-template consumption"},
 };
 
@@ -295,8 +295,8 @@ const construction::TypedRoleInterfaceRealization kTypedRoles[] = {
      "compute",
      0,
      kComputeOperationName,
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      kRoleSpecificInterface,
      kEmitCLowerableInterface},
 };
@@ -432,7 +432,7 @@ public:
     case Mode::StaleTypedRole:
       staleTypedRoles.append(std::begin(kTypedRoles), std::end(kTypedRoles));
       staleTypedRoles.front().roleSpecificInterface =
-          "TCRVMemoryOpInterface";
+          "WEFTMemoryOpInterface";
       realization.roles = staleTypedRoles;
       break;
     case Mode::StaleRouteMapping: {
@@ -487,7 +487,7 @@ int runFailClosedRegistryTest() {
     if (int result = expectErrorContains(
             registry.registerPlugin(plugin),
             {"failed executable construction conformance gate",
-             "typed role realization entry", "TCRVComputeOpInterface"},
+             "typed role realization entry", "WEFTComputeOpInterface"},
             "stale TemplateConsumer typed-role/interface realization"))
       return result;
   }
@@ -547,7 +547,7 @@ int expectErrorContains(llvm::Error error,
 }
 
 int runTemplateCommonValidationTest() {
-  namespace template_ext = tianchenrv::plugin::template_ext;
+  namespace template_ext = weft::plugin::template_ext;
   const auto &manifest = template_ext::getTemplateConstructionManifest();
   const auto &realization =
       template_ext::getTemplateTypedRoleGraphRealization();
@@ -576,7 +576,7 @@ int runTemplateCommonValidationTest() {
 }
 
 int runToyCommonValidationTest() {
-  namespace toy = tianchenrv::plugin::toy;
+  namespace toy = weft::plugin::toy;
   const auto &manifest = toy::getToyConstructionManifest();
   const auto &realization = toy::getToyTypedRoleGraphRealization();
 
@@ -602,7 +602,7 @@ int runToyCommonValidationTest() {
 }
 
 int runTensorExtLiteCommonValidationTest() {
-  namespace tel = tianchenrv::plugin::tensorext_lite;
+  namespace tel = weft::plugin::tensorext_lite;
   const auto &manifest = tel::getTensorExtLiteConstructionManifest();
   const auto &realization = tel::getTensorExtLiteTypedRoleGraphRealization();
 
@@ -616,7 +616,7 @@ int runTensorExtLiteCommonValidationTest() {
 }
 
 int runRVVCommonValidationTest() {
-  namespace rvv = tianchenrv::plugin::rvv;
+  namespace rvv = weft::plugin::rvv;
   const auto &manifest = rvv::getRVVConstructionManifest();
   const auto &realization = rvv::getRVVTypedRoleGraphRealization();
 
@@ -705,109 +705,109 @@ int runRVVCommonValidationTest() {
     if (route.operationMnemonic == "cmp_select" || isComputedMaskSelectRoute ||
         isRuntimeScalarCompareSelectRoute ||
         route.operationMnemonic == "runtime_scalar_dual_cmp_mask_and_select")
-      executableComputeOp = "tcrv_rvv.select";
+      executableComputeOp = "weft_rvv.select";
     else if (route.operationMnemonic == "reduce_add")
-      executableComputeOp = "tcrv_rvv.reduce";
+      executableComputeOp = "weft_rvv.reduce";
     else if (isStandaloneReduceRoute)
-      executableComputeOp = "tcrv_rvv.standalone_reduce";
+      executableComputeOp = "weft_rvv.standalone_reduce";
     else if (isComputedMaskStandaloneReduceRoute ||
              isRuntimeScalarComputedMaskStandaloneReduceRoute)
-      executableComputeOp = "tcrv_rvv.masked_standalone_reduce";
+      executableComputeOp = "weft_rvv.masked_standalone_reduce";
     else if (isMaskedElementwiseRoute)
-      executableComputeOp = "tcrv_rvv.masked_binary";
+      executableComputeOp = "weft_rvv.masked_binary";
     else if (route.operationMnemonic == "macc_add" ||
              isScalarBroadcastMAccRoute)
-      executableComputeOp = "tcrv_rvv.macc";
+      executableComputeOp = "weft_rvv.macc";
     else if (isComputedMaskMAccRoute ||
              isRuntimeScalarComputedMaskMAccRoute)
-      executableComputeOp = "tcrv_rvv.masked_macc";
+      executableComputeOp = "weft_rvv.masked_macc";
     else if (isRuntimeScalarComputedMaskIndexedGatherMAccScatterRoute)
-      executableComputeOp = "tcrv_rvv.masked_indexed_load+"
-                            "tcrv_rvv.masked_macc+"
-                            "tcrv_rvv.masked_indexed_store";
+      executableComputeOp = "weft_rvv.masked_indexed_load+"
+                            "weft_rvv.masked_macc+"
+                            "weft_rvv.masked_indexed_store";
     else if (isWideningMAccRoute)
-      executableComputeOp = "tcrv_rvv.widening_macc";
+      executableComputeOp = "weft_rvv.widening_macc";
     else if (isWideningProductRoute)
-      executableComputeOp = "tcrv_rvv.widening_product";
+      executableComputeOp = "weft_rvv.widening_product";
     else if (isWideningProductReductionRoute)
       executableComputeOp =
-          "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce";
+          "weft_rvv.widening_product+weft_rvv.standalone_reduce";
     else if (isWideningProductReductionDequantizationRoute)
-      executableComputeOp = "tcrv_rvv.widening_product+"
-                            "tcrv_rvv.standalone_reduce+"
-                            "tcrv_rvv.gearbox_cross_region_handoff+"
-                            "tcrv_rvv.dequantize";
+      executableComputeOp = "weft_rvv.widening_product+"
+                            "weft_rvv.standalone_reduce+"
+                            "weft_rvv.gearbox_cross_region_handoff+"
+                            "weft_rvv.dequantize";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
-      executableComputeOp = "tcrv_rvv.widening_dot_reduce";
+      executableComputeOp = "weft_rvv.widening_dot_reduce";
     else if (isComputedMaskWideningDotReduceRoute ||
              isComputedMaskStridedInputWideningDotReduceRoute)
-      executableComputeOp = "tcrv_rvv.masked_widening_dot_reduce";
+      executableComputeOp = "weft_rvv.masked_widening_dot_reduce";
     else if (isConversionRoute)
-      executableComputeOp = "tcrv_rvv.widening_convert";
+      executableComputeOp = "weft_rvv.widening_convert";
     else if (isDequantizationRoute)
-      executableComputeOp = "tcrv_rvv.dequantize";
+      executableComputeOp = "weft_rvv.dequantize";
     else if (route.operationMnemonic == "masked_unit_load_store" ||
              route.operationMnemonic == "computed_masked_unit_load_store" ||
              route.operationMnemonic ==
                  "runtime_scalar_cmp_masked_load_store")
-      executableComputeOp = "tcrv_rvv.masked_load";
+      executableComputeOp = "weft_rvv.masked_load";
     else if (route.operationMnemonic ==
                  "computed_masked_strided_load_unit_store" ||
              route.operationMnemonic ==
                  "runtime_scalar_cmp_masked_strided_load_unit_store")
-      executableComputeOp = "tcrv_rvv.masked_strided_load";
+      executableComputeOp = "weft_rvv.masked_strided_load";
     else if (route.operationMnemonic ==
                  "computed_masked_indexed_gather_load_unit_store" ||
              route.operationMnemonic ==
                  "runtime_scalar_cmp_masked_indexed_gather_load_unit_store")
-      executableComputeOp = "tcrv_rvv.masked_indexed_load";
+      executableComputeOp = "weft_rvv.masked_indexed_load";
     else if (route.operationMnemonic ==
                  "computed_masked_indexed_scatter_store_unit_load" ||
              route.operationMnemonic ==
                  "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load")
-      executableComputeOp = "tcrv_rvv.masked_indexed_store";
+      executableComputeOp = "weft_rvv.masked_indexed_store";
     else if (route.operationMnemonic ==
                  "computed_masked_segment2_load_unit_store" ||
              route.operationMnemonic ==
                  "runtime_scalar_cmp_masked_segment2_load_unit_store")
-      executableComputeOp = "tcrv_rvv.masked_segment2_load";
+      executableComputeOp = "weft_rvv.masked_segment2_load";
     else if (route.operationMnemonic ==
                  "computed_masked_segment2_store_unit_load" ||
              route.operationMnemonic ==
                  "runtime_scalar_cmp_masked_segment2_store_unit_load")
-      executableComputeOp = "tcrv_rvv.masked_segment2_store";
+      executableComputeOp = "weft_rvv.masked_segment2_store";
     else if (route.operationMnemonic == "computed_masked_strided_store")
-      executableComputeOp = "tcrv_rvv.masked_strided_store";
+      executableComputeOp = "weft_rvv.masked_strided_store";
     else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store" ||
              route.operationMnemonic == "masked_unit_store")
-      executableComputeOp = "tcrv_rvv.masked_store";
+      executableComputeOp = "weft_rvv.masked_store";
     else if (route.operationMnemonic == "strided_load_unit_store" ||
              route.operationMnemonic == "unit_load_strided_store" ||
              route.operationMnemonic == "indexed_gather_unit_store" ||
              route.operationMnemonic == "indexed_scatter_unit_load" ||
              route.operationMnemonic == "segment2_deinterleave_unit_store")
-      executableComputeOp = "tcrv_rvv.move";
+      executableComputeOp = "weft_rvv.move";
     else if (route.operationMnemonic == "segment2_interleave_unit_load")
-      executableComputeOp = "tcrv_rvv.segment2_store";
+      executableComputeOp = "weft_rvv.segment2_store";
     else if (route.operationMnemonic == "runtime_scalar_splat_store")
-      executableComputeOp = "tcrv_rvv.splat";
-    llvm::StringRef rhsSourceOp = "tcrv_rvv.load";
+      executableComputeOp = "weft_rvv.splat";
+    llvm::StringRef rhsSourceOp = "weft_rvv.load";
     if (isConversionRoute || isDequantizationRoute) {
       rhsSourceOp = "";
     } else if (route.operationMnemonic == "unit_load_strided_store") {
-      rhsSourceOp = "tcrv_rvv.strided_store";
+      rhsSourceOp = "weft_rvv.strided_store";
     } else if (route.operationMnemonic == "strided_add" ||
                route.operationMnemonic == "strided_load_unit_store" ||
                route.operationMnemonic ==
                    "strided_input_widening_dot_reduce_add") {
-      rhsSourceOp = "tcrv_rvv.strided_load";
+      rhsSourceOp = "weft_rvv.strided_load";
     } else if (route.operationMnemonic == "indexed_gather_unit_store") {
-      rhsSourceOp = "tcrv_rvv.indexed_load";
+      rhsSourceOp = "weft_rvv.indexed_load";
     } else if (route.operationMnemonic == "indexed_scatter_unit_load") {
-      rhsSourceOp = "tcrv_rvv.indexed_store";
+      rhsSourceOp = "weft_rvv.indexed_store";
     } else if (route.operationMnemonic == "masked_unit_load_store" ||
                route.operationMnemonic == "masked_unit_store") {
-      rhsSourceOp = "tcrv_rvv.mask_load";
+      rhsSourceOp = "weft_rvv.mask_load";
     } else if (route.operationMnemonic == "computed_masked_unit_load_store" ||
                route.operationMnemonic == "computed_masked_strided_store" ||
                route.operationMnemonic ==
@@ -840,20 +840,20 @@ int runRVVCommonValidationTest() {
                    "computed_masked_widening_dot_reduce_add" ||
                route.operationMnemonic ==
                    "computed_masked_strided_input_widening_dot_reduce_add") {
-      rhsSourceOp = "tcrv_rvv.compare";
+      rhsSourceOp = "weft_rvv.compare";
     } else if (route.operationMnemonic == "segment2_deinterleave_unit_store") {
-      rhsSourceOp = "tcrv_rvv.segment2_load";
+      rhsSourceOp = "weft_rvv.segment2_load";
     } else if (route.operationMnemonic == "segment2_interleave_unit_load") {
-      rhsSourceOp = "tcrv_rvv.segment2_store";
+      rhsSourceOp = "weft_rvv.segment2_store";
     } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store" ||
                route.operationMnemonic ==
                    "runtime_scalar_cmp_masked_load_store") {
-      rhsSourceOp = "tcrv_rvv.compare";
+      rhsSourceOp = "weft_rvv.compare";
     } else if (isScalarBroadcastElementwiseRoute ||
                isScalarBroadcastMAccRoute ||
                isRuntimeScalarCompareSelectRoute ||
                route.operationMnemonic == "runtime_scalar_splat_store") {
-      rhsSourceOp = "tcrv_rvv.splat";
+      rhsSourceOp = "weft_rvv.splat";
     }
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
@@ -1008,7 +1008,7 @@ int runRVVCommonValidationTest() {
                   llvm::Twine(steps->size()) + ", expected " +
                   llvm::Twine(expectedStepCount));
   }
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+  llvm::SmallVector<weft::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVSelectedBodyConstructionRuntimeABIParameters();
   if (int result = expectSuccess(
       rvv::verifyRVVSelectedBodyConstructionRuntimeABIParameters(
@@ -1025,112 +1025,112 @@ int runRVVCommonValidationTest() {
     facts.targetArtifactKind = manifest.emitcRoute.artifactKind;
     facts.runtimeABIName = route.runtimeABIName;
     facts.runtimeABIContractName = route.runtimeABIContractName;
-    llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
+    llvm::SmallVector<weft::support::RuntimeABIParameter, 7>
         routeRuntimeABIParameters;
     if (route.operationMnemonic == "strided_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyStridedRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "strided_load_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "unit_load_strided_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "indexed_gather_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "indexed_scatter_unit_load") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "masked_unit_load_store" ||
                route.operationMnemonic == "masked_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_unit_load_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_strided_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_strided_load_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_indexed_gather_load_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_indexed_gather_load_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_indexed_scatter_store_unit_load") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_indexed_gather_macc_scatter") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_segment2_load_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_segment2_load_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
@@ -1139,28 +1139,28 @@ int runRVVCommonValidationTest() {
                route.operationMnemonic ==
                    "computed_masked_segment2_update_unit_load") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_segment2_store_unit_load") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "segment2_deinterleave_unit_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "segment2_interleave_unit_load") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
@@ -1168,153 +1168,153 @@ int runRVVCommonValidationTest() {
                route.operationMnemonic == "scalar_broadcast_sub" ||
                route.operationMnemonic == "scalar_broadcast_mul") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "widening_standalone_reduce_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (isStandaloneReduceOperationMnemonic(route.operationMnemonic)) {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "macc_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+          weft::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "scalar_broadcast_macc_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "computed_masked_macc_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_cmp_masked_macc_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widen_i32_to_i64") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningConversionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widen_i16_to_i32") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "dequantize_i32_to_f32") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyDequantizationRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_splat_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widening_macc_add" ||
                route.operationMnemonic == "widening_dot_reduce_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widening_product") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningProductRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widening_product_reduce_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "widening_product_reduce_dequantize_f32") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "widening_product_reduce_dequant_clamp_f32") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "strided_input_widening_dot_reduce_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_widening_dot_reduce_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "computed_masked_strided_input_widening_dot_reduce_add") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "computed_mask_select") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_cmp_select") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
                "runtime_scalar_dual_cmp_mask_and_select") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "f32_clamp_select") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "dequant_clamp_f32_epilogue") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
@@ -1322,21 +1322,21 @@ int runRVVCommonValidationTest() {
                route.operationMnemonic ==
                    "runtime_scalar_cmp_masked_load_store") {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (isComputedMaskStandaloneReduceOperationMnemonic(
                    route.operationMnemonic)) {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
                    route.operationMnemonic)) {
       auto routeParameters =
-          tianchenrv::tcrv::rvv::
+          weft::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
@@ -1346,7 +1346,7 @@ int runRVVCommonValidationTest() {
     facts.runtimeABIParameters = routeRuntimeABIParameters;
 
     llvm::Expected<llvm::SmallVector<
-        tianchenrv::support::ArtifactMetadataEntry, 16>>
+        weft::support::ArtifactMetadataEntry, 16>>
         metadata =
             rvv::getRVVSelectedBodyConstructionArtifactMetadata(facts);
     if (!metadata)
@@ -1370,8 +1370,8 @@ int runRVVCommonValidationTest() {
 }
 
 int runRVVFailClosedConstructionValidationTest() {
-  namespace rvv = tianchenrv::plugin::rvv;
-  namespace construction = tianchenrv::plugin::construction;
+  namespace rvv = weft::plugin::rvv;
+  namespace construction = weft::plugin::construction;
 
   Manifest staleFamily = rvv::getRVVConstructionManifest();
   construction::FamilyDeclaration staleFamilyFields = staleFamily.family;
@@ -1411,10 +1411,10 @@ int runRVVFailClosedConstructionValidationTest() {
       *rvv::lookupRVVSelectedBodyConstructionRouteByOperationMnemonic("add");
   if (int result = expectErrorContains(
           rvv::verifyRVVSelectedBodyConstructionRouteMapping(
-              "add", "tcrv_rvv.i32_add", addRoute->emitCRouteID,
+              "add", "weft_rvv.i32_add", addRoute->emitCRouteID,
               addRoute->runtimeABIName),
           {"selected-body typed compute op for operation",
-           "tcrv_rvv.binary"},
+           "weft_rvv.binary"},
           "RVV construction rejects stale route/op mapping"))
     return result;
 
@@ -1422,13 +1422,13 @@ int runRVVFailClosedConstructionValidationTest() {
           rvv::verifyRVVSelectedBodyConstructionPlanMapping(
               addRoute->emitCRouteID, "stale-runtime-abi",
               rvv::getRVVConstructionManifest().emitcRoute.emissionKind,
-              "tcrv_rvv.with_vl", "plugin-owned-runtime-abi",
+              "weft_rvv.with_vl", "plugin-owned-runtime-abi",
               "emitc-cpp-rvv-intrinsic-runtime-glue"),
           {"emission plan runtime ABI", addRoute->runtimeABIName},
           "RVV construction rejects stale emission-plan runtime ABI"))
     return result;
 
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+  llvm::SmallVector<weft::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVSelectedBodyConstructionRuntimeABIParameters();
   parameters.pop_back();
   if (int result = expectErrorContains(
@@ -1438,7 +1438,7 @@ int runRVVFailClosedConstructionValidationTest() {
       "RVV construction rejects missing runtime ABI parameter"))
     return result;
 
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+  llvm::SmallVector<weft::support::RuntimeABIParameter, 4>
       validParameters =
           rvv::getRVVSelectedBodyConstructionRuntimeABIParameters();
   rvv::RVVSelectedBodyConstructionMetadataFacts addFacts;
@@ -1453,12 +1453,12 @@ int runRVVFailClosedConstructionValidationTest() {
   addFacts.runtimeABIContractName = addRoute->runtimeABIContractName;
   addFacts.runtimeABIParameters = validParameters;
   llvm::Expected<llvm::SmallVector<
-      tianchenrv::support::ArtifactMetadataEntry, 16>>
+      weft::support::ArtifactMetadataEntry, 16>>
       metadata = rvv::getRVVSelectedBodyConstructionArtifactMetadata(addFacts);
   if (!metadata)
     return fail(llvm::Twine("RVV construction metadata fixture is available: ") +
                 llvm::toString(metadata.takeError()));
-  for (tianchenrv::support::ArtifactMetadataEntry &entry : *metadata) {
+  for (weft::support::ArtifactMetadataEntry &entry : *metadata) {
     if (entry.key == rvv::getRVVConstructionProtocolMetadataName()) {
       entry.value = "stale-protocol";
       break;
@@ -1505,17 +1505,17 @@ std::string buildInterfaceSummary(const Manifest &manifest) {
   return summary;
 }
 
-using tianchenrv::plugin::construction::ValidationSpec;
+using weft::plugin::construction::ValidationSpec;
 
 ValidationSpec buildTensorExtLiteGateValidationSpec(
     const Manifest &manifest) {
-  namespace construction = tianchenrv::plugin::construction;
-  namespace tel = tianchenrv::plugin::tensorext_lite;
+  namespace construction = weft::plugin::construction;
+  namespace tel = weft::plugin::tensorext_lite;
   static const construction::RoleExpectation roleExpectations[] = {
-      {"configure", "TCRVConfigOpInterface", false},
-      {"load_frag", "TCRVMemoryOpInterface", true},
-      {"tile_mma", "TCRVComputeOpInterface", true},
-      {"store_frag", "TCRVMemoryOpInterface", true},
+      {"configure", "WEFTConfigOpInterface", false},
+      {"load_frag", "WEFTMemoryOpInterface", true},
+      {"tile_mma", "WEFTComputeOpInterface", true},
+      {"store_frag", "WEFTMemoryOpInterface", true},
   };
   static const llvm::StringRef requiredEvidence[] = {
       "parse_verify", "capability", "interface",
@@ -1534,13 +1534,13 @@ ValidationSpec buildTensorExtLiteGateValidationSpec(
 }
 
 ValidationSpec buildToyGateValidationSpec(const Manifest &manifest) {
-  namespace construction = tianchenrv::plugin::construction;
-  namespace toy = tianchenrv::plugin::toy;
+  namespace construction = weft::plugin::construction;
+  namespace toy = weft::plugin::toy;
   static const construction::RoleExpectation roleExpectations[] = {
-      {"configure", "TCRVConfigOpInterface", false},
-      {"load", "TCRVMemoryOpInterface", true},
-      {"compute", "TCRVComputeOpInterface", true},
-      {"store", "TCRVMemoryOpInterface", true},
+      {"configure", "WEFTConfigOpInterface", false},
+      {"load", "WEFTMemoryOpInterface", true},
+      {"compute", "WEFTComputeOpInterface", true},
+      {"store", "WEFTMemoryOpInterface", true},
   };
   static const llvm::StringRef requiredEvidence[] = {
       "parse_verify", "capability", "interface",
@@ -1573,8 +1573,8 @@ public:
   }
 
   llvm::Error verifyExecutableConstructionConformance() const override {
-    namespace construction = tianchenrv::plugin::construction;
-    namespace toy = tianchenrv::plugin::toy;
+    namespace construction = weft::plugin::construction;
+    namespace toy = weft::plugin::toy;
     Manifest staleManifest = toy::getToyConstructionManifest();
     staleManifest.protocolVersion = "stale-toy-construction-protocol";
     ValidationSpec validation =
@@ -1597,15 +1597,15 @@ public:
 };
 
 int runCommonConstructionConformanceGateTest() {
-  namespace construction = tianchenrv::plugin::construction;
-  namespace tel = tianchenrv::plugin::tensorext_lite;
+  namespace construction = weft::plugin::construction;
+  namespace tel = weft::plugin::tensorext_lite;
 
   const Manifest &manifest = tel::getTensorExtLiteConstructionManifest();
   const TypedRoleGraphRealization &realization =
       tel::getTensorExtLiteTypedRoleGraphRealization();
   ValidationSpec validation =
       buildTensorExtLiteGateValidationSpec(manifest);
-  llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata =
+  llvm::ArrayRef<weft::support::ArtifactMetadataEntry> metadata =
       tel::getTensorExtLiteFragmentMmaArtifactMetadata();
   const construction::ConstructionArtifactMetadataConformanceSpec
       artifactChecks[] = {
@@ -1653,8 +1653,8 @@ int runCommonConstructionConformanceGateTest() {
   gate.typedRoleRealization = &realization;
 
   std::string staleInterfaceSummary =
-      "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-      "TCRVEmitCLowerableInterface";
+      "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+      "WEFTEmitCLowerableInterface";
   ValidationSpec staleInterfaceValidation = validation;
   staleInterfaceValidation.interfaceRealizationSummary = staleInterfaceSummary;
   gate.validationSpec = &staleInterfaceValidation;
@@ -1705,7 +1705,7 @@ int runCommonConstructionConformanceGateTest() {
     return result;
   gate.executableRoleSteps = tel::getTensorExtLiteFragmentMmaRoleSteps();
 
-  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 12>
+  llvm::SmallVector<weft::support::ArtifactMetadataEntry, 12>
       staleMetadata(metadata.begin(), metadata.end());
   staleMetadata.front().value = "stale-route";
   const construction::ConstructionArtifactMetadataConformanceSpec
@@ -1762,19 +1762,19 @@ int runRegistryConstructionGateRejectionTest() {
 int runBuiltinConstructionPluginRegistrationGateTest() {
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          weft::plugin::registerRVVExtensionPlugin(registry),
           "register RVV through executable construction gate"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(registry),
+          weft::plugin::registerTensorExtLiteExtensionPlugin(registry),
           "register TensorExtLite through executable construction gate"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerToyExtensionPlugin(registry),
+          weft::plugin::registerToyExtensionPlugin(registry),
           "register Toy through executable construction gate"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerTemplateExtensionPlugin(registry),
+          weft::plugin::registerTemplateExtensionPlugin(registry),
           "register Template through executable construction gate"))
     return result;
   return registry.size() == 4
@@ -1784,14 +1784,14 @@ int runBuiltinConstructionPluginRegistrationGateTest() {
 }
 
 int runUnsupportedArtifactKindConstructionTest() {
-  namespace template_ext = tianchenrv::plugin::template_ext;
-  namespace construction = tianchenrv::plugin::construction;
+  namespace template_ext = weft::plugin::template_ext;
+  namespace construction = weft::plugin::construction;
 
   const construction::RoleExpectation roleExpectations[] = {
-      {"configure", "TCRVConfigOpInterface", false},
-      {"load", "TCRVMemoryOpInterface", true},
-      {"compute", "TCRVComputeOpInterface", true},
-      {"store", "TCRVMemoryOpInterface", true},
+      {"configure", "WEFTConfigOpInterface", false},
+      {"load", "WEFTMemoryOpInterface", true},
+      {"compute", "WEFTComputeOpInterface", true},
+      {"store", "WEFTMemoryOpInterface", true},
   };
   const llvm::StringRef requiredEvidence[] = {"emitc_route_mapping"};
 

@@ -1,12 +1,12 @@
-add_mlir_library(TianChenRVTensorExtLiteConstructionProtocol
+add_mlir_library(WeftTensorExtLiteConstructionProtocol
   TensorExtLiteConstructionProtocol.cpp
   TensorExtLiteVariantLegality.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVPluginConstructionProtocol
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftPluginConstructionProtocol
+  WeftSupport
   MLIRIR
   MLIRSupport
 )

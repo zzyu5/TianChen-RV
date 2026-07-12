@@ -1,10 +1,10 @@
-add_mlir_library(TianChenRVBuiltinTargetArtifactExporters
+add_mlir_library(WeftBuiltinTargetArtifactExporters
   BuiltinTargetArtifactExporters.cpp
   BuiltinTargetTranslateRoutes.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVBuiltinPlugins
-  TianChenRVSupport
-  TianChenRVTarget
+  WeftBuiltinPlugins
+  WeftSupport
+  WeftTarget
   MLIRSupport
 )

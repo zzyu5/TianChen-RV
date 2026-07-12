@@ -1,4 +1,4 @@
-add_mlir_dialect_library(TianChenRVRVVDialect
+add_mlir_dialect_library(WeftRVVDialect
   RVVConfigContract.cpp
   RVVDialect.cpp
   RVVDialectArithmeticOps.cpp
@@ -15,12 +15,12 @@ add_mlir_dialect_library(TianChenRVRVVDialect
 
   DEPENDS
   MLIRRVVOpsIncGen
-  MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRWEFTEmitCLowerableOpInterfaceIncGen
   MLIRTunableScheduleOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftSupport
   MLIRIR
 )

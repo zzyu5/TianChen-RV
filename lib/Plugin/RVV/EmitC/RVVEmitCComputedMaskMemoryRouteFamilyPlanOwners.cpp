@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -11,7 +11,7 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 bool isPreRealizedRuntimeScalarComputedMaskStoreOpKind(
@@ -46,12 +46,12 @@ bool isPreRealizedRuntimeScalarComputedMaskLoadStorePredicateKind(
 
 bool isPreRealizedRuntimeScalarComputedMaskMemoryConfig(std::int64_t sew,
                                                         llvm::StringRef lmul) {
-  if (tcrv::rvv::isRVVSelectedBodyM1Config(sew, lmul))
+  if (weft::rvv::isRVVSelectedBodyM1Config(sew, lmul))
     return true;
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == weft::rvv::getRVVLMULM2())
     return true;
-  return tcrv::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
+  return weft::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
 }
 
 bool isPreRealizedComputedMaskStridedStoreMemoryMovementStrideUnit(
@@ -166,15 +166,15 @@ bool isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
   return memoryForm == "compare-produced-mask";
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedComputedMaskMemoryRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(llvm::Twine(context) +
                                           " must be defined by explicit "
-                                          "tcrv_rvv.runtime_abi_value");
+                                          "weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -193,12 +193,12 @@ requirePreRealizedComputedMaskMemoryRuntimeABIValue(
 
 template <typename BodyOpT>
 llvm::Error rejectMixedPreRealizedComputedMaskMemoryBody(
-    tcrv::exec::VariantOp variant, llvm::StringRef bodyDescription) {
+    weft::exec::VariantOp variant, llvm::StringRef bodyDescription) {
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp, BodyOpT>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp, BodyOpT>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -211,7 +211,7 @@ llvm::Error rejectMixedPreRealizedComputedMaskMemoryBody(
 }
 
 llvm::Error requireComputedMaskMemorySelectedVariantRequires(
-    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+    weft::exec::VariantOp variant, llvm::StringRef context) {
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
     return makeRVVEmitCRouteProviderError(
@@ -227,8 +227,8 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskTailPolicyOwner(
 constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterRouteFamilyPlanID(
     "rvv-composite-gather-macc-scatter-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterTypedComputeChain(
-    "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
-    "tcrv_rvv.masked_indexed_store");
+    "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+"
+    "weft_rvv.masked_indexed_store");
 constexpr llvm::StringLiteral
     kRVVCompositeGatherMAccScatterRuntimeABIOrder(
         "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n");
@@ -236,15 +236,15 @@ constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterResultLayout(
     "store-multiply-accumulate-result-to-output-buffer");
 
 llvm::StringRef getRuntimeScalarComputedMaskElementCType(std::int64_t sew) {
-  return sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  return sew == weft::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
 }
 
 } // namespace
 
 llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime scalar computed-mask store realization requires "
@@ -252,7 +252,7 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask store body "
-        "must be a direct child of the selected tcrv.exec.variant");
+        "must be a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedRuntimeScalarComputedMaskStoreOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -296,19 +296,19 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
         "pre-realized RVV selected runtime scalar computed-mask store body "
         "requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 data/mask "
         "config");
-  if (!tcrv::rvv::isRVVUndisturbedPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVUndisturbedPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask store body "
         "requires tail undisturbed, mask undisturbed policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime scalar computed-mask store lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime scalar computed-mask store rhs scalar "
@@ -316,7 +316,7 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV runtime scalar computed-mask store payload source "
@@ -324,7 +324,7 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV runtime scalar computed-mask store destination "
@@ -332,7 +332,7 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime scalar computed-mask store runtime n/AVL "
@@ -360,7 +360,7 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
+              weft::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
               variant, "runtime scalar computed-mask store"))
     return error;
   return requireComputedMaskMemorySelectedVariantRequires(
@@ -370,8 +370,8 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime scalar computed-mask load-store realization "
@@ -380,7 +380,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask load-store "
-        "body must be a direct child of the selected tcrv.exec.variant");
+        "body must be a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedRuntimeScalarComputedMaskLoadStoreOpKind(
           body.getOpKind()))
@@ -427,12 +427,12 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
         "pre-realized RVV selected runtime scalar computed-mask load-store "
         "body requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 "
         "data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask load-store "
         "body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime scalar computed-mask load-store lhs "
@@ -440,7 +440,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime scalar computed-mask load-store rhs "
@@ -448,7 +448,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV runtime scalar computed-mask load-store source "
@@ -456,7 +456,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV runtime scalar computed-mask load-store "
@@ -464,7 +464,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime scalar computed-mask load-store runtime "
@@ -492,7 +492,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::
+              weft::rvv::
                   TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp>(
               variant, "runtime scalar computed-mask load-store"))
     return error;
@@ -502,8 +502,8 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskMemoryBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskMemoryPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask memory realization requires a "
@@ -511,7 +511,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMemoryBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask memory body must be a "
-        "direct child of the selected tcrv.exec.variant");
+        "direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskMemoryMovementOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -547,45 +547,45 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMemoryBody(
         "pre-realized RVV selected computed-mask memory body requires "
         "inactive_lane_policy 'preserve-old-destination'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask memory body requires SEW32 "
         "LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask memory body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask memory compare lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask memory compare rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask memory active source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV computed-mask memory destination operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask memory runtime n/AVL operand",
@@ -595,7 +595,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMemoryBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(
               variant, "computed-mask memory"))
     return error;
   return requireComputedMaskMemorySelectedVariantRequires(
@@ -604,8 +604,8 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMemoryBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask strided-store realization requires a "
@@ -613,7 +613,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-store body must be "
-        "a direct child of the selected tcrv.exec.variant");
+        "a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskStridedStoreOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -654,31 +654,31 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
         "pre-realized RVV selected computed-mask strided-store body requires "
         "inactive_lane_policy 'preserve-old-destination'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-store body requires "
         "SEW32 LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-store body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask strided-store compare lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask strided-store compare rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask strided-store active source "
@@ -686,14 +686,14 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV computed-mask strided-store destination operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask strided-store runtime n/AVL "
@@ -701,7 +701,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destinationStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destinationStride =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestinationStride(),
           "pre-realized RVV computed-mask strided-store destination byte stride "
@@ -712,7 +712,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp>(
               variant, "computed-mask strided-store"))
     return error;
   return requireComputedMaskMemorySelectedVariantRequires(
@@ -721,8 +721,8 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask strided-load realization requires a "
@@ -730,7 +730,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-load body must be "
-        "a direct child of the selected tcrv.exec.variant");
+        "a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskStridedLoadOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -771,52 +771,52 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
         "pre-realized RVV selected computed-mask strided-load body requires "
         "inactive_lane_policy 'preserve-passthrough-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-load body requires "
         "SEW32 LMUL m1 data/mask config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-load body requires "
         "tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask strided-load compare lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask strided-load compare rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask strided-load source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV computed-mask strided-load destination operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask strided-load runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> sourceStride =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> sourceStride =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSourceStride(),
           "pre-realized RVV computed-mask strided-load source byte stride "
@@ -827,7 +827,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(
               variant, "computed-mask strided-load"))
     return error;
   return requireComputedMaskMemorySelectedVariantRequires(
@@ -836,8 +836,8 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask indexed gather-load realization requires "
@@ -845,7 +845,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask indexed gather-load body "
-        "must be a direct child of the selected tcrv.exec.variant");
+        "must be a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskIndexedGatherOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -895,17 +895,17 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
         "requires inactive_lane_policy "
         "'preserve-passthrough-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask indexed gather-load body "
         "requires SEW32 LMUL m1 data/mask/index config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask indexed gather-load body "
         "requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask indexed gather-load compare lhs "
@@ -913,7 +913,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask indexed gather-load compare rhs "
@@ -921,21 +921,21 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask indexed gather-load source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> index =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getIndex(),
           "pre-realized RVV computed-mask indexed gather-load index operand",
           support::RuntimeABIParameterRole::IndexInputBuffer);
   if (!index)
     return index.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV computed-mask indexed gather-load destination "
@@ -943,7 +943,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask indexed gather-load runtime n/AVL "
@@ -954,7 +954,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp>(
               variant, "computed-mask indexed gather-load"))
     return error;
   return requireComputedMaskMemorySelectedVariantRequires(
@@ -964,9 +964,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
         body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime-scalar computed-mask indexed gather-load "
@@ -976,7 +976,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask indexed "
         "gather-load body must be a direct child of the selected "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
   if (!isPreRealizedRuntimeScalarComputedMaskIndexedGatherOpKind(
           body.getOpKind()))
@@ -1028,17 +1028,17 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
         "gather-load body requires inactive_lane_policy "
         "'preserve-passthrough-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask indexed "
         "gather-load body requires SEW32 LMUL m1 data/mask/index config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask indexed "
         "gather-load body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1046,7 +1046,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1054,7 +1054,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1062,7 +1062,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> index =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getIndex(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1070,7 +1070,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::IndexInputBuffer);
   if (!index)
     return index.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1078,7 +1078,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1108,7 +1108,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::
+              weft::rvv::
                   TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp>(
               variant, "runtime-scalar computed-mask indexed gather-load"))
     return error;
@@ -1118,8 +1118,8 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask indexed scatter-store realization "
@@ -1127,7 +1127,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask indexed scatter-store body "
-        "must be a direct child of the selected tcrv.exec.variant");
+        "must be a direct child of the selected weft.exec.variant");
 
   if (!isPreRealizedComputedMaskIndexedScatterOpKind(body.getOpKind()))
     return makeRVVEmitCRouteProviderError(
@@ -1181,17 +1181,17 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
         "pre-realized RVV selected computed-mask indexed scatter-store body "
         "requires inactive_lane_policy 'preserve-output-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask indexed scatter-store body "
         "requires SEW32 LMUL m1 data/mask/index config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask indexed scatter-store body "
         "requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask indexed scatter-store compare lhs "
@@ -1199,7 +1199,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLhs)
     return compareLhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask indexed scatter-store compare rhs "
@@ -1207,21 +1207,21 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRhs)
     return compareRhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask indexed scatter-store source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> index =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getIndex(),
           "pre-realized RVV computed-mask indexed scatter-store index operand",
           support::RuntimeABIParameterRole::IndexInputBuffer);
   if (!index)
     return index.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV computed-mask indexed scatter-store destination "
@@ -1229,7 +1229,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask indexed scatter-store runtime n/AVL "
@@ -1240,7 +1240,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
+              weft::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
               variant, "computed-mask indexed scatter-store"))
     return error;
   return requireComputedMaskMemorySelectedVariantRequires(
@@ -1250,9 +1250,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
         body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime-scalar computed-mask indexed scatter-store "
@@ -1262,7 +1262,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask indexed "
         "scatter-store body must be a direct child of the selected "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
   if (!isPreRealizedRuntimeScalarComputedMaskIndexedScatterOpKind(
           body.getOpKind()))
@@ -1319,17 +1319,17 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
         "scatter-store body requires inactive_lane_policy "
         "'preserve-output-on-false-lanes'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask indexed "
         "scatter-store body requires SEW32 LMUL m1 data/mask/index config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime-scalar computed-mask indexed "
         "scatter-store body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1337,7 +1337,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1345,7 +1345,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1353,7 +1353,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> index =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getIndex(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1361,7 +1361,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::IndexInputBuffer);
   if (!index)
     return index.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> destination =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getDestination(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1369,7 +1369,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!destination)
     return destination.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedComputedMaskMemoryRuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime-scalar computed-mask indexed "
@@ -1399,7 +1399,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
 
   if (llvm::Error error =
           rejectMixedPreRealizedComputedMaskMemoryBody<
-              tcrv::rvv::
+              weft::rvv::
                   TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
               variant, "runtime-scalar computed-mask indexed scatter-store"))
     return error;
@@ -1407,4 +1407,4 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
       variant, "runtime-scalar computed-mask indexed scatter-store");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

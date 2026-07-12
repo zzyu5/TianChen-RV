@@ -21,7 +21,7 @@
 | Field | Value |
 |---|---|
 | Family name | `<Fam>` |
-| MLIR dialect namespace | `tcrv_<fam>` |
+| MLIR dialect namespace | `weft_<fam>` |
 | Dispatch key(s) | `<fam>` |
 | Target capability id(s) | `<fam>.<...>` |
 | Toolchain / runtime assumptions | `<...>` |
@@ -48,11 +48,11 @@
 
 ```text
 lib/Plugin/<Fam>/                      <5 .cpp + CMakeLists>
-include/TianChenRV/Plugin/<Fam>/       <4 headers>
+include/Weft/Plugin/<Fam>/       <4 headers>
 lib/Dialect/<Fam>/ (+IR/)              <Dialect.cpp + 2 CMakeLists>
-include/TianChenRV/Dialect/<Fam>/(+IR/) <Dialect.h + Ops.td + 2 CMakeLists>
+include/Weft/Dialect/<Fam>/(+IR/) <Dialect.h + Ops.td + 2 CMakeLists>
 lib/Target/<Fam>/                      <TargetSupportBundle.cpp + CMakeLists>
-include/TianChenRV/Target/<Fam>/       <TargetSupportBundle.h>
+include/Weft/Target/<Fam>/       <TargetSupportBundle.h>
 lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   <#include + kBuiltinExtensionBundles[] row>  ← [GAP-P4-REGISTER]
 schema/family-manifest.v1.json + family-regex.v1.json (+ family-dirs.v1.json)  <territory + dispatch-key rows>
 ```
@@ -60,16 +60,16 @@ schema/family-manifest.v1.json + family-regex.v1.json (+ family-dirs.v1.json)  <
 - **Registration done?** `register<Fam>ExtensionPlugin` declared in the family
   header AND added to `kBuiltinExtensionBundles[]`: `<yes/no>`.
 - **Build links?** `cmake --build build` reaches the family targets
-  (`TianChenRV<Fam>Dialect`, `TianChenRV<Fam>Target`): `<yes/no>`.
+  (`Weft<Fam>Dialect`, `Weft<Fam>Target`): `<yes/no>`.
 
 ## 3. Standard-flow conformance
 
-> Confirm the executable flow (spec §Standard Flow): selected `tcrv.exec` variant
-> → typed `tcrv_<fam>` body → plugin legality → optional realization → plugin-built
-> `TCRVEmitCLowerableRoute` → common EmitC → target artifact.
+> Confirm the executable flow (spec §Standard Flow): selected `weft.exec` variant
+> → typed `weft_<fam>` body → plugin legality → optional realization → plugin-built
+> `WEFTEmitCLowerableRoute` → common EmitC → target artifact.
 
 - Typed body / selected boundary: `<...>`
-- Route provider builds `TCRVEmitCLowerableRoute`: `<yes/no>`
+- Route provider builds `WEFTEmitCLowerableRoute`: `<yes/no>`
 - Common EmitC only materializes provider payload (no extension semantics in core): `<yes/no>`
 
 ## 4. Falsifier six-gate status (机检验收)

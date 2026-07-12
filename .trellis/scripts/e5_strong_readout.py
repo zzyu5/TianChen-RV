@@ -10,8 +10,8 @@ Why this tool exists (contrast with coverage_metrics.py / E6)
 ------------------------------------------------------------
 E6's coverage_metrics.py is stdlib-only and explicitly "does NOT derive
 strong-vs-weak from code". That derivation is E5's job. This tool does it the
-ONE I4-legal way: it runs the real compiler (tcrv-opt = runner) and walks the
-op-identity of the ACTUAL realized `tcrv_rvv.with_vl` body it emits (IR = artifact
+ONE I4-legal way: it runs the real compiler (weft-opt = runner) and walks the
+op-identity of the ACTUAL realized `weft_rvv.with_vl` body it emits (IR = artifact
 parsing). Python is tooling here, never the compiler stack (I6).
 
 The [L-8] machine rule (实验总纲 line 27 / core-invariants [L-8]/[K-4])
@@ -35,13 +35,13 @@ A selected-body path is `constructed` (STRONG) iff:
   conjunct was report-only; it is now a GATE (E5 gate-hole fix).
 
 I4 red line: the manifest is the ACTUAL realized body's op-identity (CORE oracle),
-NEVER the `tcrv_rvv.low_precision_resource.*` mirror attributes (which ride on the
+NEVER the `weft_rvv.low_precision_resource.*` mirror attributes (which ride on the
 with_vl op) nor the emission-plan `rvv_selected_body_typed_compute_op` mirror. The
 parser extracts mnemonics from OPERATION position only and asserts no mirror /
 attribute-name token ever leaks into a manifest.
 
 Stage discipline: the walk stops at the constructed with_vl body, BEFORE
-`--tcrv-rvv-lower-to-emitc` (after that lowering both strong and weak collapse to
+`--weft-rvv-lower-to-emitc` (after that lowering both strong and weak collapse to
 indistinguishable `emitc`/`call_opaque` and the discriminator vanishes).
 
 Scope (E5 增量①, bounded): strong side only. This is a standalone read-out +
@@ -53,7 +53,7 @@ Subcommands
 -----------
 report                 run the machine-check; print per-path {manifest, has_opaque,
                        derived_state} + PASS/FAIL vs expected. Exit non-zero on any
-                       mismatch or any tcrv-opt failure (fail-closed).
+                       mismatch or any weft-opt failure (fail-closed).
 update-sixstate        run report, then (only if all rows pass) rewrite the strong
                        rows' `auto_readout` in schema/coverage-sixstate.v1.json with
                        the machine result + manifest summary. Never touches `state`.
@@ -70,7 +70,7 @@ from pathlib import Path
 # --- locations -------------------------------------------------------------
 # This file lives at <repo>/.trellis/scripts/e5_strong_readout.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TCRV_OPT = REPO_ROOT / "build" / "bin" / "tcrv-opt"
+WEFT_OPT = REPO_ROOT / "build" / "bin" / "weft-opt"
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
 TEST_RVV = REPO_ROOT / "test" / "Target" / "RVV"
 TEST_CONV_RVV = REPO_ROOT / "test" / "Conversion" / "RVV"
@@ -78,32 +78,32 @@ TEST_CONV_RVV = REPO_ROOT / "test" / "Conversion" / "RVV"
 # --- the 4 strong routes + 1 weak negative control -------------------------
 # Each entry: the six-state (op, format) key, the source-op test input, and the
 # single front-door pass that CONSTRUCTS/REALIZES the typed with_vl body. NO
-# --tcrv-rvv-lower-to-emitc (stage discipline). Row<->test mapping per research
+# --weft-rvv-lower-to-emitc (stage discipline). Row<->test mapping per research
 # emission-paths-map.md §1b.
 PATHS = [
     {
         "op": "product_reduce", "format": "q4_0_nibble", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "non-deferred-wide-product-reduce-dequantize-f32-front-door-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv",
+        "front_door": "--weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv",
         "front_door_id": "RVVDequantDotSourceFrontDoor",
     },
     {
         "op": "product_reduce", "format": "offset_binary_n3", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "packed-i4-offset-binary-dot-product-reduce-front-door-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv",
+        "front_door": "--weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv",
         "front_door_id": "RVVPackedI4DotSourceFrontDoor",
     },
     {
         "op": "product_reduce", "format": "codebook_n3", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "codebook-gather-dot-product-reduce-front-door-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv",
+        "front_door": "--weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv",
         "front_door_id": "RVVCodebookDotSourceFrontDoor",
     },
     # q8_0 vec_dot: STRONG. Its front door was upgraded to construct the typed flat
-    # block-dot LOOP body (tcrv_rvv.typed_flat_block_dot_loop_body) out of decomposed
+    # block-dot LOOP body (weft_rvv.typed_flat_block_dot_loop_body) out of decomposed
     # pattern-library primitives (load + widening_product + standalone_reduce), NOT the
     # opaque emitFlatBlockDot hand helper. The SAME front-door pass now realizes a typed
     # body, so update-sixstate machine-reads the REAL constructor output (no hand .mlir).
@@ -111,40 +111,40 @@ PATHS = [
         "op": "vec_dot", "format": "q8_0", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q8-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
     # q4_0 vec_dot: STRONG. Same typed flat block-dot LOOP construction as q8_0, but the
     # decomposed body realizes the packed-i4 offset-binary dot primitive
-    # (tcrv_rvv.packed_i4_offset_binary_x_i8_product) instead of the plain widening_product,
+    # (weft_rvv.packed_i4_offset_binary_x_i8_product) instead of the plain widening_product,
     # since q4_0 weights are packed nibbles. Its front door constructs the typed
-    # tcrv_rvv.typed_flat_block_dot_loop_body (NOT the opaque emitFlatBlockDot hand helper),
+    # weft_rvv.typed_flat_block_dot_loop_body (NOT the opaque emitFlatBlockDot hand helper),
     # so update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
         "op": "vec_dot", "format": "q4_0", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q4-0-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
     # q4_1 vec_dot: STRONG. Same typed flat block-dot LOOP construction as q4_0, but the
     # decomposed body realizes q4_1's Family-B scale+MIN structure: the integer core is the
-    # unsigned-nibble dot primitive (tcrv_rvv.unsigned_nibble_x_i8_product), and the per-block
+    # unsigned-nibble dot primitive (weft_rvv.unsigned_nibble_x_i8_product), and the per-block
     # dequant is a dual-fp16 scale+min fold (block_fp16_scale_product d_x.d_y + block_fp16_min_product
     # m_x.s_y, BOTH operand-derived from the block data, feeding block_computed_scale_dequant).
-    # Its front door constructs the typed tcrv_rvv.typed_flat_block_dot_loop_body (NOT the opaque
+    # Its front door constructs the typed weft_rvv.typed_flat_block_dot_loop_body (NOT the opaque
     # emitFlatBlockDot hand helper), so update-sixstate machine-reads the REAL constructor output.
     {
         "op": "vec_dot", "format": "q4_1", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-1-q8-1-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q4-1-q8-1-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q4-1-q8-1-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
     # q5_0 vec_dot: STRONG. Its front door was upgraded (isQ50TypedFlat in the
     # typedFlatLoopPath gate) to construct the typed flat block-dot LOOP body, whose
     # decomposed integer core realizes q5_0's five-bit offset-binary dot primitive
-    # (tcrv_rvv.five_bit_offset_binary_x_i8_product) fed by a per-block qh 5th-bit
+    # (weft_rvv.five_bit_offset_binary_x_i8_product) fed by a per-block qh 5th-bit
     # source brick (block_five_bit_qh_source), plus standalone_reduce and a per-block
     # fp16 scale dequant. NO opaque emitFlatBlockDot hand helper, so [L-8] derives
     # constructed (STRONG). update-sixstate machine-reads the REAL constructor output.
@@ -152,7 +152,7 @@ PATHS = [
         "op": "vec_dot", "format": "q5_0", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q5-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
     # q5_1 vec_dot: STRONG (cohort 5/5, LAST). Same typed flat block-dot LOOP body via the
@@ -164,12 +164,12 @@ PATHS = [
         "op": "vec_dot", "format": "q5_1", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q5-1-q8-1-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q5-1-q8-1-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
     # q4_K vec_dot: STRONG (the FIRST K-quant super-block flipped, M-FLAT milestone-3).
     # Its front door constructs the typed SUPER-BLOCK dual-accumulator loop body
-    # (tcrv_rvv.typed_super_block_block_dot_loop_body) out of the 5 decomposed q4_K
+    # (weft_rvv.typed_super_block_block_dot_loop_body) out of the 5 decomposed q4_K
     # bricks (q4_k_nibble_unpack -> q4_k_scale_min_bit_dance -> q4_k_scaled_dot ->
     # q4_k_min_term -> q4_k_sums_fold_scale_d), NOT the opaque emitQ4_KQ8_KBlockDot
     # hand helper. The contraction+reduction is the fused per-sub-block integer-MAC
@@ -179,12 +179,12 @@ PATHS = [
         "op": "vec_dot", "format": "q4_K", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q4-k-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockBlockDotLoopChain (typed super-block block-dot loop body)",
     },
     # q5_K vec_dot: STRONG (the SECOND K-quant super-block flipped). q5_K == q4_K + the
     # qh 5th-bit plane: it REUSES the SAME typed super-block dual-accumulator loop body
-    # (tcrv_rvv.typed_super_block_block_dot_loop_body) out of the SAME 5 decomposed
+    # (weft_rvv.typed_super_block_block_dot_loop_body) out of the SAME 5 decomposed
     # bricks (q4_k_nibble_unpack -> q4_k_scale_min_bit_dance -> q4_k_scaled_dot ->
     # q4_k_min_term -> q4_k_sums_fold_scale_d), the ONLY net-new work being BRICK 1's
     # weight_qh_byte_offset attr (the emitter injects the 5th bit under cx.hasQh). NOT
@@ -197,12 +197,12 @@ PATHS = [
         "op": "vec_dot", "format": "q5_K", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q5-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q5-k-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q5-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockBlockDotLoopChain (typed super-block block-dot loop body; q5_K stamps BRICK 1 qh offset)",
     },
     # q6_K vec_dot: STRONG (the THIRD K-quant super-block flipped). q6_K has NO
     # per-block min, so its front door constructs the typed SUPER-BLOCK SINGLE-
-    # accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body,
+    # accumulator loop body (weft_rvv.typed_super_block_block_dot_loop_body,
     # fold_model "scales_times_sumi") out of just TWO decomposed bricks: the q6_K
     # aux32 INTEGER CORE (q6_k_q8_k_aux32_partial -- the 2-bit qh + 8-bit signed
     # scale unpack + per-sub-block int8-scaled vwmacc into aux32) -> the REUSED no-min
@@ -216,12 +216,12 @@ PATHS = [
         "op": "vec_dot", "format": "q6_K", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q6-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalesTimesSumiLoopChain (typed super-block SINGLE-accumulator no-min loop body)",
     },
     # q3_K vec_dot: STRONG (the FIFTH and LAST K-quant super-block flipped). q3_K is
     # SYMMETRIC (NO per-block min), so it SHARES q6_K's typed SUPER-BLOCK SINGLE-
-    # accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
+    # accumulator loop body (weft_rvv.typed_super_block_block_dot_loop_body, fold_model
     # "scales_times_sumi") out of just TWO decomposed bricks: the q3_K aux32 INTEGER
     # CORE (q3_k_q8_k_aux32_partial -- the 2-bit + SUBTRACTIVE-hmask decode + SIGNED
     # 6-bit scale dance + per-sub-block signed-scaled vwmacc into aux32) -> the REUSED
@@ -235,13 +235,13 @@ PATHS = [
         "op": "vec_dot", "format": "q3_K", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q3-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q3-k-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q3-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalesTimesSumiLoopChain (typed super-block SINGLE-accumulator no-min loop body; q3_K aux32 brick keyed off entry.opName)",
     },
     # q2_K vec_dot: STRONG (the FOURTH K-quant super-block flipped). q2_K HAS a per-
     # block min (like q4_K/q5_K) but its whole fold is a SINGLE per-super-block SCALAR
     # `sumf += dall*isum - dmin*summs`, so its front door constructs the typed SUPER-
-    # BLOCK SCALAR-accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body,
+    # BLOCK SCALAR-accumulator loop body (weft_rvv.typed_super_block_block_dot_loop_body,
     # fold_model "scalar_scale_min") out of just ONE decomposed brick: the q2_K INTEGER
     # CORE (q2_k_q8_k_integer_core -- the 2-bit unpack + PLAIN uint4-nibble scale/min +
     # per-sub-block scalar i32 dot producing the two scalar states isum + summs) -> a
@@ -255,14 +255,14 @@ PATHS = [
         "op": "vec_dot", "format": "q2_K", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q2-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q2-k-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q2-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarScaleMinLoopChain (typed super-block SCALAR-accumulator loop body)",
     },
     # q4_0 REPACK GEVM (gemm_tile/q4_0/rvv): STRONG. The option-2 quant_contraction
     # BRIDGE route -- distinct from the flat/super-block SOURCE-FUNC front doors. Its
-    # front door (--tcrv-rvv-lower-quant-contraction; VLEN128 => Zvl128b => repack
-    # SELECTED) CONSTRUCTS the typed tcrv_rvv.typed_repack_gemv_loop_body REGION (the
-    # monolithic tcrv_rvv.repack_gemv_q4_0_q8_0 op is retired) out of the two
+    # front door (--weft-rvv-lower-quant-contraction; VLEN128 => Zvl128b => repack
+    # SELECTED) CONSTRUCTS the typed weft_rvv.typed_repack_gemv_loop_body REGION (the
+    # monolithic weft_rvv.repack_gemv_q4_0_q8_0 op is retired) out of the two
     # decomposed inner bricks: the per-block lane-wise integer CORE
     # (repack_lane_wise_q4_x_i8_dot, producing the numHalves per-strip sumi via a
     # nibble-step vwmacc lane-wise accumulate -- a FUSED lane-wise dot-reduce, NO
@@ -275,17 +275,17 @@ PATHS = [
         "op": "gemm_tile", "format": "q4_0", "engine": "rvv", "regime": "decode",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-0-q8-0-repack-gemv-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv",
+        "front_door": "--weft-rvv-lower-quant-contraction=march=rv64gcv",
         "front_door_id": "RVVLowerQuantContraction lowerToRepackGemv (typed repack GEVM loop body region)",
     },
     # q4_0 REPACK GEMM (gemm_tile/q4_0/rvv, regime=prefill): STRONG. The PREFILL
     # sibling of the decode GEVM -- a DISTINCT six-state cell on the m_regime axis
     # (regime=prefill vs the GEVM's regime=decode). Same option-2 quant_contraction
-    # BRIDGE front door (--tcrv-rvv-lower-quant-contraction; VLEN128 => Zvl128b =>
+    # BRIDGE front door (--weft-rvv-lower-quant-contraction; VLEN128 => Zvl128b =>
     # repack SELECTED), but because the input quant_contraction carries
     # m_regime="prefill" the bridge dispatches to lowerToRepackGemm, which CONSTRUCTS
-    # the typed tcrv_rvv.typed_repack_gemm_loop_body REGION (the monolithic
-    # tcrv_rvv.repack_gemm_q4_0_q8_0 op is retired) out of the two decomposed inner
+    # the typed weft_rvv.typed_repack_gemm_loop_body REGION (the monolithic
+    # weft_rvv.repack_gemm_q4_0_q8_0 op is retired) out of the two decomposed inner
     # GEMM bricks: the ONE-strip N-column integer CORE
     # (repack_gemm_lane_wise_q4_x_i8_dot, producing the columnsPerPass per-column sumi
     # via a nibble-step lane-wise vwmacc lo/hi dot-reduce -- a FUSED lane-wise
@@ -299,15 +299,15 @@ PATHS = [
         "op": "gemm_tile", "format": "q4_0", "engine": "rvv", "regime": "prefill",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-0-q8-0-repack-gemm-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv",
+        "front_door": "--weft-rvv-lower-quant-contraction=march=rv64gcv",
         "front_door_id": "RVVLowerQuantContraction lowerToRepackGemm (typed repack GEMM prefill loop body region)",
     },
     # iq4_nl vec_dot: STRONG (the FIRST CODEBOOK-class flat vec_dot flipped, L3 M2).
     # Its front door (isIq4Nl codebook branch in the typedFlatLoopPath gate) constructs
-    # the typed flat block-dot LOOP body (tcrv_rvv.typed_flat_block_dot_loop_body) whose
+    # the typed flat block-dot LOOP body (weft_rvv.typed_flat_block_dot_loop_body) whose
     # decomposed integer core is the 2nd primitive class: the 16-entry non-linear int8
-    # codebook table broadcast (tcrv_rvv.codebook_table_broadcast) + the asymmetric
-    # codebook-gather packed-i4 x i8 product (tcrv_rvv.codebook_gather_x_i8_product, the
+    # codebook table broadcast (weft_rvv.codebook_table_broadcast) + the asymmetric
+    # codebook-gather packed-i4 x i8 product (weft_rvv.codebook_gather_x_i8_product, the
     # vrgather kvalues decode -- matches _DOT_PRODUCT_RE's _x_i8_product token), plus
     # standalone_reduce and a per-block fp16 scale dequant. NO opaque emitFlatBlockDot
     # hand helper (the GgmlBlockDotIQ4NLQ80Op op + emitIQ4NLQ8_0BlockDot shim + verifier
@@ -317,7 +317,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq4_nl", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq4-nl-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body; codebook branch)",
     },
     # iq1_s vec_dot: STRONG (the FIRST super-block GRID/CODEBOOK-class vec_dot flipped,
@@ -326,7 +326,7 @@ PATHS = [
     # gather), but its whole fold is a SINGLE per-super-block SCALAR
     # `sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)`, so its front door
     # (createTypedSuperBlockScalarDeltaGridLoopChain) constructs the typed SUPER-BLOCK
-    # SCALAR-accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body,
+    # SCALAR-accumulator loop body (weft_rvv.typed_super_block_block_dot_loop_body,
     # fold_model "scalar_delta_grid") out of just ONE decomposed brick: the iq1_s
     # TERNARY-grid INTEGER CORE (iq1_s_q8_k_grid_core -- the 11-bit qs+qh grid index +
     # the vluxei16 ternary-grid gather + the signed widening grid dot + the qh-encoded
@@ -342,7 +342,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq1_s", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq1-s-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq1-s-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq1-s-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChain (typed super-block SCALAR-accumulator ternary-grid loop body)",
     },
     # iq1_m vec_dot: STRONG (the SECOND super-block GRID/CODEBOOK-class vec_dot flipped,
@@ -365,7 +365,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq1_m", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq1-m-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq1-m-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq1-m-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq1M (typed super-block SCALAR-accumulator ternary-grid loop body; iq1_s sibling)",
     },
     # iq3_xxs vec_dot: STRONG (the THIRD super-block GRID/CODEBOOK-class vec_dot flipped,
@@ -387,7 +387,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq3_xxs", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq3-xxs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs (typed super-block SCALAR-accumulator GRID-of-4 loop body; iq1_s grid sibling)",
     },
     # iq2_xxs vec_dot: STRONG (the FOURTH super-block GRID/CODEBOOK-class vec_dot flipped,
@@ -412,7 +412,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq2_xxs", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq2-xxs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs (typed super-block SCALAR-accumulator GRID-of-8 loop body; iq1_s grid sibling, signs64 variant)",
     },
     # iq2_xs vec_dot: STRONG (the FIFTH super-block GRID/CODEBOOK-class vec_dot flipped, L3
@@ -438,7 +438,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq2_xs", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq2-xs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq2-xs-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq2-xs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq2xs (typed super-block SCALAR-accumulator per-half-scale GRID loop body; iq2_xxs grid sibling, signs64 variant, no gearbox)",
     },
     # iq2_s vec_dot: STRONG (the SIXTH super-block GRID/CODEBOOK-class vec_dot flipped, L3
@@ -465,7 +465,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq2_s", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq2-s-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq2-s-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq2-s-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq2s (typed super-block SCALAR-accumulator per-half-scale GRID loop body; iq2_xs grid sibling, explicit-signs variant, no gearbox)",
     },
     # iq3_s vec_dot: STRONG (the SEVENTH super-block GRID/CODEBOOK-class vec_dot flipped,
@@ -492,7 +492,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq3_s", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq3-s-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq3-s-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq3-s-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq3s (typed super-block SCALAR-accumulator GRID-of-4 loop body; iq3_xxs grid sibling, explicit-signs variant, no gearbox, no ksigns plane)",
     },
     # iq4_xs vec_dot: STRONG (the FIRST super-block CODEBOOK-class vec_dot flipped,
@@ -522,7 +522,7 @@ PATHS = [
         "op": "vec_dot", "format": "iq4_xs", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq4-xs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq4xs (typed super-block SCALAR-accumulator CODEBOOK loop body; flat iq4_nl codebook sibling, super-block rung, per-sub-block float fold, no gearbox)",
     },
     # tq2_0 vec_dot: STRONG (the FIRST TQ-family member flipped, C_construct 24->25 -- the
@@ -552,7 +552,7 @@ PATHS = [
         "op": "vec_dot", "format": "tq2_0", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "tq2-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainTq20 (typed super-block SCALAR-accumulator TERNARY loop body; FIRST TQ-family member, arithmetic 2-bit ternary core, Win-A m2/m1 gearbox preserved)",
     },
     # tq1_0 vec_dot: STRONG (the SECOND TQ-family member flipped, C_construct 25->26 -- the
@@ -581,7 +581,7 @@ PATHS = [
         "op": "vec_dot", "format": "tq1_0", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "tq1-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainTq10 (typed super-block SCALAR-accumulator BASE-3 TERNARY loop body; SECOND TQ-family member, arithmetic base-3 ternary core reusing the tq2_0 scaffold, Win-A m2/m1 gearbox preserved)",
     },
     # q1_0 vec_dot: STRONG (the LAST flat block-dot family member flipped, C_construct
@@ -591,7 +591,7 @@ PATHS = [
     # (`d0 * Σ_k(d1_k * sumi_block_k)`) that no existing single-core flat brick chain
     # expresses, so UNLIKE q8_0/q4_0/q5_0 (a single per-block core + the shared
     # scale->dequant->accumulate brick chain) its front door (isQ10TypedFlat) constructs
-    # the FLAT loop body (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model
+    # the FLAT loop body (weft_rvv.typed_flat_block_dot_loop_body, fold_model
     # "flat_binary_two_level") out of just ONE decomposed brick: the DISTINCT q1_0
     # BINARY-sign INTEGER CORE (q1_0_q8_0_binary_sign_core -- the four q8_0 sub-blocks'
     # vlm_v_b{ratio} packed-bit sign mask loaded DIRECTLY as the i8 sign mask + i8-domain
@@ -611,7 +611,7 @@ PATHS = [
         "op": "vec_dot", "format": "q1_0", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "q1-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChainQ10 (typed flat block-dot loop body; BINARY-sign integer core, two-level fold, LAST flat family member, Win-A m2/m1 gearbox preserved)",
     },
     # nvfp4 vec_dot: STRONG (the SECOND FP4-CODEBOOK class = NVIDIA's FP4, the LAST
@@ -620,7 +620,7 @@ PATHS = [
     # uint8_t qs[32]}, QK=64, four 16-element sub-blocks) but its 64 elements span TWO
     # block_q8_0 activation blocks -- a FLAT block_q8_0 stream (like q1_0), so its front
     # door (isNvfp4TypedFlat) constructs the FLAT loop body
-    # (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook") out of
+    # (weft_rvv.typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook") out of
     # just ONE decomposed brick: the DISTINCT nvfp4 CODEBOOK INTEGER CORE
     # (nvfp4_q8_0_codebook_core -- REUSES mxfp4's 16-entry DOUBLED e2m1 codebook gathered
     # via vand/vsrl nibble split + vrgather_vv_i8m1 through the broadcast table +
@@ -642,14 +642,14 @@ PATHS = [
         "op": "vec_dot", "format": "nvfp4", "engine": "",
         "kind": "strong", "expected_state": "constructed",
         "input": "nvfp4-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-nvfp4-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-nvfp4-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChainNvfp4 (typed flat block-dot loop body; FP4-e2m1 CODEBOOK integer core reusing mxfp4's vrgather gather + per-sub-block UE4M3 fp8 scale, per-sub-block float fold, LAST dispatch-wired vec_dot, NO gearbox -- codebook gather pins m1)",
     },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
     # iq4_nl now), so its front door auto-constructs the MONOLITHIC
-    # tcrv_rvv.mxfp4_q8_0_block_dot op (kind "ggml_mxfp4_q8_0_block_dot"), which
+    # weft_rvv.mxfp4_q8_0_block_dot op (kind "ggml_mxfp4_q8_0_block_dot"), which
     # is_opaque_hand_helper matches -> [L-8] derives NOT-strong (constructed-weak). mxfp4
     # is a VALID (non-vacuous) discriminator: the SAME flat CODEBOOK class as iq4_nl,
     # still constructed-weak (descriptor-selected emitFlatBlockDot hand helper, its own
@@ -658,7 +658,7 @@ PATHS = [
         "op": "vec_dot", "format": "mxfp4", "engine": "",
         "kind": "negative", "expected_state": "constructed-weak",
         "input": "mxfp4-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
-        "front_door": "--tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door",
+        "front_door": "--weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door",
         "front_door_id": "emitFlatBlockDot (descriptor-selected hand helper)",
     },
 ]
@@ -668,7 +668,7 @@ PATHS = [
 # (decode) and GEMM (prefill) construction. Unlike q4_0 (split into two regime rows
 # already stamped E5-increment1-auto), these carry a single [F-EMIT] DUAL manifest.
 # The walk feeds a synthesized quant_contraction request (verifier-pinned PLAIN byte
-# facts per format) through the SAME `--tcrv-rvv-lower-quant-contraction` front door
+# facts per format) through the SAME `--weft-rvv-lower-quant-contraction` front door
 # the certified q4_0 uses -- a construction stage UPSTREAM of emitc (independent of
 # any emitc-side edit). `cmd_stamp_repack_dual` walks BOTH regimes, requires BOTH to
 # derive constructed + a legal repack shape + opaque_helper=false, then writes the
@@ -679,25 +679,25 @@ REPACK_DUAL_PATHS = [
     {"op": "gemm_tile", "format": fmt, "engine": "rvv",
      "gevm_input": _REPACK_PROBE_DIR / f"{fmt}-repack-gevm-cert-probe.mlir",
      "gemm_input": _REPACK_PROBE_DIR / f"{fmt}-repack-gemm-cert-probe.mlir",
-     "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv"}
+     "front_door": "--weft-rvv-lower-quant-contraction=march=rv64gcv"}
     for fmt in ["q8_0", "q2_K", "q3_K", "q4_K", "q5_K", "q6_K",
                 "iq4_nl", "iq4_xs", "mxfp4", "iq2_xxs", "iq2_xs", "iq2_s",
                 "tq2_0", "tq1_0"]
 ]
 
 # --- CERT-FD首族: the 24 CONSTRUCTED streaming dequantize_row cells (FIX-5) --------
-# The dequant-stream front door (--tcrv-rvv-materialize-dequantize-row-stream-front-door)
+# The dequant-stream front door (--weft-rvv-materialize-dequantize-row-stream-front-door)
 # runs ONLY the CONSTRUCTION half of constructOrEmitGgmlDequantizeRow: it rewrites the
-# abstract tcrv_rvv.dequantize_row into the typed tcrv_rvv.typed_dequantize_row_loop_body
+# abstract weft_rvv.dequantize_row into the typed weft_rvv.typed_dequantize_row_loop_body
 # region { dequantize_row_decode_core; typed_dequantize_row_loop_yield } and STOPS -- BEFORE
-# --tcrv-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
+# --weft-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
 # conversion fixtures the emitc lit uses, so the certification walks the REAL realized region
 # the compiler builds (not a hand fixture). The whole 24-format dequantize_row spectrum is now
 # front-door CONSTRUCTED (q1_0 -- the flat 1-bit binary-sign leaf, host golden dequantize_row_q1_0 --
 # was the LAST net-new dequant cell, flipped here). The streaming shape (a pure decode: body + decode_core + yield, NO
 # product/reduce) is its OWN legal shape -- checked directly here (like _walk_repack_regime),
 # NOT via the contraction-shaped derive() decomposed gate.
-_DEQUANT_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-dequantize-row-stream-front-door"
+_DEQUANT_STREAM_FRONT_DOOR = "--weft-rvv-materialize-dequantize-row-stream-front-door"
 DEQUANT_STREAM_PATHS = [
     {"op": "dequantize_row", "format": fmt, "engine": "",
      "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-dequantize-row-{slug}.mlir"}
@@ -715,19 +715,19 @@ DEQUANT_STREAM_PATHS = [
 
 
 # --- CERT-FD次族: the 3 CONSTRUCTED streaming quantize_row cells ------------------
-# The quant-stream front door (--tcrv-rvv-materialize-quantize-row-stream-front-door) is
+# The quant-stream front door (--weft-rvv-materialize-quantize-row-stream-front-door) is
 # the f32->QUANT MIRROR of the dequant-stream front door: it runs ONLY the CONSTRUCTION
 # half of constructQuantizeRowRegionAndLower -- it rewrites each abstract per-format
-# tcrv_rvv.quantize_row_q8_{0,1,K} into the typed tcrv_rvv.typed_quantize_row_loop_body
+# weft_rvv.quantize_row_q8_{0,1,K} into the typed weft_rvv.typed_quantize_row_loop_body
 # region { quantize_row_encode_core; typed_quantize_row_loop_yield } and STOPS -- BEFORE
-# --tcrv-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
+# --weft-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
 # conversion fixtures the emitc lit uses. The 3 constructed activation quantizers are
 # q8_0 (block_q8_0 family-head) / q8_1 (SIBLING + block sum) / q8_K (QK_K=256 K-quant
 # ROW quantizer -- the scalar row-quant stream, NOT the mat-quant GEMM path). The
 # streaming shape (a pure ENCODE: body + encode_core + yield, NO product/reduce) is its
 # OWN legal shape -- checked directly here (like _walk_dequant_stream), NOT via the
 # contraction-shaped derive() decomposed gate.
-_QUANT_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-quantize-row-stream-front-door"
+_QUANT_STREAM_FRONT_DOOR = "--weft-rvv-materialize-quantize-row-stream-front-door"
 QUANT_STREAM_PATHS = [
     {"op": "quantize_row", "format": fmt, "engine": "",
      "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-quantize-row-{slug}.mlir"}
@@ -738,13 +738,13 @@ QUANT_STREAM_PATHS = [
 
 
 # --- CERT-FD殿后族: the 5 CONSTRUCTED streaming forward-elementwise cells ----------
-# The forward-elementwise front door (--tcrv-rvv-materialize-forward-elementwise-stream-
+# The forward-elementwise front door (--weft-rvv-materialize-forward-elementwise-stream-
 # front-door) is the forward sibling of the dequant/quant stream front doors: it runs
 # ONLY the CONSTRUCTION half of the shared byte-exact
-# tcrv::rvv::constructTypedElementwiseLoopBody -- it rewrites each abstract
-# tcrv_rvv.ggml_forward_elementwise (elementwise_model scale/silu/rms_norm/soft_max/rope)
-# into the typed tcrv_rvv.typed_elementwise_loop_body region { <map/reduce/rotate core
-# brick>; typed_elementwise_loop_yield } and STOPS -- BEFORE --tcrv-rvv-lower-to-emitc
+# weft::rvv::constructTypedElementwiseLoopBody -- it rewrites each abstract
+# weft_rvv.ggml_forward_elementwise (elementwise_model scale/silu/rms_norm/soft_max/rope)
+# into the typed weft_rvv.typed_elementwise_loop_body region { <map/reduce/rotate core
+# brick>; typed_elementwise_loop_yield } and STOPS -- BEFORE --weft-rvv-lower-to-emitc
 # (stage discipline). The walk feeds the abstract-op conversion fixtures the emitc lit
 # uses. Unlike the dequant/quant PURE decode/encode streams, the 5 forward operators
 # split into THREE loop shapes (MAP scale/silu, REDUCE rms_norm/soft_max, ROTATE rope),
@@ -753,7 +753,7 @@ QUANT_STREAM_PATHS = [
 # wrongly demote them) -- this streaming shape is its OWN legal form (mirrors the
 # checker's elementwise_stream_loop branch), verified here on the ACTUAL realized IR.
 # NOTE the six-state `op` key uses "softmax" (not "soft_max", the elementwise_model).
-_FORWARD_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-forward-elementwise-stream-front-door"
+_FORWARD_STREAM_FRONT_DOOR = "--weft-rvv-materialize-forward-elementwise-stream-front-door"
 FORWARD_STREAM_PATHS = [
     {"op": op, "format": "f32", "engine": "", "core": core,
      "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-forward-elementwise-{slug}.mlir"}
@@ -775,31 +775,31 @@ FORWARD_STREAM_PATHS = [
 
 
 # --- op-identity parse (position-anchored; I4-safe) ------------------------
-# Match a tcrv_rvv op mnemonic ONLY in operation position: line-leading (after
+# Match a weft_rvv op mnemonic ONLY in operation position: line-leading (after
 # indent), optional `%result = ` prefix (a SINGLE result `%r =`, a comma-separated
 # multi-result list `%a, %b = ` as the q2_K super-block integer core produces the
 # two scalar states `%isum, %summs`, OR the printer's GROUPED multi-result form
 # `%r:N = ` as the repack lane-wise CORE brick produces its numHalves per-strip
-# sumi `%9:2 = tcrv_rvv.repack_lane_wise_q4_x_i8_dot`). This never matches
+# sumi `%9:2 = weft_rvv.repack_lane_wise_q4_x_i8_dot`). This never matches
 # attribute-name tokens
-# (`tcrv_rvv.low_precision_resource.*`, `tcrv_rvv.gearbox.*`) or type tokens
-# (`!tcrv_rvv.vector`, `!tcrv_rvv.vl`), which never start a line in op position.
+# (`weft_rvv.low_precision_resource.*`, `weft_rvv.gearbox.*`) or type tokens
+# (`!weft_rvv.vector`, `!weft_rvv.vl`), which never start a line in op position.
 _OP_RE = re.compile(
     r"^\s*(?:%[A-Za-z0-9_#]+(?::[0-9]+)?"
     r"(?:\s*,\s*%[A-Za-z0-9_#]+(?::[0-9]+)?)*\s*=\s*)?"
-    r"(tcrv_rvv\.[A-Za-z0-9_]+)\b")
+    r"(weft_rvv\.[A-Za-z0-9_]+)\b")
 _KIND_RE = re.compile(r'\bkind\s*=\s*"([^"]+)"')
-_WITHVL_TERMINATOR = re.compile(r"^(\s*)\}\s*:\s*!tcrv_rvv\.vl\s*$")
+_WITHVL_TERMINATOR = re.compile(r"^(\s*)\}\s*:\s*!weft_rvv\.vl\s*$")
 # Defense-in-depth I4 guard. The REAL protection is _OP_RE (position-anchored, so
 # it can only capture operation mnemonics, never the mid-line attribute tokens
-# `tcrv_rvv.low_precision_resource.*` / `tcrv_rvv.gearbox.*` nor the `!tcrv_rvv.*`
+# `weft_rvv.low_precision_resource.*` / `weft_rvv.gearbox.*` nor the `!weft_rvv.*`
 # type keywords) plus skipping the with_vl opener line. This guard additionally
 # raises if a bare mirror-namespace token ever slipped through as a mnemonic. It is
 # anchored to the EXACT namespace token _OP_RE would yield (its `\w+` class stops at
-# the `.`, so a leaked attr collapses to `tcrv_rvv.low_precision_resource` /
-# `tcrv_rvv.gearbox`). Anchoring with `$` is deliberate: it must NOT fire on the
-# legitimate pattern-library primitive `tcrv_rvv.gearbox_cross_region_handoff`.
-_MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
+# the `.`, so a leaked attr collapses to `weft_rvv.low_precision_resource` /
+# `weft_rvv.gearbox`). Anchoring with `$` is deliberate: it must NOT fire on the
+# legitimate pattern-library primitive `weft_rvv.gearbox_cross_region_handoff`.
+_MIRROR_GUARD = re.compile(r"^weft_rvv\.(low_precision_resource|gearbox)$")
 
 # [L-8] decomposed-gate whitelist. A REAL dot-product-family primitive is one of:
 # widening_product (+ *_widening_product_intrinsic), *_x_i8_product (the mixed
@@ -891,8 +891,8 @@ _FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_
 # wrongly demote it to constructed-weak. The MAP class satisfies the [L-8]
 # "decomposed = built from typed pattern-library primitives, no opaque helper"
 # conjunct via a MAP-family primitive instead: the per-strip map brick (the
-# `tcrv_rvv.elementwise_scale_map` scale map OR the `tcrv_rvv.elementwise_silu_map`
-# silu map, carried inside the typed `tcrv_rvv.typed_elementwise_loop_body`
+# `weft_rvv.elementwise_scale_map` scale map OR the `weft_rvv.elementwise_silu_map`
+# silu map, carried inside the typed `weft_rvv.typed_elementwise_loop_body`
 # strip-loop op). This whitelist is deliberately NARROW (a scale-only fp16
 # `block_fp16_scale_product` body is NOT a forward map primitive, so it stays the
 # constructed-weak negative control; an opaque monolith still trips the opaque
@@ -901,10 +901,10 @@ _MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map|elementwise_silu_map)")
 
 # M-FLAT forward-elementwise scaffold REDUCE model (line C, G1-tail): the forward
 # REDUCE class (rms_norm's Σx², softmax's Σe^x) rides the SAME
-# tcrv_rvv.typed_elementwise_loop_body but under reduce_map_model "reduce" (a
+# weft_rvv.typed_elementwise_loop_body but under reduce_map_model "reduce" (a
 # loop-carried accumulator region arg + the yield that carries it back). Its core
 # brick is a self-contained fused fold: rms_norm's
-# `tcrv_rvv.elementwise_rms_norm_reduce_core` fuses the per-element square product
+# `weft_rvv.elementwise_rms_norm_reduce_core` fuses the per-element square product
 # (x[i]*x[i]) INTO the scalar-double reduction, so there is NO separate
 # product-family primitive to pair with a reduce -- the contraction-shaped gate
 # would wrongly demote it. The REDUCE class satisfies the [L-8] "decomposed = built
@@ -920,11 +920,11 @@ _REDUCE_FOLD_PRIMITIVE_RE = re.compile(r"(elementwise_rms_norm_reduce_core|eleme
 
 # M-FLAT forward-elementwise scaffold ROTATE model (line C, G1-tail): the forward
 # ROTATE class (rope's rotary position embedding) rides the SAME
-# tcrv_rvv.typed_elementwise_loop_body but under reduce_map_model "rotate" -- a
+# weft_rvv.typed_elementwise_loop_body but under reduce_map_model "rotate" -- a
 # per-PAIR scalar loop with a loop-carried f32 theta RECURRENCE (theta *=
 # theta_scale), the SAME loop-carried-scalar region SHAPE the "reduce" model
 # pioneered EXCEPT the carried value is a data-INDEPENDENT recurrence, not a
-# reduction of the buffer. Its core brick `tcrv_rvv.elementwise_rope_rotate_core`
+# reduction of the buffer. Its core brick `weft_rvv.elementwise_rope_rotate_core`
 # carries the position-dependent 2x2 rotation + the scalar-libm cos/sin angle seam
 # + the theta step -- NO product-family AND NO reduce-family primitive (rope is
 # neither a contraction nor a reduction), so the contraction-shaped gate would
@@ -943,26 +943,26 @@ def _leading_ws(line):
 
 
 def parse_realized_body(ir_text):
-    """Walk the realized `tcrv_rvv.with_vl` body and return its op-identity manifest.
+    """Walk the realized `weft_rvv.with_vl` body and return its op-identity manifest.
 
     Returns list of {"mnemonic": str, "kind": str|None} for each op directly
     printed inside the with_vl region (nested region ops included). Bounds the
-    region by the with_vl opener line and its indent-matched `} : !tcrv_rvv.vl`
+    region by the with_vl opener line and its indent-matched `} : !weft_rvv.vl`
     terminator. Raises on a leaked mirror/type token (parser sanity).
     """
     lines = ir_text.splitlines()
-    # Find the with_vl opener: an op-position `tcrv_rvv.with_vl` whose line opens a
+    # Find the with_vl opener: an op-position `weft_rvv.with_vl` whose line opens a
     # region (ends with `{`).
     opener_idx = None
     opener_indent = None
     for i, line in enumerate(lines):
         m = _OP_RE.match(line)
-        if m and m.group(1) == "tcrv_rvv.with_vl" and line.rstrip().endswith("{"):
+        if m and m.group(1) == "weft_rvv.with_vl" and line.rstrip().endswith("{"):
             opener_idx = i
             opener_indent = _leading_ws(line)
             break
     if opener_idx is None:
-        raise RuntimeError("no realized tcrv_rvv.with_vl body found in emitted IR")
+        raise RuntimeError("no realized weft_rvv.with_vl body found in emitted IR")
 
     manifest = []
     closed = False
@@ -975,7 +975,7 @@ def parse_realized_body(ir_text):
         if not m:
             continue
         mnemonic = m.group(1)
-        if mnemonic == "tcrv_rvv.with_vl":
+        if mnemonic == "weft_rvv.with_vl":
             continue
         if _MIRROR_GUARD.search(mnemonic):
             raise RuntimeError(
@@ -985,7 +985,7 @@ def parse_realized_body(ir_text):
         kind_m = _KIND_RE.search(line)
         manifest.append({"mnemonic": mnemonic, "kind": kind_m.group(1) if kind_m else None})
     if not closed:
-        raise RuntimeError("with_vl region terminator `} : !tcrv_rvv.vl` not found")
+        raise RuntimeError("with_vl region terminator `} : !weft_rvv.vl` not found")
     return manifest
 
 
@@ -1054,15 +1054,15 @@ def derive(manifest):
     }
 
 
-def run_tcrv_opt(input_path, front_door):
-    if not TCRV_OPT.exists():
-        raise RuntimeError(f"tcrv-opt not built at {TCRV_OPT} (build first)")
-    cmd = [str(TCRV_OPT), str(input_path), front_door]
+def run_weft_opt(input_path, front_door):
+    if not WEFT_OPT.exists():
+        raise RuntimeError(f"weft-opt not built at {WEFT_OPT} (build first)")
+    cmd = [str(WEFT_OPT), str(input_path), front_door]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         # Fail-closed: never silently drop a strong row.
         raise RuntimeError(
-            f"tcrv-opt failed (rc={proc.returncode}) for {input_path.name}\n"
+            f"weft-opt failed (rc={proc.returncode}) for {input_path.name}\n"
             f"cmd: {' '.join(cmd)}\nstderr:\n{proc.stderr}"
         )
     return proc.stdout
@@ -1070,7 +1070,7 @@ def run_tcrv_opt(input_path, front_door):
 
 def check_path(entry):
     input_path = TEST_RVV / entry["input"]
-    ir = run_tcrv_opt(input_path, entry["front_door"])
+    ir = run_weft_opt(input_path, entry["front_door"])
     result = derive(parse_realized_body(ir))
     result["op"] = entry["op"]
     result["format"] = entry["format"]
@@ -1112,7 +1112,7 @@ def cmd_report(_args):
 
 def _manifest_summary(mnemonics):
     """Short, order-preserving manifest summary for the auto_readout field."""
-    short = [m.replace("tcrv_rvv.", "") for m in mnemonics]
+    short = [m.replace("weft_rvv.", "") for m in mnemonics]
     return "+".join(short)
 
 
@@ -1146,7 +1146,7 @@ def cmd_update_sixstate(_args):
             + " | E5 增量① (strong-side auto): the 7 STRONG rows (3 product_reduce "
               "N-operand routes + q8_0 vec_dot + q4_0 vec_dot + q4_1 vec_dot + q5_0 vec_dot, all four typed_flat_block_dot_loop_body) carry a "
               "MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks "
-              "the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the "
+              "the actual realized weft_rvv.with_vl body op-identity (CORE oracle, not the "
               "low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no "
               "opaque *_block_dot hand helper). Reproduces the hand-label; an mxfp4 block-dot "
               "negative control derives NOT-strong. Weak rows' auto_readout stays pending-E5 "
@@ -1164,10 +1164,10 @@ def _walk_repack_regime(input_path, front_door, want):
     """Walk ONE repack regime input. Return (ok, manifest_str, reason)."""
     if not input_path.exists():
         return False, "", f"probe input missing: {input_path.name}"
-    ir = run_tcrv_opt(input_path, front_door)
+    ir = run_weft_opt(input_path, front_door)
     manifest = parse_realized_body(ir)
     der = derive(manifest)
-    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    mnem = [m["mnemonic"].replace("weft_rvv.", "") for m in manifest]
     if not mnem:
         return False, "", "empty realized body"
     body, yld = f"typed_repack_{want}_loop_body", f"typed_repack_{want}_loop_yield"
@@ -1206,7 +1206,7 @@ def cmd_stamp_repack_dual(_args):
             continue
         envelope = (
             "[F-EMIT] e5-auto-repack-dual (machine-walked GEVM+GEMM via "
-            "--tcrv-rvv-lower-quant-contraction): constructed (STRONG); "
+            "--weft-rvv-lower-quant-contraction): constructed (STRONG); "
             f"realized-body manifest (GEVM decode)={gv_man}; "
             f"(GEMM prefill)={gm_man}; opaque_helper=false")
         row["auto_readout"] = envelope
@@ -1219,9 +1219,9 @@ def cmd_stamp_repack_dual(_args):
             + f" | {marker}: the single-row repack gemm_tile cells "
               f"({', '.join(stamped)}) carry a MACHINE-WALKED [F-EMIT] dual manifest "
               "(GEVM decode + GEMM prefill) derived by e5_strong_readout.py "
-              "stamp-repack-dual, which runs --tcrv-rvv-lower-quant-contraction on a "
+              "stamp-repack-dual, which runs --weft-rvv-lower-quant-contraction on a "
               "synthesized quant_contraction request and walks BOTH realized "
-              "tcrv_rvv.typed_repack_gem{v,m}_loop_body regions (the same front door + "
+              "weft_rvv.typed_repack_gem{v,m}_loop_body regions (the same front door + "
               "[L-8] rule as the certified q4_0 repack rows). Both regimes must derive "
               "constructed or the cell is skipped. State values unchanged (zero flip).")
     # Write with the committed schema's OWN 1-space indent (verified byte-identical
@@ -1245,9 +1245,9 @@ def _walk_dequant_stream(input_path, front_door):
     checker's dequant_stream_loop branch), verified here on the ACTUAL realized IR."""
     if not input_path.exists():
         return False, "", f"probe input missing: {input_path.name}"
-    ir = run_tcrv_opt(input_path, front_door)
+    ir = run_weft_opt(input_path, front_door)
     manifest = parse_realized_body(ir)
-    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    mnem = [m["mnemonic"].replace("weft_rvv.", "") for m in manifest]
     if not mnem:
         return False, "", "empty realized body (front door did not construct the region)"
     body = "typed_dequantize_row_loop_body"
@@ -1267,7 +1267,7 @@ def cmd_stamp_dequant_stream(_args):
     """Walk + stamp the 21 CONSTRUCTED streaming dequantize_row cells (CERT-FD首族,
     FIX-5). Honest: a cell is stamped ONLY if the pre-emitc dequant-stream front door
     CONSTRUCTS a legal, non-opaque typed_dequantize_row_loop_body region walkable
-    BEFORE --tcrv-rvv-lower-to-emitc; otherwise it is reported and SKIPPED (never
+    BEFORE --weft-rvv-lower-to-emitc; otherwise it is reported and SKIPPED (never
     blanket-stamped -- a format whose region does not construct/walk is an honest
     demote). Writes the E5 STRONG envelope classify_auto_readout accepts (the
     dequant_stream shape). State values unchanged (zero flip)."""
@@ -1300,10 +1300,10 @@ def cmd_stamp_dequant_stream(_args):
             + f" | {marker}: the {len(stamped)} constructed streaming dequantize_row "
               f"cells ({', '.join(stamped)}) carry a MACHINE-WALKED auto_readout derived "
               "by e5_strong_readout.py stamp-dequant-stream, which runs "
-              "--tcrv-rvv-materialize-dequantize-row-stream-front-door on the abstract "
-              "tcrv_rvv.dequantize_row conversion fixture and walks the REALIZED "
-              "tcrv_rvv.typed_dequantize_row_loop_body streaming region (body + "
-              "dequantize_row_decode_core + yield, non-opaque) BEFORE --tcrv-rvv-lower-to-emitc "
+              "--weft-rvv-materialize-dequantize-row-stream-front-door on the abstract "
+              "weft_rvv.dequantize_row conversion fixture and walks the REALIZED "
+              "weft_rvv.typed_dequantize_row_loop_body streaming region (body + "
+              "dequantize_row_decode_core + yield, non-opaque) BEFORE --weft-rvv-lower-to-emitc "
               "(the SAME pre-emitc stage discipline as the certified block-dot rows). The "
               "region is byte-exact to the retired atomic construct+emit path (BEFORE/AFTER "
               "emit diff EMPTY for all 21). A format whose region does not construct/walk is "
@@ -1327,9 +1327,9 @@ def _walk_quant_stream(input_path, front_door):
     verified here on the ACTUAL realized IR."""
     if not input_path.exists():
         return False, "", f"probe input missing: {input_path.name}"
-    ir = run_tcrv_opt(input_path, front_door)
+    ir = run_weft_opt(input_path, front_door)
     manifest = parse_realized_body(ir)
-    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    mnem = [m["mnemonic"].replace("weft_rvv.", "") for m in manifest]
     if not mnem:
         return False, "", "empty realized body (front door did not construct the region)"
     body = "typed_quantize_row_loop_body"
@@ -1349,7 +1349,7 @@ def cmd_stamp_quant_stream(_args):
     """Walk + stamp the 3 CONSTRUCTED streaming quantize_row cells (CERT-FD次族, the
     f32->QUANT mirror of stamp-dequant-stream). Honest: a cell is stamped ONLY if the
     pre-emitc quant-stream front door CONSTRUCTS a legal, non-opaque
-    typed_quantize_row_loop_body region walkable BEFORE --tcrv-rvv-lower-to-emitc;
+    typed_quantize_row_loop_body region walkable BEFORE --weft-rvv-lower-to-emitc;
     otherwise it is reported and SKIPPED (never blanket-stamped -- a format whose
     region does not construct/walk is an honest demote). Writes the E5 STRONG envelope
     classify_auto_readout accepts (the quant_stream shape). State values unchanged
@@ -1384,10 +1384,10 @@ def cmd_stamp_quant_stream(_args):
             + f" | {marker}: the {len(stamped)} constructed streaming quantize_row "
               f"cells ({', '.join(stamped)}) carry a MACHINE-WALKED auto_readout derived "
               "by e5_strong_readout.py stamp-quant-stream, which runs "
-              "--tcrv-rvv-materialize-quantize-row-stream-front-door on the abstract "
-              "tcrv_rvv.quantize_row_q8_{0,1,K} conversion fixture and walks the REALIZED "
-              "tcrv_rvv.typed_quantize_row_loop_body streaming region (body + "
-              "quantize_row_encode_core + yield, non-opaque) BEFORE --tcrv-rvv-lower-to-emitc "
+              "--weft-rvv-materialize-quantize-row-stream-front-door on the abstract "
+              "weft_rvv.quantize_row_q8_{0,1,K} conversion fixture and walks the REALIZED "
+              "weft_rvv.typed_quantize_row_loop_body streaming region (body + "
+              "quantize_row_encode_core + yield, non-opaque) BEFORE --weft-rvv-lower-to-emitc "
               "(the SAME pre-emitc stage discipline as the certified block-dot rows + the "
               "dequant-stream cells). The region is byte-exact to the atomic construct+emit "
               "path (BEFORE/AFTER emit diff EMPTY for all 3). A format whose region does not "
@@ -1414,9 +1414,9 @@ def _walk_forward_stream(input_path, front_door, core):
     elementwise_stream_loop branch), verified here on the ACTUAL realized IR."""
     if not input_path.exists():
         return False, "", f"probe input missing: {input_path.name}"
-    ir = run_tcrv_opt(input_path, front_door)
+    ir = run_weft_opt(input_path, front_door)
     manifest = parse_realized_body(ir)
-    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    mnem = [m["mnemonic"].replace("weft_rvv.", "") for m in manifest]
     if not mnem:
         return False, "", "empty realized body (front door did not construct the region)"
     body = "typed_elementwise_loop_body"
@@ -1435,7 +1435,7 @@ def cmd_stamp_forward_stream(_args):
     """Walk + stamp the 5 CONSTRUCTED streaming forward-elementwise cells (CERT-FD
     殿后族, closing CERT-FD). Honest: a cell is stamped ONLY if the pre-emitc
     forward-elementwise-stream front door CONSTRUCTS a legal, non-opaque
-    typed_elementwise_loop_body region walkable BEFORE --tcrv-rvv-lower-to-emitc;
+    typed_elementwise_loop_body region walkable BEFORE --weft-rvv-lower-to-emitc;
     otherwise it is reported and SKIPPED (never blanket-stamped -- a model whose
     region does not construct/walk is an honest demote). Writes the E5 STRONG envelope
     classify_auto_readout accepts (the elementwise_stream shape). State values
@@ -1471,10 +1471,10 @@ def cmd_stamp_forward_stream(_args):
             + f" | {marker}: the {len(stamped)} constructed streaming forward-elementwise "
               f"cells ({', '.join(stamped)}) carry a MACHINE-WALKED auto_readout derived "
               "by e5_strong_readout.py stamp-forward-stream, which runs "
-              "--tcrv-rvv-materialize-forward-elementwise-stream-front-door on the abstract "
-              "tcrv_rvv.ggml_forward_elementwise conversion fixture and walks the REALIZED "
-              "tcrv_rvv.typed_elementwise_loop_body streaming region (body + <map/reduce/"
-              "rotate core brick> + yield, non-opaque) BEFORE --tcrv-rvv-lower-to-emitc "
+              "--weft-rvv-materialize-forward-elementwise-stream-front-door on the abstract "
+              "weft_rvv.ggml_forward_elementwise conversion fixture and walks the REALIZED "
+              "weft_rvv.typed_elementwise_loop_body streaming region (body + <map/reduce/"
+              "rotate core brick> + yield, non-opaque) BEFORE --weft-rvv-lower-to-emitc "
               "(the SAME pre-emitc stage discipline as the certified block-dot + dequant/"
               "quant-stream rows). The region is byte-exact to the hand-authored typed-region "
               "emit (BEFORE/AFTER emit diff EMPTY for all 5). A model whose region does not "
@@ -1489,18 +1489,18 @@ def cmd_stamp_forward_stream(_args):
 # --- hermetic parser self-test over captured ground truth ------------------
 _GT_STRONG = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %0 = tcrv_rvv.runtime_abi_value {c_name = "lhs"} : !tcrv_rvv.runtime_abi_value
-      %6 = tcrv_rvv.setvl %5 {lmul = "m2"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %6 attributes {lmul = "m2", tcrv_rvv.low_precision_resource.source_lmul = "m2", tcrv_rvv.gearbox.producer_scope = "x"} {
-        %7 = tcrv_rvv.load %0, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
-        %8 = tcrv_rvv.load %1, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
-        %9 = tcrv_rvv.widening_product %7, %8, %6 {kind = "signed_widening_product"} : !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m4">
-        %10 = tcrv_rvv.standalone_reduce %9, %2, %6 {kind = "signed_widening_reduce_add"} : !tcrv_rvv.vector<i16, "m4">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %11 = tcrv_rvv.dequantize %10, %3, %6 {kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
-        tcrv_rvv.store %4, %11, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %0 = weft_rvv.runtime_abi_value {c_name = "lhs"} : !weft_rvv.runtime_abi_value
+      %6 = weft_rvv.setvl %5 {lmul = "m2"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %6 attributes {lmul = "m2", weft_rvv.low_precision_resource.source_lmul = "m2", weft_rvv.gearbox.producer_scope = "x"} {
+        %7 = weft_rvv.load %0, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+        %8 = weft_rvv.load %1, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+        %9 = weft_rvv.widening_product %7, %8, %6 {kind = "signed_widening_product"} : !weft_rvv.vector<i8, "m2">, !weft_rvv.vector<i8, "m2">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m4">
+        %10 = weft_rvv.standalone_reduce %9, %2, %6 {kind = "signed_widening_reduce_add"} : !weft_rvv.vector<i16, "m4">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        %11 = weft_rvv.dequantize %10, %3, %6 {kind = "i32_to_f32_scaled"} : !weft_rvv.vector<i32, "m1">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">
+        weft_rvv.store %4, %11, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vector<f32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1508,13 +1508,13 @@ module {
 
 _GT_WEAK = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %3 = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %8 = tcrv_rvv.setvl %0 {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %8 attributes {lmul = "m1", tcrv_rvv.low_precision_resource.source_lmul = "m1"} {
-        %9 = tcrv_rvv.q8_0_q8_0_block_dot %3, %5, %1, %0, %8 {kind = "ggml_q8_0_q8_0_block_dot", qk = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %3 = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %8 = weft_rvv.setvl %0 {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %8 attributes {lmul = "m1", weft_rvv.low_precision_resource.source_lmul = "m1"} {
+        %9 = weft_rvv.q8_0_q8_0_block_dot %3, %5, %1, %0, %8 {kind = "ggml_q8_0_q8_0_block_dot", qk = 32 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1525,15 +1525,15 @@ module {
 # the decomposed gate closes: it must derive NOT-strong.
 _GT_SCALE_ONLY = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %0 = tcrv_rvv.runtime_abi_value {c_name = "lhs"} : !tcrv_rvv.runtime_abi_value
-      %6 = tcrv_rvv.setvl %5 {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %6 attributes {lmul = "m1"} {
-        %7 = tcrv_rvv.load %0, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f16, "m1">
-        %8 = tcrv_rvv.block_fp16_scale_product %7, %2, %6 {kind = "block_fp16_scale_product"} : !tcrv_rvv.vector<f16, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
-        tcrv_rvv.store %4, %8, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %0 = weft_rvv.runtime_abi_value {c_name = "lhs"} : !weft_rvv.runtime_abi_value
+      %6 = weft_rvv.setvl %5 {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %6 attributes {lmul = "m1"} {
+        %7 = weft_rvv.load %0, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<f16, "m1">
+        %8 = weft_rvv.block_fp16_scale_product %7, %2, %6 {kind = "block_fp16_scale_product"} : !weft_rvv.vector<f16, "m1">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">
+        weft_rvv.store %4, %8, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vector<f32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1549,19 +1549,19 @@ module {
 # map-FAMILY primitive, not a bare "scale" substring.
 _GT_ELEMENTWISE_MAP = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
-      %v = tcrv_rvv.runtime_abi_value {c_name = "v"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_elementwise_loop_body %y, %v, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64, strip_lmul = "m8"} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %n = weft_rvv.runtime_abi_value {c_name = "n"} : index
+      %y = weft_rvv.runtime_abi_value {c_name = "y"} : !weft_rvv.runtime_abi_value
+      %v = weft_rvv.runtime_abi_value {c_name = "v"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_elementwise_loop_body %y, %v, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64, strip_lmul = "m8"} {
         ^bb0(%i: index):
-          tcrv_rvv.elementwise_scale_map %y, %v, %n strip %i : index {kind = "elementwise_scale_map", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-          tcrv_rvv.typed_elementwise_loop_yield
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.elementwise_scale_map %y, %v, %n strip %i : index {kind = "elementwise_scale_map", strip_lmul = "m8"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.typed_elementwise_loop_yield
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1578,19 +1578,19 @@ module {
 # per-op map primitive differs.
 _GT_ELEMENTWISE_SILU_MAP = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %n = weft_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x"} : !weft_rvv.runtime_abi_value
+      %y = weft_rvv.runtime_abi_value {c_name = "y"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64} {
         ^bb0(%i: index):
-          tcrv_rvv.elementwise_silu_map %x, %y, %n strip %i : index {kind = "elementwise_silu_map"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-          tcrv_rvv.typed_elementwise_loop_yield
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.elementwise_silu_map %x, %y, %n strip %i : index {kind = "elementwise_silu_map"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.typed_elementwise_loop_yield
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1609,20 +1609,20 @@ module {
 # "reduce" substring.
 _GT_ELEMENTWISE_RMS_REDUCE = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
-      %eps = tcrv_rvv.runtime_abi_value {c_name = "eps"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %n = weft_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x"} : !weft_rvv.runtime_abi_value
+      %y = weft_rvv.runtime_abi_value {c_name = "y"} : !weft_rvv.runtime_abi_value
+      %eps = weft_rvv.runtime_abi_value {c_name = "eps"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
         ^bb0(%i: index, %acc: f64):
-          %acc_next = tcrv_rvv.elementwise_rms_norm_reduce_core %x, %y, %eps, %n strip %i acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f64 -> f64
-          tcrv_rvv.typed_elementwise_loop_yield %acc_next : f64
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %acc_next = weft_rvv.elementwise_rms_norm_reduce_core %x, %y, %eps, %n strip %i acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, f64 -> f64
+          weft_rvv.typed_elementwise_loop_yield %acc_next : f64
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1641,20 +1641,20 @@ module {
 # substring.
 _GT_ELEMENTWISE_SOFTMAX_REDUCE = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
-      %max = tcrv_rvv.runtime_abi_value {c_name = "max"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
-        ^bb0(%i: index, %acc: !tcrv_rvv.vector<f64, "m1">):
-          %acc_next = tcrv_rvv.elementwise_soft_max_reduce_core %y, %x, %max, %n strip %i acc %acc {kind = "elementwise_soft_max_reduce_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vector<f64, "m1"> -> !tcrv_rvv.vector<f64, "m1">
-          tcrv_rvv.typed_elementwise_loop_yield %acc_next : !tcrv_rvv.vector<f64, "m1">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %n = weft_rvv.runtime_abi_value {c_name = "n"} : index
+      %y = weft_rvv.runtime_abi_value {c_name = "y"} : !weft_rvv.runtime_abi_value
+      %x = weft_rvv.runtime_abi_value {c_name = "x"} : !weft_rvv.runtime_abi_value
+      %max = weft_rvv.runtime_abi_value {c_name = "max"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
+        ^bb0(%i: index, %acc: !weft_rvv.vector<f64, "m1">):
+          %acc_next = weft_rvv.elementwise_soft_max_reduce_core %y, %x, %max, %n strip %i acc %acc {kind = "elementwise_soft_max_reduce_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, !weft_rvv.vector<f64, "m1"> -> !weft_rvv.vector<f64, "m1">
+          weft_rvv.typed_elementwise_loop_yield %acc_next : !weft_rvv.vector<f64, "m1">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1674,21 +1674,21 @@ module {
 # the rotate-FAMILY primitive, not a bare "rotate" substring.
 _GT_ELEMENTWISE_ROPE_ROTATE = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
-      %tb = tcrv_rvv.runtime_abi_value {c_name = "theta_base"} : !tcrv_rvv.runtime_abi_value
-      %ts = tcrv_rvv.runtime_abi_value {c_name = "theta_scale"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "rotate", element_sew = 32 : i64} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %n = weft_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x"} : !weft_rvv.runtime_abi_value
+      %y = weft_rvv.runtime_abi_value {c_name = "y"} : !weft_rvv.runtime_abi_value
+      %tb = weft_rvv.runtime_abi_value {c_name = "theta_base"} : !weft_rvv.runtime_abi_value
+      %ts = weft_rvv.runtime_abi_value {c_name = "theta_scale"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "rotate", element_sew = 32 : i64} {
         ^bb0(%p: index, %theta: f32):
-          %theta_next = tcrv_rvv.elementwise_rope_rotate_core %x, %y, %tb, %ts, %n pair %p theta %theta {kind = "elementwise_rope_rotate_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f32 -> f32
-          tcrv_rvv.typed_elementwise_loop_yield %theta_next : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %theta_next = weft_rvv.elementwise_rope_rotate_core %x, %y, %tb, %ts, %n pair %p theta %theta {kind = "elementwise_rope_rotate_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, f32 -> f32
+          weft_rvv.typed_elementwise_loop_yield %theta_next : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1699,17 +1699,17 @@ module {
 # regression that would silently demote two-thirds of the strong routes.
 _GT_XI8 = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %0 = tcrv_rvv.runtime_abi_value {c_name = "lhs"} : !tcrv_rvv.runtime_abi_value
-      %6 = tcrv_rvv.setvl %5 {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %6 attributes {lmul = "m1"} {
-        %7 = tcrv_rvv.load %0, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m1">
-        %8 = tcrv_rvv.load %1, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m1">
-        %9 = tcrv_rvv.codebook_gather_x_i8_product %7, %8, %6 {kind = "codebook_gather_x_i8_product"} : !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m2">
-        %10 = tcrv_rvv.standalone_reduce %9, %2, %6 {kind = "signed_widening_reduce_add"} : !tcrv_rvv.vector<i16, "m2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        tcrv_rvv.store %4, %10, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %0 = weft_rvv.runtime_abi_value {c_name = "lhs"} : !weft_rvv.runtime_abi_value
+      %6 = weft_rvv.setvl %5 {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %6 attributes {lmul = "m1"} {
+        %7 = weft_rvv.load %0, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m1">
+        %8 = weft_rvv.load %1, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m1">
+        %9 = weft_rvv.codebook_gather_x_i8_product %7, %8, %6 {kind = "codebook_gather_x_i8_product"} : !weft_rvv.vector<i8, "m1">, !weft_rvv.vector<i8, "m1">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m2">
+        %10 = weft_rvv.standalone_reduce %9, %2, %6 {kind = "signed_widening_reduce_add"} : !weft_rvv.vector<i16, "m2">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        weft_rvv.store %4, %10, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1723,21 +1723,21 @@ module {
 # must derive constructed via the fused dot-reduce path.
 _GT_SUPERBLOCK = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "super_block_two_level_scale_min"} {
-        ^bb0(%ib: index, %sums: !tcrv_rvv.vector<f32, "m2">, %sumf: f32):
-          %b1 = tcrv_rvv.q4_k_nibble_unpack %vx, %vl block %ib : index {kind = "q4_k_nibble_unpack"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %b2 = tcrv_rvv.q4_k_scale_min_bit_dance %vx, %vl block %ib : index {kind = "q4_k_scale_min_bit_dance"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %b3 = tcrv_rvv.q4_k_scaled_dot %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_scaled_dot"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %b4 = tcrv_rvv.q4_k_min_term %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_min_term"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %b6 = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sums, %sumf : !tcrv_rvv.vector<f32, "m2">, f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "super_block_two_level_scale_min"} {
+        ^bb0(%ib: index, %sums: !weft_rvv.vector<f32, "m2">, %sumf: f32):
+          %b1 = weft_rvv.q4_k_nibble_unpack %vx, %vl block %ib : index {kind = "q4_k_nibble_unpack"} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %b2 = weft_rvv.q4_k_scale_min_bit_dance %vx, %vl block %ib : index {kind = "q4_k_scale_min_bit_dance"} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %b3 = weft_rvv.q4_k_scaled_dot %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_scaled_dot"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %b4 = weft_rvv.q4_k_min_term %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_min_term"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %b6 = weft_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          weft_rvv.typed_super_block_block_dot_loop_yield %sums, %sumf : !weft_rvv.vector<f32, "m2">, f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1753,18 +1753,18 @@ module {
 # derive constructed via the fused dot-reduce path (the aux32_partial token).
 _GT_SUPERBLOCK_Q6K = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scales_times_sumi"} {
-        ^bb0(%ib: index, %sums: !tcrv_rvv.vector<f32, "m2">):
-          %c1 = tcrv_rvv.q6_k_q8_k_aux32_partial %vx, %vy, %vx, %n, %vl block %ib : index {kind = "ggml_q6_k_q8_k_aux32_partial"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %b6 = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sums : !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scales_times_sumi"} {
+        ^bb0(%ib: index, %sums: !weft_rvv.vector<f32, "m2">):
+          %c1 = weft_rvv.q6_k_q8_k_aux32_partial %vx, %vy, %vx, %n, %vl block %ib : index {kind = "ggml_q6_k_q8_k_aux32_partial"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %b6 = weft_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          weft_rvv.typed_super_block_block_dot_loop_yield %sums : !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1780,18 +1780,18 @@ module {
 # derive constructed via the fused dot-reduce path (the aux32_partial token).
 _GT_SUPERBLOCK_Q3K = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scales_times_sumi"} {
-        ^bb0(%ib: index, %sums: !tcrv_rvv.vector<f32, "m2">):
-          %c1 = tcrv_rvv.q3_k_q8_k_aux32_partial %vx, %vy, %vx, %n, %vl block %ib : index {kind = "ggml_q3_k_q8_k_aux32_partial"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %b6 = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sums : !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scales_times_sumi"} {
+        ^bb0(%ib: index, %sums: !weft_rvv.vector<f32, "m2">):
+          %c1 = weft_rvv.q3_k_q8_k_aux32_partial %vx, %vy, %vx, %n, %vl block %ib : index {kind = "ggml_q3_k_q8_k_aux32_partial"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %b6 = weft_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          weft_rvv.typed_super_block_block_dot_loop_yield %sums : !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1808,17 +1808,17 @@ module {
 # the fused dot-reduce path (the integer_core token).
 _GT_SUPERBLOCK_Q2K = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_scale_min"} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_scale_min"} {
         ^bb0(%ib: index, %sumf: f32):
-          %isum, %summs = tcrv_rvv.q2_k_q8_k_integer_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_q2_k_q8_k_integer_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32, i32
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %isum, %summs = weft_rvv.q2_k_q8_k_integer_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_q2_k_q8_k_integer_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32, i32
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1837,17 +1837,17 @@ module {
 # constructed via the fused dot-reduce path (the grid_core token).
 _GT_SUPERBLOCK_IQ1S = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
         ^bb0(%ib: index, %sumf: f32):
-          %sumi, %sumi1 = tcrv_rvv.iq1_s_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq1_s_q8_k_grid_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32, i32
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %sumi, %sumi1 = weft_rvv.iq1_s_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq1_s_q8_k_grid_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32, i32
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1866,17 +1866,17 @@ module {
 # gate as iq1_s.
 _GT_SUPERBLOCK_IQ1M = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
         ^bb0(%ib: index, %sumf: f32):
-          %sumi1, %sumi2 = tcrv_rvv.iq1_m_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq1_m_q8_k_grid_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32, i32
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %sumi1, %sumi2 = weft_rvv.iq1_m_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq1_m_q8_k_grid_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32, i32
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1895,17 +1895,17 @@ module {
 # strong at the same gate as iq1_s/iq1_m.
 _GT_SUPERBLOCK_IQ3XXS = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
         ^bb0(%ib: index, %sumf: f32):
-          %bsum = tcrv_rvv.iq3_xxs_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq3_xxs_q8_k_grid_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %bsum = weft_rvv.iq3_xxs_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq3_xxs_q8_k_grid_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1925,17 +1925,17 @@ module {
 # that the FOURTH grid member is strong at the same gate as iq1_s/iq1_m/iq3_xxs.
 _GT_SUPERBLOCK_IQ2XXS = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
         ^bb0(%ib: index, %sumf: f32):
-          %bsum = tcrv_rvv.iq2_xxs_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq2_xxs_q8_k_grid_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %bsum = weft_rvv.iq2_xxs_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq2_xxs_q8_k_grid_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1943,7 +1943,7 @@ module {
 
 
 # Repack GEVM ground truth (q4_0 16x1-repacked, the M-FLAT REPACK flip): the typed
-# tcrv_rvv.typed_repack_gemv_loop_body region decomposes into the per-block
+# weft_rvv.typed_repack_gemv_loop_body region decomposes into the per-block
 # lane-wise integer CORE brick + the numHalves per-strip dual-fp16 scale FOLD bricks
 # + the loop yield. The CORE brick's contraction+reduction is FUSED (its nibble-step
 # vwmacc accumulates LANE-WISE into the per-strip sumi -- NO separate
@@ -1954,19 +1954,19 @@ module {
 # `%9:2 = ...` syntax -- exercising the _OP_RE grouped-result parse.
 _GT_REPACK = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", fold_model = "lane_wise_vector_scale"} {
-        ^bb0(%ib: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">):
-          %sumi:2 = tcrv_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %ib : index {kind = "repack_lane_wise_q4_x_i8_dot"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
-          %an0 = tcrv_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi#0, %acc0, %vl block %ib : index {kind = "repack_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          %an1 = tcrv_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi#1, %acc1, %vl block %ib : index {kind = "repack_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          tcrv_rvv.typed_repack_gemv_loop_yield %an0, %an1 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", fold_model = "lane_wise_vector_scale"} {
+        ^bb0(%ib: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">):
+          %sumi:2 = weft_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %ib : index {kind = "repack_lane_wise_q4_x_i8_dot"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
+          %an0 = weft_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi#0, %acc0, %vl block %ib : index {kind = "repack_dual_fp16_scale_fold"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          %an1 = weft_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi#1, %acc1, %vl block %ib : index {kind = "repack_dual_fp16_scale_fold"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          weft_rvv.typed_repack_gemv_loop_yield %an0, %an1 : !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -1974,7 +1974,7 @@ module {
 
 
 # Repack GEMM (prefill) ground truth (q4_0 16x1-repacked, the GEMM-finale M3 flip):
-# the PREFILL sibling of the decode GEVM. The typed tcrv_rvv.typed_repack_gemm_loop_body
+# the PREFILL sibling of the decode GEVM. The typed weft_rvv.typed_repack_gemm_loop_body
 # region decomposes into the ONE-strip N-column integer CORE brick + the columnsPerPass
 # per-column dual-fp16 scale FOLD bricks + the loop yield. This GT is the VLEN=128
 # columnsPerPass==4 form: the CORE brick prints its 4 per-column sumi in the printer's
@@ -1987,21 +1987,21 @@ module {
 # columnsPerPass per-column vector acc) entry args.
 _GT_REPACK_GEMM = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", fold_model = "lane_wise_vector_scale"} {
-        ^bb0(%ib: index, %roff: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">, %acc2: !tcrv_rvv.vector<f32, "m2">, %acc3: !tcrv_rvv.vector<f32, "m2">):
-          %sumi:4 = tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %ib strip %roff : index, index {kind = "repack_gemm_lane_wise_q4_x_i8_dot"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
-          %an0 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#0, %acc0, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          %an1 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#1, %acc1, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          %an2 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#2, %acc2, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          %an3 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#3, %acc3, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
-          tcrv_rvv.typed_repack_gemm_loop_yield %an0, %an1, %an2, %an3 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", fold_model = "lane_wise_vector_scale"} {
+        ^bb0(%ib: index, %roff: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">, %acc2: !weft_rvv.vector<f32, "m2">, %acc3: !weft_rvv.vector<f32, "m2">):
+          %sumi:4 = weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %ib strip %roff : index, index {kind = "repack_gemm_lane_wise_q4_x_i8_dot"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
+          %an0 = weft_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#0, %acc0, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          %an1 = weft_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#1, %acc1, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          %an2 = weft_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#2, %acc2, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          %an3 = weft_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#3, %acc3, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m2">
+          weft_rvv.typed_repack_gemm_loop_yield %an0, %an1, %an2, %an3 : !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, index, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -2016,17 +2016,17 @@ module {
 # drops it would flip this to constructed-weak and fail the self-test.
 _GT_REPACK_KQUANT = """\
 module {
-  tcrv.exec.kernel @k {
-    tcrv.exec.variant @v {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
-        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %bs attributes {kind = "typed_repack_gemv_loop_body", fold_model = "lane_wise_vector_scale_min"} {
-        ^bb0(%ib: index, %acc0: !tcrv_rvv.vector<f32, "m2">):
-          %sumi = tcrv_rvv.repack_gemv_kquant_core %vx, %vy, %vl block %ib : index {kind = "repack_gemv_kquant_core", decode_model = "q4_K"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
-          tcrv_rvv.typed_repack_gemv_loop_yield %acc0 : !tcrv_rvv.vector<f32, "m2">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @k {
+    weft.exec.variant @v {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1"} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1"} {
+        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %bs attributes {kind = "typed_repack_gemv_loop_body", fold_model = "lane_wise_vector_scale_min"} {
+        ^bb0(%ib: index, %acc0: !weft_rvv.vector<f32, "m2">):
+          %sumi = weft_rvv.repack_gemv_kquant_core %vx, %vy, %vl block %ib : index {kind = "repack_gemv_kquant_core", decode_model = "q4_K"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">
+          weft_rvv.typed_repack_gemv_loop_yield %acc0 : !weft_rvv.vector<f32, "m2">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -2046,19 +2046,19 @@ module {
 # region ops or leaks an opaque helper fails the self-test.
 _GT_DEQUANT_STREAM = """\
 module {
-  tcrv.exec.kernel @dequant_q8_0_kernel {
-    tcrv.exec.variant @dequant_q8_0 {
-      %k = tcrv_rvv.runtime_abi_value {c_name = "k"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %k {lmul = "m1", sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", sew = 32 : i64} {
-        tcrv_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "q8_0", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64} {
+  weft.exec.kernel @dequant_q8_0_kernel {
+    weft.exec.variant @dequant_q8_0 {
+      %k = weft_rvv.runtime_abi_value {c_name = "k"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x"} : !weft_rvv.runtime_abi_value
+      %y = weft_rvv.runtime_abi_value {c_name = "y"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %k {lmul = "m1", sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", sew = 32 : i64} {
+        weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "q8_0", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64} {
         ^bb0(%block_index: index):
-          tcrv_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-          tcrv_rvv.typed_dequantize_row_loop_yield
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.typed_dequantize_row_loop_yield
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -2078,19 +2078,19 @@ module {
 # helper fails the self-test.
 _GT_QUANT_STREAM = """\
 module {
-  tcrv.exec.kernel @quantize_row_q8_0_kernel {
-    tcrv.exec.variant @quantize_row_q8_0 {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", sew = 32 : i64} {
-        tcrv_rvv.typed_quantize_row_loop_body %x, %vy, %n attributes {block_stride = 34 : i64, encode_model = "q8_0", kind = "typed_quantize_row_loop_body", qk = 32 : i64} {
+  weft.exec.kernel @quantize_row_q8_0_kernel {
+    weft.exec.variant @quantize_row_q8_0 {
+      %n = weft_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", sew = 32 : i64} {
+        weft_rvv.typed_quantize_row_loop_body %x, %vy, %n attributes {block_stride = 34 : i64, encode_model = "q8_0", kind = "typed_quantize_row_loop_body", qk = 32 : i64} {
         ^bb0(%block_index: index):
-          tcrv_rvv.quantize_row_encode_core %x, %vy, %block_index {block_stride = 34 : i64, encode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-          tcrv_rvv.typed_quantize_row_loop_yield
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          weft_rvv.quantize_row_encode_core %x, %vy, %block_index {block_stride = 34 : i64, encode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.typed_quantize_row_loop_yield
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -2101,8 +2101,8 @@ def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
     strong = derive(parse_realized_body(_GT_STRONG))
     assert strong["manifest"] == [
-        "tcrv_rvv.load", "tcrv_rvv.load", "tcrv_rvv.widening_product",
-        "tcrv_rvv.standalone_reduce", "tcrv_rvv.dequantize", "tcrv_rvv.store",
+        "weft_rvv.load", "weft_rvv.load", "weft_rvv.widening_product",
+        "weft_rvv.standalone_reduce", "weft_rvv.dequantize", "weft_rvv.store",
     ], strong["manifest"]
     assert strong["has_opaque"] is False, strong
     assert strong["has_product"] is True, strong
@@ -2112,18 +2112,18 @@ def cmd_self_test(_args):
     # No mirror token leaked (guard would have raised; double-check explicitly).
     assert all(not _MIRROR_GUARD.search(m) for m in strong["manifest"]), strong
     # The guard must NOT false-fire on the legitimate pattern-library primitive
-    # tcrv_rvv.gearbox_cross_region_handoff (a real strong-body op in other routes),
+    # weft_rvv.gearbox_cross_region_handoff (a real strong-body op in other routes),
     # but MUST fire on a bare leaked mirror-namespace token.
-    assert not _MIRROR_GUARD.search("tcrv_rvv.gearbox_cross_region_handoff")
-    assert _MIRROR_GUARD.search("tcrv_rvv.low_precision_resource")
-    assert _MIRROR_GUARD.search("tcrv_rvv.gearbox")
+    assert not _MIRROR_GUARD.search("weft_rvv.gearbox_cross_region_handoff")
+    assert _MIRROR_GUARD.search("weft_rvv.low_precision_resource")
+    assert _MIRROR_GUARD.search("weft_rvv.gearbox")
 
     # Mixed-dot ground truth: a `*_x_i8_product` primitive (routes 2 & 3) must ALSO
     # pass the whitelist gate, not just widening_product.
     xi8 = derive(parse_realized_body(_GT_XI8))
     assert xi8["manifest"] == [
-        "tcrv_rvv.load", "tcrv_rvv.load", "tcrv_rvv.codebook_gather_x_i8_product",
-        "tcrv_rvv.standalone_reduce", "tcrv_rvv.store",
+        "weft_rvv.load", "weft_rvv.load", "weft_rvv.codebook_gather_x_i8_product",
+        "weft_rvv.standalone_reduce", "weft_rvv.store",
     ], xi8["manifest"]
     assert xi8["has_product"] is True, xi8
     assert xi8["decomposed"] is True, xi8
@@ -2131,9 +2131,9 @@ def cmd_self_test(_args):
 
     # Weak ground truth: single monolithic block-dot, opaque, not-strong.
     weak = derive(parse_realized_body(_GT_WEAK))
-    assert weak["manifest"] == ["tcrv_rvv.q8_0_q8_0_block_dot"], weak["manifest"]
+    assert weak["manifest"] == ["weft_rvv.q8_0_q8_0_block_dot"], weak["manifest"]
     assert weak["has_opaque"] is True, weak
-    assert weak["opaque_ops"] == ["tcrv_rvv.q8_0_q8_0_block_dot"], weak
+    assert weak["opaque_ops"] == ["weft_rvv.q8_0_q8_0_block_dot"], weak
     assert weak["derived_state"] == "constructed-weak", weak
 
     # Scale-only ground truth: NOT opaque, but the decomposed GATE must reject it —
@@ -2141,7 +2141,7 @@ def cmd_self_test(_args):
     # no reduce. This is the exact hole the gate closes.
     scale = derive(parse_realized_body(_GT_SCALE_ONLY))
     assert scale["manifest"] == [
-        "tcrv_rvv.load", "tcrv_rvv.block_fp16_scale_product", "tcrv_rvv.store",
+        "weft_rvv.load", "weft_rvv.block_fp16_scale_product", "weft_rvv.store",
     ], scale["manifest"]
     assert scale["has_opaque"] is False, scale
     assert scale["has_product"] is False, scale
@@ -2157,12 +2157,12 @@ def cmd_self_test(_args):
     # (STRONG). This is the discriminating opposite of _GT_SCALE_ONLY (same "scale"
     # word, but that carries the fp16 block_fp16_scale_product -- NOT a map primitive
     # -- so it stays constructed-weak): the machine key is the map-FAMILY primitive
-    # tcrv_rvv.elementwise_scale_map, never a bare substring.
+    # weft_rvv.elementwise_scale_map, never a bare substring.
     ew_map = derive(parse_realized_body(_GT_ELEMENTWISE_MAP))
     assert ew_map["manifest"] == [
-        "tcrv_rvv.typed_elementwise_loop_body",
-        "tcrv_rvv.elementwise_scale_map",
-        "tcrv_rvv.typed_elementwise_loop_yield",
+        "weft_rvv.typed_elementwise_loop_body",
+        "weft_rvv.elementwise_scale_map",
+        "weft_rvv.typed_elementwise_loop_yield",
     ], ew_map["manifest"]
     assert ew_map["has_opaque"] is False, ew_map
     assert ew_map["has_product"] is False, ew_map
@@ -2183,9 +2183,9 @@ def cmd_self_test(_args):
     # the scaffold is reused, only the per-op map primitive differs.
     ew_silu = derive(parse_realized_body(_GT_ELEMENTWISE_SILU_MAP))
     assert ew_silu["manifest"] == [
-        "tcrv_rvv.typed_elementwise_loop_body",
-        "tcrv_rvv.elementwise_silu_map",
-        "tcrv_rvv.typed_elementwise_loop_yield",
+        "weft_rvv.typed_elementwise_loop_body",
+        "weft_rvv.elementwise_silu_map",
+        "weft_rvv.typed_elementwise_loop_yield",
     ], ew_silu["manifest"]
     assert ew_silu["has_opaque"] is False, ew_silu
     assert ew_silu["has_product"] is False, ew_silu
@@ -2207,9 +2207,9 @@ def cmd_self_test(_args):
     # is the reduce model made machine-checkable (softmax's Σe^x reuses the shape).
     ew_rms = derive(parse_realized_body(_GT_ELEMENTWISE_RMS_REDUCE))
     assert ew_rms["manifest"] == [
-        "tcrv_rvv.typed_elementwise_loop_body",
-        "tcrv_rvv.elementwise_rms_norm_reduce_core",
-        "tcrv_rvv.typed_elementwise_loop_yield",
+        "weft_rvv.typed_elementwise_loop_body",
+        "weft_rvv.elementwise_rms_norm_reduce_core",
+        "weft_rvv.typed_elementwise_loop_yield",
     ], ew_rms["manifest"]
     assert ew_rms["has_opaque"] is False, ew_rms
     assert ew_rms["has_product"] is False, ew_rms
@@ -2230,9 +2230,9 @@ def cmd_self_test(_args):
     # (has_reduce_fold, elementwise_soft_max_reduce_core joining _REDUCE_FOLD_PRIMITIVE_RE).
     ew_softmax = derive(parse_realized_body(_GT_ELEMENTWISE_SOFTMAX_REDUCE))
     assert ew_softmax["manifest"] == [
-        "tcrv_rvv.typed_elementwise_loop_body",
-        "tcrv_rvv.elementwise_soft_max_reduce_core",
-        "tcrv_rvv.typed_elementwise_loop_yield",
+        "weft_rvv.typed_elementwise_loop_body",
+        "weft_rvv.elementwise_soft_max_reduce_core",
+        "weft_rvv.typed_elementwise_loop_yield",
     ], ew_softmax["manifest"]
     assert ew_softmax["has_opaque"] is False, ew_softmax
     assert ew_softmax["has_product"] is False, ew_softmax
@@ -2259,9 +2259,9 @@ def cmd_self_test(_args):
     # bare "rotate" substring.
     ew_rope = derive(parse_realized_body(_GT_ELEMENTWISE_ROPE_ROTATE))
     assert ew_rope["manifest"] == [
-        "tcrv_rvv.typed_elementwise_loop_body",
-        "tcrv_rvv.elementwise_rope_rotate_core",
-        "tcrv_rvv.typed_elementwise_loop_yield",
+        "weft_rvv.typed_elementwise_loop_body",
+        "weft_rvv.elementwise_rope_rotate_core",
+        "weft_rvv.typed_elementwise_loop_yield",
     ], ew_rope["manifest"]
     assert ew_rope["has_opaque"] is False, ew_rope
     assert ew_rope["has_product"] is False, ew_rope
@@ -2282,11 +2282,11 @@ def cmd_self_test(_args):
     # and no opaque *_block_dot appears, so it derives constructed.
     superblock = derive(parse_realized_body(_GT_SUPERBLOCK))
     assert superblock["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.q4_k_nibble_unpack", "tcrv_rvv.q4_k_scale_min_bit_dance",
-        "tcrv_rvv.q4_k_scaled_dot", "tcrv_rvv.q4_k_min_term",
-        "tcrv_rvv.q4_k_sums_fold_scale_d",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.q4_k_nibble_unpack", "weft_rvv.q4_k_scale_min_bit_dance",
+        "weft_rvv.q4_k_scaled_dot", "weft_rvv.q4_k_min_term",
+        "weft_rvv.q4_k_sums_fold_scale_d",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock["manifest"]
     assert superblock["has_opaque"] is False, superblock
     assert superblock["has_product"] is True, superblock
@@ -2301,10 +2301,10 @@ def cmd_self_test(_args):
     # appears, so it derives constructed via the aux32_partial fused-reduce path.
     superblock_q6k = derive(parse_realized_body(_GT_SUPERBLOCK_Q6K))
     assert superblock_q6k["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.q6_k_q8_k_aux32_partial",
-        "tcrv_rvv.q4_k_sums_fold_scale_d",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.q6_k_q8_k_aux32_partial",
+        "weft_rvv.q4_k_sums_fold_scale_d",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_q6k["manifest"]
     assert superblock_q6k["has_opaque"] is False, superblock_q6k
     assert superblock_q6k["has_product"] is True, superblock_q6k
@@ -2320,10 +2320,10 @@ def cmd_self_test(_args):
     # derives constructed via the aux32_partial fused-reduce path.
     superblock_q3k = derive(parse_realized_body(_GT_SUPERBLOCK_Q3K))
     assert superblock_q3k["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.q3_k_q8_k_aux32_partial",
-        "tcrv_rvv.q4_k_sums_fold_scale_d",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.q3_k_q8_k_aux32_partial",
+        "weft_rvv.q4_k_sums_fold_scale_d",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_q3k["manifest"]
     assert superblock_q3k["has_opaque"] is False, superblock_q3k
     assert superblock_q3k["has_product"] is True, superblock_q3k
@@ -2339,9 +2339,9 @@ def cmd_self_test(_args):
     # reduce path.
     superblock_q2k = derive(parse_realized_body(_GT_SUPERBLOCK_Q2K))
     assert superblock_q2k["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.q2_k_q8_k_integer_core",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.q2_k_q8_k_integer_core",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_q2k["manifest"]
     assert superblock_q2k["has_opaque"] is False, superblock_q2k
     assert superblock_q2k["has_product"] is True, superblock_q2k
@@ -2358,9 +2358,9 @@ def cmd_self_test(_args):
     # the grid_core fused-reduce path.
     superblock_iq1s = derive(parse_realized_body(_GT_SUPERBLOCK_IQ1S))
     assert superblock_iq1s["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.iq1_s_q8_k_grid_core",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.iq1_s_q8_k_grid_core",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_iq1s["manifest"]
     assert superblock_iq1s["has_opaque"] is False, superblock_iq1s
     assert superblock_iq1s["has_product"] is True, superblock_iq1s
@@ -2376,9 +2376,9 @@ def cmd_self_test(_args):
     # proof (the second grid member is strong at the SAME gate as iq1_s).
     superblock_iq1m = derive(parse_realized_body(_GT_SUPERBLOCK_IQ1M))
     assert superblock_iq1m["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.iq1_m_q8_k_grid_core",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.iq1_m_q8_k_grid_core",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_iq1m["manifest"]
     assert superblock_iq1m["has_opaque"] is False, superblock_iq1m
     assert superblock_iq1m["has_product"] is True, superblock_iq1m
@@ -2395,9 +2395,9 @@ def cmd_self_test(_args):
     # the SAME gate as iq1_s/iq1_m).
     superblock_iq3xxs = derive(parse_realized_body(_GT_SUPERBLOCK_IQ3XXS))
     assert superblock_iq3xxs["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.iq3_xxs_q8_k_grid_core",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.iq3_xxs_q8_k_grid_core",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_iq3xxs["manifest"]
     assert superblock_iq3xxs["has_opaque"] is False, superblock_iq3xxs
     assert superblock_iq3xxs["has_product"] is True, superblock_iq3xxs
@@ -2415,9 +2415,9 @@ def cmd_self_test(_args):
     # the SAME gate as iq1_s/iq1_m/iq3_xxs).
     superblock_iq2xxs = derive(parse_realized_body(_GT_SUPERBLOCK_IQ2XXS))
     assert superblock_iq2xxs["manifest"] == [
-        "tcrv_rvv.typed_super_block_block_dot_loop_body",
-        "tcrv_rvv.iq2_xxs_q8_k_grid_core",
-        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+        "weft_rvv.typed_super_block_block_dot_loop_body",
+        "weft_rvv.iq2_xxs_q8_k_grid_core",
+        "weft_rvv.typed_super_block_block_dot_loop_yield",
     ], superblock_iq2xxs["manifest"]
     assert superblock_iq2xxs["has_opaque"] is False, superblock_iq2xxs
     assert superblock_iq2xxs["has_product"] is True, superblock_iq2xxs
@@ -2434,11 +2434,11 @@ def cmd_self_test(_args):
     # (`%sumi:2 = ...` for the numHalves==2 core brick).
     repack = derive(parse_realized_body(_GT_REPACK))
     assert repack["manifest"] == [
-        "tcrv_rvv.typed_repack_gemv_loop_body",
-        "tcrv_rvv.repack_lane_wise_q4_x_i8_dot",
-        "tcrv_rvv.repack_dual_fp16_scale_fold",
-        "tcrv_rvv.repack_dual_fp16_scale_fold",
-        "tcrv_rvv.typed_repack_gemv_loop_yield",
+        "weft_rvv.typed_repack_gemv_loop_body",
+        "weft_rvv.repack_lane_wise_q4_x_i8_dot",
+        "weft_rvv.repack_dual_fp16_scale_fold",
+        "weft_rvv.repack_dual_fp16_scale_fold",
+        "weft_rvv.typed_repack_gemv_loop_yield",
     ], repack["manifest"]
     assert repack["has_opaque"] is False, repack
     assert repack["has_product"] is True, repack
@@ -2457,13 +2457,13 @@ def cmd_self_test(_args):
     # and the distinct GEMM core mnemonic (NOT the GEVM's `repack_lane_wise...`).
     repack_gemm = derive(parse_realized_body(_GT_REPACK_GEMM))
     assert repack_gemm["manifest"] == [
-        "tcrv_rvv.typed_repack_gemm_loop_body",
-        "tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot",
-        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
-        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
-        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
-        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
-        "tcrv_rvv.typed_repack_gemm_loop_yield",
+        "weft_rvv.typed_repack_gemm_loop_body",
+        "weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot",
+        "weft_rvv.repack_gemm_dual_fp16_scale_fold",
+        "weft_rvv.repack_gemm_dual_fp16_scale_fold",
+        "weft_rvv.repack_gemm_dual_fp16_scale_fold",
+        "weft_rvv.repack_gemm_dual_fp16_scale_fold",
+        "weft_rvv.typed_repack_gemm_loop_yield",
     ], repack_gemm["manifest"]
     assert repack_gemm["has_opaque"] is False, repack_gemm
     assert repack_gemm["has_product"] is True, repack_gemm
@@ -2475,9 +2475,9 @@ def cmd_self_test(_args):
     # derive constructed (locks the kquant_core whitelist addition).
     repack_kquant = derive(parse_realized_body(_GT_REPACK_KQUANT))
     assert repack_kquant["manifest"] == [
-        "tcrv_rvv.typed_repack_gemv_loop_body",
-        "tcrv_rvv.repack_gemv_kquant_core",
-        "tcrv_rvv.typed_repack_gemv_loop_yield",
+        "weft_rvv.typed_repack_gemv_loop_body",
+        "weft_rvv.repack_gemv_kquant_core",
+        "weft_rvv.typed_repack_gemv_loop_yield",
     ], repack_kquant["manifest"]
     assert repack_kquant["has_opaque"] is False, repack_kquant
     assert repack_kquant["has_product"] is True, repack_kquant
@@ -2493,9 +2493,9 @@ def cmd_self_test(_args):
     deq_manifest = parse_realized_body(_GT_DEQUANT_STREAM)
     deq_mnem = [m["mnemonic"] for m in deq_manifest]
     assert deq_mnem == [
-        "tcrv_rvv.typed_dequantize_row_loop_body",
-        "tcrv_rvv.dequantize_row_decode_core",
-        "tcrv_rvv.typed_dequantize_row_loop_yield",
+        "weft_rvv.typed_dequantize_row_loop_body",
+        "weft_rvv.dequantize_row_decode_core",
+        "weft_rvv.typed_dequantize_row_loop_yield",
     ], deq_mnem
     assert not any(is_opaque_hand_helper(m) for m in deq_manifest), deq_manifest
     deq = derive(deq_manifest)
@@ -2508,16 +2508,16 @@ def cmd_self_test(_args):
     _deq_body, _deq_yld, _deq_core = (
         "typed_dequantize_row_loop_body", "typed_dequantize_row_loop_yield",
         "dequantize_row_decode_core")
-    _deq_short = [m.replace("tcrv_rvv.", "") for m in deq_mnem]
+    _deq_short = [m.replace("weft_rvv.", "") for m in deq_mnem]
     assert (_deq_short[0] == _deq_body and _deq_short[-1] == _deq_yld
             and _deq_core in _deq_short), _deq_short
     # An OPAQUE-leaked streaming body must FAIL the streaming shape (discrimination):
     # inject a bare *_block_dot hand helper and confirm it trips the opaque gate.
     _deq_opaque = _GT_DEQUANT_STREAM.replace(
-        "tcrv_rvv.dequantize_row_decode_core %x",
-        'tcrv_rvv.q8_0_q8_0_block_dot %x1, %x2 {kind = "ggml_q8_0_q8_0_block_dot"} : '
-        "!tcrv_rvv.runtime_abi_value -> !tcrv_rvv.vector<i32, \"m1\">\n"
-        "          tcrv_rvv.dequantize_row_decode_core %x")
+        "weft_rvv.dequantize_row_decode_core %x",
+        'weft_rvv.q8_0_q8_0_block_dot %x1, %x2 {kind = "ggml_q8_0_q8_0_block_dot"} : '
+        "!weft_rvv.runtime_abi_value -> !weft_rvv.vector<i32, \"m1\">\n"
+        "          weft_rvv.dequantize_row_decode_core %x")
     assert any(is_opaque_hand_helper(m)
                for m in parse_realized_body(_deq_opaque)), "opaque leak not caught"
 
@@ -2529,9 +2529,9 @@ def cmd_self_test(_args):
     qnt_manifest = parse_realized_body(_GT_QUANT_STREAM)
     qnt_mnem = [m["mnemonic"] for m in qnt_manifest]
     assert qnt_mnem == [
-        "tcrv_rvv.typed_quantize_row_loop_body",
-        "tcrv_rvv.quantize_row_encode_core",
-        "tcrv_rvv.typed_quantize_row_loop_yield",
+        "weft_rvv.typed_quantize_row_loop_body",
+        "weft_rvv.quantize_row_encode_core",
+        "weft_rvv.typed_quantize_row_loop_yield",
     ], qnt_mnem
     assert not any(is_opaque_hand_helper(m) for m in qnt_manifest), qnt_manifest
     qnt = derive(qnt_manifest)
@@ -2544,16 +2544,16 @@ def cmd_self_test(_args):
     _qnt_body, _qnt_yld, _qnt_core = (
         "typed_quantize_row_loop_body", "typed_quantize_row_loop_yield",
         "quantize_row_encode_core")
-    _qnt_short = [m.replace("tcrv_rvv.", "") for m in qnt_mnem]
+    _qnt_short = [m.replace("weft_rvv.", "") for m in qnt_mnem]
     assert (_qnt_short[0] == _qnt_body and _qnt_short[-1] == _qnt_yld
             and _qnt_core in _qnt_short), _qnt_short
     # An OPAQUE-leaked streaming body must FAIL the streaming shape (discrimination):
     # inject a bare *_block_dot hand helper and confirm it trips the opaque gate.
     _qnt_opaque = _GT_QUANT_STREAM.replace(
-        "tcrv_rvv.quantize_row_encode_core %x",
-        'tcrv_rvv.q8_0_q8_0_block_dot %x1, %x2 {kind = "ggml_q8_0_q8_0_block_dot"} : '
-        "!tcrv_rvv.runtime_abi_value -> !tcrv_rvv.vector<i32, \"m1\">\n"
-        "          tcrv_rvv.quantize_row_encode_core %x")
+        "weft_rvv.quantize_row_encode_core %x",
+        'weft_rvv.q8_0_q8_0_block_dot %x1, %x2 {kind = "ggml_q8_0_q8_0_block_dot"} : '
+        "!weft_rvv.runtime_abi_value -> !weft_rvv.vector<i32, \"m1\">\n"
+        "          weft_rvv.quantize_row_encode_core %x")
     assert any(is_opaque_hand_helper(m)
                for m in parse_realized_body(_qnt_opaque)), "opaque leak not caught"
 

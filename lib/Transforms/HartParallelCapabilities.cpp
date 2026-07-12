@@ -1,7 +1,7 @@
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -18,10 +18,10 @@
 #include <memory>
 #include <string>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_CHECKHARTPARALLELCAPABILITIES
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -34,7 +34,7 @@ struct HartCountProvider {
 
 llvm::Error makeHartParallelError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV hart_parallel capability check failed: ") +
+      llvm::Twine("Weft-RV hart_parallel capability check failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -72,7 +72,7 @@ llvm::Expected<HartCountProvider> resolveHartCountProvider(
         support::getTargetHartCountCapabilityID() +
         "' with positive integer property '" +
         support::getHartCountPropertyName() +
-        "' when tcrv.exec.hart_parallel carries 'harts'");
+        "' when weft.exec.hart_parallel carries 'harts'");
 
   llvm::SmallVector<HartCountProvider, 4> availableProviders;
   for (const support::CapabilityDescriptor *provider : providers) {
@@ -90,7 +90,7 @@ llvm::Expected<HartCountProvider> resolveHartCountProvider(
     return makeHartParallelError(
         llvm::Twine("requires available capability id '") +
         support::getTargetHartCountCapabilityID() +
-        "' when tcrv.exec.hart_parallel carries 'harts'; matching providers "
+        "' when weft.exec.hart_parallel carries 'harts'; matching providers "
         "are unavailable");
 
   HartCountProvider selected = availableProviders.front();
@@ -121,7 +121,7 @@ public:
 
   void runOnOperation() override {
     bool failed = false;
-    getOperation()->walk([&](tcrv::exec::KernelOp kernel) {
+    getOperation()->walk([&](weft::exec::KernelOp kernel) {
       llvm::Expected<support::TargetCapabilitySet> capabilities =
           support::TargetCapabilitySet::buildFromKernelChecked(kernel);
       if (!capabilities) {
@@ -140,13 +140,13 @@ public:
 
 private:
   mlir::LogicalResult
-  checkKernel(tcrv::exec::KernelOp kernel,
+  checkKernel(weft::exec::KernelOp kernel,
               const support::TargetCapabilitySet &capabilities) const {
     if (!kernel || kernel.getBody().empty())
       return mlir::success();
 
     bool failed = false;
-    kernel->walk([&](tcrv::exec::HartParallelOp hartParallel) {
+    kernel->walk([&](weft::exec::HartParallelOp hartParallel) {
       auto harts =
           hartParallel->getAttrOfType<mlir::IntegerAttr>(kHartsAttrName);
       if (!harts)
@@ -170,7 +170,7 @@ private:
         return;
 
       hartParallel.emitError()
-          << "TianChen-RV hart_parallel capability check failed: requested "
+          << "Weft-RV hart_parallel capability check failed: requested "
           << requestedHarts << " harts in kernel @" << kernel.getSymName()
           << " exceeds capability @" << provider->capability->getSymbolName()
           << " (id = \"" << provider->capability->getID()
@@ -190,4 +190,4 @@ std::unique_ptr<::mlir::Pass> createCheckHartParallelCapabilitiesPass() {
   return std::make_unique<CheckHartParallelCapabilitiesPass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

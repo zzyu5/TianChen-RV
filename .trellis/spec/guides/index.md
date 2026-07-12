@@ -9,7 +9,7 @@
 | [Trunk Discipline](./trunk-discipline.md) | 怎么选下一步该做什么——对齐主干，抵抗挑小问题的引力 |
 | [Capability-First Design Guide](./capability-first-design-guide.md) | 检查设计是否真的由 capability 驱动 |
 | [Plugin Locality Review Guide](./plugin-locality-review-guide.md) | 检查新增扩展是否局部封装 |
-| [Compute Boundary Review Guide](./compute-boundary-review-guide.md) | 检查是否误把 TianChen-RV 写成高层 compute IR |
+| [Compute Boundary Review Guide](./compute-boundary-review-guide.md) | 检查是否误把 Weft-RV 写成高层 compute IR |
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | 写新代码前先查：是不是已经有了（本项目曾有大量重复模板）|
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | 实现前先想清楚跨层数据流 |
 | [Dead-Mirror Removal Guide](./dead-mirror-removal-guide.md) | 去伪删死码前：分清活发射器 vs 死 metadata-mirror 脚手架，closed-graph+full-link 安全删 |

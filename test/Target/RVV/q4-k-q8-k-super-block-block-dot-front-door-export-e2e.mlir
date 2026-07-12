@@ -1,14 +1,14 @@
 // END-TO-END production-export CLOSURE for the q4_K (ggml Q4_K x Q8_K super-block
 // block-dot) front door: the front door's OWN auto-constructed monolithic
 // super-block block-dot body now flows through the FULL production-export
-// pipeline (--tcrv-materialize-emission-plans) and emits correct EmitC. This is
+// pipeline (--weft-materialize-emission-plans) and emits correct EmitC. This is
 // the P2-b payoff -- it closes the README's named gap ("q4_K proven-decomposable
 // (6-of-7 brick witnesses, byte-exact) but not wired to production").
 //
 // WHY this is a distinct, load-bearing test (vs the front-door fixture
 // test/Transforms/RVV/rvv-q4-k-q8-k-block-dot-source-front-door.mlir): that
-// fixture runs front-door --> --tcrv-rvv-lower-to-emitc DIRECTLY (the CORE emit).
-// This test inserts --tcrv-materialize-emission-plans in the MIDDLE -- the
+// fixture runs front-door --> --weft-rvv-lower-to-emitc DIRECTLY (the CORE emit).
+// This test inserts --weft-materialize-emission-plans in the MIDDLE -- the
 // production-export chain -- proving the q4_K route survives emission-plan
 // materialization end-to-end.
 //
@@ -16,7 +16,7 @@
 // contraction/codebook routes (packed-i4, codebook-gather) construct a
 // STRAIGHT-LINE of generic typed micro-ops the RVV route-slice analysis walks to
 // build a route-family emission plan. The q4_K body is instead ONE monolithic
-// plugin-owned typed op (tcrv_rvv.q4_k_q8_k_block_dot) carrying the whole
+// plugin-owned typed op (weft_rvv.q4_k_q8_k_block_dot) carrying the whole
 // super-block dot as first-class STRUCTURE (the super-block loop, the 6-bit
 // scale/min bit-dance, the aux32 accumulation, the deferred fp32 fold, and the
 // q4_K MIN term), lowering DIRECTLY through the RVV->EmitC DialectConversion.
@@ -25,9 +25,9 @@
 // EmitC through the common DialectConversion) rather than faking the
 // product-reduction operand-binding metadata the decomposed routes carry.
 //
-// BYTE-EXACT: --tcrv-materialize-emission-plans only APPENDS the emission-plan
+// BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror to the kernel; the block-dot body is untouched, so the
-// emitted C is BYTE-IDENTICAL to the CORE emit (the direct --tcrv-rvv-lower-to-
+// emitted C is BYTE-IDENTICAL to the CORE emit (the direct --weft-rvv-lower-to-
 // emitc path in the front-door fixture) -- the same CORE == production-export
 // criterion the C3/C4 e2e closures use. That CORE emit is in turn byte-exact vs
 // ggml's real ggml_vec_dot_q4_K_q8_K _generic fp32 order (the hand-authored q4_K
@@ -40,10 +40,10 @@
 
 // Production-export: front door auto-constructs the monolithic block-dot body,
 // materializes the emission plan, lowers to EmitC.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
-module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_q4_K_q8_K_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_q4_K_q8_K_kernel"} {
   func.func @source_q4_K_q8_K_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
@@ -51,7 +51,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 
 // ============ EMITTED super-block dot core (default mf2), post production-export ============
 // The 4-arg ggml vec_dot ABI: n = size_t, s = float*, vx/vy = const uint8_t*.
-// EMITC: emitc.func @tcrv_emitc_ggml_vec_dot_q4_K_q8_K_kernel_rvv_q4_K_q8_K_block_dot(
+// EMITC: emitc.func @weft_emitc_ggml_vec_dot_q4_K_q8_K_kernel_rvv_q4_K_q8_K_block_dot(
 // EMITC-SAME: %arg0: !emitc.opaque<"size_t">
 // EMITC-SAME: %arg1: !emitc.ptr<!emitc.opaque<"float">>
 // EMITC-SAME: %arg2: !emitc.ptr<!emitc.opaque<"const uint8_t">>
@@ -74,4 +74,4 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // EMITC-NOT: call_opaque "__riscv_vfredusum
 // EMITC: return
 // The residual operator-identity source func lowers to NOTHING: exactly ONE kernel.
-// EMITC-NOT: emitc.func @tcrv_emitc_source_q4_K_q8_K_block_dot
+// EMITC-NOT: emitc.func @weft_emitc_source_q4_K_q8_K_block_dot

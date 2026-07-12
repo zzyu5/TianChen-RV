@@ -1,10 +1,10 @@
-#include "TianChenRV/Support/RuntimeABIContract.h"
+#include "Weft/Support/RuntimeABIContract.h"
 
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::support {
+namespace weft::support {
 namespace {
 
 llvm::Error makeCallableBindingError(llvm::StringRef context,
@@ -181,7 +181,7 @@ FiniteBinaryRuntimeABIContract::getRuntimeElementCountParamSpec(
 RuntimeABIParamSpec
 FiniteBinaryRuntimeABIContract::getDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName) const {
-  return ::tianchenrv::support::getDispatchAvailabilityGuardParamSpec(cName);
+  return ::weft::support::getDispatchAvailabilityGuardParamSpec(cName);
 }
 
 RuntimeABIParameter
@@ -306,4 +306,4 @@ bindFiniteBinaryCallableRuntimeABIParametersByRole(
   return bindings;
 }
 
-} // namespace tianchenrv::support
+} // namespace weft::support

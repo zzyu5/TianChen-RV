@@ -1,9 +1,9 @@
-#include "TianChenRV/Target/EmissionManifest.h"
+#include "Weft/Target/EmissionManifest.h"
 
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/RuntimeABI.h"
+#include "Weft/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -20,17 +20,17 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::target {
+namespace weft::target {
 namespace {
 
-namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
+namespace execDiagnostic = weft::exec::diagnostic;
 
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
@@ -105,7 +105,7 @@ struct ModuleRecord {
 llvm::Error makeManifestError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV emission manifest export failed";
+  stream << "Weft-RV emission manifest export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -118,7 +118,7 @@ llvm::Error makeManifestError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleManifestError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV emission manifest export failed: ") + message,
+      llvm::Twine("Weft-RV emission manifest export failed: ") + message,
       llvm::errc::invalid_argument);
 }
 
@@ -263,12 +263,12 @@ llvm::Error resolveDirectVariant(
                                          symbol +
                                          " resolves to a direct sibling "
                                          "symbol that is not a "
-                                         "tcrv.exec.variant");
+                                         "weft.exec.variant");
 
   return makeManifestError(kernel, llvm::Twine(context) + " target @" +
                                        symbol +
                                        " does not resolve to a direct sibling "
-                                       "tcrv.exec.variant");
+                                       "weft.exec.variant");
 }
 
 llvm::Error collectDispatchPaths(
@@ -376,7 +376,7 @@ llvm::Error collectSelectedPaths(
   if (dispatches.size() > 1)
     return makeManifestError(
         kernel, "requires exactly one selected dispatch surface; found "
-                "multiple direct tcrv.exec.dispatch operations");
+                "multiple direct weft.exec.dispatch operations");
   if (!dispatches.empty() && !markers.empty())
     return makeManifestError(
         kernel, "requires one selected path surface; found both dispatch and "
@@ -872,7 +872,7 @@ llvm::Error buildPathRecord(KernelOp kernel, const SelectedPath &path,
 
 llvm::Error buildKernelRecord(KernelOp kernel, KernelRecord &record) {
   if (!kernel)
-    return makeManifestError(kernel, "requires a tcrv.exec.kernel");
+    return makeManifestError(kernel, "requires a weft.exec.kernel");
 
   record.symbol = kernel.getSymName().str();
 
@@ -1201,7 +1201,7 @@ void printTargetArtifactRecords(
 }
 
 void printModuleRecord(const ModuleRecord &record, llvm::raw_ostream &os) {
-  os << "tianchenrv.emission_manifest.version: 1\n";
+  os << "weft.emission_manifest.version: 1\n";
   os << "module: ";
   printQuoted(os, record.moduleIdentifier);
   os << "\n";
@@ -1294,4 +1294,4 @@ llvm::Error exportEmissionManifest(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::target
+} // namespace weft::target

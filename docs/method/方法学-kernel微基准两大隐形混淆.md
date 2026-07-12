@@ -39,7 +39,7 @@ kernel 微基准(单核、固频、cache-resident、best-of-N)看似干净,但�
 
 ---
 
-**指针(不重复条文).** 执法条款见 `docs/TianChen-RV_实验总纲v1.md` §1 第9/10条;preflight 四门
+**指针(不重复条文).** 执法条款见 `docs/Weft-RV_实验总纲v1.md` §1 第9/10条;preflight 四门
 在 `tools/e2e-harness/T3_step3/board_ab.sh`(harness 2026-07-06 A2 迁出 experiments/);被证伪的原始误判命名在
 `.trellis/tasks/07-04-m-flat-nb-loop-layer/evidence/gap-log.md` GAP-1/P2c-A(fp16 libcall)、
 GAP-1/P2c-B(跨 clang 指纹)。本页是这两条治理为何存在的**设计空间说明**,治理本身已落。

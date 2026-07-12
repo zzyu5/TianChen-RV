@@ -10,8 +10,8 @@
       "code_dirs": [
         "lib/Dialect/IME",
         "lib/Plugin/IME",
-        "include/TianChenRV/Dialect/IME",
-        "include/TianChenRV/Plugin/IME"
+        "include/Weft/Dialect/IME",
+        "include/Weft/Plugin/IME"
       ],
       "test_files": {
         "dialect_verification": [
@@ -36,12 +36,12 @@
       },
       "test_files_note": "RULED (test_LOC ruling, 2026-07-03): family test_LOC counts the FULL test footprint = 1003 raw (dialect_verification 659 + lowering 344 + e2e 0), as a口径 fixed ONCE in family_ledger.py and applied UNIFORMLY to all families -- never per-family discretion. Tests are a mandatory piece of the [P-2] 5-piece onboarding kit, so dialect-verifier tests ARE a real part of the C2 generalization cost; cutting them (to 344) would shrink the honest cost account. The three-way {dialect_verification, lowering, e2e} split is itself C2 cost-住址 material (which layer the test cost lives in). Sourcing note: the dialect subset (659) is the historically 'un-sourced ~659' -- the ime-*.mlir path-glob missed it because those files are named mma.mlir/matmul.mlir (no ime- prefix).",
       "table_anchor": {
-        "file": "include/TianChenRV/Dialect/IME/IR/IMEOps.td",
+        "file": "include/Weft/Dialect/IME/IR/IMEOps.td",
         "pattern": "^def [A-Za-z0-9_]+Op",
         "note": "IME dialect op table (MMA execution op family + matmul/slide)"
       },
       "interface_anchor": {
-        "file": "include/TianChenRV/Plugin/IME/IMEExtensionPlugin.h",
+        "file": "include/Weft/Plugin/IME/IMEExtensionPlugin.h",
         "pattern": "override",
         "note": "ExtensionPlugin virtual overrides the IME plugin implements"
       },
@@ -52,8 +52,8 @@
       "code_dirs": [
         "lib/Dialect/Scalar",
         "lib/Plugin/Scalar",
-        "include/TianChenRV/Dialect/Scalar",
-        "include/TianChenRV/Plugin/Scalar"
+        "include/Weft/Dialect/Scalar",
+        "include/Weft/Plugin/Scalar"
       ],
       "test_files": {
         "dialect_verification": [
@@ -74,12 +74,12 @@
       },
       "test_files_note": "FULL test footprint (uniform口径 ruling 2026-07-03, same口径 fixed in family_ledger.py and applied to every family -- never per-family discretion). Segments: dialect_verification = the no-exec Scalar dialect boundary verifier; lowering = the two owned-kernel emission golden pairs (tq2_0 ternary vec_dot + dequantize_row_q4_0), the emitc-to-cpp materialization, the scalar-extension-plugin lit + ScalarExtensionPluginTest.cpp (the C++ machine-check carrying the [F-6] runFamilyIndependenceAcceptanceTest), the [F-6] independent-family-emittable VariantSelection acceptance, and the LoweringBoundary rerun; e2e = none. The C++ plugin machine-check (989 raw) + the [F-6] acceptance test are mandatory [P-2] onboarding-kit deliverables and are real C2 generalization cost.",
       "table_anchor": {
-        "file": "include/TianChenRV/Dialect/Scalar/IR/ScalarOps.td",
+        "file": "include/Weft/Dialect/Scalar/IR/ScalarOps.td",
         "pattern": "^def [A-Za-z0-9_]+Op",
         "note": "Scalar dialect op table (compute_skeleton tracer + tq2_0_q8_k ternary vec_dot + dequantize_row_q4_0)"
       },
       "interface_anchor": {
-        "file": "include/TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h",
+        "file": "include/Weft/Plugin/Scalar/ScalarExtensionPlugin.h",
         "pattern": "override",
         "note": "ExtensionPlugin virtual overrides the Scalar plugin implements"
       },

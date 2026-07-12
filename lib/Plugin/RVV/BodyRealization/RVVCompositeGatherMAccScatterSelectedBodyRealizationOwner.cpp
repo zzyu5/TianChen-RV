@@ -1,11 +1,11 @@
-#include "TianChenRV/Plugin/RVV/RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.h"
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -13,7 +13,7 @@
 
 #include <cstdint>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
@@ -26,10 +26,10 @@ constexpr llvm::StringLiteral kCompositeResourceTypedFactsID(
     "rvv-composite-gather-macc-scatter-resource-typed-config.v1");
 
 struct CompositeGatherMAccScatterBodies {
-  tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
+  weft::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
       gather;
-  tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp macc;
-  tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
+  weft::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp macc;
+  weft::rvv::TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
       scatter;
   unsigned gatherBodyCount = 0;
   unsigned maccBodyCount = 0;
@@ -39,7 +39,7 @@ struct CompositeGatherMAccScatterBodies {
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -51,16 +51,16 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 
 llvm::Error requireRuntimeABIValue(
     mlir::Value value, llvm::StringRef label,
-    tianchenrv::support::RuntimeABIParameterRole role,
+    weft::support::RuntimeABIParameterRole role,
     llvm::StringRef cType) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVPluginError(llvm::Twine(kCompositeContext) + " requires " +
                               label +
-                              " to be defined by tcrv_rvv.runtime_abi_value");
+                              " to be defined by weft_rvv.runtime_abi_value");
 
   llvm::StringRef expectedRole =
-      tianchenrv::support::stringifyRuntimeABIParameterRole(role);
+      weft::support::stringifyRuntimeABIParameterRole(role);
   if (binding.getRole() != expectedRole)
     return makeRVVPluginError(llvm::Twine(kCompositeContext) + " requires " +
                               label + " to carry role '" + expectedRole +
@@ -102,8 +102,8 @@ llvm::Error requireSameInteger(std::int64_t lhs, std::int64_t rhs,
                             diagnostic);
 }
 
-llvm::Error requireSamePolicy(tcrv::rvv::PolicyAttr lhs,
-                              tcrv::rvv::PolicyAttr rhs,
+llvm::Error requireSamePolicy(weft::rvv::PolicyAttr lhs,
+                              weft::rvv::PolicyAttr rhs,
                               llvm::StringRef diagnostic) {
   if (lhs == rhs)
     return llvm::Error::success();
@@ -114,23 +114,23 @@ llvm::Error requireSamePolicy(tcrv::rvv::PolicyAttr lhs,
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
-                                     tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+                                     weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.setvl");
   state.addOperands(nValue);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   return builder.create(state);
 }
 
-tcrv::rvv::WithVLOp createRealizedWithVL(
+weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
     VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
-    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
@@ -147,7 +147,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
                      builder.getStringAttr(
                          rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -155,17 +155,17 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
   mlir::Type elementType = builder.getIntegerType(sew);
-  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+  return weft::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
 mlir::Type getGenericMaskTypeForVector(mlir::OpBuilder &builder,
                                        mlir::Value vector) {
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(vector.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(vector.getType());
   if (!vectorType)
-    return tcrv::rvv::MaskType::get(builder.getContext(),
+    return weft::rvv::MaskType::get(builder.getContext(),
                                     builder.getI32Type(),
-                                    tcrv::rvv::getRVVLMULM1());
-  return tcrv::rvv::MaskType::get(builder.getContext(),
+                                    weft::rvv::getRVVLMULM1());
+  return weft::rvv::MaskType::get(builder.getContext(),
                                   vectorType.getElementType(),
                                   vectorType.getLmul());
 }
@@ -175,7 +175,7 @@ mlir::Type getGenericIndexVectorType(mlir::OpBuilder &builder,
                                      llvm::StringRef lmul) {
   mlir::Type elementType = indexEEW == 32 ? builder.getI32Type()
                                           : builder.getIntegerType(indexEEW);
-  return tcrv::rvv::IndexVectorType::get(builder.getContext(), elementType,
+  return weft::rvv::IndexVectorType::get(builder.getContext(), elementType,
                                          lmul);
 }
 
@@ -184,7 +184,7 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Value buffer,
                                            mlir::Value vl, std::int64_t sew,
                                            llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.load");
+  mlir::OperationState state(loc, "weft_rvv.load");
   state.addOperands({buffer, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -195,7 +195,7 @@ mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
                                             mlir::Value scalar,
                                             mlir::Value vl, std::int64_t sew,
                                             llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.splat");
+  mlir::OperationState state(loc, "weft_rvv.splat");
   state.addOperands({scalar, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -207,7 +207,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
                                               mlir::Value rhs,
                                               mlir::Value vl,
                                               llvm::StringRef kind) {
-  mlir::OperationState state(loc, "tcrv_rvv.compare");
+  mlir::OperationState state(loc, "weft_rvv.compare");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(kind));
   state.addTypes(getGenericMaskTypeForVector(builder, lhs));
@@ -217,7 +217,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
 mlir::Operation *createRealizedGenericIndexLoad(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value index,
     mlir::Value vl, std::int64_t indexEEW, llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.index_load");
+  mlir::OperationState state(loc, "weft_rvv.index_load");
   state.addOperands({index, vl});
   state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
   state.addTypes(getGenericIndexVectorType(builder, indexEEW, lmul));
@@ -229,7 +229,7 @@ mlir::Operation *createRealizedGenericMaskedIndexedLoad(
     mlir::Value indices, mlir::Value mask, mlir::Value passthrough,
     mlir::Value vl, std::int64_t indexEEW, llvm::StringRef offsetUnit,
     llvm::StringRef inactiveLanePolicy) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_load");
+  mlir::OperationState state(loc, "weft_rvv.masked_indexed_load");
   state.addOperands({source, indices, mask, passthrough, vl});
   state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
   state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
@@ -247,7 +247,7 @@ mlir::Operation *createRealizedGenericMaskedMAcc(
     llvm::StringRef maskRole, llvm::StringRef maskSource,
     llvm::StringRef maskMemoryForm, llvm::StringRef accumulatorLayout,
     llvm::StringRef resultLayout) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_macc");
+  mlir::OperationState state(loc, "weft_rvv.masked_macc");
   state.addOperands({mask, lhs, rhs, accumulator, vl});
   state.addAttribute("kind", builder.getStringAttr("add"));
   state.addAttribute("mask_role", builder.getStringAttr(maskRole));
@@ -266,7 +266,7 @@ void createRealizedGenericMaskedIndexedStore(
     mlir::Value indices, mlir::Value mask, mlir::Value value, mlir::Value vl,
     std::int64_t indexEEW, llvm::StringRef offsetUnit,
     llvm::StringRef indexUniqueness, llvm::StringRef inactiveLanePolicy) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_store");
+  mlir::OperationState state(loc, "weft_rvv.masked_indexed_store");
   state.addOperands({destination, indices, mask, value, vl});
   state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
   state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
@@ -280,14 +280,14 @@ void createRealizedGenericMaskedIndexedStore(
 }
 
 CompositeGatherMAccScatterBodies
-collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
+collectCompositeGatherMAccScatterBodies(weft::exec::VariantOp variant) {
   CompositeGatherMAccScatterBodies bodies;
   if (!variant || variant.getBody().empty())
     return bodies;
 
   for (mlir::Operation &op : variant.getBody().front()) {
     if (auto gather = llvm::dyn_cast<
-            tcrv::rvv::
+            weft::rvv::
                 TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp>(
             op)) {
       bodies.gather = gather;
@@ -296,7 +296,7 @@ collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
       continue;
     }
     if (auto macc =
-            llvm::dyn_cast<tcrv::rvv::
+            llvm::dyn_cast<weft::rvv::
                                TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(
                 op)) {
       bodies.macc = macc;
@@ -305,7 +305,7 @@ collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
       continue;
     }
     if (auto scatter = llvm::dyn_cast<
-            tcrv::rvv::
+            weft::rvv::
                 TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
             op)) {
       bodies.scatter = scatter;
@@ -318,7 +318,7 @@ collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
 }
 
 llvm::Expected<CompositeGatherMAccScatterBodies>
-requireCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
+requireCompositeGatherMAccScatterBodies(weft::exec::VariantOp variant) {
   CompositeGatherMAccScatterBodies bodies =
       collectCompositeGatherMAccScatterBodies(variant);
   if (bodies.ownedBodyCount == 0)
@@ -447,12 +447,12 @@ llvm::Error validateCompositeGatherMAccScatterBodies(
     return error;
 
   if (static_cast<std::int64_t>(gather.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      gather.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      gather.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVPluginError(
         llvm::Twine(kCompositeContext) +
         " supports only the bounded SEW32 LMUL m1 composite route");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(gather.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(gather.getPolicy()))
     return makeRVVPluginError(llvm::Twine(kCompositeContext) +
                               " requires tail agnostic, mask agnostic policy");
   if (gather.getOpKind() !=
@@ -588,7 +588,7 @@ mlir::Operation *getFirstBodyOp(CompositeGatherMAccScatterBodies &bodies) {
 }
 
 void eraseUnusedRuntimeABIValue(mlir::Value value) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding || !value.use_empty())
     return;
   binding->erase();
@@ -596,7 +596,7 @@ void eraseUnusedRuntimeABIValue(mlir::Value value) {
 
 llvm::Expected<RVVSelectedTargetCapabilityFacts>
 deriveCompositeTargetCapabilityFacts(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
     const RVVRuntimeAVLVLControlPlan &runtimeControlPlan) {
   RVVSelectedBodyTypedConfigFacts typedConfigFacts;
@@ -621,7 +621,7 @@ deriveCompositeTargetCapabilityFacts(
 }
 
 void materializeCompositeResourceAttrs(
-    tcrv::rvv::WithVLOp withVL, mlir::OpBuilder &builder,
+    weft::rvv::WithVLOp withVL, mlir::OpBuilder &builder,
     const RVVRuntimeAVLVLControlPlan &runtimeControlPlan,
     const RVVSelectedTargetCapabilityFacts &targetFacts) {
   mlir::Operation *op = withVL.getOperation();
@@ -681,17 +681,17 @@ void materializeCompositeResourceAttrs(
 } // namespace
 
 bool hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate(
-    tcrv::exec::VariantOp variant) {
+    weft::exec::VariantOp variant) {
   CompositeGatherMAccScatterBodies bodies =
       collectCompositeGatherMAccScatterBodies(variant);
   return bodies.ownedBodyCount > 1;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVCompositeGatherMAccScatterOwner(
     const VariantLoweringBoundaryRequest &request) {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(llvm::Twine(kCompositeContext) +
                               " requires materialized kernel and variant");
@@ -723,12 +723,12 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
     return targetFacts.takeError();
 
   builder.setInsertionPoint(firstBody);
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+  auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, runtimeControlPlan->runtimeAVLValue,
                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
                           runtimeControlPlan->policy));
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires,
                            runtimeControlPlan->sew,
@@ -739,33 +739,33 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
   auto compareLhsLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, bodies->gather.getLhs(), setvl.getVl(), sew, lmul));
   auto rhsScalarSplat =
-      llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+      llvm::cast<weft::rvv::SplatOp>(createRealizedGenericSplat(
           builder, loc, bodies->gather.getRhsScalar(), setvl.getVl(), sew,
           lmul));
   auto payloadLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, bodies->macc.getRhs(), setvl.getVl(), sew, lmul));
   auto accumulatorLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, bodies->macc.getAcc(), setvl.getVl(), sew, lmul));
   auto oldDestinationLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, bodies->gather.getDestination(), setvl.getVl(), sew,
           lmul));
   auto indexLoad =
-      llvm::cast<tcrv::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
+      llvm::cast<weft::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
           builder, loc, bodies->gather.getIndex(), setvl.getVl(),
           static_cast<std::int64_t>(bodies->gather.getIndexEew()), lmul));
-  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+  auto compare = llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
                                    rhsScalarSplat.getBroadcast(),
                                    setvl.getVl(),
                                    bodies->gather.getPredicateKind()));
   auto maskedIndexedLoad =
-      llvm::cast<tcrv::rvv::MaskedIndexedLoadOp>(
+      llvm::cast<weft::rvv::MaskedIndexedLoadOp>(
           createRealizedGenericMaskedIndexedLoad(
               builder, loc, bodies->gather.getSource(),
               indexLoad.getLoaded(), compare.getMask(),
@@ -773,7 +773,7 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
               static_cast<std::int64_t>(bodies->gather.getIndexEew()),
               bodies->gather.getOffsetUnit(),
               bodies->gather.getInactiveLanePolicy()));
-  auto maskedMAcc = llvm::cast<tcrv::rvv::MaskedMAccOp>(
+  auto maskedMAcc = llvm::cast<weft::rvv::MaskedMAccOp>(
       createRealizedGenericMaskedMAcc(
           builder, loc, compare.getMask(), maskedIndexedLoad.getLoaded(),
           payloadLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl(),
@@ -797,4 +797,4 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
   return withVL;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

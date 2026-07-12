@@ -18,12 +18,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TIANCHENRV_PLUGIN_RVV_EMITC_RVVEMITCCONTRACTIONROUTEFAMILYINTERNAL_H
-#define TIANCHENRV_PLUGIN_RVV_EMITC_RVVEMITCCONTRACTIONROUTEFAMILYINTERNAL_H
+#ifndef WEFT_PLUGIN_RVV_EMITC_RVVEMITCCONTRACTIONROUTEFAMILYINTERNAL_H
+#define WEFT_PLUGIN_RVV_EMITC_RVVEMITCCONTRACTIONROUTEFAMILYINTERNAL_H
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -35,7 +35,7 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 // ===== CROSS-TU FORWARD DECLS (relocated from the monolith head) =====
 llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
@@ -480,12 +480,12 @@ bool isPreRealizedWideningProductReduceDequantClampF32Signature(
     llvm::StringRef resultLMUL, llvm::StringRef productRelation,
     llvm::StringRef productReductionChainRelation,
     llvm::StringRef dequantizationRelation);
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedContractionRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole);
 llvm::Error requireContractionSelectedVariantRequires(
-    tcrv::exec::VariantOp variant, llvm::StringRef context);
+    weft::exec::VariantOp variant, llvm::StringRef context);
 bool isContractionDotReductionOperation(RVVSelectedBodyOperationKind op);
 llvm::StringRef getContractionRuntimeABIOrder(
     RVVSelectedBodyOperationKind operation);
@@ -526,7 +526,7 @@ llvm::StringRef getContractionFloatScalarSplatIntrinsic(std::int64_t sew,
 // the pre-realized body validators -- so it lives in this header).
 template <typename... RealizedOps>
 llvm::Error rejectMixedPreRealizedContractionBody(
-    tcrv::exec::VariantOp variant, mlir::Operation *bodyOp,
+    weft::exec::VariantOp variant, mlir::Operation *bodyOp,
     llvm::StringRef bodyDescription) {
   for (mlir::Operation &op : variant.getBody().front()) {
     if (&op == bodyOp)
@@ -590,6 +590,6 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
     llvm::StringRef context);
 // ===== PROMOTED-HELPER-DECLS-END =====
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv
 
-#endif // TIANCHENRV_PLUGIN_RVV_EMITC_RVVEMITCCONTRACTIONROUTEFAMILYINTERNAL_H
+#endif // WEFT_PLUGIN_RVV_EMITC_RVVEMITCCONTRACTIONROUTEFAMILYINTERNAL_H

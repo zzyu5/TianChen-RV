@@ -1,13 +1,13 @@
-add_mlir_dialect_library(TianChenRVIMEDialect
+add_mlir_dialect_library(WeftIMEDialect
   IMEDialect.cpp
 
   DEPENDS
   MLIRIMEOpsIncGen
-  MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRWEFTEmitCLowerableOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftSupport
   MLIRIR
 )

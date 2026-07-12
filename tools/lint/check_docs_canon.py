@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _manifest_common as mc  # noqa: E402
 
 # RFC: 门过严误报修正 (2026-07-11 用户裁). "定位" added as a first-class charter marker so the
-# authoritative one-page positioning charter (docs/canon/TianChen-RV_定位-v2.md, referenced by
+# authoritative one-page positioning charter (docs/canon/Weft-RV_定位-v2.md, referenced by
 # CLAUDE.md/ROADMAP) is recognised as a legitimate charter — it IS user-sovereign canon, the
 # checker just lacked its marker (fail-closed误报, not a misplaced file). Rename-to-add-总纲 was
 # rejected (breaks全仓 pointers); extending the marker set is the minimal-churn fix.
@@ -61,10 +61,10 @@ def self_test():
     ok_all = True
     print("-- (A) canon/ whitelist --")
     canon_cases = [
-        ("TianChen-RV_实验总纲v1.md", True),
-        ("TianChen-RV_执行总纲v2.md", True),
-        ("TianChen-RV_科研目标总纲v2.md", True),
-        ("TianChen-RV_定位-v2.md", True),     # 定位 charter (RFC 2026-07-11)
+        ("Weft-RV_实验总纲v1.md", True),
+        ("Weft-RV_执行总纲v2.md", True),
+        ("Weft-RV_科研目标总纲v2.md", True),
+        ("Weft-RV_定位-v2.md", True),     # 定位 charter (RFC 2026-07-11)
         ("project-charter.md", True),
         ("CANON-overview.md", True),
         ("2026-07-06-T3-report.md", False),   # dated agent report leaked in

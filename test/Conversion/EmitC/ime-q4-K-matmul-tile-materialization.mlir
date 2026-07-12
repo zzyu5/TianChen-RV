@@ -6,23 +6,23 @@
 // fact (ime_matmul_shape) + a WEIGHT-FORMAT fact (ime_weight_format = "q4_K") --
 // no high-level op, no family-name branch -- drives the generic
 // proposal/selection/boundary pipeline to CONSTRUCT the typed-region
-// tcrv_ime.q4_K_matmul_tile op. The weight-format fact is pure data flow of the
+// weft_ime.q4_K_matmul_tile op. The weight-format fact is pure data flow of the
 // capability, keyed ON TOP of the whole-matrix GEMM prior.
 //
 // RUN 1 (STRUCTURE): stop at boundary materialization and assert the CONSTRUCTED
 // typed region is the SIX DECOMPOSED bricks (q4_K_dequant_core +
 // q4_K_scale_min_unpack_core + vmadot_mac_leaf + q4_K_scale_weighted_accum +
 // q4_K_min_bias_accum + the two-tile yield), NOT an opaque body.
-// RUN: tcrv-opt %s --tcrv-materialize-plugin-variants --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REGION
+// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REGION
 //
 // RUN 2 (EMISSION): the full pipeline lowers the region to the q4_K raw-nibble
 // decode + 6-bit scale/min unpack + two-level-fold vmadot MAC EmitC kernel
 // (op-identity driven, I5).
-// RUN: tcrv-opt %s --tcrv-materialize-plugin-variants --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="tcrv_rvv" --implicit-check-not="tcrv_toy"
+// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy"
 
 module {
-  tcrv.exec.kernel @ime_q4_K_matmul_kernel {
-    tcrv.exec.capability @spacemit_ime {
+  weft.exec.kernel @ime_q4_K_matmul_kernel {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
@@ -37,24 +37,24 @@ module {
 
 // The prior routes GEMM ^ ime ^ q4_K to the format-keyed q4_K whole-matrix variant
 // (still cost 0.5, GEMM takeover) and CONSTRUCTS the typed region.
-// REGION: tcrv.exec.variant @ime_vmadot_matmul_slice
+// REGION: weft.exec.variant @ime_vmadot_matmul_slice
 // REGION-SAME: ime.weight_format = "q4_K"
-// REGION: tcrv_ime.q4_K_matmul_tile
+// REGION: weft_ime.q4_K_matmul_tile
 // REGION-SAME: ime_op = "vmadot"
 // REGION-SAME: mat_k = 256
 // REGION-SAME: weight_format = "q4_K"
 // The typed region is the SIX DECOMPOSED bricks (block_index + int8 activation
 // fragment + TWO int32 accumulators entry args), NOT an opaque helper.
 // REGION: ^bb0(%{{.*}}: index, %{{.*}}: vector<32xi8>, %{{.*}}: vector<16xi32>, %{{.*}}: vector<16xi32>):
-// REGION: tcrv_ime.q4_K_dequant_core %{{.*}} {decode_model = "q4_K_raw_nibble"
+// REGION: weft_ime.q4_K_dequant_core %{{.*}} {decode_model = "q4_K_raw_nibble"
 // REGION-SAME: -> vector<32xi8>
-// REGION: tcrv_ime.q4_K_scale_min_unpack_core %{{.*}} {{{.*}}scale_min_model = "get_scale_min_k4"
-// REGION: tcrv_ime.vmadot_mac_leaf %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} {accum_bits = 32
+// REGION: weft_ime.q4_K_scale_min_unpack_core %{{.*}} {{{.*}}scale_min_model = "get_scale_min_k4"
+// REGION: weft_ime.vmadot_mac_leaf %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} {accum_bits = 32
 // REGION-SAME: ime_op = "vmadot"
 // REGION-SAME: -> vector<16xi32>
-// REGION: tcrv_ime.q4_K_scale_weighted_accum %{{.*}}, %{{.*}}, %{{.*}} {accum_model = "scale_weighted_sum"}
-// REGION: tcrv_ime.q4_K_min_bias_accum %{{.*}}, %{{.*}}, %{{.*}} {bias_model = "activation_sum_min_bias"}
-// REGION: tcrv_ime.q4_K_matmul_tile_yield %{{.*}}, %{{.*}} : vector<16xi32>, vector<16xi32>
+// REGION: weft_ime.q4_K_scale_weighted_accum %{{.*}}, %{{.*}}, %{{.*}} {accum_model = "scale_weighted_sum"}
+// REGION: weft_ime.q4_K_min_bias_accum %{{.*}}, %{{.*}}, %{{.*}} {bias_model = "activation_sum_min_bias"}
+// REGION: weft_ime.q4_K_matmul_tile_yield %{{.*}}, %{{.*}} : vector<16xi32>, vector<16xi32>
 
 // The emitted kernel: the validated vmadot MAC leaf + the fp16 epilogue helpers +
 // the q4_K raw-nibble decode + the 6-bit get_scale_min_k4 unpack + the tiled
@@ -64,24 +64,24 @@ module {
 // EMITC: emitc.include <"stdint.h">
 // EMITC: emitc.verbatim
 // EMITC-SAME: register_resident_accumulate=1
-// EMITC-SAME: static inline void tcrv_ime_vmadot_mac_kloop
+// EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
 // EMITC: emitc.verbatim
-// EMITC-SAME: tcrv_ime.fp16_epilogue=tcrv_ime_fp16_to_f32
-// EMITC-SAME: static inline float tcrv_ime_fp16_to_f32
+// EMITC-SAME: weft_ime.fp16_epilogue=weft_ime_fp16_to_f32
+// EMITC-SAME: static inline float weft_ime_fp16_to_f32
 // EMITC: emitc.verbatim
 // EMITC-SAME: decode_model=q4_K_raw_nibble
-// EMITC-SAME: static inline void tcrv_ime_q4_K_dequant_fragment
+// EMITC-SAME: static inline void weft_ime_q4_K_dequant_fragment
 // EMITC: emitc.verbatim
 // EMITC-SAME: scale_min_model=get_scale_min_k4
-// EMITC-SAME: static inline void tcrv_ime_q4_K_get_scale_min
+// EMITC-SAME: static inline void weft_ime_q4_K_get_scale_min
 // EMITC: emitc.verbatim
 // EMITC-SAME: two_level_fold=kquant_dmin_bsums_min
-// EMITC-SAME: static void tcrv_ime_q4_K_vmadot_matmul
-// EMITC-SAME: tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bdec + kf * 32 + nl * 8)
-// EMITC-SAME: tcrv_ime_vmadot_mac_kloop(Ablk, Bdec, 4, sumi)
+// EMITC-SAME: static void weft_ime_q4_K_vmadot_matmul
+// EMITC-SAME: weft_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bdec + kf * 32 + nl * 8)
+// EMITC-SAME: weft_ime_vmadot_mac_kloop(Ablk, Bdec, 4, sumi)
 // EMITC-SAME: Sc[ml * 4 + nl] += (int32_t)sc[b][nl] * sumi[ml * 4 + nl]
 // EMITC-SAME: Sm[ml * 4 + nl] += (int32_t)mm[b][nl] * asum[ml]
-// EMITC: emitc.func @tcrv_emitc_ime_q4_K_matmul_kernel_ime_vmadot_matmul_slice
-// EMITC: tcrv_emitc.route_source_op=tcrv_ime.q4_K_matmul_tile role=compute
-// EMITC: call_opaque "tcrv_ime_q4_K_vmadot_matmul"
+// EMITC: emitc.func @weft_emitc_ime_q4_K_matmul_kernel_ime_vmadot_matmul_slice
+// EMITC: weft_emitc.route_source_op=weft_ime.q4_K_matmul_tile role=compute
+// EMITC: call_opaque "weft_ime_q4_K_vmadot_matmul"

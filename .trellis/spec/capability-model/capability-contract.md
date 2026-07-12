@@ -9,7 +9,7 @@
 > / `params`）**当前代码实际消费**（`CapabilityDescriptor` + `TargetCapabilitySet` 查询，见下 §Relations/[S-2]、
 > profiles.md）；但 [S-1] 声明的**元字段**（`provenance` / `trust` / `subclass` 及闭合 `kind` 的**枚举校验**）
 > 属**目标态、代码今日不读**。落地一个家族时先按 §Relations 的**实际查询 API**（`lookupProviderByID` /
-> `isCapabilityAvailableBySymbolName` / `--tcrv-check-capability-requires`）核对哪条键真被消费，
+> `isCapabilityAvailableBySymbolName` / `--weft-check-capability-requires`）核对哪条键真被消费，
 > **别按整份 [S-1] shape 当既成契约白写元字段**。能力事实的**实例**落 `lib/Plugin/<Fam>/<Fam>ExtensionPlugin.cpp`
 > 的 `getCapabilities()`（C++，非 schema JSON；见 [plugin-protocol/extension-plugin-integration.md](../plugin-protocol/extension-plugin-integration.md) §Landing points）。
 
@@ -63,35 +63,35 @@ emission plan / manifest / 诊断 / artifact **不得**声称某参数"已 IR �
 target capability 表示为结构化的 target-level / module-level MLIR attribute。参考形态：
 
 ```mlir
-#tcrv.target<
+#weft.target<
   arch = "riscv64",
   isa  = ["i","m","a","f","d","c","v","zvl128b","zvfh"],
   uarch = { cores = 64, vlen = 128, has_openmp = true, cache_model = "target_specific" },
-  extensions   = [ #tcrv.ext<"rvv", kind = "isa_ext", status = "available", provenance = "hwprobe", trust = "measured"> ],
-  accelerators = [ #tcrv.accel<"sophgo.bm1684x", kind = "policy", subclass = "runtime-offload", mode = "pcie", runtime = "vendor-c-abi", provenance = "vendor_table", trust = "declared"> ],
+  extensions   = [ #weft.ext<"rvv", kind = "isa_ext", status = "available", provenance = "hwprobe", trust = "measured"> ],
+  accelerators = [ #weft.accel<"sophgo.bm1684x", kind = "policy", subclass = "runtime-offload", mode = "pcie", runtime = "vendor-c-abi", provenance = "vendor_table", trust = "declared"> ],
   toolchain = { llvm_rvv = true, rvv_intrinsic = true, inline_asm = true, vendor_runtime_link = true }
 >
 ```
 
-（上面的 `cores=64 / vlen=128 / sophgo` 是**示例值**，不是 durable 的项目事实；具体目标参数属于 profile，见 [profiles](./profiles.md)。）IME 可加 `#tcrv.ext<"spacemit.ime", kind = "isa_ext", subclass = "isa-matrix-vector-backed", ...>`（`kind` 取闭合枚举值 `isa_ext`，`isa-matrix-vector-backed` 是子分类标签，见 [S-1]）。
+（上面的 `cores=64 / vlen=128 / sophgo` 是**示例值**，不是 durable 的项目事实；具体目标参数属于 profile，见 [profiles](./profiles.md)。）IME 可加 `#weft.ext<"spacemit.ime", kind = "isa_ext", subclass = "isa-matrix-vector-backed", ...>`（`kind` 取闭合枚举值 `isa_ext`，`isa-matrix-vector-backed` 是子分类标签，见 [S-1]）。
 
 ## Relations
 
 capability 带 `provides` / `implies` / `conflicts` 三类关系（first-class 描述符字段，不是 property-map 项，也不是 prose）。
 
-- **require**：variant 声明所需 capability（`requires = [@cap, ...]`，`FlatSymbolRefAttr` 指向 kernel capability scope 内的符号）。provider 是直接 `tcrv.exec.capability`、带 `id`+`kind` 的 kernel-local `tcrv.exec.target`、kernel `target = @profile` 指的那个 module-level profile、以及该 profile 经 `capability_providers = [...]` 显式组合的 providers。kernel 只看自己引用的 profile + 其命名 providers + kernel-local providers；id 在该 scope 内唯一。
+- **require**：variant 声明所需 capability（`requires = [@cap, ...]`，`FlatSymbolRefAttr` 指向 kernel capability scope 内的符号）。provider 是直接 `weft.exec.capability`、带 `id`+`kind` 的 kernel-local `weft.exec.target`、kernel `target = @profile` 指的那个 module-level profile、以及该 profile 经 `capability_providers = [...]` 显式组合的 providers。kernel 只看自己引用的 profile + 其命名 providers + kernel-local providers；id 在该 scope 内唯一。
 - **provide**：`provides = ["..."]` 是 capability id（不是符号名、不是 prose）。`lookupProviderByID(id)` 先解析 exact id；无 exact 时可由 available 的 `provides`/`implies` 满足。于是 `id="rvv.profile.rv64gcv", provides=["rvv"]` 能满足要求 `rvv` 的提议，同时 exact `id="rvv"` 在场时保持直接覆盖。**profile 只作 provider（带 `provides`、不带 capability-fact `kind`）**——profile 不是一条带 `kind` 的叶子事实，而是装载期**展开成规范化事实集**的容器；`declared-instance-hash`（[D-2a]）对**展开后的事实集**取，故 profile 写法与语义等价的显式事实列表**哈希相同**。
 - **imply**：`implies = ["..."]`（如 `rv64gcv implies rvv`、`zvfh implies fp16 向量算术（受 toolchain 支持约束）`）。经同一 relation-aware lookup 暴露。这是 bounded 的决策路由，不是完整 capability lattice 或推断引擎。
-- **conflict**：`conflicts = ["..."]`（如"要 vendor runtime 但无 runtime lib"、"要 inline asm 但 build policy 禁止"）。`--tcrv-check-capability-requires` 用 bounded 双向冲突查询作 legality gate：静态 variant / dispatch fallback 在所需 capability 与另一 available capability 冲突时 fail closed；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求（记录保护面，不解析 printable 串）。这**不是**完整 conflict solver / lattice / provider ranking。
+- **conflict**：`conflicts = ["..."]`（如"要 vendor runtime 但无 runtime lib"、"要 inline asm 但 build policy 禁止"）。`--weft-check-capability-requires` 用 bounded 双向冲突查询作 legality gate：静态 variant / dispatch fallback 在所需 capability 与另一 available capability 冲突时 fail closed；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求（记录保护面，不解析 printable 串）。这**不是**完整 conflict solver / lattice / provider ranking。
 - **dispatch condition**：runtime/shape 相关条件成为 dispatch 谓词（`if runtime_available && large_shape -> offload；else if rvv_available -> rvv；else -> fallback`）。
 
 ### [S-2] 关系语义：加载期传递闭包 + fail-closed + 未知=假
 
 - **implies 传递闭包在加载期计算**：`implies` 关系的传递闭包在 capability set 装载/构造期一次性物化，查询走物化闭包，**不**在每次查询时只查一层再让调用方补链。`rv64gcv implies rvv`、`zvfh implies fp16 向量算术` 这类链在闭包里对查询者直接可见。这是 bounded 的决策路由，不是完整 capability lattice 或推断引擎。
-- **conflicts 命中即 fail-closed**：任一被要求的 capability 与另一 available capability 冲突时**默认拒绝**（`--tcrv-check-capability-requires` 的 bounded 双向冲突查询）；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求，且只记录保护面、不解析 printable 串。
+- **conflicts 命中即 fail-closed**：任一被要求的 capability 与另一 available capability 冲突时**默认拒绝**（`--weft-check-capability-requires` 的 bounded 双向冲突查询）；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求，且只记录保护面、不解析 printable 串。
 - **未知事实 = 假**：schema 未声明 / 未 available 的事实一律视为**不满足**（缺省拒绝，绝不缺省放行）。这与「missing status 视为 available」不冲突——后者只在事实**已在场**时解释其 status 字段；事实**根本缺席**时判假。
 
-> 查询 API：`TargetCapabilitySet::buildFromKernelChecked(KernelOp)`（带诊断的构造，duplicate id/symbol fail closed）；`buildFromKernel` 仅用于已验证上下文。pass `--tcrv-check-capability-requires`。按符号名与 id 双向查询；relation-aware lookup 支持 exact/provided/implied，exact 在场时权威。missing status 视为 available；`status` 优先于 `availability`；`unavailable`/`disabled`/`missing` 视为不可用。**核心代码不解释具体 target-family 的 status 语义**（I3）——`if (target.hasRVV())` 是错的，要走 `capabilities.isCapabilityAvailableBySymbolName(...)`。
+> 查询 API：`TargetCapabilitySet::buildFromKernelChecked(KernelOp)`（带诊断的构造，duplicate id/symbol fail closed）；`buildFromKernel` 仅用于已验证上下文。pass `--weft-check-capability-requires`。按符号名与 id 双向查询；relation-aware lookup 支持 exact/provided/implied，exact 在场时权威。missing status 视为 available；`status` 优先于 `availability`；`unavailable`/`disabled`/`missing` 视为不可用。**核心代码不解释具体 target-family 的 status 语义**（I3）——`if (target.hasRVV())` 是错的，要走 `capabilities.isCapabilityAvailableBySymbolName(...)`。
 
 ## [S-3] 探针只写事实
 

@@ -15,10 +15,10 @@
 // only unreachable from the front door. So this file carries the POST-front-door
 // constructed module (kernel + rvv variant + scalar fallback + dispatch) VERBATIM
 // as the front door emits it, plus the two deferred knobs on the typed body. The
-// module carries NO tcrv_rvv.source_front_door attribute, so re-running the front
+// module carries NO weft_rvv.source_front_door attribute, so re-running the front
 // door pass over it is a no-op -- the on-device harness (run_ondevice_verify.sh)
 // can drive it unchanged (FRONT_DOOR_PASS no-ops, then materialize-emission-plans
-// + tcrv-translate export the deferred .o).
+// + weft-translate export the deferred .o).
 //
 // BYTE-EXACT vs the pinned §1 oracle is by construction (the deferred vfredosum.vs
 // is seed-first / lane-ascending = the serial left fold); on-device confirmation
@@ -29,7 +29,7 @@
 // widen (__riscv_vlse16_v_f16mf2 -> __riscv_vfwcvt_f_f_v_f32m1), which needs the
 // zvfhmin extension. The in-tree RVV object-packaging clang hardcodes
 // -march=rv64gcv (RVVTargetSupportBundle.cpp compileRVVGeneratedSourceToObject),
-// which lacks zvfhmin, so `tcrv-translate --tcrv-export-target-artifact` on this
+// which lacks zvfhmin, so `weft-translate --weft-export-target-artifact` on this
 // module CURRENTLY fails at the clang step ("requires the 'zvfh or zvfhmin'
 // extension"). The rvv board's ISA carries zvfh/zvfhmin, so the kernel runs
 // natively once packaged with a zvfhmin march. The early-signal .o was produced
@@ -37,50 +37,50 @@
 // kernel's capability requirements (so the deferred body exports through the
 // unmodified pipeline) is the follow-up. The direct object-export RUN lines are
 // therefore left commented until that lands:
-//   tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+//   weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 //   llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 //   llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
 // The CORE EmitC carries the DEFERRED fold: the batched vfredosum.vs ordered
 // reduction (NOT the per-block scalar fmaf round-trip), and NO FMA-family op.
 // This runs in-tree (lower-to-emitc does not invoke the packaging clang).
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE --implicit-check-not=vfredusum --implicit-check-not=vfmacc --implicit-check-not=vwmacc
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE --implicit-check-not=vfredusum --implicit-check-not=vfmacc --implicit-check-not=vwmacc
 
 module {
-  tcrv.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
-    tcrv.exec.variant @rvv_q8_0_q8_0_block_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %0 = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %1 = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %2 = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
-      %3 = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %4 = tcrv_rvv.runtime_abi_value {c_name = "bx", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bx", role = "lhs-input-stride"} : index
-      %5 = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %6 = tcrv_rvv.runtime_abi_value {c_name = "by", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "by", role = "rhs-input-stride"} : index
-      %7 = tcrv_rvv.runtime_abi_value {c_name = "nrc", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "nrc", role = "rhs-scalar-value"} : i32
-      %8 = tcrv_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %9 = tcrv_rvv.setvl %0 {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %9 attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_q8_0_q8_0_block_dot, sew = 8 : i64, source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_flat_block_dot_loop_body %3, %5, %1, %0 attributes {activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", fold_structure = "deferred-ordered", integer_core_lmul = "m2", kind = "typed_flat_block_dot_loop_body", multi_block_factor = 4 : i64, qk = 32 : i64, strip_elision = "elided", weight_block_stride = 34 : i64} {
+  weft.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @rvv_q8_0_q8_0_block_dot attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %0 = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %1 = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %2 = weft_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
+      %3 = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-lhs", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %4 = weft_rvv.runtime_abi_value {c_name = "bx", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bx", role = "lhs-input-stride"} : index
+      %5 = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-rhs", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %6 = weft_rvv.runtime_abi_value {c_name = "by", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "by", role = "rhs-input-stride"} : index
+      %7 = weft_rvv.runtime_abi_value {c_name = "nrc", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "nrc", role = "rhs-scalar-value"} : i32
+      %8 = weft_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
+      %9 = weft_rvv.setvl %0 {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %9 attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_q8_0_q8_0_block_dot, sew = 8 : i64, source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_flat_block_dot_loop_body %3, %5, %1, %0 attributes {activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", fold_structure = "deferred-ordered", integer_core_lmul = "m2", kind = "typed_flat_block_dot_loop_body", multi_block_factor = 4 : i64, qk = 32 : i64, strip_elision = "elided", weight_block_stride = 34 : i64} {
         ^bb0(%arg0: index, %arg1: f32):
-          %10 = tcrv_rvv.block_fp16_scale_product %3, %5 block %arg0 : index {kind = "dual_fp16_per_block_scale_product", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64, scale_model = "dual-fp16-per-block-d_x.d_y"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value -> f32
-          %11 = tcrv_rvv.load %3, %9 block %arg0 : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
-          %12 = tcrv_rvv.load %5, %9 block %arg0 : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
-          %13 = tcrv_rvv.widening_product %11, %12, %9 {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m4">
-          %14 = tcrv_rvv.standalone_reduce %13, %8, %9 {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "m4">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-          %15 = tcrv_rvv.typed_vector_lane0_to_scalar_extract %14, %9 {extract_relation = "i32m1-lane0-to-scalar-i32", kind = "vector_lane0_to_scalar_i32_extract"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> i32
-          %16 = tcrv_rvv.block_computed_scale_dequant %15, %10 {dequant_relation = "scalar-i32-sumi-to-f32-computed-scale-f32", kind = "computed_scale_sumi_dequant"} : i32, f32 -> f32
-          %17 = tcrv_rvv.cross_block_f32_accumulate %arg1, %16 {accumulate_order = "strict-ascending-block-carried", kind = "cross_block_f32_scalar_accumulate"} : f32, f32 -> f32
-          tcrv_rvv.typed_flat_block_dot_loop_yield %17 : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %10 = weft_rvv.block_fp16_scale_product %3, %5 block %arg0 : index {kind = "dual_fp16_per_block_scale_product", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64, scale_model = "dual-fp16-per-block-d_x.d_y"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
+          %11 = weft_rvv.load %3, %9 block %arg0 : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+          %12 = weft_rvv.load %5, %9 block %arg0 : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+          %13 = weft_rvv.widening_product %11, %12, %9 {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !weft_rvv.vector<i8, "m2">, !weft_rvv.vector<i8, "m2">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m4">
+          %14 = weft_rvv.standalone_reduce %13, %8, %9 {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !weft_rvv.vector<i16, "m4">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %15 = weft_rvv.typed_vector_lane0_to_scalar_extract %14, %9 {extract_relation = "i32m1-lane0-to-scalar-i32", kind = "vector_lane0_to_scalar_i32_extract"} : !weft_rvv.vector<i32, "m1">, !weft_rvv.vl -> i32
+          %16 = weft_rvv.block_computed_scale_dequant %15, %10 {dequant_relation = "scalar-i32-sumi-to-f32-computed-scale-f32", kind = "computed_scale_sumi_dequant"} : i32, f32 -> f32
+          %17 = weft_rvv.cross_block_f32_accumulate %arg1, %16 {accumulate_order = "strict-ascending-block-carried", kind = "cross_block_f32_scalar_accumulate"} : f32, f32 -> f32
+          weft_rvv.typed_flat_block_dot_loop_yield %17 : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
-    tcrv.exec.variant @rvv_q8_0_q8_0_block_dot_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
+    weft.exec.variant @rvv_q8_0_q8_0_block_dot_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @rvv_q8_0_q8_0_block_dot {origin = "rvv-plugin", policy = "rvv-q8-0-q8-0-block-dot-source-front-door-case"}
-      tcrv.exec.fallback @rvv_q8_0_q8_0_block_dot_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin"}
+    weft.exec.dispatch {
+      weft.exec.case @rvv_q8_0_q8_0_block_dot {origin = "rvv-plugin", policy = "rvv-q8-0-q8-0-block-dot-source-front-door-case"}
+      weft.exec.fallback @rvv_q8_0_q8_0_block_dot_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin"}
     }
   }
   func.func @source_q8_0_q8_0_block_dot(%arg0: memref<?xf32>, %arg1: index, %arg2: memref<?xi8>, %arg3: memref<?xi8>) {
@@ -89,7 +89,7 @@ module {
 }
 
 // ===================== CORE EmitC deferred fold ==============================
-// CORE: emitc.func @tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot(
+// CORE: emitc.func @weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot(
 // The deferred PHASE-A pack (vslide1down) + PHASE-B ORDERED reduction seeded by
 // the running sumf -- the batched fold, NOT a per-block scalar fmaf round-trip.
 // CORE: call_opaque "__riscv_vslide1down_vx_i32m1"
@@ -106,4 +106,4 @@ module {
 
 // The exported symbol is the SAME kernel+variant handoff name as the per-block
 // shipped file -- deferred is a fold-schedule swap, not a new kernel.
-// SYMBOL: Name: tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
+// SYMBOL: Name: weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot

@@ -15,7 +15,7 @@ ScalarExtensionPluginTest.cpp + a multi-RUN lit file:
   (C1) closure INTERSECT rvv.* = EMPTY : that same vector-absent instance evaluates
        ZERO capability keys in the `rvv.*` namespace (`keys_evaluated` INTERSECT rvv.* = EMPTY),
        AND the emitted route carries no vector machinery -- no `__riscv_` intrinsic,
-       no `tcrv_rvv` symbol, no XOR-popcount codebook. The namespace test is a true
+       no `weft_rvv` symbol, no XOR-popcount codebook. The namespace test is a true
        dotted-namespace test, NOT a substring test: `rvv` / `rvv.zvfh` are inside,
        `rvvish` stays independent (mirrors the gtest bare-prefix guard).
 
@@ -31,8 +31,8 @@ Two modes (sibling idiom):
      reason-not-only_feasible, rvv-key-in-closure, plus the emitted-C independence
      classifier (rvv-machinery / xor-popcount). Proves the classifier FIRES before it
      judges the real tree, and that `rvvish` (bare-prefix lookalike) stays independent.
-  (default)  : drives the committed F-6 lit instance through tcrv-opt + tcrv-translate
-     (auto-located under build/bin, or --opt/--translate, or $TCRV_BUILD), classifies
+  (default)  : drives the committed F-6 lit instance through weft-opt + weft-translate
+     (auto-located under build/bin, or --opt/--translate, or $WEFT_BUILD), classifies
      the produced attribution record + emitted C. If the built binaries are absent it
      SKIPs (exit 0) so build-free lanes stay green; pass --require-binaries to make the
      absence itself RED.
@@ -68,7 +68,7 @@ RE_RVV_NAMESPACE = re.compile(r"^rvv(\.|$)")
 # XOR-popcount codebook the [J-3] trap forbids for low-bit scalar math.
 EMIT_BANS = [
     ("rvv-machinery-in-emit(__riscv_)", re.compile(r"__riscv_")),
-    ("rvv-machinery-in-emit(tcrv_rvv)", re.compile(r"tcrv_rvv")),
+    ("rvv-machinery-in-emit(weft_rvv)", re.compile(r"weft_rvv")),
     ("xor-popcount-codebook-in-emit", re.compile(r"popcount", re.IGNORECASE)),
 ]
 
@@ -120,7 +120,7 @@ def locate_binary(name, override):
     if override:
         return override if os.path.isfile(override) else None
     candidates = []
-    env = os.environ.get("TCRV_BUILD")
+    env = os.environ.get("WEFT_BUILD")
     if env:
         candidates.append(os.path.join(env, "bin", name))
     candidates.append(os.path.join(REPO, "build", "bin", name))
@@ -137,10 +137,10 @@ def run_selection_attribution(opt):
         jsonl = os.path.join(tmp, "f6.jsonl")
         cmd = [
             opt, F6_INSTANCE,
-            "--tcrv-check-capability-requires",
-            "--tcrv-materialize-plugin-variants",
-            "--tcrv-verify-plugin-variant-legality",
-            f"--tcrv-select-variants=attribution-jsonl={jsonl} "
+            "--weft-check-capability-requires",
+            "--weft-materialize-plugin-variants",
+            "--weft-verify-plugin-variant-legality",
+            f"--weft-select-variants=attribution-jsonl={jsonl} "
             "attribution-jsonl-no-timestamp",
             "-o", os.devnull,
         ]
@@ -157,13 +157,13 @@ def run_emit_route(opt, translate):
     """RUN 2 of the F-6 lit: lower the selected scalar body to C. Returns the C text."""
     select = subprocess.run(
         [opt, F6_INSTANCE,
-         "--tcrv-check-capability-requires",
-         "--tcrv-materialize-plugin-variants",
-         "--tcrv-verify-plugin-variant-legality",
-         "--tcrv-select-variants"],
+         "--weft-check-capability-requires",
+         "--weft-materialize-plugin-variants",
+         "--weft-verify-plugin-variant-legality",
+         "--weft-select-variants"],
         check=True, capture_output=True, text=True)
     emit = subprocess.run(
-        [translate, "--tcrv-scalar-emitc-to-cpp"],
+        [translate, "--weft-scalar-emitc-to-cpp"],
         input=select.stdout, check=True, capture_output=True, text=True)
     return emit.stdout
 
@@ -174,11 +174,11 @@ def run_real(verbose, opt_override, translate_override, require_binaries):
         print(f"[f6-independence] setup error: committed instance missing: {F6_INSTANCE}")
         return 2
 
-    opt = locate_binary("tcrv-opt", opt_override)
-    translate = locate_binary("tcrv-translate", translate_override)
+    opt = locate_binary("weft-opt", opt_override)
+    translate = locate_binary("weft-translate", translate_override)
     if not opt or not translate:
-        msg = ("[f6-independence] tcrv-opt/tcrv-translate not built "
-               "(looked under $TCRV_BUILD/bin and build/bin)")
+        msg = ("[f6-independence] weft-opt/weft-translate not built "
+               "(looked under $WEFT_BUILD/bin and build/bin)")
         if require_binaries:
             print(msg + " -- RED (--require-binaries)")
             return 2
@@ -277,9 +277,9 @@ def run_self_test():
     check("__riscv_ intrinsic in emit -> RED",
           any(x.startswith("rvv-machinery-in-emit(__riscv_)")
               for x in classify_emitted_c("__riscv_vle32_v_f32m1(...)")))
-    check("tcrv_rvv symbol in emit -> RED",
-          any(x.startswith("rvv-machinery-in-emit(tcrv_rvv)")
-              for x in classify_emitted_c("tcrv_rvv_block_dot(...)")))
+    check("weft_rvv symbol in emit -> RED",
+          any(x.startswith("rvv-machinery-in-emit(weft_rvv)")
+              for x in classify_emitted_c("weft_rvv_block_dot(...)")))
     check("XOR-popcount codebook in emit -> RED",
           classify_emitted_c("acc += __builtin_popcount(x ^ y);") ==
           ["xor-popcount-codebook-in-emit"])

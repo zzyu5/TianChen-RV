@@ -15,12 +15,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -33,7 +33,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 bool isRVVStridedInputWideningDotLowPrecisionResourceOperation(
     RVVSelectedBodyOperationKind operation) {
@@ -121,7 +121,7 @@ llvm::StringRef getContractionVectorCType(std::int64_t sew,
 }
 
 llvm::StringRef getContractionFloatElementTypeName(std::int64_t sew) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
     return "f32";
   return {};
 }
@@ -132,7 +132,7 @@ llvm::StringRef getContractionFloatVectorTypeName(std::int64_t sew,
   if (elementTypeName.empty() || lmul.empty())
     return {};
   return internContractionDerivedText(
-      (llvm::Twine("!tcrv_rvv.vector<") + elementTypeName + ", \"" + lmul +
+      (llvm::Twine("!weft_rvv.vector<") + elementTypeName + ", \"" + lmul +
        "\">")
           .str());
 }
@@ -163,7 +163,7 @@ llvm::StringRef getContractionVectorTypeName(std::int64_t sew,
   if (elementTypeName.empty() || lmul.empty())
     return {};
   return internContractionDerivedText(
-      (llvm::Twine("!tcrv_rvv.vector<") + elementTypeName + ", \"" + lmul +
+      (llvm::Twine("!weft_rvv.vector<") + elementTypeName + ", \"" + lmul +
        "\">")
           .str());
 }
@@ -226,11 +226,11 @@ std::optional<std::int64_t> getContractionMaskBitWidth(std::int64_t sew,
                                                        llvm::StringRef lmul) {
   if (sew <= 0)
     return std::nullopt;
-  if (lmul == tcrv::rvv::getRVVLMULM1())
+  if (lmul == weft::rvv::getRVVLMULM1())
     return sew;
-  if (lmul == tcrv::rvv::getRVVLMULM2())
+  if (lmul == weft::rvv::getRVVLMULM2())
     return sew / 2;
-  if (lmul == tcrv::rvv::getRVVLMULMF2())
+  if (lmul == weft::rvv::getRVVLMULMF2())
     return sew * 2;
   return std::nullopt;
 }
@@ -260,15 +260,15 @@ bool isSupportedContractionSourceResultConfig(std::int64_t sourceSEW,
                                               std::int64_t resultSEW,
                                               llvm::StringRef resultLMUL) {
   const bool isI16ToI32 =
-      sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULM1();
+      sourceSEW == weft::rvv::getRVVSEW16Bits() &&
+      sourceLMUL == weft::rvv::getRVVLMULMF2() &&
+      resultSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == weft::rvv::getRVVLMULM1();
   const bool isI8ToI16 =
-      sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
-      resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULMF2();
+      sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == weft::rvv::getRVVLMULMF4() &&
+      resultSEW == weft::rvv::getRVVSEW16Bits() &&
+      resultLMUL == weft::rvv::getRVVLMULMF2();
   return isI16ToI32 || isI8ToI16;
 }
 
@@ -312,12 +312,12 @@ llvm::StringRef getContractionProductReductionChainCTypeMappingSummary(
     std::int64_t productSEW, llvm::StringRef productLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     bool isUnsigned) {
-  if (sourceSEW != tcrv::rvv::getRVVSEW8Bits() ||
-      sourceLMUL != tcrv::rvv::getRVVLMULMF4() ||
-      productSEW != tcrv::rvv::getRVVSEW16Bits() ||
-      productLMUL != tcrv::rvv::getRVVLMULMF2() ||
-      resultSEW != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      resultLMUL != tcrv::rvv::getRVVLMULM1())
+  if (sourceSEW != weft::rvv::getRVVSEW8Bits() ||
+      sourceLMUL != weft::rvv::getRVVLMULMF4() ||
+      productSEW != weft::rvv::getRVVSEW16Bits() ||
+      productLMUL != weft::rvv::getRVVLMULMF2() ||
+      resultSEW != weft::rvv::getRVVFirstSliceSEWBits() ||
+      resultLMUL != weft::rvv::getRVVLMULM1())
     return {};
   llvm::StringRef sign = isUnsigned ? "unsigned" : "signed";
   llvm::StringRef sourcePrefix = isUnsigned ? "u" : "i";
@@ -333,10 +333,10 @@ llvm::StringRef getContractionProductReductionChainCTypeMappingSummary(
 llvm::StringRef getContractionWideningMAccRelation(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL) {
-  if (sourceSEW != tcrv::rvv::getRVVSEW16Bits() ||
-      sourceLMUL != tcrv::rvv::getRVVLMULMF2() ||
-      resultSEW != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      resultLMUL != tcrv::rvv::getRVVLMULM1())
+  if (sourceSEW != weft::rvv::getRVVSEW16Bits() ||
+      sourceLMUL != weft::rvv::getRVVLMULMF2() ||
+      resultSEW != weft::rvv::getRVVFirstSliceSEWBits() ||
+      resultLMUL != weft::rvv::getRVVLMULM1())
     return {};
   if (!isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL,
                                                 resultSEW, resultLMUL))
@@ -352,10 +352,10 @@ llvm::StringRef getContractionWideningMAccRelation(
 llvm::StringRef getContractionWideningDotProductRelation(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL) {
-  if (sourceSEW != tcrv::rvv::getRVVSEW16Bits() ||
-      sourceLMUL != tcrv::rvv::getRVVLMULMF2() ||
-      resultSEW != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      resultLMUL != tcrv::rvv::getRVVLMULM1())
+  if (sourceSEW != weft::rvv::getRVVSEW16Bits() ||
+      sourceLMUL != weft::rvv::getRVVLMULMF2() ||
+      resultSEW != weft::rvv::getRVVFirstSliceSEWBits() ||
+      resultLMUL != weft::rvv::getRVVLMULM1())
     return {};
   if (!isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL,
                                                 resultSEW, resultLMUL))
@@ -380,10 +380,10 @@ llvm::StringRef getContractionWideningProductRelation(
   // narrow combination below is byte-untouched. The relation string mirrors the
   // realized product op types.
   const bool isNarrowProduct =
-      sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
-      resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULMF2();
+      sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == weft::rvv::getRVVLMULMF4() &&
+      resultSEW == weft::rvv::getRVVSEW16Bits() &&
+      resultLMUL == weft::rvv::getRVVLMULMF2();
   // The P1f C4 codebook route adds a lighter wide rung: at VLEN256 its i8 gather
   // strip anchors at mf2 (product i16m1), one EMUL step below the m1/m2 dequant
   // rungs. Admit mf2 alongside m1/m2 -- still the structural "product ==
@@ -391,11 +391,11 @@ llvm::StringRef getContractionWideningProductRelation(
   // product-reduction route sources from mf2 (narrow is mf4, wide is m1/m2), so
   // this is dormant for every existing relation.
   const bool isWideProduct =
-      !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
-       sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
-       sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
-      resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      !isUnsigned && sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      (sourceLMUL == weft::rvv::getRVVLMULMF2() ||
+       sourceLMUL == weft::rvv::getRVVLMULM1() ||
+       sourceLMUL == weft::rvv::getRVVLMULM2()) &&
+      resultSEW == weft::rvv::getRVVSEW16Bits() &&
       resultLMUL == getRVVNextWiderLMUL(sourceLMUL);
   if (!isNarrowProduct && !isWideProduct)
     return {};
@@ -429,24 +429,24 @@ llvm::StringRef getContractionProductReductionChainRelation(
   // -- derived structurally, NOT a per-VLEN branch (I5). The relation string mirrors
   // the realized product/reduce op types.
   const bool isNarrowChain =
-      sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
-      productSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      productLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULM1();
+      sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == weft::rvv::getRVVLMULMF4() &&
+      productSEW == weft::rvv::getRVVSEW16Bits() &&
+      productLMUL == weft::rvv::getRVVLMULMF2() &&
+      resultSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == weft::rvv::getRVVLMULM1();
   // Admit the P1f C4 codebook mf2 source rung (VLEN256: i8mf2 -> i16m1 -> i32m1)
   // alongside the m1/m2 dequant rungs -- same structural next-wider rule, dormant
   // for every existing route (none sources a product-reduction chain from mf2).
   const bool isWideChain =
-      !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
-       sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
-       sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
-      productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      !isUnsigned && sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      (sourceLMUL == weft::rvv::getRVVLMULMF2() ||
+       sourceLMUL == weft::rvv::getRVVLMULM1() ||
+       sourceLMUL == weft::rvv::getRVVLMULM2()) &&
+      productSEW == weft::rvv::getRVVSEW16Bits() &&
       productLMUL == getRVVNextWiderLMUL(sourceLMUL) &&
-      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULM1();
+      resultSEW == weft::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == weft::rvv::getRVVLMULM1();
   if (!isNarrowChain && !isWideChain)
     return {};
   if (isUnsigned)
@@ -470,11 +470,11 @@ llvm::Expected<RVVContractionVectorFacts> deriveContractionVectorFacts(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " requires " + role +
         " typed vector value before deriving contraction source facts");
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(value.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(value.getType());
   if (!vectorType)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " requires " + role +
-        " to be a generic !tcrv_rvv.vector before contraction route planning");
+        " to be a generic !weft_rvv.vector before contraction route planning");
   auto integerElementType =
       llvm::dyn_cast<mlir::IntegerType>(vectorType.getElementType());
   if (!integerElementType)
@@ -641,15 +641,15 @@ bool isPreRealizedWideningProductReduceDequantClampF32Signature(
          dequantizationRelation == kRVVContractionDequantizationRelation;
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedContractionRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(llvm::Twine(context) +
                                           " must be defined by explicit "
-                                          "tcrv_rvv.runtime_abi_value");
+                                          "weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -667,7 +667,7 @@ requirePreRealizedContractionRuntimeABIValue(
 }
 
 llvm::Error requireContractionSelectedVariantRequires(
-    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+    weft::exec::VariantOp variant, llvm::StringRef context) {
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
     return makeRVVEmitCRouteProviderError(
@@ -797,7 +797,7 @@ llvm::StringRef getContractionReductionIntrinsic(std::int64_t sew,
     return {};
   return internContractionDerivedText(
       (llvm::Twine("__riscv_vredsum_vs_i") + llvm::Twine(sew) + lmul + "_i" +
-       llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+       llvm::Twine(sew) + weft::rvv::getRVVLMULM1())
           .str());
 }
 
@@ -812,7 +812,7 @@ llvm::StringRef getContractionWideningReductionIntrinsic(
   // mf4 for the narrow per-iteration chain, m4 -> m2 for the front-door wide
   // strip) instead of being pinned to mf4 (I5). The narrow product mf2 still
   // yields mf4, so every existing narrow caller stays byte-identical.
-  llvm::StringRef i8SourceLMUL = tcrv::rvv::getRVVLMULMF4();
+  llvm::StringRef i8SourceLMUL = weft::rvv::getRVVLMULMF4();
   for (llvm::StringRef candidate : {"mf4", "mf2", "m1", "m2"}) {
     if (getRVVNextWiderLMUL(candidate) == sourceLMUL) {
       i8SourceLMUL = candidate;
@@ -820,11 +820,11 @@ llvm::StringRef getContractionWideningReductionIntrinsic(
     }
   }
   llvm::StringRef expectedRelation = getContractionProductReductionChainRelation(
-      tcrv::rvv::getRVVSEW8Bits(), i8SourceLMUL, sourceSEW, sourceLMUL,
+      weft::rvv::getRVVSEW8Bits(), i8SourceLMUL, sourceSEW, sourceLMUL,
       resultSEW, resultLMUL);
   llvm::StringRef expectedUnsignedRelation =
       getContractionProductReductionChainRelation(
-          tcrv::rvv::getRVVSEW8Bits(), i8SourceLMUL, sourceSEW, sourceLMUL,
+          weft::rvv::getRVVSEW8Bits(), i8SourceLMUL, sourceSEW, sourceLMUL,
           resultSEW, resultLMUL, /*isUnsigned=*/true);
   if ((expectedRelation.empty() || relation != expectedRelation) &&
       (expectedUnsignedRelation.empty() || relation != expectedUnsignedRelation))
@@ -898,4 +898,4 @@ llvm::StringRef getContractionFloatScalarSplatIntrinsic(std::int64_t sew,
       (llvm::Twine("__riscv_vfmv_v_f_f") + llvm::Twine(sew) + lmul).str());
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

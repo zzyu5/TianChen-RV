@@ -5,14 +5,14 @@ Use before adding target features, variant generation, legality checks, dispatch
 ## Checklist
 
 - [ ] What target fact is being modeled: ISA, uarch, runtime/offload, toolchain, memory, or thread runtime?
-- [ ] Where is the fact represented in `#tcrv.target`, `#tcrv.ext`, `#tcrv.accel`, or equivalent structured object?
+- [ ] Where is the fact represented in `#weft.target`, `#weft.ext`, `#weft.accel`, or equivalent structured object?
 - [ ] Which pass decision changes because this capability exists or is absent?
 - [ ] Does a variant declare this capability in `requires`?
 - [ ] Is absence handled by verifier failure, runtime dispatch, or fallback?
 - [ ] Does the diagnostic explain missing capability and unavailable emission/runtime path?
 - [ ] Is any extension-specific check delegated to plugin verifier?
 - [ ] Are hardware/profile facts only constraining plugin legality/realization, not defining RVV dtype/config/route?
-- [ ] For RVV, are dtype, config, and operation kind structural in typed `tcrv_rvv` body or consumed into realized body?
+- [ ] For RVV, are dtype, config, and operation kind structural in typed `weft_rvv` body or consumed into realized body?
 
 ## Red Flags
 

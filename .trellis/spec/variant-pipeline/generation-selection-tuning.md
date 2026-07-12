@@ -1,9 +1,9 @@
 # Generation, Selection, Tuning
 
-variant pipeline 把 TianChen-RV execution envelope + plugin-owned extension body 变成**选中的、调优过的、可执行的** path。它不创造通用高层 compute IR，也不把 metadata 当 route authority（见 [core-invariants](../architecture/core-invariants.md) I4）。
+variant pipeline 把 Weft-RV execution envelope + plugin-owned extension body 变成**选中的、调优过的、可执行的** path。它不创造通用高层 compute IR，也不把 metadata 当 route authority（见 [core-invariants](../architecture/core-invariants.md) I4）。
 
 ```text
-tcrv.exec envelope
+weft.exec envelope
   -> 插件提议的 variants（plugin-local）
   -> capability 驱动的 legality
   -> capability 驱动的 selection / dispatch
@@ -13,9 +13,9 @@ tcrv.exec envelope
 
 ## Inputs
 
-variant pipeline 可从以下起点工作：手写或生成的 TianChen-RV MLIR；`tcrv.exec` envelope 与 selected variant；typed extension-family body（如 `tcrv_rvv`）；origin 插件能合法消费的 selected boundary；结构化 capability/profile facts；runtime SSA / ABI 声明。
+variant pipeline 可从以下起点工作：手写或生成的 Weft-RV MLIR；`weft.exec` envelope 与 selected variant；typed extension-family body（如 `weft_rvv`）；origin 插件能合法消费的 selected boundary；结构化 capability/profile facts；runtime SSA / ABI 声明。
 
-selected-path metadata 只解释"为什么选了这个 variant"，不能当 compute / dtype / route / body / artifact authority（I4、I5）。high-level MLIR frontend lowering（linalg/tosa→tcrv）是显式 opt-in 的未来集成路径。
+selected-path metadata 只解释"为什么选了这个 variant"，不能当 compute / dtype / route / body / artifact authority（I4、I5）。high-level MLIR frontend lowering（linalg/tosa→weft）是显式 opt-in 的未来集成路径。
 
 ## Variant required fields
 
@@ -27,7 +27,7 @@ shape/dtype/layout 前置条件与 cost/tuning facts **可以**在 metadata 里�
 
 selection 由 capability 驱动，可产出：单个静态 selected variant；guarded case 间的运行期 dispatch；保守 fallback；无合法可执行 route 时的 unsupported 诊断（fail closed，I7）。
 
-selection **不得**：从 `tcrv.exec` 推断 compute；从 ABI 字符串/参数名推断 dtype；按 artifact 名选 route；把 source-front-door metadata 当可执行 route 排名；把 readiness/status dashboard 当进度。
+selection **不得**：从 `weft.exec` 推断 compute；从 ABI 字符串/参数名推断 dtype；按 artifact 名选 route；把 source-front-door metadata 当可执行 route 排名；把 readiness/status dashboard 当进度。
 
 ## 选择器与归因契约（SEL / D）
 

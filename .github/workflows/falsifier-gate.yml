@@ -51,7 +51,7 @@ jobs:
             --head ${{ github.event.pull_request.head.sha }}
 
   # [裁决九.2] opponent-fact provenance ⟷ ggml-pin STALE gate. The structured opponent
-  # facts the tcrv_rvv.quant_contraction op carries (opponent_vlen_native_floor /
+  # facts the weft_rvv.quant_contraction op carries (opponent_vlen_native_floor /
   # block_dot_compute_heavy) are VALUES read off a PINNED ggml tree. This gate fails
   # closed the moment schema/ggml-pin.lock.json is bumped away from the sha those facts
   # were verified against (experiments/sealed/c1-cleanliness/opponent-facts-provenance/
@@ -203,7 +203,7 @@ jobs:
       # scalar family: closure INTERSECT rvv.* = EMPTY + vector-absent instance truly
       # selects the scalar variant as only_feasible + pure-scalar emit -> GREEN; each
       # violation -- chosen-not-scalar / reason != only_feasible / rvv.zvfh in closure /
-      # bare-rvv token / __riscv_/tcrv_rvv/popcount in emit -> RED) before judging the tree.
+      # bare-rvv token / __riscv_/weft_rvv/popcount in emit -> RED) before judging the tree.
       - name: F-6 scalar-family independence gate self-test
         run: python3 tools/lint/check_f6_scalar_family_independence.py --self-test
 
@@ -216,7 +216,7 @@ jobs:
 
   # [F-5] fail-closed fuzz gate (M1 evidence-line closure). The fuzzer
   # (tools/fuzz/f5_failclosed_fuzz.sh) mutates ONE verified-valid typed-region program into
-  # a batch of illegal variants, feeds each to `tcrv-opt --tcrv-rvv-lower-to-emitc`, and
+  # a batch of illegal variants, feeds each to `weft-opt --weft-rvv-lower-to-emitc`, and
   # asserts each is FAIL-CLOSED rejected (graceful diagnostic + non-zero exit + no crash +
   # no silent pass). This gate is a NON-REGRESSION ratchet: it compares the per-scenario
   # verdicts against schema/f5-failclosed-baseline.v1.json and fails closed on (R1) a
@@ -241,9 +241,9 @@ jobs:
       - name: F-5 fail-closed fuzz gate self-test
         run: python3 tools/lint/check_f5_failclosed_fingerprint.py --self-test
 
-      # Default-path gate: locates tcrv-opt, runs the fuzz harness, and asserts no
+      # Default-path gate: locates weft-opt, runs the fuzz harness, and asserts no
       # fail-closed coverage regression vs the committed baseline. Build-free lane SKIPs
-      # (exit 0) when tcrv-opt is absent -- the self-test above still proves the classifier
+      # (exit 0) when weft-opt is absent -- the self-test above still proves the classifier
       # fires; pass --require-binaries to make the absence itself RED.
       - name: F-5 fail-closed fuzz gate (per-scenario verdict == baseline, no regression)
         run: python3 tools/lint/check_f5_failclosed_fingerprint.py
@@ -286,9 +286,9 @@ jobs:
 
   # [F-4] attribution-completeness gate (M1 evidence-line closure). Makes the COMPILE-TIME
   # SELECTION attribution JSONL export ([D-4] stage (1)) CI-executable. The
-  # `--tcrv-select-variants=attribution-jsonl=<path>` sink writes ONE canonical-JSON object per
+  # `--weft-select-variants=attribution-jsonl=<path>` sink writes ONE canonical-JSON object per
   # planned kernel {candidates[], chosen, declared_instance_hash, kernel, keys_evaluated{}, reason,
-  # ts}. This gate runs tcrv-opt over the COMMITTED attribution lit corpus (attribution-jsonl.mlir +
+  # ts}. This gate runs weft-opt over the COMMITTED attribution lit corpus (attribution-jsonl.mlir +
   # attribution-jsonl-instance-hash.mlir, pipeline parsed from each file's own `// RUN:` line) and
   # validates -- WITHOUT touching the selection logic (serialization-output falsifier only) -- that:
   # every record has the seven required keys + a hex declared_instance_hash (SHAPE); reason is null
@@ -312,9 +312,9 @@ jobs:
       - name: F-4 attribution-JSONL gate self-test
         run: python3 tools/lint/check_f4_attribution_jsonl.py --self-test
 
-      # Default-path gate on the COMMITTED lit corpus: runs tcrv-opt, parses the emitted JSONL, and
+      # Default-path gate on the COMMITTED lit corpus: runs weft-opt, parses the emitted JSONL, and
       # asserts shape + reason enum + [D-4] M1 100% coverage. Build-free lane SKIPs (exit 0) when
-      # tcrv-opt is absent -- the self-test above still proves the validator fires; pass
+      # weft-opt is absent -- the self-test above still proves the validator fires; pass
       # --require-binaries to make the absence itself RED.
       - name: F-4 attribution-JSONL gate (compile-time selection attribution export == [D-4] (1))
         run: python3 tools/lint/check_f4_attribution_jsonl.py

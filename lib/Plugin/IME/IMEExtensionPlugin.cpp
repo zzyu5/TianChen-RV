@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/IME/IMEExtensionPlugin.h"
+#include "Weft/Plugin/IME/IMEExtensionPlugin.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/IME/IR/IMEDialect.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/IME/IR/IMEDialect.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -14,7 +14,7 @@
 
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kIMEPluginName("ime-plugin");
@@ -28,36 +28,36 @@ constexpr llvm::StringLiteral kIMECapabilityKind("isa-matrix-vector-backed");
 constexpr llvm::StringLiteral kIMEFirstSliceVariantName("ime_vmadot_mma_slice");
 // The SECOND (unsigned) IME variant. Same capability FACT, different signedness
 // fact => different emitted instruction (`vmadotu`) and boundary op
-// (tcrv.ime.mma_u). This is the N2 plugin-breadth surface.
+// (weft.ime.mma_u). This is the N2 plugin-breadth surface.
 constexpr llvm::StringLiteral kIMEUnsignedVariantName(
     "ime_vmadotu_mma_slice");
 // The FOURTH (mixed-sign) IME variant. Same capability FACT, a different
 // signedness fact => a different emitted instruction (`vmadotsu`, signed A *
-// unsigned B) and boundary op (tcrv.ime.mma_su). This is the N2 rapid-add
+// unsigned B) and boundary op (weft.ime.mma_su). This is the N2 rapid-add
 // plugin-breadth surface (the canonical quantized mixed-sign case).
 constexpr llvm::StringLiteral kIMEMixedSignVariantName(
     "ime_vmadotsu_mma_slice");
 // The SIXTH (reversed-order mixed-sign) IME variant. Same capability FACT, a
 // different signedness fact => a different emitted instruction (`vmadotus`,
-// unsigned A * signed B) and boundary op (tcrv.ime.mma_us). This is the N2
+// unsigned A * signed B) and boundary op (weft.ime.mma_us). This is the N2
 // rapid-add plugin-breadth surface that COMPLETES the signedness family.
 constexpr llvm::StringLiteral kIMEMixedSignUSVariantName(
     "ime_vmadotus_mma_slice");
 // The FIFTH (sliding-window) IME variant. Same capability FACT, a different
 // SHAPE fact (the ime_slide window stride) => a different emitted instruction
 // (`vmadot1`/`vmadot2`/`vmadot3`, funct7 111001) and boundary op
-// (tcrv.ime.mma_slide). This is the N2 rapid-add plugin-breadth surface for the
+// (weft.ime.mma_slide). This is the N2 rapid-add plugin-breadth surface for the
 // Xsmti8i32mm_slide conv/strided-A-reuse primitive (K1's 2nd IME1 sub-extension).
 constexpr llvm::StringLiteral kIMESlideVariantName("ime_vmadot1_mma_slide_slice");
 // The TILED whole-matrix variants (signed/unsigned). Same capability FACT +
-// dispatch, a richer problem shape => the tcrv.ime.matmul boundary op.
+// dispatch, a richer problem shape => the weft.ime.matmul boundary op.
 //
 // G4 M1a: the FORMAT-KEYED q4_0 whole-matrix tile rides the SAME signed matmul
 // variant NAME (ime_vmadot_matmul_slice) the whole-matrix GEMM prior routes to
 // (P7 = ime ^ shape: one matrix variant takes over the contraction). The q4_0
 // weight-format FACT (recorded on the variant as ime.weight_format) keys WHICH
 // boundary op materializes within that variant -- the format-agnostic
-// tcrv.ime.matmul vs the typed-region tcrv.ime.q4_0_matmul_tile -- exactly like
+// weft.ime.matmul vs the typed-region weft.ime.q4_0_matmul_tile -- exactly like
 // the signedness/slide facts key the mma siblings. So the prior still routes
 // q4_0 GEMM ^ ime -> @ime_vmadot_matmul_slice; the fact selects the tile.
 constexpr llvm::StringLiteral kIMEMatmulVariantName("ime_vmadot_matmul_slice");
@@ -90,7 +90,7 @@ constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
 // G4 M1a: the q4_0 tile op's weight-format op-attribute names + the decomposed
 // brick facts. (Distinct from the CAPABILITY property names below: these are the
-// op attributes the boundary materializer stamps on tcrv.ime.q4_0_matmul_tile.)
+// op attributes the boundary materializer stamps on weft.ime.q4_0_matmul_tile.)
 constexpr llvm::StringLiteral kWeightFormatAttrName("weight_format");
 constexpr llvm::StringLiteral kQkAttrName("qk");
 constexpr llvm::StringLiteral kWeightBlockStrideAttrName("weight_block_stride");
@@ -112,7 +112,7 @@ constexpr int64_t kQ4KAccTileLanes = kQ40AccTileLanes;
 
 constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 
-// Capability-property names parsed from the in-IR tcrv.exec.capability provider.
+// Capability-property names parsed from the in-IR weft.exec.capability provider.
 constexpr llvm::StringLiteral kMarchPropertyName("march");
 constexpr llvm::StringLiteral kVlenBitsPropertyName("vlen_bits");
 constexpr llvm::StringLiteral kAvailableHartsPropertyName("available_harts");
@@ -133,17 +133,17 @@ constexpr llvm::StringLiteral kSignednessMixedSign("signed_unsigned");
 constexpr llvm::StringLiteral kSignednessMixedSignUS("unsigned_signed");
 // The optional WHOLE-MATRIX problem-shape FACT (format "MxNxK"). When the
 // capability carries it, the kernel requests the TILED matmul boundary
-// (tcrv.ime.matmul) over that problem; absent => the single 4x4x8 MAC fragment
-// boundary (tcrv.ime.mma, back-compat with the first slice). This is a SHAPE
+// (weft.ime.matmul) over that problem; absent => the single 4x4x8 MAC fragment
+// boundary (weft.ime.mma, back-compat with the first slice). This is a SHAPE
 // fact, NOT a family-name string: the same capability id + dispatch, a richer
 // problem. Dims must each be a whole multiple of the derived MAC fragment.
 constexpr llvm::StringLiteral kMatmulShapePropertyName("ime_matmul_shape");
 // G4 M1a: the optional WEIGHT-FORMAT fact. When the capability carries it as
 // "q4_0" (alongside ime_matmul_shape), the kernel requests the FORMAT-KEYED q4_0
-// tiled matmul boundary (tcrv.ime.q4_0_matmul_tile): the q4_0 weight matrix is
+// tiled matmul boundary (weft.ime.q4_0_matmul_tile): the q4_0 weight matrix is
 // decoded (offset-binary nibble, quant - 8 in [-8,7]) into the int8 MAC fragment
 // before the vmadot MAC. Absent => the format-agnostic pre-packed int8 matmul
-// (tcrv.ime.matmul, back-compat). This is a weight-FORMAT fact of the SAME
+// (weft.ime.matmul, back-compat). This is a weight-FORMAT fact of the SAME
 // capability, NOT a family-name string and NOT a second capability id. Only
 // "q4_0" is modeled in M1 (fail-closed); other formats are M2.
 constexpr llvm::StringLiteral kWeightFormatPropertyName("ime_weight_format");
@@ -188,7 +188,7 @@ constexpr int64_t kQ4KNumSubBlocks = 8;
 constexpr int64_t kQ4KScaleBits = 6;
 constexpr int64_t kQ4KKScaleSize = 12;
 // The optional SLIDING-WINDOW stride FACT. When the capability carries it as
-// "1"|"2"|"3", the kernel requests the IME1 slide boundary (tcrv.ime.mma_slide)
+// "1"|"2"|"3", the kernel requests the IME1 slide boundary (weft.ime.mma_slide)
 // over the SAME 8x8 A-pair MAC fragment with the A read-window shifted DOWN by
 // `slide` rows. Absent/"0" => the non-slide MAC (back-compat). Anything else
 // fails closed (only the documented vmadot1/2/3 slide family is modeled at
@@ -245,19 +245,19 @@ constexpr llvm::StringLiteral kIMESlide1OpValue("vmadot1");
 constexpr llvm::StringLiteral kIMESlide2OpValue("vmadot2");
 constexpr llvm::StringLiteral kIMESlide3OpValue("vmadot3");
 // The plugin-owned (dialect-qualified, discardable) variant attribute that
-// records the derived signedness fact on the materialized tcrv.exec.variant so
+// records the derived signedness fact on the materialized weft.exec.variant so
 // the boundary materializer routes to the matching boundary op (mma vs mma_u)
 // WITHOUT re-deriving — and so selection stays a pure data flow of the
 // capability fact.
 constexpr llvm::StringLiteral kSignednessVariantAttrName("ime.signedness");
 // The plugin-owned (dialect-qualified, discardable) slide-stride variant attr,
-// recorded on the materialized tcrv.exec.variant so the boundary materializer
-// routes to tcrv.ime.mma_slide (and stamps the slide field) WITHOUT re-deriving.
+// recorded on the materialized weft.exec.variant so the boundary materializer
+// routes to weft.ime.mma_slide (and stamps the slide field) WITHOUT re-deriving.
 // "0"/absent => the non-slide boundary path. A pure data flow of the fact.
 constexpr llvm::StringLiteral kSlideVariantAttrName("ime.slide");
 // The plugin-owned (dialect-qualified, discardable) weight-format variant attr,
-// recorded on the materialized tcrv.exec.variant so the boundary materializer
-// routes to tcrv.ime.q4_0_matmul_tile (and constructs its typed region) WITHOUT
+// recorded on the materialized weft.exec.variant so the boundary materializer
+// routes to weft.ime.q4_0_matmul_tile (and constructs its typed region) WITHOUT
 // re-deriving. Absent => the format-agnostic matmul path. A pure data flow of the
 // capability-derived fact.
 constexpr llvm::StringLiteral kWeightFormatVariantAttrName("ime.weight_format");
@@ -269,7 +269,7 @@ constexpr llvm::StringLiteral kIMEDefaultAvailableHarts("0-3");
 
 llvm::Error makeIMEPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV IME extension plugin failed: ") + message,
+      llvm::Twine("Weft-RV IME extension plugin failed: ") + message,
       llvm::errc::invalid_argument);
 }
 
@@ -390,9 +390,9 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
       capability.getProperty(kMatmulShapePropertyName).trim();
   if (!matmulShape.empty()) {
     // The tiled whole-matrix boundary is only modeled for the signed/unsigned
-    // forms (tcrv.ime.matmul emits vmadot/vmadotu). The mixed-sign forms
-    // (vmadotsu / vmadotus) are single-fragment surfaces (tcrv.ime.mma_su /
-    // tcrv.ime.mma_us) only — fail closed with a clear message rather than route
+    // forms (weft.ime.matmul emits vmadot/vmadotu). The mixed-sign forms
+    // (vmadotsu / vmadotus) are single-fragment surfaces (weft.ime.mma_su /
+    // weft.ime.mma_us) only — fail closed with a clear message rather than route
     // a mixed-sign tiled shape that has no emitter.
     if (derived.signedness == kSignednessMixedSign ||
         derived.signedness == kSignednessMixedSignUS)
@@ -401,8 +401,8 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
           kMatmulShapePropertyName +
           "' (tiled whole-matrix) is not modeled for the mixed-sign '" +
           derived.imeOp +
-          "' form; mixed-sign is a single-fragment boundary (tcrv.ime.mma_su / "
-          "tcrv.ime.mma_us) only");
+          "' form; mixed-sign is a single-fragment boundary (weft.ime.mma_su / "
+          "weft.ime.mma_us) only");
     llvm::SmallVector<llvm::StringRef, 3> parts;
     matmulShape.split(parts, 'x');
     long long m = 0, n = 0, k = 0;
@@ -430,7 +430,7 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
   }
 
   // G4 M1a: the optional q4_0 WEIGHT-FORMAT fact. Present => the FORMAT-KEYED
-  // q4_0 tiled boundary (tcrv.ime.q4_0_matmul_tile): the q4_0 weight matrix is
+  // q4_0 tiled boundary (weft.ime.q4_0_matmul_tile): the q4_0 weight matrix is
   // decoded (offset-binary nibble) into the int8 MAC fragment. Only "q4_0" is
   // modeled in M1 (fail-closed); it rides the SIGNED vmadot form (the decoded
   // quant is signed [-8,7]) over the whole-matrix shape, so it is fail-closed
@@ -478,7 +478,7 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
   }
 
   // Optional SLIDING-WINDOW stride FACT. Absent/"0" => non-slide MAC (back-compat).
-  // "1"|"2"|"3" => the IME1 slide boundary (tcrv.ime.mma_slide) over the SAME 8x8
+  // "1"|"2"|"3" => the IME1 slide boundary (weft.ime.mma_slide) over the SAME 8x8
   // A-pair MAC fragment, the A read-window shifted DOWN by `slide` rows. The slide
   // family rides the SIGNED form only here (vmadot1/2/3 = signed slide), so it is
   // fail-closed for the tiled-matmul shape and for the unsigned/mixed-sign forms
@@ -491,7 +491,7 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
           kSlidePropertyName +
           "' (sliding-window) is not modeled together with the tiled "
           "whole-matrix shape '" + kMatmulShapePropertyName +
-          "'; the slide boundary is the single-fragment tcrv.ime.mma_slide only");
+          "'; the slide boundary is the single-fragment weft.ime.mma_slide only");
     if (derived.signedness != kSignednessSigned)
       return makeIMEPluginError(
           llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
@@ -531,25 +531,25 @@ bool hasAvailableIMECapability(const VariantProposalRequest &request) {
 /// This is a pure read-back of the capability-derived FACT, so downstream
 /// boundary/emission selection never re-classifies a family name. Returns the
 /// single-fragment boundary op matching the recorded signedness: 'unsigned' =>
-/// tcrv.ime.mma_u, 'signed_unsigned' => tcrv.ime.mma_su, 'unsigned_signed' =>
-/// tcrv.ime.mma_us, else tcrv.ime.mma.
-llvm::StringRef singleFragmentBoundaryOpForVariant(tcrv::exec::VariantOp variant) {
+/// weft.ime.mma_u, 'signed_unsigned' => weft.ime.mma_su, 'unsigned_signed' =>
+/// weft.ime.mma_us, else weft.ime.mma.
+llvm::StringRef singleFragmentBoundaryOpForVariant(weft::exec::VariantOp variant) {
   if (variant) {
     // The slide window FACT (if recorded) routes to the sliding-window boundary
     // regardless of signedness (the slide family is the signed form only).
     auto slide = variant->getAttrOfType<mlir::StringAttr>(kSlideVariantAttrName);
     if (slide && !slide.getValue().trim().empty() && slide.getValue() != "0")
-      return tcrv::ime::MMASlideOp::getOperationName();
+      return weft::ime::MMASlideOp::getOperationName();
     auto signedness =
         variant->getAttrOfType<mlir::StringAttr>(kSignednessVariantAttrName);
     if (signedness && signedness.getValue() == kSignednessUnsigned)
-      return tcrv::ime::MMAUOp::getOperationName();
+      return weft::ime::MMAUOp::getOperationName();
     if (signedness && signedness.getValue() == kSignednessMixedSign)
-      return tcrv::ime::MMASUOp::getOperationName();
+      return weft::ime::MMASUOp::getOperationName();
     if (signedness && signedness.getValue() == kSignednessMixedSignUS)
-      return tcrv::ime::MMAUSOp::getOperationName();
+      return weft::ime::MMAUSOp::getOperationName();
   }
-  return tcrv::ime::MMAOp::getOperationName();
+  return weft::ime::MMAOp::getOperationName();
 }
 
 llvm::Expected<VariantProposal>
@@ -575,8 +575,8 @@ buildIMEProposal(const VariantProposalRequest &request) {
 
   // The variant name + the recorded signedness FACT both follow the derived
   // capability fact (NOT a family-name string). Two orthogonal facts pick the
-  // boundary op: the SHAPE fact (single fragment => tcrv.ime.mma[_u/_su/_us];
-  // whole matrix => tcrv.ime.matmul) and the SIGNEDNESS fact (vmadot / vmadotu /
+  // boundary op: the SHAPE fact (single fragment => weft.ime.mma[_u/_su/_us];
+  // whole matrix => weft.ime.matmul) and the SIGNEDNESS fact (vmadot / vmadotu /
   // vmadotsu / vmadotus). Both mixed-sign forms are single-fragment only (their
   // tiled shape was fail-closed in derivation), so the matmul arm is binary
   // signed/unsigned.
@@ -609,26 +609,26 @@ buildIMEProposal(const VariantProposalRequest &request) {
       mlir::StringAttr::get(context, kSignednessVariantAttrName),
       mlir::StringAttr::get(context, derived->signedness));
   // Record the slide window FACT as data on the variant so the boundary
-  // materializer routes to tcrv.ime.mma_slide WITHOUT re-classifying a name.
+  // materializer routes to weft.ime.mma_slide WITHOUT re-classifying a name.
   if (isSlide)
     proposal.addPluginAttribute(
         mlir::StringAttr::get(context, kSlideVariantAttrName),
         mlir::StringAttr::get(context, std::to_string(derived->slide)));
   // Record the q4_0 weight-format FACT as data on the variant so the boundary
-  // materializer routes to tcrv.ime.q4_0_matmul_tile (and constructs its typed
+  // materializer routes to weft.ime.q4_0_matmul_tile (and constructs its typed
   // region) WITHOUT re-classifying a name.
   if (derived->isQ40Weight)
     proposal.addPluginAttribute(
         mlir::StringAttr::get(context, kWeightFormatVariantAttrName),
         mlir::StringAttr::get(context, kWeightFormatQ40));
   // G4 M2: likewise record the q8_0 weight-format FACT so the materializer
-  // routes to tcrv.ime.q8_0_matmul_tile (data flow of the derived fact).
+  // routes to weft.ime.q8_0_matmul_tile (data flow of the derived fact).
   if (derived->isQ80Weight)
     proposal.addPluginAttribute(
         mlir::StringAttr::get(context, kWeightFormatVariantAttrName),
         mlir::StringAttr::get(context, kWeightFormatQ80));
   // G4 M2b: likewise record the q4_K weight-format FACT so the materializer
-  // routes to tcrv.ime.q4_K_matmul_tile (data flow of the derived fact).
+  // routes to weft.ime.q4_K_matmul_tile (data flow of the derived fact).
   if (derived->isQ4KWeight)
     proposal.addPluginAttribute(
         mlir::StringAttr::get(context, kWeightFormatVariantAttrName),
@@ -690,7 +690,7 @@ llvm::ArrayRef<PluginCapability> IMEExtensionPlugin::getCapabilities() const {
 
 void IMEExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::ime::TCRVIMEDialect>();
+  registry.insert<weft::ime::WEFTIMEDialect>();
 }
 
 bool IMEExtensionPlugin::supportsOperation(
@@ -732,10 +732,10 @@ llvm::Error IMEExtensionPlugin::collectVariantProposals(
 
 llvm::Error IMEExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeIMEPluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue() != kIMEPluginName)
@@ -780,7 +780,7 @@ llvm::Error IMEExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeIMEPluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
 
   // Capability-DERIVED cost (SEL-1 exec-level capability prior). Consult the
   // spacemit.ime capability FACT instead of returning a capability-blind
@@ -877,10 +877,10 @@ llvm::Error IMEExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeIMEPluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeIMEPluginError(
-        "emission readiness requires an enclosing tcrv.exec.kernel");
+        "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -901,10 +901,10 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeIMEPluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeIMEPluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -935,10 +935,10 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
       llvm::consumeError(planDerived.takeError());
   }
   llvm::StringRef boundaryOpName =
-      isQ40Weight ? tcrv::ime::Q40MatMulTileOp::getOperationName()
-      : isQ80Weight ? tcrv::ime::Q80MatMulTileOp::getOperationName()
-      : isQ4KWeight ? tcrv::ime::Q4KMatMulTileOp::getOperationName()
-      : isMatmul  ? tcrv::ime::MatMulOp::getOperationName()
+      isQ40Weight ? weft::ime::Q40MatMulTileOp::getOperationName()
+      : isQ80Weight ? weft::ime::Q80MatMulTileOp::getOperationName()
+      : isQ4KWeight ? weft::ime::Q4KMatMulTileOp::getOperationName()
+      : isMatmul  ? weft::ime::MatMulOp::getOperationName()
                   : singleFragmentBoundaryOpForVariant(request.getVariant());
   out = VariantEmissionPlan::getSupported(
       kIMEPluginName, request.getKernel().getSymName(),
@@ -948,7 +948,7 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
       "ime-vmadot-mma-runtime-c-abi.v1", "riscv-elf-relocatable-object",
       "IME selected boundary lowers the FOUNDATION-validated int8->int32 MAC "
       "kernel (signed vmadot or unsigned vmadotu) through the common "
-      "TCRVEmitCLowerableRoute materializer and the MLIR EmitC C/C++ emitter");
+      "WEFTEmitCLowerableRoute materializer and the MLIR EmitC C/C++ emitter");
   out.setRuntimeABIKind("plugin-owned-runtime-abi");
   out.setRuntimeABIName("ime-vmadot-mma-runtime-c-abi.v1");
   out.setRuntimeGlueRole("emitc-cpp-ime-vmadot-mma-runtime-glue");
@@ -962,16 +962,16 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
 llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeIMEPluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
-  tcrv::exec::KernelOp kernel = request.getKernel();
+        "weft.exec.variant");
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!kernel)
     return makeIMEPluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
@@ -995,8 +995,8 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
   // G4 M1a: the FORMAT-KEYED q4_0 whole-matrix boundary. Instead of the flat
-  // format-agnostic tcrv.ime.matmul op, CONSTRUCT the typed-region
-  // tcrv.ime.q4_0_matmul_tile op (the RVV lowerToRepackGemm front-door precedent
+  // format-agnostic weft.ime.matmul op, CONSTRUCT the typed-region
+  // weft.ime.q4_0_matmul_tile op (the RVV lowerToRepackGemm front-door precedent
   // applied to the IME matrix paradigm): the region is the innermost
   // contraction-block tile body carrying the decomposed q4_0-decode + vmadot-MAC
   // bricks + the int32 yield. Handled here (early) because it owns a region the
@@ -1004,7 +1004,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   if (derived->isQ40Weight) {
     mlir::Location loc = variant.getLoc();
     mlir::OperationState tileState(
-        loc, tcrv::ime::Q40MatMulTileOp::getOperationName());
+        loc, weft::ime::Q40MatMulTileOp::getOperationName());
     tileState.addAttribute(kSourceKernelAttrName,
                            builder.getStringAttr(kernel.getSymName()));
     tileState.addAttribute(
@@ -1054,7 +1054,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
             ") over the MAC fragment from march xsmtvdotii + VLEN/SEW; the q4_0 "
             "weight is decoded (offset-binary nibble) into the int8 MAC fragment"));
     tileState.addRegion();
-    auto tile = llvm::cast<tcrv::ime::Q40MatMulTileOp>(builder.create(tileState));
+    auto tile = llvm::cast<weft::ime::Q40MatMulTileOp>(builder.create(tileState));
 
     // Construct the typed region: the innermost contraction-block tile body. Entry
     // args = block_index (index), the loaded 4x8 int8 activation fragment
@@ -1074,7 +1074,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 1: the q4_0 weight DECODE core (block_index -> decoded int8 B tile).
     mlir::OperationState dequantState(
-        loc, tcrv::ime::Q40DequantCoreOp::getOperationName());
+        loc, weft::ime::Q40DequantCoreOp::getOperationName());
     dequantState.addOperands({blockIndex});
     dequantState.addAttribute("decode_model",
                               builder.getStringAttr(kQ40DecodeModel));
@@ -1092,7 +1092,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 2: the vmadot int8->int32 MAC leaf (a, decoded b, acc_in -> acc_out).
     mlir::OperationState macState(
-        loc, tcrv::ime::VmadotMacLeafOp::getOperationName());
+        loc, weft::ime::VmadotMacLeafOp::getOperationName());
     macState.addOperands({aFragment, bFragment, blockIndex, accIn});
     macState.addAttribute(kIMEOpAttrName, builder.getStringAttr(derived->imeOp));
     macState.addAttribute(kElemInBitsAttrName,
@@ -1107,7 +1107,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Terminator: name the carried-out int32 accumulator tile.
     mlir::OperationState yieldState(
-        loc, tcrv::ime::Q40MatMulTileYieldOp::getOperationName());
+        loc, weft::ime::Q40MatMulTileYieldOp::getOperationName());
     yieldState.addOperands({mac->getResult(0)});
     builder.create(yieldState);
 
@@ -1124,13 +1124,13 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
   // G4 M2: the FORMAT-KEYED q8_0 (FLAT int8) whole-matrix boundary. The
   // copy-adapt sibling of the q4_0 block above: CONSTRUCT the typed-region
-  // tcrv.ime.q8_0_matmul_tile op carrying the decomposed q8_0-decode (DIRECT int8
+  // weft.ime.q8_0_matmul_tile op carrying the decomposed q8_0-decode (DIRECT int8
   // read) + vmadot-MAC bricks + the int32 yield. Handled here (early) because it
   // owns a region the flat OperationState path below cannot build.
   if (derived->isQ80Weight) {
     mlir::Location loc = variant.getLoc();
     mlir::OperationState tileState(
-        loc, tcrv::ime::Q80MatMulTileOp::getOperationName());
+        loc, weft::ime::Q80MatMulTileOp::getOperationName());
     tileState.addAttribute(kSourceKernelAttrName,
                            builder.getStringAttr(kernel.getSymName()));
     tileState.addAttribute(
@@ -1180,7 +1180,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
             ") over the MAC fragment from march xsmtvdotii + VLEN/SEW; the q8_0 "
             "weight is decoded (direct int8 read) into the int8 MAC fragment"));
     tileState.addRegion();
-    auto tile = llvm::cast<tcrv::ime::Q80MatMulTileOp>(builder.create(tileState));
+    auto tile = llvm::cast<weft::ime::Q80MatMulTileOp>(builder.create(tileState));
 
     // Construct the typed region: the innermost contraction-block tile body. Entry
     // args = block_index (index), the loaded 4x8 int8 activation fragment
@@ -1200,7 +1200,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 1: the q8_0 weight DECODE core (block_index -> decoded int8 B tile).
     mlir::OperationState dequantState(
-        loc, tcrv::ime::Q80DequantCoreOp::getOperationName());
+        loc, weft::ime::Q80DequantCoreOp::getOperationName());
     dequantState.addOperands({blockIndex});
     dequantState.addAttribute("decode_model",
                               builder.getStringAttr(kQ80DecodeModel));
@@ -1218,7 +1218,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 2: the vmadot int8->int32 MAC leaf (a, decoded b, acc_in -> acc_out).
     mlir::OperationState macState(
-        loc, tcrv::ime::VmadotMacLeafOp::getOperationName());
+        loc, weft::ime::VmadotMacLeafOp::getOperationName());
     macState.addOperands({aFragment, bFragment, blockIndex, accIn});
     macState.addAttribute(kIMEOpAttrName, builder.getStringAttr(derived->imeOp));
     macState.addAttribute(kElemInBitsAttrName,
@@ -1233,7 +1233,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Terminator: name the carried-out int32 accumulator tile.
     mlir::OperationState yieldState(
-        loc, tcrv::ime::Q80MatMulTileYieldOp::getOperationName());
+        loc, weft::ime::Q80MatMulTileYieldOp::getOperationName());
     yieldState.addOperands({mac->getResult(0)});
     builder.create(yieldState);
 
@@ -1250,7 +1250,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
   // G4 M2b: the FORMAT-KEYED q4_K (SUPER-BLOCK K-quant) whole-matrix boundary. The
   // DEDICATED effort beyond q4_0/q8_0: CONSTRUCT the typed-region
-  // tcrv.ime.q4_K_matmul_tile op carrying the SIX decomposed bricks -- the
+  // weft.ime.q4_K_matmul_tile op carrying the SIX decomposed bricks -- the
   // raw-nibble decode + the 6-bit scale/min unpack + the reused vmadot MAC + the
   // scale-weighted accum (S_scale) + the min-bias accum (S_min) + the two-tile
   // yield. Handled here (early) because it owns a region the flat OperationState
@@ -1258,7 +1258,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   if (derived->isQ4KWeight) {
     mlir::Location loc = variant.getLoc();
     mlir::OperationState tileState(
-        loc, tcrv::ime::Q4KMatMulTileOp::getOperationName());
+        loc, weft::ime::Q4KMatMulTileOp::getOperationName());
     tileState.addAttribute(kSourceKernelAttrName,
                            builder.getStringAttr(kernel.getSymName()));
     tileState.addAttribute(
@@ -1310,7 +1310,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
             "super-block weight is decoded (raw nibble) with the two-level 6-bit "
             "scale/min fold (S_scale = sc_b*sumi_b, S_min = m_b*asum_b)"));
     tileState.addRegion();
-    auto tile = llvm::cast<tcrv::ime::Q4KMatMulTileOp>(builder.create(tileState));
+    auto tile = llvm::cast<weft::ime::Q4KMatMulTileOp>(builder.create(tileState));
 
     // Construct the typed region: the innermost q4_K super-block tile body. Entry
     // args = block_index (index), the loaded 4x8 int8 activation fragment
@@ -1332,7 +1332,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 1: the q4_K RAW-nibble weight DECODE core (block_index -> int8 B tile).
     mlir::OperationState dequantState(
-        loc, tcrv::ime::Q4KDequantCoreOp::getOperationName());
+        loc, weft::ime::Q4KDequantCoreOp::getOperationName());
     dequantState.addOperands({blockIndex});
     dequantState.addAttribute("decode_model",
                               builder.getStringAttr(kQ4KDecodeModel));
@@ -1350,7 +1350,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 2 (NEW): the 6-bit per-sub-block scale/min bit-unpack (get_scale_min_k4).
     mlir::OperationState scaleMinState(
-        loc, tcrv::ime::Q4KScaleMinUnpackCoreOp::getOperationName());
+        loc, weft::ime::Q4KScaleMinUnpackCoreOp::getOperationName());
     scaleMinState.addOperands({blockIndex});
     scaleMinState.addAttribute("scale_min_model",
                                builder.getStringAttr(kQ4KScaleMinModel));
@@ -1372,7 +1372,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
     // acc_in is the carried scale accumulator (a type-consistent SSA use; the
     // emitted helper carries the exact per-sub-block MAC arithmetic).
     mlir::OperationState macState(
-        loc, tcrv::ime::VmadotMacLeafOp::getOperationName());
+        loc, weft::ime::VmadotMacLeafOp::getOperationName());
     macState.addOperands({aFragment, bFragment, blockIndex, accScaleIn});
     macState.addAttribute(kIMEOpAttrName, builder.getStringAttr(derived->imeOp));
     macState.addAttribute(kElemInBitsAttrName,
@@ -1388,7 +1388,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 4 (NEW): the per-sub-block scale-weighted accumulate S_scale += sc_b*sumi_b.
     mlir::OperationState scaleAccumState(
-        loc, tcrv::ime::Q4KScaleWeightedAccumOp::getOperationName());
+        loc, weft::ime::Q4KScaleWeightedAccumOp::getOperationName());
     scaleAccumState.addOperands({sumi, scWeights, accScaleIn});
     scaleAccumState.addAttribute("accum_model",
                                  builder.getStringAttr(kQ4KScaleWeightedModel));
@@ -1398,7 +1398,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Brick 5 (NEW): the activation-sum min-bias accumulate S_min += m_b*asum_b.
     mlir::OperationState minBiasState(
-        loc, tcrv::ime::Q4KMinBiasAccumOp::getOperationName());
+        loc, weft::ime::Q4KMinBiasAccumOp::getOperationName());
     minBiasState.addOperands({aFragment, mWeights, accMinIn});
     minBiasState.addAttribute("bias_model",
                               builder.getStringAttr(kQ4KMinBiasModel));
@@ -1408,7 +1408,7 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
     // Terminator: name the TWO carried-out int32 accumulator tiles (S_scale, S_min).
     mlir::OperationState yieldState(
-        loc, tcrv::ime::Q4KMatMulTileYieldOp::getOperationName());
+        loc, weft::ime::Q4KMatMulTileYieldOp::getOperationName());
     yieldState.addOperands({accScaleOut, accMinOut});
     builder.create(yieldState);
 
@@ -1424,15 +1424,15 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   }
 
   // Route to the boundary op matching the DERIVED signedness fact: signed =>
-  // tcrv.ime.mma (vmadot), unsigned => tcrv.ime.mma_u (vmadotu), signed_unsigned
-  // => tcrv.ime.mma_su (vmadotsu), unsigned_signed => tcrv.ime.mma_us
+  // weft.ime.mma (vmadot), unsigned => weft.ime.mma_u (vmadotu), signed_unsigned
+  // => weft.ime.mma_su (vmadotsu), unsigned_signed => weft.ime.mma_us
   // (vmadotus). All are ODS-registered ops of the SAME dialect; the choice is a
   // pure data flow of the capability-derived fact (recorded on the variant by
   // the materializer), NOT a family-name branch. (The architectural family
-  // spelling `tcrv.ime.*` is not a valid dialect namespace, so the registered
-  // names are tcrv_ime.*.) Two orthogonal capability-derived FACTS pick the
-  // boundary op: the SHAPE fact (single fragment => tcrv.ime.mma[_u/_su/_us];
-  // whole matrix => tcrv.ime.matmul) and the SIGNEDNESS fact (vmadot / vmadotu /
+  // spelling `weft.ime.*` is not a valid dialect namespace, so the registered
+  // names are weft_ime.*.) Two orthogonal capability-derived FACTS pick the
+  // boundary op: the SHAPE fact (single fragment => weft.ime.mma[_u/_su/_us];
+  // whole matrix => weft.ime.matmul) and the SIGNEDNESS fact (vmadot / vmadotu /
   // vmadotsu / vmadotus). Neither is a family-name branch; both are pure data
   // flow of the derived capability facts. Both mixed-sign forms are
   // single-fragment only (their tiled shape was fail-closed in derivation).
@@ -1442,16 +1442,16 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   bool boundaryIsSlide = derived->slide > 0;
   llvm::StringRef boundaryOpName =
       boundaryIsSlide
-          ? tcrv::ime::MMASlideOp::getOperationName()
+          ? weft::ime::MMASlideOp::getOperationName()
           : (derived->isMatmul
-                 ? tcrv::ime::MatMulOp::getOperationName()
+                 ? weft::ime::MatMulOp::getOperationName()
                  : (boundaryIsMixedSign
-                        ? tcrv::ime::MMASUOp::getOperationName()
+                        ? weft::ime::MMASUOp::getOperationName()
                         : (boundaryIsMixedSignUS
-                               ? tcrv::ime::MMAUSOp::getOperationName()
+                               ? weft::ime::MMAUSOp::getOperationName()
                                : (boundaryIsUnsigned
-                                      ? tcrv::ime::MMAUOp::getOperationName()
-                                      : tcrv::ime::MMAOp::getOperationName()))));
+                                      ? weft::ime::MMAUOp::getOperationName()
+                                      : weft::ime::MMAOp::getOperationName()))));
   mlir::OperationState state(variant.getLoc(), boundaryOpName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
@@ -1518,44 +1518,44 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
 llvm::Error IMEExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
-  // The boundary is the signed tcrv.ime.mma, the unsigned tcrv.ime.mma_u, the
-  // mixed-sign tcrv.ime.mma_su / tcrv.ime.mma_us, the sliding-window
-  // tcrv.ime.mma_slide, or the tiled tcrv.ime.matmul op — all are the IME plugin
+  // The boundary is the signed weft.ime.mma, the unsigned weft.ime.mma_u, the
+  // mixed-sign weft.ime.mma_su / weft.ime.mma_us, the sliding-window
+  // weft.ime.mma_slide, or the tiled weft.ime.matmul op — all are the IME plugin
   // execution surface. Accept any; each op's fail-closed verifier pins its own
   // correct mnemonic and envelope.
   mlir::Operation *boundaryOp = request.getBoundary();
   bool verifierFailed = false;
-  if (auto mma = llvm::dyn_cast_if_present<tcrv::ime::MMAOp>(boundaryOp))
+  if (auto mma = llvm::dyn_cast_if_present<weft::ime::MMAOp>(boundaryOp))
     verifierFailed = mlir::failed(mma.verify());
-  else if (auto mmau = llvm::dyn_cast_if_present<tcrv::ime::MMAUOp>(boundaryOp))
+  else if (auto mmau = llvm::dyn_cast_if_present<weft::ime::MMAUOp>(boundaryOp))
     verifierFailed = mlir::failed(mmau.verify());
   else if (auto mmasu =
-               llvm::dyn_cast_if_present<tcrv::ime::MMASUOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::MMASUOp>(boundaryOp))
     verifierFailed = mlir::failed(mmasu.verify());
   else if (auto mmaus =
-               llvm::dyn_cast_if_present<tcrv::ime::MMAUSOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::MMAUSOp>(boundaryOp))
     verifierFailed = mlir::failed(mmaus.verify());
   else if (auto mmaslide =
-               llvm::dyn_cast_if_present<tcrv::ime::MMASlideOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::MMASlideOp>(boundaryOp))
     verifierFailed = mlir::failed(mmaslide.verify());
   else if (auto matmul =
-               llvm::dyn_cast_if_present<tcrv::ime::MatMulOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::MatMulOp>(boundaryOp))
     verifierFailed = mlir::failed(matmul.verify());
   else if (auto q40tile =
-               llvm::dyn_cast_if_present<tcrv::ime::Q40MatMulTileOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::Q40MatMulTileOp>(boundaryOp))
     verifierFailed = mlir::failed(q40tile.verify());
   else if (auto q80tile =
-               llvm::dyn_cast_if_present<tcrv::ime::Q80MatMulTileOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::Q80MatMulTileOp>(boundaryOp))
     verifierFailed = mlir::failed(q80tile.verify());
   else if (auto q4ktile =
-               llvm::dyn_cast_if_present<tcrv::ime::Q4KMatMulTileOp>(boundaryOp))
+               llvm::dyn_cast_if_present<weft::ime::Q4KMatMulTileOp>(boundaryOp))
     verifierFailed = mlir::failed(q4ktile.verify());
   else
     return makeIMEPluginError(
-        "selected IME path requires a tcrv.ime.mma, tcrv.ime.mma_u, "
-        "tcrv.ime.mma_su, tcrv.ime.mma_us, tcrv.ime.mma_slide, "
-        "tcrv.ime.matmul, tcrv.ime.q4_0_matmul_tile, tcrv.ime.q8_0_matmul_tile, "
-        "or tcrv.ime.q4_K_matmul_tile operation");
+        "selected IME path requires a weft.ime.mma, weft.ime.mma_u, "
+        "weft.ime.mma_su, weft.ime.mma_us, weft.ime.mma_slide, "
+        "weft.ime.matmul, weft.ime.q4_0_matmul_tile, weft.ime.q8_0_matmul_tile, "
+        "or weft.ime.q4_K_matmul_tile operation");
 
   // The ODS verifier (fail-closed, I7) already enforces the int8->int32 MAC
   // envelope of the op's signedness, origin/role/status, and selected-path
@@ -1585,4 +1585,4 @@ llvm::Error registerIMEExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinIMEExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

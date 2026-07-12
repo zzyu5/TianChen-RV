@@ -1,269 +1,269 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics | FileCheck %s
+// RUN: weft-opt %s --split-input-file --verify-diagnostics | FileCheck %s
 
-// Deprecated Stage1 inventory only: finite tcrv_rvv.i32_* ops and
-// !tcrv_rvv.i32m* types are retained here to exercise parser/verifier
+// Deprecated Stage1 inventory only: finite weft_rvv.i32_* ops and
+// !weft_rvv.i32m* types are retained here to exercise parser/verifier
 // diagnostics. This file must not be used as positive route, EmitC, target
 // artifact, source-front-door, runtime, correctness, or performance evidence.
 
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @rvv_legacy_i32_dataflow_deprecated_parse_inventory
-  tcrv.exec.kernel @rvv_legacy_i32_dataflow_deprecated_parse_inventory {
+  // CHECK-LABEL: weft.exec.kernel @rvv_legacy_i32_dataflow_deprecated_parse_inventory
+  weft.exec.kernel @rvv_legacy_i32_dataflow_deprecated_parse_inventory {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %rhs_ptr = weft_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %out_ptr = weft_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      // CHECK: tcrv_rvv.i32_load
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      // CHECK: tcrv_rvv.i32_broadcast_load
-      %rhs_broadcast = tcrv_rvv.i32_broadcast_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      // CHECK: tcrv_rvv.i32_add
-      %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      // CHECK: tcrv_rvv.i32_sub
-      %diff = tcrv_rvv.i32_sub %lhs, %rhs_broadcast, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      // CHECK: tcrv_rvv.i32_mul
-      %product = tcrv_rvv.i32_mul %sum, %diff, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      // CHECK: tcrv_rvv.i32_cmp_eq
-      %mask = tcrv_rvv.i32_cmp_eq %sum, %product, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
-      // CHECK: tcrv_rvv.i32_select
-      %selected = tcrv_rvv.i32_select %mask, %sum, %product, %vl : !tcrv_rvv.i32m1_mask, !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      // CHECK: tcrv_rvv.i32_store
-      tcrv_rvv.i32_store %out_ptr, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
-    } : !tcrv_rvv.vl
+      // CHECK: weft_rvv.i32_load
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+      %rhs = weft_rvv.i32_load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+      // CHECK: weft_rvv.i32_broadcast_load
+      %rhs_broadcast = weft_rvv.i32_broadcast_load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+      // CHECK: weft_rvv.i32_add
+      %sum = weft_rvv.i32_add %lhs, %rhs, %vl : !weft_rvv.i32m1, !weft_rvv.i32m1, !weft_rvv.vl -> !weft_rvv.i32m1
+      // CHECK: weft_rvv.i32_sub
+      %diff = weft_rvv.i32_sub %lhs, %rhs_broadcast, %vl : !weft_rvv.i32m1, !weft_rvv.i32m1, !weft_rvv.vl -> !weft_rvv.i32m1
+      // CHECK: weft_rvv.i32_mul
+      %product = weft_rvv.i32_mul %sum, %diff, %vl : !weft_rvv.i32m1, !weft_rvv.i32m1, !weft_rvv.vl -> !weft_rvv.i32m1
+      // CHECK: weft_rvv.i32_cmp_eq
+      %mask = weft_rvv.i32_cmp_eq %sum, %product, %vl : !weft_rvv.i32m1, !weft_rvv.i32m1, !weft_rvv.vl -> !weft_rvv.i32m1_mask
+      // CHECK: weft_rvv.i32_select
+      %selected = weft_rvv.i32_select %mask, %sum, %product, %vl : !weft_rvv.i32m1_mask, !weft_rvv.i32m1, !weft_rvv.i32m1, !weft_rvv.vl -> !weft_rvv.i32m1
+      // CHECK: weft_rvv.i32_store
+      weft_rvv.i32_store %out_ptr, %selected, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.i32m1, !weft_rvv.vl
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @rvv_legacy_i32m2_dataflow_deprecated_parse_inventory
-  tcrv.exec.kernel @rvv_legacy_i32m2_dataflow_deprecated_parse_inventory {
+  // CHECK-LABEL: weft.exec.kernel @rvv_legacy_i32m2_dataflow_deprecated_parse_inventory
+  weft.exec.kernel @rvv_legacy_i32m2_dataflow_deprecated_parse_inventory {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %rhs_ptr = weft_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %out_ptr = weft_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m2",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m2",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      // CHECK: tcrv_rvv.i32_load
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-      // CHECK: tcrv_rvv.i32_sub
-      %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-      // CHECK: tcrv_rvv.i32_store
-      tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
-    } : !tcrv_rvv.vl
+      // CHECK: weft_rvv.i32_load
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m2
+      %rhs = weft_rvv.i32_load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m2
+      // CHECK: weft_rvv.i32_sub
+      %diff = weft_rvv.i32_sub %lhs, %rhs, %vl : !weft_rvv.i32m2, !weft_rvv.i32m2, !weft_rvv.vl -> !weft_rvv.i32m2
+      // CHECK: weft_rvv.i32_store
+      weft_rvv.i32_store %out_ptr, %diff, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.i32m2, !weft_rvv.vl
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_select_reject_mask_not_typed_compare {
+  weft.exec.kernel @rvv_select_reject_mask_not_typed_compare {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %rhs_ptr = weft_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      %mask = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.i32m1_mask
-      // expected-error@+1 {{requires mask operand to be produced by tcrv_rvv.i32_cmp_eq inside the selected RVV typed body}}
-      %selected = tcrv_rvv.i32_select %mask, %lhs, %rhs, %vl : !tcrv_rvv.i32m1_mask, !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+      %rhs = weft_rvv.i32_load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+      %mask = "builtin.unrealized_conversion_cast"() : () -> !weft_rvv.i32m1_mask
+      // expected-error@+1 {{requires mask operand to be produced by weft_rvv.i32_cmp_eq inside the selected RVV typed body}}
+      %selected = weft_rvv.i32_select %mask, %lhs, %rhs, %vl : !weft_rvv.i32m1_mask, !weft_rvv.i32m1, !weft_rvv.i32m1, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_i32m2_reject_m1_dataflow {
+  weft.exec.kernel @rvv_i32m2_reject_m1_dataflow {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m2",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m2",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      // expected-error@+1 {{requires result type '!tcrv_rvv.i32m1' to agree with enclosing tcrv_rvv.with_vl LMUL metadata 'm2'}}
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+      // expected-error@+1 {{requires result type '!weft_rvv.i32m1' to agree with enclosing weft_rvv.with_vl LMUL metadata 'm2'}}
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_compare_reject_m2_predicate_form {
+  weft.exec.kernel @rvv_compare_reject_m2_predicate_form {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %rhs_ptr = weft_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m2",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m2",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-      // expected-error@+1 {{requires lhs type to be !tcrv_rvv.i32m1}}
-      %mask = tcrv_rvv.i32_cmp_eq %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
-    } : !tcrv_rvv.vl
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m2
+      %rhs = weft_rvv.i32_load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m2
+      // expected-error@+1 {{requires lhs type to be !weft_rvv.i32m1}}
+      %mask = weft_rvv.i32_cmp_eq %lhs, %rhs, %vl : !weft_rvv.i32m2, !weft_rvv.i32m2, !weft_rvv.vl -> !weft_rvv.i32m1_mask
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_broadcast_load_reject_lhs_role {
+  weft.exec.kernel @rvv_broadcast_load_reject_lhs_role {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
       // expected-error@+1 {{requires broadcast RHS buffer operand to bind runtime ABI role 'rhs-input-buffer'}}
-      %rhs = tcrv_rvv.i32_broadcast_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+      %rhs = weft_rvv.i32_broadcast_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_dataflow_reject_outside_with_vl {
+  weft.exec.kernel @rvv_dataflow_reject_outside_with_vl {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    // expected-error@+1 {{must be nested within a tcrv_rvv.with_vl body}}
-    %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+    } : index -> !weft_rvv.vl
+    // expected-error@+1 {{must be nested within a weft_rvv.with_vl body}}
+    %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_dataflow_reject_wrong_vl_token {
+  weft.exec.kernel @rvv_dataflow_reject_wrong_vl_token {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    %other = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    %other = "builtin.unrealized_conversion_cast"() : () -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      // expected-error@+1 {{requires RVV dataflow op to consume the !tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl}}
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %other : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+      // expected-error@+1 {{requires RVV dataflow op to consume the !weft_rvv.vl token owned by the surrounding weft_rvv.with_vl}}
+      %lhs = weft_rvv.i32_load %lhs_ptr, %other : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_dataflow_reject_missing_with_vl_config {
+  weft.exec.kernel @rvv_dataflow_reject_missing_with_vl_config {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl {
-      // expected-error@+1 {{requires enclosing tcrv_rvv.with_vl to carry explicit SEW metadata for bounded RVV i32 dataflow}}
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl {
+      // expected-error@+1 {{requires enclosing weft_rvv.with_vl to carry explicit SEW metadata for bounded RVV i32 dataflow}}
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_dataflow_reject_missing_with_vl_policy {
+  weft.exec.kernel @rvv_dataflow_reject_missing_with_vl_policy {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m1",
       sew = 32 : i64
     } {
-      // expected-error@+1 {{requires enclosing tcrv_rvv.with_vl to carry explicit policy metadata for bounded RVV i32 dataflow}}
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+      // expected-error@+1 {{requires enclosing weft_rvv.with_vl to carry explicit policy metadata for bounded RVV i32 dataflow}}
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }
 
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_dataflow_reject_element_count {
+  weft.exec.kernel @rvv_dataflow_reject_element_count {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %vl = tcrv_rvv.setvl %avl {
+    %lhs_ptr = weft_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+    %vl = weft_rvv.setvl %avl {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
+    } : index -> !weft_rvv.vl
+    weft_rvv.with_vl %vl attributes {
       lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
       // expected-error@+1 {{does not accept attribute '"element_count"'}}
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl {element_count = 16 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-    } : !tcrv_rvv.vl
+      %lhs = weft_rvv.i32_load %lhs_ptr, %vl {element_count = 16 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.i32m1
+    } : !weft_rvv.vl
   }
 }

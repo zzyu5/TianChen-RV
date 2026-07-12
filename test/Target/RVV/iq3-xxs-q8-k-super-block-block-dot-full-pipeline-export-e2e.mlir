@@ -4,10 +4,10 @@
 // codebook super-block quant: a 256-entry uint32 grid (each entry 4 int8 values) +
 // the 128-entry ksigns_iq2xs sign plane wrapped in q4_K's super-block structure. The
 // front door's OWN auto-constructed monolithic super-block-grid-codebook body now
-// flows through the COMPLETE tcrv-source-artifact-front-door-pipeline
-// (materialize-emission-plans PLUS --tcrv-check-execution-plan-coherence) AND
-// exports a real RISC-V target artifact through tcrv-translate
-// --tcrv-export-target-artifact.
+// flows through the COMPLETE weft-source-artifact-front-door-pipeline
+// (materialize-emission-plans PLUS --weft-check-execution-plan-coherence) AND
+// exports a real RISC-V target artifact through weft-translate
+// --weft-export-target-artifact.
 //
 // THE BUCKET VERDICT (why this exemplar matters): super-block-grid-codebook is
 // MECHANICAL, NOT bespoke. iq3_xxs takes the EXISTING super-block monolithic route
@@ -24,7 +24,7 @@
 // rest stay byte-exact on their own routes.
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same lowering
-// the direct --tcrv-rvv-lower-to-emitc path uses), so the production-export emit is
+// the direct --weft-rvv-lower-to-emitc path uses), so the production-export emit is
 // byte-identical to the CORE == emission-plans emit (asserted below by diff). The
 // exported function symbol is the kernel+variant handoff name. NO board / NO perf
 // claim -- this is coverage/wiring maturity. iq3_xxs's front-door-constructed op is
@@ -34,25 +34,25 @@
 // -- there is NO VLEN128-vs-VLEN256 byte-flip for iq3_xxs.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
-// REQUIRES: tianchenrv-local-rvv-object-clang
+// REQUIRES: weft-local-rvv-object-clang
 
 // FULL pipeline: front door auto-constructs the monolithic super-block-grid-codebook
-// block-dot body, the tcrv-source-artifact-front-door-pipeline materializes the
-// emission plan AND passes --tcrv-check-execution-plan-coherence (the super-block
+// block-dot body, the weft-source-artifact-front-door-pipeline materializes the
+// emission plan AND passes --weft-check-execution-plan-coherence (the super-block
 // monolithic route id is a registered target-artifact export route).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
-// BYTE-EXACT: --tcrv-materialize-emission-plans only APPENDS the emission-plan
+// BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export
-// EmitC is byte-for-byte the CORE --tcrv-rvv-lower-to-emitc emit.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --tcrv-rvv-lower-to-emitc > %t.core.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
+// EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
+// RUN: weft-opt %s --weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the super-block monolithic emission plan exports
 // a real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -63,8 +63,8 @@
 // gather / sign / scale domain is caught.
 // RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
 
-module attributes {tcrv_rvv.source_front_door = "ggml_iq3_xxs_q8_K_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_iq3_xxs_q8_K_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_iq3_xxs_q8_K_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_iq3_xxs_q8_K_kernel"} {
   func.func @source_iq3_xxs_q8_K_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
@@ -73,14 +73,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq3_xxs_q8_K_block_dot_sou
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
-// PLAN: tcrv.exec.kernel @ggml_vec_dot_iq3_xxs_q8_K_kernel
+// PLAN: weft.exec.kernel @ggml_vec_dot_iq3_xxs_q8_K_kernel
 // iq3_xxs FLIP (L3 coverage): the front door now constructs the typed super-block
 // SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride 98) with
 // the iq3_xxs GRID-of-4 grid-core brick, NOT the retired monolith op. The export still
 // resolves through the SAME super-block monolithic route family (kind/ABI/facts) by the
 // selector + weight_block_stride 98, so the emission-plan metadata is byte-unchanged.
-// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
-// PLAN: tcrv.exec.diagnostic
+// PLAN: weft_rvv.typed_super_block_block_dot_loop_body
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the iq3_xxs kind -- the SAME super-block route family q4_K uses.
@@ -99,13 +99,13 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq3_xxs_q8_K_block_dot_sou
 // PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC grid-codebook integer core =================
-// CORE: emitc.func @tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot
+// CORE: emitc.func @weft_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot
 // The GRID-of-4 codebook + sign plane emitted as structured static const decls (the
 // grid as a uint32_t[256] rendering ggml's exact literals, read via a (const int8_t
 // *) cast; ksigns as a uint8_t[128]; kmask as the inline {1<<j} const).
-// CORE: verbatim "static const uint32_t tcrv_iq3xxs_grid[256] = {0x04040404U,
-// CORE: verbatim "static const uint8_t tcrv_iq3xxs_ksigns[128] = {0, 129, 130, 3,
-// CORE: verbatim "static const uint8_t tcrv_iq3xxs_kmask[8] = {1, 2, 4, 8, 16, 32, 64, 128};"
+// CORE: verbatim "static const uint32_t weft_iq3xxs_grid[256] = {0x04040404U,
+// CORE: verbatim "static const uint8_t weft_iq3xxs_ksigns[128] = {0, 129, 130, 3,
+// CORE: verbatim "static const uint8_t weft_iq3xxs_kmask[8] = {1, 2, 4, 8, 16, 32, 64, 128};"
 // The function-scoped fp32 accumulator + the super-block count nb = n / 256.
 // CORE: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
 // CORE: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
@@ -161,5 +161,5 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq3_xxs_q8_K_block_dot_sou
 // OBJECT: Type: Relocatable
 
 // The exported function symbol is the kernel+variant handoff name -- the same
-// name the CORE EmitC emit carries (tcrv_emitc_<kernel>_<variant>).
-// SYMBOL: Name: tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot
+// name the CORE EmitC emit carries (weft_emitc_<kernel>_<variant>).
+// SYMBOL: Name: weft_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot

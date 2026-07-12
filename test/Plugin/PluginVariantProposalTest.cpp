@@ -1,7 +1,7 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -18,16 +18,16 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalCollectionResult;
-using tianchenrv::plugin::VariantProposalDecline;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalCollectionResult;
+using weft::plugin::VariantProposalDecline;
+using weft::plugin::VariantProposalRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 namespace {
 
@@ -195,7 +195,7 @@ KernelOp findKernel(mlir::ModuleOp module) {
 
 int main() {
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
   dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);
@@ -207,16 +207,16 @@ module {
     return
   }
 
-  tcrv.exec.kernel @proposal_source attributes {} {
-    tcrv.exec.capability @generic_vector {
+  weft.exec.kernel @proposal_source attributes {} {
+    weft.exec.capability @generic_vector {
       id = "generic.vector",
       kind = "generic-execution"
     }
-    tcrv.exec.capability @generic_toolchain {
+    weft.exec.capability @generic_toolchain {
       id = "generic.toolchain",
       kind = "toolchain"
     }
-    tcrv.exec.capability @generic_disabled {
+    weft.exec.capability @generic_disabled {
       id = "generic.disabled",
       kind = "runtime",
       status = "disabled"
@@ -245,7 +245,7 @@ module {
       TargetCapabilitySet::buildFromKernel(kernel);
   if (int result =
           expect(capabilities.size() == 3,
-                 "capabilities are collected from parsed tcrv.exec.kernel"))
+                 "capabilities are collected from parsed weft.exec.kernel"))
     return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID(
                               "generic.vector"),
@@ -372,7 +372,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedFallbackVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeVariantProposals(
+          weft::transforms::materializeVariantProposals(
               builder, request, fallbackPreservedProposals,
               &materializedFallbackVariants),
           "materialize valid proposal after recoverable decline"))
@@ -441,7 +441,7 @@ module {
                  "decline diagnostics preserve registration order"))
     return result;
   if (int result = expectErrorContains(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, noViableRegistry, request),
           {"no viable plugin proposals",
            "decline-first: first bounded decline",

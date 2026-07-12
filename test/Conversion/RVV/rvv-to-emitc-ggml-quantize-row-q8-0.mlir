@@ -1,18 +1,18 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
 // INC-19 F4 — the COMPLETE ggml `quantize_row_q8_0` RVV-path forward-pass op
 // (the f32 -> block_q8_0 ACTIVATION QUANTIZER; riscv/quants.c:32-71) as
 // STRUCTURED emitc IR (I5; ZERO raw() strings). This is the CONSTRUCT-FROM-ABSTRACT
 // proof of the quantize FRONT DOOR (G3 line-B, family-head of the f32->QUANT
 // activation-quantizer spectrum, the MIRROR of the dequantize_row front door): the
-// abstract tcrv_rvv.quantize_row_q8_0 is FRONT-DOOR CONSTRUCTED --
+// abstract weft_rvv.quantize_row_q8_0 is FRONT-DOOR CONSTRUCTED --
 // constructQuantizeRowRegionAndLower rewrites it into the typed
-// tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+// weft_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
 // typed_quantize_row_loop_yield } and lowers it via emitTypedQuantizeRowLoopBody ->
 // emitQuantizeRowQ80BodyShared (the emission is DRIVEN by the typed region op-identity
 // + encode_model, [L-6]/[L-8] construction). The emitted C is BYTE-IDENTICAL to the
 // retired dispatch-wired q8_0 monolith modulo ONLY the source-op provenance token. The
-// single typed op tcrv_rvv.quantize_row_q8_0 lowers to an AoS block loop (nb = n/32) whose body
+// single typed op weft_rvv.quantize_row_q8_0 lowers to an AoS block loop (nb = n/32) whose body
 // per block: loads the 32 f32 lanes in ONE e32m8 strip (vl=32), takes amax via
 // vfabs + vfredmax, computes the scalar d = amax/127 and the load-bearing
 // id = d ? 1/d : 0 (a STRUCTURED emitc.cmp + emitc.if), stores the native
@@ -28,27 +28,27 @@
 // .trellis/tasks/.../artifacts/inc19-forward-pass-f4/.
 
 module {
-  tcrv.exec.kernel @quantize_row_q8_0_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @quantize_row_q8_0 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @quantize_row_q8_0, sew = 32 : i64, source_kernel = "quantize_row_q8_0_kernel", status = "selected-lowering-boundary"} {
-        %q = tcrv_rvv.quantize_row_q8_0 %x, %vy, %n, %vl {kind = "ggml_quantize_row_q8_0", qk = 32 : i64, block_stride = 34 : i64, scale_byte_offset = 0 : i64, quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @quantize_row_q8_0_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @quantize_row_q8_0 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "uint8_t *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @quantize_row_q8_0, sew = 32 : i64, source_kernel = "quantize_row_q8_0_kernel", status = "selected-lowering-boundary"} {
+        %q = weft_rvv.quantize_row_q8_0 %x, %vy, %n, %vl {kind = "ggml_quantize_row_q8_0", qk = 32 : i64, block_stride = 34 : i64, scale_byte_offset = 0 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_quantize_row_q8_0_kernel_quantize_row_q8_0(
+// CHECK: emitc.func @weft_emitc_quantize_row_q8_0_kernel_quantize_row_q8_0(
 // The construction is real: the emit is DRIVEN by the typed region (the provenance
-// token proves the abstract op went THROUGH tcrv_rvv.typed_quantize_row_loop_body,
+// token proves the abstract op went THROUGH weft_rvv.typed_quantize_row_loop_body,
 // not a dispatch-wired monolith).
-// CHECK: route_source_op=tcrv_rvv.typed_quantize_row_loop_body
+// CHECK: route_source_op=weft_rvv.typed_quantize_row_loop_body
 // The AoS block count nb = n / 32 and the block loop.
 // CHECK: div {{.*}}, %{{.*}}
 // CHECK: for %[[IB:.*]] = %{{.*}} to %{{.*}} step

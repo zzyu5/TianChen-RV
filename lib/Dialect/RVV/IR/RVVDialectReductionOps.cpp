@@ -13,12 +13,12 @@
 
 #include "RVVDialectInternal.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
@@ -33,7 +33,7 @@
 #include <optional>
 #include <string>
 
-using namespace tianchenrv::tcrv::rvv;
+using namespace weft::rvv;
 
 mlir::LogicalResult ReduceOp::verify() {
   mlir::Operation *op = getOperation();
@@ -43,7 +43,7 @@ mlir::LogicalResult ReduceOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.reduce keeps SEW/LMUL/policy on setvl/with_vl, "
+             << "'; weft_rvv.reduce keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
 
@@ -85,7 +85,7 @@ mlir::LogicalResult ReduceOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one input generic RVV vector operand, one "
-              "accumulator generic RVV vector operand, one !tcrv_rvv.vl "
+              "accumulator generic RVV vector operand, one !weft_rvv.vl "
               "operand, and one generic RVV vector result";
   if (getInput().getType() != getAccumulator().getType() ||
       getInput().getType() != getResult().getType())
@@ -94,7 +94,7 @@ mlir::LogicalResult ReduceOp::verify() {
               "generic RVV vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -115,7 +115,7 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.standalone_reduce keeps SEW/LMUL/policy on "
+             << "'; weft_rvv.standalone_reduce keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
@@ -130,14 +130,14 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
 
   // Deferred-wide trailing reduce (N3 max-legal-LMUL schedule, the measured
   // ssh-rvv winner): the single trailing vredsum that folds the loop-carried
-  // i32m8 vector accumulator (produced by tcrv_rvv.widening_accumulate) into an
+  // i32m8 vector accumulator (produced by weft_rvv.widening_accumulate) into an
   // i32m1 scalar lane, then the scalar epilogue adds acc[0]. This is a PARALLEL
   // verifier branch keyed on the structural marker (the i32m8 input comes from a
   // widening_accumulate); the narrow i16mf2->i32m1 widening-reduce branch below
   // is unchanged. The enclosing with_vl is the strip config (SEW8 LMUL m2), so
   // the SEW32/m1 narrow config checks do NOT apply here.
   // The 2nd-family (i16 dot-reduce) deferred-wide trailing reduce: folds the
-  // loop-carried i32m8 accumulator (produced by tcrv_rvv.deferred_accumulate,
+  // loop-carried i32m8 accumulator (produced by weft_rvv.deferred_accumulate,
   // the NON-widening vadd.vv) with one vredsum. PARALLEL branch keyed on the
   // DeferredAccumulateOp marker; the enclosing with_vl is the dot-reduce strip
   // config (SEW16 LMUL m4).
@@ -154,7 +154,7 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
         deferredAccumulate.getAccumulateRelation());
     if (accumulatorLMUL.empty())
       return emitOpError()
-             << "requires the producing tcrv_rvv.deferred_accumulate to carry a "
+             << "requires the producing weft_rvv.deferred_accumulate to carry a "
                 "supported accumulate_relation "
                 "\"signed-i32<W>-into-i32<W>-deferred-add\"";
     if (getKind() != "add")
@@ -176,26 +176,26 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     if (op->getNumOperands() != 3 || op->getNumResults() != 1)
       return emitOpError()
              << "requires one i32 input vector operand, one scalar "
-                "accumulator seed runtime ABI operand, one !tcrv_rvv.vl "
+                "accumulator seed runtime ABI operand, one !weft_rvv.vl "
                 "operand, and one i32 LMUL m1 vector result";
     if (!isGenericRVVVectorType(getInput().getType(), getRVVSEW32Bits(),
                                 accumulatorLMUL))
       return emitOpError()
              << "requires deferred-wide dot-reduce trailing reduction source "
-                "vector to have type !tcrv_rvv.vector<i32, \""
+                "vector to have type !weft_rvv.vector<i32, \""
              << accumulatorLMUL
              << "\"> matching the producing deferred_accumulate";
     if (!isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires deferred-wide dot-reduce trailing reduction result "
-                "vector to have type !tcrv_rvv.vector<i32, \"m1\">";
+                "vector to have type !weft_rvv.vector<i32, \"m1\">";
     if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
       return emitOpError()
              << "requires accumulator seed operand to have "
-                "!tcrv_rvv.runtime_abi_value type";
+                "!weft_rvv.runtime_abi_value type";
     if (mlir::failed(verifyRuntimeABIValueOperandRole(
             op, getAccumulatorSeed(), "accumulator seed",
-            {tianchenrv::support::RuntimeABIParameterRole::
+            {weft::support::RuntimeABIParameterRole::
                  AccumulatorInputBuffer})))
       return mlir::failure();
     RuntimeABIValueOp seedBinding =
@@ -207,17 +207,17 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
                 "route";
     if (!llvm::isa<VLType>(getVl().getType()))
       return emitOpError() << "requires runtime VL operand to have "
-                              "!tcrv_rvv.vl type";
+                              "!weft_rvv.vl type";
     if (deferredAccumulate.getVl() != getVl())
       return emitOpError()
-             << "requires the deferred-wide tcrv_rvv.deferred_accumulate to "
-                "consume the same !tcrv_rvv.vl token as the trailing "
-                "tcrv_rvv.standalone_reduce";
+             << "requires the deferred-wide weft_rvv.deferred_accumulate to "
+                "consume the same !weft_rvv.vl token as the trailing "
+                "weft_rvv.standalone_reduce";
     if (deferredAccumulate->getParentOp() != op->getParentOp())
       return emitOpError()
-             << "requires the deferred-wide tcrv_rvv.deferred_accumulate to be "
-                "in the same tcrv_rvv.with_vl body as the trailing "
-                "tcrv_rvv.standalone_reduce";
+             << "requires the deferred-wide weft_rvv.deferred_accumulate to be "
+                "in the same weft_rvv.with_vl body as the trailing "
+                "weft_rvv.standalone_reduce";
     auto withVL = verifyNestedDataflowOp(op);
     if (mlir::failed(withVL))
       return mlir::failure();
@@ -229,7 +229,7 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
         (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
     if (!expectedSEW || !expectedLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+             << "requires enclosing weft_rvv.with_vl to carry explicit "
                 "SEW/LMUL metadata for the deferred-wide dot-reduce trailing "
                 "reduction";
     // The enclosing with_vl strip config is the i16 SOURCE LMUL, derived from
@@ -248,13 +248,13 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     if (expectedSEW.getInt() != getRVVSEW16Bits() ||
         expectedLMUL.getValue() != sourceLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl config to be SEW16 LMUL "
+             << "requires enclosing weft_rvv.with_vl config to be SEW16 LMUL "
              << sourceLMUL
              << " (the dot-reduce strip config) for the deferred-wide trailing "
                 "reduction";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+             << "requires enclosing weft_rvv.with_vl to carry explicit policy "
                 "metadata for the deferred-wide dot-reduce trailing reduction";
     return mlir::success();
   }
@@ -280,23 +280,23 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     if (op->getNumOperands() != 3 || op->getNumResults() != 1)
       return emitOpError()
              << "requires one i32 LMUL m8 input vector operand, one scalar "
-                "accumulator seed runtime ABI operand, one !tcrv_rvv.vl "
+                "accumulator seed runtime ABI operand, one !weft_rvv.vl "
                 "operand, and one i32 LMUL m1 vector result";
     if (!isGenericRVVVectorI32M8(getInput().getType()))
       return emitOpError()
              << "requires deferred-wide trailing reduction source vector to "
-                "have type !tcrv_rvv.vector<i32, \"m8\">";
+                "have type !weft_rvv.vector<i32, \"m8\">";
     if (!isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires deferred-wide trailing reduction result vector to "
-                "have type !tcrv_rvv.vector<i32, \"m1\">";
+                "have type !weft_rvv.vector<i32, \"m1\">";
     if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
       return emitOpError()
              << "requires accumulator seed operand to have "
-                "!tcrv_rvv.runtime_abi_value type";
+                "!weft_rvv.runtime_abi_value type";
     if (mlir::failed(verifyRuntimeABIValueOperandRole(
             op, getAccumulatorSeed(), "accumulator seed",
-            {tianchenrv::support::RuntimeABIParameterRole::
+            {weft::support::RuntimeABIParameterRole::
                  AccumulatorInputBuffer})))
       return mlir::failure();
     RuntimeABIValueOp seedBinding =
@@ -307,17 +307,17 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
                 "for the deferred-wide trailing standalone reduction route";
     if (!llvm::isa<VLType>(getVl().getType()))
       return emitOpError() << "requires runtime VL operand to have "
-                              "!tcrv_rvv.vl type";
+                              "!weft_rvv.vl type";
     if (wideAccumulate.getVl() != getVl())
       return emitOpError()
-             << "requires the deferred-wide tcrv_rvv.widening_accumulate to "
-                "consume the same !tcrv_rvv.vl token as the trailing "
-                "tcrv_rvv.standalone_reduce";
+             << "requires the deferred-wide weft_rvv.widening_accumulate to "
+                "consume the same !weft_rvv.vl token as the trailing "
+                "weft_rvv.standalone_reduce";
     if (wideAccumulate->getParentOp() != op->getParentOp())
       return emitOpError()
-             << "requires the deferred-wide tcrv_rvv.widening_accumulate to be "
-                "in the same tcrv_rvv.with_vl body as the trailing "
-                "tcrv_rvv.standalone_reduce";
+             << "requires the deferred-wide weft_rvv.widening_accumulate to be "
+                "in the same weft_rvv.with_vl body as the trailing "
+                "weft_rvv.standalone_reduce";
     auto withVL = verifyNestedDataflowOp(op);
     if (mlir::failed(withVL))
       return mlir::failure();
@@ -329,22 +329,22 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
         (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
     if (!expectedSEW || !expectedLMUL)
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+             << "requires enclosing weft_rvv.with_vl to carry explicit "
                 "SEW/LMUL metadata for the deferred-wide trailing reduction";
     if (expectedSEW.getInt() != getRVVSEW8Bits() ||
         expectedLMUL.getValue() != getRVVLMULM2())
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl config to be SEW8 LMUL m2 "
+             << "requires enclosing weft_rvv.with_vl config to be SEW8 LMUL m2 "
                 "(the strip config) for the deferred-wide trailing reduction";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+             << "requires enclosing weft_rvv.with_vl to carry explicit policy "
                 "metadata for the deferred-wide trailing reduction";
     return mlir::success();
   }
 
   // The CODEBOOK-gather widening reduce (Track B G2 bounded codebook core): the
-  // input is produced by a tcrv_rvv.codebook_gather_x_i8_product, whose i16
+  // input is produced by a weft_rvv.codebook_gather_x_i8_product, whose i16
   // product LMUL is the wider rung of the codebook i8 gather anchor (the genuine
   // flip: m1 -> i16m2 at VLEN128, mf2 -> i16m1 at VLEN256). This is a PARALLEL
   // branch keyed on the codebook-gather producer (a brand-new op), fully isolated
@@ -373,7 +373,7 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
       return emitOpError()
              << "requires one i16 codebook-product input vector operand, one "
                 "scalar accumulator seed runtime ABI operand, one "
-                "!tcrv_rvv.vl operand, and one i32 LMUL m1 vector result";
+                "!weft_rvv.vl operand, and one i32 LMUL m1 vector result";
     if (getInput() != codebookGather.getResult())
       return emitOpError()
              << "requires the codebook-gather product result to be the "
@@ -390,14 +390,14 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     if (!isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires the codebook-gather widening reduction result vector "
-                "to have type !tcrv_rvv.vector<i32, \"m1\">";
+                "to have type !weft_rvv.vector<i32, \"m1\">";
     if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
       return emitOpError()
              << "requires accumulator seed operand to have "
-                "!tcrv_rvv.runtime_abi_value type";
+                "!weft_rvv.runtime_abi_value type";
     if (mlir::failed(verifyRuntimeABIValueOperandRole(
             op, getAccumulatorSeed(), "accumulator seed",
-            {tianchenrv::support::RuntimeABIParameterRole::
+            {weft::support::RuntimeABIParameterRole::
                  AccumulatorInputBuffer})))
       return mlir::failure();
     RuntimeABIValueOp seedBinding =
@@ -408,17 +408,17 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
                 "for the codebook-gather widening standalone reduction route";
     if (!llvm::isa<VLType>(getVl().getType()))
       return emitOpError() << "requires runtime VL operand to have "
-                              "!tcrv_rvv.vl type";
+                              "!weft_rvv.vl type";
     if (codebookGather.getVl() != getVl())
       return emitOpError()
-             << "requires the tcrv_rvv.codebook_gather_x_i8_product to consume "
-                "the same !tcrv_rvv.vl token as the trailing "
-                "tcrv_rvv.standalone_reduce";
+             << "requires the weft_rvv.codebook_gather_x_i8_product to consume "
+                "the same !weft_rvv.vl token as the trailing "
+                "weft_rvv.standalone_reduce";
     if (codebookGather->getParentOp() != op->getParentOp())
       return emitOpError()
-             << "requires the tcrv_rvv.codebook_gather_x_i8_product to be in the "
-                "same tcrv_rvv.with_vl body as the trailing "
-                "tcrv_rvv.standalone_reduce";
+             << "requires the weft_rvv.codebook_gather_x_i8_product to be in the "
+                "same weft_rvv.with_vl body as the trailing "
+                "weft_rvv.standalone_reduce";
     auto withVL = verifyNestedDataflowOp(op);
     if (mlir::failed(withVL))
       return mlir::failure();
@@ -432,12 +432,12 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
         !isRVVSelectedBodyM1Config(expectedSEW.getInt(),
                                    expectedLMUL.getValue()))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl accumulator/result config "
+             << "requires enclosing weft_rvv.with_vl accumulator/result config "
                 "to be SEW32 LMUL m1 (the standalone-reduction strip framing) "
                 "for the codebook-gather widening standalone reduction";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+             << "requires enclosing weft_rvv.with_vl to carry explicit policy "
                 "metadata for the codebook-gather widening standalone reduction";
     return mlir::success();
   }
@@ -463,15 +463,15 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires one input generic RVV vector operand, one scalar "
-              "accumulator seed runtime ABI operand, one !tcrv_rvv.vl operand, "
+              "accumulator seed runtime ABI operand, one !weft_rvv.vl operand, "
               "and one generic RVV vector result";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAccumulatorSeed(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   const bool isSignedWideningReduce =
@@ -490,7 +490,7 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
            << "' for the bounded standalone reduction route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -524,34 +524,34 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
             getInput().getType(), getRVVSEW16Bits(), expectedProductLMUL))
       return emitOpError()
              << "requires the byte-anchor signed widening standalone reduction "
-                "source vector to have type !tcrv_rvv.vector<i16, \""
+                "source vector to have type !weft_rvv.vector<i16, \""
              << expectedProductLMUL
              << "\"> (one EMUL step wider than the SEW8 byte anchor)";
     if (!isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires the byte-anchor signed widening standalone reduction "
-                "result vector to have type !tcrv_rvv.vector<i32, \"m1\">";
+                "result vector to have type !weft_rvv.vector<i32, \"m1\">";
   } else if (isWideningReduce) {
     if (isSignedWideningReduce &&
         !isGenericRVVVectorI16MF2(getInput().getType()))
       return emitOpError()
              << "requires signed widening standalone reduction source vector "
-                "to have type !tcrv_rvv.vector<i16, \"mf2\">";
+                "to have type !weft_rvv.vector<i16, \"mf2\">";
     if (isUnsignedWideningReduce &&
         !isGenericRVVVectorUnsignedI16MF2(getInput().getType()))
       return emitOpError()
              << "requires unsigned widening standalone reduction source "
-                "vector to have type !tcrv_rvv.vector<ui16, \"mf2\">";
+                "vector to have type !weft_rvv.vector<ui16, \"mf2\">";
     if (isSignedWideningReduce &&
         !isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires signed widening standalone reduction result vector "
-                "to have type !tcrv_rvv.vector<i32, \"m1\">";
+                "to have type !weft_rvv.vector<i32, \"m1\">";
     if (isUnsignedWideningReduce &&
         !isGenericRVVVectorUnsignedI32M1(getResult().getType()))
       return emitOpError()
              << "requires unsigned widening standalone reduction result "
-                "vector to have type !tcrv_rvv.vector<ui32, \"m1\">";
+                "vector to have type !weft_rvv.vector<ui32, \"m1\">";
   } else if (mlir::failed(
                  verifyGenericVectorTypeForWithVL(op, getInput(), "input"))) {
     return mlir::failure();
@@ -563,7 +563,7 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit source "
+           << "requires enclosing weft_rvv.with_vl to carry explicit source "
               "SEW/LMUL metadata for standalone reduction";
   std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
   if (isByteAnchorWideningReduce) {
@@ -572,20 +572,20 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
   } else if (isWideningReduce) {
     if (!isRVVSelectedBodyM1Config(sew, expectedLMUL.getValue()))
       return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl accumulator/result "
+             << "requires enclosing weft_rvv.with_vl accumulator/result "
                 "config to be SEW32 LMUL m1 for the bounded i16-to-i32 "
                 "widening standalone reduction route";
   } else if (!isSupportedTypedStandaloneReductionPreRealizedConfig(
                  sew, expectedLMUL.getValue())) {
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl source/work config to be "
+           << "requires enclosing weft_rvv.with_vl source/work config to be "
               "SEW32 LMUL m1 or SEW32 LMUL m2 for the bounded standalone "
               "reduction route with a separate LMUL m1 scalar reduction "
               "accumulator/result channel";
   }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for standalone reduction";
 
   return verifyStandaloneReductionScalarResultVectorForWithVL(
@@ -600,7 +600,7 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.masked_standalone_reduce keeps mask provenance, "
+             << "'; weft_rvv.masked_standalone_reduce keeps mask provenance, "
                 "SEW/LMUL/policy on typed values and setvl/with_vl, runtime "
                 "n/AVL/VL in the surrounding control-plane IR, and rejects "
                 "deleted local element_count metadata";
@@ -650,14 +650,14 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
     return emitOpError()
            << "requires compare-produced mask, source generic RVV vector, one "
               "scalar accumulator seed runtime ABI operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+              "!weft_rvv.vl operand, and one generic RVV vector result";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
-              "!tcrv_rvv.runtime_abi_value type";
+              "!weft_rvv.runtime_abi_value type";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAccumulatorSeed(), "accumulator seed",
-          {tianchenrv::support::RuntimeABIParameterRole::
+          {weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
   RuntimeABIValueOp seedBinding =
@@ -665,11 +665,11 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
   if (!seedBinding)
     return emitOpError()
            << "requires accumulator seed operand to be bound by "
-              "tcrv_rvv.runtime_abi_value for the bounded masked standalone "
+              "weft_rvv.runtime_abi_value for the bounded masked standalone "
               "reduction route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -679,21 +679,21 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getKind() != "sle")
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to use kind \"sle\" "
+           << "requires mask-producing weft_rvv.compare to use kind \"sle\" "
               "for the bounded computed-mask standalone reduction route";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_standalone_reduce";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_standalone_reduce";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as "
-              "tcrv_rvv.masked_standalone_reduce";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as "
+              "weft_rvv.masked_standalone_reduce";
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getInput(), "input")))
@@ -705,7 +705,7 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+           << "requires enclosing weft_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for masked standalone reduction";
   std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
   std::string runtimeScalarReductionOpKind =
@@ -715,7 +715,7 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
   if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
           runtimeScalarReductionOpKind, sew, expectedLMUL.getValue()))
     return emitOpError()
-             << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
+             << "requires enclosing weft_rvv.with_vl result config to be SEW32 "
               "LMUL m1 or SEW32 LMUL m2 for min/max, and SEW32 LMUL m1, "
               "SEW32 LMUL m2, or SEW64 LMUL m1 for add, with a separate "
               "LMUL m1 scalar reduction accumulator/result channel";
@@ -738,7 +738,7 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
               "config";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for masked standalone reduction";
 
   return verifyStandaloneReductionScalarResultVectorForWithVL(
@@ -753,7 +753,7 @@ mlir::LogicalResult MAccOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.macc keeps SEW/LMUL/policy on setvl/with_vl, "
+             << "'; weft_rvv.macc keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
                 "rejects deleted local element_count metadata";
 
@@ -795,7 +795,7 @@ mlir::LogicalResult MAccOp::verify() {
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs, rhs, and accumulator generic RVV vector "
-              "operands, one !tcrv_rvv.vl operand, and one generic RVV "
+              "operands, one !weft_rvv.vl operand, and one generic RVV "
               "vector result";
   if (getLhs().getType() != getRhs().getType() ||
       getLhs().getType() != getAccumulator().getType() ||
@@ -805,7 +805,7 @@ mlir::LogicalResult MAccOp::verify() {
               "generic RVV vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   if (mlir::failed(verifyNestedDataflowOp(op)))
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
@@ -828,7 +828,7 @@ mlir::LogicalResult MaskedMAccOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.masked_macc keeps mask provenance, SEW/LMUL/"
+             << "'; weft_rvv.masked_macc keeps mask provenance, SEW/LMUL/"
                 "policy on typed values and setvl/with_vl, runtime n/AVL/VL "
                 "in the surrounding control-plane IR, and rejects deleted "
                 "local element_count metadata";
@@ -875,7 +875,7 @@ mlir::LogicalResult MaskedMAccOp::verify() {
   if (op->getNumOperands() != 5 || op->getNumResults() != 1)
     return emitOpError()
            << "requires compare-produced mask, lhs, rhs, and accumulator "
-              "generic RVV vector operands, one !tcrv_rvv.vl operand, and one "
+              "generic RVV vector operands, one !weft_rvv.vl operand, and one "
               "generic RVV vector result";
   if (getLhs().getType() != getRhs().getType() ||
       getLhs().getType() != getAccumulator().getType() ||
@@ -885,7 +885,7 @@ mlir::LogicalResult MaskedMAccOp::verify() {
               "generic RVV vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+                            "!weft_rvv.vl type";
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
     return mlir::failure();
@@ -895,20 +895,20 @@ mlir::LogicalResult MaskedMAccOp::verify() {
   auto compare = getMask().getDefiningOp<CompareOp>();
   if (!compare)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
+           << "requires mask operand to be produced by weft_rvv.compare "
               "inside the selected RVV typed body";
   if (compare.getKind() != "slt" && compare.getKind() != "sle")
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to use kind \"slt\" "
+           << "requires mask-producing weft_rvv.compare to use kind \"slt\" "
               "or \"sle\" for bounded computed-mask macc routes";
   if (compare.getVl() != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.masked_macc";
+           << "requires mask-producing weft_rvv.compare to consume the same "
+              "!weft_rvv.vl token as weft_rvv.masked_macc";
   if (compare->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.masked_macc";
+           << "requires mask-producing weft_rvv.compare to be in the same "
+              "weft_rvv.with_vl body as weft_rvv.masked_macc";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();
@@ -926,7 +926,7 @@ mlir::LogicalResult MaskedMAccOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+           << "requires enclosing weft_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for masked macc";
   bool runtimeScalarMaskProducer =
       compare.getRhs().getDefiningOp<SplatOp>() != nullptr;
@@ -939,13 +939,13 @@ mlir::LogicalResult MaskedMAccOp::verify() {
   } else if (!isSupportedTypedComputedMaskMAccPreRealizedConfig(
                  expectedSEW.getInt(), expectedLMUL.getValue())) {
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
+           << "requires enclosing weft_rvv.with_vl result config to be SEW32 "
               "LMUL m1 or SEW32 LMUL m2 for the bounded vector masked macc "
               "route";
   }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for masked macc";
 
   if (mlir::failed(verifyGenericMaskMatchesVector(op, getMask(), getResult(),

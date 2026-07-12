@@ -1,11 +1,11 @@
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
 
 #include "llvm/Support/Errc.h"
 
-namespace tianchenrv::plugin::template_ext {
+namespace weft::plugin::template_ext {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kProtocolVersion(
     "extension-family-construction-protocol.v1");
@@ -14,14 +14,14 @@ constexpr llvm::StringLiteral kArchetype(
 constexpr llvm::StringLiteral kSemanticRoleGraph(
     "configure->load->compute->store");
 constexpr llvm::StringLiteral kInterfaceRealization(
-    "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-    "TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+"
-    "TCRVComputeOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface");
+    "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+    "WEFTEmitCLowerableInterface;load=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;compute=WEFTExtensionOpInterface+"
+    "WEFTComputeOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;store=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
     "emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|"
@@ -75,7 +75,7 @@ constexpr llvm::StringLiteral kTemplateRuntimeABIKind(
 constexpr llvm::StringLiteral kTemplateRuntimeGlueRole(
     "emitc-cpp-template-compute-skeleton-runtime-glue");
 constexpr llvm::StringLiteral kTemplateLoweringBoundaryOpName(
-    "tcrv_template.compute_skeleton");
+    "weft_template.compute_skeleton");
 constexpr llvm::StringLiteral kTemplateHeaderRouteID(
     "template-extension-compute-skeleton-emitc-route.header");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
@@ -85,47 +85,47 @@ constexpr llvm::StringLiteral kTemplateMaterializedEmitCBundleComponentGroup(
 constexpr llvm::StringLiteral kTemplateObjectHandoffKind(
     "materialized-emitc-cpp-template-object");
 constexpr llvm::StringLiteral kTemplateComputeCallee(
-    "tcrv_template_compute_skeleton");
+    "weft_template_compute_skeleton");
 constexpr llvm::StringLiteral kTemplateComputeResultName(
     "template_compute_sentinel");
 constexpr llvm::StringLiteral kTemplateComputeResultCType("int32_t");
 constexpr llvm::StringLiteral kTemplateEmitCToCppTranslateRouteID(
-    "tcrv-template-emitc-to-cpp");
+    "weft-template-emitc-to-cpp");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:template.role.configure.config_skeleton:"
-    "tcrv_template.config_skeleton:TCRVConfigOpInterface:"
-    "TCRVEmitCLowerableInterface;"
-    "load:template.role.load.load_skeleton:tcrv_template.load_skeleton:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
+    "weft_template.config_skeleton:WEFTConfigOpInterface:"
+    "WEFTEmitCLowerableInterface;"
+    "load:template.role.load.load_skeleton:weft_template.load_skeleton:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;"
     "compute:template.role.compute.compute_skeleton:"
-    "tcrv_template.compute_skeleton:TCRVComputeOpInterface:"
-    "TCRVEmitCLowerableInterface;"
+    "weft_template.compute_skeleton:WEFTComputeOpInterface:"
+    "WEFTEmitCLowerableInterface;"
     "store:template.role.store.store_skeleton:"
-    "tcrv_template.store_skeleton:TCRVMemoryOpInterface:"
-    "TCRVEmitCLowerableInterface");
+    "weft_template.store_skeleton:WEFTMemoryOpInterface:"
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kTemplateComputeOperationName(
-    "tcrv_template.compute_skeleton");
+    "weft_template.compute_skeleton");
 constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
     "template.role.compute.compute_skeleton");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 
 const TemplateConstructionSemanticRole kSemanticRoles[] = {
-    {"configure", 0, "tcrv_template.config_skeleton",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
+    {"configure", 0, "weft_template.config_skeleton",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
      "establish extension configuration before local execution roles"},
-    {"load", 1, "tcrv_template.load_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+    {"load", 1, "weft_template.load_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "move IR-modeled memory into the extension-owned execution resource"},
-    {"compute", 2, "tcrv_template.compute_skeleton",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "perform the extension-owned primitive without tcrv.exec compute"},
-    {"store", 3, "tcrv_template.store_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+    {"compute", 2, "weft_template.compute_skeleton",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "perform the extension-owned primitive without weft.exec compute"},
+    {"store", 3, "weft_template.store_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "write extension-owned results back through an IR-modeled memory role"},
 };
 
@@ -134,8 +134,8 @@ const TemplateConstructionManifest kManifest = {
     kArchetype,
     kSemanticRoleGraph,
     {"template",
-     "tcrv.template",
-     "tcrv_template",
+     "weft.template",
+     "weft_template",
      kTemplatePluginName,
      kTemplateCapabilityID,
      kTemplateCapabilityKind,
@@ -155,35 +155,35 @@ const TemplateTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"template.role.configure.config_skeleton",
      "configure",
      0,
-     "tcrv_template.config_skeleton",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
-     "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_template.config_skeleton",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
+     "WEFTConfigOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"template.role.load.load_skeleton",
      "load",
      1,
-     "tcrv_template.load_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_template.load_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"template.role.compute.compute_skeleton",
      "compute",
      2,
-     "tcrv_template.compute_skeleton",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_template.compute_skeleton",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTComputeOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"template.role.store.store_skeleton",
      "store",
      3,
-     "tcrv_template.store_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_template.store_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
 };
 
 const TemplateTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -215,10 +215,10 @@ const TemplateEmitCConstructionRoute kTemplateEmitCRoute = {
     kTemplateEmitCToCppTranslateRouteID};
 
 const construction::RoleExpectation kRoleExpectations[] = {
-    {"configure", "TCRVConfigOpInterface", false},
-    {"load", "TCRVMemoryOpInterface", true},
-    {"compute", "TCRVComputeOpInterface", true},
-    {"store", "TCRVMemoryOpInterface", true},
+    {"configure", "WEFTConfigOpInterface", false},
+    {"load", "WEFTMemoryOpInterface", true},
+    {"compute", "WEFTComputeOpInterface", true},
+    {"store", "WEFTMemoryOpInterface", true},
 };
 
 const llvm::StringRef kRequiredEvidence[] = {
@@ -228,7 +228,7 @@ const llvm::StringRef kRequiredEvidence[] = {
 
 llvm::Error makeTemplateConstructionProtocolError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Template construction protocol invalid: ") +
+      llvm::Twine("Weft-RV Template construction protocol invalid: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -250,7 +250,7 @@ construction::RoleOpValidationSpec getTemplateComputeRoleValidationSpec() {
   return {"compute",
           kTemplateComputeOperationName,
           kTemplateComputeTypedRoleID,
-          "TCRVComputeOpInterface",
+          "WEFTComputeOpInterface",
           "Template compute role op",
           "Template compute role op is missing before construction validation"};
 }
@@ -516,4 +516,4 @@ llvm::Error verifyTemplateComputeRoleOpInterface(
       getTemplateComputeRoleValidationSpec());
 }
 
-} // namespace tianchenrv::plugin::template_ext
+} // namespace weft::plugin::template_ext

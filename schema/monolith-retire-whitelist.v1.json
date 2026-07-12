@@ -2,7 +2,7 @@
   "$meta": {
     "schema": "monolith-retire-whitelist.v1",
     "ruling": "裁决九.4 — 退役口径固化 (monolith retirement discipline, fixated).",
-    "purpose": "Authoritative allow-list of the vec_dot MONOLITH block-dot op-defs that are ALLOWED to still exist in the ODS (include/TianChenRV/Dialect/RVV/IR/RVVOps.td). Every surviving monolith is either (a) DELIBERATELY RETAINED forever (a live second lowering path / a negative control), or (b) PENDING RETIREMENT under a NAMED batch. An op-def that survives with NEITHER classification is the unnamed dead tail this list exists to forbid ('有名有批次': a monolith may linger only if it is named AND carries a retirement batch). The machine gate tools/lint/check_monolith_retire.py fails closed on any un-whitelisted surviving monolith.",
+    "purpose": "Authoritative allow-list of the vec_dot MONOLITH block-dot op-defs that are ALLOWED to still exist in the ODS (include/Weft/Dialect/RVV/IR/RVVOps.td). Every surviving monolith is either (a) DELIBERATELY RETAINED forever (a live second lowering path / a negative control), or (b) PENDING RETIREMENT under a NAMED batch. An op-def that survives with NEITHER classification is the unnamed dead tail this list exists to forbid ('有名有批次': a monolith may linger only if it is named AND carries a retirement batch). The machine gate tools/lint/check_monolith_retire.py fails closed on any un-whitelisted surviving monolith.",
     "constitution": [
       "A 'vec_dot monolith' = an ODS op-def whose description says 'Records the COMPLETE ggml `ggml_vec_dot_<fmt>_<act>` (super-)block dot-product as ONE ...' — the WHOLE ggml vec_dot recorded as ONE opaque op. Bricks/cores ('Records the INTEGER CORE ...' / 'Records the WHOLE per-super-block body ...') and the GEMM/GEMV/REPACK/PACK family are NOT monoliths and are out of scope.",
       "deliberately_retained = a monolith that will NEVER be retired: it backs a live emission/isa path (q4_0 contraction arm) or is a deliberate undecomposed negative control (mxfp4). No batch pointer — it is not going away.",
@@ -11,11 +11,11 @@
       "Retired verifiers are PLAIN-DELETED from the .cpp (git history is the archive). An `#if 0 ... GgmlBlockDot*::verify ... #endif` tomb left in a dialect/conversion .cpp is itself a residual and is RED."
     ],
     "source_of_truth": {
-      "ods": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td",
+      "ods": "include/Weft/Dialect/RVV/IR/RVVOps.td",
       "monolith_detector_marker": "Records the COMPLETE ggml `ggml_vec_dot_",
       "verifier_impl": "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp",
       "front_door_gate": "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp",
-      "family_registry": "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h",
+      "family_registry": "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h",
       "checker": "tools/lint/check_monolith_retire.py",
       "ci": ".github/workflows/falsifier-gate.yml (job: monolith-retire-gate)"
     },
@@ -23,7 +23,7 @@
     "retired_ledger_forms": {
       "ruling": "判定书 §3 轴B 裁决①: a RETIRED vec_dot monolith is registered in EITHER of TWO EQUALLY-VALID canonical forms -- there is NO forced migration to a single form (合规 != 体例统一).",
       "form_A_json_retired_ledger": "A structured entry in THIS file's retired_ledger array (format + op_def + retired_at + front_door/cleanup + restore_ref). This is the form for op-defs that were ALREADY absent from ODS at the whitelist's birth, or retired after it.",
-      "form_B_td_retired_note": "A `// NOTE: def <OpDef> (the monolith <fmt> block-dot op) was RETIRED at ...` prose marker in the ODS source_of_truth file (include/TianChenRV/Dialect/RVV/IR/RVVOps.td) that carries the FOUR REQUIREMENTS (四要件齐): (1) 格名+op-def, (2) 退役依据 = the front door now CONSTRUCTS the typed loop body instead, (3) 替代路径 = the createTyped*LoopChain front-door construction + the code-moved emit anchor, (4) 复原指针 = the named flip (C_construct delta, git-findable). A .td RETIRED NOTE with all four IS a compliant retired-ledger form -- the canon source_of_truth already designates RVVOps.td as authoritative, and a four-requirement marker there is substantively compliant. Do NOT migrate .td RETIRED NOTE markers into this JSON; JSON retired_ledger entries and .td RETIRED NOTE markers COEXIST legally.",
+      "form_B_td_retired_note": "A `// NOTE: def <OpDef> (the monolith <fmt> block-dot op) was RETIRED at ...` prose marker in the ODS source_of_truth file (include/Weft/Dialect/RVV/IR/RVVOps.td) that carries the FOUR REQUIREMENTS (四要件齐): (1) 格名+op-def, (2) 退役依据 = the front door now CONSTRUCTS the typed loop body instead, (3) 替代路径 = the createTyped*LoopChain front-door construction + the code-moved emit anchor, (4) 复原指针 = the named flip (C_construct delta, git-findable). A .td RETIRED NOTE with all four IS a compliant retired-ledger form -- the canon source_of_truth already designates RVVOps.td as authoritative, and a four-requirement marker there is substantively compliant. Do NOT migrate .td RETIRED NOTE markers into this JSON; JSON retired_ledger entries and .td RETIRED NOTE markers COEXIST legally.",
       "back_fill_note": "判定书 §3 轴B 裁决②: six flat/IQ monoliths (q8_0/q4_1/q5_0/q5_1/iq1_s/iq4_nl) were FLIP/plain-deleted BEFORE this whitelist was born (commit 1076d75e) and left NEITHER a JSON entry NOR a .td RETIRED NOTE (git-history-only, constitutionally non-violating but leaving the retired ledger incomplete). They are BACK-FILLED into retired_ledger below (form A) to close the three-tier asymmetry -- one-time completeness pass, each with the four requirements incl. the real retirement git ref."
     },
     "retired_index": "判定书 §3 轴B 裁决③ (机检化): tools/lint/gen_retired_index.py merges (a) the .td RETIRED NOTE markers + (b) this file's retired_ledger + (c) schema/emit-bypass-whitelist.v1.json retired_ledger into the single read-only query point schema/retired-index.generated.json (machine-generated, DO NOT hand-edit). tools/lint/check_retired_index.py (CI job retired-index-gate) fails closed unless the index is fresh AND every RETIRED vec_dot monolith format -- derived independently as {vec_dot rows in schema/coverage-sixstate.v1.json} MINUS {surviving ODS monolith formats} -- is in the index with non-empty four requirements."
@@ -64,7 +64,7 @@
         "lib/Conversion/RVV/RVVToEmitC.cpp:441 (isQ1_0Q8_0BlockDotBody recognizer registered)",
         "lib/Conversion/RVV/RVVToEmitC.cpp:1364 (isa<GgmlBlockDotQ10Q80Op> dispatch)",
         "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:9723 (dyn_cast<GgmlBlockDotQ10Q80Op> emitter)",
-        "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1996 (family route registration)",
+        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1996 (family route registration)",
         "test/Dialect/RVV/q1-0-q8-0-block-dot-dataflow.mlir (verifier contract test)"
       ]
     },
@@ -76,7 +76,7 @@
       "reason": "Front door CONSTRUCTS the typed super-block DUAL-accumulator loop body (isQ4KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3114) instead of the monolith; the monolith emitter is already code-moved to the typed-super-block lowering. op-def is pipeline-dead (isa/dyn_cast=0) but retains (a) front-door opName-string keying via getOperationName() and (b) a LIVE verifier contract test. Kept named-with-batch rather than hard-deleted, to avoid breaking the gate/test in a lint-wiring ruling (别硬删破 gate).",
       "live_refs": [
         "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3114 (getOperationName() opName key)",
-        "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1629 (family route registration)",
+        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1629 (family route registration)",
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:5457 (GgmlBlockDotQ4KQ8KOp::verify — live, tested)",
         "test/Dialect/RVV/q4-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
       ]
@@ -89,7 +89,7 @@
       "reason": "Front door CONSTRUCTS the typed super-block dual-accumulator loop body (isQ5KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3121); monolith op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
       "live_refs": [
         "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3121 (getOperationName() opName key)",
-        "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1847 (family route registration)",
+        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1847 (family route registration)",
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:5648 (GgmlBlockDotQ5KQ8KOp::verify — live, tested)",
         "test/Dialect/RVV/q5-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
       ]
@@ -102,7 +102,7 @@
       "reason": "Front door CONSTRUCTS the typed super-block single-accumulator loop body (isQ6KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3128); monolith op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
       "live_refs": [
         "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3128 (getOperationName() opName key)",
-        "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1861 (family route registration)",
+        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1861 (family route registration)",
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:4394 (GgmlBlockDotQ6KQ8KOp::verify — live, tested)",
         "test/Dialect/RVV/q6-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
       ]
@@ -115,7 +115,7 @@
       "reason": "Front door CONSTRUCTS the typed super-block scalar-accumulator loop body (isQ2KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3144); monolith op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
       "live_refs": [
         "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3144 (getOperationName() opName key)",
-        "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1816 (family route registration)",
+        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1816 (family route registration)",
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:5823 (GgmlBlockDotQ2KQ8KOp::verify — live, tested)",
         "test/Dialect/RVV/q2-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
       ]
@@ -129,7 +129,7 @@
       "live_refs": [
         "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:1328 (getOperationName() opName key — chain builder q3_K/q6_K disambiguation)",
         "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3136 (getOperationName() opName key — front-door flag)",
-        "include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1832 (family route registration)",
+        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1832 (family route registration)",
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:6632 (GgmlBlockDotQ3KQ8KOp::verify — live, tested)",
         "test/Dialect/RVV/q3-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
       ]
@@ -150,7 +150,7 @@
       "mnemonic": "q8_0_q8_0_block_dot",
       "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A (see $meta.retired_ledger_forms.back_fill_note).",
       "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q8_0 vec_dot to typed-flat construction and the monolith op-def was plain-deleted together with q4_1/q5_0/q5_1 in ONE commit -- BEFORE this whitelist was born at 1076d75e, so it left git history only.",
-      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs tcrv_rvv.typed_flat_block_dot_loop_body -> RVVToEmitC.cpp emitTypedFlatBlockDotLoopBody (realized body = decomposed load+widening_product+standalone_reduce, byte-identical-to-monolith emit).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs weft_rvv.typed_flat_block_dot_loop_body -> RVVToEmitC.cpp emitTypedFlatBlockDotLoopBody (realized body = decomposed load+widening_product+standalone_reduce, byte-identical-to-monolith emit).",
       "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ80Q80Op` from RVVOps.td; the op-def was ADDED at parent-lineage 8518b819 INC-7).",
       "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     },
@@ -160,7 +160,7 @@
       "mnemonic": "q4_1_q8_1_block_dot",
       "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
       "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q4_1 vec_dot to typed-flat construction (unsigned-nibble dot + operand-driven dual-fp16 scale+MIN fold) and the monolith op-def was plain-deleted with q8_0/q5_0/q5_1 in ONE commit BEFORE this whitelist's birth (1076d75e).",
-      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs tcrv_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+unsigned_nibble_x_i8_product+standalone_reduce, Family-B dual-fp16 scale+MIN dequant fold, byte-identical-to-monolith emit).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs weft_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+unsigned_nibble_x_i8_product+standalone_reduce, Family-B dual-fp16 scale+MIN dequant fold, byte-identical-to-monolith emit).",
       "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ41Q81Op`; op-def ADDED at parent-lineage 3a32d40b INC-9).",
       "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     },
@@ -170,7 +170,7 @@
       "mnemonic": "q5_0_q8_0_block_dot",
       "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
       "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q5_0 vec_dot to typed-flat construction (five-bit offset-binary dot fed by a per-block qh 5th-bit source brick) and the monolith op-def was plain-deleted with q8_0/q4_1/q5_1 in ONE commit BEFORE this whitelist's birth (1076d75e).",
-      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (isQ50TypedFlat gate) constructs tcrv_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product + block_five_bit_qh_source brick, byte-identical-to-monolith emit).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (isQ50TypedFlat gate) constructs weft_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product + block_five_bit_qh_source brick, byte-identical-to-monolith emit).",
       "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ50Q80Op`; op-def ADDED at parent-lineage fc64b476 INC-21).",
       "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     },
@@ -180,7 +180,7 @@
       "mnemonic": "q5_1_q8_1_block_dot",
       "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
       "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q5_1 vec_dot to typed-flat construction (five-bit offset-binary dot bias-off + qh 5th-bit brick + fp16 min-product) and the monolith op-def was plain-deleted with q8_0/q4_1/q5_0 in ONE commit BEFORE this whitelist's birth (1076d75e).",
-      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (q5_1 branch) constructs tcrv_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product+block_fp16_min_product, ScalePlusMin fold, byte-identical-to-monolith emit).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (q5_1 branch) constructs weft_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product+block_fp16_min_product, ScalePlusMin fold, byte-identical-to-monolith emit).",
       "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ51Q81Op`; op-def ADDED at parent-lineage 08a7ac0e INC-22).",
       "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     },
@@ -190,7 +190,7 @@
       "mnemonic": "iq1_s_q8_k_block_dot",
       "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
       "retired_at": "iq1_s FLIP (L3, C_construct 15->16): the front door FLIPPED iq1_s vec_dot dispatch-wired -> constructed via the typed super-block scalar-delta-grid loop body; the monolith op-def was plain-deleted at the flip, BEFORE this whitelist's birth (1076d75e).",
-      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockScalarDeltaGridLoopChain constructs tcrv_rvv.typed_super_block_block_dot_loop_body (fold_model \"scalar_delta_grid\") carrying the iq1_s grid-core brick -> RVVToEmitCKQuant.cpp emitTypedSuperBlockScalarDeltaGridLoopBody (byte-identical-to-monolith emit).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockScalarDeltaGridLoopChain constructs weft_rvv.typed_super_block_block_dot_loop_body (fold_model \"scalar_delta_grid\") carrying the iq1_s grid-core brick -> RVVToEmitCKQuant.cpp emitTypedSuperBlockScalarDeltaGridLoopBody (byte-identical-to-monolith emit).",
       "restore_ref": "git cc4b5559 (task(L3-iq1_s-FLIP): iq1_s vec_dot CONSTRUCTED -- C_construct 15->16 -- REMOVED `def GgmlBlockDotIQ1SQ8KOp`; op-def ADDED at parent-lineage 6fe29dd1 INC-38).",
       "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     },
@@ -200,7 +200,7 @@
       "mnemonic": "iq4_nl_q8_0_block_dot",
       "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
       "retired_at": "iq4_nl FLIP (L3 M2, C_construct 14->15, the FIRST constructed IQ/codebook vec_dot): the front door FLIPPED iq4_nl vec_dot dispatch-wired -> constructed via the typed FLAT block-dot loop body (codebook branch); the monolith op-def was plain-deleted at the flip, BEFORE this whitelist's birth (1076d75e).",
-      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (isIq4Nl codebook branch) constructs tcrv_rvv.typed_flat_block_dot_loop_body -> RVVToEmitCBlockQuantLinear.cpp emitTypedFlatBlockDotLoopBody (decomposed codebook_table_broadcast + load..., byte-identical-to-monolith emit).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (isIq4Nl codebook branch) constructs weft_rvv.typed_flat_block_dot_loop_body -> RVVToEmitCBlockQuantLinear.cpp emitTypedFlatBlockDotLoopBody (decomposed codebook_table_broadcast + load..., byte-identical-to-monolith emit).",
       "restore_ref": "git ede04009 (task(L3-iq4_nl-FLIP): iq4_nl vec_dot CONSTRUCTED -- C_construct 14->15 -- REMOVED `def GgmlBlockDotIQ4NLQ80Op`; op-def ADDED at parent-lineage d237d37e INC-30).",
       "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     }

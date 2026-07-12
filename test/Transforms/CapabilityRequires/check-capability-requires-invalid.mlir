@@ -1,7 +1,7 @@
-// RUN: not tcrv-opt %s --tcrv-check-capability-requires 2>&1 | FileCheck %s
+// RUN: not weft-opt %s --weft-check-capability-requires 2>&1 | FileCheck %s
 
-tcrv.exec.kernel @disabled_runtime attributes {} {
-  tcrv.exec.capability @runtime_probe {
+weft.exec.kernel @disabled_runtime attributes {} {
+  weft.exec.capability @runtime_probe {
     id = "portable.runtime",
     kind = "runtime-offload",
     status = "disabled"
@@ -11,88 +11,88 @@ tcrv.exec.kernel @disabled_runtime attributes {} {
   // CHECK-SAME: kind = "runtime-offload"
   // CHECK-SAME: status = "disabled"
   // CHECK-SAME: kernel @disabled_runtime
-  // CHECK-SAME: not protected by tcrv.exec.dispatch case
-  tcrv.exec.variant @portable_path attributes {
+  // CHECK-SAME: not protected by weft.exec.dispatch case
+  weft.exec.variant @portable_path attributes {
     origin = "portable-plugin",
     requires = [@runtime_probe]
   } {
   }
 }
 
-tcrv.exec.kernel @unguarded_dispatch_case attributes {} {
-  tcrv.exec.capability @runtime_probe {
+weft.exec.kernel @unguarded_dispatch_case attributes {} {
+  weft.exec.capability @runtime_probe {
     id = "portable.runtime.probe",
     kind = "runtime-offload",
     status = "missing"
   }
-  tcrv.exec.capability @generic_toolchain {
+  weft.exec.capability @generic_toolchain {
     id = "generic.toolchain",
     kind = "toolchain"
   }
-  tcrv.exec.variant @runtime_offload_path attributes {
+  weft.exec.variant @runtime_offload_path attributes {
     origin = "runtime-offload-plugin",
     requires = [@runtime_probe]
   } {
   }
-  tcrv.exec.variant @portable_fallback attributes {
+  weft.exec.variant @portable_fallback attributes {
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
   }
-  tcrv.exec.dispatch attributes {} {
+  weft.exec.dispatch attributes {} {
     // CHECK: error: unguarded dispatch case in kernel @unguarded_dispatch_case targets variant @runtime_offload_path with unavailable required capability @runtime_probe
     // CHECK-SAME: id = "portable.runtime.probe"
     // CHECK-SAME: kind = "runtime-offload"
     // CHECK-SAME: status = "missing"
     // CHECK-SAME: runtime_guard_required
     // CHECK-SAME: condition/guard/policy annotations alone are not semantic guard requirements
-    tcrv.exec.case @runtime_offload_path {
+    weft.exec.case @runtime_offload_path {
       condition = "legacy_condition_annotation",
       guard = "legacy_guard_annotation",
       policy = "legacy_policy_annotation"
     }
-    tcrv.exec.fallback @portable_fallback
+    weft.exec.fallback @portable_fallback
   }
 }
 
-tcrv.exec.kernel @unavailable_fallback attributes {} {
-  tcrv.exec.capability @generic_toolchain {
+weft.exec.kernel @unavailable_fallback attributes {} {
+  weft.exec.capability @generic_toolchain {
     id = "generic.toolchain",
     kind = "toolchain"
   }
-  tcrv.exec.capability @portable_runtime {
+  weft.exec.capability @portable_runtime {
     id = "portable.runtime",
     kind = "runtime-offload",
     status = "unavailable"
   }
-  tcrv.exec.variant @available_case_path attributes {
+  weft.exec.variant @available_case_path attributes {
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
   }
-  tcrv.exec.variant @portable_fallback attributes {
+  weft.exec.variant @portable_fallback attributes {
     origin = "runtime-fallback-plugin",
     requires = [@portable_runtime]
   } {
   }
-  tcrv.exec.dispatch attributes {} {
-    tcrv.exec.case @available_case_path {condition = "generic_toolchain_available"}
+  weft.exec.dispatch attributes {} {
+    weft.exec.case @available_case_path {condition = "generic_toolchain_available"}
     // CHECK: error: dispatch fallback in kernel @unavailable_fallback targets variant @portable_fallback with unavailable required capability @portable_runtime
     // CHECK-SAME: id = "portable.runtime"
     // CHECK-SAME: kind = "runtime-offload"
     // CHECK-SAME: status = "unavailable"
-    tcrv.exec.fallback @portable_fallback
+    weft.exec.fallback @portable_fallback
   }
 }
 
-tcrv.exec.kernel @static_conflict attributes {} {
-  tcrv.exec.capability @inline_asm {
+weft.exec.kernel @static_conflict attributes {} {
+  weft.exec.capability @inline_asm {
     id = "vendor.inline_asm",
     kind = "toolchain",
-    relations = #tcrv.capability_relations<conflicts = ["build.policy.no_inline_asm"]>,
+    relations = #weft.capability_relations<conflicts = ["build.policy.no_inline_asm"]>,
     status = "available"
   }
-  tcrv.exec.capability @no_inline {
+  weft.exec.capability @no_inline {
     id = "build.policy.no_inline_asm",
     kind = "build-policy",
     status = "available"
@@ -104,8 +104,8 @@ tcrv.exec.kernel @static_conflict attributes {} {
   // CHECK-SAME: id = "build.policy.no_inline_asm"
   // CHECK-SAME: via conflict id "build.policy.no_inline_asm"
   // CHECK-SAME: kernel @static_conflict
-  // CHECK-SAME: not protected by tcrv.exec.dispatch case
-  tcrv.exec.variant @inline_asm_path attributes {
+  // CHECK-SAME: not protected by weft.exec.dispatch case
+  weft.exec.variant @inline_asm_path attributes {
     origin = "inline-asm-plugin",
     requires = [@inline_asm]
   } {
@@ -113,84 +113,84 @@ tcrv.exec.kernel @static_conflict attributes {} {
 }
 
 // The conflicting capability relation is expressed via the typed
-// relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]> attr and
-// the provider via relations = #tcrv.capability_relations<provides = ...>. The
+// relations = #weft.capability_relations<conflicts = ["shape.dynamic"]> attr and
+// the provider via relations = #weft.capability_relations<provides = ...>. The
 // unguarded-dispatch conflict legality decision is driven by the typed
 // attribute through the descriptor bridge.
-tcrv.exec.kernel @unguarded_conflict_dispatch attributes {} {
-  tcrv.exec.capability @fixed_shape_runtime {
+weft.exec.kernel @unguarded_conflict_dispatch attributes {} {
+  weft.exec.capability @fixed_shape_runtime {
     id = "runtime.fixed_shape",
     kind = "runtime-offload",
-    relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]>,
+    relations = #weft.capability_relations<conflicts = ["shape.dynamic"]>,
     status = "available"
   }
-  tcrv.exec.capability @shape_profile {
+  weft.exec.capability @shape_profile {
     id = "shape.profile",
     kind = "shape-policy",
-    relations = #tcrv.capability_relations<provides = ["shape.dynamic"]>,
+    relations = #weft.capability_relations<provides = ["shape.dynamic"]>,
     status = "available"
   }
-  tcrv.exec.capability @generic_toolchain {
+  weft.exec.capability @generic_toolchain {
     id = "generic.toolchain",
     kind = "toolchain",
     status = "available"
   }
-  tcrv.exec.variant @fixed_shape_path attributes {
+  weft.exec.variant @fixed_shape_path attributes {
     origin = "runtime-offload-plugin",
     requires = [@fixed_shape_runtime]
   } {
   }
-  tcrv.exec.variant @portable_fallback attributes {
+  weft.exec.variant @portable_fallback attributes {
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
   }
-  tcrv.exec.dispatch attributes {} {
+  weft.exec.dispatch attributes {} {
     // CHECK: error: unguarded dispatch case in kernel @unguarded_conflict_dispatch targets variant @fixed_shape_path with conflicting required capability @fixed_shape_runtime
     // CHECK-SAME: id = "runtime.fixed_shape"
     // CHECK-SAME: conflicting with available capability @shape_profile
     // CHECK-SAME: id = "shape.profile"
     // CHECK-SAME: via conflict id "shape.dynamic"
     // CHECK-SAME: runtime_guard_required
-    tcrv.exec.case @fixed_shape_path
-    tcrv.exec.fallback @portable_fallback
+    weft.exec.case @fixed_shape_path
+    weft.exec.fallback @portable_fallback
   }
 }
 
-tcrv.exec.kernel @conflicting_fallback attributes {} {
-  tcrv.exec.capability @generic_toolchain {
+weft.exec.kernel @conflicting_fallback attributes {} {
+  weft.exec.capability @generic_toolchain {
     id = "generic.toolchain",
     kind = "toolchain",
     status = "available"
   }
-  tcrv.exec.capability @scalar_fallback {
+  weft.exec.capability @scalar_fallback {
     id = "scalar.fallback",
     kind = "fallback",
-    relations = #tcrv.capability_relations<conflicts = ["build.policy.no_scalar_fallback"]>,
+    relations = #weft.capability_relations<conflicts = ["build.policy.no_scalar_fallback"]>,
     status = "available"
   }
-  tcrv.exec.capability @no_scalar_fallback {
+  weft.exec.capability @no_scalar_fallback {
     id = "build.policy.no_scalar_fallback",
     kind = "build-policy",
     status = "available"
   }
-  tcrv.exec.variant @available_case_path attributes {
+  weft.exec.variant @available_case_path attributes {
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
   }
-  tcrv.exec.variant @portable_fallback attributes {
+  weft.exec.variant @portable_fallback attributes {
     origin = "runtime-fallback-plugin",
     requires = [@scalar_fallback]
   } {
   }
-  tcrv.exec.dispatch attributes {} {
-    tcrv.exec.case @available_case_path {condition = "generic_toolchain_available"}
+  weft.exec.dispatch attributes {} {
+    weft.exec.case @available_case_path {condition = "generic_toolchain_available"}
     // CHECK: error: dispatch fallback in kernel @conflicting_fallback targets variant @portable_fallback with conflicting required capability @scalar_fallback
     // CHECK-SAME: id = "scalar.fallback"
     // CHECK-SAME: conflicting with available capability @no_scalar_fallback
     // CHECK-SAME: id = "build.policy.no_scalar_fallback"
     // CHECK-SAME: via conflict id "build.policy.no_scalar_fallback"
-    tcrv.exec.fallback @portable_fallback
+    weft.exec.fallback @portable_fallback
   }
 }

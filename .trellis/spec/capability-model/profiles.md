@@ -1,6 +1,6 @@
 # Target Profiles
 
-Profiles 是 capability fixture：描述可被 pass 查询/验证的具体目标事实。它们是 capability 输入，**永远不**创造 `tcrv_rvv` body、dtype authority、route id、source-front-door route 或 intrinsic 选择（见 [core-invariants](../architecture/core-invariants.md) I5）。
+Profiles 是 capability fixture：描述可被 pass 查询/验证的具体目标事实。它们是 capability 输入，**永远不**创造 `weft_rvv` body、dtype authority、route id、source-front-door route 或 intrinsic 选择（见 [core-invariants](../architecture/core-invariants.md) I5）。
 
 具体的 VLEN/VLENB/dtype 支持等应**探测或带 provenance 声明，不靠猜**——它们是 target capability 事实，不是 runtime SSA/control 值，也不是 per-variant 常量。每条 profile 事实按 [S-1] 携带 `provenance ∈ {hwprobe,cpuinfo,vendor_table,manual}` 与 `trust ∈ {measured,declared}`；探针只写事实、不写路由（[S-3]）。
 
@@ -18,7 +18,7 @@ capability 示例：`rv64`、`rvv`、`zvl128b`（或实测最小 VLEN / raw VLEN
 
 稳定的 profile capability id 保持 plugin-local 且通用：`rv64`、`rvv`、`rvv.hart_count`、`riscv.toolchain.march`/`mabi`、`rvv.toolchain.clang`/`cmake`、`rvv.probe.compile_run`。provider 身份、benchmark 名、日志、性能测量值**不得**变成 capability id（I9）。`rvv.hart_count` 可 `provides = ["target.hart_count"]`，其 `count` 是 uarch 事实，不是 runtime thread 数、dispatch guard、tensor shape、AVL/VL。
 
-证据规则：RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据并命名本 profile（或派生 probed profile）；本地 compile-only / smoke / 文档改动都不是 runtime 证据（I8）。Python probe 可暴露 sanitized `capability_facts`，但**不得**把它翻译成 `tcrv.exec` capability/target/route mirror/typed body/route 输入/fallback 建模（I6）；从 probe 证据到 compiler-visible capability 的权威转换是 plugin-local C++ RVV capability profile 校验 + `TargetCapabilitySet` 填充。probe 也不得伪造 SEW/LMUL/tail/mask 这类 plugin-selected 编译期 config 事实。
+证据规则：RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据并命名本 profile（或派生 probed profile）；本地 compile-only / smoke / 文档改动都不是 runtime 证据（I8）。Python probe 可暴露 sanitized `capability_facts`，但**不得**把它翻译成 `weft.exec` capability/target/route mirror/typed body/route 输入/fallback 建模（I6）；从 probe 证据到 compiler-visible capability 的权威转换是 plugin-local C++ RVV capability profile 校验 + `TargetCapabilitySet` 填充。probe 也不得伪造 SEW/LMUL/tail/mask 这类 plugin-selected 编译期 config 事实。
 
 ## k1-ime（IME 接入 —— N2 的关键证据点）
 

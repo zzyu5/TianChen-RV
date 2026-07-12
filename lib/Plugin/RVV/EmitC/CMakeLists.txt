@@ -1,4 +1,4 @@
-add_mlir_library(TianChenRVRVVEmitCRouteProvider
+add_mlir_library(WeftRVVEmitCRouteProvider
   RVVEmitCRoutePlanning.cpp
   RVVEmitCRoutePlanningPrimitives.cpp
   RVVEmitCRouteFamilyDerivation.cpp
@@ -21,16 +21,16 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVEmitCSegment2RouteFamilyPlanOwners.cpp
 
   DEPENDS
-  TianChenRVPassesIncGen
+  WeftPassesIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVConversionRVV
-  TianChenRVExecDialect
-  TianChenRVPlugin
-  TianChenRVRVVConstructionProtocol
-  TianChenRVRVVDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftConversionRVV
+  WeftExecDialect
+  WeftPlugin
+  WeftRVVConstructionProtocol
+  WeftRVVDialect
+  WeftSupport
   MLIRIR
   MLIRSupport
 )

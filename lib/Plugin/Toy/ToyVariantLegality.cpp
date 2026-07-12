@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -12,28 +12,28 @@
 
 #include <string>
 
-namespace tianchenrv::plugin::toy {
+namespace weft::plugin::toy {
 namespace {
 
 constexpr llvm::StringLiteral kToyPluginName("toy-plugin");
 constexpr llvm::StringLiteral kToyTemplateCapabilityID("toy.template");
 constexpr llvm::StringLiteral kToyTemplateCapabilityKind("extension-template");
-constexpr llvm::StringLiteral kToyTemplateABIAttrName("tcrv_toy.template_abi");
-constexpr llvm::StringLiteral kToyHandoffKindAttrName("tcrv_toy.handoff_kind");
+constexpr llvm::StringLiteral kToyTemplateABIAttrName("weft_toy.template_abi");
+constexpr llvm::StringLiteral kToyHandoffKindAttrName("weft_toy.handoff_kind");
 constexpr llvm::StringLiteral kToyConstructionProtocolAttrName(
-    "tcrv_toy.construction_protocol");
+    "weft_toy.construction_protocol");
 constexpr llvm::StringLiteral kToyConstructionArchetypeAttrName(
-    "tcrv_toy.archetype");
+    "weft_toy.archetype");
 constexpr llvm::StringLiteral kToySemanticRoleGraphAttrName(
-    "tcrv_toy.semantic_role_graph");
+    "weft_toy.semantic_role_graph");
 constexpr llvm::StringLiteral kToyCommonInterfaceRealizationAttrName(
-    "tcrv_toy.common_interface_realization");
+    "weft_toy.common_interface_realization");
 constexpr llvm::StringLiteral kToyTypedRoleRealizationAttrName(
-    "tcrv_toy.typed_role_realization");
+    "weft_toy.typed_role_realization");
 constexpr llvm::StringLiteral kToyEmitCRouteMappingAttrName(
-    "tcrv_toy.emitc_route_mapping");
+    "weft_toy.emitc_route_mapping");
 constexpr llvm::StringLiteral kToyEvidenceProfileAttrName(
-    "tcrv_toy.evidence_profile");
+    "weft_toy.evidence_profile");
 constexpr llvm::StringLiteral kExpectedTemplateABI("toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -46,7 +46,7 @@ struct ToyTemplateCapabilityView {
 
 llvm::Error makeToyPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Toy extension plugin template failed: ") +
+      llvm::Twine("Weft-RV Toy extension plugin template failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -152,7 +152,7 @@ buildToyTemplateCapabilityView(
 }
 
 llvm::Expected<bool>
-variantRequiresToyTemplate(tcrv::exec::VariantOp variant,
+variantRequiresToyTemplate(weft::exec::VariantOp variant,
                            const support::TargetCapabilitySet &capabilities) {
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -180,7 +180,7 @@ variantRequiresToyTemplate(tcrv::exec::VariantOp variant,
 }
 
 llvm::Error verifyToyVariantMetadata(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const ToyTemplateCapabilityView &capabilityView) {
   if (llvm::Error error = verifyToyConstructionProtocolReady())
     return error;
@@ -192,7 +192,7 @@ llvm::Error verifyToyVariantMetadata(
     return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
                               variant.getSymName() +
                               " requires non-empty string "
-                              "'tcrv_toy.template_abi' metadata");
+                              "'weft_toy.template_abi' metadata");
   if (templateABI.getValue() != capabilityView.templateABI)
     return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
                               variant.getSymName() +
@@ -205,7 +205,7 @@ llvm::Error verifyToyVariantMetadata(
     return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
                               variant.getSymName() +
                               " requires non-empty string "
-                              "'tcrv_toy.handoff_kind' metadata");
+                              "'weft_toy.handoff_kind' metadata");
   if (handoffKind.getValue() != capabilityView.handoffKind)
     return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
                               variant.getSymName() +
@@ -278,11 +278,11 @@ llvm::Error verifyToyVariantMetadata(
 } // namespace
 
 llvm::Error verifyToySelectedVariantLegality(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp /*kernel*/,
+    weft::exec::VariantOp variant, weft::exec::KernelOp /*kernel*/,
     const support::TargetCapabilitySet &capabilities) {
   if (!variant)
     return makeToyPluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue() != kToyPluginName)
@@ -306,4 +306,4 @@ llvm::Error verifyToySelectedVariantLegality(
   return verifyToyVariantMetadata(variant, *capabilityView);
 }
 
-} // namespace tianchenrv::plugin::toy
+} // namespace weft::plugin::toy

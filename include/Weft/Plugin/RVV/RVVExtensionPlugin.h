@@ -1,0 +1,76 @@
+#ifndef WEFT_PLUGIN_RVV_RVVEXTENSIONPLUGIN_H
+#define WEFT_PLUGIN_RVV_RVVEXTENSIONPLUGIN_H
+
+#include "Weft/Plugin/ExtensionPlugin.h"
+
+namespace mlir {
+class MLIRContext;
+} // namespace mlir
+
+namespace weft::plugin {
+
+namespace rvv {
+
+struct RVVProbeCapabilityFacts;
+
+llvm::StringRef getRVVExtensionPluginName();
+llvm::StringRef getRVVExtensionPluginVersion();
+llvm::StringRef getRVVCapabilityID();
+llvm::StringRef getRVVCapabilityKind();
+llvm::StringRef getRVVPreferredCapabilitySymbol();
+llvm::StringRef getRVVPolicyAttrName();
+
+class RVVExtensionPlugin final : public ExtensionPlugin {
+public:
+  RVVExtensionPlugin();
+
+  llvm::StringRef getName() const override;
+  llvm::StringRef getVersion() const override;
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override;
+  void registerDialects(mlir::DialectRegistry &registry) const override;
+  llvm::Error verifyExecutableConstructionConformance() const override;
+  llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;
+  bool supportsOperation(const VariantProposalRequest &request) const override;
+  llvm::Error
+  proposeVariants(const VariantProposalRequest &request,
+                  llvm::SmallVectorImpl<VariantProposal> &out) const override;
+  llvm::Error
+  collectVariantProposals(const VariantProposalRequest &request,
+                          VariantProposalCollectionResult &out) const override;
+  llvm::Expected<support::TargetCapabilitySet>
+  buildTargetCapabilitiesFromProbeFacts(
+      mlir::MLIRContext &context,
+      const RVVProbeCapabilityFacts &facts) const;
+  llvm::Error
+  verifyVariantLegality(const VariantLegalityRequest &request) const override;
+  llvm::Error
+  estimateVariantCost(const VariantCostRequest &request,
+                      VariantCostEstimate &out) const override;
+  llvm::Error
+  checkVariantEmissionReadiness(const VariantEmissionRequest &request,
+                                VariantEmissionStatus &out) const override;
+  llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
+                                       VariantEmissionPlan &out) const override;
+  llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const override;
+  llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const override;
+  llvm::Error configureTargetSupportExtensionBundle(
+      ExtensionBundle &bundle) const override;
+  llvm::Error registerTargetSupportTranslateRoutes(
+      target::TargetTranslateRouteRegistry &registry) const override;
+
+private:
+  llvm::SmallVector<PluginCapability, 1> capabilities;
+};
+
+} // namespace rvv
+
+llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
+
+} // namespace weft::plugin
+
+#endif // WEFT_PLUGIN_RVV_RVVEXTENSIONPLUGIN_H

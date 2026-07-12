@@ -1,11 +1,11 @@
-#include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -27,13 +27,13 @@
 #include <memory>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
-constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
+constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
-    "tcrv_rvv.source_front_door");
-constexpr llvm::StringLiteral kSourceKernelAttrName("tcrv_rvv.source_kernel");
+    "weft_rvv.source_front_door");
+constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kAcceptedVectorBinarySourceFrontDoorValue(
     "bounded_vector_source");
 constexpr llvm::StringLiteral kAcceptedVectorCompareSelectSourceFrontDoorValue(
@@ -133,7 +133,7 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
       {RVVVectorSourceFrontDoorFamilyID::Binary,
        "bounded-vector-binary-source-front-door",
        kAcceptedVectorBinarySourceFrontDoorValue,
-       "tcrv-rvv-materialize-vector-binary-source-front-door",
+       "weft-rvv-materialize-vector-binary-source-front-door",
        "Materialize one bounded MLIR Vector-like i32 binary source pattern "
        "into a selected generic typed RVV body",
        "RVV vector-binary source function candidate", "rvv_vector_",
@@ -145,7 +145,7 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
       {RVVVectorSourceFrontDoorFamilyID::CompareSelect,
        "bounded-vector-compare-select-source-front-door",
        kAcceptedVectorCompareSelectSourceFrontDoorValue,
-       "tcrv-rvv-materialize-vector-compare-select-source-front-door",
+       "weft-rvv-materialize-vector-compare-select-source-front-door",
        "Materialize one bounded MLIR Vector-like i32 compare/select source "
        "pattern into a selected generic typed RVV body",
        "RVV vector-compare-select source function candidate",
@@ -158,7 +158,7 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
       {RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect,
        "bounded-vector-runtime-scalar-cmp-select-source-front-door",
        kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue,
-       "tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door",
+       "weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door",
        "Materialize one bounded MLIR Vector-like i32 runtime-scalar "
        "compare/select source pattern into a selected generic typed RVV body",
        "RVV vector-runtime-scalar-cmp-select source function candidate",
@@ -253,8 +253,8 @@ mlir::LogicalResult requireRVVVectorSourceOnlyModule(
     if (staleOp || op == module.getOperation())
       return;
     llvm::StringRef dialect = op->getName().getDialectNamespace();
-    if (dialect == "tcrv" || dialect == "tcrv_rvv" ||
-        dialect == "tcrv_toy" || dialect == "tcrv_tensorext_lite")
+    if (dialect == "weft" || dialect == "weft_rvv" ||
+        dialect == "weft_toy" || dialect == "weft_tensorext_lite")
       staleOp = op;
   });
   if (!staleOp)
@@ -263,7 +263,7 @@ mlir::LogicalResult requireRVVVectorSourceOnlyModule(
   return family.fail(
       staleOp,
       "source materializer requires RVV source-only MLIR input; pre-existing "
-      "tcrv.exec/tcrv_rvv/tcrv_toy/tcrv_tensorext_lite selected-boundary or "
+      "weft.exec/weft_rvv/weft_toy/weft_tensorext_lite selected-boundary or "
       "variant residue is not accepted");
 }
 
@@ -947,7 +947,7 @@ mlir::FailureOr<bool> matchRVVVectorSourceFrontDoorFamilyMarker(
       (void)failVectorSourceFrontDoorFamilyRegistry(
           module,
           llvm::Twine("family '") + family.familyName +
-              "' rejected stale tcrv_rvv.lowering_seed metadata as RVV "
+              "' rejected stale weft_rvv.lowering_seed metadata as RVV "
               "source-route authority");
       return mlir::failure();
     }
@@ -961,7 +961,7 @@ mlir::FailureOr<bool> matchRVVVectorSourceFrontDoorFamilyMarker(
       describeRVVVectorSourceFrontDoorFamilyMarkers();
   (void)failVectorSourceFrontDoorFamilyRegistry(
       module,
-      llvm::Twine("unknown tcrv_rvv.source_front_door marker '") +
+      llvm::Twine("unknown weft_rvv.source_front_door marker '") +
           markerValue + "'; registered RVV vector source-front-door markers "
                         "are " +
           registeredMarkers);
@@ -1090,7 +1090,7 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 void createCapability(mlir::OpBuilder &builder, mlir::Location loc,
                       llvm::StringRef symbol, llvm::StringRef id,
                       llvm::StringRef kind) {
-  mlir::OperationState state(loc, tcrv::exec::CapabilityOp::getOperationName());
+  mlir::OperationState state(loc, weft::exec::CapabilityOp::getOperationName());
   state.addAttribute("sym_name", builder.getStringAttr(symbol));
   state.addAttribute("id", builder.getStringAttr(id));
   state.addAttribute("kind", builder.getStringAttr(kind));
@@ -1103,19 +1103,19 @@ mlir::ArrayAttr createRequires(mlir::OpBuilder &builder,
   return builder.getArrayAttr({symbolRef(builder, symbol)});
 }
 
-tcrv::rvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return tcrv::rvv::PolicyAttr::get(builder.getContext(),
-                                    tcrv::rvv::TailPolicy::Agnostic,
-                                    tcrv::rvv::MaskPolicy::Agnostic);
+weft::rvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
+  return weft::rvv::PolicyAttr::get(builder.getContext(),
+                                    weft::rvv::TailPolicy::Agnostic,
+                                    weft::rvv::MaskPolicy::Agnostic);
 }
 
-tcrv::rvv::RuntimeABIValueOp
+weft::rvv::RuntimeABIValueOp
 createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
                       llvm::StringRef role, llvm::StringRef cName,
                       llvm::StringRef cType, llvm::StringRef purpose,
                       mlir::Type resultType) {
   mlir::OperationState state(loc,
-                             tcrv::rvv::RuntimeABIValueOp::getOperationName());
+                             weft::rvv::RuntimeABIValueOp::getOperationName());
   state.addAttribute("role", builder.getStringAttr(role));
   state.addAttribute("c_name", builder.getStringAttr(cName));
   state.addAttribute("c_type", builder.getStringAttr(cType));
@@ -1123,28 +1123,28 @@ createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
                      builder.getStringAttr("target-export-abi-owned"));
   state.addAttribute("purpose", builder.getStringAttr(purpose));
   state.addTypes(resultType);
-  return llvm::cast<tcrv::rvv::RuntimeABIValueOp>(builder.create(state));
+  return llvm::cast<weft::rvv::RuntimeABIValueOp>(builder.create(state));
 }
 
-tcrv::rvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
+weft::rvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
                                mlir::Value n,
-                               tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, tcrv::rvv::SetVLOp::getOperationName());
+                               weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, weft::rvv::SetVLOp::getOperationName());
   state.addOperands(n);
   state.addAttribute("sew", builder.getI64IntegerAttr(32));
   state.addAttribute("lmul", builder.getStringAttr("m1"));
   state.addAttribute("policy", policy);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  return llvm::cast<tcrv::rvv::SetVLOp>(builder.create(state));
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  return llvm::cast<weft::rvv::SetVLOp>(builder.create(state));
 }
 
-tcrv::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
+weft::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
                                  mlir::Value vl,
-                                 tcrv::rvv::PolicyAttr policy,
+                                 weft::rvv::PolicyAttr policy,
                                  llvm::StringRef kernelName,
                                  llvm::StringRef selectedVariantSymbol,
                                  mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, tcrv::rvv::WithVLOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::WithVLOp::getOperationName());
   state.addOperands(vl);
   state.addAttribute("sew", builder.getI64IntegerAttr(32));
   state.addAttribute("lmul", builder.getStringAttr("m1"));
@@ -1166,7 +1166,7 @@ tcrv::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(kRVVEmitCRouteMappingAttrName,
                      builder.getStringAttr(kRVVGenericTypedBodyRouteFamily));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -1174,7 +1174,7 @@ tcrv::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
 mlir::Value createRVVLoad(mlir::OpBuilder &builder, mlir::Location loc,
                           mlir::Value buffer, mlir::Value vl,
                           mlir::Type vectorType) {
-  mlir::OperationState state(loc, tcrv::rvv::LoadOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::LoadOp::getOperationName());
   state.addOperands({buffer, vl});
   state.addTypes(vectorType);
   return builder.create(state)->getResult(0);
@@ -1184,7 +1184,7 @@ mlir::Value createRVVBinary(mlir::OpBuilder &builder, mlir::Location loc,
                             llvm::StringRef binaryKind, mlir::Value lhs,
                             mlir::Value rhs, mlir::Value vl,
                             mlir::Type vectorType) {
-  mlir::OperationState state(loc, tcrv::rvv::BinaryOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::BinaryOp::getOperationName());
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(binaryKind));
   state.addTypes(vectorType);
@@ -1195,7 +1195,7 @@ mlir::Value createRVVCompare(mlir::OpBuilder &builder, mlir::Location loc,
                              llvm::StringRef predicateKind, mlir::Value lhs,
                              mlir::Value rhs, mlir::Value vl,
                              mlir::Type maskType) {
-  mlir::OperationState state(loc, tcrv::rvv::CompareOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::CompareOp::getOperationName());
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(predicateKind));
   state.addTypes(maskType);
@@ -1205,7 +1205,7 @@ mlir::Value createRVVCompare(mlir::OpBuilder &builder, mlir::Location loc,
 mlir::Value createRVVSplat(mlir::OpBuilder &builder, mlir::Location loc,
                            mlir::Value scalar, mlir::Value vl,
                            mlir::Type vectorType) {
-  mlir::OperationState state(loc, tcrv::rvv::SplatOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::SplatOp::getOperationName());
   state.addOperands({scalar, vl});
   state.addTypes(vectorType);
   return builder.create(state)->getResult(0);
@@ -1215,7 +1215,7 @@ mlir::Value createRVVSelect(mlir::OpBuilder &builder, mlir::Location loc,
                             mlir::Value mask, mlir::Value trueValue,
                             mlir::Value falseValue, mlir::Value vl,
                             mlir::Type vectorType) {
-  mlir::OperationState state(loc, tcrv::rvv::SelectOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::SelectOp::getOperationName());
   state.addOperands({mask, trueValue, falseValue, vl});
   state.addTypes(vectorType);
   return builder.create(state)->getResult(0);
@@ -1223,22 +1223,22 @@ mlir::Value createRVVSelect(mlir::OpBuilder &builder, mlir::Location loc,
 
 void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value buffer, mlir::Value value, mlir::Value vl) {
-  mlir::OperationState state(loc, tcrv::rvv::StoreOp::getOperationName());
+  mlir::OperationState state(loc, weft::rvv::StoreOp::getOperationName());
   state.addOperands({buffer, value, vl});
   (void)builder.create(state);
 }
 
-tcrv::exec::VariantOp createRVVVectorSourceVariant(
+weft::exec::VariantOp createRVVVectorSourceVariant(
     mlir::OpBuilder &builder, mlir::Location loc,
     llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
-    tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, tcrv::exec::VariantOp::getOperationName());
+    weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, weft::exec::VariantOp::getOperationName());
   state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
   state.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
   state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("tcrv_rvv.policy", policy);
+  state.addAttribute("weft_rvv.policy", policy);
   state.addRegion();
-  auto variant = llvm::cast<tcrv::exec::VariantOp>(builder.create(state));
+  auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();
   return variant;
 }
@@ -1279,7 +1279,7 @@ mlir::LogicalResult createConservativeFallbackCapability(
 // returned origin feeds the dispatch fallback case so the front door consumes
 // only the abstract conservative-fallback role, never a concrete plugin name.
 mlir::FailureOr<std::string> materializeConservativeFallbackVariantViaPlugin(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    mlir::OpBuilder &builder, weft::exec::KernelOp kernel,
     mlir::Operation *highLevelOp,
     const RVVVectorSourceFrontDoorFamilyDescriptor &family,
     const ExtensionPluginRegistry &registry,
@@ -1350,24 +1350,24 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
                     llvm::StringRef fallbackOrigin,
                     llvm::StringRef policy) {
   mlir::OperationState dispatchState(loc,
-                                     tcrv::exec::DispatchOp::getOperationName());
+                                     weft::exec::DispatchOp::getOperationName());
   dispatchState.addRegion();
   auto dispatch =
-      llvm::cast<tcrv::exec::DispatchOp>(builder.create(dispatchState));
+      llvm::cast<weft::exec::DispatchOp>(builder.create(dispatchState));
   dispatch.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(&dispatch.getBody().front());
 
   mlir::OperationState caseState(loc,
-                                 tcrv::exec::DispatchCaseOp::getOperationName());
+                                 weft::exec::DispatchCaseOp::getOperationName());
   caseState.addAttribute("target", symbolRef(builder, selectedVariantSymbol));
   caseState.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
   caseState.addAttribute("policy", builder.getStringAttr(policy));
   (void)builder.create(caseState);
 
   mlir::OperationState fallbackState(loc,
-                                     tcrv::exec::FallbackOp::getOperationName());
+                                     weft::exec::FallbackOp::getOperationName());
   fallbackState.addAttribute("target",
                              symbolRef(builder, fallbackVariantSymbol));
   fallbackState.addAttribute(kOriginAttrName,
@@ -1382,17 +1382,17 @@ mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
     const RVVVectorSourceFrontDoorFamilyDescriptor &family,
     const ExtensionPluginRegistry &registry, VectorBinarySourceMatch source) {
   mlir::Location loc = source.func.getLoc();
-  tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  weft::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol =
       getRVVVectorSourceVariantSymbol(family, source.binaryKind);
   std::string fallbackVariantSymbol =
       getRVVVectorSourceScalarFallbackVariantSymbol(family, source.binaryKind);
 
   mlir::OperationState kernelState(loc,
-                                   tcrv::exec::KernelOp::getOperationName());
+                                   weft::exec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
-  auto kernel = llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+  auto kernel = llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -1405,13 +1405,13 @@ mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
     return mlir::failure();
   mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
 
-  tcrv::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
+  weft::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
       builder, loc, selectedVariantSymbol, rvvRequires, policy);
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
   mlir::Type runtimeABIType =
-      tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+      weft::rvv::RuntimeABIValueType::get(builder.getContext());
   std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
   std::string rhsPurpose = getRVVVectorSourceRuntimePurpose(family, "rhs");
   std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
@@ -1429,15 +1429,15 @@ mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
                                  "size_t", nPurpose,
                                  builder.getIndexType());
 
-  tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
+  weft::rvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
                    selectedVariantSymbol, rvvRequires);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Type vectorType =
-      tcrv::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
+      weft::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
                                  "m1");
   mlir::Value loadedLHS =
       createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
@@ -1466,7 +1466,7 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
     const ExtensionPluginRegistry &registry,
     VectorCompareSelectSourceMatch source) {
   mlir::Location loc = source.func.getLoc();
-  tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  weft::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol =
       getRVVVectorSourceVariantSymbol(family, source.predicateKind);
   std::string fallbackVariantSymbol =
@@ -1474,10 +1474,10 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
                                                    source.predicateKind);
 
   mlir::OperationState kernelState(loc,
-                                   tcrv::exec::KernelOp::getOperationName());
+                                   weft::exec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
-  auto kernel = llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+  auto kernel = llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -1490,13 +1490,13 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
     return mlir::failure();
   mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
 
-  tcrv::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
+  weft::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
       builder, loc, selectedVariantSymbol, rvvRequires, policy);
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
   mlir::Type runtimeABIType =
-      tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+      weft::rvv::RuntimeABIValueType::get(builder.getContext());
   std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
   std::string rhsPurpose = getRVVVectorSourceRuntimePurpose(family, "rhs");
   std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
@@ -1514,18 +1514,18 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
       builder, loc, "runtime-element-count", "n", "size_t", nPurpose,
       builder.getIndexType());
 
-  tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
+  weft::rvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
                    selectedVariantSymbol, rvvRequires);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Type vectorType =
-      tcrv::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
+      weft::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
                                  "m1");
   mlir::Type maskType =
-      tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+      weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
                                "m1");
   mlir::Value loadedLHS =
       createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
@@ -1557,7 +1557,7 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
     const ExtensionPluginRegistry &registry,
     VectorRuntimeScalarCompareSelectSourceMatch source) {
   mlir::Location loc = source.func.getLoc();
-  tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  weft::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol =
       getRVVVectorSourceVariantSymbol(family, source.predicateKind);
   std::string fallbackVariantSymbol =
@@ -1565,10 +1565,10 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
                                                    source.predicateKind);
 
   mlir::OperationState kernelState(loc,
-                                   tcrv::exec::KernelOp::getOperationName());
+                                   weft::exec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
-  auto kernel = llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+  auto kernel = llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -1581,13 +1581,13 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
     return mlir::failure();
   mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
 
-  tcrv::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
+  weft::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
       builder, loc, selectedVariantSymbol, rvvRequires, policy);
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
   mlir::Type runtimeABIType =
-      tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+      weft::rvv::RuntimeABIValueType::get(builder.getContext());
   std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
   std::string rhsScalarPurpose =
       getRVVVectorSourceRuntimePurpose(family, "rhs_scalar");
@@ -1616,18 +1616,18 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
       builder, loc, "runtime-element-count", "n", "size_t", nPurpose,
       builder.getIndexType());
 
-  tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
-  tcrv::rvv::WithVLOp withVL =
+  weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
+  weft::rvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
                    selectedVariantSymbol, rvvRequires);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Type vectorType =
-      tcrv::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
+      weft::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
                                  "m1");
   mlir::Type maskType =
-      tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+      weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
                                "m1");
   mlir::Value loadedLHS =
       createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
@@ -1661,8 +1661,8 @@ void populateRVVVectorSourceFrontDoorDependentDialects(
     mlir::DialectRegistry &registry) {
   registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
                   mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                  mlir::vector::VectorDialect, tcrv::exec::TCRVExecDialect,
-                  tcrv::rvv::TCRVRVVDialect>();
+                  mlir::vector::VectorDialect, weft::exec::WEFTExecDialect,
+                  weft::rvv::WEFTRVVDialect>();
 }
 
 mlir::LogicalResult materializeRVVVectorSourceFrontDoorFamily(
@@ -1818,4 +1818,4 @@ llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

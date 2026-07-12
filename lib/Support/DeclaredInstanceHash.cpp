@@ -1,4 +1,4 @@
-#include "TianChenRV/Support/DeclaredInstanceHash.h"
+#include "Weft/Support/DeclaredInstanceHash.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <string>
 
-namespace tianchenrv::support {
+namespace weft::support {
 
 namespace {
 
@@ -125,4 +125,4 @@ computeDeclaredInstanceHash(const TargetCapabilitySet &capabilities) {
   return llvm::toHex(digest, /*LowerCase=*/true);
 }
 
-} // namespace tianchenrv::support
+} // namespace weft::support

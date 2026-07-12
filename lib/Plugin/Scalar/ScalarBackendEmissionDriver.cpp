@@ -1,10 +1,10 @@
-#include "TianChenRV/Plugin/Scalar/ScalarBackendEmissionDriver.h"
+#include "Weft/Plugin/Scalar/ScalarBackendEmissionDriver.h"
 
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
-#include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
-#include "TianChenRV/Plugin/Scalar/ScalarEmitCRouteProvider.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
+#include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -16,20 +16,20 @@
 
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace plugin {
 namespace scalar {
 
 namespace {
 
 namespace emitc = ::mlir::emitc;
-namespace tcrvemitc = ::tianchenrv::conversion::emitc;
+namespace weftemitc = ::weft::conversion::emitc;
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role,
                                llvm::StringRef opInterface) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.route_source_op=" << opName << " role=" << role
+  os << "// weft_emitc.route_source_op=" << opName << " role=" << role
      << " op_interface=" << opInterface;
   os.flush();
   return text;
@@ -39,7 +39,7 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
                         llvm::StringRef opInterface, llvm::StringRef callee) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " op_interface=" << opInterface << " callee=" << callee;
   os.flush();
   return text;
@@ -49,32 +49,32 @@ std::string kernelStepComment(llvm::StringRef opName, llvm::StringRef role,
                               llvm::StringRef step) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " step=" << step;
   os.flush();
   return text;
 }
 
-/// Lowers a selected `tcrv_scalar.compute_skeleton` boundary into a standalone
+/// Lowers a selected `weft_scalar.compute_skeleton` boundary into a standalone
 /// top-level, pure-scalar EmitC function:
 ///   #include <stdint.h>
-///   int32_t tcrv_scalar_compute_skeleton(int32_t);
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(void) {
+///   int32_t weft_scalar_compute_skeleton(int32_t);
+///   extern "C" void weft_emitc_<kernel>_<variant>(void) {
 ///     // route_source_op + source_op provenance comments
 ///     int32_t vN = <scalar_immediate>;
-///     int32_t vM = tcrv_scalar_compute_skeleton(vN);
+///     int32_t vM = weft_scalar_compute_skeleton(vN);
 ///   }
 /// The exported function name is derived from the selected kernel+variant and
 /// the emitted constant is the op's `scalar_immediate`, so the emission is
 /// operand-driven and carries no __riscv_ intrinsics.
 class ScalarComputeSkeletonToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::scalar::ComputeSkeletonOp> {
+    : public mlir::OpConversionPattern<weft::scalar::ComputeSkeletonOp> {
 public:
   using mlir::OpConversionPattern<
-      tcrv::scalar::ComputeSkeletonOp>::OpConversionPattern;
+      weft::scalar::ComputeSkeletonOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::scalar::ComputeSkeletonOp compute, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::scalar::ComputeSkeletonOp compute, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = compute.getLoc();
 
@@ -89,19 +89,19 @@ public:
           compute, "compute_skeleton requires selected_variant, source_kernel "
                    "and scalar_immediate attributes");
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     auto lowerable =
-        llvm::dyn_cast<tcrvemitc::TCRVEmitCLowerableOpInterface>(
+        llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
             compute.getOperation());
     if (!lowerable)
       return rewriter.notifyMatchFailure(
-          compute, "tcrv_scalar.compute_skeleton must implement "
-                   "TCRVEmitCLowerableOpInterface");
+          compute, "weft_scalar.compute_skeleton must implement "
+                   "WEFTEmitCLowerableOpInterface");
     llvm::StringRef sourceOpName =
-        lowerable.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+        lowerable.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
 
     const ScalarEmitCConstructionRoute &route =
         getScalarEmitCConstructionRoute();
@@ -124,7 +124,7 @@ public:
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
     rewriter.setInsertionPointToEnd(module.getBody());
 
-    // Private callee declaration: int32_t tcrv_scalar_compute_skeleton(int32_t).
+    // Private callee declaration: int32_t weft_scalar_compute_skeleton(int32_t).
     mlir::FunctionType calleeType = rewriter.getFunctionType({i32}, {i32});
     llvm::SmallVector<mlir::NamedAttribute, 1> calleeAttrs;
     calleeAttrs.push_back(rewriter.getNamedAttr(
@@ -165,11 +165,11 @@ public:
   }
 };
 
-/// Lowers a selected `tcrv_scalar.tq2_0_q8_k_vec_dot` boundary into a standalone
+/// Lowers a selected `weft_scalar.tq2_0_q8_k_vec_dot` boundary into a standalone
 /// top-level, pure-scalar EmitC function that IS the ggml tq2_0 x q8_K ternary
 /// vec_dot:
 ///   #include <stdint.h>
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(
+///   extern "C" void weft_emitc_<kernel>_<variant>(
 ///       int n, float *s, const uint8_t *vx, const int8_t *vy) {
 ///     float sumf = 0.0f;
 ///     size_t nb = (size_t)n / 256;
@@ -197,13 +197,13 @@ public:
 /// ternary decode is a pure int8xint8 MAC -- NO XOR-popcount, NO __riscv_
 /// intrinsics, NO vector machinery.
 class ScalarTernaryQ2Q8BlockDotToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::scalar::TernaryQ2Q8BlockDotOp> {
+    : public mlir::OpConversionPattern<weft::scalar::TernaryQ2Q8BlockDotOp> {
 public:
   using mlir::OpConversionPattern<
-      tcrv::scalar::TernaryQ2Q8BlockDotOp>::OpConversionPattern;
+      weft::scalar::TernaryQ2Q8BlockDotOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::scalar::TernaryQ2Q8BlockDotOp dot, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::scalar::TernaryQ2Q8BlockDotOp dot, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = dot.getLoc();
     mlir::MLIRContext *ctx = rewriter.getContext();
@@ -217,13 +217,13 @@ public:
                "attributes");
 
     auto lowerable =
-        llvm::dyn_cast<tcrvemitc::TCRVEmitCLowerableOpInterface>(
+        llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
             dot.getOperation());
     if (!lowerable)
       return rewriter.notifyMatchFailure(
-          dot, "tq2_0_q8_k_vec_dot must implement TCRVEmitCLowerableOpInterface");
-    llvm::StringRef opName = lowerable.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = lowerable.getTCRVEmitCLowerableSourceRole();
+          dot, "tq2_0_q8_k_vec_dot must implement WEFTEmitCLowerableOpInterface");
+    llvm::StringRef opName = lowerable.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = lowerable.getWEFTEmitCLowerableSourceRole();
 
     // The block-format structural facts come straight off the typed attrs (I4).
     int64_t qk = dot.getQk();                                  // 256
@@ -241,7 +241,7 @@ public:
     int64_t chunkBytes = planeLanes;  // qs plane-group stride (j += 32)
 
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     auto module = dot->getParentOfType<mlir::ModuleOp>();
@@ -300,7 +300,7 @@ public:
     };
 
     rewriter.create<emitc::VerbatimOp>(
-        loc, routeSourceComment(opName, role, "TCRVEmitCLowerableOpInterface"));
+        loc, routeSourceComment(opName, role, "WEFTEmitCLowerableOpInterface"));
 
     // size_t nb = (size_t)n / qk;
     step("super_block_count");
@@ -552,10 +552,10 @@ public:
   }
 };
 
-/// Lowers a selected `tcrv_scalar.dequantize_row_q4_0` boundary into a standalone
+/// Lowers a selected `weft_scalar.dequantize_row_q4_0` boundary into a standalone
 /// top-level, pure-scalar EmitC function that IS the ggml q4_0 dequantize_row:
 ///   #include <stdint.h>
-///   extern "C" void tcrv_emitc_<kernel>_<variant>(
+///   extern "C" void weft_emitc_<kernel>_<variant>(
 ///       int n, float *y, const uint8_t *vx) {
 ///     size_t nb = (size_t)n / 32;
 ///     for (size_t ib = 0; ib < nb; ib += 1) {
@@ -578,13 +578,13 @@ public:
 /// decode is pure integer arithmetic -- NO XOR-popcount, NO __riscv_ intrinsics,
 /// NO vector machinery.
 class ScalarDequantizeRowQ4ToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::scalar::DequantizeRowQ4Op> {
+    : public mlir::OpConversionPattern<weft::scalar::DequantizeRowQ4Op> {
 public:
   using mlir::OpConversionPattern<
-      tcrv::scalar::DequantizeRowQ4Op>::OpConversionPattern;
+      weft::scalar::DequantizeRowQ4Op>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::scalar::DequantizeRowQ4Op dequant, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::scalar::DequantizeRowQ4Op dequant, OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = dequant.getLoc();
     mlir::MLIRContext *ctx = rewriter.getContext();
@@ -599,14 +599,14 @@ public:
                    "source_kernel attributes");
 
     auto lowerable =
-        llvm::dyn_cast<tcrvemitc::TCRVEmitCLowerableOpInterface>(
+        llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
             dequant.getOperation());
     if (!lowerable)
       return rewriter.notifyMatchFailure(
           dequant,
-          "dequantize_row_q4_0 must implement TCRVEmitCLowerableOpInterface");
-    llvm::StringRef opName = lowerable.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = lowerable.getTCRVEmitCLowerableSourceRole();
+          "dequantize_row_q4_0 must implement WEFTEmitCLowerableOpInterface");
+    llvm::StringRef opName = lowerable.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = lowerable.getWEFTEmitCLowerableSourceRole();
 
     // The block-format structural facts come straight off the typed attrs (I4).
     int64_t qk = dequant.getQk();                              // 32
@@ -618,7 +618,7 @@ public:
     int64_t half = qk / 2; // 16 packed weight bytes / output half width
 
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     auto module = dequant->getParentOfType<mlir::ModuleOp>();
@@ -671,7 +671,7 @@ public:
     };
 
     rewriter.create<emitc::VerbatimOp>(
-        loc, routeSourceComment(opName, role, "TCRVEmitCLowerableOpInterface"));
+        loc, routeSourceComment(opName, role, "WEFTEmitCLowerableOpInterface"));
 
     // size_t nb = (size_t)n / qk;
     step("block_count");
@@ -800,7 +800,7 @@ public:
 };
 
 class ScalarBackendEmissionDriver final
-    : public tcrvemitc::TypedBackendEmissionDriver {
+    : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "scalar"; }
 
@@ -811,9 +811,9 @@ public:
   }
 
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
-    target.addIllegalOp<tcrv::scalar::ComputeSkeletonOp,
-                        tcrv::scalar::TernaryQ2Q8BlockDotOp,
-                        tcrv::scalar::DequantizeRowQ4Op>();
+    target.addIllegalOp<weft::scalar::ComputeSkeletonOp,
+                        weft::scalar::TernaryQ2Q8BlockDotOp,
+                        weft::scalar::DequantizeRowQ4Op>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -832,7 +832,7 @@ public:
     bool hasScalar = false;
     module.walk([&](mlir::Operation *op) {
       if (op->getName().getDialectNamespace() ==
-          tcrv::scalar::TCRVScalarDialect::getDialectNamespace()) {
+          weft::scalar::WEFTScalarDialect::getDialectNamespace()) {
         hasScalar = true;
         return mlir::WalkResult::interrupt();
       }
@@ -844,7 +844,7 @@ public:
 
 llvm::LogicalResult
 ScalarBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
-  // Once a function was produced, drop the now-emptied tcrv.exec scaffolding
+  // Once a function was produced, drop the now-emptied weft.exec scaffolding
   // (kernel/capability/diagnostics) and any leftover source ops so the module
   // is the clean, standalone EmitC-only shape the emitc->C++ emitter expects.
   bool producedFunc = false;
@@ -866,7 +866,7 @@ ScalarBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const 
 } // namespace
 
 void registerScalarBackendEmitter(
-    tcrvemitc::BackendEmissionRegistry &registry) {
+    weftemitc::BackendEmissionRegistry &registry) {
   // Function-local static: owned by this translation unit, outlives the
   // registry, no global-init-order hazard.
   static const ScalarBackendEmissionDriver driver;
@@ -875,4 +875,4 @@ void registerScalarBackendEmitter(
 
 } // namespace scalar
 } // namespace plugin
-} // namespace tianchenrv
+} // namespace weft

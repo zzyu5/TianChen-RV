@@ -1,7 +1,7 @@
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Target/TargetArtifactExport.h"
 
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
@@ -9,21 +9,21 @@
 
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 namespace {
 
 constexpr llvm::StringLiteral kExecutionPlanningPipelineName(
-    "tcrv-execution-planning-pipeline");
+    "weft-execution-planning-pipeline");
 constexpr llvm::StringLiteral kExecutionPlanningPipelineDescription(
-    "Compose TianChen-RV plugin variant materialization, capability "
+    "Compose Weft-RV plugin variant materialization, capability "
     "checking, generic selection/dispatch planning, selected lowering-boundary "
     "materialization, emission-plan diagnostics, and execution-plan coherence "
     "checking");
 constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineName(
-    "tcrv-source-artifact-front-door-pipeline");
+    "weft-source-artifact-front-door-pipeline");
 constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineDescription(
     "Compose enabled plugin source front-door materialization passes with "
-    "TianChen-RV "
+    "Weft-RV "
     "generic legality, capability, emission-plan, and execution-plan coherence "
     "checks so bounded source inputs reach selected emission diagnostics "
     "before any supported target artifact export");
@@ -115,4 +115,4 @@ void registerSourceArtifactFrontDoorPipeline(
   (void)registration;
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

@@ -1,12 +1,12 @@
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
 
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -19,23 +19,23 @@
 
 #include <string>
 
-namespace tianchenrv {
+namespace weft {
 namespace plugin {
 namespace tensorext_lite {
 
 namespace {
 
 namespace emitc = ::mlir::emitc;
-namespace tcrvemitc = ::tianchenrv::conversion::emitc;
+namespace weftemitc = ::weft::conversion::emitc;
 
-constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";
+constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRoleAttrName("role");
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.route_source_op=" << opName << " role=" << role
+  os << "// weft_emitc.route_source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface;
   os.flush();
   return text;
@@ -45,35 +45,35 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
                         llvm::StringRef callee) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_emitc.source_op=" << opName << " role=" << role
+  os << "// weft_emitc.source_op=" << opName << " role=" << role
      << " op_interface=" << kOpInterface << " callee=" << callee;
   os.flush();
   return text;
 }
 
 /// Lowers a selected configure->load_frag->tile_mma->store_frag role sequence
-/// (four `tcrv_tensorext_lite.*_skeleton` ops in the selected variant body) into
+/// (four `weft_tensorext_lite.*_skeleton` ops in the selected variant body) into
 /// a standalone top-level EmitC function, byte-equivalent to the
 /// route+materializer output:
 ///   #include <stdint.h>
-///   void tcrv_tensorext_lite_config();
-///   void tcrv_tensorext_lite_load_frag();
-///   void tcrv_tensorext_lite_tile_mma();
-///   void tcrv_tensorext_lite_store_frag();
-///   extern "C" void tcrv_emitc_<kernel>_<variant>() {
+///   void weft_tensorext_lite_config();
+///   void weft_tensorext_lite_load_frag();
+///   void weft_tensorext_lite_tile_mma();
+///   void weft_tensorext_lite_store_frag();
+///   extern "C" void weft_emitc_<kernel>_<variant>() {
 ///     // four route_source_op comments (one per role, in order)
 ///     // per role: source_op comment + a void call_opaque
 ///   }
 /// The anchor is the configure role op (role_order 0); the pattern collects the
 /// remaining roles from the same variant body and erases all four.
 class TensorExtLiteRoleSequenceToEmitCFunc final
-    : public mlir::OpConversionPattern<tcrv::tensorext_lite::ConfigSkeletonOp> {
+    : public mlir::OpConversionPattern<weft::tensorext_lite::ConfigSkeletonOp> {
 public:
   using mlir::OpConversionPattern<
-      tcrv::tensorext_lite::ConfigSkeletonOp>::OpConversionPattern;
+      weft::tensorext_lite::ConfigSkeletonOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(tcrv::tensorext_lite::ConfigSkeletonOp config,
+  matchAndRewrite(weft::tensorext_lite::ConfigSkeletonOp config,
                   OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = config.getLoc();
@@ -96,8 +96,8 @@ public:
     // emitted (I7). Decline so the legacy plugin route-build still owns the
     // fail-closed diagnostic instead of synthesizing an artifact the IR
     // disclaims.
-    auto kernelOp = config->getParentOfType<tcrv::exec::KernelOp>();
-    auto variantOp = config->getParentOfType<tcrv::exec::VariantOp>();
+    auto kernelOp = config->getParentOfType<weft::exec::KernelOp>();
+    auto variantOp = config->getParentOfType<weft::exec::VariantOp>();
     if (!kernelOp || !variantOp)
       return rewriter.notifyMatchFailure(
           config, "config_skeleton requires an enclosing kernel and variant");
@@ -116,7 +116,7 @@ public:
                   "owns the fail-closed diagnostic)");
     }
     std::string functionName =
-        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     mlir::Block *variantBlock = config->getBlock();
@@ -152,13 +152,13 @@ public:
     }
 
     // Resolve each role op's lowerable provenance (op name + role).
-    llvm::SmallVector<tcrvemitc::TCRVEmitCLowerableOpInterface, 4> lowerables;
+    llvm::SmallVector<weftemitc::WEFTEmitCLowerableOpInterface, 4> lowerables;
     for (mlir::Operation *roleOp : roleOps) {
       auto lowerable =
-          llvm::dyn_cast<tcrvemitc::TCRVEmitCLowerableOpInterface>(roleOp);
+          llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(roleOp);
       if (!lowerable)
         return rewriter.notifyMatchFailure(
-            config, "role op must implement TCRVEmitCLowerableOpInterface");
+            config, "role op must implement WEFTEmitCLowerableOpInterface");
       lowerables.push_back(lowerable);
     }
 
@@ -199,15 +199,15 @@ public:
     rewriter.setInsertionPointToStart(entry);
 
     // All route_source_op comments first (one per role, in order)...
-    for (tcrvemitc::TCRVEmitCLowerableOpInterface lowerable : lowerables)
+    for (weftemitc::WEFTEmitCLowerableOpInterface lowerable : lowerables)
       rewriter.create<emitc::VerbatimOp>(
-          loc, routeSourceComment(lowerable.getTCRVEmitCLowerableSourceOpName(),
-                                  lowerable.getTCRVEmitCLowerableSourceRole()));
+          loc, routeSourceComment(lowerable.getWEFTEmitCLowerableSourceOpName(),
+                                  lowerable.getWEFTEmitCLowerableSourceRole()));
     // ...then each role's source_op comment + a void call_opaque.
     for (auto [step, lowerable] : llvm::zip(roleSteps, lowerables)) {
       rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(lowerable.getTCRVEmitCLowerableSourceOpName(),
-                           lowerable.getTCRVEmitCLowerableSourceRole(),
+          loc, stepComment(lowerable.getWEFTEmitCLowerableSourceOpName(),
+                           lowerable.getWEFTEmitCLowerableSourceRole(),
                            step.callee));
       rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, step.callee,
                                            mlir::ValueRange{});
@@ -222,7 +222,7 @@ public:
 };
 
 class TensorExtLiteBackendEmissionDriver final
-    : public tcrvemitc::TypedBackendEmissionDriver {
+    : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "tensorext_lite"; }
 
@@ -232,7 +232,7 @@ public:
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
     // Only the configure role op (the anchor) is illegal; its pattern collects
     // and erases the full role sequence atomically.
-    target.addIllegalOp<tcrv::tensorext_lite::ConfigSkeletonOp>();
+    target.addIllegalOp<weft::tensorext_lite::ConfigSkeletonOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -249,7 +249,7 @@ public:
     bool hasTensorExtLite = false;
     module.walk([&](mlir::Operation *op) {
       if (op->getName().getDialectNamespace() ==
-          tcrv::tensorext_lite::TCRVTensorExtLiteDialect::
+          weft::tensorext_lite::WEFTTensorExtLiteDialect::
               getDialectNamespace()) {
         hasTensorExtLite = true;
         return mlir::WalkResult::interrupt();
@@ -281,11 +281,11 @@ llvm::LogicalResult TensorExtLiteBackendEmissionDriver::postConversionCleanup(
 } // namespace
 
 void registerTensorExtLiteBackendEmitter(
-    tcrvemitc::BackendEmissionRegistry &registry) {
+    weftemitc::BackendEmissionRegistry &registry) {
   static const TensorExtLiteBackendEmissionDriver driver;
   registry.registerBackend(driver);
 }
 
 } // namespace tensorext_lite
 } // namespace plugin
-} // namespace tianchenrv
+} // namespace weft

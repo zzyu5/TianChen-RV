@@ -1,11 +1,11 @@
-#include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
+#include "Weft/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
-#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
-#include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
+#include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
+#include "Weft/Target/TargetArtifactExport.h"
+#include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -19,18 +19,18 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::target::tensorext_lite {
+namespace weft::target::tensorext_lite {
 namespace {
 
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kVariantFragmentABIAttrName(
-    "tcrv_tensorext_lite.fragment_abi");
+    "weft_tensorext_lite.fragment_abi");
 constexpr llvm::StringLiteral kVariantHandoffKindAttrName(
-    "tcrv_tensorext_lite.handoff_kind");
+    "weft_tensorext_lite.handoff_kind");
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
-    "tcrv_tensorext_lite.source_front_door");
+    "weft_tensorext_lite.source_front_door");
 constexpr llvm::StringLiteral kSourceKernelModuleAttrName(
-    "tcrv_tensorext_lite.source_kernel");
+    "weft_tensorext_lite.source_kernel");
 
 struct ScopedTempPath {
   llvm::SmallString<128> path;
@@ -54,7 +54,7 @@ getTensorExtLiteRoute() {
 
 llvm::Error makeTensorExtLiteEmitCToCppRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV TensorExtLite materialized EmitC C/C++ "
+      llvm::Twine("Weft-RV TensorExtLite materialized EmitC C/C++ "
                   "emitter bridge failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -88,7 +88,7 @@ llvm::Error compileTensorExtLiteGeneratedSourceToObject(llvm::StringRef source,
   int sourceFD = -1;
   ScopedTempPath sourcePath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-tensorext-lite-materialized-emitc", "cpp", sourceFD,
+          "weft-tensorext-lite-materialized-emitc", "cpp", sourceFD,
           sourcePath.path))
     return makeTensorExtLiteEmitCToCppRouteError(
         llvm::Twine("failed to create temporary C++ source: ") +
@@ -110,7 +110,7 @@ llvm::Error compileTensorExtLiteGeneratedSourceToObject(llvm::StringRef source,
   int stderrFD = -1;
   ScopedTempPath stderrPath;
   if (std::error_code error = llvm::sys::fs::createTemporaryFile(
-          "tcrv-tensorext-lite-materialized-emitc-clang", "stderr", stderrFD,
+          "weft-tensorext-lite-materialized-emitc-clang", "stderr", stderrFD,
           stderrPath.path))
     return makeTensorExtLiteEmitCToCppRouteError(
         llvm::Twine("failed to create temporary clang stderr file: ") +
@@ -254,8 +254,8 @@ getTensorExtLiteArtifactAdapterConfig() {
   config.headerRouteID = route.headerRouteID;
   config.headerArtifactKind = route.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;
-  config.headerGuard = "TIANCHENRV_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H";
-  config.evidencePrefix = "tianchenrv.tensorext_lite";
+  config.headerGuard = "WEFT_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H";
+  config.evidencePrefix = "weft.tensorext_lite";
   config.includes = kHeaderIncludes;
   config.selectedVariant = manifest.family.firstSliceVariantName;
   config.emissionKind = route.emissionKind;
@@ -397,4 +397,4 @@ llvm::Error registerTensorExtLiteTargetSupportTargetTranslateRoutes(
       exportTensorExtLiteEmitCToCpp));
 }
 
-} // namespace tianchenrv::target::tensorext_lite
+} // namespace weft::target::tensorext_lite

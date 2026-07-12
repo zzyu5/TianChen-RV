@@ -1,11 +1,11 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
+#include "Weft/Plugin/BuiltinExtensionPlugins.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -21,28 +21,28 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::ExtensionBundleRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::plugin::VariantLoweringBoundaryRequest;
-using tianchenrv::plugin::VariantLoweringBoundaryResult;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::CapabilityAvailability;
-using tianchenrv::support::CapabilityDescriptor;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::CapabilityRelationsAttr;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::transforms::VariantSelectionKind;
-using tianchenrv::transforms::VariantSelectionPlan;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::ExtensionBundleRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::plugin::VariantLoweringBoundaryRequest;
+using weft::plugin::VariantLoweringBoundaryResult;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalRequest;
+using weft::support::CapabilityAvailability;
+using weft::support::CapabilityDescriptor;
+using weft::support::TargetCapabilitySet;
+using weft::exec::CapabilityRelationsAttr;
+using weft::exec::DiagnosticOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::transforms::VariantSelectionKind;
+using weft::transforms::VariantSelectionPlan;
 
 namespace {
 
@@ -83,7 +83,7 @@ int expectScalarUnsupportedEmissionPlan(
     const VariantEmissionPlan &emissionPlan, llvm::Twine context) {
   return expect(emissionPlan.isUnsupported() &&
                     emissionPlan.getOriginPlugin() ==
-                        tianchenrv::plugin::scalar::
+                        weft::plugin::scalar::
                             getScalarExtensionPluginName() &&
                     emissionPlan.getEmissionKind() ==
                         "scalar-fallback-unsupported-emission" &&
@@ -146,7 +146,7 @@ bool hasScalarLoweringBoundary(KernelOp kernel) {
     return false;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    if (op.getName().getStringRef() == "tcrv_scalar.lowering_boundary")
+    if (op.getName().getStringRef() == "weft_scalar.lowering_boundary")
       return true;
   }
   return false;
@@ -155,33 +155,33 @@ bool hasScalarLoweringBoundary(KernelOp kernel) {
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             registry),
                         "register scalar fallback plugin"))
     return result;
 
   const auto *plugin = registry.lookupPlugin(
-      tianchenrv::plugin::scalar::getScalarExtensionPluginName());
+      weft::plugin::scalar::getScalarExtensionPluginName());
   if (int result = expect(plugin, "registered scalar fallback plugin is visible"))
     return result;
   if (int result =
           expect(plugin->getVersion() ==
-                     tianchenrv::plugin::scalar::
+                     weft::plugin::scalar::
                          getScalarExtensionPluginVersion(),
                  "scalar fallback plugin version is stable"))
     return result;
 
   const PluginCapability *capability = registry.lookupCapabilityByID(
-      tianchenrv::plugin::scalar::getScalarFallbackCapabilityID());
+      weft::plugin::scalar::getScalarFallbackCapabilityID());
   if (int result = expect(
           capability &&
               capability->getKind() ==
-                  tianchenrv::plugin::scalar::
+                  weft::plugin::scalar::
                       getScalarFallbackCapabilityKind(),
           "scalar fallback capability metadata is registered"))
     return result;
 
-  llvm::SmallVector<const tianchenrv::plugin::ExtensionPlugin *, 2> enabled;
+  llvm::SmallVector<const weft::plugin::ExtensionPlugin *, 2> enabled;
   registry.getEnabledPlugins(enabled);
   if (int result =
           expect(enabled.size() == 1 && enabled.front() == plugin,
@@ -198,23 +198,23 @@ module {
     return
   }
 
-  tcrv.exec.kernel @available_scalar attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @available_scalar attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
   }
 
-  tcrv.exec.kernel @unavailable_scalar attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @unavailable_scalar attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "unavailable"
     }
   }
 
-  tcrv.exec.kernel @missing_scalar attributes {} {
+  weft.exec.kernel @missing_scalar attributes {} {
   }
 }
 )mlir";
@@ -234,7 +234,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             registry),
                         "register scalar fallback plugin for proposal gating"))
     return result;
@@ -254,22 +254,22 @@ module {
     return result;
   if (int result =
           expect(proposals.front().getVariantName() ==
-                         tianchenrv::plugin::scalar::
+                         weft::plugin::scalar::
                              getScalarFallbackFirstSliceVariantName() &&
                      proposals.front().getOriginPlugin() ==
-                         tianchenrv::plugin::scalar::
+                         weft::plugin::scalar::
                              getScalarExtensionPluginName() &&
                      proposals.front().getPolicy() ==
-                         tianchenrv::plugin::scalar::getScalarFallbackPolicy() &&
+                         weft::plugin::scalar::getScalarFallbackPolicy() &&
                      proposals.front().getFallbackRole() ==
-                         tianchenrv::plugin::VariantFallbackRole::
+                         weft::plugin::VariantFallbackRole::
                              ConservativeFallback,
                  "scalar fallback proposal preserves stable metadata"))
     return result;
   if (int result =
           expect(proposals.front().getRequiredCapabilityIDs().size() == 1 &&
                      proposals.front().getRequiredCapabilityIDs().front() ==
-                         tianchenrv::plugin::scalar::
+                         weft::plugin::scalar::
                              getScalarFallbackCapabilityID(),
                  "scalar fallback proposal requires fallback capability id"))
     return result;
@@ -325,8 +325,8 @@ module {
     return
   }
 
-  tcrv.exec.kernel @scalar_only attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @scalar_only attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
@@ -347,7 +347,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             registry),
                         "register scalar fallback plugin for materialization"))
     return result;
@@ -358,7 +358,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize scalar fallback variant proposal"))
     return result;
@@ -370,7 +370,7 @@ module {
   VariantOp variant = materializedVariants.front();
   if (int result =
           expect(variant.getSymName() ==
-                     tianchenrv::plugin::scalar::
+                     weft::plugin::scalar::
                          getScalarFallbackFirstSliceVariantName(),
                  "materialized scalar fallback variant has stable symbol"))
     return result;
@@ -378,7 +378,7 @@ module {
   if (int result =
           expect(originAttr &&
                      originAttr.getValue() ==
-                     tianchenrv::plugin::scalar::
+                     weft::plugin::scalar::
                          getScalarExtensionPluginName(),
                  "materialized scalar fallback variant has scalar origin"))
     return result;
@@ -386,16 +386,16 @@ module {
   if (int result =
           expect(policyAttr &&
                      policyAttr.getValue() ==
-                     tianchenrv::plugin::scalar::getScalarFallbackPolicy(),
+                     weft::plugin::scalar::getScalarFallbackPolicy(),
                  "materialized scalar fallback variant preserves policy"))
     return result;
 
   auto fallbackRoleAttr = variant->getAttrOfType<mlir::StringAttr>(
-      tianchenrv::plugin::kVariantFallbackRoleAttrName);
+      weft::plugin::kVariantFallbackRoleAttrName);
   if (int result =
           expect(fallbackRoleAttr &&
                      fallbackRoleAttr.getValue() ==
-                         tianchenrv::plugin::kConservativeFallbackRoleValue,
+                         weft::plugin::kConservativeFallbackRoleValue,
                  "materialized scalar fallback variant preserves generic fallback role"))
     return result;
 
@@ -409,7 +409,7 @@ module {
   if (int result = expect(
           requiredSymbol &&
               requiredSymbol.getValue() ==
-                  tianchenrv::plugin::scalar::
+                  weft::plugin::scalar::
                       getScalarFallbackPreferredCapabilitySymbol(),
           "materialized scalar fallback variant requires @scalar_fallback"))
     return result;
@@ -434,17 +434,17 @@ module {
           expect(estimate.hasScore() && estimate.getScore() == 1000.0 &&
                      estimate.hasExplicitPreference() &&
                      estimate.getOriginPlugin() ==
-                         tianchenrv::plugin::scalar::
+                         weft::plugin::scalar::
                              getScalarExtensionPluginName() &&
                      estimate.getVariantSymbol() == variant.getSymName() &&
                      estimate.getFallbackRole() ==
-                         tianchenrv::plugin::VariantFallbackRole::
+                         weft::plugin::VariantFallbackRole::
                              ConservativeFallback,
                  "scalar fallback cost metadata is plugin-owned"))
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("scalar fallback selection planning failed: " +
@@ -459,7 +459,7 @@ module {
 
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize scalar fallback selected-path marker"))
     return result;
@@ -525,18 +525,18 @@ module {
 int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @scalar_boundary_rejections attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @scalar_boundary_rejections attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.capability @portable {
+    weft.exec.capability @portable {
       id = "portable",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @malformed_scalar_selected attributes {
+    weft.exec.variant @malformed_scalar_selected attributes {
       origin = "scalar-plugin",
       requires = [@portable]
     } {
@@ -557,7 +557,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             registry),
                         "register scalar fallback plugin for boundary rejection"))
     return result;
@@ -585,13 +585,13 @@ module {
     return
   }
 
-  tcrv.exec.kernel @rvv_decline_scalar_envelope attributes {} {
-    tcrv.exec.capability @rvv {
+  weft.exec.kernel @rvv_decline_scalar_envelope attributes {} {
+    weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.capability @scalar_fallback {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
@@ -615,7 +615,7 @@ module {
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(
-              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+              weft::plugin::registerBuiltinExtensionBundlePlugins(
                   bundles, registry),
               "register built-in extension bundle frontdoor for RVV decline "
               "coverage"))
@@ -627,7 +627,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 2> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize scalar proposal after recoverable RVV decline"))
     return result;
@@ -637,14 +637,14 @@ module {
     return result;
 
   VariantOp scalarVariant =
-      findVariant(kernel, tianchenrv::plugin::scalar::
+      findVariant(kernel, weft::plugin::scalar::
                               getScalarFallbackFirstSliceVariantName());
   if (int result = expect(scalarVariant,
                           "scalar fallback variant exists after RVV decline"))
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("RVV-decline scalar selection planning failed: " +
@@ -652,13 +652,13 @@ module {
 
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, *planOrError, &marker),
           "materialize selected marker after RVV decline"))
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          weft::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
           "fallback-only scalar envelope does not require boundary materialization"))
     return result;
@@ -678,26 +678,26 @@ module {
 int runLegalityRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @scalar_legality_rejections attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @scalar_legality_rejections attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @missing_requirement attributes {
+    weft.exec.variant @missing_requirement attributes {
       origin = "scalar-plugin",
       requires = []
     } {
     }
   }
 
-  tcrv.exec.kernel @scalar_unavailable_rejection attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @scalar_unavailable_rejection attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "unavailable"
     }
-    tcrv.exec.variant @requires_unavailable attributes {
+    weft.exec.variant @requires_unavailable attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
@@ -726,7 +726,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             registry),
                         "register scalar fallback plugin for legality negatives"))
     return result;
@@ -734,7 +734,7 @@ module {
   TargetCapabilitySet availableCapabilities =
       TargetCapabilitySet::buildFromKernel(missingRequirementKernel);
   if (int result = expectErrorContains(
-          registry.verifyVariantLegality(tianchenrv::plugin::
+          registry.verifyVariantLegality(weft::plugin::
                                              VariantLegalityRequest(
                                                  missingRequirement,
                                                  missingRequirementKernel,
@@ -746,7 +746,7 @@ module {
   TargetCapabilitySet unavailableCapabilities =
       TargetCapabilitySet::buildFromKernel(unavailableKernel);
   if (int result = expectErrorContains(
-          registry.verifyVariantLegality(tianchenrv::plugin::
+          registry.verifyVariantLegality(weft::plugin::
                                              VariantLegalityRequest(
                                                  requiresUnavailable,
                                                  unavailableKernel,
@@ -777,7 +777,7 @@ module {
 // selected variant is proved non-dead-shell by the sibling emittable machine
 // check test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir,
 // where the SAME vector-absent family carries a typed body and the
-// --tcrv-scalar-emitc-to-cpp route lowers it to real pure-scalar C.
+// --weft-scalar-emitc-to-cpp route lowers it to real pure-scalar C.
 int runFamilyIndependenceAcceptanceTest(mlir::MLIRContext &context) {
   auto impliesOnly = [&](llvm::StringRef impliedID) {
     return CapabilityRelationsAttr::get(
@@ -793,8 +793,8 @@ module {
     return
   }
 
-  tcrv.exec.kernel @only_feasible_scalar attributes {} {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @only_feasible_scalar attributes {} {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
@@ -815,7 +815,7 @@ module {
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
   const CapabilityDescriptor *scalarFallback = capabilities.lookupByID(
-      tianchenrv::plugin::scalar::getScalarFallbackCapabilityID());
+      weft::plugin::scalar::getScalarFallbackCapabilityID());
   if (int result = expect(scalarFallback,
                           "F-6 kernel exposes the scalar.fallback capability"))
     return result;
@@ -906,7 +906,7 @@ module {
   // --- conjunct (2): the scalar variant is only_feasible AND truly selected. ---
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             registry),
                         "register scalar fallback plugin for F-6 selection"))
     return result;
@@ -916,7 +916,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize scalar fallback variant for F-6"))
     return result;
@@ -927,7 +927,7 @@ module {
   VariantOp scalarVariant = materializedVariants.front();
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("F-6 scalar selection planning failed: " +
@@ -942,7 +942,7 @@ module {
     return result;
   if (int result =
           expect(scalarVariant.getSymName() ==
-                     tianchenrv::plugin::scalar::
+                     weft::plugin::scalar::
                          getScalarFallbackFirstSliceVariantName(),
                  "F-6 selected variant is the canonical scalar fallback slice"))
     return result;
@@ -959,12 +959,12 @@ int main() {
   mlir::DialectRegistry dialectRegistry;
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+          expectSuccess(weft::plugin::registerScalarExtensionPlugin(
                             dialectPlugins),
                         "register scalar fallback plugin for dialect context"))
     return result;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
+  weft::registerPluginDialects(dialectPlugins, dialectRegistry);
   dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);

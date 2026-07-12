@@ -23,8 +23,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -34,32 +34,32 @@
 
 #include <optional>
 
-using tianchenrv::plugin::rvv::computeBlockDotShapeCostCore;
-using tianchenrv::plugin::rvv::computeRVVQ40ShapeCost;
-using tianchenrv::plugin::rvv::computeRVVQ41ShapeCost;
-using tianchenrv::plugin::rvv::computeRVVQ80ShapeCost;
-using tianchenrv::plugin::rvv::deriveHasZvl128b;
-using tianchenrv::plugin::rvv::deriveMinimumVLEN;
-using tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL;
-using tianchenrv::plugin::rvv::getRVVBlockDotStripSEW;
-using tianchenrv::plugin::rvv::getRVVStripVLMAXElements;
-using tianchenrv::plugin::rvv::getRVVBlockDotCoreLatencyDepth;
-using tianchenrv::plugin::rvv::getRVVBlockDotDecodePrefixLength;
-using tianchenrv::plugin::rvv::enumerateRVVQ40Q80ShapeCandidates;
-using tianchenrv::plugin::rvv::enumerateRVVQ41Q81ShapeCandidates;
-using tianchenrv::plugin::rvv::enumerateRVVQ50Q80ShapeCandidates;
-using tianchenrv::plugin::rvv::enumerateRVVQ51Q81ShapeCandidates;
-using tianchenrv::plugin::rvv::enumerateRVVQ80Q80ShapeCandidates;
-using tianchenrv::plugin::rvv::kRVVQ40ShapeVectorRegisterBudget;
-using tianchenrv::plugin::rvv::kRVVQ41ShapeVectorRegisterBudget;
-using tianchenrv::plugin::rvv::kRVVQ50ShapeVectorRegisterBudget;
-using tianchenrv::plugin::rvv::kRVVQ51ShapeVectorRegisterBudget;
-using tianchenrv::plugin::rvv::kRVVQ80ShapeVectorRegisterBudget;
+using weft::plugin::rvv::computeBlockDotShapeCostCore;
+using weft::plugin::rvv::computeRVVQ40ShapeCost;
+using weft::plugin::rvv::computeRVVQ41ShapeCost;
+using weft::plugin::rvv::computeRVVQ80ShapeCost;
+using weft::plugin::rvv::deriveHasZvl128b;
+using weft::plugin::rvv::deriveMinimumVLEN;
+using weft::plugin::rvv::getRVVBlockDotStripLMUL;
+using weft::plugin::rvv::getRVVBlockDotStripSEW;
+using weft::plugin::rvv::getRVVStripVLMAXElements;
+using weft::plugin::rvv::getRVVBlockDotCoreLatencyDepth;
+using weft::plugin::rvv::getRVVBlockDotDecodePrefixLength;
+using weft::plugin::rvv::enumerateRVVQ40Q80ShapeCandidates;
+using weft::plugin::rvv::enumerateRVVQ41Q81ShapeCandidates;
+using weft::plugin::rvv::enumerateRVVQ50Q80ShapeCandidates;
+using weft::plugin::rvv::enumerateRVVQ51Q81ShapeCandidates;
+using weft::plugin::rvv::enumerateRVVQ80Q80ShapeCandidates;
+using weft::plugin::rvv::kRVVQ40ShapeVectorRegisterBudget;
+using weft::plugin::rvv::kRVVQ41ShapeVectorRegisterBudget;
+using weft::plugin::rvv::kRVVQ50ShapeVectorRegisterBudget;
+using weft::plugin::rvv::kRVVQ51ShapeVectorRegisterBudget;
+using weft::plugin::rvv::kRVVQ80ShapeVectorRegisterBudget;
 // The candidate struct + selector now carry their kernel-agnostic GENERIC names
 // (the q4_0-specific spellings were a mislabel -- the struct/selector were always
 // the shared block-dot ones). The picks asserted below are UNCHANGED.
-using tianchenrv::plugin::rvv::RVVBlockDotShapeCandidate;
-using tianchenrv::plugin::rvv::selectRVVBlockDotMinCostShape;
+using weft::plugin::rvv::RVVBlockDotShapeCandidate;
+using weft::plugin::rvv::selectRVVBlockDotMinCostShape;
 
 namespace {
 
@@ -710,8 +710,8 @@ int runTuningRecordLookupTest() {
       "tune march=rv64gcv kernel=q4_1 elision=elided lmul=m1 factor=1 measured_ns=1262.8\n"
       "tune kernel=q4_1 march=rv64gc_zve32x lmul=m1 factor=2 elision=robust measured_ns=1439.4\n";
 
-  std::optional<tianchenrv::plugin::rvv::RVVBlockDotTuningRecordEntry> full =
-      tianchenrv::plugin::rvv::lookupRVVBlockDotTuningRecord(record, "q4_1",
+  std::optional<weft::plugin::rvv::RVVBlockDotTuningRecordEntry> full =
+      weft::plugin::rvv::lookupRVVBlockDotTuningRecord(record, "q4_1",
                                                              "rv64gcv");
   if (!full)
     return fail("the q4_1 rv64gcv tuning-record entry must be found");
@@ -720,7 +720,7 @@ int runTuningRecordLookupTest() {
     return fail("the q4_1 rv64gcv entry parsed the wrong shape/ns");
 
   // A kernel/march with NO entry returns nullopt (the pass then falls back).
-  if (tianchenrv::plugin::rvv::lookupRVVBlockDotTuningRecord(record, "q4_0",
+  if (weft::plugin::rvv::lookupRVVBlockDotTuningRecord(record, "q4_0",
                                                             "rv64gcv"))
     return fail("a kernel with no record entry must return nullopt");
 
@@ -729,7 +729,7 @@ int runTuningRecordLookupTest() {
       enumerateRVVQ41Q81ShapeCandidates(/*minimumVLEN=*/128,
                                         kRVVQ41ShapeVectorRegisterBudget);
   std::optional<RVVBlockDotShapeCandidate> revalidated =
-      tianchenrv::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
+      weft::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
           fullVCandidates, *full);
   if (!revalidated || revalidated->integerCoreLMUL != "m1" ||
       revalidated->multiBlockFactor != 1 ||
@@ -746,7 +746,7 @@ int runTuningRecordLookupTest() {
 
   // FAIL-CLOSED: a record naming an ELIDED shape for a non-Zvl128b target (where
   // elided is capability-pruned) must NOT revalidate -- the pass falls back.
-  tianchenrv::plugin::rvv::RVVBlockDotTuningRecordEntry stale;
+  weft::plugin::rvv::RVVBlockDotTuningRecordEntry stale;
   stale.kernelKey = "q4_1";
   stale.march = "rv64gc_zve32x";
   stale.integerCoreLMUL = "m1";
@@ -756,16 +756,16 @@ int runTuningRecordLookupTest() {
   llvm::SmallVector<RVVBlockDotShapeCandidate, 12> zve32xCandidates =
       enumerateRVVQ41Q81ShapeCandidates(/*minimumVLEN=*/0,
                                         kRVVQ41ShapeVectorRegisterBudget);
-  if (tianchenrv::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
+  if (weft::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
           zve32xCandidates, stale))
     return fail("a stale elided shape must NOT revalidate on a non-Zvl128b target "
                 "(fail-closed I7)");
 
   // ROUND-TRIP: the record formatter and the parser agree.
-  std::string line = tianchenrv::plugin::rvv::formatRVVBlockDotTuningRecordLine(
+  std::string line = weft::plugin::rvv::formatRVVBlockDotTuningRecordLine(
       "q8_0", "rv64gcv", "m2", 1, "elided", 851.3);
-  std::optional<tianchenrv::plugin::rvv::RVVBlockDotTuningRecordEntry> rt =
-      tianchenrv::plugin::rvv::lookupRVVBlockDotTuningRecord(line, "q8_0",
+  std::optional<weft::plugin::rvv::RVVBlockDotTuningRecordEntry> rt =
+      weft::plugin::rvv::lookupRVVBlockDotTuningRecord(line, "q8_0",
                                                             "rv64gcv");
   if (!rt || rt->integerCoreLMUL != "m2" || rt->multiBlockFactor != 1 ||
       rt->stripElision != "elided" || rt->measuredNs != 851.3)

@@ -1,11 +1,11 @@
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
 
 #include "llvm/Support/Errc.h"
 
-namespace tianchenrv::plugin::toy {
+namespace weft::plugin::toy {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
+namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kProtocolVersion(
     "extension-family-construction-protocol.v1");
@@ -14,14 +14,14 @@ constexpr llvm::StringLiteral kArchetype(
 constexpr llvm::StringLiteral kSemanticRoleGraph(
     "configure->load->compute->store");
 constexpr llvm::StringLiteral kInterfaceRealization(
-    "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-    "TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+"
-    "TCRVComputeOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+"
-    "TCRVMemoryOpInterface+TCRVResourceOpInterface+"
-    "TCRVEmitCLowerableInterface");
+    "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+    "WEFTEmitCLowerableInterface;load=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;compute=WEFTExtensionOpInterface+"
+    "WEFTComputeOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface;store=WEFTExtensionOpInterface+"
+    "WEFTMemoryOpInterface+WEFTResourceOpInterface+"
+    "WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
     "emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|"
@@ -75,7 +75,7 @@ constexpr llvm::StringLiteral kToyRuntimeABIKind(
 constexpr llvm::StringLiteral kToyRuntimeGlueRole(
     "emitc-cpp-toy-template-runtime-glue");
 constexpr llvm::StringLiteral kToyLoweringBoundaryOpName(
-    "tcrv_toy.compute_skeleton");
+    "weft_toy.compute_skeleton");
 constexpr llvm::StringLiteral kToyHeaderRouteID(
     "toy-template-compute-emitc-route.header");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
@@ -85,42 +85,42 @@ constexpr llvm::StringLiteral kToyBundleComponentGroup(
 constexpr llvm::StringLiteral kToyObjectHandoffKind(
     "materialized-emitc-cpp-toy-template-object");
 constexpr llvm::StringLiteral kToyTemplateComputeCallee(
-    "tcrv_toy_template_compute");
+    "weft_toy_template_compute");
 constexpr llvm::StringLiteral kToyTemplateComputeResultName("toy_value");
 constexpr llvm::StringLiteral kToyTemplateComputeResultCType("int32_t");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
-    "configure:toy.role.configure.config_skeleton:tcrv_toy.config_skeleton:"
-    "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
-    "load:toy.role.load.load_skeleton:tcrv_toy.load_skeleton:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
+    "configure:toy.role.configure.config_skeleton:weft_toy.config_skeleton:"
+    "WEFTConfigOpInterface:WEFTEmitCLowerableInterface;"
+    "load:toy.role.load.load_skeleton:weft_toy.load_skeleton:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;"
     "compute:toy.role.compute.compute_skeleton:"
-    "tcrv_toy.compute_skeleton:TCRVComputeOpInterface:"
-    "TCRVEmitCLowerableInterface;"
-    "store:toy.role.store.store_skeleton:tcrv_toy.store_skeleton:"
-    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
+    "weft_toy.compute_skeleton:WEFTComputeOpInterface:"
+    "WEFTEmitCLowerableInterface;"
+    "store:toy.role.store.store_skeleton:weft_toy.store_skeleton:"
+    "WEFTMemoryOpInterface:WEFTEmitCLowerableInterface");
 constexpr llvm::StringLiteral kToyComputeOperationName(
-    "tcrv_toy.compute_skeleton");
+    "weft_toy.compute_skeleton");
 constexpr llvm::StringLiteral kToyComputeTypedRoleID(
     "toy.role.compute.compute_skeleton");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 
 const ToyConstructionSemanticRole kSemanticRoles[] = {
-    {"configure", 0, "tcrv_toy.config_skeleton",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
+    {"configure", 0, "weft_toy.config_skeleton",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
      "establish Toy extension configuration before local execution roles"},
-    {"load", 1, "tcrv_toy.load_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+    {"load", 1, "weft_toy.load_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "move IR-modeled memory into the Toy extension-owned resource"},
-    {"compute", 2, "tcrv_toy.compute_skeleton",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "perform the Toy-owned primitive without tcrv.exec compute semantics"},
-    {"store", 3, "tcrv_toy.store_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+    {"compute", 2, "weft_toy.compute_skeleton",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "perform the Toy-owned primitive without weft.exec compute semantics"},
+    {"store", 3, "weft_toy.store_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
      "write Toy-owned results back through an IR-modeled memory role"},
 };
 
@@ -129,8 +129,8 @@ const ToyConstructionManifest kManifest = {
     kArchetype,
     kSemanticRoleGraph,
     {"toy",
-     "tcrv.toy",
-     "tcrv_toy",
+     "weft.toy",
+     "weft_toy",
      kToyPluginName,
      kToyCapabilityID,
      kToyCapabilityKind,
@@ -150,35 +150,35 @@ const ToyTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"toy.role.configure.config_skeleton",
      "configure",
      0,
-     "tcrv_toy.config_skeleton",
-     "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
-     "TCRVEmitCLowerableInterface",
-     "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_toy.config_skeleton",
+     "WEFTExtensionOpInterface+WEFTConfigOpInterface+"
+     "WEFTEmitCLowerableInterface",
+     "WEFTConfigOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"toy.role.load.load_skeleton",
      "load",
      1,
-     "tcrv_toy.load_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_toy.load_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"toy.role.compute.compute_skeleton",
      "compute",
      2,
-     "tcrv_toy.compute_skeleton",
-     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_toy.compute_skeleton",
+     "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTComputeOpInterface",
+     "WEFTEmitCLowerableInterface"},
     {"toy.role.store.store_skeleton",
      "store",
      3,
-     "tcrv_toy.store_skeleton",
-     "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
-     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface"},
+     "weft_toy.store_skeleton",
+     "WEFTExtensionOpInterface+WEFTMemoryOpInterface+"
+     "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
+     "WEFTMemoryOpInterface",
+     "WEFTEmitCLowerableInterface"},
 };
 
 const ToyTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -192,10 +192,10 @@ const ToyTypedRoleGraphRealization kTypedRoleGraphRealization = {
 };
 
 const construction::RoleExpectation kRoleExpectations[] = {
-    {"configure", "TCRVConfigOpInterface", false},
-    {"load", "TCRVMemoryOpInterface", true},
-    {"compute", "TCRVComputeOpInterface", true},
-    {"store", "TCRVMemoryOpInterface", true},
+    {"configure", "WEFTConfigOpInterface", false},
+    {"load", "WEFTMemoryOpInterface", true},
+    {"compute", "WEFTComputeOpInterface", true},
+    {"store", "WEFTMemoryOpInterface", true},
 };
 
 const llvm::StringRef kRequiredEvidence[] = {
@@ -227,7 +227,7 @@ const support::RuntimeABIParameter kToyTemplateRuntimeABIParameters[] = {
 
 llvm::Error makeToyConstructionProtocolError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Toy construction protocol invalid: ") +
+      llvm::Twine("Weft-RV Toy construction protocol invalid: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -249,7 +249,7 @@ construction::RoleOpValidationSpec getToyComputeRoleValidationSpec() {
   return {"compute",
           kToyComputeOperationName,
           kToyComputeTypedRoleID,
-          "TCRVComputeOpInterface",
+          "WEFTComputeOpInterface",
           "Toy compute role op",
           "Toy compute role op is missing before construction validation"};
 }
@@ -482,4 +482,4 @@ llvm::Error verifyToyComputeRoleOpInterface(
       getToyConstructionValidationSpec(), getToyComputeRoleValidationSpec());
 }
 
-} // namespace tianchenrv::plugin::toy
+} // namespace weft::plugin::toy

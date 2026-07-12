@@ -1,22 +1,22 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitC.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Conversion/RVV/RVVToEmitC.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 // Stage 3 换心 retirement (I7). The RVV body-emission string machine (the
@@ -45,7 +45,7 @@ llvm::Error refuseRetiredRVVSelectedBodyStringRouteForOperation(
 
 bool rvvSelectedBodyFullyConvertsToEmitC(
     const VariantEmitCLowerableRequest &request) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return false;
   auto module = variant->getParentOfType<mlir::ModuleOp>();
@@ -56,7 +56,7 @@ bool rvvSelectedBodyFullyConvertsToEmitC(
   // rewrites in place and, on a not-yet-covered family, fails partway. The
   // speculative failure is the normal strangler-fig fall-back signal, so
   // swallow its diagnostics rather than leak a spurious "failed to legalize"
-  // to stderr; the real conversion seam (and the --tcrv-rvv-lower-to-emitc
+  // to stderr; the real conversion seam (and the --weft-rvv-lower-to-emitc
   // pass) still surface diagnostics normally.
   mlir::OwningOpRef<mlir::ModuleOp> probe(module.clone());
   mlir::ScopedDiagnosticHandler quietTry(
@@ -87,4 +87,4 @@ llvm::Error refuseRetiredRVVSelectedBodyStringRoute(
       "selected RVV EmitC route construction");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

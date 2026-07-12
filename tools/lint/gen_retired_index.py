@@ -7,7 +7,7 @@ what four requirements" has a SINGLE machine-checkable answer instead of being s
 across three de-memoized places:
 
   (a) the `// NOTE: def <OpDef> (the monolith <fmt> block-dot op) was RETIRED at ...`
-      prose markers in the ODS (include/TianChenRV/Dialect/RVV/IR/RVVOps.td)
+      prose markers in the ODS (include/Weft/Dialect/RVV/IR/RVVOps.td)
           -> vec_dot monolith op-def retirements (form B, four-requirement prose);
   (b) schema/monolith-retire-whitelist.v1.json  retired_ledger
           -> vec_dot monolith op-def retirements (form A, structured);
@@ -33,7 +33,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ODS = os.path.join(REPO, "include/TianChenRV/Dialect/RVV/IR/RVVOps.td")
+ODS = os.path.join(REPO, "include/Weft/Dialect/RVV/IR/RVVOps.td")
 MONOLITH_WL = os.path.join(REPO, "schema/monolith-retire-whitelist.v1.json")
 EMIT_BYPASS_WL = os.path.join(REPO, "schema/emit-bypass-whitelist.v1.json")
 OUT_DEFAULT = os.path.join(REPO, "schema/retired-index.generated.json")
@@ -199,7 +199,7 @@ def merge_entries(raw):
 
 def build_index(repo=REPO):
     """Assemble the full RETIRED-INDEX document (deterministic, no timestamps)."""
-    td_text = open(os.path.join(repo, "include/TianChenRV/Dialect/RVV/IR/RVVOps.td"),
+    td_text = open(os.path.join(repo, "include/Weft/Dialect/RVV/IR/RVVOps.td"),
                    encoding="utf-8").read()
     mono = json.load(open(os.path.join(repo, "schema/monolith-retire-whitelist.v1.json"),
                           encoding="utf-8"))
@@ -223,7 +223,7 @@ def build_index(repo=REPO):
                          "(CI job retired-index-gate) fails closed on drift.",
             "ruling": "判定书 §3 轴B 裁决③ -- single read-only query point for RETIRED cells.",
             "sources": [
-                ".td RETIRED NOTE markers (include/TianChenRV/Dialect/RVV/IR/RVVOps.td) -- "
+                ".td RETIRED NOTE markers (include/Weft/Dialect/RVV/IR/RVVOps.td) -- "
                 "vec_dot monolith op-def retirements (form B, four-requirement prose)",
                 "schema/monolith-retire-whitelist.v1.json retired_ledger -- vec_dot monolith "
                 "op-def retirements (form A, structured)",

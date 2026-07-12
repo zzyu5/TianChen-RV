@@ -1,6 +1,6 @@
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -10,7 +10,7 @@
 #include <optional>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kPackedI4PerformancePolicyContract(
@@ -90,7 +90,7 @@ constexpr std::int64_t
 
 llvm::Error makeRVVLowPrecisionPerformancePolicyError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV low-precision performance policy failed: ") +
+      llvm::Twine("Weft-RV RVV low-precision performance policy failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -172,7 +172,7 @@ llvm::Error rejectLabelOnlyPressureMarker(llvm::StringRef context,
       llvm::Twine(context) +
       " pressure-profile boundary rejects label-only q8/q4 pressure marker in " +
       label + " '" + value +
-      "'; typed tcrv_rvv/provider facts and source-backed measurement "
+      "'; typed weft_rvv/provider facts and source-backed measurement "
       "tie-backs are required");
 }
 
@@ -515,10 +515,10 @@ llvm::StringRef
 getPackedI4SourceGeneratedFunctionForCandidate(llvm::StringRef candidateID) {
   return isPackedI4DequantClampCandidate(candidateID)
              ? llvm::StringRef(
-                   "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_"
+                   "weft_emitc_pre_realized_body_product_reduce_dequant_clamp_"
                    "kernel_pre_realized_body_rvv_product_reduce_dequant_clamp")
              : llvm::StringRef(
-                   "tcrv_emitc_pre_realized_body_product_reduce_dequantize_"
+                   "weft_emitc_pre_realized_body_product_reduce_dequantize_"
                    "kernel_pre_realized_body_rvv_product_reduce_dequantize");
 }
 
@@ -2688,12 +2688,12 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
   if (!dispatchBoundary.hasSelectedDispatchCase)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires selected tcrv.exec.dispatch case facts before "
+        " requires selected weft.exec.dispatch case facts before "
         "low-precision dispatch policy acceptance");
   if (!dispatchBoundary.hasSelectedDispatchFallback)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires selected tcrv.exec.dispatch fallback facts before "
+        " requires selected weft.exec.dispatch fallback facts before "
         "low-precision dispatch policy acceptance");
   if (llvm::Error error = requirePolicyString(
           context, "selected dispatch case role",
@@ -3947,232 +3947,232 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
     return llvm::Error::success();
   };
 
-#define TCRV_READ_RECORD_STRING(Field, Key)                                    \
+#define WEFT_READ_RECORD_STRING(Field, Key)                                    \
   if (llvm::Error error = readString(Key, record.Field))                       \
     return std::move(error)
-#define TCRV_READ_RECORD_INT(Field, Key)                                       \
+#define WEFT_READ_RECORD_INT(Field, Key)                                       \
   if (llvm::Error error = readInt(Key, record.Field))                          \
     return std::move(error)
-#define TCRV_READ_RECORD_BOOL(Field, Key)                                      \
+#define WEFT_READ_RECORD_BOOL(Field, Key)                                      \
   if (llvm::Error error = readBool(Key, record.Field))                         \
     return std::move(error)
 
-  TCRV_READ_RECORD_STRING(contract, "contract");
-  TCRV_READ_RECORD_STRING(authority, "authority");
-  TCRV_READ_RECORD_STRING(measurementEvidenceID, "measurement_evidence_id");
-  TCRV_READ_RECORD_STRING(measurementClassification,
+  WEFT_READ_RECORD_STRING(contract, "contract");
+  WEFT_READ_RECORD_STRING(authority, "authority");
+  WEFT_READ_RECORD_STRING(measurementEvidenceID, "measurement_evidence_id");
+  WEFT_READ_RECORD_STRING(measurementClassification,
                           "measurement_classification");
-  TCRV_READ_RECORD_STRING(measurementOutcomeFamily,
+  WEFT_READ_RECORD_STRING(measurementOutcomeFamily,
                           "measurement_outcome_family");
-  TCRV_READ_RECORD_STRING(measurementBestSpeedupRange,
+  WEFT_READ_RECORD_STRING(measurementBestSpeedupRange,
                           "measurement_best_speedup_range");
-  TCRV_READ_RECORD_INT(measurementSummaryRecordCount,
+  WEFT_READ_RECORD_INT(measurementSummaryRecordCount,
                        "measurement_summary_record_count");
-  TCRV_READ_RECORD_INT(measurementRecordCount, "measurement_record_count");
-  TCRV_READ_RECORD_INT(correctnessRecordCount, "correctness_record_count");
-  TCRV_READ_RECORD_BOOL(sameTargetMeasurement, "same_target_measurement");
-  TCRV_READ_RECORD_BOOL(sshEvidence, "ssh_evidence");
-  TCRV_READ_RECORD_STRING(targetProfile, "target_profile");
-  TCRV_READ_RECORD_STRING(sourceRecordContract, "source_record_contract");
-  TCRV_READ_RECORD_STRING(sourceSelectedVariant, "source_selected_variant");
-  TCRV_READ_RECORD_STRING(sourceSelectedInput, "source_selected_input");
-  TCRV_READ_RECORD_STRING(sourceGeneratedFunction, "source_generated_function");
-  TCRV_READ_RECORD_STRING(generatedArtifactIdentityContract,
+  WEFT_READ_RECORD_INT(measurementRecordCount, "measurement_record_count");
+  WEFT_READ_RECORD_INT(correctnessRecordCount, "correctness_record_count");
+  WEFT_READ_RECORD_BOOL(sameTargetMeasurement, "same_target_measurement");
+  WEFT_READ_RECORD_BOOL(sshEvidence, "ssh_evidence");
+  WEFT_READ_RECORD_STRING(targetProfile, "target_profile");
+  WEFT_READ_RECORD_STRING(sourceRecordContract, "source_record_contract");
+  WEFT_READ_RECORD_STRING(sourceSelectedVariant, "source_selected_variant");
+  WEFT_READ_RECORD_STRING(sourceSelectedInput, "source_selected_input");
+  WEFT_READ_RECORD_STRING(sourceGeneratedFunction, "source_generated_function");
+  WEFT_READ_RECORD_STRING(generatedArtifactIdentityContract,
                           "generated_artifact_identity_contract");
-  TCRV_READ_RECORD_STRING(generatedArtifactObjectPath,
+  WEFT_READ_RECORD_STRING(generatedArtifactObjectPath,
                           "generated_artifact_object_path");
-  TCRV_READ_RECORD_STRING(generatedArtifactObjectSHA256,
+  WEFT_READ_RECORD_STRING(generatedArtifactObjectSHA256,
                           "generated_artifact_object_sha256");
-  TCRV_READ_RECORD_STRING(generatedArtifactHeaderPath,
+  WEFT_READ_RECORD_STRING(generatedArtifactHeaderPath,
                           "generated_artifact_header_path");
-  TCRV_READ_RECORD_STRING(generatedArtifactHeaderSHA256,
+  WEFT_READ_RECORD_STRING(generatedArtifactHeaderSHA256,
                           "generated_artifact_header_sha256");
-  TCRV_READ_RECORD_STRING(measurementTarget, "measurement_target");
-  TCRV_READ_RECORD_STRING(measurementTargetProvenance,
+  WEFT_READ_RECORD_STRING(measurementTarget, "measurement_target");
+  WEFT_READ_RECORD_STRING(measurementTargetProvenance,
                           "measurement_target_provenance");
-  TCRV_READ_RECORD_STRING(measurementRuntimeCountSet,
+  WEFT_READ_RECORD_STRING(measurementRuntimeCountSet,
                           "measurement_runtime_count_set");
-  TCRV_READ_RECORD_STRING(measurementRuntimeCountProvenance,
+  WEFT_READ_RECORD_STRING(measurementRuntimeCountProvenance,
                           "measurement_runtime_count_provenance");
-  TCRV_READ_RECORD_STRING(pressureProfileLabel, "pressure_profile_label");
-  TCRV_READ_RECORD_STRING(pressureProfileLabelProvenance,
+  WEFT_READ_RECORD_STRING(pressureProfileLabel, "pressure_profile_label");
+  WEFT_READ_RECORD_STRING(pressureProfileLabelProvenance,
                           "pressure_profile_label_provenance");
-  TCRV_READ_RECORD_STRING(providerResourceSelectedCandidate,
+  WEFT_READ_RECORD_STRING(providerResourceSelectedCandidate,
                           "provider_resource_selected_candidate");
-  TCRV_READ_RECORD_STRING(providerResourcePlanningContract,
+  WEFT_READ_RECORD_STRING(providerResourcePlanningContract,
                           "provider_resource_planning_contract");
-  TCRV_READ_RECORD_STRING(providerResourceOperandForm,
+  WEFT_READ_RECORD_STRING(providerResourceOperandForm,
                           "provider_resource_operand_form");
-  TCRV_READ_RECORD_STRING(providerResourceSourceSignedness,
+  WEFT_READ_RECORD_STRING(providerResourceSourceSignedness,
                           "provider_resource_source_signedness");
-  TCRV_READ_RECORD_INT(providerResourceStorageElementWidth,
+  WEFT_READ_RECORD_INT(providerResourceStorageElementWidth,
                        "provider_resource_storage_element_width");
-  TCRV_READ_RECORD_INT(providerResourceEffectiveElementWidth,
+  WEFT_READ_RECORD_INT(providerResourceEffectiveElementWidth,
                        "provider_resource_effective_element_width");
-  TCRV_READ_RECORD_STRING(providerResourcePackingLayout,
+  WEFT_READ_RECORD_STRING(providerResourcePackingLayout,
                           "provider_resource_packing_layout");
-  TCRV_READ_RECORD_STRING(providerResourceUnpackIntent,
+  WEFT_READ_RECORD_STRING(providerResourceUnpackIntent,
                           "provider_resource_unpack_intent");
-  TCRV_READ_RECORD_INT(providerResourceVSetVLRegionCount,
+  WEFT_READ_RECORD_INT(providerResourceVSetVLRegionCount,
                        "provider_resource_vsetvl_region_count");
-  TCRV_READ_RECORD_STRING(providerRuntimeAVLSource,
+  WEFT_READ_RECORD_STRING(providerRuntimeAVLSource,
                           "provider_runtime_avl_source");
-  TCRV_READ_RECORD_STRING(providerResourceRouteFamilyPlan,
+  WEFT_READ_RECORD_STRING(providerResourceRouteFamilyPlan,
                           "provider_resource_route_family_plan");
-  TCRV_READ_RECORD_STRING(providerSupportedMirror, "provider_supported_mirror");
-  TCRV_READ_RECORD_STRING(providerRuntimeABIOrder,
+  WEFT_READ_RECORD_STRING(providerSupportedMirror, "provider_supported_mirror");
+  WEFT_READ_RECORD_STRING(providerRuntimeABIOrder,
                           "provider_runtime_abi_order");
-  TCRV_READ_RECORD_STRING(providerScheduleDecisionContract,
+  WEFT_READ_RECORD_STRING(providerScheduleDecisionContract,
                           "provider_schedule_decision_contract");
-  TCRV_READ_RECORD_STRING(providerScheduleDecision,
+  WEFT_READ_RECORD_STRING(providerScheduleDecision,
                           "provider_schedule_decision");
-  TCRV_READ_RECORD_STRING(providerScheduleDecisionReason,
+  WEFT_READ_RECORD_STRING(providerScheduleDecisionReason,
                           "provider_schedule_decision_reason");
-  TCRV_READ_RECORD_STRING(providerResourceCostContract,
+  WEFT_READ_RECORD_STRING(providerResourceCostContract,
                           "provider_resource_cost_contract");
-  TCRV_READ_RECORD_STRING(providerResourceCostModel,
+  WEFT_READ_RECORD_STRING(providerResourceCostModel,
                           "provider_resource_cost_model");
-  TCRV_READ_RECORD_INT(providerResourceCostLoopBodySteps,
+  WEFT_READ_RECORD_INT(providerResourceCostLoopBodySteps,
                        "provider_resource_cost_loop_body_steps");
-  TCRV_READ_RECORD_STRING(providerResourceCostBlocker,
+  WEFT_READ_RECORD_STRING(providerResourceCostBlocker,
                           "provider_resource_cost_blocker");
-  TCRV_READ_RECORD_STRING(providerPerformanceAdmissionDecision,
+  WEFT_READ_RECORD_STRING(providerPerformanceAdmissionDecision,
                           "provider_performance_admission_decision");
-  TCRV_READ_RECORD_STRING(providerPerformanceAdmissionClosure,
+  WEFT_READ_RECORD_STRING(providerPerformanceAdmissionClosure,
                           "provider_performance_admission_closure");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerPerformanceAdmissionReopenRequirement,
       "provider_performance_admission_reopen_requirement");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerBeyondLocalRepairAdmissionContract,
       "provider_beyond_local_repair_admission_contract");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerBeyondLocalRepairAdmissionDecision,
       "provider_beyond_local_repair_admission_decision");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerBeyondLocalRepairAdmissionBlocker,
       "provider_beyond_local_repair_admission_blocker");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerBeyondLocalRepairAdmissionReopenRequirement,
       "provider_beyond_local_repair_admission_reopen_requirement");
-  TCRV_READ_RECORD_STRING(providerRealizationAdmissionContract,
+  WEFT_READ_RECORD_STRING(providerRealizationAdmissionContract,
                           "provider_realization_admission_contract");
-  TCRV_READ_RECORD_STRING(providerRealizationAdmissionDecision,
+  WEFT_READ_RECORD_STRING(providerRealizationAdmissionDecision,
                           "provider_realization_admission_decision");
-  TCRV_READ_RECORD_STRING(providerRealizationAdmissionEvidence,
+  WEFT_READ_RECORD_STRING(providerRealizationAdmissionEvidence,
                           "provider_realization_admission_evidence");
-  TCRV_READ_RECORD_STRING(providerRealizationAdmissionDispatchPolicy,
+  WEFT_READ_RECORD_STRING(providerRealizationAdmissionDispatchPolicy,
                           "provider_realization_admission_dispatch_policy");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerRealizationAdmissionScheduleDecisionContract,
       "provider_realization_admission_schedule_decision_contract");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerRealizationAdmissionScheduleDecision,
       "provider_realization_admission_schedule_decision");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerRealizationAdmissionScheduleDecisionReason,
       "provider_realization_admission_schedule_decision_reason");
-  TCRV_READ_RECORD_STRING(providerPrimitiveChainContract,
+  WEFT_READ_RECORD_STRING(providerPrimitiveChainContract,
                           "provider_primitive_chain_contract");
-  TCRV_READ_RECORD_STRING(providerPrimitiveChainKind,
+  WEFT_READ_RECORD_STRING(providerPrimitiveChainKind,
                           "provider_primitive_chain_kind");
-  TCRV_READ_RECORD_STRING(providerPrimitiveContract,
+  WEFT_READ_RECORD_STRING(providerPrimitiveContract,
                           "provider_primitive_contract");
-  TCRV_READ_RECORD_STRING(providerPrimitiveKind, "provider_primitive_kind");
-  TCRV_READ_RECORD_STRING(providerWideningProductMultiplicandRoles,
+  WEFT_READ_RECORD_STRING(providerPrimitiveKind, "provider_primitive_kind");
+  WEFT_READ_RECORD_STRING(providerWideningProductMultiplicandRoles,
                           "provider_widening_product_multiplicand_roles");
-  TCRV_READ_RECORD_STRING(providerWideningProductExtensionPolicy,
+  WEFT_READ_RECORD_STRING(providerWideningProductExtensionPolicy,
                           "provider_widening_product_extension_policy");
-  TCRV_READ_RECORD_STRING(providerPrimitiveSourceLoad,
+  WEFT_READ_RECORD_STRING(providerPrimitiveSourceLoad,
                           "provider_primitive_source_load");
-  TCRV_READ_RECORD_STRING(providerPrimitiveSourceExtension,
+  WEFT_READ_RECORD_STRING(providerPrimitiveSourceExtension,
                           "provider_primitive_source_extension");
-  TCRV_READ_RECORD_STRING(providerPrimitiveSourceDType,
+  WEFT_READ_RECORD_STRING(providerPrimitiveSourceDType,
                           "provider_primitive_source_dtype");
-  TCRV_READ_RECORD_STRING(providerPrimitiveSourceSignedness,
+  WEFT_READ_RECORD_STRING(providerPrimitiveSourceSignedness,
                           "provider_primitive_source_signedness");
-  TCRV_READ_RECORD_INT(providerPrimitiveSourceSEW,
+  WEFT_READ_RECORD_INT(providerPrimitiveSourceSEW,
                        "provider_primitive_source_sew");
-  TCRV_READ_RECORD_STRING(providerPrimitiveSourceLMUL,
+  WEFT_READ_RECORD_STRING(providerPrimitiveSourceLMUL,
                           "provider_primitive_source_lmul");
-  TCRV_READ_RECORD_STRING(providerPrimitiveProductDType,
+  WEFT_READ_RECORD_STRING(providerPrimitiveProductDType,
                           "provider_primitive_product_dtype");
-  TCRV_READ_RECORD_INT(providerPrimitiveProductSEW,
+  WEFT_READ_RECORD_INT(providerPrimitiveProductSEW,
                        "provider_primitive_product_sew");
-  TCRV_READ_RECORD_STRING(providerPrimitiveProductLMUL,
+  WEFT_READ_RECORD_STRING(providerPrimitiveProductLMUL,
                           "provider_primitive_product_lmul");
-  TCRV_READ_RECORD_STRING(providerPrimitiveAccumulatorDType,
+  WEFT_READ_RECORD_STRING(providerPrimitiveAccumulatorDType,
                           "provider_primitive_accumulator_dtype");
-  TCRV_READ_RECORD_INT(providerPrimitiveAccumulatorSEW,
+  WEFT_READ_RECORD_INT(providerPrimitiveAccumulatorSEW,
                        "provider_primitive_accumulator_sew");
-  TCRV_READ_RECORD_STRING(providerPrimitiveAccumulatorLMUL,
+  WEFT_READ_RECORD_STRING(providerPrimitiveAccumulatorLMUL,
                           "provider_primitive_accumulator_lmul");
-  TCRV_READ_RECORD_STRING(providerPrimitiveResultDType,
+  WEFT_READ_RECORD_STRING(providerPrimitiveResultDType,
                           "provider_primitive_result_dtype");
-  TCRV_READ_RECORD_INT(providerPrimitiveResultSEW,
+  WEFT_READ_RECORD_INT(providerPrimitiveResultSEW,
                        "provider_primitive_result_sew");
-  TCRV_READ_RECORD_STRING(providerPrimitiveResultLMUL,
+  WEFT_READ_RECORD_STRING(providerPrimitiveResultLMUL,
                           "provider_primitive_result_lmul");
-  TCRV_READ_RECORD_STRING(providerPrimitiveWideningProductRelation,
+  WEFT_READ_RECORD_STRING(providerPrimitiveWideningProductRelation,
                           "provider_primitive_widening_product_relation");
-  TCRV_READ_RECORD_STRING(
+  WEFT_READ_RECORD_STRING(
       providerPrimitiveProductReductionChainRelation,
       "provider_primitive_product_reduction_chain_relation");
-  TCRV_READ_RECORD_STRING(providerPrimitiveWideningProductIntrinsic,
+  WEFT_READ_RECORD_STRING(providerPrimitiveWideningProductIntrinsic,
                           "provider_primitive_widening_product_intrinsic");
-  TCRV_READ_RECORD_STRING(providerPrimitiveReductionIntrinsic,
+  WEFT_READ_RECORD_STRING(providerPrimitiveReductionIntrinsic,
                           "provider_primitive_reduction_intrinsic");
-  TCRV_READ_RECORD_STRING(providerPrimitiveScalarSeedSplatIntrinsic,
+  WEFT_READ_RECORD_STRING(providerPrimitiveScalarSeedSplatIntrinsic,
                           "provider_primitive_scalar_seed_splat_intrinsic");
-  TCRV_READ_RECORD_STRING(providerPrimitiveAccumulatorLayout,
+  WEFT_READ_RECORD_STRING(providerPrimitiveAccumulatorLayout,
                           "provider_primitive_accumulator_layout");
-  TCRV_READ_RECORD_STRING(providerPrimitiveResultLayout,
+  WEFT_READ_RECORD_STRING(providerPrimitiveResultLayout,
                           "provider_primitive_result_layout");
-  TCRV_READ_RECORD_STRING(providerPrimitiveReductionStoreVL,
+  WEFT_READ_RECORD_STRING(providerPrimitiveReductionStoreVL,
                           "provider_primitive_reduction_store_vl");
-  TCRV_READ_RECORD_STRING(providerRemediationHandoffContract,
+  WEFT_READ_RECORD_STRING(providerRemediationHandoffContract,
                           "provider_remediation_handoff_contract");
-  TCRV_READ_RECORD_STRING(providerRemediationDiagnosis,
+  WEFT_READ_RECORD_STRING(providerRemediationDiagnosis,
                           "provider_remediation_diagnosis");
-  TCRV_READ_RECORD_STRING(providerRemediationMeasurementEvidence,
+  WEFT_READ_RECORD_STRING(providerRemediationMeasurementEvidence,
                           "provider_remediation_measurement_evidence");
-  TCRV_READ_RECORD_STRING(providerRemediationDecision,
+  WEFT_READ_RECORD_STRING(providerRemediationDecision,
                           "provider_remediation_decision");
-  TCRV_READ_RECORD_STRING(providerRemediationAction,
+  WEFT_READ_RECORD_STRING(providerRemediationAction,
                           "provider_remediation_action");
-  TCRV_READ_RECORD_STRING(providerRemediationDispatchPreference,
+  WEFT_READ_RECORD_STRING(providerRemediationDispatchPreference,
                           "provider_remediation_dispatch_preference");
-  TCRV_READ_RECORD_STRING(providerRemediationBlocker,
+  WEFT_READ_RECORD_STRING(providerRemediationBlocker,
                           "provider_remediation_blocker");
-  TCRV_READ_RECORD_STRING(targetCapabilityProviderMirror,
+  WEFT_READ_RECORD_STRING(targetCapabilityProviderMirror,
                           "target_capability_provider_mirror");
-  TCRV_READ_RECORD_STRING(targetCapabilityLegalityMirror,
+  WEFT_READ_RECORD_STRING(targetCapabilityLegalityMirror,
                           "target_capability_legality_mirror");
-  TCRV_READ_RECORD_STRING(providerMaturity, "provider_maturity");
-  TCRV_READ_RECORD_STRING(providerMaturityEvidence,
+  WEFT_READ_RECORD_STRING(providerMaturity, "provider_maturity");
+  WEFT_READ_RECORD_STRING(providerMaturityEvidence,
                           "provider_maturity_evidence");
-  TCRV_READ_RECORD_STRING(providerMaturityOutcome, "provider_maturity_outcome");
-  TCRV_READ_RECORD_STRING(providerPerformanceSelectionEligible,
+  WEFT_READ_RECORD_STRING(providerMaturityOutcome, "provider_maturity_outcome");
+  WEFT_READ_RECORD_STRING(providerPerformanceSelectionEligible,
                           "provider_performance_selection_eligible");
-  TCRV_READ_RECORD_STRING(providerDispatchPreference,
+  WEFT_READ_RECORD_STRING(providerDispatchPreference,
                           "provider_dispatch_preference");
-  TCRV_READ_RECORD_STRING(providerPerformanceAction,
+  WEFT_READ_RECORD_STRING(providerPerformanceAction,
                           "provider_performance_action");
-  TCRV_READ_RECORD_BOOL(performancePreferenceDenied,
+  WEFT_READ_RECORD_BOOL(performancePreferenceDenied,
                         "performance_preference_denied");
-  TCRV_READ_RECORD_STRING(performancePreferenceDenialReason,
+  WEFT_READ_RECORD_STRING(performancePreferenceDenialReason,
                           "performance_preference_denial_reason");
-  TCRV_READ_RECORD_BOOL(performanceWinClaimAllowed,
+  WEFT_READ_RECORD_BOOL(performanceWinClaimAllowed,
                         "performance_win_claim_allowed");
-  TCRV_READ_RECORD_BOOL(correctnessExecutionAllowed,
+  WEFT_READ_RECORD_BOOL(correctnessExecutionAllowed,
                         "correctness_execution_allowed");
-  TCRV_READ_RECORD_BOOL(providerContractUpdateRequired,
+  WEFT_READ_RECORD_BOOL(providerContractUpdateRequired,
                         "provider_contract_update_required");
-  TCRV_READ_RECORD_STRING(routeSupportEffect, "route_support_effect");
+  WEFT_READ_RECORD_STRING(routeSupportEffect, "route_support_effect");
 
-#undef TCRV_READ_RECORD_STRING
-#undef TCRV_READ_RECORD_INT
-#undef TCRV_READ_RECORD_BOOL
+#undef WEFT_READ_RECORD_STRING
+#undef WEFT_READ_RECORD_INT
+#undef WEFT_READ_RECORD_BOOL
 
   return record;
 }
@@ -5561,4 +5561,4 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

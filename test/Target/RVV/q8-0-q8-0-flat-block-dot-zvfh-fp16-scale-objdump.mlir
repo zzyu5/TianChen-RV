@@ -13,10 +13,10 @@
 //
 // q8_0 is a FLAT block-dot with two per-block fp16 scale reads (d_x, d_y). clang
 // for a RISC-V RVV relocatable object is required to package the artifact.
-// REQUIRES: tianchenrv-local-rvv-object-clang
+// REQUIRES: weft-local-rvv-object-clang
 
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 
 // The two per-block fp16 scale reads are HARDWARE half->single conversions.
 // RUN: llvm-objdump -d %t.o | FileCheck %s --check-prefix=FCVT
@@ -29,8 +29,8 @@
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=NOSOFT
 // NOSOFT-NOT: __extendhfsf2
 
-module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel"} {
   func.func @source_q8_0_q8_0_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }

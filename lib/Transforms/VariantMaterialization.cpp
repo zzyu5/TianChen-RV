@@ -1,7 +1,7 @@
-#include "TianChenRV/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantMaterialization.h"
 
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/Passes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -21,21 +21,21 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZEPLUGINVARIANTS
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalDecline;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::CapabilityDescriptor;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalDecline;
+using weft::plugin::VariantProposalRequest;
+using weft::support::CapabilityDescriptor;
+using weft::support::TargetCapabilitySet;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 struct PlannedVariant {
   std::string symbolName;
@@ -56,7 +56,7 @@ llvm::Error makeMaterializationError(llvm::Twine message) {
 llvm::Error makeProposalError(const VariantProposal &proposal,
                               llvm::Twine message) {
   return makeMaterializationError(
-      llvm::Twine("TianChen-RV variant materialization failed for proposal '") +
+      llvm::Twine("Weft-RV variant materialization failed for proposal '") +
       proposal.getVariantName() + "' from origin plugin '" +
       proposal.getOriginPlugin() + "': " + message);
 }
@@ -153,7 +153,7 @@ llvm::Error makeNoViableProposalError(
     KernelOp kernel, llvm::ArrayRef<VariantProposalDecline> recoverableDeclines) {
   std::string message;
   llvm::raw_string_ostream stream(message);
-  stream << "TianChen-RV plugin variant materialization";
+  stream << "Weft-RV plugin variant materialization";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   stream << " collected no viable plugin proposals; "
@@ -240,7 +240,7 @@ validateAndCopyPluginAttributes(const VariantProposal &proposal,
     if (isCoreVariantAttributeName(name))
       return makeProposalError(
           proposal, llvm::Twine("plugin-owned attribute '") + name +
-                        "' collides with required tcrv.exec.variant "
+                        "' collides with required weft.exec.variant "
                         "attribute");
 
     if (!isValidPluginAttributeName(name))
@@ -267,12 +267,12 @@ llvm::Error validateAndPlanMaterialization(
   KernelOp kernel = request.getKernel();
   if (!kernel)
     return makeMaterializationError(
-        "TianChen-RV variant materialization requires a tcrv.exec.kernel "
+        "Weft-RV variant materialization requires a weft.exec.kernel "
         "anchor");
 
   if (!kernelHasBody(kernel))
     return makeMaterializationError(
-        llvm::Twine("TianChen-RV variant materialization requires kernel @") +
+        llvm::Twine("Weft-RV variant materialization requires kernel @") +
         kernel.getSymName() + " to have a materializable body block");
 
   llvm::StringSet<> seenVariantSymbols;
@@ -425,7 +425,7 @@ llvm::Error existingVariantMatchesProposal(
   if (!existing)
     return makeProposalError(
         proposal, "existing direct symbol for proposed variant is not a "
-                  "tcrv.exec.variant");
+                  "weft.exec.variant");
 
   if (existing.getBody().empty())
     return explainExistingVariantMismatch(
@@ -563,18 +563,18 @@ llvm::Error materializeKernelPluginVariants(
     llvm::SmallVectorImpl<VariantOp> *materializedVariants = nullptr) {
   if (!kernel)
     return makeMaterializationError(
-        "TianChen-RV plugin variant materialization requires a "
-        "tcrv.exec.kernel");
+        "Weft-RV plugin variant materialization requires a "
+        "weft.exec.kernel");
 
   if (!kernelHasBody(kernel))
     return makeMaterializationError(
-        llvm::Twine("TianChen-RV plugin variant materialization requires "
+        llvm::Twine("Weft-RV plugin variant materialization requires "
                     "kernel @") +
         kernel.getSymName() + " to have a materialized body block");
 
   if (registry.empty())
     return makeMaterializationError(
-        llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
+        llvm::Twine("Weft-RV plugin variant materialization for kernel @") +
         kernel.getSymName() +
         " requires at least one enabled extension plugin in the registry");
 
@@ -584,7 +584,7 @@ llvm::Error materializeKernelPluginVariants(
     return capabilities.takeError();
   if (capabilities->empty())
     return makeMaterializationError(
-        llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
+        llvm::Twine("Weft-RV plugin variant materialization for kernel @") +
         kernel.getSymName() +
         " requires at least one capability provider in the kernel capability "
         "scope");
@@ -740,4 +740,4 @@ std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass(
   return std::make_unique<MaterializePluginVariantsPass>(registry);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

@@ -4,7 +4,7 @@
 # C1 (合取存在性) fail-closed STRUCTURAL machine-check. For every `constructed` (== STRONG)
 # cell in the six-state schema, the E5 `auto_readout` carries a MACHINE-DERIVED realized-body
 # manifest (from .trellis/scripts/e5_strong_readout.py, which walks the actual realized
-# tcrv_rvv body op-identity and applies [L-8]). This gate REGEXES that manifest string into a
+# weft_rvv body op-identity and applies [L-8]). This gate REGEXES that manifest string into a
 # small set of legal typed-primitive SHAPES and rejects anything else — an opaque hand helper,
 # an empty manifest, a weak label, or an unrecognized body/yield wrapper all go RED. It is the
 # fail-closed structural evidence件 for C1: "constructed" is a checkable shape, not a hand wave.
@@ -62,7 +62,7 @@ FEMIT_ENVELOPE_RE = re.compile(
 )
 # [IME-SEAL] board-sealed envelope (G4 IME family). User-authorized (G4 M1b relay):
 # the IME q4_0_matmul_tile region is a REAL front-door construction on the common
-# pipeline (tcrv.ime.q4_0_matmul_tile OWNS the typed region carrying the decomposed
+# pipeline (weft.ime.q4_0_matmul_tile OWNS the typed region carrying the decomposed
 # q4_0_dequant_core + vmadot_mac_leaf bricks + the q4_0_matmul_tile_yield terminator,
 # read by OP-IDENTITY at emission -- IMEBackendEmissionDriver.cpp
 # IMEQ40MatMulTileToEmitCFunc). It is NOT an RVV typed loop, so it carries its OWN
@@ -221,7 +221,7 @@ def classify_shape(tokens):
         # CERT-FD殿后族 streaming shape (the forward-pass sibling of the dequant/quant
         # streams): the 5 CONSTRUCTED forward operators (scale/silu = MAP,
         # rms_norm/soft_max = REDUCE, rope = ROTATE) realize a typed
-        # tcrv_rvv.typed_elementwise_loop_body carrying ONE forward map/reduce/rotate
+        # weft_rvv.typed_elementwise_loop_body carrying ONE forward map/reduce/rotate
         # CORE brick + the yield. A forward operator is NEITHER a contraction NOR a
         # dot (no product/reduce/accumulator token), so it is NOT a flat/super/repack
         # dot; the core must be exactly one of the 5 forward bricks (FORWARD_CORE_RE,
@@ -247,8 +247,8 @@ def classify_shape(tokens):
             return None, f"repack_{mb.group(1)}_loop missing a *_dot / fused *_core token"
         return f"repack_{mb.group(1)}_loop", "typed repack GEM{V,M} loop body/yield"
 
-    # IME matmul-tile shape (G4/G4-M2/G4-M2b): a tcrv.ime.<fmt>_matmul_tile region
-    # OWNS the body (first token) + is terminated by tcrv.ime.<fmt>_matmul_tile_yield
+    # IME matmul-tile shape (G4/G4-M2/G4-M2b): a weft.ime.<fmt>_matmul_tile region
+    # OWNS the body (first token) + is terminated by weft.ime.<fmt>_matmul_tile_yield
     # (last token), and carries its decomposed bricks by op-identity. The body-op
     # token and the yield token must name the SAME format prefix (kept NARROW).
     #

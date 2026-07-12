@@ -10,11 +10,11 @@ semantics.
 The current RVV authority chain remains:
 
 ```text
-tcrv.exec envelope
+weft.exec envelope
   -> selected RVV variant
-  -> typed low-level tcrv_rvv vector-level body
+  -> typed low-level weft_rvv vector-level body
   -> RVV plugin-owned legality / selected-body realization / route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
   -> common EmitC materializer
 ```
 
@@ -68,7 +68,7 @@ metadata, or descriptors.
 Per [P-1] the exact serializable signatures are declared once (schema.def ⑤) and
 the C++ interface is not re-copied prose-by-prose. But an author still needs to
 know **which header, which class, and which virtuals to override**. Authoritative
-source: `include/TianChenRV/Plugin/ExtensionPlugin.h`, class `ExtensionPlugin`
+source: `include/Weft/Plugin/ExtensionPlugin.h`, class `ExtensionPlugin`
 (verify exact types there; the list below is a discovery index only, 2026-07-12).
 The overridable `virtual llvm::Error …` hooks a family plugin implements:
 
@@ -114,7 +114,7 @@ selected pre-realized extension body
 ```
 
 For RVV, any hint/config/profile fact that affects generated code must be
-consumed into concrete `tcrv_rvv` body structure before route construction.
+consumed into concrete `weft_rvv` body structure before route construction.
 
 `VariantSelectedBodyRealizationResult::isRealized` and similar booleans are
 transient C++ result codes. They are not persisted IR readiness states,
@@ -127,7 +127,7 @@ The origin plugin owns route construction:
 ```text
 selected typed/realized body
   -> plugin route provider
-  -> TCRVEmitCLowerableRoute
+  -> WEFTEmitCLowerableRoute
 ```
 
 For RVV, the provider maps op kind, dtype, SEW, LMUL, policy, operand form,
@@ -142,7 +142,7 @@ extension computation.
 
 ### Compute Role Interface
 
-`TCRVComputeOpInterface` or similar common interfaces expose generic
+`WEFTComputeOpInterface` or similar common interfaces expose generic
 role/provenance only. They must not let common code interpret computation
 semantics, infer dtype, choose intrinsics, or branch on concrete families.
 
@@ -182,7 +182,7 @@ progress.
 
 Plugin interfaces may return optional diagnostic mirrors after route
 construction. These mirrors may be serialized as
-`tcrv.exec.diagnostic {reason = "emission_plan"}`. They are not route inputs.
+`weft.exec.diagnostic {reason = "emission_plan"}`. They are not route inputs.
 
 Allowed mirror fields include:
 
@@ -206,8 +206,8 @@ The registry and route provider must fail closed if the only authority is:
 ```text
 RVVI32M1* route specs/slices
 rvv-i32m1-* route ids
-tcrv_rvv.i32_* helper namespace
-!tcrv_rvv.i32m1 helper type
+weft_rvv.i32_* helper namespace
+!weft_rvv.i32m1 helper type
 exact __riscv_*_i32m1 spelling
 source-front-door marker
 source-artifact bundle marker
@@ -227,7 +227,7 @@ Good:
 ```text
 core registry calls RVV legality
 -> RVV realizes selected body
--> RVV route provider returns TCRVEmitCLowerableRoute
+-> RVV route provider returns WEFTEmitCLowerableRoute
 -> common EmitC materializes provider payload
 ```
 

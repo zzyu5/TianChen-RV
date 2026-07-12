@@ -2,9 +2,9 @@
 // front door -- the P2-d batch that brings the three common legacy FLAT formats
 // (q4_1/q5_0/q5_1) through the SAME generalized monolithic wiring q4_K/q4_0 proved.
 // The front door's OWN auto-constructed monolithic flat block-dot body flows through
-// the COMPLETE tcrv-source-artifact-front-door-pipeline (materialize-emission-plans
-// PLUS --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target
-// artifact through tcrv-translate --tcrv-export-target-artifact.
+// the COMPLETE weft-source-artifact-front-door-pipeline (materialize-emission-plans
+// PLUS --weft-check-execution-plan-coherence) AND exports a real RISC-V target
+// artifact through weft-translate --weft-export-target-artifact.
 //
 // CHUNK = the mechanism generalized off a SHARED block-dot family trait
 // (RVVMonolithicBlockDotFamily.h), not any one op type. q5_0 is a FLAT op, so it
@@ -16,7 +16,7 @@
 //
 // SCHEDULE STAMP: like iq4_nl (and unlike q4_0/q4_K's default-anchor lowering), the
 // front-door-constructed attr-less op is shaped by the EXISTING
-// --tcrv-rvv-materialize-q5-0-schedule gearbox (rv64gcv) before lowering -- the same
+// --weft-rvv-materialize-q5-0-schedule gearbox (rv64gcv) before lowering -- the same
 // gearbox its CORE emit fixture uses. This is the honest per-op pipeline, not new
 // wiring.
 //
@@ -26,30 +26,30 @@
 // claim -- coverage/wiring maturity only.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
-// REQUIRES: tianchenrv-local-rvv-object-clang
+// REQUIRES: weft-local-rvv-object-clang
 
 // FULL pipeline: front door auto-constructs the monolithic flat block-dot body, the
 // schedule gearbox stamps the integer-core shape, the
-// tcrv-source-artifact-front-door-pipeline materializes the emission plan AND passes
-// --tcrv-check-execution-plan-coherence.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// weft-source-artifact-front-door-pipeline materializes the emission plan AND passes
+// --weft-check-execution-plan-coherence.
+// RUN: weft-opt %s --weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
-// BYTE-EXACT: --tcrv-materialize-emission-plans only APPENDS the emission-plan
+// BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export EmitC
-// is byte-for-byte the CORE --tcrv-rvv-lower-to-emitc emit.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-rvv-lower-to-emitc > %t.core.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
+// is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
+// RUN: weft-opt %s --weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the flat monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
-module attributes {tcrv_rvv.source_front_door = "ggml_q5_0_q8_0_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_q5_0_q8_0_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_q5_0_q8_0_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_q5_0_q8_0_kernel"} {
   func.func @source_q5_0_q8_0_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
@@ -58,13 +58,13 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q5_0_q8_0_block_dot_source
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic emission-plan
 // diagnostic naming the FLAT monolithic route id + object kind.
-// PLAN: tcrv.exec.kernel @ggml_vec_dot_q5_0_q8_0_kernel
+// PLAN: weft.exec.kernel @ggml_vec_dot_q5_0_q8_0_kernel
 // The q5_0 front door's body is the typed flat block-dot LOOP body op (M-FLAT);
 // it exports through the SAME shared Flat monolithic plan (route id / object kind)
 // as the compound q5_0 block-dot op it replaced, but carries q5_0's OWN 4-role ABI
 // + scales_times_sumi op-derived kind metadata (NOT q8_0/q4_0's 8-role default).
-// PLAN: tcrv_rvv.typed_flat_block_dot_loop_body
-// PLAN: tcrv.exec.diagnostic
+// PLAN: weft_rvv.typed_flat_block_dot_loop_body
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline).
@@ -87,5 +87,5 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q5_0_q8_0_block_dot_source
 // OBJECT: Type: Relocatable
 
 // The exported function symbol is the kernel+variant handoff name -- the same name
-// the CORE EmitC emit carries (tcrv_emitc_<kernel>_<variant>).
-// SYMBOL: Name: tcrv_emitc_ggml_vec_dot_q5_0_q8_0_kernel_rvv_q5_0_q8_0_block_dot
+// the CORE EmitC emit carries (weft_emitc_<kernel>_<variant>).
+// SYMBOL: Name: weft_emitc_ggml_vec_dot_q5_0_q8_0_kernel_rvv_q5_0_q8_0_block_dot

@@ -1,15 +1,15 @@
-add_mlir_library(TianChenRVConversionEmitC
-  TCRVEmitCLowerableOpInterface.cpp
+add_mlir_library(WeftConversionEmitC
+  WEFTEmitCLowerableOpInterface.cpp
   TunableScheduleOpInterface.cpp
   TypedBackendEmissionDriver.cpp
   BackendEmissionRegistry.cpp
 
   DEPENDS
-  MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRWEFTEmitCLowerableOpInterfaceIncGen
   MLIRTunableScheduleOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVSupport
+  WeftSupport
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

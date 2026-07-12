@@ -1,8 +1,8 @@
-#include "TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
 
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -13,32 +13,32 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
 bool isPreRealizedStandaloneReductionConfig(std::int64_t sew,
                                             llvm::StringRef lmul) {
-  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         (lmul == tcrv::rvv::getRVVLMULM1() ||
-          lmul == tcrv::rvv::getRVVLMULM2());
+  return sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == weft::rvv::getRVVLMULM1() ||
+          lmul == weft::rvv::getRVVLMULM2());
 }
 
 bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
-    return lmul == tcrv::rvv::getRVVLMULM1() ||
-           lmul == tcrv::rvv::getRVVLMULM2();
-  return sew == tcrv::rvv::getRVVSEW64Bits() &&
-         lmul == tcrv::rvv::getRVVLMULM1();
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
+    return lmul == weft::rvv::getRVVLMULM1() ||
+           lmul == weft::rvv::getRVVLMULM2();
+  return sew == weft::rvv::getRVVSEW64Bits() &&
+         lmul == weft::rvv::getRVVLMULM1();
 }
 
 bool isPreRealizedStandaloneReduceOpKind(llvm::StringRef opKind) {
@@ -121,9 +121,9 @@ bool isPreRealizedStandaloneReduceAccumulatorRole(llvm::StringRef role) {
 
 llvm::StringRef getPreRealizedStandaloneReduceAccumulatorLayoutForSEW(
     std::int64_t sew) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
     return "scalar-i32-seed-lane0-from-accumulator-input";
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
+  if (sew == weft::rvv::getRVVSEW64Bits())
     return "scalar-i64-seed-lane0-from-accumulator-input";
   return {};
 }
@@ -144,15 +144,15 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
 requirePreRealizedRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVPluginError(llvm::Twine(context) +
                               " must be defined by explicit "
-                              "tcrv_rvv.runtime_abi_value");
+                              "weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -171,23 +171,23 @@ requirePreRealizedRuntimeABIValue(
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
-                                     tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+                                     weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.setvl");
   state.addOperands(nValue);
-  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  state.addTypes(weft::rvv::VLType::get(builder.getContext()));
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   return builder.create(state);
 }
 
-tcrv::rvv::WithVLOp createRealizedWithVL(
+weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
     VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
-    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+  weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
@@ -204,7 +204,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
                      builder.getStringAttr(
                          rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
-  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -212,20 +212,20 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
   mlir::Type elementType = builder.getIntegerType(sew);
-  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+  return weft::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
 mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
-  return tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
-                                  tcrv::rvv::getRVVLMULM1());
+  return weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+                                  weft::rvv::getRVVLMULM1());
 }
 
 mlir::Type getGenericMaskTypeForVector(mlir::OpBuilder &builder,
                                        mlir::Value vector) {
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(vector.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(vector.getType());
   if (!vectorType)
     return getStage1GenericMaskType(builder);
-  return tcrv::rvv::MaskType::get(builder.getContext(),
+  return weft::rvv::MaskType::get(builder.getContext(),
                                   vectorType.getElementType(),
                                   vectorType.getLmul());
 }
@@ -235,7 +235,7 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Value buffer,
                                            mlir::Value vl, std::int64_t sew,
                                            llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.load");
+  mlir::OperationState state(loc, "weft_rvv.load");
   state.addOperands({buffer, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -246,7 +246,7 @@ mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
                                             mlir::Value scalar,
                                             mlir::Value vl, std::int64_t sew,
                                             llvm::StringRef lmul) {
-  mlir::OperationState state(loc, "tcrv_rvv.splat");
+  mlir::OperationState state(loc, "weft_rvv.splat");
   state.addOperands({scalar, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
@@ -258,7 +258,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
                                               mlir::Value rhs,
                                               mlir::Value vl,
                                               llvm::StringRef kind) {
-  mlir::OperationState state(loc, "tcrv_rvv.compare");
+  mlir::OperationState state(loc, "weft_rvv.compare");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(kind));
   state.addTypes(getGenericMaskTypeForVector(builder, lhs));
@@ -268,7 +268,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.store");
+  mlir::OperationState state(loc, "weft_rvv.store");
   state.addOperands({out, value, vl});
   (void)builder.create(state);
 }
@@ -284,7 +284,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericStandaloneReduceCompute(
         "supports only op_kind 'standalone_reduce_add', "
         "'standalone_reduce_min', or 'standalone_reduce_max'");
 
-  mlir::OperationState state(loc, "tcrv_rvv.standalone_reduce");
+  mlir::OperationState state(loc, "weft_rvv.standalone_reduce");
   state.addOperands({input, accumulatorSeed, vl});
   state.addAttribute("kind",
                      builder.getStringAttr(
@@ -315,7 +315,7 @@ createRealizedGenericMaskedStandaloneReduceCompute(
         "'runtime_scalar_cmp_masked_standalone_reduce_min', or "
         "'runtime_scalar_cmp_masked_standalone_reduce_max'");
 
-  mlir::OperationState state(loc, "tcrv_rvv.masked_standalone_reduce");
+  mlir::OperationState state(loc, "weft_rvv.masked_standalone_reduce");
   state.addOperands({mask, input, accumulatorSeed, vl});
   state.addAttribute(
       "kind",
@@ -334,8 +334,8 @@ createRealizedGenericMaskedStandaloneReduceCompute(
 
 llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedStandaloneReducePreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVPluginError(
         "selected RVV standalone reduction realization requires a pre-realized "
@@ -343,7 +343,7 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVPluginError(
         "pre-realized RVV selected standalone reduction body must be a direct "
-        "child of the selected tcrv.exec.variant");
+        "child of the selected weft.exec.variant");
 
   if (!isPreRealizedStandaloneReduceOpKind(body.getOpKind()))
     return makeRVVPluginError(
@@ -375,12 +375,12 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
         "pre-realized RVV selected standalone reduction body currently "
         "supports only result_layout "
         "'store-standalone-reduction-lane0-to-output-scalar'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected standalone reduction body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV standalone reduction input operand",
@@ -391,7 +391,7 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV standalone reduction input operand requires C type "
         "'const int32_t *'");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV standalone reduction accumulator seed operand",
@@ -402,7 +402,7 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV standalone reduction accumulator seed operand "
         "requires C type 'const int32_t *'");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV standalone reduction scalar output operand",
@@ -413,7 +413,7 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV standalone reduction scalar output operand requires "
         "C type 'int32_t *'");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(),
           "pre-realized RVV standalone reduction runtime n/AVL operand",
@@ -423,10 +423,10 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
-                  tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp,
+                  weft::rvv::TypedStandaloneReducePreRealizedBodyOp>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -447,7 +447,7 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp body) {
+    weft::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp body) {
   if (!body)
     return makeRVVPluginError(
         "selected RVV computed-mask standalone reduction realization requires "
@@ -508,12 +508,12 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
         "pre-realized RVV selected computed-mask standalone reduction body "
         "currently supports only result_layout "
         "'store-standalone-reduction-lane0-to-output-scalar'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask standalone reduction body "
         "requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLHS =
       requirePreRealizedRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask standalone reduction compare lhs "
@@ -521,7 +521,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLHS)
     return compareLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareRHS =
       requirePreRealizedRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask standalone reduction compare rhs "
@@ -529,14 +529,14 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!compareRHS)
     return compareRHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV computed-mask standalone reduction source operand",
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV computed-mask standalone reduction accumulator "
@@ -544,7 +544,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV computed-mask standalone reduction out operand",
@@ -561,7 +561,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
         "requires compare lhs/rhs const int32_t *, source const int32_t *, "
         "accumulator seed const int32_t *, and out int32_t * runtime ABI "
         "bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(),
           "pre-realized RVV computed-mask standalone reduction runtime n/AVL "
@@ -573,10 +573,10 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
   for (mlir::Operation &op : request.getVariant().getBody().front()) {
     if (&op == body.getOperation())
       continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::LoadOp, tcrv::rvv::CompareOp,
-                  tcrv::rvv::MaskedStandaloneReduceOp,
-                  tcrv::rvv::StoreOp>(op))
+    if (llvm::isa<weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+                  weft::rvv::LoadOp, weft::rvv::CompareOp,
+                  weft::rvv::MaskedStandaloneReduceOp,
+                  weft::rvv::StoreOp>(op))
       return makeRVVPluginError(
           llvm::Twine("pre-realized RVV selected computed-mask standalone "
                       "reduction body must not be mixed with already realized "
@@ -595,7 +595,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp
+    weft::rvv::TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp
         body) {
   if (!body)
     return makeRVVPluginError(
@@ -660,12 +660,12 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
                     "standalone reduction body requires accumulator_layout '") +
         getPreRealizedStandaloneReduceAccumulatorLayoutForSEW(sew) +
         "' to match the typed accumulator dtype");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
         "reduction body requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> compareLHS =
       requirePreRealizedRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV runtime scalar computed-mask standalone "
@@ -673,7 +673,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!compareLHS)
     return compareLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedRuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime scalar computed-mask standalone "
@@ -681,7 +681,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> source =
       requirePreRealizedRuntimeABIValue(
           body.getSource(),
           "pre-realized RVV runtime scalar computed-mask standalone "
@@ -689,7 +689,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV runtime scalar computed-mask standalone "
@@ -697,7 +697,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV runtime scalar computed-mask standalone "
@@ -705,7 +705,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime scalar computed-mask standalone "
@@ -714,7 +714,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
   if (!n)
     return n.takeError();
   llvm::StringRef expectedScalarCType =
-      sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+      sew == weft::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
   std::string expectedConstPointer =
       (llvm::Twine("const ") + expectedScalarCType + " *").str();
   std::string expectedMutablePointer =
@@ -732,11 +732,11 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
   for (mlir::Operation &op : request.getVariant().getBody().front()) {
     if (&op == body.getOperation())
       continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::LoadOp, tcrv::rvv::SplatOp,
-                  tcrv::rvv::CompareOp,
-                  tcrv::rvv::MaskedStandaloneReduceOp,
-                  tcrv::rvv::StoreOp>(op))
+    if (llvm::isa<weft::rvv::SetVLOp, weft::rvv::WithVLOp,
+                  weft::rvv::LoadOp, weft::rvv::SplatOp,
+                  weft::rvv::CompareOp,
+                  weft::rvv::MaskedStandaloneReduceOp,
+                  weft::rvv::StoreOp>(op))
       return makeRVVPluginError(
           llvm::Twine("pre-realized RVV selected runtime scalar computed-mask "
                       "standalone reduction body must not be mixed with "
@@ -758,14 +758,14 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
 bool isPreRealizedRVVStandaloneReductionClusterOp(mlir::Operation *op) {
   if (!op)
     return false;
-  return llvm::isa<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp,
-                   tcrv::rvv::
+  return llvm::isa<weft::rvv::TypedStandaloneReducePreRealizedBodyOp,
+                   weft::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp,
+                   weft::rvv::
                        TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp>(
       op);
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVStandaloneReductionOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   if (!isPreRealizedRVVStandaloneReductionClusterOp(bodyOp))
@@ -773,8 +773,8 @@ realizePreRealizedRVVStandaloneReductionOwner(
         "standalone reduction selected-body realization owner received a "
         "body outside its RVV-owned realization family");
 
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
         "pre-realized RVV standalone reduction selected-body realization "
@@ -785,7 +785,7 @@ realizePreRealizedRVVStandaloneReductionOwner(
   mlir::OpBuilder::InsertionGuard guard(builder);
 
   if (auto standaloneReduceBody =
-          llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(
+          llvm::dyn_cast<weft::rvv::TypedStandaloneReducePreRealizedBodyOp>(
               bodyOp)) {
     if (llvm::Error error = validatePreRealizedRVVSelectedStandaloneReduceBody(
             request, standaloneReduceBody))
@@ -804,13 +804,13 @@ realizePreRealizedRVVStandaloneReductionOwner(
     if (!runtimeControlPlan)
       return runtimeControlPlan.takeError();
 
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+    auto setvl = llvm::cast<weft::rvv::SetVLOp>(
         createRealizedSetVL(builder, loc,
                             runtimeControlPlan->runtimeAVLValue,
                             runtimeControlPlan->sew,
                             runtimeControlPlan->lmul,
                             runtimeControlPlan->policy));
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires,
                              runtimeControlPlan->sew,
@@ -818,12 +818,12 @@ realizePreRealizedRVVStandaloneReductionOwner(
                              runtimeControlPlan->policy);
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto inputLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+    auto inputLoad = llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, standaloneReduceBody.getLhs(), setvl.getVl(),
         runtimeControlPlan->sew, runtimeControlPlan->lmul));
     mlir::Type scalarResultType =
         getGenericVectorType(builder, runtimeControlPlan->sew,
-                             tcrv::rvv::getRVVLMULM1());
+                             weft::rvv::getRVVLMULM1());
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericStandaloneReduceCompute(
             builder, loc, standaloneReduceBody.getOpKind(),
@@ -839,7 +839,7 @@ realizePreRealizedRVVStandaloneReductionOwner(
   }
 
   if (auto maskedStandaloneReduceBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp>(
+          weft::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp>(
           bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
@@ -861,13 +861,13 @@ realizePreRealizedRVVStandaloneReductionOwner(
     if (!runtimeControlPlan)
       return runtimeControlPlan.takeError();
 
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+    auto setvl = llvm::cast<weft::rvv::SetVLOp>(
         createRealizedSetVL(builder, loc,
                             runtimeControlPlan->runtimeAVLValue,
                             runtimeControlPlan->sew,
                             runtimeControlPlan->lmul,
                             runtimeControlPlan->policy));
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires,
                              runtimeControlPlan->sew,
@@ -876,28 +876,28 @@ realizePreRealizedRVVStandaloneReductionOwner(
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, maskedStandaloneReduceBody.getCompareLhs(),
             setvl.getVl(), runtimeControlPlan->sew,
             runtimeControlPlan->lmul));
     auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, maskedStandaloneReduceBody.getCompareRhs(),
             setvl.getVl(), runtimeControlPlan->sew,
             runtimeControlPlan->lmul));
-    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+    auto sourceLoad = llvm::cast<weft::rvv::LoadOp>(
         createRealizedGenericLoad(builder, loc,
                                   maskedStandaloneReduceBody.getSource(),
                                   setvl.getVl(), runtimeControlPlan->sew,
                                   runtimeControlPlan->lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+    auto compare = llvm::cast<weft::rvv::CompareOp>(
         createRealizedGenericCompare(
             builder, loc, compareLhsLoad.getLoaded(),
             compareRhsLoad.getLoaded(), setvl.getVl(),
             maskedStandaloneReduceBody.getPredicateKind()));
     mlir::Type scalarResultType =
         getGenericVectorType(builder, runtimeControlPlan->sew,
-                             tcrv::rvv::getRVVLMULM1());
+                             weft::rvv::getRVVLMULM1());
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericMaskedStandaloneReduceCompute(
             builder, loc, maskedStandaloneReduceBody.getOpKind(),
@@ -917,7 +917,7 @@ realizePreRealizedRVVStandaloneReductionOwner(
   }
 
   if (auto runtimeScalarMaskedStandaloneReduceBody = llvm::dyn_cast<
-          tcrv::rvv::
+          weft::rvv::
               TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp>(
           bodyOp)) {
     if (llvm::Error error =
@@ -942,13 +942,13 @@ realizePreRealizedRVVStandaloneReductionOwner(
     if (!runtimeControlPlan)
       return runtimeControlPlan.takeError();
 
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+    auto setvl = llvm::cast<weft::rvv::SetVLOp>(
         createRealizedSetVL(builder, loc,
                             runtimeControlPlan->runtimeAVLValue,
                             runtimeControlPlan->sew,
                             runtimeControlPlan->lmul,
                             runtimeControlPlan->policy));
-    tcrv::rvv::WithVLOp withVL =
+    weft::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires,
                              runtimeControlPlan->sew,
@@ -957,30 +957,30 @@ realizePreRealizedRVVStandaloneReductionOwner(
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc,
             runtimeScalarMaskedStandaloneReduceBody.getCompareLhs(),
             setvl.getVl(), runtimeControlPlan->sew,
             runtimeControlPlan->lmul));
-    auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+    auto rhsSplat = llvm::cast<weft::rvv::SplatOp>(
         createRealizedGenericSplat(
             builder, loc,
             runtimeScalarMaskedStandaloneReduceBody.getRhsScalar(),
             setvl.getVl(), runtimeControlPlan->sew,
             runtimeControlPlan->lmul));
-    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+    auto sourceLoad = llvm::cast<weft::rvv::LoadOp>(
         createRealizedGenericLoad(
             builder, loc, runtimeScalarMaskedStandaloneReduceBody.getSource(),
             setvl.getVl(), runtimeControlPlan->sew,
             runtimeControlPlan->lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+    auto compare = llvm::cast<weft::rvv::CompareOp>(
         createRealizedGenericCompare(
             builder, loc, compareLhsLoad.getLoaded(),
             rhsSplat.getBroadcast(), setvl.getVl(),
             runtimeScalarMaskedStandaloneReduceBody.getPredicateKind()));
     mlir::Type scalarResultType =
         getGenericVectorType(builder, runtimeControlPlan->sew,
-                             tcrv::rvv::getRVVLMULM1());
+                             weft::rvv::getRVVLMULM1());
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericMaskedStandaloneReduceCompute(
             builder, loc, runtimeScalarMaskedStandaloneReduceBody.getOpKind(),
@@ -1006,4 +1006,4 @@ realizePreRealizedRVVStandaloneReductionOwner(
       "unsupported pre-realized body op");
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

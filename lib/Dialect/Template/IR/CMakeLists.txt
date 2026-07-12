@@ -1,13 +1,13 @@
-add_mlir_dialect_library(TianChenRVTemplateDialect
+add_mlir_dialect_library(WeftTemplateDialect
   TemplateDialect.cpp
 
   DEPENDS
   MLIRTemplateOpsIncGen
-  MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRWEFTEmitCLowerableOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVExecDialect
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftExecDialect
+  WeftSupport
   MLIRIR
 )

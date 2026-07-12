@@ -54,7 +54,7 @@ def check_t2():
         return False, "T2-ledger-anchor.md", "committed artifact missing"
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td) / "T2.md"
-        env = dict(os.environ, TCRV_T2_OUT=str(tmp))
+        env = dict(os.environ, WEFT_T2_OUT=str(tmp))
         r = _run(["bash", str(SELF_DIR / "recompute_ledger_anchor.sh")], env=env)
         if r.returncode != 0:
             return False, "T2-ledger-anchor.md", \

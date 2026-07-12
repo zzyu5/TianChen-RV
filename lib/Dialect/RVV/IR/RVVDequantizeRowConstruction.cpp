@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
+#include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@
 #include "mlir/IR/Value.h"
 #include "llvm/Support/Casting.h"
 
-namespace tianchenrv::tcrv::rvv {
+namespace weft::rvv {
 
 std::optional<DequantizeRowStreamFacts>
 lookupDequantizeRowStreamFacts(llvm::StringRef format) {
@@ -152,4 +152,4 @@ constructTypedDequantizeRowLoopBody(mlir::RewriterBase &rewriter,
   return mlir::success();
 }
 
-} // namespace tianchenrv::tcrv::rvv
+} // namespace weft::rvv

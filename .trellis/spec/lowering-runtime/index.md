@@ -6,7 +6,7 @@ This layer defines lowering, emission, runtime glue, and toolchain boundaries.
 
 - [ ] Is extension-specific emission implemented by the plugin emission provider?
 - [ ] Does the route lower extension family ops through the common EmitC route?
-- [ ] Does executable RVV lowering consume typed/realized `tcrv_rvv` body through an RVV plugin-built `TCRVEmitCLowerableRoute`?
+- [ ] Does executable RVV lowering consume typed/realized `weft_rvv` body through an RVV plugin-built `WEFTEmitCLowerableRoute`?
 - [ ] Are emission-plan diagnostics, status fields, route ids, and artifact metadata mirrors only, never route/dtype/compute authority?
 - [ ] Is clang/LLVM the default native compiler, with GCC only a compatibility path?
 - [ ] Are compiler flags, headers, libraries, runtime handles, and ABI needs recorded in capability/plugin metadata?

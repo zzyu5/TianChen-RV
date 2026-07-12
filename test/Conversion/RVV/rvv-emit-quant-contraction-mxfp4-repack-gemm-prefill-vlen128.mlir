@@ -1,15 +1,15 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=CONSTRUCT
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=E8M0
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=CONSTRUCT
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=E8M0
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
 // G3 retirement_batch 4 mxfp4 codebook CONSTRUCTION (PREFILL/GEMM) -- the E8M0 sibling of the
-// iq4_nl GEMM construction proof. The abstract tcrv_rvv.quant_contraction op (mxfp4 codebook /
+// iq4_nl GEMM construction proof. The abstract weft_rvv.quant_contraction op (mxfp4 codebook /
 // prefill) auto-lowers at rv64gcv: block_dot_compute_heavy=true + VLEN 128 route REPACK,
 // m_regime "prefill" selects the GEMM granularity, and the committed codebook scale_model keys
 // the C1 bridge lowerToRepackGemmCodebook, which CONSTRUCTS the typed
-// tcrv_rvv.typed_repack_gemm_loop_body REGION (fold_model "codebook_flat_e8m0_scale") carrying
-// the SINGLE tcrv_rvv.repack_gemm_codebook_core brick (decode_model "mxfp4"), MATERIALIZES the
+// weft_rvv.typed_repack_gemm_loop_body REGION (fold_model "codebook_flat_e8m0_scale") carrying
+// the SINGLE weft_rvv.repack_gemm_codebook_core brick (decode_model "mxfp4"), MATERIALIZES the
 // nr/bs GEMM ABI values the abstract op does not carry, reconstructs the block_mxfp4x16 weight
 // facts (272/16, E8M0 strip @0) + the INTERLEAVED block_q8_0x4 activation facts (136/8), AND
 // RECONSTRUCTS the 16-entry DOUBLED-E2M1 codebook (kvalues_mxfp4) the abstract request omits.
@@ -18,22 +18,22 @@
 // claim -- lit-emitted, NOT run.
 
 module {
-  tcrv.exec.kernel @ggml_repack_gemm_mxfp4_q8_0_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_repack_gemm_mxfp4_q8_0 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "mxfp4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_mxfp4_q8_0, sew = 32 : i64, source_kernel = "ggml_repack_gemm_mxfp4_q8_0_kernel", status = "selected-lowering-boundary"} {
+  weft.exec.kernel @ggml_repack_gemm_mxfp4_q8_0_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_repack_gemm_mxfp4_q8_0 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "mxfp4-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_mxfp4_q8_0, sew = 32 : i64, source_kernel = "ggml_repack_gemm_mxfp4_q8_0_kernel", status = "selected-lowering-boundary"} {
         // The ABSTRACT codebook PREFILL request: PLAIN block_mxfp4 (stride 17, nibbles @1 after
         // the E8M0 exponent byte) x PLAIN block_q8_0 (stride 34), qk 32, m_regime "prefill". It
         // carries NO codebook and NO nr/bs -- the compiler RECONSTRUCTS kvalues_mxfp4 AND
         // materializes nr/bs.
-        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "mxfp4", scale_model = "flat.e8m0-single-scale-codebook-nomin", m_regime = "prefill", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 17 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 1 : i64, activation_high_byte_offset = 16 : i64, block_dot_compute_heavy = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
+        %dot = weft_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "mxfp4", scale_model = "flat.e8m0-single-scale-codebook-nomin", m_regime = "prefill", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 17 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 1 : i64, activation_high_byte_offset = 16 : i64, block_dot_compute_heavy = true} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
@@ -42,34 +42,34 @@ module {
 // The abstract op is GONE; the compiler CONSTRUCTED the codebook typed_repack GEMM region
 // (fold_model codebook_flat_e8m0_scale) carrying the codebook GEMM core brick (decode_model
 // mxfp4), and MATERIALIZED the nr/bs ABI values.
-// CONSTRUCT-NOT: tcrv_rvv.quant_contraction
+// CONSTRUCT-NOT: weft_rvv.quant_contraction
 // The materialized runtime ABI values the internalized M-tiling nest needs.
-// CONSTRUCT: tcrv_rvv.runtime_abi_value {c_name = "nr"
-// CONSTRUCT: tcrv_rvv.runtime_abi_value {c_name = "bs"
-// CONSTRUCT: tcrv_rvv.typed_repack_gemm_loop_body
+// CONSTRUCT: weft_rvv.runtime_abi_value {c_name = "nr"
+// CONSTRUCT: weft_rvv.runtime_abi_value {c_name = "bs"
+// CONSTRUCT: weft_rvv.typed_repack_gemm_loop_body
 // CONSTRUCT-SAME: activation_block_stride = 136
 // CONSTRUCT-SAME: activation_interleave = 4
 // CONSTRUCT-SAME: fold_model = "codebook_flat_e8m0_scale"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "flat.e8m0-single-scale-codebook-4col-nomin"
-// CONSTRUCT-SAME: tcrv_rvv.weight_layout_contract = "x16"
+// CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 272
 // The in-region block_index + strip_row_offset tied codebook GEMM integer-core BRICK,
 // decode_model mxfp4 + the RECONSTRUCTED codebook.
-// CONSTRUCT: tcrv_rvv.repack_gemm_codebook_core
+// CONSTRUCT: weft_rvv.repack_gemm_codebook_core
 // CONSTRUCT-SAME: codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1
 // CONSTRUCT-SAME: decode_model = "mxfp4"
 
 // ============================ EMISSION (byte-exact shape) ===================
 // The constructed region lowers to the mxfp4 GEMM kernel (byte-exact to the retired direct
 // emitter -- the SAME emit as rvv-to-emitc-repack-gemm-mxfp4-q8-0; PLAIN untiled).
-// CHECK-NOT: tcrv_rvv.quant_contraction
-// CHECK-NOT: tcrv_rvv.repack_gemm_codebook_core %
-// CHECK-NOT: tcrv_rvv.typed_repack_gemm_loop_body
+// CHECK-NOT: weft_rvv.quant_contraction
+// CHECK-NOT: weft_rvv.repack_gemm_codebook_core %
+// CHECK-NOT: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_ggml_repack_gemm_mxfp4_q8_0_kernel_ggml_repack_gemm_mxfp4_q8_0(
+// CHECK: emitc.func @weft_emitc_ggml_repack_gemm_mxfp4_q8_0_kernel_ggml_repack_gemm_mxfp4_q8_0(
 // The RECONSTRUCTED 16-entry doubled-E2M1 int8 codebook decl.
-// CHECK: verbatim "static const int8_t tcrv_mxfp4_repack_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1
+// CHECK: verbatim "static const int8_t weft_mxfp4_repack_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1
 // The interleaved activation base vy + y*nb*136 (block_q8_0x4) and weight base vx +
 // x*nb*272 (block_mxfp4x16).
 // CHECK: literal "136"

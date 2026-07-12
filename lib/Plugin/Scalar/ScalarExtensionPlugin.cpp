@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "Weft/Plugin/Scalar/ScalarExtensionPlugin.h"
 
-#include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
-#include "TianChenRV/Target/Scalar/ScalarTargetSupportBundle.h"
+#include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
+#include "Weft/Target/Scalar/ScalarTargetSupportBundle.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kScalarPluginName("scalar-plugin");
@@ -29,7 +29,7 @@ llvm::Error makeScalarPluginError(llvm::Twine message);
 
 llvm::Error makeScalarPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV scalar fallback extension plugin first slice "
+      llvm::Twine("Weft-RV scalar fallback extension plugin first slice "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -46,7 +46,7 @@ bool hasAvailableScalarFallbackCapability(
 }
 
 llvm::Expected<bool> variantRequiresScalarFallback(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities) {
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -130,7 +130,7 @@ ScalarExtensionPlugin::getCapabilities() const {
 
 void ScalarExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  registry.insert<tcrv::scalar::TCRVScalarDialect>();
+  registry.insert<weft::scalar::WEFTScalarDialect>();
 }
 
 bool ScalarExtensionPlugin::supportsOperation(
@@ -155,10 +155,10 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
 
 llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!variant)
     return makeScalarPluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -190,7 +190,7 @@ llvm::Error ScalarExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   if (!request.getVariant())
     return makeScalarPluginError(
-        "cost estimation requires a materialized tcrv.exec.variant");
+        "cost estimation requires a materialized weft.exec.variant");
 
   out = VariantCostEstimate();
   out.setScore(1000.0);
@@ -210,7 +210,7 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
   if (!request.getVariant())
     return makeScalarPluginError(
-        "emission readiness requires a materialized tcrv.exec.variant");
+        "emission readiness requires a materialized weft.exec.variant");
 
   out = VariantEmissionStatus::getUnsupported(
       kScalarPluginName, request.getVariant().getSymName(),
@@ -223,11 +223,11 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
   if (!request.getVariant())
     return makeScalarPluginError(
-        "emission planning requires a materialized tcrv.exec.variant");
+        "emission planning requires a materialized weft.exec.variant");
 
   if (!request.getKernel())
     return makeScalarPluginError(
-        "emission planning requires an enclosing tcrv.exec.kernel");
+        "emission planning requires an enclosing weft.exec.kernel");
 
   out = VariantEmissionPlan::getUnsupported(
       kScalarPluginName, request.getKernel().getSymName(),
@@ -254,12 +254,12 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   if (!request.getVariant())
     return makeScalarPluginError(
         "lowering-boundary materialization requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
   if (!request.getKernel())
     return makeScalarPluginError(
         "lowering-boundary materialization requires an enclosing "
-        "tcrv.exec.kernel");
+        "weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
@@ -291,4 +291,4 @@ llvm::Error registerScalarExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinScalarExtensionPlugin());
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

@@ -2,7 +2,7 @@
 //
 // Materializes the RVV plugin-local capability authority's derived target-
 // support axes (supported_sew / supported_lmul) onto the in-kernel
-// tcrv.exec.capability / tcrv.exec.target provider ops that the EmitC legality
+// weft.exec.capability / weft.exec.target provider ops that the EmitC legality
 // gate already queries. This closes the LIVE probe->gate seam: a selected RVV
 // -march (a profile selection) drives the in-IR capability-gate divergence
 // automatically, with no hand-authored supported_sew / supported_lmul fixture
@@ -27,11 +27,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -43,10 +43,10 @@
 #include <memory>
 #include <string>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_MATERIALIZERVVPROBEDCAPABILITYAXES
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -116,7 +116,7 @@ public:
       return;
 
     module.walk([&](mlir::Operation *op) {
-      if (!llvm::isa<tcrv::exec::CapabilityOp, tcrv::exec::TargetOp>(op))
+      if (!llvm::isa<weft::exec::CapabilityOp, weft::exec::TargetOp>(op))
         return;
       if (!isRVVCapabilityProvider(op))
         return;
@@ -134,4 +134,4 @@ createMaterializeRVVProbedCapabilityAxesPass() {
   return std::make_unique<MaterializeRVVProbedCapabilityAxesPass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

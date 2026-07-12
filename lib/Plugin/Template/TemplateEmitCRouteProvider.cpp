@@ -1,29 +1,29 @@
-#include "TianChenRV/Plugin/Template/TemplateEmitCRouteProvider.h"
+#include "Weft/Plugin/Template/TemplateEmitCRouteProvider.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Template/IR/TemplateDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/Support/Errc.h"
 
 #include <utility>
 
-namespace tianchenrv::plugin::template_ext {
+namespace weft::plugin::template_ext {
 namespace {
 
-namespace emitc = tianchenrv::conversion::emitc;
+namespace emitc = weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRoleAttrName("role");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+    "WEFTEmitCLowerableOpInterface");
 
 llvm::Error makeTemplateEmitCRouteProviderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Template EmitC route provider failed: ") +
+      llvm::Twine("Weft-RV Template EmitC route provider failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -41,26 +41,26 @@ bool hasSelectedVariantAndRole(mlir::Operation *op,
          roleAttr.getValue() == role;
 }
 
-llvm::Expected<tcrv::template_ext::ComputeSkeletonOp>
+llvm::Expected<weft::template_ext::ComputeSkeletonOp>
 findSelectedTemplateComputeSkeletonBoundary(
     const VariantEmitCLowerableRequest &request) {
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  tcrv::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
   if (!kernel)
     return makeTemplateEmitCRouteProviderError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+        "EmitC route construction requires an enclosing weft.exec.kernel");
   if (!variant)
     return makeTemplateEmitCRouteProviderError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
+        "EmitC route construction requires a materialized weft.exec.variant");
   if (kernel.getBody().empty())
     return makeTemplateEmitCRouteProviderError(
         "selected Template EmitC route requires a materialized kernel body");
 
   llvm::StringRef expectedRole =
       stringifyVariantEmissionRole(request.getRole());
-  tcrv::template_ext::ComputeSkeletonOp selectedBoundary;
+  weft::template_ext::ComputeSkeletonOp selectedBoundary;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto compute = llvm::dyn_cast<tcrv::template_ext::ComputeSkeletonOp>(op);
+    auto compute = llvm::dyn_cast<weft::template_ext::ComputeSkeletonOp>(op);
     if (!compute)
       continue;
     if (!hasSelectedVariantAndRole(compute.getOperation(), variant.getSymName(),
@@ -69,7 +69,7 @@ findSelectedTemplateComputeSkeletonBoundary(
     if (selectedBoundary)
       return makeTemplateEmitCRouteProviderError(
           llvm::Twine("selected Template EmitC route requires exactly one "
-                      "tcrv_template.compute_skeleton boundary for @") +
+                      "weft_template.compute_skeleton boundary for @") +
           variant.getSymName());
     selectedBoundary = compute;
   }
@@ -77,31 +77,31 @@ findSelectedTemplateComputeSkeletonBoundary(
   if (!selectedBoundary)
     return makeTemplateEmitCRouteProviderError(
         llvm::Twine("selected Template EmitC route requires one materialized "
-                    "tcrv_template.compute_skeleton boundary for @") +
+                    "weft_template.compute_skeleton boundary for @") +
         variant.getSymName());
 
   return selectedBoundary;
 }
 
-llvm::Expected<emitc::TCRVEmitCSourceOpProvenance>
+llvm::Expected<emitc::WEFTEmitCSourceOpProvenance>
 getTemplateComputeSourceProvenance(
-    tcrv::template_ext::ComputeSkeletonOp compute) {
+    weft::template_ext::ComputeSkeletonOp compute) {
   if (llvm::Error error = verifyTemplateComputeRoleOpInterface(
           getTemplateConstructionManifest(), getTemplateTypedRoleGraphRealization(),
           compute.getOperation()))
     return std::move(error);
 
   auto lowerable =
-      llvm::dyn_cast<emitc::TCRVEmitCLowerableOpInterface>(
+      llvm::dyn_cast<emitc::WEFTEmitCLowerableOpInterface>(
           compute.getOperation());
   if (!lowerable)
     return makeTemplateEmitCRouteProviderError(
-        "tcrv_template.compute_skeleton must implement "
-        "TCRVEmitCLowerableOpInterface before route construction");
+        "weft_template.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface before route construction");
 
-  emitc::TCRVEmitCSourceOpProvenance source;
-  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
-  source.role = lowerable.getTCRVEmitCLowerableSourceRole().str();
+  emitc::WEFTEmitCSourceOpProvenance source;
+  source.opName = lowerable.getWEFTEmitCLowerableSourceOpName().str();
+  source.role = lowerable.getWEFTEmitCLowerableSourceRole().str();
   source.opInterface = kEmitCLowerableOpInterfaceName.str();
   return source;
 }
@@ -110,16 +110,16 @@ getTemplateComputeSourceProvenance(
 
 llvm::Error validateTemplateComputeSkeletonEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
-    emitc::TCRVEmitCSourceOpProvenance &outSource) {
+    emitc::WEFTEmitCSourceOpProvenance &outSource) {
   if (llvm::Error error = verifyTemplateConstructionProtocolReady())
     return error;
 
-  llvm::Expected<tcrv::template_ext::ComputeSkeletonOp> compute =
+  llvm::Expected<weft::template_ext::ComputeSkeletonOp> compute =
       findSelectedTemplateComputeSkeletonBoundary(request);
   if (!compute)
     return compute.takeError();
 
-  llvm::Expected<emitc::TCRVEmitCSourceOpProvenance> source =
+  llvm::Expected<emitc::WEFTEmitCSourceOpProvenance> source =
       getTemplateComputeSourceProvenance(*compute);
   if (!source)
     return source.takeError();
@@ -138,4 +138,4 @@ llvm::Error validateTemplateComputeSkeletonEmitCRouteReadiness(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::template_ext
+} // namespace weft::plugin::template_ext

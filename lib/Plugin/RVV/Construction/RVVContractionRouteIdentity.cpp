@@ -2,9 +2,9 @@
 //
 // P1b FOUNDATION. The static registry of ContractionRouteIdentity descriptors +
 // the (mnemonic, isSigned) lookup. Only the existing N=2 routes are populated:
-//   - tcrv_rvv.widening_product              (signed)
-//   - tcrv_rvv.widening_product              (unsigned)
-//   - tcrv_rvv.packed_i4_nibble_unpack_product (signed)
+//   - weft_rvv.widening_product              (signed)
+//   - weft_rvv.widening_product              (unsigned)
+//   - weft_rvv.packed_i4_nibble_unpack_product (signed)
 //
 // ZERO BINARY DIFF: nothing reads this registry as of 1b. Data accuracy matters
 // only so 1c can derive byte-identical strings from it; every field is
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
+#include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
 
 #include "llvm/ADT/StringRef.h"
 
@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 namespace {
 
@@ -35,7 +35,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     std::vector<ContractionRouteIdentity> table;
 
     // ======================================================================
-    // Route 1: tcrv_rvv.widening_product, SIGNED
+    // Route 1: weft_rvv.widening_product, SIGNED
     // ----------------------------------------------------------------------
     // Source decoration VERIFIED byte-for-byte vs
     // kRVVLowPrecisionSignedWideningProductMultiplicandRoles
@@ -48,7 +48,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     //  c-type "const int8_t *").
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.widening_product";
+      r.headOpName = "weft_rvv.widening_product";
       r.isSigned = true;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
@@ -66,7 +66,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     }
 
     // ======================================================================
-    // Route 2: tcrv_rvv.widening_product, UNSIGNED
+    // Route 2: weft_rvv.widening_product, UNSIGNED
     // ----------------------------------------------------------------------
     // Source roles VERIFIED byte-for-byte vs
     // kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles
@@ -79,7 +79,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // reachable (or resolve it as metadata-only) before deriving.
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.widening_product";
+      r.headOpName = "weft_rvv.widening_product";
       r.isSigned = false;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
@@ -97,7 +97,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     }
 
     // ======================================================================
-    // Route 3: tcrv_rvv.packed_i4_nibble_unpack_product, SIGNED
+    // Route 3: weft_rvv.packed_i4_nibble_unpack_product, SIGNED
     // ----------------------------------------------------------------------
     // The nibble-unpack head is emitted by the Track-B single-scope packed-i4
     // FLIP at RVVContractionSelectedBodyRealizationOwner.cpp:2390-2396. That
@@ -117,7 +117,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // exists in-tree).
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.packed_i4_nibble_unpack_product";
+      r.headOpName = "weft_rvv.packed_i4_nibble_unpack_product";
       r.isSigned = true;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
@@ -135,7 +135,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     }
 
     // ======================================================================
-    // Route 4: tcrv_rvv.packed_i4_offset_binary_x_i8_product, SIGNED (C3, N=3)
+    // Route 4: weft_rvv.packed_i4_offset_binary_x_i8_product, SIGNED (C3, N=3)
     // ----------------------------------------------------------------------
     // The first N=3 contraction route: the ggml Q4_0 x Q8_0 integer core, where
     // ONLY the packed-i4 weight is nibble-decoded and the TWO plain-i8 q8
@@ -163,7 +163,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // ORDER is derived from these sources and confirmed -- not W1.
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.packed_i4_offset_binary_x_i8_product";
+      r.headOpName = "weft_rvv.packed_i4_offset_binary_x_i8_product";
       r.isSigned = true;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
@@ -187,14 +187,14 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     }
 
     // ======================================================================
-    // Route 5: tcrv_rvv.codebook_gather_x_i8_product, SIGNED (C4, N=3 + LUT)
+    // Route 5: weft_rvv.codebook_gather_x_i8_product, SIGNED (C4, N=3 + LUT)
     // ----------------------------------------------------------------------
     // The FIRST route with a ConstantTableLoad aux source: the ggml IQ4_NL /
     // FP4 codebook x Q8_0 integer core. It shares the C3 N=3 product-factor
     // shape (packed-i4 weight + the two plain-i8 q8 activation halves) but the
     // weight nibble is not an arithmetic offset-binary value -- it is an INDEX
     // gathered through a compile-time-constant 16-entry non-linear int8 codebook
-    // table (tcrv_rvv.codebook_table_broadcast). That table is a genuine body
+    // table (weft_rvv.codebook_table_broadcast). That table is a genuine body
     // source (a vle8 broadcast LOAD) but is NOT a runtime-ABI input-buffer
     // (compile-time constant, no ABI param) and NOT a multiplicand factor, so it
     // is modeled as SourceKind::ConstantTableLoad with isMultiplicandFactor
@@ -216,7 +216,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     //
     // Roles-join trio (slotName / roleName / srcStripLabel) INFERRED (the op
     // carries no multiplicand-roles metadata string; the roles-summary derive is
-    // only consulted for the tcrv_rvv.widening_product head, never for this
+    // only consulted for the weft_rvv.widening_product head, never for this
     // packed-i4 route). srcStripLabel is left as the descriptive "src-*8" anchor
     // WITHOUT an LMUL suffix because -- unlike the VLEN-invariant C3 core -- the
     // codebook source LMUL capability-FLIPS (m1 at VLEN128, mf2 at VLEN256), so
@@ -228,7 +228,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // to body positions 1/2/3.
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.codebook_gather_x_i8_product";
+      r.headOpName = "weft_rvv.codebook_gather_x_i8_product";
       r.isSigned = true;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
@@ -258,12 +258,12 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     }
 
     // ======================================================================
-    // Route 6: tcrv_rvv.widening_dot_reduce, SIGNED (P2-a dot-reduce family)
+    // Route 6: weft_rvv.widening_dot_reduce, SIGNED (P2-a dot-reduce family)
     // ----------------------------------------------------------------------
     // The 2nd contraction sub-family: the widening dot-product reduction. Unlike
     // the product-reduction chain (routes 1-5) which widens an i8 source through a
     // vwmul product before reducing, the dot-reduce FUSES product+reduce into ONE
-    // typed op (tcrv_rvv.widening_dot_reduce). Its two multiplicand sources are the
+    // typed op (weft_rvv.widening_dot_reduce). Its two multiplicand sources are the
     // ALREADY-i16 dot inputs (source i16mf2 -> result i32m1), so the source c-type
     // is "const int16_t *" (NOT the i8 pointer of the product-reduction family).
     //
@@ -293,12 +293,12 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     //
     // Roles-join trio (slotName / roleName / srcStripLabel) INFERRED (the dot-reduce
     // head carries no multiplicand-roles metadata string; getContractionMultiplicand-
-    // RoleSummary is only consulted for the tcrv_rvv.widening_product head, never for
+    // RoleSummary is only consulted for the weft_rvv.widening_product head, never for
     // this route). The tokens mirror the emitted materialized-use "dot-lhs"/"dot-rhs"
     // and the i16mf2 dot-source strip; inert (no consumer keys on them).
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.widening_dot_reduce";
+      r.headOpName = "weft_rvv.widening_dot_reduce";
       r.isSigned = true;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
@@ -316,7 +316,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     }
 
     // ======================================================================
-    // Route 7: tcrv_rvv.masked_widening_dot_reduce, SIGNED (P2-a, route-DATA ONLY)
+    // Route 7: weft_rvv.masked_widening_dot_reduce, SIGNED (P2-a, route-DATA ONLY)
     // ----------------------------------------------------------------------
     // The computed-mask dot-reduce head (ComputedMaskWideningDotReduceAdd +
     // ComputedMaskStridedInputWideningDotReduceAdd). Registered as route-DATA to
@@ -339,7 +339,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // Roles-join trio INFERRED (inert, no consumer). All fields inert here.
     {
       ContractionRouteIdentity r;
-      r.headOpName = "tcrv_rvv.masked_widening_dot_reduce";
+      r.headOpName = "weft_rvv.masked_widening_dot_reduce";
       r.isSigned = true;
       r.sources.push_back(ContractionSourceSpec{
           SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
@@ -580,7 +580,7 @@ bool contractionRouteIdentityRegistrySelfCheck() {
       "rhs=rhs-input-buffer:wprod-rhs:src-u8mf4");
 
   const ContractionRouteIdentity *signedWprod =
-      getContractionRouteIdentity("tcrv_rvv.widening_product",
+      getContractionRouteIdentity("weft_rvv.widening_product",
                                   /*isSigned=*/true);
   if (!signedWprod)
     return false;
@@ -588,7 +588,7 @@ bool contractionRouteIdentityRegistrySelfCheck() {
     return false;
 
   const ContractionRouteIdentity *unsignedWprod =
-      getContractionRouteIdentity("tcrv_rvv.widening_product",
+      getContractionRouteIdentity("weft_rvv.widening_product",
                                   /*isSigned=*/false);
   if (!unsignedWprod)
     return false;
@@ -602,7 +602,7 @@ bool contractionRouteIdentityRegistrySelfCheck() {
   // head yet -- that is 1e/C3 activation; this self-check is the only
   // reproduction proof for Route 3 in the roles-derive pass.)
   const ContractionRouteIdentity *nibble = getContractionRouteIdentity(
-      "tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true);
+      "weft_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true);
   if (!nibble)
     return false;
   if (joinMultiplicandRoles(*nibble) != kExpectedSignedWprodRoles)
@@ -610,14 +610,14 @@ bool contractionRouteIdentityRegistrySelfCheck() {
 
   // The public cache-backed accessor must agree with the direct join for every
   // migrated route (this is the surface R1 producers/validators consume).
-  return getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product",
+  return getContractionMultiplicandRoleSummary("weft_rvv.widening_product",
                                                /*isSigned=*/true) ==
              kExpectedSignedWprodRoles &&
-         getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product",
+         getContractionMultiplicandRoleSummary("weft_rvv.widening_product",
                                                /*isSigned=*/false) ==
              kExpectedUnsignedWprodRoles &&
          getContractionMultiplicandRoleSummary(
-             "tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true) ==
+             "weft_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true) ==
              kExpectedSignedWprodRoles;
 }
 
@@ -641,9 +641,9 @@ bool contractionProductSourceBindingSelfCheck() {
     bool isSigned;
   };
   const Route routes[] = {
-      {"tcrv_rvv.widening_product", /*isSigned=*/true},
-      {"tcrv_rvv.widening_product", /*isSigned=*/false},
-      {"tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true},
+      {"weft_rvv.widening_product", /*isSigned=*/true},
+      {"weft_rvv.widening_product", /*isSigned=*/false},
+      {"weft_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true},
   };
 
   for (const Route &r : routes) {
@@ -696,7 +696,7 @@ bool contractionProductSourceBindingSelfCheck() {
 //===----------------------------------------------------------------------===//
 bool contractionProductSourceBindingC3SelfCheck() {
   const ContractionRouteIdentity *route = getContractionRouteIdentity(
-      "tcrv_rvv.packed_i4_offset_binary_x_i8_product", /*isSigned=*/true);
+      "weft_rvv.packed_i4_offset_binary_x_i8_product", /*isSigned=*/true);
   if (!route)
     return false;
   // Arity 3 = the productSources[] size the N=3 load-binding resizes to (W2/W3).
@@ -743,7 +743,7 @@ bool contractionProductSourceBindingC3SelfCheck() {
 //===----------------------------------------------------------------------===//
 bool contractionProductSourceBindingC4SelfCheck() {
   const ContractionRouteIdentity *route = getContractionRouteIdentity(
-      "tcrv_rvv.codebook_gather_x_i8_product", /*isSigned=*/true);
+      "weft_rvv.codebook_gather_x_i8_product", /*isSigned=*/true);
   if (!route)
     return false;
   // The route carries FOUR ordered sources (3 product factors + 1 table)...
@@ -802,7 +802,7 @@ bool contractionProductSourceBindingC4SelfCheck() {
 //===----------------------------------------------------------------------===//
 bool contractionDotReduceRouteIdentitySelfCheck() {
   const ContractionRouteIdentity *route = getContractionRouteIdentity(
-      "tcrv_rvv.widening_dot_reduce", /*isSigned=*/true);
+      "weft_rvv.widening_dot_reduce", /*isSigned=*/true);
   if (!route)
     return false;
   // N=2 dot sources (lhs, rhs) -> arity 2, no extra product factors.
@@ -828,7 +828,7 @@ bool contractionDotReduceRouteIdentitySelfCheck() {
   // "lhs,rhs,lhs,rhs,acc,out,n" (vs the true "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n").
   // This asserts the divergence (documents why the masked kinds stay op-kind-keyed).
   const ContractionRouteIdentity *masked = getContractionRouteIdentity(
-      "tcrv_rvv.masked_widening_dot_reduce", /*isSigned=*/true);
+      "weft_rvv.masked_widening_dot_reduce", /*isSigned=*/true);
   if (!masked)
     return false;
   if (getContractionProductFactorCount(*masked) != 2)
@@ -840,4 +840,4 @@ bool contractionDotReduceRouteIdentitySelfCheck() {
   return true;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

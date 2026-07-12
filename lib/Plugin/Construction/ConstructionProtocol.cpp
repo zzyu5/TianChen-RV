@@ -1,6 +1,6 @@
-#include "TianChenRV/Plugin/ConstructionProtocol.h"
+#include "Weft/Plugin/ConstructionProtocol.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -15,7 +15,7 @@
 #include <cctype>
 #include <string>
 
-namespace tianchenrv::plugin::construction {
+namespace weft::plugin::construction {
 namespace {
 
 constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
@@ -26,7 +26,7 @@ constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
 llvm::Error makeConstructionError(const ValidationSpec &spec,
                                   llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV ") + spec.familyDisplayName +
+      llvm::Twine("Weft-RV ") + spec.familyDisplayName +
           " construction manifest invalid: " + message,
       llvm::errc::invalid_argument);
 }
@@ -34,7 +34,7 @@ llvm::Error makeConstructionError(const ValidationSpec &spec,
 llvm::Error makeExecutableConformanceError(llvm::StringRef description,
                                            llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV ") + description +
+      llvm::Twine("Weft-RV ") + description +
           " construction conformance invalid: " + message,
       llvm::errc::invalid_argument);
 }
@@ -42,7 +42,7 @@ llvm::Error makeExecutableConformanceError(llvm::StringRef description,
 llvm::Error makeConstructionGateError(llvm::StringRef description,
                                       llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV ") + description +
+      llvm::Twine("Weft-RV ") + description +
           " construction conformance gate invalid: " + message,
       llvm::errc::invalid_argument);
 }
@@ -190,8 +190,8 @@ llvm::Error requireBoundaryStringAttr(
 llvm::Error requireRoleInterfaces(const ValidationSpec &spec,
                                   llvm::StringRef role,
                                   llvm::StringRef commonInterfaces) {
-  if (!containsToken(commonInterfaces, "TCRVExtensionOpInterface") ||
-      !containsToken(commonInterfaces, "TCRVEmitCLowerableInterface"))
+  if (!containsToken(commonInterfaces, "WEFTExtensionOpInterface") ||
+      !containsToken(commonInterfaces, "WEFTEmitCLowerableInterface"))
     return makeConstructionError(
         spec, llvm::Twine("semantic role '") + role +
                   "' must realize extension and EmitC lowerable interfaces");
@@ -208,10 +208,10 @@ llvm::Error requireRoleInterfaces(const ValidationSpec &spec,
                   "' must realize role-specific common interface '" +
                   expectation->roleSpecificInterface + "'");
   if (expectation->requiresResourceInterface &&
-      !containsToken(commonInterfaces, "TCRVResourceOpInterface"))
+      !containsToken(commonInterfaces, "WEFTResourceOpInterface"))
     return makeConstructionError(
         spec, llvm::Twine("semantic role '") + role +
-                  "' must realize TCRVResourceOpInterface");
+                  "' must realize WEFTResourceOpInterface");
   return llvm::Error::success();
 }
 
@@ -502,13 +502,13 @@ verifyTypedRoleGraphRealization(const Manifest &manifest,
                     "' must expose role-specific common interface '" +
                     expectation->roleSpecificInterface + "'");
     if (typedRole.emitCLowerableInterface !=
-            "TCRVEmitCLowerableInterface" ||
+            "WEFTEmitCLowerableInterface" ||
         !containsToken(typedRole.commonInterfaces,
                        typedRole.emitCLowerableInterface))
       return makeConstructionError(
           spec, llvm::Twine("typed role realization entry '") +
                     typedRole.typedRoleID +
-                    "' must expose TCRVEmitCLowerableInterface");
+                    "' must expose WEFTEmitCLowerableInterface");
   }
 
   return llvm::Error::success();
@@ -530,16 +530,16 @@ llvm::Error verifyRoleOpInterface(
   }
 
   auto lowerable = llvm::dyn_cast<
-      tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface>(roleOp);
+      weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(roleOp);
   if (!lowerable)
     return makeConstructionError(
         spec, llvm::Twine(roleSpec.roleOpDisplayName) + " '" +
                   roleOp->getName().getStringRef() +
-                  "' must implement TCRVEmitCLowerableOpInterface");
+                  "' must implement WEFTEmitCLowerableOpInterface");
 
   llvm::StringRef sourceOpName =
-      lowerable.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+      lowerable.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
   const TypedRoleInterfaceRealization *typedRole =
       findTypedRoleRealization(realization, roleSpec.role);
   if (!typedRole)
@@ -551,14 +551,14 @@ llvm::Error verifyRoleOpInterface(
   if (sourceOpName != roleSpec.operationName ||
       sourceOpName != typedRole->operationName)
     return makeConstructionError(
-        spec, llvm::Twine("TCRVEmitCLowerableOpInterface source op '") +
+        spec, llvm::Twine("WEFTEmitCLowerableOpInterface source op '") +
                   sourceOpName + "' does not match " +
                   spec.familyDisplayName + " typed " + roleSpec.role +
                   " operation '" + typedRole->operationName + "'");
   if (sourceRole != roleSpec.role || sourceRole != typedRole->role)
     return makeConstructionError(
         spec,
-        llvm::Twine("TCRVEmitCLowerableOpInterface source role '") +
+        llvm::Twine("WEFTEmitCLowerableOpInterface source role '") +
             sourceRole + "' does not match " + spec.familyDisplayName +
             " typed " + roleSpec.role + " role");
 
@@ -587,11 +587,11 @@ llvm::Error verifyRoleOpInterface(
                   " role_specific_interface must match " +
                   roleSpec.roleSpecificInterface);
 
-  if (typedRole->emitCLowerableInterface != "TCRVEmitCLowerableInterface")
+  if (typedRole->emitCLowerableInterface != "WEFTEmitCLowerableInterface")
     return makeConstructionError(
         spec, llvm::Twine(spec.familyDisplayName) + " typed " +
                   roleSpec.role + " role must name "
-                  "TCRVEmitCLowerableInterface");
+                  "WEFTEmitCLowerableInterface");
 
   return llvm::Error::success();
 }
@@ -936,10 +936,10 @@ verifyConstructionConformanceGate(const ConstructionConformanceGateSpec &spec) {
 }
 
 llvm::Error verifyConstructionArtifactMetadata(
-    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
-    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> expected,
+    llvm::ArrayRef<weft::support::ArtifactMetadataEntry> metadata,
+    llvm::ArrayRef<weft::support::ArtifactMetadataEntry> expected,
     const ValidationSpec &spec, llvm::StringRef context) {
-  if (tianchenrv::support::artifactMetadataEntriesEqual(metadata, expected))
+  if (weft::support::artifactMetadataEntriesEqual(metadata, expected))
     return llvm::Error::success();
 
   if (metadata.size() != expected.size())
@@ -949,9 +949,9 @@ llvm::Error verifyConstructionArtifactMetadata(
                   " construction artifact metadata entries");
 
   for (auto [index, pair] : llvm::enumerate(llvm::zip(metadata, expected))) {
-    const tianchenrv::support::ArtifactMetadataEntry &actual =
+    const weft::support::ArtifactMetadataEntry &actual =
         std::get<0>(pair);
-    const tianchenrv::support::ArtifactMetadataEntry &want =
+    const weft::support::ArtifactMetadataEntry &want =
         std::get<1>(pair);
     if (actual.key != want.key)
       return makeConstructionError(
@@ -969,4 +969,4 @@ llvm::Error verifyConstructionArtifactMetadata(
                 " must carry construction artifact metadata");
 }
 
-} // namespace tianchenrv::plugin::construction
+} // namespace weft::plugin::construction

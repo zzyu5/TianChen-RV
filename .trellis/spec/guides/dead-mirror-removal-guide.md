@@ -40,7 +40,7 @@ metadata-mirror / route-validation 脚手架；它们和**活的发射器**同�
 
 ## ⚠️ 验证纪律：lit 计数前先 clean rebuild
 
-incremental `ninja` 可能在改了 `lib/Target/RVV/*` 后**没重链 tcrv-opt/tcrv-translate**，
+incremental `ninja` 可能在改了 `lib/Target/RVV/*` 后**没重链 weft-opt/weft-translate**，
 留下 stale 二进制——lit 跑出来是**假绿 / 假 baseline**。本项目真发生过：一次"少量 reds"的
 baseline 是 incremental build 的幻觉，clean rebuild 同一 source 暴露出多得多的 reds。
 - 信任任何 lit pass/fail 计数前，先确认 build 已全链（改了发射器/验证器尤其要 from-scratch）；
@@ -51,14 +51,14 @@ baseline 是 incremental build 的幻觉，clean rebuild 同一 source 暴露出
 ### 🔴 必须：信 lit 前强制重链工具（本项目 ninja depfile bug 真坑过两次）
 
 本仓 tablegen `.inc` depfile 路径重复 → `ninja` **永远**重跑 tablegen，但**不会**因此重链
-`bin/tcrv-opt` / `bin/tcrv-translate`。结果：改了 `lib/Conversion`/`lib/Target` 后 `ninja`
+`bin/weft-opt` / `bin/weft-translate`。结果：改了 `lib/Conversion`/`lib/Target` 后 `ninja`
 退 0、libs 重建，但**工具仍链旧 lib** → lit 跑 stale 二进制 → **假绿**。真发生过：一次实际
 有十几个 reds 的提交被报成个位数 reds、shipped 了回归。`touch source + ninja` **不够**
 （depfile bug 让 ninja 以为工具是新的）。唯一可信：
 ```
-rm -f build/bin/tcrv-opt build/bin/tcrv-translate
-(cd build && ninja bin/tcrv-opt bin/tcrv-translate)
-# 确认 tcrv-opt 时间戳 > libTianChenRV*ConversionRVV.a / *Transforms.a，再跑 lit
+rm -f build/bin/weft-opt build/bin/weft-translate
+(cd build && ninja bin/weft-opt bin/weft-translate)
+# 确认 weft-opt 时间戳 > libWeft*ConversionRVV.a / *Transforms.a，再跑 lit
 ```
 任何"删 owner / 换 emitter / 改 validator"后，**先 rm 工具强制重链，再 full lit**，否则别相信计数。
 
@@ -67,10 +67,10 @@ rm -f build/bin/tcrv-opt build/bin/tcrv-translate
 `.o` 链新 layout 的 lib → `sizeof`/offset ABI mismatch → **运行时内存损坏 / 段错误**，build 还
 是绿的。`rm 工具` 救不了（test/plugin 的 `.o` 仍旧）。改 header/struct 后唯一可信：
 ```
-(cd build && ninja -t clean && ninja && ninja bin/tcrv-opt bin/tcrv-translate)
+(cd build && ninja -t clean && ninja && ninja bin/weft-opt bin/weft-translate)
 ```
-注意 `ninja`（无参）**不建 tcrv-opt**（非默认 target）——clean 后必须显式 `ninja bin/tcrv-opt
-bin/tcrv-translate`，否则全部测试 exit 127（"几百 reds" 假灾难其实是工具没建）。
+注意 `ninja`（无参）**不建 weft-opt**（非默认 target）——clean 后必须显式 `ninja bin/weft-opt
+bin/weft-translate`，否则全部测试 exit 127（"几百 reds" 假灾难其实是工具没建）。
 
 ## Rule
 

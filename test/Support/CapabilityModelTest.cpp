@@ -1,5 +1,5 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -16,12 +16,12 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::support::CapabilityAvailability;
-using tianchenrv::support::CapabilityConflict;
-using tianchenrv::support::CapabilityDescriptor;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::CapabilityRelationsAttr;
-using tianchenrv::tcrv::exec::KernelOp;
+using weft::support::CapabilityAvailability;
+using weft::support::CapabilityConflict;
+using weft::support::CapabilityDescriptor;
+using weft::support::TargetCapabilitySet;
+using weft::exec::CapabilityRelationsAttr;
+using weft::exec::KernelOp;
 
 namespace {
 
@@ -62,62 +62,62 @@ int expectErrorContains(llvm::Error error,
 
 int main() {
   mlir::DialectRegistry registry;
-  tianchenrv::registerAllDialects(registry);
+  weft::registerAllDialects(registry);
 
   mlir::MLIRContext context(registry);
   context.loadAllAvailableDialects();
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.target @module_rvv_profile {
+  weft.exec.target @module_rvv_profile {
     id = "rvv.profile.module",
     target_kind = "profile",
     status = "available",
-    relations = #tcrv.capability_relations<provides = ["module.rvv"]>,
+    relations = #weft.capability_relations<provides = ["module.rvv"]>,
     architecture = "riscv64"
   }
-  tcrv.exec.target @unreferenced_module_profile {
+  weft.exec.target @unreferenced_module_profile {
     id = "unreferenced.profile",
     target_kind = "profile",
     status = "available"
   }
-  tcrv.exec.kernel @generic_target attributes {target = @module_rvv_profile} {
-    tcrv.exec.target @parse_only_anchor {arch = "riscv64"}
-    tcrv.exec.capability @toolchain_available {id = "generic.toolchain", kind = "toolchain"}
-    tcrv.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
-    tcrv.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", status = "disabled"}
-    tcrv.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
-    tcrv.exec.target @rvv_profile {
+  weft.exec.kernel @generic_target attributes {target = @module_rvv_profile} {
+    weft.exec.target @parse_only_anchor {arch = "riscv64"}
+    weft.exec.capability @toolchain_available {id = "generic.toolchain", kind = "toolchain"}
+    weft.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
+    weft.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", status = "disabled"}
+    weft.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
+    weft.exec.target @rvv_profile {
       id = "rvv.profile.rv64gcv",
       target_kind = "profile",
       status = "available",
-      relations = #tcrv.capability_relations<provides = ["rvv"] implies = ["zvl128b"] conflicts = ["vendor.inline_asm_forbidden"]>,
+      relations = #weft.capability_relations<provides = ["rvv"] implies = ["zvl128b"] conflicts = ["vendor.inline_asm_forbidden"]>,
       architecture = "riscv64"
     }
-    tcrv.exec.capability @inline_asm_forbidden {
+    weft.exec.capability @inline_asm_forbidden {
       id = "vendor.inline_asm_forbidden",
       kind = "build-policy",
       status = "available"
     }
-    tcrv.exec.capability @dynamic_shape_policy {
+    weft.exec.capability @dynamic_shape_policy {
       id = "shape.policy.profile",
       kind = "shape-policy",
-      relations = #tcrv.capability_relations<provides = ["shape.dynamic"]>,
+      relations = #weft.capability_relations<provides = ["shape.dynamic"]>,
       status = "available"
     }
-    tcrv.exec.capability @fixed_shape_runtime {
+    weft.exec.capability @fixed_shape_runtime {
       id = "runtime.fixed_shape",
       kind = "runtime-offload",
-      relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]>,
+      relations = #weft.capability_relations<conflicts = ["shape.dynamic"]>,
       status = "available"
     }
-    tcrv.exec.capability @no_rvv_policy {
+    weft.exec.capability @no_rvv_policy {
       id = "policy.no_rvv",
       kind = "build-policy",
-      relations = #tcrv.capability_relations<conflicts = ["rvv"]>,
+      relations = #weft.capability_relations<conflicts = ["rvv"]>,
       status = "available"
     }
-    tcrv.exec.capability @rvv_uarch {
+    weft.exec.capability @rvv_uarch {
       id = "rvv.uarch",
       kind = "uarch",
       dtypes = ["f32", "bf16"],
@@ -126,7 +126,7 @@ module {
       vector_enabled = true,
       vlen_bits = 256 : i64
     }
-    tcrv.exec.capability @sophgo_runtime {
+    weft.exec.capability @sophgo_runtime {
       id = "sophgo.runtime",
       kind = "runtime-offload",
       abi = @sophgo_c_abi,
@@ -527,23 +527,23 @@ module {
     return result;
 
   // A descriptor built from a typed
-  // relations = #tcrv.capability_relations<...> op resolves conflict/provides
+  // relations = #weft.capability_relations<...> op resolves conflict/provides
   // relations and collectAvailableConflictsForCapability through the by-id model.
   // The legacy string provides/conflicts relation representation no longer exists
   // in IR (Stage 2 deletion endgame); the typed attr is the sole relation source.
   constexpr llvm::StringLiteral typedRelationsSource = R"mlir(
 module {
-  tcrv.exec.kernel @typed_relations attributes {} {
-    tcrv.exec.capability @fixed_shape_runtime {
+  weft.exec.kernel @typed_relations attributes {} {
+    weft.exec.capability @fixed_shape_runtime {
       id = "runtime.fixed_shape",
       kind = "runtime-offload",
-      relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]>,
+      relations = #weft.capability_relations<conflicts = ["shape.dynamic"]>,
       status = "available"
     }
-    tcrv.exec.capability @shape_profile {
+    weft.exec.capability @shape_profile {
       id = "shape.profile",
       kind = "shape-policy",
-      relations = #tcrv.capability_relations<provides = ["shape.dynamic"]>,
+      relations = #weft.capability_relations<provides = ["shape.dynamic"]>,
       status = "available"
     }
   }

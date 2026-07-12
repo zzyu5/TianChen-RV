@@ -1,18 +1,18 @@
-#include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
+#include "Weft/Dialect/Toy/IR/ToyDialect.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 
-using namespace tianchenrv::tcrv::toy;
+using namespace weft::toy;
 
-#include "TianChenRV/Dialect/Toy/IR/ToyOpsDialect.cpp.inc"
+#include "Weft/Dialect/Toy/IR/ToyOpsDialect.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "TianChenRV/Dialect/Toy/IR/ToyOps.cpp.inc"
+#include "Weft/Dialect/Toy/IR/ToyOps.cpp.inc"
 
 namespace {
 
@@ -42,7 +42,7 @@ constexpr llvm::StringLiteral kExpectedTypedRole(
     "toy.role.compute.compute_skeleton");
 constexpr llvm::StringLiteral kExpectedSourceRole("compute");
 constexpr llvm::StringLiteral kExpectedRoleSpecificInterface(
-    "TCRVComputeOpInterface");
+    "WEFTComputeOpInterface");
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
@@ -94,7 +94,7 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
   return true;
 }
 
-mlir::FailureOr<tianchenrv::tcrv::exec::VariantOp>
+mlir::FailureOr<weft::exec::VariantOp>
 verifyToySelectedPathAttrs(mlir::Operation *op,
                            mlir::InFlightDiagnostic &diag) {
   auto selectedVariant =
@@ -114,45 +114,45 @@ verifyToySelectedPathAttrs(mlir::Operation *op,
     return mlir::failure();
   }
 
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  auto kernel = op->getParentOfType<weft::exec::KernelOp>();
   if (!kernel) {
-    diag << "must be nested directly in a tcrv.exec.kernel";
+    diag << "must be nested directly in a weft.exec.kernel";
     return mlir::failure();
   }
   if (op->getParentOp() != kernel.getOperation()) {
-    diag << "must be a direct child of the enclosing tcrv.exec.kernel";
+    diag << "must be a direct child of the enclosing weft.exec.kernel";
     return mlir::failure();
   }
 
   auto sourceKernel =
       op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
   if (sourceKernel.getValue() != kernel.getSymName()) {
-    diag << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
+    diag << "source_kernel must match enclosing weft.exec.kernel symbol @"
          << kernel.getSymName();
     return mlir::failure();
   }
 
   if (kernel.getBody().empty()) {
-    diag << "requires enclosing tcrv.exec.kernel to have a body block";
+    diag << "requires enclosing weft.exec.kernel to have a body block";
     return mlir::failure();
   }
 
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+  llvm::Expected<weft::support::TargetCapabilitySet>
       capabilitiesOrError =
-          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+          weft::support::TargetCapabilitySet::buildFromKernelChecked(
               kernel);
   if (!capabilitiesOrError) {
     std::string message = llvm::toString(capabilitiesOrError.takeError());
     diag << message;
     return mlir::failure();
   }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
+  const weft::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
 
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
+  weft::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     if (auto variant =
-            llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
+            llvm::dyn_cast<weft::exec::VariantOp>(sibling)) {
       if (variant.getSymName() == selectedVariant.getValue()) {
         resolvedVariant = variant;
         break;
@@ -162,8 +162,8 @@ verifyToySelectedPathAttrs(mlir::Operation *op,
 
   if (!resolvedVariant) {
     diag << "selected_variant @" << selectedVariant.getValue()
-         << " must resolve to a direct sibling tcrv.exec.variant in the "
-            "enclosing tcrv.exec.kernel";
+         << " must resolve to a direct sibling weft.exec.variant in the "
+            "enclosing weft.exec.kernel";
     return mlir::failure();
   }
 
@@ -178,7 +178,7 @@ verifyToySelectedPathAttrs(mlir::Operation *op,
 
     if (!capabilities.lookupBySymbolName(symbolRef.getValue())) {
       diag << "requires unknown capability @" << symbolRef.getValue()
-           << " in enclosing tcrv.exec.kernel";
+           << " in enclosing weft.exec.kernel";
       return mlir::failure();
     }
   }
@@ -237,7 +237,7 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   if (status.getValue() != kNoActiveRouteStatusValue)
     return emitOpError()
            << "status must be '" << kNoActiveRouteStatusValue
-           << "' because tcrv_toy.lowering_boundary has no active route";
+           << "' because weft_toy.lowering_boundary has no active route";
 
   auto templateABI =
       op->getAttrOfType<mlir::StringAttr>(kTemplateABIAttrName);
@@ -275,11 +275,11 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   return mlir::success();
 }
 
-llvm::StringRef ComputeSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef ComputeSkeletonOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef ComputeSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef ComputeSkeletonOp::getWEFTEmitCLowerableSourceRole() {
   auto sourceRole =
       getOperation()->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
   return sourceRole ? sourceRole.getValue() : llvm::StringRef();
@@ -326,7 +326,7 @@ mlir::LogicalResult ComputeSkeletonOp::verify() {
   if (status.getValue() != kRoleOpBoundaryStatusValue)
     return emitOpError()
            << "status must be '" << kRoleOpBoundaryStatusValue
-           << "' because tcrv_toy.compute_skeleton is an ODS role-op "
+           << "' because weft_toy.compute_skeleton is an ODS role-op "
               "boundary";
 
   auto typedRole = op->getAttrOfType<mlir::StringAttr>(kTypedRoleAttrName);
@@ -348,7 +348,7 @@ mlir::LogicalResult ComputeSkeletonOp::verify() {
   if (sourceRole.getValue() != kExpectedSourceRole)
     return emitOpError()
            << "source_role must be '" << kExpectedSourceRole
-           << "' for TCRVEmitCLowerableOpInterface provenance";
+           << "' for WEFTEmitCLowerableOpInterface provenance";
 
   auto roleSpecificInterface =
       op->getAttrOfType<mlir::StringAttr>(kRoleSpecificInterfaceAttrName);
@@ -373,9 +373,9 @@ mlir::LogicalResult ComputeSkeletonOp::verify() {
   return mlir::success();
 }
 
-void TCRVToyDialect::initialize() {
+void WEFTToyDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TianChenRV/Dialect/Toy/IR/ToyOps.cpp.inc"
+#include "Weft/Dialect/Toy/IR/ToyOps.cpp.inc"
       >();
 }

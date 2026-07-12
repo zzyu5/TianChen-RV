@@ -307,7 +307,7 @@ void {scalar_fn}(const int8_t *, const int8_t *, const int32_t *, float, float *
 void {naive_fn}(const int8_t *, const int8_t *, const int32_t *, float, float *, size_t);
 void {autovec_fn}(const int8_t *, const int8_t *, const int32_t *, float, float *, size_t);
 
-static volatile double tcrv_sink = 0.0;
+static volatile double weft_sink = 0.0;
 
 static unsigned long long now_ns(void) {{
   struct timespec ts;
@@ -363,7 +363,7 @@ static int run_case(size_t n, float scale) {{
   for (int w = 0; w < WARMUPS; ++w)
     for (int v = 0; v < N_VARIANTS; ++v) {{
       fns[v](lhs, rhs, acc, scale, out, n);
-      tcrv_sink += (double)out[0];
+      weft_sink += (double)out[0];
     }}
 
   double best[N_VARIANTS];
@@ -374,7 +374,7 @@ static int run_case(size_t n, float scale) {{
       unsigned long long start = now_ns();
       for (int it = 0; it < ITERS; ++it) {{
         fns[v](lhs, rhs, acc, scale, out, n);
-        tcrv_sink += (double)out[0];
+        weft_sink += (double)out[0];
       }}
       double per_iter = (double)(now_ns() - start) / (double)ITERS;
       if (best[v] < 0.0 || per_iter < best[v]) best[v] = per_iter;
@@ -409,7 +409,7 @@ int main(void) {{
     int s = run_case(counts[i], scale);
     if (s != 0) return s;
   }}
-  printf("PASS three-way measurement counts={counts_summary} sink=%.9g\n", tcrv_sink);
+  printf("PASS three-way measurement counts={counts_summary} sink=%.9g\n", weft_sink);
   return 0;
 }}
 """.lstrip()
@@ -542,7 +542,7 @@ int main(void){
   return 0;
 }
 """
-    rd = "/tmp/tcrv_rdcycle_probe"
+    rd = "/tmp/weft_rdcycle_probe"
     cmd = (
         f"rm -rf {rd} && mkdir -p {rd} && cd {rd} && "
         f"cat > probe.c <<'EOF'\n{probe_c}\nEOF\n"
@@ -577,7 +577,7 @@ def build_and_run_remote(
     connect_timeout: int,
     timeout: int,
 ) -> dict[str, Any]:
-    remote_dir = f"/tmp/tcrv_fair3way_{kernel.label}_{abi.safe_run_id('p-a')}"
+    remote_dir = f"/tmp/weft_fair3way_{kernel.label}_{abi.safe_run_id('p-a')}"
     commands: dict[str, Any] = {"remote_dir": remote_dir}
 
     setup = abi.run_remote_shell(
@@ -704,7 +704,7 @@ def build_and_run_remote(
 
 def generate_tuned_bundle(
     *, kernel: Kernel, artifact_dir: Path, config: gate4.MeasurementConfig,
-    tcrv_opt: str, tcrv_translate: str, readobj: str | None, timeout: int,
+    weft_opt: str, weft_translate: str, readobj: str | None, timeout: int,
 ) -> dict[str, Any]:
     """Drive the existing verified generation -> tuned .o + .h (sha-identity contract)."""
     input_path = abi.resolve_repo_relative_path(kernel.input_path)
@@ -720,8 +720,8 @@ def generate_tuned_bundle(
         artifact_dir=artifact_dir,
         expectation=expectation,
         config=config,
-        tcrv_opt=tcrv_opt,
-        tcrv_translate=tcrv_translate,
+        weft_opt=weft_opt,
+        weft_translate=weft_translate,
         readobj=readobj,
     )
     bundle_checks = gen["bundle_checks"]
@@ -753,7 +753,7 @@ def measure_kernel(
     )
     gen = generate_tuned_bundle(
         kernel=kernel, artifact_dir=kdir / "gen", config=config,
-        tcrv_opt=args.tcrv_opt, tcrv_translate=args.tcrv_translate,
+        weft_opt=args.weft_opt, weft_translate=args.weft_translate,
         readobj=args.llvm_readobj, timeout=args.timeout,
     )
     tuned_fn = gen["expectation_function"]
@@ -910,8 +910,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--repeats", type=int, default=DEFAULT_REPEATS)
     p.add_argument("--iters", type=int, default=DEFAULT_ITERS)
     p.add_argument("--probe-rdcycle", action="store_true")
-    p.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
-    p.add_argument("--tcrv-translate", default="build/bin/tcrv-translate")
+    p.add_argument("--weft-opt", default="build/bin/weft-opt")
+    p.add_argument("--weft-translate", default="build/bin/weft-translate")
     p.add_argument("--llvm-readobj", default=None)
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--connect-timeout", type=int, default=20)

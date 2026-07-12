@@ -1,20 +1,20 @@
-#include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
+#include "Weft/Target/BuiltinTargetTranslateRoutes.h"
 
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 
 #include <string>
 
-namespace tianchenrv::target {
+namespace weft::target {
 namespace {
 
 llvm::Error makeBuiltinTranslateRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV built-in target translate route registration "
+      llvm::Twine("Weft-RV built-in target translate route registration "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -45,4 +45,4 @@ llvm::Error registerBuiltinTargetTranslateRoutes(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::target
+} // namespace weft::target

@@ -1,9 +1,0 @@
-#ifndef TIANCHENRV_CONVERSION_EMITC_TUNABLESCHEDULEOPINTERFACE_H
-#define TIANCHENRV_CONVERSION_EMITC_TUNABLESCHEDULEOPINTERFACE_H
-
-#include "mlir/IR/OpDefinition.h"
-#include "llvm/ADT/StringRef.h"
-
-#include "TianChenRV/Conversion/EmitC/TunableScheduleOpInterface.h.inc"
-
-#endif // TIANCHENRV_CONVERSION_EMITC_TUNABLESCHEDULEOPINTERFACE_H

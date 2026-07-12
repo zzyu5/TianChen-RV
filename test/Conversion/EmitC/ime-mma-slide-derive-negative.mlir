@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --split-input-file --tcrv-materialize-plugin-variants --verify-diagnostics
+// RUN: weft-opt %s --split-input-file --weft-materialize-plugin-variants --verify-diagnostics
 
 // DERIVE-level fail-closed (I7) for the sliding-window FACT. These complement the
 // op-VERIFIER negatives in test/Dialect/IME/mma-slide.mlir: here the rejection
@@ -11,8 +11,8 @@
 // emitter, so requesting both fails closed at derive time.
 module {
   // expected-error@+1 {{property 'ime_slide' (sliding-window) is only modeled for the signed form (vmadot1/2/3); the unsigned/mixed-sign slide siblings have no emitter}}
-  tcrv.exec.kernel @ime_slide_unsigned {
-    tcrv.exec.capability @spacemit_ime {
+  weft.exec.kernel @ime_slide_unsigned {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
@@ -30,9 +30,9 @@ module {
 // ime_slide is the single-fragment boundary only: it is NOT modeled together with
 // the tiled whole-matrix shape, so requesting both fails closed at derive time.
 module {
-  // expected-error@+1 {{property 'ime_slide' (sliding-window) is not modeled together with the tiled whole-matrix shape 'ime_matmul_shape'; the slide boundary is the single-fragment tcrv.ime.mma_slide only}}
-  tcrv.exec.kernel @ime_slide_matmul {
-    tcrv.exec.capability @spacemit_ime {
+  // expected-error@+1 {{property 'ime_slide' (sliding-window) is not modeled together with the tiled whole-matrix shape 'ime_matmul_shape'; the slide boundary is the single-fragment weft.ime.mma_slide only}}
+  weft.exec.kernel @ime_slide_matmul {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
@@ -51,8 +51,8 @@ module {
 // not the documented vmadot1/2/3 family and fails closed at derive time.
 module {
   // expected-error@+1 {{property 'ime_slide' = '9' is outside the validated IME1 slide envelope (only '1' => vmadot1, '2' => vmadot2, '3' => vmadot3 are modeled)}}
-  tcrv.exec.kernel @ime_slide_bad {
-    tcrv.exec.capability @spacemit_ime {
+  weft.exec.kernel @ime_slide_bad {
+    weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",

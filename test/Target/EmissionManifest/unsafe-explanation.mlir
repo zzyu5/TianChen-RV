@@ -1,23 +1,23 @@
-// RUN: not tcrv-translate --tcrv-export-emission-manifest %s 2>&1 | FileCheck %s --implicit-check-not=tianchenrv.emission_manifest.version
+// RUN: not weft-translate --weft-export-emission-manifest %s 2>&1 | FileCheck %s --implicit-check-not=weft.emission_manifest.version
 
 module {
-  tcrv.exec.kernel @unsafe_explanation {
-    tcrv.exec.capability @base {
+  weft.exec.kernel @unsafe_explanation {
+    weft.exec.capability @base {
       id = "generic.base",
       kind = "generic"
     }
-    tcrv.exec.variant @fast attributes {
+    weft.exec.variant @fast attributes {
       origin = "mock-plugin",
       requires = [@base]
     } {
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "fast selected by generic planner",
       reason = "variant-selected",
       selection_kind = "static-variant",
       target = @fast
     }
-    tcrv.exec.diagnostic {
+    weft.exec.diagnostic {
       message = "plugin route accidentally included token credential text",
       origin = "mock-plugin",
       reason = "emission_plan",
@@ -32,5 +32,5 @@ module {
   }
 }
 
-// CHECK: TianChen-RV emission manifest export failed for kernel @unsafe_explanation
+// CHECK: Weft-RV emission manifest export failed for kernel @unsafe_explanation
 // CHECK-SAME: message must not contain secret-like or raw credential text

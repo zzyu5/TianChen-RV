@@ -1,9 +1,9 @@
-#include "TianChenRV/Transforms/EmissionReadiness.h"
+#include "Weft/Transforms/EmissionReadiness.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Support/ArtifactMetadata.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Support/ArtifactMetadata.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -20,62 +20,62 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_CHECKEMISSIONPATHS
 #define GEN_PASS_DEF_MATERIALIZEEMISSIONPLANS
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-using tianchenrv::tcrv::exec::diagnostic::kArtifactKindAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kArtifactMetadataAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionKindAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanPlanKindValue;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanReasonValue;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanSupportedSeverityValue;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanSupportedStatusValue;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanUnsupportedSeverityValue;
-using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanUnsupportedStatusValue;
-using tianchenrv::tcrv::exec::diagnostic::kFallbackOnlySelectionKindValue;
-using tianchenrv::tcrv::exec::diagnostic::kLoweringBoundaryAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kLoweringPipelineAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kMessageAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kOriginAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kPlanKindAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kReasonAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRoleAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIKindAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeABINameAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIParametersAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeGlueRoleAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kRequiredCapabilitiesAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kSelectedReasonValue;
-using tianchenrv::tcrv::exec::diagnostic::kSelectionKindAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kSeverityAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kStaticSelectionKindValue;
-using tianchenrv::tcrv::exec::diagnostic::kStatusAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kTargetAttrName;
+using weft::exec::diagnostic::kArtifactKindAttrName;
+using weft::exec::diagnostic::kArtifactMetadataAttrName;
+using weft::exec::diagnostic::kEmissionKindAttrName;
+using weft::exec::diagnostic::kEmissionPlanPlanKindValue;
+using weft::exec::diagnostic::kEmissionPlanReasonValue;
+using weft::exec::diagnostic::kEmissionPlanSupportedSeverityValue;
+using weft::exec::diagnostic::kEmissionPlanSupportedStatusValue;
+using weft::exec::diagnostic::kEmissionPlanUnsupportedSeverityValue;
+using weft::exec::diagnostic::kEmissionPlanUnsupportedStatusValue;
+using weft::exec::diagnostic::kFallbackOnlySelectionKindValue;
+using weft::exec::diagnostic::kLoweringBoundaryAttrName;
+using weft::exec::diagnostic::kLoweringPipelineAttrName;
+using weft::exec::diagnostic::kMessageAttrName;
+using weft::exec::diagnostic::kOriginAttrName;
+using weft::exec::diagnostic::kPlanKindAttrName;
+using weft::exec::diagnostic::kReasonAttrName;
+using weft::exec::diagnostic::kRoleAttrName;
+using weft::exec::diagnostic::kRuntimeABIAttrName;
+using weft::exec::diagnostic::kRuntimeABIKindAttrName;
+using weft::exec::diagnostic::kRuntimeABINameAttrName;
+using weft::exec::diagnostic::kRuntimeABIParametersAttrName;
+using weft::exec::diagnostic::kRuntimeGlueRoleAttrName;
+using weft::exec::diagnostic::kRequiredCapabilitiesAttrName;
+using weft::exec::diagnostic::kSelectedReasonValue;
+using weft::exec::diagnostic::kSelectionKindAttrName;
+using weft::exec::diagnostic::kSeverityAttrName;
+using weft::exec::diagnostic::kStaticSelectionKindValue;
+using weft::exec::diagnostic::kStatusAttrName;
+using weft::exec::diagnostic::kTargetAttrName;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::plugin::VariantLoweringBoundaryValidationRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 struct EmissionReference {
   VariantOp variant;
@@ -88,7 +88,7 @@ struct EmissionReference {
 llvm::Error makeEmissionPathError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV emission path check failed";
+  stream << "Weft-RV emission path check failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -239,20 +239,20 @@ llvm::Error resolveSelectedMarkerTarget(
         kernel, diagnostic,
         llvm::Twine("selected-path target @") + target +
             " resolves to a direct sibling symbol that is not a "
-            "tcrv.exec.variant");
+            "weft.exec.variant");
 
   VariantOp nestedVariant = findNestedVariantBySymbol(kernel, target);
   if (nestedVariant && !hasDirectParent(nestedVariant.getOperation(), kernel))
     return makeSelectedMarkerEmissionPathError(
         kernel, diagnostic,
         llvm::Twine("selected-path target @") + target +
-            " resolves to a tcrv.exec.variant that is not a direct sibling of "
-            "the tcrv.exec.diagnostic marker in the same kernel");
+            " resolves to a weft.exec.variant that is not a direct sibling of "
+            "the weft.exec.diagnostic marker in the same kernel");
 
   return makeSelectedMarkerEmissionPathError(
       kernel, diagnostic,
       llvm::Twine("selected-path target @") + target +
-          " does not resolve to a direct sibling tcrv.exec.variant in the "
+          " does not resolve to a direct sibling weft.exec.variant in the "
           "same kernel");
 }
 
@@ -264,7 +264,7 @@ llvm::Error collectSelectedMarkerEmissionReference(
   if (!diagnostic || !hasDirectParent(diagnostic.getOperation(), kernel))
     return makeEmissionPathError(
         kernel,
-        "requires selected-path tcrv.exec.diagnostic to be a direct kernel "
+        "requires selected-path weft.exec.diagnostic to be a direct kernel "
         "child");
 
   VariantOp variant;
@@ -293,14 +293,14 @@ llvm::Error resolveDispatchTarget(
   if (!targetAttr)
     return makeDispatchEmissionPathError(
         kernel, dispatch,
-        llvm::Twine(tianchenrv::plugin::stringifyVariantEmissionRole(role)) +
+        llvm::Twine(weft::plugin::stringifyVariantEmissionRole(role)) +
             " is missing a variant symbol reference target");
 
   llvm::StringRef target = targetAttr.getValue();
   if (target.trim().empty())
     return makeDispatchEmissionPathError(
         kernel, dispatch,
-        llvm::Twine(tianchenrv::plugin::stringifyVariantEmissionRole(role)) +
+        llvm::Twine(weft::plugin::stringifyVariantEmissionRole(role)) +
             " has an empty variant symbol reference target");
 
   if (!seenTargets.insert(target).second)
@@ -321,20 +321,20 @@ llvm::Error resolveDispatchTarget(
         kernel, dispatch,
         llvm::Twine("dispatch target @") + target +
             " resolves to a direct sibling symbol that is not a "
-            "tcrv.exec.variant");
+            "weft.exec.variant");
 
   VariantOp nestedVariant = findNestedVariantBySymbol(kernel, target);
   if (nestedVariant && !hasDirectParent(nestedVariant.getOperation(), kernel))
     return makeDispatchEmissionPathError(
         kernel, dispatch,
         llvm::Twine("dispatch target @") + target +
-            " resolves to a tcrv.exec.variant that is not a direct sibling of "
-            "the tcrv.exec.dispatch in the same kernel");
+            " resolves to a weft.exec.variant that is not a direct sibling of "
+            "the weft.exec.dispatch in the same kernel");
 
   return makeDispatchEmissionPathError(
       kernel, dispatch,
       llvm::Twine("dispatch target @") + target +
-          " does not resolve to a direct sibling tcrv.exec.variant in the "
+          " does not resolve to a direct sibling weft.exec.variant in the "
           "same kernel");
 }
 
@@ -345,7 +345,7 @@ llvm::Error collectDispatchEmissionReferences(
     llvm::SmallVectorImpl<EmissionReference> &out) {
   if (!dispatch || !hasDirectParent(dispatch.getOperation(), kernel))
     return makeEmissionPathError(
-        kernel, "requires tcrv.exec.dispatch to be a direct kernel child");
+        kernel, "requires weft.exec.dispatch to be a direct kernel child");
 
   if (dispatch.getBody().empty())
     return makeDispatchEmissionPathError(
@@ -391,17 +391,17 @@ llvm::Error collectDispatchEmissionReferences(
     return makeDispatchEmissionPathError(
         kernel, dispatch,
         llvm::Twine("unexpected operation '") + op.getName().getStringRef() +
-            "' in tcrv.exec.dispatch; expected tcrv.exec.case or "
-            "tcrv.exec.fallback");
+            "' in weft.exec.dispatch; expected weft.exec.case or "
+            "weft.exec.fallback");
   }
 
   if (caseCount == 0)
     return makeDispatchEmissionPathError(
-        kernel, dispatch, "requires at least one tcrv.exec.case");
+        kernel, dispatch, "requires at least one weft.exec.case");
 
   if (fallbackCount != 1)
     return makeDispatchEmissionPathError(
-        kernel, dispatch, "requires exactly one tcrv.exec.fallback");
+        kernel, dispatch, "requires exactly one weft.exec.fallback");
 
   out.append(caseReferences.begin(), caseReferences.end());
   out.append(fallbackReferences.begin(), fallbackReferences.end());
@@ -411,7 +411,7 @@ llvm::Error collectDispatchEmissionReferences(
 llvm::Error collectKernelEmissionReferences(
     KernelOp kernel, llvm::SmallVectorImpl<EmissionReference> &references) {
   if (!kernel)
-    return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
+    return makeEmissionPathError(kernel, "requires a weft.exec.kernel");
 
   if (!hasKernelBody(kernel))
     return makeEmissionPathError(
@@ -446,7 +446,7 @@ llvm::Error collectKernelEmissionReferences(
       return makeEmissionPathError(
           kernel,
           "requires at most one direct selected-path diagnostic marker when no "
-          "tcrv.exec.dispatch is present");
+          "weft.exec.dispatch is present");
 
     selectedMarker = diagnostic;
   }
@@ -482,7 +482,7 @@ std::string makeBoundaryKey(const EmissionReference &reference) {
   VariantOp variant = reference.variant;
   return makeBoundaryKey(
       variant ? variant.getSymName() : "<missing>",
-      tianchenrv::plugin::stringifyVariantEmissionRole(reference.role));
+      weft::plugin::stringifyVariantEmissionRole(reference.role));
 }
 
 llvm::Error makeBoundaryValidationError(KernelOp kernel, llvm::Twine message) {
@@ -503,7 +503,7 @@ bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
   if (op.getName().getStringRef().ends_with(".lowering_boundary"))
     return true;
 
-  if (llvm::isa<tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface>(
+  if (llvm::isa<weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(
           op))
     return true;
 
@@ -643,7 +643,7 @@ llvm::Error validateSelectedLoweringBoundaries(
           kernel,
           llvm::Twine("duplicate selected path reference for variant @") +
               reference.variant.getSymName() + " as " +
-              tianchenrv::plugin::stringifyVariantEmissionRole(
+              weft::plugin::stringifyVariantEmissionRole(
                   reference.role));
   }
 
@@ -690,7 +690,7 @@ llvm::Error validateSelectedLoweringBoundaries(
       return makeBoundaryValidationError(
           kernel, llvm::Twine("selected path @") +
                       reference.variant.getSymName() + " as " +
-                      tianchenrv::plugin::stringifyVariantEmissionRole(
+                      weft::plugin::stringifyVariantEmissionRole(
                           reference.role) +
                       " does not accept a materialized plugin lowering "
                       "boundary");
@@ -713,7 +713,7 @@ llvm::Error validateSelectedLoweringBoundaries(
         kernel,
         llvm::Twine("selected path @") + variant.getSymName() +
             " as " +
-            tianchenrv::plugin::stringifyVariantEmissionRole(reference.role) +
+            weft::plugin::stringifyVariantEmissionRole(reference.role) +
             " requires one materialized plugin lowering boundary before "
             "emission planning");
   }
@@ -852,7 +852,7 @@ llvm::Error validatePlansForMaterialization(
     KernelOp kernel, llvm::ArrayRef<VariantEmissionPlan> plans) {
   if (!kernel)
     return makeEmissionPlanDiagnosticMaterializationError(
-        kernel, "requires a tcrv.exec.kernel");
+        kernel, "requires a weft.exec.kernel");
 
   llvm::StringMap<VariantOp> directVariants;
   llvm::StringMap<mlir::Operation *> directSymbols;
@@ -890,12 +890,12 @@ llvm::Error validatePlansForMaterialization(
         return makeEmissionPlanDiagnosticMaterializationError(
             kernel, llvm::Twine("plan target @") + plan.getVariantSymbol() +
                         " resolves to a direct sibling symbol that is not a "
-                        "tcrv.exec.variant");
+                        "weft.exec.variant");
 
       return makeEmissionPlanDiagnosticMaterializationError(
           kernel, llvm::Twine("plan target @") + plan.getVariantSymbol() +
                       " does not resolve to a direct sibling "
-                      "tcrv.exec.variant");
+                      "weft.exec.variant");
     }
     VariantOp planVariant = directVariantIt->getValue();
 
@@ -1065,7 +1065,7 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
   addStringAttribute(context, state, kOriginAttrName, plan.getOriginPlugin());
   addStringAttribute(
       context, state, kRoleAttrName,
-      tianchenrv::plugin::stringifyVariantEmissionRole(plan.getRole()));
+      weft::plugin::stringifyVariantEmissionRole(plan.getRole()));
   addStringAttribute(context, state, kPlanKindAttrName,
                      kEmissionPlanPlanKindValue);
   if (!plan.getLoweringBoundaryOpName().empty())
@@ -1188,7 +1188,7 @@ private:
 llvm::Error checkKernelEmissionPaths(
     KernelOp kernel, const ExtensionPluginRegistry &registry) {
   if (!kernel)
-    return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
+    return makeEmissionPathError(kernel, "requires a weft.exec.kernel");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -1221,7 +1221,7 @@ llvm::Error collectKernelEmissionPlans(
     KernelOp kernel, llvm::SmallVectorImpl<VariantEmissionPlan> &out,
     const ExtensionPluginRegistry &registry) {
   if (!kernel)
-    return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
+    return makeEmissionPathError(kernel, "requires a weft.exec.kernel");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -1256,7 +1256,7 @@ llvm::Error materializeKernelEmissionPlanDiagnostics(
     KernelOp kernel, const ExtensionPluginRegistry &registry) {
   if (!kernel)
     return makeEmissionPlanDiagnosticMaterializationError(
-        kernel, "requires a tcrv.exec.kernel");
+        kernel, "requires a weft.exec.kernel");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -1307,4 +1307,4 @@ createMaterializeEmissionPlansPass(const ExtensionPluginRegistry &registry) {
   return std::make_unique<MaterializeEmissionPlansPass>(registry);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

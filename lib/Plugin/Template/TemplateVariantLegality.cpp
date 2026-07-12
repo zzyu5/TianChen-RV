@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -12,7 +12,7 @@
 
 #include <string>
 
-namespace tianchenrv::plugin::template_ext {
+namespace weft::plugin::template_ext {
 namespace {
 
 constexpr llvm::StringLiteral kTemplatePluginName("template-plugin");
@@ -21,23 +21,23 @@ constexpr llvm::StringLiteral kTemplateExtensionCapabilityID(
 constexpr llvm::StringLiteral kTemplateExtensionCapabilityKind(
     "future-extension-template");
 constexpr llvm::StringLiteral kTemplateIntegrationContractAttrName(
-    "tcrv_template.integration_contract");
+    "weft_template.integration_contract");
 constexpr llvm::StringLiteral kTemplateHandoffKindAttrName(
-    "tcrv_template.handoff_kind");
+    "weft_template.handoff_kind");
 constexpr llvm::StringLiteral kTemplateConstructionProtocolAttrName(
-    "tcrv_template.construction_protocol");
+    "weft_template.construction_protocol");
 constexpr llvm::StringLiteral kTemplateConstructionArchetypeAttrName(
-    "tcrv_template.archetype");
+    "weft_template.archetype");
 constexpr llvm::StringLiteral kTemplateSemanticRoleGraphAttrName(
-    "tcrv_template.semantic_role_graph");
+    "weft_template.semantic_role_graph");
 constexpr llvm::StringLiteral kTemplateCommonInterfaceRealizationAttrName(
-    "tcrv_template.common_interface_realization");
+    "weft_template.common_interface_realization");
 constexpr llvm::StringLiteral kTemplateTypedRoleRealizationAttrName(
-    "tcrv_template.typed_role_realization");
+    "weft_template.typed_role_realization");
 constexpr llvm::StringLiteral kTemplateEmitCRouteMappingAttrName(
-    "tcrv_template.emitc_route_mapping");
+    "weft_template.emitc_route_mapping");
 constexpr llvm::StringLiteral kTemplateEvidenceProfileAttrName(
-    "tcrv_template.evidence_profile");
+    "weft_template.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "template-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -52,7 +52,7 @@ struct TemplateExtensionCapabilityView {
 
 llvm::Error makeTemplatePluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV Template extension plugin template failed: ") +
+      llvm::Twine("Weft-RV Template extension plugin template failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -160,7 +160,7 @@ buildTemplateExtensionCapabilityView(
 }
 
 llvm::Expected<bool> variantRequiresTemplateExtension(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities) {
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -189,7 +189,7 @@ llvm::Expected<bool> variantRequiresTemplateExtension(
 }
 
 llvm::Error verifyTemplateVariantMetadata(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const TemplateExtensionCapabilityView &capabilityView) {
   if (llvm::Error error = verifyTemplateConstructionProtocolReady())
     return error;
@@ -202,7 +202,7 @@ llvm::Error verifyTemplateVariantMetadata(
     return makeTemplatePluginError(
         llvm::Twine("materialized Template variant @") + variant.getSymName() +
         " requires non-empty string "
-        "'tcrv_template.integration_contract' metadata");
+        "'weft_template.integration_contract' metadata");
   if (integrationContract.getValue() != capabilityView.integrationContract)
     return makeTemplatePluginError(
         llvm::Twine("materialized Template variant @") + variant.getSymName() +
@@ -215,7 +215,7 @@ llvm::Error verifyTemplateVariantMetadata(
   if (!handoffKind || handoffKind.getValue().trim().empty())
     return makeTemplatePluginError(
         llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " requires non-empty string 'tcrv_template.handoff_kind' metadata");
+        " requires non-empty string 'weft_template.handoff_kind' metadata");
   if (handoffKind.getValue() != capabilityView.handoffKind)
     return makeTemplatePluginError(
         llvm::Twine("materialized Template variant @") + variant.getSymName() +
@@ -288,11 +288,11 @@ llvm::Error verifyTemplateVariantMetadata(
 } // namespace
 
 llvm::Error verifyTemplateSelectedVariantLegality(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp /*kernel*/,
+    weft::exec::VariantOp variant, weft::exec::KernelOp /*kernel*/,
     const support::TargetCapabilitySet &capabilities) {
   if (!variant)
     return makeTemplatePluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue() != kTemplatePluginName)
@@ -318,4 +318,4 @@ llvm::Error verifyTemplateSelectedVariantLegality(
   return verifyTemplateVariantMetadata(variant, *capabilityView);
 }
 
-} // namespace tianchenrv::plugin::template_ext
+} // namespace weft::plugin::template_ext

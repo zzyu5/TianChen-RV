@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # tools/fuzz/f5_failclosed_fuzz.sh — F-5 fail-closed verifier fuzzer (line-D-f5).
 #
-# WHAT: mutate ONE valid `tcrv_rvv.typed_flat_block_dot_loop_body` typed-region
+# WHAT: mutate ONE valid `weft_rvv.typed_flat_block_dot_loop_body` typed-region
 #       program into a batch of illegal / malformed variants (bad attr, missing
 #       operand, wrong arity, wrong region shape, terminator used outside its
-#       guarded parent), feed each to `tcrv-opt <in> --tcrv-rvv-lower-to-emitc`
+#       guarded parent), feed each to `weft-opt <in> --weft-rvv-lower-to-emitc`
 #       (the related verify+lower pass), and ASSERT each is FAIL-CLOSED rejected:
 #         - graceful diagnostic ("error:") on stderr,
 #         - non-zero exit,
@@ -20,8 +20,8 @@
 # depend on any test file another line may edit.
 #
 # Usage:
-#   f5_failclosed_fuzz.sh [--opt <tcrv-opt>] [--csv <out.csv>] [--head <sha>]
-#   TCRV_OPT=<path> f5_failclosed_fuzz.sh
+#   f5_failclosed_fuzz.sh [--opt <weft-opt>] [--csv <out.csv>] [--head <sha>]
+#   WEFT_OPT=<path> f5_failclosed_fuzz.sh
 #
 # Exit 0 iff every scenario is fail-closed (PASS); non-zero if any scenario
 # fail-opens (silent pass) or crashes — the harness itself is fail-closed.
@@ -29,10 +29,10 @@
 set -u
 
 # ---------------------------------------------------------------- args
-OPT="${TCRV_OPT:-}"
+OPT="${WEFT_OPT:-}"
 CSV=""
 HEAD_SHA=""
-PASS_FLAG="--tcrv-rvv-lower-to-emitc"
+PASS_FLAG="--weft-rvv-lower-to-emitc"
 while [ $# -gt 0 ]; do
   case "$1" in
     --opt)  OPT="$2"; shift 2 ;;
@@ -45,12 +45,12 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$OPT" ]; then
-  for c in build/*/bin/tcrv-opt build/bin/tcrv-opt tcrv-opt; do
+  for c in build/*/bin/weft-opt build/bin/weft-opt weft-opt; do
     if command -v "$c" >/dev/null 2>&1 || [ -x "$c" ]; then OPT="$c"; break; fi
   done
 fi
 if ! { command -v "$OPT" >/dev/null 2>&1 || [ -x "$OPT" ]; }; then
-  echo "[f5] tcrv-opt not found (pass --opt <path> or set TCRV_OPT)" >&2; exit 2
+  echo "[f5] weft-opt not found (pass --opt <path> or set WEFT_OPT)" >&2; exit 2
 fi
 if [ -z "$HEAD_SHA" ]; then
   HEAD_SHA="$(git rev-parse --short=8 HEAD 2>/dev/null || echo unknown)"
@@ -62,28 +62,28 @@ trap 'rm -rf "$WORK"' EXIT
 sha12() { sha256sum "$1" | cut -c1-12; }
 
 # ---------------------------------------------------------------- the seed
-# A verified-valid typed-region program: one tcrv_rvv.typed_flat_block_dot_loop_body
+# A verified-valid typed-region program: one weft_rvv.typed_flat_block_dot_loop_body
 # carrying the nb block loop + the SSA loop-carried f32 accumulator, terminated
-# by tcrv_rvv.typed_flat_block_dot_loop_yield. Lowers clean under $PASS_FLAG.
+# by weft_rvv.typed_flat_block_dot_loop_yield. Lowers clean under $PASS_FLAG.
 SEED="$WORK/seed.mlir"
 cat > "$SEED" <<'MLIR'
 module {
-  tcrv.exec.kernel @rvv_typed_flat_block_dot_loop_body_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_typed_flat_block_dot_loop_body attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
-      %term = tcrv_rvv.runtime_abi_value {c_name = "stub_term", c_type = "float", ownership = "target-export-abi-owned", purpose = "loop-body:stub-term", role = "lower-bound-scalar-value"} : f32
-      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_typed_flat_block_dot_loop_body, sew = 8 : i64, source_kernel = "rvv_typed_flat_block_dot_loop_body_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "elided"} {
+  weft.exec.kernel @rvv_typed_flat_block_dot_loop_body_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @rvv_typed_flat_block_dot_loop_body attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
+      %term = weft_rvv.runtime_abi_value {c_name = "stub_term", c_type = "float", ownership = "target-export-abi-owned", purpose = "loop-body:stub-term", role = "lower-bound-scalar-value"} : f32
+      %vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_typed_flat_block_dot_loop_body, sew = 8 : i64, source_kernel = "rvv_typed_flat_block_dot_loop_body_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "elided"} {
         ^bb0(%block_index: index, %acc: f32):
-          %acc_next = tcrv_rvv.cross_block_f32_accumulate %acc, %term {kind = "cross_block_f32_scalar_accumulate", accumulate_order = "strict-ascending-block-carried"} : f32, f32 -> f32
-          tcrv_rvv.typed_flat_block_dot_loop_yield %acc_next : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %acc_next = weft_rvv.cross_block_f32_accumulate %acc, %term {kind = "cross_block_f32_scalar_accumulate", accumulate_order = "strict-ascending-block-carried"} : f32, f32 -> f32
+          weft_rvv.typed_flat_block_dot_loop_yield %acc_next : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -95,7 +95,7 @@ ORPHAN="$WORK/orphan.mlir"
 cat > "$ORPHAN" <<'MLIR'
 module {
   func.func @orphan_yield(%c: f32) {
-    tcrv_rvv.typed_flat_block_dot_loop_yield %c : f32
+    weft_rvv.typed_flat_block_dot_loop_yield %c : f32
   }
 }
 MLIR
@@ -130,8 +130,8 @@ add wrong_weight_ctype  abi     "weight base bound as 'const int8_t *' (not cons
 add wrong_output_ctype  abi     "output base bound as 'double *' (not float *)"                        sed 's#c_name = "s", c_type = "float \*"#c_name = "s", c_type = "double *"#'
 
 # -- class D: operand arity / operand typing ----------------------------------
-add drop_operand        arity   "drop the runtime element-count operand (3 operands not 4)"            sed 's/%vx, %vy, %s, %n attributes/%vx, %vy, %s attributes/;s/!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index$/!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value/'
-add yield_type_mismatch arity   "loop yield typed i32 while carried acc is f32"                        sed 's/tcrv_rvv.typed_flat_block_dot_loop_yield %acc_next : f32/tcrv_rvv.typed_flat_block_dot_loop_yield %acc_next : i32/'
+add drop_operand        arity   "drop the runtime element-count operand (3 operands not 4)"            sed 's/%vx, %vy, %s, %n attributes/%vx, %vy, %s attributes/;s/!weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index$/!weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value/'
+add yield_type_mismatch arity   "loop yield typed i32 while carried acc is f32"                        sed 's/weft_rvv.typed_flat_block_dot_loop_yield %acc_next : f32/weft_rvv.typed_flat_block_dot_loop_yield %acc_next : i32/'
 
 # -- class E: region shape (entry args + terminator) --------------------------
 add region_extra_arg    region  "region carries 3 entry args (block_index+acc+extra)"                  sed 's/\^bb0(%block_index: index, %acc: f32):/^bb0(%block_index: index, %acc: f32, %extra: f32):/'

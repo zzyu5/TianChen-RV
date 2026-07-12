@@ -1,8 +1,8 @@
-# REQUIRES: tianchenrv-local-rvv-object-clang
+# REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-lmul-m2-add --overwrite --op-kind lmul_m2_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-lmul-m2-add --overwrite --op-kind lmul_m2_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-lmul-m2-add/evidence.json
-# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-lmul-m2-add/lmul_m2_add/evidence.json
+# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-lmul-m2-add/lmul_m2_add/evidence.json
 # RUN: FileCheck %s --check-prefix=CPP --implicit-check-not="__riscv_vadd_vv_i32m1" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-lmul-m2-add/lmul_m2_add/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-lmul-m2-add/lmul_m2_add/rvv_generated_bundle_abi_lmul_m2_add_harness.c
 
@@ -18,12 +18,12 @@
 # ROOT-DAG: "harness": "{{.*}}rvv_generated_bundle_abi_lmul_m2_add_harness.c"
 # ROOT-DAG: "correctness_oracle"
 # ROOT-DAG: "expected_expression": "lhs[index] + rhs[index]"
-# ROOT-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_lmul_m2_add_ok"
+# ROOT-DAG: "pass_marker": "weft_rvv_generated_bundle_abi_lmul_m2_add_ok"
 # ROOT-DAG: "runtime_avl_vl_boundary"
 # ROOT-DAG: "selected_runtime_abi"
 # ROOT-DAG: "setvl_consumes_runtime_avl": true
 # ROOT-DAG: "uses_runtime_remaining_avl": true
-# ROOT-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
+# ROOT-DAG: "weft_rvv.runtime_avl_source": "runtime_abi:n"
 # ROOT-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
@@ -32,45 +32,45 @@
 # M2-DAG: "input_mode": "pre-realized-selected-body"
 # M2-DAG: "op_kind": "lmul_m2_add"
 # M2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-lmul-m2-add.mlir"
-# M2-DAG: "prototype": "void tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
-# M2-DAG: "expected_function": "tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add"
+# M2-DAG: "prototype": "void weft_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# M2-DAG: "expected_function": "weft_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add"
 # M2-DAG: "expected_runtime_abi_name": "rvv-generic-binary-add-callable-c-abi.v1"
 # M2-DAG: "expected_selected_variant": "pre_realized_body_rvv_lmul_m2_add"
-# M2-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# M2-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
-# M2-DAG: --tcrv-materialize-selected-lowering-boundaries
+# M2-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
+# M2-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
+# M2-DAG: --weft-materialize-selected-lowering-boundaries
 # M2-DAG: "pre_realized_body_consumed": true
 # M2-DAG: "key": "rvv_emitc_lowerable_route"
 # M2-DAG: "value": "rvv-generic-binary-add-emitc-route"
 # M2-DAG: "key": "rvv_selected_body_operation"
 # M2-DAG: "value": "add"
 # M2-DAG: "key": "rvv_selected_body_typed_compute_op"
-# M2-DAG: "value": "tcrv_rvv.binary"
-# M2-DAG: "key": "tcrv_rvv.config_contract"
+# M2-DAG: "value": "weft_rvv.binary"
+# M2-DAG: "key": "weft_rvv.config_contract"
 # M2-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
-# M2-DAG: "key": "tcrv_rvv.element_type"
+# M2-DAG: "key": "weft_rvv.element_type"
 # M2-DAG: "value": "i32"
-# M2-DAG: "key": "tcrv_rvv.sew"
+# M2-DAG: "key": "weft_rvv.sew"
 # M2-DAG: "value": "32"
-# M2-DAG: "key": "tcrv_rvv.lmul"
+# M2-DAG: "key": "weft_rvv.lmul"
 # M2-DAG: "value": "m2"
-# M2-DAG: "key": "tcrv_rvv.memory_form"
+# M2-DAG: "key": "weft_rvv.memory_form"
 # M2-DAG: "value": "vector-rhs-load"
-# M2-DAG: "key": "tcrv_rvv.elementwise_arithmetic_route_family_plan"
+# M2-DAG: "key": "weft_rvv.elementwise_arithmetic_route_family_plan"
 # M2-DAG: "value": "rvv-elementwise-arithmetic-route-family-plan.v1"
-# M2-DAG: "key": "tcrv_rvv.required_header_declarations"
+# M2-DAG: "key": "weft_rvv.required_header_declarations"
 # M2-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
-# M2-DAG: "key": "tcrv_rvv.c_type_mapping"
+# M2-DAG: "key": "weft_rvv.c_type_mapping"
 # M2-DAG: "value": "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"
-# M2-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# M2-DAG: "key": "weft_rvv.runtime_abi_order"
 # M2-DAG: "value": "lhs,rhs,out,n"
-# M2-DAG: "key": "tcrv_rvv.runtime_control_plan"
+# M2-DAG: "key": "weft_rvv.runtime_control_plan"
 # M2-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
-# M2-DAG: "key": "tcrv_rvv.runtime_vl_contract"
+# M2-DAG: "key": "weft_rvv.runtime_vl_contract"
 # M2-DAG: "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
-# M2-DAG: "key": "tcrv_rvv.runtime_avl_source"
+# M2-DAG: "key": "weft_rvv.runtime_avl_source"
 # M2-DAG: "value": "runtime_abi:n"
-# M2-DAG: "key": "tcrv_rvv.remaining_avl"
+# M2-DAG: "key": "weft_rvv.remaining_avl"
 # M2-DAG: "value": "n-offset"
 # M2-DAG: "runtime_avl_vl_boundary"
 # M2-DAG: "selected_runtime_abi"
@@ -85,8 +85,8 @@
 # M2-DAG: "uses_runtime_remaining_avl": true
 # M2-DAG: "uses_loop_vl_for_intrinsics": true
 # M2-DAG: "route_metadata"
-# M2-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
-# M2-DAG: "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+# M2-DAG: "weft_rvv.runtime_avl_source": "runtime_abi:n"
+# M2-DAG: "weft_rvv.route_operand_binding_operands": "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
 # M2-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # M2-DAG: "emitted_rvv_cpp_checks"
 # M2-DAG: "element_type": "i32"
@@ -98,13 +98,13 @@
 # M2-DAG: "__riscv_vse32_v_i32m2"
 # M2-DAG: "typed_config_artifact_closure"
 # M2-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
-# M2-DAG: "typed_compute_op": "tcrv_rvv.binary"
+# M2-DAG: "typed_compute_op": "weft_rvv.binary"
 # M2-DAG: "memory_form": "vector-rhs-load"
 # M2-DAG: "lmul": "m2"
 # M2-DAG: "status": "dry_run_success"
 
 # CPP: #include <riscv_vector.h>
-# CPP: extern "C" void tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add({{.*}}size_t [[N:v[0-9]+]])
+# CPP: extern "C" void weft_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add({{.*}}size_t [[N:v[0-9]+]])
 # CPP: size_t [[FULL_VL:v[0-9]+]] = __riscv_vsetvl_e32m2([[N]]);
 # CPP: for (size_t [[OFFSET:v[0-9]+]] = 0; [[OFFSET]] < [[N]]; [[OFFSET]] += [[FULL_VL]])
 # CPP: size_t [[REMAINING:v[0-9]+]] = [[N]] - [[OFFSET]];
@@ -117,7 +117,7 @@
 # HARNESS: int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
 # HARNESS: int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
 # HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-# HARNESS: tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add(lhs, rhs, out, n);
+# HARNESS: weft_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add(lhs, rhs, out, n);
 # HARNESS: int32_t expected = lhs[index] + rhs[index];
-# HARNESS: tcrv_rvv_generated_bundle_abi_lmul_m2_add_ok counts=7,16,23
+# HARNESS: weft_rvv_generated_bundle_abi_lmul_m2_add_ok counts=7,16,23
 # HARNESS: PASS op=lmul_m2_add counts=7,16,23

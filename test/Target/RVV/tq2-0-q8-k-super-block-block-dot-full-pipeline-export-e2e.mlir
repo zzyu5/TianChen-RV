@@ -2,9 +2,9 @@
 // TERNARY block-dot) front door -- the LAST literal block-dot in the zoo (the 2-bit
 // TriLM ternary K-quant). The front door's OWN auto-constructed monolithic
 // super-block ternary block-dot body now flows through the COMPLETE
-// tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
-// --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target artifact
-// through tcrv-translate --tcrv-export-target-artifact.
+// weft-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
+// --weft-check-execution-plan-coherence) AND exports a real RISC-V target artifact
+// through weft-translate --weft-export-target-artifact.
 //
 // WHY tq2_0 is MECHANICAL, NOT bespoke: tq2_0 is a genuine super-block (QK_K == 256)
 // so it reuses the EXISTING super-block monolithic route family (the shared
@@ -22,7 +22,7 @@
 // q4_0/q8_0/iq4_nl stay byte-exact on their own routes.
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same lowering
-// the direct --tcrv-rvv-lower-to-emitc path uses), so the production-export emit is
+// the direct --weft-rvv-lower-to-emitc path uses), so the production-export emit is
 // byte-identical to the CORE == emission-plans emit (asserted below by diff). The
 // exported function symbol is the kernel+variant handoff name. NO board / NO perf
 // claim -- this is coverage/wiring maturity. tq2_0's front-door-constructed op is
@@ -34,25 +34,25 @@
 // NOT exercised here. COVERAGE at the default anchor.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
-// REQUIRES: tianchenrv-local-rvv-object-clang
+// REQUIRES: weft-local-rvv-object-clang
 
 // FULL pipeline: front door auto-constructs the monolithic super-block ternary
-// block-dot body, the tcrv-source-artifact-front-door-pipeline materializes the
-// emission plan AND passes --tcrv-check-execution-plan-coherence (the super-block
+// block-dot body, the weft-source-artifact-front-door-pipeline materializes the
+// emission plan AND passes --weft-check-execution-plan-coherence (the super-block
 // monolithic route id is a registered target-artifact export route).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
-// BYTE-EXACT: --tcrv-materialize-emission-plans only APPENDS the emission-plan
+// BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export
-// EmitC is byte-for-byte the CORE --tcrv-rvv-lower-to-emitc emit.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --tcrv-rvv-lower-to-emitc > %t.core.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
+// EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the super-block monolithic emission plan exports
 // a real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -62,8 +62,8 @@
 // scale/min decode, an aux8 spill, or a wrong fold is caught.
 // RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
 
-module attributes {tcrv_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_tq2_0_q8_K_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_tq2_0_q8_K_kernel"} {
   func.func @source_tq2_0_q8_K_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
@@ -72,7 +72,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_sourc
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
-// PLAN: tcrv.exec.kernel @ggml_vec_dot_tq2_0_q8_K_kernel
+// PLAN: weft.exec.kernel @ggml_vec_dot_tq2_0_q8_K_kernel
 // tq2_0 FLIP (C_construct 24->25, the FIRST TQ-family member): the front door now
 // constructs the typed super-block SCALAR-accumulator TERNARY loop body (fold_model
 // "scalar_delta_grid", stride 66) with the tq2_0 FUSED 2-bit ternary integer-core brick,
@@ -80,8 +80,8 @@ module attributes {tcrv_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_sourc
 // monolithic route family (kind/ABI/facts) by the selector, so the emission-plan metadata
 // is byte-unchanged and the CORE EmitC is byte-identical to the retired monolith modulo the
 // source-op provenance token.
-// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
-// PLAN: tcrv.exec.diagnostic
+// PLAN: weft_rvv.typed_super_block_block_dot_loop_body
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the tq2_0 kind -- the SAME super-block route family q4_K uses.
@@ -100,7 +100,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_sourc
 // PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC tq2_0 ternary integer core =================
-// CORE: emitc.func @tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot
+// CORE: emitc.func @weft_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot
 // The super-block count nb = n / 256. The FUSED dot has NO aux8[256] scratch (the
 // 2-bit unpack is consumed in-register by the per-plane vwmacc, never spilled).
 // CORE: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
@@ -161,5 +161,5 @@ module attributes {tcrv_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_sourc
 // OBJECT: Type: Relocatable
 
 // The exported function symbol is the kernel+variant handoff name -- the same
-// name the CORE EmitC emit carries (tcrv_emitc_<kernel>_<variant>).
-// SYMBOL: Name: tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot
+// name the CORE EmitC emit carries (weft_emitc_<kernel>_<variant>).
+// SYMBOL: Name: weft_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot

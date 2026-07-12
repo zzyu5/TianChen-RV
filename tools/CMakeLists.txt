@@ -1,2 +1,2 @@
-add_subdirectory(tcrv-opt)
-add_subdirectory(tcrv-translate)
+add_subdirectory(weft-opt)
+add_subdirectory(weft-translate)

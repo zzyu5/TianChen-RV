@@ -1,18 +1,18 @@
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 
-using namespace tianchenrv::tcrv::tensorext_lite;
+using namespace weft::tensorext_lite;
 
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteOpsDialect.cpp.inc"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteOpsDialect.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteOps.cpp.inc"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteOps.cpp.inc"
 
 namespace {
 
@@ -51,14 +51,14 @@ struct TensorExtLiteRoleOpSpec {
 };
 
 constexpr TensorExtLiteRoleOpSpec kTensorExtLiteRoleOpSpecs[] = {
-    {"tcrv_tensorext_lite.config_skeleton", "tel.role.config", "configure",
-     "TCRVConfigOpInterface", 0},
-    {"tcrv_tensorext_lite.load_frag_skeleton", "tel.role.load_frag",
-     "load_frag", "TCRVMemoryOpInterface", 1},
-    {"tcrv_tensorext_lite.tile_mma_skeleton", "tel.role.tile_mma",
-     "tile_mma", "TCRVComputeOpInterface", 2},
-    {"tcrv_tensorext_lite.store_frag_skeleton", "tel.role.store_frag",
-     "store_frag", "TCRVMemoryOpInterface", 3},
+    {"weft_tensorext_lite.config_skeleton", "tel.role.config", "configure",
+     "WEFTConfigOpInterface", 0},
+    {"weft_tensorext_lite.load_frag_skeleton", "tel.role.load_frag",
+     "load_frag", "WEFTMemoryOpInterface", 1},
+    {"weft_tensorext_lite.tile_mma_skeleton", "tel.role.tile_mma",
+     "tile_mma", "WEFTComputeOpInterface", 2},
+    {"weft_tensorext_lite.store_frag_skeleton", "tel.role.store_frag",
+     "store_frag", "WEFTMemoryOpInterface", 3},
 };
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op,
@@ -119,7 +119,7 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
   return true;
 }
 
-mlir::FailureOr<tianchenrv::tcrv::exec::VariantOp>
+mlir::FailureOr<weft::exec::VariantOp>
 verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
                            mlir::InFlightDiagnostic &diag) {
   auto selectedVariant =
@@ -139,54 +139,54 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
     return mlir::failure();
   }
 
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  auto kernel = op->getParentOfType<weft::exec::KernelOp>();
   if (!kernel) {
-    diag << "must be nested in a tcrv.exec.kernel";
+    diag << "must be nested in a weft.exec.kernel";
     return mlir::failure();
   }
 
   auto enclosingVariant =
-      op->getParentOfType<tianchenrv::tcrv::exec::VariantOp>();
+      op->getParentOfType<weft::exec::VariantOp>();
   bool directKernelChild = op->getParentOp() == kernel.getOperation();
   bool directVariantChild =
       enclosingVariant && op->getParentOp() == enclosingVariant.getOperation() &&
       enclosingVariant->getParentOp() == kernel.getOperation();
   if (!directKernelChild && !directVariantChild) {
-    diag << "must be a direct child of the enclosing tcrv.exec.kernel or the "
-            "selected tcrv.exec.variant body";
+    diag << "must be a direct child of the enclosing weft.exec.kernel or the "
+            "selected weft.exec.variant body";
     return mlir::failure();
   }
 
   auto sourceKernel =
       op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
   if (sourceKernel.getValue() != kernel.getSymName()) {
-    diag << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
+    diag << "source_kernel must match enclosing weft.exec.kernel symbol @"
          << kernel.getSymName();
     return mlir::failure();
   }
 
   if (kernel.getBody().empty()) {
-    diag << "requires enclosing tcrv.exec.kernel to have a body block";
+    diag << "requires enclosing weft.exec.kernel to have a body block";
     return mlir::failure();
   }
 
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+  llvm::Expected<weft::support::TargetCapabilitySet>
       capabilitiesOrError =
-          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+          weft::support::TargetCapabilitySet::buildFromKernelChecked(
               kernel);
   if (!capabilitiesOrError) {
     std::string message = llvm::toString(capabilitiesOrError.takeError());
     diag << message;
     return mlir::failure();
   }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
+  const weft::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
 
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant = enclosingVariant;
+  weft::exec::VariantOp resolvedVariant = enclosingVariant;
   if (!resolvedVariant) {
     for (mlir::Operation &sibling : kernel.getBody().front()) {
       if (auto variant =
-              llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
+              llvm::dyn_cast<weft::exec::VariantOp>(sibling)) {
         if (variant.getSymName() == selectedVariant.getValue()) {
           resolvedVariant = variant;
           break;
@@ -197,13 +197,13 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
 
   if (!resolvedVariant) {
     diag << "selected_variant @" << selectedVariant.getValue()
-         << " must resolve to a direct sibling tcrv.exec.variant in the "
-            "enclosing tcrv.exec.kernel";
+         << " must resolve to a direct sibling weft.exec.variant in the "
+            "enclosing weft.exec.kernel";
     return mlir::failure();
   }
   if (resolvedVariant.getSymName() != selectedVariant.getValue()) {
     diag << "selected_variant @" << selectedVariant.getValue()
-         << " must match the enclosing tcrv.exec.variant @"
+         << " must match the enclosing weft.exec.variant @"
          << resolvedVariant.getSymName();
     return mlir::failure();
   }
@@ -219,7 +219,7 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
 
     if (!capabilities.lookupBySymbolName(symbolRef.getValue())) {
       diag << "requires unknown capability @" << symbolRef.getValue()
-           << " in enclosing tcrv.exec.kernel";
+           << " in enclosing weft.exec.kernel";
       return mlir::failure();
     }
   }
@@ -304,7 +304,7 @@ mlir::LogicalResult verifyTensorExtLiteRoleSkeletonOp(
   if (sourceRole.getValue() != spec.sourceRole)
     return op->emitOpError()
            << "source_role must be '" << spec.sourceRole
-           << "' for TCRVEmitCLowerableOpInterface provenance";
+           << "' for WEFTEmitCLowerableOpInterface provenance";
 
   auto roleSpecificInterface =
       op->getAttrOfType<mlir::StringAttr>(kRoleSpecificInterfaceAttrName);
@@ -372,7 +372,7 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   if (status.getValue() != kNoActiveRouteStatusValue)
     return emitOpError()
            << "status must be '" << kNoActiveRouteStatusValue
-           << "' because tcrv_tensorext_lite.lowering_boundary has no active route";
+           << "' because weft_tensorext_lite.lowering_boundary has no active route";
 
   auto fragmentABI =
       op->getAttrOfType<mlir::StringAttr>(kFragmentABIAttrName);
@@ -410,11 +410,11 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   return mlir::success();
 }
 
-llvm::StringRef ConfigSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef ConfigSkeletonOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef ConfigSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef ConfigSkeletonOp::getWEFTEmitCLowerableSourceRole() {
   return getTensorExtLiteRoleSourceRole(getOperation());
 }
 
@@ -425,11 +425,11 @@ mlir::LogicalResult ConfigSkeletonOp::verify() {
   return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
 }
 
-llvm::StringRef LoadFragSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef LoadFragSkeletonOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef LoadFragSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef LoadFragSkeletonOp::getWEFTEmitCLowerableSourceRole() {
   return getTensorExtLiteRoleSourceRole(getOperation());
 }
 
@@ -440,11 +440,11 @@ mlir::LogicalResult LoadFragSkeletonOp::verify() {
   return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
 }
 
-llvm::StringRef TileMmaSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef TileMmaSkeletonOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef TileMmaSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef TileMmaSkeletonOp::getWEFTEmitCLowerableSourceRole() {
   return getTensorExtLiteRoleSourceRole(getOperation());
 }
 
@@ -455,11 +455,11 @@ mlir::LogicalResult TileMmaSkeletonOp::verify() {
   return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
 }
 
-llvm::StringRef StoreFragSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+llvm::StringRef StoreFragSkeletonOp::getWEFTEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
-llvm::StringRef StoreFragSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+llvm::StringRef StoreFragSkeletonOp::getWEFTEmitCLowerableSourceRole() {
   return getTensorExtLiteRoleSourceRole(getOperation());
 }
 
@@ -470,9 +470,9 @@ mlir::LogicalResult StoreFragSkeletonOp::verify() {
   return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
 }
 
-void TCRVTensorExtLiteDialect::initialize() {
+void WEFTTensorExtLiteDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteOps.cpp.inc"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteOps.cpp.inc"
       >();
 }

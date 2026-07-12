@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -20,18 +20,18 @@
 
 #include <optional>
 
-using tianchenrv::plugin::rvv::RVVLowPrecisionLMULRung;
-using tianchenrv::plugin::rvv::enumerateRVVLowPrecisionAccumulatorLMULRungs;
-using tianchenrv::plugin::rvv::getRVVLMULRegisterFootprint;
-using tianchenrv::plugin::rvv::selectRVVLowPrecisionMaxLegalAccumulatorLMULRung;
-using tianchenrv::plugin::rvv::RVVFillLMULReason;
-using tianchenrv::plugin::rvv::chooseFillOptimalLMUL;
-using tianchenrv::plugin::rvv::stringifyRVVFillLMULReason;
-using tianchenrv::plugin::rvv::RVVNumericsTier;
-using tianchenrv::plugin::rvv::RVVNumericsTierReason;
-using tianchenrv::plugin::rvv::chooseNumericsTier;
-using tianchenrv::plugin::rvv::stringifyRVVNumericsTier;
-using tianchenrv::plugin::rvv::stringifyRVVNumericsTierReason;
+using weft::plugin::rvv::RVVLowPrecisionLMULRung;
+using weft::plugin::rvv::enumerateRVVLowPrecisionAccumulatorLMULRungs;
+using weft::plugin::rvv::getRVVLMULRegisterFootprint;
+using weft::plugin::rvv::selectRVVLowPrecisionMaxLegalAccumulatorLMULRung;
+using weft::plugin::rvv::RVVFillLMULReason;
+using weft::plugin::rvv::chooseFillOptimalLMUL;
+using weft::plugin::rvv::stringifyRVVFillLMULReason;
+using weft::plugin::rvv::RVVNumericsTier;
+using weft::plugin::rvv::RVVNumericsTierReason;
+using weft::plugin::rvv::chooseNumericsTier;
+using weft::plugin::rvv::stringifyRVVNumericsTier;
+using weft::plugin::rvv::stringifyRVVNumericsTierReason;
 
 namespace {
 

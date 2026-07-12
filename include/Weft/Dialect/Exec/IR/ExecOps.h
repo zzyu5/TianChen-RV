@@ -1,0 +1,23 @@
+#ifndef WEFT_DIALECT_EXEC_IR_EXECOPS_H
+#define WEFT_DIALECT_EXEC_IR_EXECOPS_H
+
+#include "mlir/Bytecode/BytecodeOpInterface.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/SymbolTable.h"
+
+#include "Weft/Dialect/Exec/IR/ExecOpsDialect.h.inc"
+
+#include "Weft/Dialect/Exec/IR/ExecEnums.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "Weft/Dialect/Exec/IR/ExecAttrs.h.inc"
+
+#define GET_OP_CLASSES
+#include "Weft/Dialect/Exec/IR/ExecOps.h.inc"
+
+#endif // WEFT_DIALECT_EXEC_IR_EXECOPS_H

@@ -1,10 +1,10 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
-#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -17,7 +17,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 static std::optional<RVVWideningProductRouteFacts>
 buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
@@ -56,7 +56,7 @@ buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
           ? llvm::StringRef(kRVVUnsignedWideningProductOperandBindingPlanID)
           : llvm::StringRef(kRVVWideningProductOperandBindingPlanID);
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.widening_product";
+  facts.typedComputeOpName = "weft_rvv.widening_product";
   facts.lhsRole = "lhs-input-buffer";
   facts.rhsRole = "rhs-input-buffer";
   facts.outputRole = "output-buffer";
@@ -72,7 +72,7 @@ buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
   // Identity source (byte-identical to the retired
   // kRVVLowPrecision{Signed,Unsigned}WideningProductMultiplicandRoles).
   facts.wideningProductMultiplicandRoleSummary =
-      getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product",
+      getContractionMultiplicandRoleSummary("weft_rvv.widening_product",
                                             /*isSigned=*/!isUnsigned);
   facts.wideningProductExtensionPolicy =
       isUnsigned ? llvm::StringRef(
@@ -166,8 +166,8 @@ getRVVWideningProductRouteFacts(
   const bool isUnsigned =
       description.wideningProductRelation ==
       getContractionWideningProductRelation(
-          tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-          tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+          weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+          weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
           /*isUnsigned=*/true);
   return buildRVVWideningProductRouteFacts(description.operation, isUnsigned);
 }
@@ -211,7 +211,7 @@ getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
                                         kResultLMUL);
   facts.routeOperandBindingPlanID = kRVVWideningMAccOperandBindingPlanID;
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.widening_macc";
+  facts.typedComputeOpName = "weft_rvv.widening_macc";
   facts.wideningMAccArithmeticKind = kRVVPreRealizedWideningMAccOpKind;
   facts.lhsRole = "lhs-input-buffer";
   facts.rhsRole = "rhs-input-buffer";
@@ -709,17 +709,17 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
   facts.typedComputeOpName =
       isDeferredWideProductReductionDequantization
-          ? "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+          ? "weft_rvv.widening_product+weft_rvv.widening_accumulate+weft_rvv.standalone_reduce+weft_rvv.dequantize"
       : isDeferredWideDotReduction
-          ? "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+tcrv_rvv.standalone_reduce"
+          ? "weft_rvv.widening_product+weft_rvv.deferred_accumulate+weft_rvv.standalone_reduce"
       : isProductReductionDequantClamp
-          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
       : isProductReductionDequantization
-          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
+          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize"
       : isProductReductionChain
-          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce"
-      : isComputedMask ? "tcrv_rvv.masked_widening_dot_reduce"
-                       : "tcrv_rvv.widening_dot_reduce";
+          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce"
+      : isComputedMask ? "weft_rvv.masked_widening_dot_reduce"
+                       : "weft_rvv.widening_dot_reduce";
   if (isComputedMask) {
     facts.comparePredicateKind = kRVVPreRealizedPredicateKind;
     facts.maskRole = kRVVMaskedPredicateMaskRole;
@@ -886,7 +886,7 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
             ? getContractionFloatElementTypeName(kResultSEW)
             : getContractionIntegerElementTypeName(kResultSEW);
     facts.maskTypeName = internContractionDerivedText(
-        (llvm::Twine("!tcrv_rvv.mask<") +
+        (llvm::Twine("!weft_rvv.mask<") +
          maskElementTypeName + ", \"" + kResultLMUL + "\">")
             .str());
     facts.maskCType = getContractionMaskCType(kResultSEW, kResultLMUL);
@@ -1238,8 +1238,8 @@ getRVVSelectedBodyContractionExpectedWideningMAccResultLayout() {
 llvm::StringRef
 getRVVSelectedBodyContractionExpectedWideningMAccRelation() {
   return getContractionWideningMAccRelation(
-      tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
-      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+      weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
+      weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
 }
 
 llvm::StringRef
@@ -1255,8 +1255,8 @@ getRVVSelectedBodyContractionExpectedWideningDotProductResultLayout() {
 llvm::StringRef
 getRVVSelectedBodyContractionExpectedWideningDotProductRelation() {
   return getContractionWideningDotProductRelation(
-      tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
-      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
+      weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
+      weft::rvv::getRVVFirstSliceSEWBits(), weft::rvv::getRVVLMULM1());
 }
 
 llvm::StringRef
@@ -1264,4 +1264,4 @@ getRVVSelectedBodyContractionExpectedMaskedInactiveLaneZeroingRequirement() {
   return kRVVContractionMaskedInactiveLaneZeroingRequirement;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

@@ -1,4 +1,4 @@
-add_mlir_library(TianChenRVConversionRVV
+add_mlir_library(WeftConversionRVV
   RVVToEmitC.cpp
   RVVToEmitCBlockQuantLinear.cpp
   RVVToEmitCCodebookFp4.cpp
@@ -10,14 +10,14 @@ add_mlir_library(TianChenRVConversionRVV
   RVVToEmitCSupport.cpp
 
   DEPENDS
-  TianChenRVPassesIncGen
+  WeftPassesIncGen
   MLIRRVVOpsIncGen
   MLIRExecOpsIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVRVVDialect
-  TianChenRVExecDialect
+  WeftConversionEmitC
+  WeftRVVDialect
+  WeftExecDialect
   MLIREmitCDialect
   MLIRIR
   MLIRPass

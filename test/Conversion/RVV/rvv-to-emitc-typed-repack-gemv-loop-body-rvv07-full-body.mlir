@@ -1,16 +1,16 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
 // Anti-bypass / "byte-exact is contingent on the offset" divergence: rewiring the
 // dual-fp16 FOLD brick's weight_scale_byte_offset to a NON-ZERO value genuinely
 // changes the emitted scale address (the fold's within-block offset is SOURCED
 // from the brick, not silently hardcoded to 0), so the offset!=0 emit is NO LONGER
 // byte-identical to the offset-0 emit.
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc > %t.off0
-// RUN: sed 's/weight_scale_byte_offset = 0 : i64/weight_scale_byte_offset = 4 : i64/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc > %t.off4
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc > %t.off0
+// RUN: sed 's/weight_scale_byte_offset = 0 : i64/weight_scale_byte_offset = 4 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc > %t.off4
 // RUN: not diff %t.off0 %t.off4
 
 // M-FLAT REPACK loop-scaffold -- the FULL-BODY RVV0.7 whole-LMUL arm of
-// tcrv_rvv.typed_repack_gemv_loop_body, the SOLE representation of the q4_0
+// weft_rvv.typed_repack_gemv_loop_body, the SOLE representation of the q4_0
 // 16x1-repacked GEVM (the monolithic emitRepackGemvQ4_0Q8_0 is retired; the
 // region-vs-monolith byte-exactness was EMPIRICALLY proven at Phase B before
 // retirement). The pre-ratification RVV0.7.1 generation (XuanTie xtheadvector) has
@@ -24,33 +24,33 @@
 // whole-LMUL node sequence. Numerical bit-exact-vs-ggml is pending-hardware.
 
 module {
-  tcrv.exec.kernel @rvv_repack_gemv_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_repack_gemv attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:nc", role = "destination-byte-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_repack_gemv, sew = 32 : i64, source_kernel = "rvv_repack_gemv_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 16 : i64, integer_core_lmul = "m1", fold_model = "lane_wise_vector_scale"} {
-        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m4">):
+  weft.exec.kernel @rvv_repack_gemv_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @rvv_repack_gemv attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_repack_gemv, sew = 32 : i64, source_kernel = "rvv_repack_gemv_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 16 : i64, integer_core_lmul = "m1", fold_model = "lane_wise_vector_scale"} {
+        ^bb0(%block_index: index, %acc0: !weft_rvv.vector<f32, "m4">):
           // ONE i32m4 sumi from the integer-core brick, THEN ONE dual-fp16 scale
           // FOLD brick -- the whole-LMUL one-strip form (i8m1 -> i16m2 -> i32m4 ->
           // f32m4).
-          %sumi = tcrv_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %block_index : index {kind = "repack_lane_wise_q4_x_i8_dot", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, integer_core_lmul = "m1"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m4">
-          %an0 = tcrv_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi, %acc0, %vl block %block_index : index {kind = "repack_dual_fp16_scale_fold", weight_scale_byte_offset = 0 : i64, activation_scale_byte_offset = 0 : i64, integer_core_lmul = "m1"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m4">, !tcrv_rvv.vector<f32, "m4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m4">
-          tcrv_rvv.typed_repack_gemv_loop_yield %an0 : !tcrv_rvv.vector<f32, "m4">
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
-      } : !tcrv_rvv.vl
+          %sumi = weft_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %block_index : index {kind = "repack_lane_wise_q4_x_i8_dot", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, integer_core_lmul = "m1"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m4">
+          %an0 = weft_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi, %acc0, %vl block %block_index : index {kind = "repack_dual_fp16_scale_fold", weight_scale_byte_offset = 0 : i64, activation_scale_byte_offset = 0 : i64, integer_core_lmul = "m1"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m4">, !weft_rvv.vector<f32, "m4">, !weft_rvv.vl -> !weft_rvv.vector<f32, "m4">
+          weft_rvv.typed_repack_gemv_loop_yield %an0 : !weft_rvv.vector<f32, "m4">
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
-// CHECK: emitc.func @tcrv_emitc_rvv_repack_gemv_kernel_rvv_repack_gemv(
+// CHECK: emitc.func @weft_emitc_rvv_repack_gemv_kernel_rvv_repack_gemv(
 
 // The active vl is the 16-lane whole-LMUL strip width.
 // CHECK: literal "16"

@@ -1,9 +1,9 @@
-# REQUIRES: tianchenrv-local-rvv-object-clang
+# REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-cmp-select --overwrite --op-kind cmp_select --op-kind cmp_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-cmp-select --overwrite --op-kind cmp_select --op-kind cmp_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-cmp-select/evidence.json
-# RUN: FileCheck %s --check-prefix=CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-cmp-select/cmp_select/evidence.json
-# RUN: FileCheck %s --check-prefix=SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-cmp-select/cmp_select_sle/evidence.json
+# RUN: FileCheck %s --check-prefix=CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-cmp-select/cmp_select/evidence.json
+# RUN: FileCheck %s --check-prefix=SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-cmp-select/cmp_select_sle/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS-CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-cmp-select/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c
 # RUN: FileCheck %s --check-prefix=HARNESS-SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-cmp-select/cmp_select_sle/rvv_generated_bundle_abi_cmp_select_sle_harness.c
 
@@ -21,28 +21,28 @@
 
 # CMP-DAG: "input_mode": "pre-realized-selected-body"
 # CMP-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-cmp-select.mlir"
-# CMP-DAG: "prototype": "void tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
-# CMP-DAG: "expected_function": "tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select"
+# CMP-DAG: "prototype": "void weft_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# CMP-DAG: "expected_function": "weft_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select"
 # CMP-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
 # CMP-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select"
-# CMP-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# CMP-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# CMP-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
+# CMP-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
 # CMP-DAG: "route_entry_realization": false
-# CMP-DAG: --tcrv-materialize-selected-lowering-boundaries
+# CMP-DAG: --weft-materialize-selected-lowering-boundaries
 # CMP-DAG: "pre_realized_body_consumed": true
 # CMP-DAG: "key": "rvv_emitc_lowerable_route"
 # CMP-DAG: "value": "rvv-generic-cmp-select-emitc-route"
 # CMP-DAG: "key": "rvv_selected_body_operation"
 # CMP-DAG: "value": "cmp_select"
 # CMP-DAG: "key": "rvv_selected_body_typed_compute_op"
-# CMP-DAG: "value": "tcrv_rvv.select"
-# CMP-DAG: "typed_compute_op": "tcrv_rvv.select"
+# CMP-DAG: "value": "weft_rvv.select"
+# CMP-DAG: "typed_compute_op": "weft_rvv.select"
 # CMP-DAG: "memory_form": "vector-rhs-load"
 # CMP-DAG: "vector_c_type": "vint32m1_t"
 # CMP-DAG: "__riscv_vmseq_vv_i32m1_b32"
 # CMP-DAG: "__riscv_vmerge_vvm_i32m1"
 # CMP-DAG: "compare_select_predicate_boundary": {
-# CMP-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# CMP-DAG: "authority": "provider-derived typed weft_rvv compare/select body/config/runtime facts"
 # CMP-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # CMP-DAG: "compare_predicate_kind": "eq"
 # CMP-DAG: "predicate_role": "predicate-mask-produced-by-compare"
@@ -59,8 +59,8 @@
 # CMP-DAG: "select_false_vector"
 # CMP-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # CMP-DAG: "runtime_avl_vl_boundary": {
-# CMP-DAG: "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
-# CMP-DAG: "authority": "provider-derived typed tcrv_rvv body/config/runtime facts"
+# CMP-DAG: "source": "selected runtime ABI n -> weft_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+# CMP-DAG: "authority": "provider-derived typed weft_rvv body/config/runtime facts"
 # CMP-DAG: "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc"
 # CMP-DAG: "selected_runtime_abi": {
 # CMP-DAG: "c_name": "n"
@@ -75,10 +75,10 @@
 # CMP-DAG: "uses_loop_vl_for_intrinsics": true
 # CMP-DAG: "uses_runtime_remaining_avl": true
 # CMP-DAG: "route_metadata": {
-# CMP-DAG: "tcrv_rvv.runtime_avl_abi_parameter": "n"
-# CMP-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
-# CMP-DAG: "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1"
-# CMP-DAG: "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+# CMP-DAG: "weft_rvv.runtime_avl_abi_parameter": "n"
+# CMP-DAG: "weft_rvv.runtime_avl_source": "runtime_abi:n"
+# CMP-DAG: "weft_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1"
+# CMP-DAG: "weft_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
 # CMP-DAG: "artifact_abi": {
 # CMP-DAG: "runtime_parameter_count": 4
 # CMP-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
@@ -87,28 +87,28 @@
 
 # SLE-DAG: "input_mode": "pre-realized-selected-body"
 # SLE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-sle.mlir"
-# SLE-DAG: "prototype": "void tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
-# SLE-DAG: "expected_function": "tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle"
+# SLE-DAG: "prototype": "void weft_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# SLE-DAG: "expected_function": "weft_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle"
 # SLE-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
 # SLE-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select_sle"
-# SLE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# SLE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SLE-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
+# SLE-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
 # SLE-DAG: "route_entry_realization": false
-# SLE-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SLE-DAG: --weft-materialize-selected-lowering-boundaries
 # SLE-DAG: "pre_realized_body_consumed": true
 # SLE-DAG: "key": "rvv_emitc_lowerable_route"
 # SLE-DAG: "value": "rvv-generic-cmp-select-emitc-route"
 # SLE-DAG: "key": "rvv_selected_body_operation"
 # SLE-DAG: "value": "cmp_select"
 # SLE-DAG: "key": "rvv_selected_body_typed_compute_op"
-# SLE-DAG: "value": "tcrv_rvv.select"
-# SLE-DAG: "typed_compute_op": "tcrv_rvv.select"
+# SLE-DAG: "value": "weft_rvv.select"
+# SLE-DAG: "typed_compute_op": "weft_rvv.select"
 # SLE-DAG: "memory_form": "vector-rhs-load"
 # SLE-DAG: "vector_c_type": "vint32m1_t"
 # SLE-DAG: "__riscv_vmsle_vv_i32m1_b32"
 # SLE-DAG: "__riscv_vmerge_vvm_i32m1"
 # SLE-DAG: "compare_select_predicate_boundary": {
-# SLE-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# SLE-DAG: "authority": "provider-derived typed weft_rvv compare/select body/config/runtime facts"
 # SLE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # SLE-DAG: "compare_predicate_kind": "sle"
 # SLE-DAG: "predicate_role": "predicate-mask-produced-by-compare"
@@ -125,8 +125,8 @@
 # SLE-DAG: "select_false_vector"
 # SLE-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # SLE-DAG: "runtime_avl_vl_boundary": {
-# SLE-DAG: "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
-# SLE-DAG: "authority": "provider-derived typed tcrv_rvv body/config/runtime facts"
+# SLE-DAG: "source": "selected runtime ABI n -> weft_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+# SLE-DAG: "authority": "provider-derived typed weft_rvv body/config/runtime facts"
 # SLE-DAG: "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc"
 # SLE-DAG: "selected_runtime_abi": {
 # SLE-DAG: "c_name": "n"
@@ -141,17 +141,17 @@
 # SLE-DAG: "uses_loop_vl_for_intrinsics": true
 # SLE-DAG: "uses_runtime_remaining_avl": true
 # SLE-DAG: "route_metadata": {
-# SLE-DAG: "tcrv_rvv.runtime_avl_abi_parameter": "n"
-# SLE-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
-# SLE-DAG: "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1"
-# SLE-DAG: "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+# SLE-DAG: "weft_rvv.runtime_avl_abi_parameter": "n"
+# SLE-DAG: "weft_rvv.runtime_avl_source": "runtime_abi:n"
+# SLE-DAG: "weft_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1"
+# SLE-DAG: "weft_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
 # SLE-DAG: "artifact_abi": {
 # SLE-DAG: "runtime_parameter_count": 4
 # SLE-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # SLE-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
 # SLE-DAG: "status": "dry_run_success"
 
-# HARNESS-CMP: tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(lhs, rhs, out, n);
+# HARNESS-CMP: weft_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(lhs, rhs, out, n);
 # HARNESS-CMP: predicate_true_lanes
 # HARNESS-CMP: predicate_false_lanes
 # HARNESS-CMP: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
@@ -160,7 +160,7 @@
 # HARNESS-CMP: tail_preserved
 # HARNESS-CMP: const size_t counts[] = {0, 1, 7, 16, 23, 257};
 
-# HARNESS-SLE: tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(lhs, rhs, out, n);
+# HARNESS-SLE: weft_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(lhs, rhs, out, n);
 # HARNESS-SLE: predicate_true_lanes
 # HARNESS-SLE: predicate_false_lanes
 # HARNESS-SLE: (lhs[index] <= rhs[index] ? lhs[index] : rhs[index])

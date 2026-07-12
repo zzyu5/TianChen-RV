@@ -1,9 +1,9 @@
 #include "RVVToEmitCInternal.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -20,7 +20,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
@@ -31,17 +31,17 @@ namespace detail {
 
 mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The M-FLAT forward-elementwise scaffold's typed strip-loop lowering, the
     // constructed sibling of emitTypedFlatBlockDotLoopBody. The outer strip loop
     // is owned by the loop op; the per-strip map is re-emitted from the region's
     // core brick (anti-bypass: the brick's strip_index MUST be the loop induction
-    // variable). BYTE-EXACT to the retired monolith tcrv_rvv.ggml_vec_scale_f32
+    // variable). BYTE-EXACT to the retired monolith weft_rvv.ggml_vec_scale_f32
     // emit modulo ONLY the source-op provenance token.
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody;
+    weftrvv::TypedElementwiseLoopBodyOp loopBody;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopBodyOp>(op))
+      if (auto lb = llvm::dyn_cast<weftrvv::TypedElementwiseLoopBodyOp>(op))
         loopBody = lb;
     }
     if (!loopBody)
@@ -51,11 +51,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     // The "reduce" model carries a loop-carried accumulator: the FIRST forward
     // REDUCE operator constructed through the scaffold is rms_norm (the Σx²
     // scalar-double fold + the scalar rsqrt + the vectorized normalize strip),
-    // whose per-element fold rides the tcrv_rvv.elementwise_rms_norm_reduce_core
+    // whose per-element fold rides the weft_rvv.elementwise_rms_norm_reduce_core
     // reduce-core brick. Dispatch to its dedicated re-emit before the map path.
     if (loopBody.getReduceMapModel() == "reduce") {
-      tcrvrvv::ElementwiseRmsNormReduceCoreOp rmsCore;
-      loopBody.getBody().walk([&](tcrvrvv::ElementwiseRmsNormReduceCoreOp o) {
+      weftrvv::ElementwiseRmsNormReduceCoreOp rmsCore;
+      loopBody.getBody().walk([&](weftrvv::ElementwiseRmsNormReduceCoreOp o) {
         rmsCore = o;
       });
       if (!rmsCore)
@@ -70,11 +70,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     // only) forward ROTATE operator constructed through the scaffold is rope
     // (the position-dependent 2x2 rotation on consecutive pairs + the scalar-libm
     // cos/sin angle seam + the f32 theta recurrence), whose per-pair work rides
-    // the tcrv_rvv.elementwise_rope_rotate_core rotate-core brick. Dispatch to its
+    // the weft_rvv.elementwise_rope_rotate_core rotate-core brick. Dispatch to its
     // dedicated re-emit before the map path.
     if (loopBody.getReduceMapModel() == "rotate") {
-      tcrvrvv::ElementwiseRopeRotateCoreOp ropeCore;
-      loopBody.getBody().walk([&](tcrvrvv::ElementwiseRopeRotateCoreOp o) {
+      weftrvv::ElementwiseRopeRotateCoreOp ropeCore;
+      loopBody.getBody().walk([&](weftrvv::ElementwiseRopeRotateCoreOp o) {
         ropeCore = o;
       });
       if (!ropeCore)
@@ -92,25 +92,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     // ops), the COPY map (elementwise_copy_map, y[i] = x[i], the cpy support op), or
     // the GELU map (elementwise_gelu_map, y[i] = gelu(x[i]), the gelu support op).
     // Find the brick + yield.
-    tcrvrvv::ElementwiseScaleMapOp mapOp;
-    tcrvrvv::ElementwiseSiluMapOp siluOp;
-    tcrvrvv::ElementwiseBinaryMapOp binaryOp;
-    tcrvrvv::ElementwiseCopyMapOp copyOp;
-    tcrvrvv::ElementwiseGeluMapOp geluOp;
-    tcrvrvv::TypedElementwiseLoopYieldOp yieldOp;
+    weftrvv::ElementwiseScaleMapOp mapOp;
+    weftrvv::ElementwiseSiluMapOp siluOp;
+    weftrvv::ElementwiseBinaryMapOp binaryOp;
+    weftrvv::ElementwiseCopyMapOp copyOp;
+    weftrvv::ElementwiseGeluMapOp geluOp;
+    weftrvv::TypedElementwiseLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseScaleMapOp>(bodyOp))
+      if (auto o = llvm::dyn_cast<weftrvv::ElementwiseScaleMapOp>(bodyOp))
         mapOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseSiluMapOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::ElementwiseSiluMapOp>(bodyOp))
         siluOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseBinaryMapOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::ElementwiseBinaryMapOp>(bodyOp))
         binaryOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseCopyMapOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::ElementwiseCopyMapOp>(bodyOp))
         copyOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseGeluMapOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::ElementwiseGeluMapOp>(bodyOp))
         geluOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopYieldOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::TypedElementwiseLoopYieldOp>(bodyOp))
         yieldOp = o;
     });
     if (!yieldOp || (!mapOp && !siluOp && !binaryOp && !copyOp && !geluOp))
@@ -155,8 +155,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     if (!buffer || !scalar)
       return rewriter.notifyMatchFailure(mapOp, "scale ABI operand unmapped");
 
-    llvm::StringRef opName = mapOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = mapOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = mapOp.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = mapOp.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type bufferPtrType = buffer.getType();
 
@@ -227,8 +227,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-    tcrvrvv::ElementwiseRmsNormReduceCoreOp rmsCore, mlir::Value avlArg,
+    weftrvv::TypedElementwiseLoopBodyOp loopBody,
+    weftrvv::ElementwiseRmsNormReduceCoreOp rmsCore, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The CONSTRUCTED rms_norm reduce-model body, the reduce sibling of the map
@@ -238,7 +238,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
     // sources the WHOLE rms_norm ABI + the byte-exact scalar-double Σx² fold /
     // scalar rsqrt / vectorized normalize strip from the region's reduce core
     // brick (anti-bypass). BYTE-EXACT to the retired monolith
-    // tcrv_rvv.ggml_rms_norm_f32 emit modulo ONLY the source-op provenance token.
+    // weft_rvv.ggml_rms_norm_f32 emit modulo ONLY the source-op provenance token.
 
     // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
     // variable (region arg 0) and its acc MUST be the loop-carried accumulator
@@ -259,8 +259,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
       return rewriter.notifyMatchFailure(rmsCore,
                                          "rms_norm ABI operand unmapped");
 
-    llvm::StringRef opName = rmsCore.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = rmsCore.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = rmsCore.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = rmsCore.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = outputBuf.getType();
@@ -395,13 +395,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
     // vfmul (byte-exact at vl=32); the register-kept vz is bit-identical to a
     // store-then-reload, so the block_q8_0 is byte-exact to the non-fused
     // rms_norm->mul->quantize pipeline modulo ONLY the eliminated store/reload.
-    tcrvrvv::ElementwiseMulMapOp fusedMul;
+    weftrvv::ElementwiseMulMapOp fusedMul;
     rmsCore.getEpilogue().walk(
-        [&](tcrvrvv::ElementwiseMulMapOp o) { fusedMul = o; });
-    tcrvrvv::ElementwiseQuantizeQ80MapOp quantBrick;
+        [&](weftrvv::ElementwiseMulMapOp o) { fusedMul = o; });
+    weftrvv::ElementwiseQuantizeQ80MapOp quantBrick;
     if (fusedMul)
       fusedMul.getQuantEpilogue().walk(
-          [&](tcrvrvv::ElementwiseQuantizeQ80MapOp o) { quantBrick = o; });
+          [&](weftrvv::ElementwiseQuantizeQ80MapOp o) { quantBrick = o; });
 
     if (quantBrick) {
       mlir::Value weight = valueMap.lookup(fusedMul.getWeight());
@@ -410,10 +410,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
         return rewriter.notifyMatchFailure(
             quantBrick, "fused quant epilogue ABI operand unmapped");
 
-      llvm::StringRef mulOpName = fusedMul.getTCRVEmitCLowerableSourceOpName();
-      llvm::StringRef mulRole = fusedMul.getTCRVEmitCLowerableSourceRole();
-      llvm::StringRef qOpName = quantBrick.getTCRVEmitCLowerableSourceOpName();
-      llvm::StringRef qRole = quantBrick.getTCRVEmitCLowerableSourceRole();
+      llvm::StringRef mulOpName = fusedMul.getWEFTEmitCLowerableSourceOpName();
+      llvm::StringRef mulRole = fusedMul.getWEFTEmitCLowerableSourceRole();
+      llvm::StringRef qOpName = quantBrick.getWEFTEmitCLowerableSourceOpName();
+      llvm::StringRef qRole = quantBrick.getWEFTEmitCLowerableSourceRole();
 
       // The AoS block-format facts (I4): qk=32 (block length / lanes),
       // block_stride=34, the fp16 d at byte 0, the 32 int8 qs at byte 2.
@@ -546,7 +546,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
           });
 
       // FUSED rms_norm->mul EPILOGUE (L2 region splice): if the reduce core
-      // carries a tcrv_rvv.elementwise_mul_map brick in its $epilogue region, the
+      // carries a weft_rvv.elementwise_mul_map brick in its $epilogue region, the
       // normalized vy is multiplied by the weight strip and stored to the fused
       // output z[] IN REGISTER -- the intermediate normalized row is NEVER stored
       // to memory and NEVER reloaded (the producer's normalize store + the
@@ -557,9 +557,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
       // no reduction). Detected up front so the UNFUSED path keeps the pre-fusion
       // op ORDER byte-identical (the y[] store pointer is materialized in its
       // original position, before the strip load).
-      tcrvrvv::ElementwiseMulMapOp mulMap;
+      weftrvv::ElementwiseMulMapOp mulMap;
       rmsCore.getEpilogue().walk(
-          [&](tcrvrvv::ElementwiseMulMapOp o) { mulMap = o; });
+          [&](weftrvv::ElementwiseMulMapOp o) { mulMap = o; });
 
       // const float *xp = x + i;
       mlir::Value xPtr =
@@ -599,8 +599,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
         if (!weight || !zOut)
           return rewriter.notifyMatchFailure(
               mulMap, "fused mul epilogue ABI operand unmapped");
-        llvm::StringRef mulOpName = mulMap.getTCRVEmitCLowerableSourceOpName();
-        llvm::StringRef mulRole = mulMap.getTCRVEmitCLowerableSourceRole();
+        llvm::StringRef mulOpName = mulMap.getWEFTEmitCLowerableSourceOpName();
+        llvm::StringRef mulRole = mulMap.getWEFTEmitCLowerableSourceRole();
         rewriter.create<emitc::VerbatimOp>(
             loc, routeSourceComment(mulOpName, mulRole));
 
@@ -775,8 +775,8 @@ mlir::Value VariantToEmitCFunc::emitGgmlVExpfM2(mlir::ConversionPatternRewriter 
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseSiluMapStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-    tcrvrvv::ElementwiseSiluMapOp siluOp, mlir::Value avlArg,
+    weftrvv::TypedElementwiseLoopBodyOp loopBody,
+    weftrvv::ElementwiseSiluMapOp siluOp, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
@@ -796,8 +796,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseSiluMapStrip(
     if (!input || !outputBuf)
       return rewriter.notifyMatchFailure(siluOp, "silu ABI operand unmapped");
 
-    llvm::StringRef opName = siluOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = siluOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = siluOp.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = siluOp.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = outputBuf.getType();
@@ -885,7 +885,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseSiluMapStrip(
 
 mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitElementwiseSoftMaxReduceStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The CONSTRUCTED soft_max reduce-model body, the exp-sum-reduce sibling of
     // the rms_norm Σx² reduce (emitElementwiseRmsNormReduceStrip) and of the
@@ -894,20 +894,20 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitElementwiseSoftMaxReduceStr
     // arg + the yield that carries it back); this re-emit sources the WHOLE
     // soft_max ABI + the byte-exact fused exp-store-widening-reduce strip from the
     // region's reduce core brick (anti-bypass). BYTE-EXACT to the retired monolith
-    // tcrv_rvv.ggml_vec_soft_max_f32 emit modulo ONLY the source-op provenance
+    // weft_rvv.ggml_vec_soft_max_f32 emit modulo ONLY the source-op provenance
     // token. Returns the f64 sum value (the dispatch wraps it in the function's
     // `return`).
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody;
+    weftrvv::TypedElementwiseLoopBodyOp loopBody;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopBodyOp>(op))
+      if (auto lb = llvm::dyn_cast<weftrvv::TypedElementwiseLoopBodyOp>(op))
         loopBody = lb;
     }
     if (!loopBody)
       return rewriter.notifyMatchFailure(
           scope, "soft_max reduce body missing the typed elementwise loop op");
-    tcrvrvv::ElementwiseSoftMaxReduceCoreOp softMaxCore;
+    weftrvv::ElementwiseSoftMaxReduceCoreOp softMaxCore;
     loopBody.getBody().walk(
-        [&](tcrvrvv::ElementwiseSoftMaxReduceCoreOp o) { softMaxCore = o; });
+        [&](weftrvv::ElementwiseSoftMaxReduceCoreOp o) { softMaxCore = o; });
     if (!softMaxCore)
       return rewriter.notifyMatchFailure(
           loopBody, "soft_max reduce-model body requires the soft_max reduce "
@@ -932,8 +932,8 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitElementwiseSoftMaxReduceStr
       return rewriter.notifyMatchFailure(softMaxCore,
                                          "soft_max ABI operand unmapped");
 
-    llvm::StringRef opName = softMaxCore.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = softMaxCore.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = softMaxCore.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = softMaxCore.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = outputBuf.getType();
@@ -1049,21 +1049,21 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitElementwiseSoftMaxReduceStr
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The q8_0 activation quantizer is now FRONT-DOOR CONSTRUCTED (G3 line-B
     // quantize front door, family-head of the f32->QUANT spectrum): rather than
     // emit the hand-written monolith directly, CONSTRUCT the typed
-    // tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+    // weft_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
     // typed_quantize_row_loop_yield } in place of the abstract
-    // tcrv_rvv.quantize_row_q8_0 and LOWER it via emitTypedQuantizeRowLoopBody ->
+    // weft_rvv.quantize_row_q8_0 and LOWER it via emitTypedQuantizeRowLoopBody ->
     // the SHARED body emitQuantizeRowQ80BodyShared. The emission is DRIVEN by the
     // typed region op-identity + encode_model ([L-6]/[L-8] construction), byte-exact
     // to the retired dispatch-wired q8_0 monolith modulo only the source-op
     // provenance token.
-    tcrvrvv::GgmlQuantizeRowQ80Op quantOp;
+    weftrvv::GgmlQuantizeRowQ80Op quantOp;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto q = llvm::dyn_cast<tcrvrvv::GgmlQuantizeRowQ80Op>(op))
+      if (auto q = llvm::dyn_cast<weftrvv::GgmlQuantizeRowQ80Op>(op))
         quantOp = q;
     }
     if (!quantOp)
@@ -1294,18 +1294,18 @@ void VariantToEmitCFunc::emitQuantizeQ80BlockBody(
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ81(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The q8_1 SIBLING is now FRONT-DOOR CONSTRUCTED (G3 line-B quantize front
-    // door): CONSTRUCT the typed tcrv_rvv.typed_quantize_row_loop_body region
-    // (encode_model "q8_1") in place of the abstract tcrv_rvv.quantize_row_q8_1 and
+    // door): CONSTRUCT the typed weft_rvv.typed_quantize_row_loop_body region
+    // (encode_model "q8_1") in place of the abstract weft_rvv.quantize_row_q8_1 and
     // LOWER it via emitTypedQuantizeRowLoopBody -> the SHARED body
     // emitQuantizeRowQ81BodyShared (the q8_0 amax/scale/narrow SIBLING + the extra
     // vwredsum integer block sum stored as the fp16 block_q8_1.s). Byte-exact to the
     // retired dispatch-wired q8_1 monolith modulo only the source-op provenance token.
-    tcrvrvv::GgmlQuantizeRowQ81Op quantOp;
+    weftrvv::GgmlQuantizeRowQ81Op quantOp;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto q = llvm::dyn_cast<tcrvrvv::GgmlQuantizeRowQ81Op>(op))
+      if (auto q = llvm::dyn_cast<weftrvv::GgmlQuantizeRowQ81Op>(op))
         quantOp = q;
     }
     if (!quantOp)
@@ -1532,20 +1532,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ81BodyShared(
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The heaviest quantizer (ggml quantize_row_q8_K RVV path, riscv/quants.c):
     // a QK_K=256 super-block loop -- a min/max reduction, a symmetric iscale, the
     // vfcvt/vnclip RNE narrow, the FLOAT d store, the per-16 vwredsum bsums, and
     // the zero-block memset special case. Now FRONT-DOOR CONSTRUCTED (G3 line-B
-    // quantize front door): CONSTRUCT the typed tcrv_rvv.typed_quantize_row_loop_body
-    // region (encode_model "q8_K") in place of the abstract tcrv_rvv.quantize_row_q8_K
+    // quantize front door): CONSTRUCT the typed weft_rvv.typed_quantize_row_loop_body
+    // region (encode_model "q8_K") in place of the abstract weft_rvv.quantize_row_q8_K
     // and LOWER it via emitTypedQuantizeRowLoopBody -> the SHARED body
     // emitQuantizeRowQ8KBodyShared. Byte-exact to the retired dispatch-wired q8_K
     // monolith modulo only the source-op provenance token.
-    tcrvrvv::GgmlQuantizeRowQ8KOp quantOp;
+    weftrvv::GgmlQuantizeRowQ8KOp quantOp;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto q = llvm::dyn_cast<tcrvrvv::GgmlQuantizeRowQ8KOp>(op))
+      if (auto q = llvm::dyn_cast<weftrvv::GgmlQuantizeRowQ8KOp>(op))
         quantOp = q;
     }
     if (!quantOp)
@@ -1995,8 +1995,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ8KBodyShared(
   }
 
 // Lower the CONSTRUCTED streaming quantize_row region: walk the
-// tcrv_rvv.typed_quantize_row_loop_body, extract its per-block ENCODE brick
-// (tcrv_rvv.quantize_row_encode_core) + the VOID yield, enforce the anti-bypass
+// weft_rvv.typed_quantize_row_loop_body, extract its per-block ENCODE brick
+// (weft_rvv.quantize_row_encode_core) + the VOID yield, enforce the anti-bypass
 // invariant (the brick's block_index MUST be the region induction variable / region
 // arg 0, so the ABI bases are sourced from the BRICK not inferred), and re-emit the
 // whole nb block loop + per-block encode via the SHARED body emitter -- byte-exact to
@@ -2004,11 +2004,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ8KBodyShared(
 // emitTypedDequantizeRowLoopBody (f32->QUANT rather than QUANT->f32).
 mlir::LogicalResult VariantToEmitCFunc::emitTypedQuantizeRowLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-  tcrvrvv::TypedQuantizeRowLoopBodyOp loopBody;
+  weftrvv::TypedQuantizeRowLoopBodyOp loopBody;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedQuantizeRowLoopBodyOp>(op))
+    if (auto lb = llvm::dyn_cast<weftrvv::TypedQuantizeRowLoopBodyOp>(op))
       loopBody = lb;
   }
   if (!loopBody)
@@ -2025,13 +2025,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedQuantizeRowLoopBody(
         loopBody, "typed quantize_row loop body only lowers the constructed "
                   "streaming encode_models q8_0/q8_1/q8_K");
 
-  tcrvrvv::QuantizeRowEncodeCoreOp coreOp;
-  tcrvrvv::TypedQuantizeRowLoopYieldOp yieldOp;
+  weftrvv::QuantizeRowEncodeCoreOp coreOp;
+  weftrvv::TypedQuantizeRowLoopYieldOp yieldOp;
   loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-    if (auto o = llvm::dyn_cast<tcrvrvv::QuantizeRowEncodeCoreOp>(bodyOp))
+    if (auto o = llvm::dyn_cast<weftrvv::QuantizeRowEncodeCoreOp>(bodyOp))
       coreOp = o;
     else if (auto o =
-                 llvm::dyn_cast<tcrvrvv::TypedQuantizeRowLoopYieldOp>(bodyOp))
+                 llvm::dyn_cast<weftrvv::TypedQuantizeRowLoopYieldOp>(bodyOp))
       yieldOp = o;
   });
   mlir::Block &coreBlock = loopBody.getBody().front();
@@ -2057,8 +2057,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedQuantizeRowLoopBody(
     return rewriter.notifyMatchFailure(loopBody,
                                        "typed quantize_row ABI operand unmapped");
 
-  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
   // Dispatch on encode_model to the per-format leaf: each re-emits the whole nb
   // block loop + per-block encode via the SHARED body emitter, byte-exact to the
   // retired per-format monolith.
@@ -2074,21 +2074,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedQuantizeRowLoopBody(
 
 // The quantize FRONT DOOR (the streaming activation-quantizer family {q8_0 family-head
 // + the q8_1 sibling + the q8_K K-quant quantizer}): CONSTRUCT the typed
-// tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+// weft_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
 // typed_quantize_row_loop_yield } in place of the abstract per-format
-// tcrv_rvv.quantize_row_q8_{0,1,K}, then LOWER it via emitTypedQuantizeRowLoopBody. The
+// weft_rvv.quantize_row_q8_{0,1,K}, then LOWER it via emitTypedQuantizeRowLoopBody. The
 // construction is a genuine IR rewrite (the emission is DRIVEN by the typed region
 // op-identity + encode_model, not the abstract op identity alone), so these formats are
 // CONSTRUCTED ([L-6]/[L-8]), not dispatch-wired. The MIRROR of
 // constructOrEmitGgmlDequantizeRow's construction half.
 mlir::LogicalResult VariantToEmitCFunc::constructQuantizeRowRegionAndLower(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
+    weftrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
     mlir::Value output, mlir::Value n, llvm::StringRef encodeModel, int64_t qk,
     int64_t stride, int64_t scaleOff, int64_t quantOff, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-  // CONSTRUCT the typed tcrv_rvv.typed_quantize_row_loop_body region in place of
+  // CONSTRUCT the typed weft_rvv.typed_quantize_row_loop_body region in place of
   // the abstract quantOp via the SHARED byte-exact construction
   // (RVVQuantizeRowConstruction) so the pre-emitc RVVQuantizeRowStreamFrontDoor pass
   // and THIS in-emitc fallback build the IDENTICAL typed region. The per-format ABI
@@ -2096,8 +2096,8 @@ mlir::LogicalResult VariantToEmitCFunc::constructQuantizeRowRegionAndLower(
   // entry points are the SAME facts lookupQuantizeRowStreamFacts returns, so the
   // region is byte-identical either way. Then LOWER it -- the emission is DRIVEN by
   // the typed region op-identity + encode_model ([L-6]/[L-8] construction).
-  tcrvrvv::QuantizeRowStreamFacts facts{qk, stride, scaleOff, quantOff};
-  if (mlir::failed(tcrvrvv::constructTypedQuantizeRowLoopBody(
+  weftrvv::QuantizeRowStreamFacts facts{qk, stride, scaleOff, quantOff};
+  if (mlir::failed(weftrvv::constructTypedQuantizeRowLoopBody(
           rewriter, quantOp, input, output, n, encodeModel, facts)))
     return mlir::failure();
 
@@ -2107,8 +2107,8 @@ mlir::LogicalResult VariantToEmitCFunc::constructQuantizeRowRegionAndLower(
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-    tcrvrvv::ElementwiseRopeRotateCoreOp ropeCore, mlir::Value avlArg,
+    weftrvv::TypedElementwiseLoopBodyOp loopBody,
+    weftrvv::ElementwiseRopeRotateCoreOp ropeCore, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The CONSTRUCTED rope rotate-model body, the per-pair-recurrence sibling of
@@ -2118,7 +2118,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     // carries it back); this re-emit sources the WHOLE rope ABI + the byte-exact
     // scalar cos/sin angle seam / position-dependent 2x2 rotation / f32 theta
     // recurrence from the region's rotate core brick (anti-bypass). BYTE-EXACT to
-    // the retired monolith tcrv_rvv.ggml_rope_norm_f32 emit modulo ONLY the
+    // the retired monolith weft_rvv.ggml_rope_norm_f32 emit modulo ONLY the
     // source-op provenance token.
 
     // Anti-bypass (I7): the brick's pair_index MUST be the loop induction variable
@@ -2140,8 +2140,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     if (!input || !output || !thetaBase || !thetaScale)
       return rewriter.notifyMatchFailure(ropeCore, "rope ABI operand unmapped");
 
-    llvm::StringRef opName = ropeCore.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = ropeCore.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = ropeCore.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = ropeCore.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
@@ -2482,9 +2482,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitForwardGeluScalarLoop(
 }
 
 // NOTE: emitGgmlForwardElementwiseF32 (the DISPATCH-WIRED support-op monolith
-// dispatcher over tcrv_rvv.{vec_add,vec_mul,vec_cpy,gelu}_f32) was RETIRED at the
+// dispatcher over weft_rvv.{vec_add,vec_mul,vec_cpy,gelu}_f32) was RETIRED at the
 // support flip (dispatch-wired -> constructed, C_construct 73->77). add/mul/cpy/gelu
-// are now CONSTRUCTED through the abstract tcrv_rvv.ggml_forward_elementwise source
+// are now CONSTRUCTED through the abstract weft_rvv.ggml_forward_elementwise source
 // op + the pre-emitc front door, re-emitted below from the region core brick by
 // emitElementwise{Binary,Copy,Gelu}MapStrip -- which delegate to the SAME SHARED
 // byte-exact helpers (emitForwardVecMapStrip / emitForwardGeluScalarLoop) the retired
@@ -2495,12 +2495,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitForwardGeluScalarLoop(
 // region's core brick (anti-bypass: the strip_index MUST be the loop induction
 // variable), then delegate to the SHARED byte-exact strip/loop body. Byte-exact to
 // the support-op emit modulo the source-op provenance token
-// (tcrv_rvv.{vec_add,vec_mul,vec_cpy,gelu}_f32 ->
-// tcrv_rvv.elementwise_{binary,copy,gelu}_map).
+// (weft_rvv.{vec_add,vec_mul,vec_cpy,gelu}_f32 ->
+// weft_rvv.elementwise_{binary,copy,gelu}_map).
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseBinaryMapStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-    tcrvrvv::ElementwiseBinaryMapOp binaryOp, mlir::Value avlArg,
+    weftrvv::TypedElementwiseLoopBodyOp loopBody,
+    weftrvv::ElementwiseBinaryMapOp binaryOp, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
   mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
@@ -2518,15 +2518,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseBinaryMapStrip(
   llvm::StringRef intrin = binaryOp.getBinaryOp() == "add" ? "vfadd" : "vfmul";
   return emitForwardVecMapStrip(
       rewriter, loc, {lhs, rhs}, output,
-      binaryOp.getTCRVEmitCLowerableSourceOpName(),
-      binaryOp.getTCRVEmitCLowerableSourceRole(),
+      binaryOp.getWEFTEmitCLowerableSourceOpName(),
+      binaryOp.getWEFTEmitCLowerableSourceRole(),
       riscvIntrinsicName(intrin, 32, "m8", "f32"), sizeType, avlArg);
 }
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseCopyMapStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-    tcrvrvv::ElementwiseCopyMapOp copyOp, mlir::Value avlArg,
+    weftrvv::TypedElementwiseLoopBodyOp loopBody,
+    weftrvv::ElementwiseCopyMapOp copyOp, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
   mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
@@ -2539,15 +2539,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseCopyMapStrip(
   if (!input || !output)
     return rewriter.notifyMatchFailure(copyOp, "copy-map ABI operand unmapped");
   return emitForwardVecMapStrip(rewriter, loc, {input}, output,
-                                copyOp.getTCRVEmitCLowerableSourceOpName(),
-                                copyOp.getTCRVEmitCLowerableSourceRole(),
+                                copyOp.getWEFTEmitCLowerableSourceOpName(),
+                                copyOp.getWEFTEmitCLowerableSourceRole(),
                                 /*binaryCallee=*/"", sizeType, avlArg);
 }
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseGeluMapStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
-    tcrvrvv::ElementwiseGeluMapOp geluOp, mlir::Value avlArg,
+    weftrvv::TypedElementwiseLoopBodyOp loopBody,
+    weftrvv::ElementwiseGeluMapOp geluOp, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
   mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
@@ -2561,22 +2561,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseGeluMapStrip(
     return rewriter.notifyMatchFailure(geluOp, "gelu-map ABI operand unmapped");
   return emitForwardGeluScalarLoop(
       rewriter, loc, input, output,
-      geluOp.getTCRVEmitCLowerableSourceOpName(),
-      geluOp.getTCRVEmitCLowerableSourceRole(), sizeType, avlArg);
+      geluOp.getWEFTEmitCLowerableSourceOpName(),
+      geluOp.getWEFTEmitCLowerableSourceRole(), sizeType, avlArg);
 }
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // The DISPATCH-WIRED dequantize_row family body: the single
-    // tcrv_rvv.dequantize_row op's bounded `format` routes to a hand-written AoS
+    // weft_rvv.dequantize_row op's bounded `format` routes to a hand-written AoS
     // block-decode ([L-6] wiring != construction). The decode is byte-exact to
     // ggml's reference dequantize_row_<format> (a scalar block loop); the per-strip
     // f32 stores need no reduction, so LMUL/strip-count are correctness-free.
-    tcrvrvv::GgmlDequantizeRowOp deqOp;
+    weftrvv::GgmlDequantizeRowOp deqOp;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto d = llvm::dyn_cast<tcrvrvv::GgmlDequantizeRowOp>(op))
+      if (auto d = llvm::dyn_cast<weftrvv::GgmlDequantizeRowOp>(op))
         deqOp = d;
     }
     if (!deqOp)
@@ -2588,8 +2588,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
       return rewriter.notifyMatchFailure(deqOp, "dequant ABI operand unmapped");
 
     llvm::StringRef format = deqOp.getFormat();
-    llvm::StringRef opName = deqOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = deqOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = deqOp.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = deqOp.getWEFTEmitCLowerableSourceRole();
 
     // The EXTENDED formats (K-quant super-blocks / FP4 codebooks / ternary /
     // iq4_nl) each route to their own hand-written scalar super-block decode
@@ -3148,8 +3148,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
 }
 
 // Lower the CONSTRUCTED streaming dequantize_row region: walk the
-// tcrv_rvv.typed_dequantize_row_loop_body, extract its per-block DECODE brick
-// (tcrv_rvv.dequantize_row_decode_core) + the VOID yield, enforce the anti-bypass
+// weft_rvv.typed_dequantize_row_loop_body, extract its per-block DECODE brick
+// (weft_rvv.dequantize_row_decode_core) + the VOID yield, enforce the anti-bypass
 // invariant (the brick's block_index MUST be the region induction variable / region
 // arg 0, so the ABI bases are sourced from the BRICK not inferred), and re-emit the
 // whole nb block loop + per-block decode via the SHARED body emitter -- byte-exact to
@@ -3157,11 +3157,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
 // lowering (the streaming analog of q1_0/nvfp4's flat single-core-brick emit).
 mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-  tcrvrvv::TypedDequantizeRowLoopBodyOp loopBody;
+  weftrvv::TypedDequantizeRowLoopBodyOp loopBody;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedDequantizeRowLoopBodyOp>(op))
+    if (auto lb = llvm::dyn_cast<weftrvv::TypedDequantizeRowLoopBodyOp>(op))
       loopBody = lb;
   }
   if (!loopBody)
@@ -3198,13 +3198,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
                   "ternary-grid leaves iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the "
                   "ternary super-blocks tq1_0/tq2_0");
 
-  tcrvrvv::DequantizeRowDecodeCoreOp coreOp;
-  tcrvrvv::TypedDequantizeRowLoopYieldOp yieldOp;
+  weftrvv::DequantizeRowDecodeCoreOp coreOp;
+  weftrvv::TypedDequantizeRowLoopYieldOp yieldOp;
   loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-    if (auto o = llvm::dyn_cast<tcrvrvv::DequantizeRowDecodeCoreOp>(bodyOp))
+    if (auto o = llvm::dyn_cast<weftrvv::DequantizeRowDecodeCoreOp>(bodyOp))
       coreOp = o;
     else if (auto o =
-                 llvm::dyn_cast<tcrvrvv::TypedDequantizeRowLoopYieldOp>(bodyOp))
+                 llvm::dyn_cast<weftrvv::TypedDequantizeRowLoopYieldOp>(bodyOp))
       yieldOp = o;
   });
   mlir::Block &coreBlock = loopBody.getBody().front();
@@ -3230,8 +3230,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     return rewriter.notifyMatchFailure(loopBody,
                                        "typed dequantize_row ABI operand unmapped");
 
-  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
   // Dispatch on decode_model to the per-format leaf: each re-emits the whole nb
   // block loop + per-block decode via the SHARED body emitter, byte-exact to the
   // dispatch-wired monolith.
@@ -3290,8 +3290,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
 // The dequant FRONT DOOR (the flat streaming family {q8_0 family-head + the
 // q4_0/q4_1/q5_0/q5_1 nibble leaves} + the QK_K=256 K-quant super-block family
 // {q2_K/q3_K/q4_K/q5_K/q6_K}): CONSTRUCT the typed
-// tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
-// typed_dequantize_row_loop_yield } in place of the abstract tcrv_rvv.dequantize_row,
+// weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
+// typed_dequantize_row_loop_yield } in place of the abstract weft_rvv.dequantize_row,
 // then LOWER it via emitTypedDequantizeRowLoopBody. The construction is a genuine IR
 // rewrite (the emission is DRIVEN by the typed region op-identity + decode_model, not
 // the abstract format string), so these formats are CONSTRUCTED ([L-6]/[L-8]), not
@@ -3305,11 +3305,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
 // unrecognized format falls through to the dispatch-wired monolith.
 mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-  tcrvrvv::GgmlDequantizeRowOp deqOp;
+  weftrvv::GgmlDequantizeRowOp deqOp;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto d = llvm::dyn_cast<tcrvrvv::GgmlDequantizeRowOp>(op))
+    if (auto d = llvm::dyn_cast<weftrvv::GgmlDequantizeRowOp>(op))
       deqOp = d;
   }
   if (!deqOp)
@@ -3320,18 +3320,18 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
   // pre-emitc RVVDequantizeRowStreamFrontDoor pass and THIS in-emitc fallback build
   // the IDENTICAL typed region. Every modeled format now has facts; only an
   // unrecognized format (lookup == nullopt) stays DISPATCH-WIRED (the monolith).
-  std::optional<tcrvrvv::DequantizeRowStreamFacts> facts =
-      tcrvrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
+  std::optional<weftrvv::DequantizeRowStreamFacts> facts =
+      weftrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
   if (!facts)
     return emitGgmlDequantizeRow(rewriter, loc, scope, avlArg, sizeType,
                                  valueMap);
 
-  // CONSTRUCT the typed tcrv_rvv.typed_dequantize_row_loop_body region in place of
+  // CONSTRUCT the typed weft_rvv.typed_dequantize_row_loop_body region in place of
   // the abstract deqOp (the SAME construction the pre-emitc front door runs), then
   // LOWER it -- the emission is DRIVEN by the typed region op-identity + decode_model
   // ([L-6]/[L-8] construction), byte-exact to the retired monolith modulo only the
   // source-op provenance token.
-  if (mlir::failed(tcrvrvv::constructTypedDequantizeRowLoopBody(rewriter, deqOp,
+  if (mlir::failed(weftrvv::constructTypedDequantizeRowLoopBody(rewriter, deqOp,
                                                                *facts)))
     return mlir::failure();
 
@@ -3705,18 +3705,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
                                         53,   69,   89,  113};
   llvm::StringRef codebookName;
   if (fmt == MXFP4) {
-    codebookName = "tcrv_dequant_mxfp4_kvalues";
+    codebookName = "weft_dequant_mxfp4_kvalues";
     emitCodebookDecl(codebookName, kvaluesMxfp4);
   } else if (fmt == NVFP4) {
-    codebookName = "tcrv_dequant_nvfp4_kvalues";
+    codebookName = "weft_dequant_nvfp4_kvalues";
     emitCodebookDecl(codebookName, kvaluesMxfp4);
   } else if (fmt == IQ4NL) {
-    codebookName = "tcrv_dequant_iq4nl_kvalues";
+    codebookName = "weft_dequant_iq4nl_kvalues";
     emitCodebookDecl(codebookName, kvaluesIq4nl);
   }
   if (fmt == TQ1) {
     rewriter.create<emitc::VerbatimOp>(
-        loc, "static const uint8_t tcrv_dequant_tq1_0_pow3[6] = "
+        loc, "static const uint8_t weft_dequant_tq1_0_pow3[6] = "
              "{1, 3, 9, 27, 81, 243};");
   }
 
@@ -3750,7 +3750,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
     emitIQ1MCanonicalGridTableDecl(rewriter, loc);
     break;
   case IQ4XS:
-    codebookName = "tcrv_dequant_iq4nl_kvalues";
+    codebookName = "weft_dequant_iq4nl_kvalues";
     emitCodebookDecl(codebookName, kvaluesIq4nl);
     break;
   default: break;
@@ -3878,7 +3878,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
     } else if (fmt == TQ1) {
       // 1.6-bit ternary base-3: q=qs*pow3[n] (mod 256); xi=((q*3)>>8); y=(xi-1)*d.
       mlir::Value d = fp16ReadAt(xb, 52);
-      llvm::StringRef pow3 = "tcrv_dequant_tq1_0_pow3";
+      llvm::StringRef pow3 = "weft_dequant_tq1_0_pow3";
       mlir::Value pow3Base =
           rewriter.create<emitc::LiteralOp>(loc, u8PtrType, pow3).getResult();
       // xi = ((uint8_t)(qs*pow3n) * 3) >> 8; store (xi-1)*d at outIdx.
@@ -4200,7 +4200,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
     } else if (fmt == IQ1S) {
       // d@0, qs[32]@2, qh(u16)[8]@34. iq1s_grid ternary (int8), delta = +-0.125.
       mlir::Value d = fp16ReadAt(xb, 0);
-      mlir::Value grid = castI8Base("tcrv_iq1s_grid", u64PtrType);
+      mlir::Value grid = castI8Base("weft_iq1s_grid", u64PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq1_s_decode"));
       for (int64_t ib = 0; ib < 8; ++ib) {
@@ -4235,7 +4235,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
       // idiom the iq1_m block-dot vec_dot uses). iq1s_grid ternary, delta=+-0.125.
       mlir::Type u16Type = emitc::OpaqueType::get(ctx, "uint16_t");
       mlir::Type u16LValuePtrType = emitc::PointerType::get(u16Type);
-      mlir::Value grid = castI8Base("tcrv_iq1m_grid", u64PtrType);
+      mlir::Value grid = castI8Base("weft_iq1m_grid", u64PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq1m_scale_reconstruct"));
       mlir::Value sc0 = u16ReadAt(xb, inputPtrType, sizeLit(48));
@@ -4314,8 +4314,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
       // aux group per ib32: aux8[l] = grid index byte, aux32[1] = scale + sign
       // selectors. Byte-exact to dequantize_row_iq2_xxs.
       mlir::Value d = fp16ReadAt(xb, 0);
-      mlir::Value grid = castI8Base("tcrv_iq2xxs_grid", i64PtrType);
-      mlir::Value signs = plainBase("tcrv_iq2xxs_signs64", i8PtrType);
+      mlir::Value grid = castI8Base("weft_iq2xxs_grid", i64PtrType);
+      mlir::Value signs = plainBase("weft_iq2xxs_signs64", i8PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq2_xxs_decode"));
       for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
@@ -4345,8 +4345,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
       // d@0, qs(u16)[32]@2, scales[8]@66. grid-512 (int64) + signs64. Byte-exact
       // to dequantize_row_iq2_xs.
       mlir::Value d = fp16ReadAt(xb, 0);
-      mlir::Value grid = castI8Base("tcrv_iq2xs_grid", i64PtrType);
-      mlir::Value signs = plainBase("tcrv_iq2xs_signs64", i8PtrType);
+      mlir::Value grid = castI8Base("weft_iq2xs_grid", i64PtrType);
+      mlir::Value signs = plainBase("weft_iq2xs_signs64", i8PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq2_xs_decode"));
       for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
@@ -4379,8 +4379,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
       // grid-1024 (int64) + signs256 (indexed by the raw sign byte). Byte-exact to
       // dequantize_row_iq2_s.
       mlir::Value d = fp16ReadAt(xb, 0);
-      mlir::Value grid = castI8Base("tcrv_iq2s_grid", i64PtrType);
-      mlir::Value signs = plainBase("tcrv_iq2s_signs256", i8PtrType);
+      mlir::Value grid = castI8Base("weft_iq2s_grid", i64PtrType);
+      mlir::Value signs = plainBase("weft_iq2s_signs256", i8PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq2_s_decode"));
       for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
@@ -4419,8 +4419,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
       // d@0, qs[96]@2, scales_and_signs @66 (=qs+64). grid-of-4 (uint32) + the
       // ksigns selector table. Byte-exact to dequantize_row_iq3_xxs.
       mlir::Value d = fp16ReadAt(xb, 0);
-      mlir::Value grid = castI8Base("tcrv_iq3xxs_grid", u32PtrType);
-      mlir::Value ksigns = plainBase("tcrv_iq3xxs_ksigns", u8PtrType);
+      mlir::Value grid = castI8Base("weft_iq3xxs_grid", u32PtrType);
+      mlir::Value ksigns = plainBase("weft_iq3xxs_ksigns", u8PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq3_xxs_decode"));
       for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
@@ -4466,7 +4466,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
       // g (0..3) runs TWO passes (qh[0] then qh[1]). Byte-exact to
       // dequantize_row_iq3_s.
       mlir::Value d = fp16ReadAt(xb, 0);
-      mlir::Value grid = castI8Base("tcrv_iq3s_grid", u32PtrType);
+      mlir::Value grid = castI8Base("weft_iq3s_grid", u32PtrType);
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "iq3_s_decode"));
       auto pass = [&](mlir::Value qhByte, mlir::Value db, int64_t qsBase,
@@ -4527,4 +4527,4 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

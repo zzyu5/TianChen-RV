@@ -1,7 +1,7 @@
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
 
-#include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Dialect/Exec/IR/CapabilityProviderComposition.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -17,23 +17,23 @@
 
 #include <cctype>
 
-using namespace tianchenrv::tcrv::exec;
-namespace exec = tianchenrv::tcrv::exec;
+using namespace weft::exec;
+namespace exec = weft::exec;
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
+#include "Weft/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecEnums.cpp.inc"
+#include "Weft/Dialect/Exec/IR/ExecEnums.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
+#include "Weft/Dialect/Exec/IR/ExecAttrs.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.cpp.inc"
+#include "Weft/Dialect/Exec/IR/ExecOps.cpp.inc"
 
 namespace {
 
 constexpr llvm::StringLiteral kIdAttrName("id");
-// Capability-fact classification axis ([S-1] closed enum) on tcrv.exec.capability.
+// Capability-fact classification axis ([S-1] closed enum) on weft.exec.capability.
 constexpr llvm::StringLiteral kKindAttrName("kind");
 // Op-classification axes, disambiguated from the capability-fact kind:
 //   target profile / capability-provider classification, and region tag.
@@ -259,13 +259,13 @@ mlir::LogicalResult addCapabilityProviderToKernelScope(
   if (!capabilityProviderSymbols.insert(symbolName).second)
     return provider->emitOpError()
            << "duplicates capability-provider symbol @" << symbolName
-           << " in enclosing tcrv.exec.kernel capability scope";
+           << " in enclosing weft.exec.kernel capability scope";
 
   llvm::StringRef id = exec::getCapabilityProviderID(provider);
   if (!id.trim().empty() && !capabilityIDs.insert(id).second)
     return provider->emitOpError()
            << "duplicates capability-provider id '" << id
-           << "' in enclosing tcrv.exec.kernel";
+           << "' in enclosing weft.exec.kernel";
 
   return mlir::success();
 }
@@ -457,7 +457,7 @@ verifyEmissionPlanRequiredCapabilities(DiagnosticOp diagnostic,
       return diagnostic.emitOpError()
              << "emission-plan diagnostic references unknown required "
                 "capability @"
-             << symbolRef.getValue() << " in enclosing tcrv.exec.kernel";
+             << symbolRef.getValue() << " in enclosing weft.exec.kernel";
   }
 
   return mlir::success();
@@ -507,7 +507,7 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   KernelOp kernel = getEnclosingKernel(op);
   if (!kernel)
     return diagnostic.emitOpError()
-           << "must be nested in a tcrv.exec.kernel to resolve emission-plan "
+           << "must be nested in a weft.exec.kernel to resolve emission-plan "
               "diagnostic target";
 
   mlir::Operation *target =
@@ -515,14 +515,14 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   if (!target)
     return diagnostic.emitOpError()
            << "references unknown emission-plan diagnostic target variant @"
-           << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+           << targetAttr.getValue() << " in enclosing weft.exec.kernel";
 
   auto targetVariant = llvm::dyn_cast<VariantOp>(target);
   if (!targetVariant)
     return diagnostic.emitOpError()
            << "emission-plan diagnostic target @" << targetAttr.getValue()
            << " resolves to a direct sibling symbol that is not a "
-              "tcrv.exec.variant";
+              "weft.exec.variant";
 
   bool requiresMaterializedCapabilities =
       statusAttr.getValue() == kEmissionPlanSupportedStatusValue;
@@ -658,13 +658,13 @@ mlir::LogicalResult KernelOp::verify() {
     if (!targetAttr)
       return emitOpError()
              << "requires attribute '" << kTargetAttrName
-             << "' to be a module-level tcrv.exec.target symbol reference";
+             << "' to be a module-level weft.exec.target symbol reference";
 
     mlir::Operation *resolved =
         findModuleLevelSymbol(*this, targetAttr.getValue());
     if (!resolved)
       return emitOpError()
-             << "target references unknown module-level tcrv.exec.target @"
+             << "target references unknown module-level weft.exec.target @"
              << targetAttr.getValue();
 
     auto target = llvm::dyn_cast<TargetOp>(resolved);
@@ -672,19 +672,19 @@ mlir::LogicalResult KernelOp::verify() {
       return emitOpError()
              << "target @" << targetAttr.getValue()
              << " resolves to a module-level symbol that is not a "
-                "tcrv.exec.target";
+                "weft.exec.target";
 
     if (!exec::isCapabilityProviderTarget(target))
       return emitOpError()
              << "target @" << targetAttr.getValue()
-             << " must reference a capability-provider tcrv.exec.target with "
+             << " must reference a capability-provider weft.exec.target with "
                 "non-empty id and target_kind";
 
     if (findDirectKernelSymbol(*this, targetAttr.getValue()))
       return emitOpError()
              << "target @" << targetAttr.getValue()
              << " is shadowed by a direct symbol in the same "
-                "tcrv.exec.kernel";
+                "weft.exec.kernel";
 
     if (mlir::failed(addCapabilityProviderToKernelScope(
             *this, target.getOperation(), directCapabilityIDs,
@@ -708,7 +708,7 @@ mlir::LogicalResult KernelOp::verify() {
     if (!emissionPlanTargets.insert(targetAttr.getValue()).second)
       return diagnostic.emitOpError()
              << "duplicates emission-plan diagnostic for target @"
-             << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+             << targetAttr.getValue() << " in enclosing weft.exec.kernel";
 
     return mlir::success();
   };
@@ -719,14 +719,14 @@ mlir::LogicalResult KernelOp::verify() {
         return capability.emitOpError()
                << "duplicates capability-provider symbol @"
                << capability.getSymName()
-               << " in enclosing tcrv.exec.kernel capability scope";
+               << " in enclosing weft.exec.kernel capability scope";
 
       auto idAttr = capability->getAttrOfType<mlir::StringAttr>(kIdAttrName);
       if (idAttr && !idAttr.getValue().trim().empty() &&
           !directCapabilityIDs.insert(idAttr.getValue()).second)
         return capability.emitOpError()
                << "duplicates capability id '" << idAttr.getValue()
-               << "' in enclosing tcrv.exec.kernel";
+               << "' in enclosing weft.exec.kernel";
       continue;
     }
 
@@ -754,7 +754,7 @@ mlir::LogicalResult KernelOp::verify() {
           !directMemWindowABIRoles.insert(roleAttr.getValue()).second)
         return memWindow.emitOpError()
                << "duplicates mem_window ABI role '" << roleAttr.getValue()
-               << "' in enclosing tcrv.exec.kernel";
+               << "' in enclosing weft.exec.kernel";
       continue;
     }
 
@@ -765,7 +765,7 @@ mlir::LogicalResult KernelOp::verify() {
           !directRuntimeParamABIRoles.insert(roleAttr.getValue()).second)
         return runtimeParam.emitOpError()
                << "duplicates runtime_param ABI role '" << roleAttr.getValue()
-               << "' in enclosing tcrv.exec.kernel";
+               << "' in enclosing weft.exec.kernel";
       continue;
     }
 
@@ -827,7 +827,7 @@ mlir::LogicalResult VariantOp::verify() {
   KernelOp kernel = getEnclosingKernel(getOperation());
   if (!kernel)
     return emitOpError()
-           << "must be nested in a tcrv.exec.kernel to resolve required "
+           << "must be nested in a weft.exec.kernel to resolve required "
               "capabilities";
 
   for (mlir::Attribute requiredCapability : requiresAttr) {
@@ -841,7 +841,7 @@ mlir::LogicalResult VariantOp::verify() {
     if (!kernelContainsCapability(kernel, symbolRef.getValue()))
       return emitOpError()
              << "requires unknown capability @" << symbolRef.getValue()
-             << " in enclosing tcrv.exec.kernel";
+             << " in enclosing weft.exec.kernel";
   }
 
   return mlir::success();
@@ -878,7 +878,7 @@ mlir::LogicalResult MemWindowOp::verify() {
 
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()
-           << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+           << "must be nested in a weft.exec.kernel or weft.exec.variant";
 
   return mlir::success();
 }
@@ -925,7 +925,7 @@ mlir::LogicalResult RuntimeParamOp::verify() {
 
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()
-           << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+           << "must be nested in a weft.exec.kernel or weft.exec.variant";
 
   return mlir::success();
 }
@@ -944,7 +944,7 @@ mlir::LogicalResult HartParallelOp::verify() {
            << "' when present";
 
   if (!getOperation()->getParentOfType<VariantOp>())
-    return emitOpError() << "must be nested in a tcrv.exec.variant";
+    return emitOpError() << "must be nested in a weft.exec.variant";
 
   return mlir::success();
 }
@@ -966,7 +966,7 @@ mlir::LogicalResult RegionOp::verify() {
            << "' when present";
 
   if (!getOperation()->getParentOfType<VariantOp>())
-    return emitOpError() << "must be nested in a tcrv.exec.variant";
+    return emitOpError() << "must be nested in a weft.exec.variant";
 
   return mlir::success();
 }
@@ -1010,7 +1010,7 @@ mlir::LogicalResult DiagnosticOp::verify() {
 
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()
-           << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+           << "must be nested in a weft.exec.kernel or weft.exec.variant";
 
   if (isEmissionPlanDiagnostic(*this))
     return verifyEmissionPlanDiagnostic(*this);
@@ -1021,13 +1021,13 @@ mlir::LogicalResult DiagnosticOp::verify() {
     KernelOp kernel = getEnclosingKernel(getOperation());
     if (!kernel)
       return emitOpError()
-             << "must be nested in a tcrv.exec.kernel to resolve diagnostic "
+             << "must be nested in a weft.exec.kernel to resolve diagnostic "
                 "target";
 
     if (!kernelContainsVariant(kernel, targetAttr.getValue()))
       return emitOpError()
              << "references unknown diagnostic target variant @"
-             << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+             << targetAttr.getValue() << " in enclosing weft.exec.kernel";
   }
 
   return mlir::success();
@@ -1036,7 +1036,7 @@ mlir::LogicalResult DiagnosticOp::verify() {
 mlir::LogicalResult DispatchOp::verify() {
   if (!llvm::isa_and_present<KernelOp>(getOperation()->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a tcrv.exec.kernel";
+           << "must be nested directly in a weft.exec.kernel";
 
   unsigned caseCount = 0;
   unsigned fallbackCount = 0;
@@ -1054,7 +1054,7 @@ mlir::LogicalResult DispatchOp::verify() {
       if (!caseTargets.insert(target).second)
         return dispatchCase.emitOpError()
                << "duplicates dispatch case target @" << target
-               << " in the same tcrv.exec.dispatch";
+               << " in the same weft.exec.dispatch";
       continue;
     }
 
@@ -1064,17 +1064,17 @@ mlir::LogicalResult DispatchOp::verify() {
     }
 
     return op.emitOpError()
-           << "is not allowed in tcrv.exec.dispatch; expected only "
-              "tcrv.exec.case or tcrv.exec.fallback";
+           << "is not allowed in weft.exec.dispatch; expected only "
+              "weft.exec.case or weft.exec.fallback";
   }
 
   if (fallbackCount != 1)
     return emitOpError()
-           << "requires exactly one tcrv.exec.fallback";
+           << "requires exactly one weft.exec.fallback";
 
   if (caseCount == 0)
     return emitOpError()
-           << "requires at least one tcrv.exec.case";
+           << "requires at least one weft.exec.case";
 
   return mlir::success();
 }
@@ -1087,17 +1087,17 @@ mlir::LogicalResult DispatchCaseOp::verify() {
 
   if (!llvm::isa_and_present<DispatchOp>(getOperation()->getParentOp()))
     return emitOpError()
-           << "must be nested directly in a tcrv.exec.dispatch";
+           << "must be nested directly in a weft.exec.dispatch";
 
   KernelOp kernel = getEnclosingKernel(getOperation());
   if (!kernel)
     return emitOpError()
-           << "must be nested in a tcrv.exec.kernel to resolve dispatch target";
+           << "must be nested in a weft.exec.kernel to resolve dispatch target";
 
   if (!kernelContainsVariant(kernel, targetAttr.getValue()))
     return emitOpError()
            << "references unknown dispatch case variant @"
-           << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+           << targetAttr.getValue() << " in enclosing weft.exec.kernel";
 
   if (isPresentButEmptyStringAttr(getOperation(), kConditionAttrName))
     return emitOpError()
@@ -1132,14 +1132,14 @@ mlir::LogicalResult DispatchCaseOp::verify() {
       return emitOpError()
              << "runtime_guard references unknown runtime_param @"
              << runtimeGuardAttr.getValue()
-             << " in enclosing tcrv.exec.kernel";
+             << " in enclosing weft.exec.kernel";
 
     auto runtimeParam = llvm::dyn_cast<RuntimeParamOp>(resolved);
     if (!runtimeParam)
       return emitOpError()
              << "runtime_guard @" << runtimeGuardAttr.getValue()
              << " resolves to a direct sibling symbol that is not a "
-                "tcrv.exec.runtime_param";
+                "weft.exec.runtime_param";
 
     auto roleAttr =
         runtimeParam->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);
@@ -1147,7 +1147,7 @@ mlir::LogicalResult DispatchCaseOp::verify() {
         roleAttr.getValue() != kDispatchAvailabilityGuardRoleValue)
       return emitOpError()
              << "runtime_guard @" << runtimeGuardAttr.getValue()
-             << " must reference a tcrv.exec.runtime_param with ABI role '"
+             << " must reference a weft.exec.runtime_param with ABI role '"
              << kDispatchAvailabilityGuardRoleValue << "'";
   }
 
@@ -1176,17 +1176,17 @@ mlir::LogicalResult FallbackOp::verify() {
   auto dispatch = getOperation()->getParentOfType<DispatchOp>();
   if (!dispatch || !hasDirectParent(getOperation(), dispatch.getOperation()))
     return emitOpError()
-           << "must be nested directly in a tcrv.exec.dispatch";
+           << "must be nested directly in a weft.exec.dispatch";
 
   KernelOp kernel = getEnclosingKernel(getOperation());
   if (!kernel)
     return emitOpError()
-           << "must be nested in a tcrv.exec.kernel to resolve fallback target";
+           << "must be nested in a weft.exec.kernel to resolve fallback target";
 
   if (!kernelContainsVariant(kernel, targetAttr.getValue()))
     return emitOpError()
            << "references unknown fallback variant @" << targetAttr.getValue()
-           << " in enclosing tcrv.exec.kernel";
+           << " in enclosing weft.exec.kernel";
 
   if (isPresentButEmptyStringAttr(getOperation(), kOriginAttrName))
     return emitOpError()
@@ -1212,13 +1212,13 @@ mlir::LogicalResult FallbackOp::verify() {
   return mlir::success();
 }
 
-void TCRVExecDialect::initialize() {
+void WEFTExecDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.cpp.inc"
+#include "Weft/Dialect/Exec/IR/ExecOps.cpp.inc"
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
+#include "Weft/Dialect/Exec/IR/ExecAttrs.cpp.inc"
       >();
 }

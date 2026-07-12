@@ -1,16 +1,16 @@
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 
-#include "TianChenRV/Conversion/RVV/RVVBackendEmissionDriver.h"
-#include "TianChenRV/Plugin/IME/IMEBackendEmissionDriver.h"
-#include "TianChenRV/Plugin/Scalar/ScalarBackendEmissionDriver.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
-#include "TianChenRV/Plugin/Template/TemplateBackendEmissionDriver.h"
-#include "TianChenRV/Plugin/Toy/ToyBackendEmissionDriver.h"
+#include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
+#include "Weft/Plugin/IME/IMEBackendEmissionDriver.h"
+#include "Weft/Plugin/Scalar/ScalarBackendEmissionDriver.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
+#include "Weft/Plugin/Template/TemplateBackendEmissionDriver.h"
+#include "Weft/Plugin/Toy/ToyBackendEmissionDriver.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OwningOpRef.h"
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace emitc {
 
@@ -25,11 +25,11 @@ using BackendEmitterRegistrationFn = void (*)(BackendEmissionRegistry &);
 
 constexpr BackendEmitterRegistrationFn kBuiltinBackendEmitters[] = {
     rvv::registerRVVBackendEmitter,
-    ::tianchenrv::plugin::toy::registerToyBackendEmitter,
-    ::tianchenrv::plugin::template_ext::registerTemplateBackendEmitter,
-    ::tianchenrv::plugin::tensorext_lite::registerTensorExtLiteBackendEmitter,
-    ::tianchenrv::plugin::ime::registerIMEBackendEmitter,
-    ::tianchenrv::plugin::scalar::registerScalarBackendEmitter,
+    ::weft::plugin::toy::registerToyBackendEmitter,
+    ::weft::plugin::template_ext::registerTemplateBackendEmitter,
+    ::weft::plugin::tensorext_lite::registerTensorExtLiteBackendEmitter,
+    ::weft::plugin::ime::registerIMEBackendEmitter,
+    ::weft::plugin::scalar::registerScalarBackendEmitter,
 };
 
 } // namespace
@@ -56,4 +56,4 @@ tryConvertModuleWithRegisteredBackend(mlir::ModuleOp source) {
 
 } // namespace emitc
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

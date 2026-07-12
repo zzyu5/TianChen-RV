@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -20,7 +20,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVHartCountCapabilityID("rvv.hart_count");
@@ -66,7 +66,7 @@ using CapabilityProperties = std::map<std::string, std::string>;
 
 llvm::Error makeRVVCapabilityProfileError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV capability profile failed: ") + message,
+      llvm::Twine("Weft-RV RVV capability profile failed: ") + message,
       llvm::errc::invalid_argument);
 }
 
@@ -179,7 +179,7 @@ llvm::Error addAvailableCapability(mlir::MLIRContext &context,
                                    CapabilityProperties properties = {},
                                    llvm::ArrayRef<std::string> providedIDs = {},
                                    llvm::ArrayRef<std::string> impliedIDs = {}) {
-  tcrv::exec::CapabilityRelationsAttr relations;
+  weft::exec::CapabilityRelationsAttr relations;
   if (!providedIDs.empty() || !impliedIDs.empty()) {
     llvm::SmallVector<mlir::StringAttr, 4> provides;
     provides.reserve(providedIDs.size());
@@ -189,7 +189,7 @@ llvm::Error addAvailableCapability(mlir::MLIRContext &context,
     implies.reserve(impliedIDs.size());
     for (const std::string &impliedID : impliedIDs)
       implies.push_back(mlir::StringAttr::get(&context, impliedID));
-    relations = tcrv::exec::CapabilityRelationsAttr::get(&context, provides,
+    relations = weft::exec::CapabilityRelationsAttr::get(&context, provides,
                                                          implies,
                                                          /*conflicts=*/{});
   }
@@ -247,7 +247,7 @@ std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
 // groupings (mf8/mf4/mf2) alongside the whole multipliers (m1..m8). The
 // pre-ratification RVV0.7.1 generation (XuanTie xtheadvector on the C920) does
 // NOT: it has NO fractional LMUL at all -- empirically proven on hardware (the
-// XuanTie 0.7.1 vector header declares ZERO mf2/mf4/mf8 types, and a tcrv-opt-
+// XuanTie 0.7.1 vector header declares ZERO mf2/mf4/mf8 types, and a weft-opt-
 // emitted repack kernel fails to compile against `vint8mf2_t` /
 // `__riscv_vle8_v_i8mf2` there). So the RVV0.7 allow-list is exactly
 // {m1,m2,m4,m8} (whole multipliers only), while RVV1.0 keeps the full grid.
@@ -607,4 +607,4 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   return capabilities;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

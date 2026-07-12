@@ -1,0 +1,805 @@
+#ifndef WEFT_PLUGIN_EXTENSIONPLUGIN_H
+#define WEFT_PLUGIN_EXTENSIONPLUGIN_H
+
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/ArtifactMetadata.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
+
+#include "mlir/IR/OperationSupport.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <string>
+
+namespace mlir {
+class DialectRegistry;
+class Operation;
+class OpBuilder;
+class Pass;
+} // namespace mlir
+
+namespace weft::target {
+class TargetTranslateRouteRegistry;
+} // namespace weft::target
+
+namespace weft::plugin {
+
+class ExtensionBundle;
+class ExtensionPluginRegistry;
+
+inline constexpr llvm::StringLiteral kVariantFallbackRoleAttrName(
+    "fallback_role");
+inline constexpr llvm::StringLiteral kConservativeFallbackRoleValue(
+    "conservative");
+
+class PluginCapability {
+public:
+  PluginCapability() = default;
+  PluginCapability(llvm::StringRef id, llvm::StringRef kind,
+                   llvm::StringRef description = {});
+
+  llvm::StringRef getID() const { return id; }
+  llvm::StringRef getKind() const { return kind; }
+  llvm::StringRef getDescription() const { return description; }
+
+private:
+  std::string id;
+  std::string kind;
+  std::string description;
+};
+
+class SourceFrontDoorPassRegistration {
+public:
+  using Factory = std::function<std::unique_ptr<mlir::Pass>()>;
+  enum class DefaultArtifactFrontDoorPolicy { Eligible, ExplicitOnly };
+
+  SourceFrontDoorPassRegistration() = default;
+  SourceFrontDoorPassRegistration(llvm::StringRef ownerPlugin,
+                                  llvm::StringRef argument,
+                                  llvm::StringRef description,
+                                  Factory factory,
+                                  DefaultArtifactFrontDoorPolicy policy =
+                                      DefaultArtifactFrontDoorPolicy::
+                                          ExplicitOnly);
+
+  llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
+  llvm::StringRef getArgument() const { return argument; }
+  llvm::StringRef getDescription() const { return description; }
+  const Factory &getFactory() const { return factory; }
+  DefaultArtifactFrontDoorPolicy getDefaultArtifactFrontDoorPolicy() const {
+    return defaultArtifactFrontDoorPolicy;
+  }
+  bool isDefaultArtifactFrontDoorEligible() const {
+    return defaultArtifactFrontDoorPolicy ==
+           DefaultArtifactFrontDoorPolicy::Eligible;
+  }
+
+private:
+  std::string ownerPlugin;
+  std::string argument;
+  std::string description;
+  Factory factory;
+  DefaultArtifactFrontDoorPolicy defaultArtifactFrontDoorPolicy =
+      DefaultArtifactFrontDoorPolicy::ExplicitOnly;
+};
+
+class VariantProposalRequest {
+public:
+  VariantProposalRequest(mlir::Operation *highLevelOp,
+                         weft::exec::KernelOp kernel,
+                         const support::TargetCapabilitySet &capabilities);
+
+  mlir::Operation *getHighLevelOp() const { return highLevelOp; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+
+private:
+  mlir::Operation *highLevelOp = nullptr;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+};
+
+class VariantLegalityRequest {
+public:
+  VariantLegalityRequest(weft::exec::VariantOp variant,
+                         weft::exec::KernelOp kernel,
+                         const support::TargetCapabilitySet &capabilities);
+
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+
+private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+};
+
+class VariantCostRequest {
+public:
+  VariantCostRequest(weft::exec::VariantOp variant,
+                     weft::exec::KernelOp kernel,
+                     const support::TargetCapabilitySet &capabilities);
+
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+
+private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+};
+
+enum class VariantEmissionRole {
+  DirectVariant,
+  DispatchCase,
+  DispatchFallback,
+};
+
+llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role);
+
+enum class VariantFallbackRole {
+  None,
+  ConservativeFallback,
+};
+
+llvm::StringRef stringifyVariantFallbackRole(VariantFallbackRole role);
+
+class VariantEmissionRequest {
+public:
+  VariantEmissionRequest(weft::exec::VariantOp variant,
+                         weft::exec::KernelOp kernel,
+                         const support::TargetCapabilitySet &capabilities,
+                         VariantEmissionRole role);
+
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+
+private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+};
+
+class VariantLoweringBoundaryRequest {
+public:
+  VariantLoweringBoundaryRequest(
+      weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role, mlir::OpBuilder &builder);
+
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+  mlir::OpBuilder &getBuilder() const { return builder; }
+
+private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  mlir::OpBuilder &builder;
+};
+
+class VariantLoweringBoundaryValidationRequest {
+public:
+  VariantLoweringBoundaryValidationRequest(
+      weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role, mlir::Operation *boundary);
+
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+  mlir::Operation *getBoundary() const { return boundary; }
+
+private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  mlir::Operation *boundary = nullptr;
+};
+
+class VariantEmitCLowerableRequest {
+public:
+  VariantEmitCLowerableRequest(
+      weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role);
+
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+
+private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+};
+
+class VariantProposal {
+public:
+  VariantProposal() = default;
+  VariantProposal(llvm::StringRef variantName, llvm::StringRef originPlugin);
+
+  llvm::StringRef getVariantName() const { return variantName; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::ArrayRef<std::string> getRequiredCapabilityIDs() const {
+    return requiredCapabilityIDs;
+  }
+  llvm::ArrayRef<std::string> getRequiredCapabilitySymbols() const {
+    return requiredCapabilitySymbols;
+  }
+  llvm::StringRef getCondition() const { return condition; }
+  llvm::StringRef getGuard() const { return guard; }
+  llvm::StringRef getPolicy() const { return policy; }
+  VariantFallbackRole getFallbackRole() const { return fallbackRole; }
+  bool hasFallbackRole() const {
+    return fallbackRole != VariantFallbackRole::None;
+  }
+  llvm::ArrayRef<mlir::NamedAttribute> getPluginAttributes() const {
+    return pluginAttributes;
+  }
+
+  void setVariantName(llvm::StringRef name) { variantName = name.str(); }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void addRequiredCapabilityID(llvm::StringRef id) {
+    requiredCapabilityIDs.push_back(id.str());
+  }
+  void addRequiredCapabilitySymbol(llvm::StringRef symbol) {
+    requiredCapabilitySymbols.push_back(symbol.str());
+  }
+  void setCondition(llvm::StringRef value) { condition = value.str(); }
+  void setGuard(llvm::StringRef value) { guard = value.str(); }
+  void setPolicy(llvm::StringRef value) { policy = value.str(); }
+  void setFallbackRole(VariantFallbackRole role) { fallbackRole = role; }
+  void addPluginAttribute(mlir::NamedAttribute attribute) {
+    pluginAttributes.push_back(attribute);
+  }
+  void addPluginAttribute(mlir::StringAttr name, mlir::Attribute value) {
+    addPluginAttribute(mlir::NamedAttribute(name, value));
+  }
+
+private:
+  std::string variantName;
+  std::string originPlugin;
+  llvm::SmallVector<std::string, 4> requiredCapabilityIDs;
+  llvm::SmallVector<std::string, 4> requiredCapabilitySymbols;
+  std::string condition;
+  std::string guard;
+  std::string policy;
+  VariantFallbackRole fallbackRole = VariantFallbackRole::None;
+  llvm::SmallVector<mlir::NamedAttribute, 4> pluginAttributes;
+};
+
+class VariantProposalDecline {
+public:
+  VariantProposalDecline() = default;
+  VariantProposalDecline(llvm::StringRef pluginName, llvm::StringRef reason);
+
+  llvm::StringRef getPluginName() const { return pluginName; }
+  llvm::StringRef getReason() const { return reason; }
+
+private:
+  std::string pluginName;
+  std::string reason;
+};
+
+class VariantProposalCollectionResult {
+public:
+  void addProposal(const VariantProposal &proposal) {
+    proposals.push_back(proposal);
+  }
+  void addRecoverableDecline(llvm::StringRef pluginName,
+                             llvm::StringRef reason) {
+    recoverableDeclines.push_back(VariantProposalDecline(pluginName, reason));
+  }
+
+  llvm::ArrayRef<VariantProposal> getProposals() const { return proposals; }
+  llvm::ArrayRef<VariantProposalDecline> getRecoverableDeclines() const {
+    return recoverableDeclines;
+  }
+
+private:
+  llvm::SmallVector<VariantProposal, 4> proposals;
+  llvm::SmallVector<VariantProposalDecline, 2> recoverableDeclines;
+};
+
+class VariantCostEstimate {
+public:
+  VariantCostEstimate() = default;
+  VariantCostEstimate(double score, llvm::StringRef originPlugin,
+                      llvm::StringRef variantSymbol);
+
+  bool hasScore() const { return scoreSet; }
+  double getScore() const { return score; }
+  bool hasExplicitPreference() const { return explicitPreference; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  bool hasExplanation() const { return explanationSet; }
+  llvm::StringRef getExplanation() const { return explanation; }
+  bool hasPolicy() const { return policySet; }
+  llvm::StringRef getPolicy() const { return policy; }
+  VariantFallbackRole getFallbackRole() const { return fallbackRole; }
+  bool hasFallbackRole() const {
+    return fallbackRole != VariantFallbackRole::None;
+  }
+
+  void setScore(double value) {
+    score = value;
+    scoreSet = true;
+  }
+  void setExplicitPreference(bool value = true) {
+    explicitPreference = value;
+  }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setExplanation(llvm::StringRef value) {
+    explanation = value.str();
+    explanationSet = true;
+  }
+  void setPolicy(llvm::StringRef value) {
+    policy = value.str();
+    policySet = true;
+  }
+  void setFallbackRole(VariantFallbackRole role) { fallbackRole = role; }
+
+private:
+  bool scoreSet = false;
+  double score = 0.0;
+  bool explicitPreference = false;
+  std::string originPlugin;
+  std::string variantSymbol;
+  bool explanationSet = false;
+  std::string explanation;
+  bool policySet = false;
+  std::string policy;
+  VariantFallbackRole fallbackRole = VariantFallbackRole::None;
+};
+
+enum class VariantEmissionSupport {
+  Unknown,
+  Supported,
+  Unsupported,
+};
+
+class VariantEmissionStatus {
+public:
+  VariantEmissionStatus() = default;
+  static VariantEmissionStatus getSupported(llvm::StringRef originPlugin,
+                                            llvm::StringRef variantSymbol,
+                                            llvm::StringRef emissionPath);
+  static VariantEmissionStatus getUnsupported(llvm::StringRef originPlugin,
+                                              llvm::StringRef variantSymbol,
+                                              llvm::StringRef reason);
+
+  bool hasStatus() const {
+    return support != VariantEmissionSupport::Unknown;
+  }
+  bool isSupported() const {
+    return support == VariantEmissionSupport::Supported;
+  }
+  bool isUnsupported() const {
+    return support == VariantEmissionSupport::Unsupported;
+  }
+  VariantEmissionSupport getSupport() const { return support; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  llvm::StringRef getEmissionPath() const { return emissionPath; }
+  llvm::StringRef getReason() const { return reason; }
+
+  void setSupported() { support = VariantEmissionSupport::Supported; }
+  void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setEmissionPath(llvm::StringRef path) { emissionPath = path.str(); }
+  void setReason(llvm::StringRef value) { reason = value.str(); }
+
+private:
+  VariantEmissionSupport support = VariantEmissionSupport::Unknown;
+  std::string originPlugin;
+  std::string variantSymbol;
+  std::string emissionPath;
+  std::string reason;
+};
+
+class VariantEmissionPlan {
+public:
+  VariantEmissionPlan() = default;
+  static VariantEmissionPlan getSupported(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
+      llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
+      llvm::StringRef explanation);
+  static VariantEmissionPlan getUnsupported(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef diagnostic);
+
+  bool hasStatus() const {
+    return support != VariantEmissionSupport::Unknown;
+  }
+  bool isSupported() const {
+    return support == VariantEmissionSupport::Supported;
+  }
+  bool isUnsupported() const {
+    return support == VariantEmissionSupport::Unsupported;
+  }
+  VariantEmissionSupport getSupport() const { return support; }
+  VariantEmissionRole getRole() const { return role; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getKernelSymbol() const { return kernelSymbol; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  llvm::StringRef getEmissionKind() const { return emissionKind; }
+  llvm::StringRef getLoweringPipeline() const { return loweringPipeline; }
+  llvm::StringRef getRuntimeABI() const { return runtimeABI; }
+  llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
+  llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
+  llvm::StringRef getRuntimeGlueRole() const { return runtimeGlueRole; }
+  llvm::StringRef getArtifactKind() const { return artifactKind; }
+  llvm::StringRef getLoweringBoundaryOpName() const {
+    return loweringBoundaryOpName;
+  }
+  llvm::StringRef getDiagnostic() const { return diagnostic; }
+  llvm::StringRef getExplanation() const { return explanation; }
+  llvm::ArrayRef<std::string> getRequiredCapabilitySymbols() const {
+    return requiredCapabilitySymbols;
+  }
+  llvm::ArrayRef<support::RuntimeABIParameter>
+  getRuntimeABIParameters() const {
+    return runtimeABIParameters;
+  }
+  llvm::ArrayRef<support::ArtifactMetadataEntry>
+  getArtifactMetadata() const {
+    return artifactMetadata;
+  }
+
+  void setSupported() { support = VariantEmissionSupport::Supported; }
+  void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
+  void setRole(VariantEmissionRole value) { role = value; }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setKernelSymbol(llvm::StringRef symbol) {
+    kernelSymbol = symbol.str();
+  }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setEmissionKind(llvm::StringRef value) {
+    emissionKind = value.str();
+  }
+  void setLoweringPipeline(llvm::StringRef value) {
+    loweringPipeline = value.str();
+  }
+  void setRuntimeABI(llvm::StringRef value) {
+    runtimeABI = value.str();
+    if (runtimeABIName.empty())
+      runtimeABIName = value.str();
+  }
+  void setRuntimeABIKind(llvm::StringRef value) {
+    runtimeABIKind = value.str();
+  }
+  void setRuntimeABIName(llvm::StringRef value) {
+    runtimeABIName = value.str();
+  }
+  void setRuntimeGlueRole(llvm::StringRef value) {
+    runtimeGlueRole = value.str();
+  }
+  void setArtifactKind(llvm::StringRef value) {
+    artifactKind = value.str();
+  }
+  void setLoweringBoundaryOpName(llvm::StringRef value) {
+    loweringBoundaryOpName = value.str();
+  }
+  void setDiagnostic(llvm::StringRef value) { diagnostic = value.str(); }
+  void setExplanation(llvm::StringRef value) { explanation = value.str(); }
+  void addRequiredCapabilitySymbol(llvm::StringRef symbol) {
+    requiredCapabilitySymbols.push_back(symbol.str());
+  }
+  void clearRequiredCapabilitySymbols() { requiredCapabilitySymbols.clear(); }
+  void addRuntimeABIParameter(const support::RuntimeABIParameter &parameter) {
+    runtimeABIParameters.push_back(parameter);
+  }
+  void addRuntimeABIParameters(
+      llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+    runtimeABIParameters.append(parameters.begin(), parameters.end());
+  }
+  void clearRuntimeABIParameters() { runtimeABIParameters.clear(); }
+  void addArtifactMetadata(llvm::StringRef key, llvm::StringRef value) {
+    artifactMetadata.push_back(support::ArtifactMetadataEntry(key, value));
+  }
+  void addArtifactMetadataEntries(
+      llvm::ArrayRef<support::ArtifactMetadataEntry> entries) {
+    artifactMetadata.append(entries.begin(), entries.end());
+  }
+  void clearArtifactMetadata() { artifactMetadata.clear(); }
+  llvm::Error setRequiredCapabilitySymbolsFromVariant(
+      weft::exec::VariantOp variant);
+
+private:
+  VariantEmissionSupport support = VariantEmissionSupport::Unknown;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  std::string originPlugin;
+  std::string kernelSymbol;
+  std::string variantSymbol;
+  std::string emissionKind;
+  std::string loweringPipeline;
+  std::string runtimeABI;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string runtimeGlueRole;
+  std::string artifactKind;
+  std::string loweringBoundaryOpName;
+  std::string diagnostic;
+  std::string explanation;
+  llvm::SmallVector<std::string, 4> requiredCapabilitySymbols;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<support::ArtifactMetadataEntry, 8> artifactMetadata;
+};
+
+enum class VariantLoweringBoundaryStatus {
+  Unknown,
+  Materialized,
+  NoBoundary,
+  Unsupported,
+};
+
+class VariantLoweringBoundaryResult {
+public:
+  VariantLoweringBoundaryResult() = default;
+  static VariantLoweringBoundaryResult getMaterialized(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      mlir::Operation *operation);
+  static VariantLoweringBoundaryResult getNoBoundary(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef reason);
+  static VariantLoweringBoundaryResult getUnsupported(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef reason);
+
+  bool hasStatus() const {
+    return status != VariantLoweringBoundaryStatus::Unknown;
+  }
+  bool isMaterialized() const {
+    return status == VariantLoweringBoundaryStatus::Materialized;
+  }
+  bool isNoBoundary() const {
+    return status == VariantLoweringBoundaryStatus::NoBoundary;
+  }
+  bool isUnsupported() const {
+    return status == VariantLoweringBoundaryStatus::Unsupported;
+  }
+  VariantLoweringBoundaryStatus getStatus() const { return status; }
+  VariantEmissionRole getRole() const { return role; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getKernelSymbol() const { return kernelSymbol; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  llvm::StringRef getReason() const { return reason; }
+  mlir::Operation *getMaterializedOperation() const {
+    return materializedOperation;
+  }
+
+  void setMaterialized() {
+    status = VariantLoweringBoundaryStatus::Materialized;
+  }
+  void setNoBoundary() { status = VariantLoweringBoundaryStatus::NoBoundary; }
+  void setUnsupported() { status = VariantLoweringBoundaryStatus::Unsupported; }
+  void setRole(VariantEmissionRole value) { role = value; }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setKernelSymbol(llvm::StringRef symbol) {
+    kernelSymbol = symbol.str();
+  }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setReason(llvm::StringRef value) { reason = value.str(); }
+  void setMaterializedOperation(mlir::Operation *operation) {
+    materializedOperation = operation;
+  }
+
+private:
+  VariantLoweringBoundaryStatus status = VariantLoweringBoundaryStatus::Unknown;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  std::string originPlugin;
+  std::string kernelSymbol;
+  std::string variantSymbol;
+  std::string reason;
+  mlir::Operation *materializedOperation = nullptr;
+};
+
+struct VariantCostRankingEntry {
+  weft::exec::VariantOp variant;
+  VariantCostEstimate estimate;
+  std::size_t originalIndex = 0;
+};
+
+class ExtensionPlugin {
+public:
+  virtual ~ExtensionPlugin() = default;
+
+  virtual llvm::StringRef getName() const = 0;
+  virtual llvm::StringRef getVersion() const { return {}; }
+  virtual llvm::ArrayRef<PluginCapability> getCapabilities() const = 0;
+  virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
+  virtual bool isEnabled() const { return true; }
+  virtual llvm::Error verifyExecutableConstructionConformance() const;
+  virtual llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
+  virtual bool supportsOperation(const VariantProposalRequest &request) const;
+  virtual llvm::Error
+  proposeVariants(const VariantProposalRequest &request,
+                  llvm::SmallVectorImpl<VariantProposal> &out) const;
+  virtual llvm::Error
+  collectVariantProposals(const VariantProposalRequest &request,
+                          VariantProposalCollectionResult &out) const;
+  virtual llvm::Error
+  verifyVariantLegality(const VariantLegalityRequest &request) const;
+  virtual llvm::Error
+  estimateVariantCost(const VariantCostRequest &request,
+                      VariantCostEstimate &out) const;
+  virtual llvm::Error
+  checkVariantEmissionReadiness(const VariantEmissionRequest &request,
+                                VariantEmissionStatus &out) const;
+  virtual llvm::Error
+  buildVariantEmissionPlan(const VariantEmissionRequest &request,
+                           VariantEmissionPlan &out) const;
+  virtual llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const;
+  virtual llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const;
+  virtual llvm::Error
+  configureTargetSupportExtensionBundle(ExtensionBundle &bundle) const;
+  virtual llvm::Error registerTargetSupportTranslateRoutes(
+      target::TargetTranslateRouteRegistry &registry) const;
+};
+
+class ExtensionPluginRegistry {
+public:
+  llvm::Error registerPlugin(const ExtensionPlugin &plugin);
+
+  bool empty() const { return plugins.empty(); }
+  std::size_t size() const { return plugins.size(); }
+
+  llvm::ArrayRef<const ExtensionPlugin *> getAllPlugins() const {
+    return plugins;
+  }
+
+  void
+  getEnabledPlugins(llvm::SmallVectorImpl<const ExtensionPlugin *> &out) const;
+  llvm::SmallVector<const ExtensionPlugin *, 4> getEnabledPlugins() const;
+
+  const ExtensionPlugin *lookupPlugin(llvm::StringRef name) const;
+
+  void registerDialectsForAllPlugins(mlir::DialectRegistry &registry) const;
+  void registerDialectsForEnabledPlugins(mlir::DialectRegistry &registry) const;
+
+  void collectCapabilities(llvm::SmallVectorImpl<PluginCapability> &out,
+                           bool enabledOnly = true) const;
+  const PluginCapability *
+  lookupCapabilityByID(llvm::StringRef id, bool enabledOnly = true) const;
+  void collectCapabilitiesByKind(llvm::StringRef kind,
+                                 llvm::SmallVectorImpl<PluginCapability> &out,
+                                 bool enabledOnly = true) const;
+  llvm::Error collectSourceFrontDoorPasses(
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
+  llvm::Error
+  collectVariantProposals(const VariantProposalRequest &request,
+                          llvm::SmallVectorImpl<VariantProposal> &out) const;
+  llvm::Error collectVariantProposals(
+      const VariantProposalRequest &request,
+      llvm::SmallVectorImpl<VariantProposal> &out,
+      llvm::SmallVectorImpl<VariantProposalDecline> *recoverableDeclines) const;
+  llvm::Error verifyVariantLegality(
+      const VariantLegalityRequest &request) const;
+  llvm::Error verifyKernelVariantLegality(weft::exec::KernelOp kernel) const;
+  llvm::Error
+  verifyKernelVariantLegality(
+      weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities) const;
+  llvm::Error estimateVariantCost(const VariantCostRequest &request,
+                                  VariantCostEstimate &out) const;
+  llvm::Error
+  checkVariantEmissionReadiness(const VariantEmissionRequest &request,
+                                VariantEmissionStatus &out) const;
+  llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
+                                       VariantEmissionPlan &out) const;
+  llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const;
+  llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const;
+  llvm::Error checkKernelEmissionReadiness(weft::exec::KernelOp kernel) const;
+  llvm::Error
+  checkKernelEmissionReadiness(weft::exec::KernelOp kernel,
+                               const support::TargetCapabilitySet
+                                   &capabilities) const;
+  llvm::Error collectKernelVariantCosts(
+      weft::exec::KernelOp kernel,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+  llvm::Error collectKernelVariantCosts(
+      weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+  llvm::Error rankKernelVariantsByCost(
+      weft::exec::KernelOp kernel,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+  llvm::Error rankKernelVariantsByCost(
+      weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+
+private:
+  llvm::Error validateVariantProposal(const VariantProposalRequest &request,
+                                      const ExtensionPlugin &plugin,
+                                      const VariantProposal &proposal) const;
+  llvm::Error validateVariantCostEstimate(
+      const VariantCostRequest &request, const ExtensionPlugin &plugin,
+      llvm::StringRef origin, const VariantCostEstimate &estimate) const;
+  llvm::Error validateVariantEmissionStatus(
+      const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
+      llvm::StringRef origin, const VariantEmissionStatus &status) const;
+  llvm::Error validateVariantEmissionPlan(
+      const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
+      llvm::StringRef origin, const VariantEmissionPlan &plan) const;
+  llvm::Error validateVariantLoweringBoundaryResult(
+      const VariantLoweringBoundaryRequest &request,
+      const ExtensionPlugin &plugin, llvm::StringRef origin,
+      const VariantLoweringBoundaryResult &result) const;
+  llvm::Error validateVariantLoweringBoundaryValidationRequest(
+      const VariantLoweringBoundaryValidationRequest &request,
+      const ExtensionPlugin *&plugin, llvm::StringRef &origin) const;
+
+  llvm::SmallVector<const ExtensionPlugin *, 8> plugins;
+  llvm::StringMap<const ExtensionPlugin *> pluginsByName;
+};
+
+llvm::Error materializeSelectedLoweringBoundaries(
+    weft::exec::KernelOp kernel, const ExtensionPluginRegistry &registry);
+
+llvm::Error materializeSelectedLoweringBoundaries(
+    weft::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities,
+    const ExtensionPluginRegistry &registry);
+
+} // namespace weft::plugin
+
+#endif // WEFT_PLUGIN_EXTENSIONPLUGIN_H

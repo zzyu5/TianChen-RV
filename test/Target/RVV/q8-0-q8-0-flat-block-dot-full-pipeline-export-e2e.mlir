@@ -2,10 +2,10 @@
 // front door -- the P2-c coverage payoff that brings the FAMILY-A sibling of the
 // q4_0 flat block-dot through the SAME generalized monolithic wiring q4_K/q4_0/
 // iq4_nl proved. The front door's OWN auto-constructed monolithic flat block-dot
-// body now flows through the COMPLETE tcrv-source-artifact-front-door-pipeline
-// (materialize-emission-plans PLUS --tcrv-check-execution-plan-coherence) AND
-// exports a real RISC-V target artifact through tcrv-translate
-// --tcrv-export-target-artifact.
+// body now flows through the COMPLETE weft-source-artifact-front-door-pipeline
+// (materialize-emission-plans PLUS --weft-check-execution-plan-coherence) AND
+// exports a real RISC-V target artifact through weft-translate
+// --weft-export-target-artifact.
 //
 // COVERAGE = one more table row (RVVMonolithicBlockDotFamily.h) + one more front
 // door (RVVQ80BlockDotSourceFrontDoor.cpp), NOT any new mechanism. The recognition,
@@ -17,7 +17,7 @@
 // is byte-identical to q4_0's. q4_K/q4_0/iq4_nl stay byte-exact on their own routes.
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same lowering
-// the direct --tcrv-rvv-lower-to-emitc path uses), so the production-export emit is
+// the direct --weft-rvv-lower-to-emitc path uses), so the production-export emit is
 // byte-identical to the CORE == emission-plans emit (asserted below by diff). The
 // exported function symbol is the kernel+variant handoff name. NO board / NO perf
 // claim -- this is coverage/wiring maturity. q8_0's front-door-constructed body is
@@ -26,25 +26,25 @@
 // byte-flip for q8_0.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
-// REQUIRES: tianchenrv-local-rvv-object-clang
+// REQUIRES: weft-local-rvv-object-clang
 
 // FULL pipeline: front door auto-constructs the monolithic flat block-dot body,
-// the tcrv-source-artifact-front-door-pipeline materializes the emission plan AND
-// passes --tcrv-check-execution-plan-coherence (the flat monolithic route id is
+// the weft-source-artifact-front-door-pipeline materializes the emission plan AND
+// passes --weft-check-execution-plan-coherence (the flat monolithic route id is
 // now a registered target-artifact export route).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
-// BYTE-EXACT: --tcrv-materialize-emission-plans only APPENDS the emission-plan
+// BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export
-// EmitC is byte-for-byte the CORE --tcrv-rvv-lower-to-emitc emit.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --tcrv-rvv-lower-to-emitc > %t.core.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
+// EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the flat monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -53,8 +53,8 @@
 // distinction -- pinned so a regression into the q4_0 nibble core is caught.
 // RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
 
-module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel"} {
   func.func @source_q8_0_q8_0_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
@@ -66,9 +66,9 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // The q8_0 front door's body is the typed flat block-dot LOOP body op (M-FLAT);
 // it exports through the SAME shared q8_0 Flat monolithic plan (identical route
 // id / kind / 8-role ABI) as the compound q8_0 block-dot op it replaced.
-// PLAN: tcrv.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel
-// PLAN: tcrv_rvv.typed_flat_block_dot_loop_body
-// PLAN: tcrv.exec.diagnostic
+// PLAN: weft.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel
+// PLAN: weft_rvv.typed_flat_block_dot_loop_body
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline).
@@ -87,7 +87,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC integer core (plain int8) ==================
-// CORE: emitc.func @tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
+// CORE: emitc.func @weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
 // The plain i8m2 x i8m2 widening product into i16m4 (the m2 default anchor; NO
 // vxor/vsll/vsra nibble decode, NO vwmacc high-half MAC).
 // CORE: call_opaque "__riscv_vle8_v_i8m2"
@@ -118,5 +118,5 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // OBJECT: Type: Relocatable
 
 // The exported function symbol is the kernel+variant handoff name -- the same
-// name the CORE EmitC emit carries (tcrv_emitc_<kernel>_<variant>).
-// SYMBOL: Name: tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
+// name the CORE EmitC emit carries (weft_emitc_<kernel>_<variant>).
+// SYMBOL: Name: weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot

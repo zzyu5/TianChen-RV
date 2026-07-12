@@ -1,13 +1,13 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
-#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
-#include "TianChenRV/Transforms/VariantSelection.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Dialect/Toy/IR/ToyDialect.h"
+#include "Weft/Plugin/BuiltinExtensionPlugins.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -23,26 +23,26 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::ExtensionBundleRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::SourceFrontDoorPassRegistration;
-using tianchenrv::plugin::VariantCostEstimate;
-using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmissionPlan;
-using tianchenrv::plugin::VariantEmissionRequest;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
-using tianchenrv::plugin::VariantProposal;
-using tianchenrv::plugin::VariantProposalDecline;
-using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::toy::ComputeSkeletonOp;
-using tianchenrv::transforms::VariantSelectionKind;
-using tianchenrv::transforms::VariantSelectionPlan;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::ExtensionBundleRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::SourceFrontDoorPassRegistration;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantEmissionPlan;
+using weft::plugin::VariantEmissionRequest;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantEmissionStatus;
+using weft::plugin::VariantProposal;
+using weft::plugin::VariantProposalDecline;
+using weft::plugin::VariantProposalRequest;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::toy::ComputeSkeletonOp;
+using weft::transforms::VariantSelectionKind;
+using weft::transforms::VariantSelectionPlan;
 
 namespace {
 
@@ -149,26 +149,26 @@ int expectProposalStringAttr(const VariantProposal &proposal,
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerToyExtensionPlugin(registry),
                         "register Toy plugin"))
     return result;
 
   const auto *plugin = registry.lookupPlugin(
-      tianchenrv::plugin::toy::getToyExtensionPluginName());
+      weft::plugin::toy::getToyExtensionPluginName());
   if (int result = expect(plugin, "registered Toy plugin is visible"))
     return result;
   if (int result =
           expect(plugin->getVersion() ==
-                     tianchenrv::plugin::toy::getToyExtensionPluginVersion(),
+                     weft::plugin::toy::getToyExtensionPluginVersion(),
                  "Toy plugin version is stable"))
     return result;
 
   const PluginCapability *capability = registry.lookupCapabilityByID(
-      tianchenrv::plugin::toy::getToyTemplateCapabilityID());
+      weft::plugin::toy::getToyTemplateCapabilityID());
   if (int result =
           expect(capability &&
                      capability->getKind() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyTemplateCapabilityKind(),
                  "Toy template capability metadata is registered"))
     return result;
@@ -185,12 +185,12 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
   if (int result =
           expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
-                     tianchenrv::plugin::toy::getToyExtensionPluginName(),
+                     weft::plugin::toy::getToyExtensionPluginName(),
                  "Toy source front-door pass is owned by Toy plugin"))
     return result;
   if (int result =
           expect(sourceFrontDoorPasses.front().getArgument() ==
-                     "tcrv-toy-materialize-template-source-front-door",
+                     "weft-toy-materialize-template-source-front-door",
                  "Toy source front-door pass keeps the public pass argument"))
     return result;
   if (int result = expect(static_cast<bool>(
@@ -199,31 +199,31 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
 
   const auto &manifest =
-      tianchenrv::plugin::toy::getToyConstructionManifest();
+      weft::plugin::toy::getToyConstructionManifest();
   const auto &realization =
-      tianchenrv::plugin::toy::getToyTypedRoleGraphRealization();
+      weft::plugin::toy::getToyTypedRoleGraphRealization();
   if (int result = expectSuccess(
-          tianchenrv::plugin::toy::verifyToyConstructionManifest(manifest),
+          weft::plugin::toy::verifyToyConstructionManifest(manifest),
           "Toy construction manifest verifies"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::toy::verifyToyTypedRoleGraphRealization(
+          weft::plugin::toy::verifyToyTypedRoleGraphRealization(
               manifest, realization),
           "Toy typed role graph verifies"))
     return result;
   if (int result =
           expect(realization.roles.size() == 4 &&
                      realization.roles[2].operationName ==
-                         "tcrv_toy.compute_skeleton" &&
+                         "weft_toy.compute_skeleton" &&
                      realization.roles[2].roleSpecificInterface ==
-                         "TCRVComputeOpInterface" &&
+                         "WEFTComputeOpInterface" &&
                      realization.roles[2].emitCLowerableInterface ==
-                         "TCRVEmitCLowerableInterface",
+                         "WEFTEmitCLowerableInterface",
                  "Toy typed role graph preserves ordered compute role"))
     return result;
 
   const auto &route =
-      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+      weft::plugin::toy::getToyTemplateEmitCConstructionRoute();
   if (int result =
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
@@ -243,11 +243,11 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "materialized object/header/bundle artifact bridge"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::toy::verifyToyConstructionProtocolReady(),
+          weft::plugin::toy::verifyToyConstructionProtocolReady(),
           "Toy construction protocol ready check validates active route"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::toy::
+          weft::plugin::toy::
               verifyToyTemplateEmitCConstructionRouteMapping(
                   route.routeID, route.emissionKind, route.artifactKind,
                   route.loweringBoundaryOpName, route.runtimeABI,
@@ -256,13 +256,13 @@ int runRegistrationAndCapabilityMetadataTest() {
           "Toy active EmitC route mapping validates"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::toy::verifyToyTargetArtifactBundleMapping(
+          weft::plugin::toy::verifyToyTargetArtifactBundleMapping(
               route.headerRouteID, route.headerArtifactKind,
               route.bundleComponentGroup, route.objectHandoffKind),
           "Toy target artifact bundle mapping validates"))
     return result;
   if (int result = expectErrorContains(
-          tianchenrv::plugin::toy::
+          weft::plugin::toy::
               verifyToyTemplateEmitCConstructionRouteMapping(
                   "stale-toy-route", route.emissionKind, route.artifactKind,
                   route.loweringBoundaryOpName, route.runtimeABI,
@@ -272,15 +272,15 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
 
   return expectErrorContains(
-      tianchenrv::plugin::registerToyExtensionPlugin(registry),
-      {"duplicate TianChen-RV extension plugin", "toy-plugin"});
+      weft::plugin::registerToyExtensionPlugin(registry),
+      {"duplicate Weft-RV extension plugin", "toy-plugin"});
 }
 
 int runBuiltinSourceFrontDoorCollectionTest() {
   ExtensionBundleRegistry bundles;
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+          weft::plugin::registerBuiltinExtensionBundlePlugins(
               bundles, registry),
           "register built-in extension bundle frontdoor for source front-door "
           "collection"))
@@ -301,18 +301,18 @@ int runBuiltinSourceFrontDoorCollectionTest() {
                   "source-seed public API");
     if (pass.getOwnerPlugin() == "rvv-plugin" &&
         pass.getArgument() ==
-            "tcrv-rvv-materialize-vector-binary-source-front-door")
+            "weft-rvv-materialize-vector-binary-source-front-door")
       rvvIndex = static_cast<int>(index);
     if (pass.getOwnerPlugin() ==
-            tianchenrv::plugin::toy::getToyExtensionPluginName() &&
+            weft::plugin::toy::getToyExtensionPluginName() &&
         pass.getArgument() ==
-            "tcrv-toy-materialize-template-source-front-door")
+            "weft-toy-materialize-template-source-front-door")
       toyIndex = static_cast<int>(index);
     if (pass.getOwnerPlugin() ==
-            tianchenrv::plugin::tensorext_lite::
+            weft::plugin::tensorext_lite::
                 getTensorExtLiteExtensionPluginName() &&
         pass.getArgument() ==
-            "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door")
+            "weft-tensorext-lite-materialize-fragment-mma-source-front-door")
       tensorextLiteIndex = static_cast<int>(index);
   }
 
@@ -335,8 +335,8 @@ int runBuiltinSourceFrontDoorCollectionTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @available_toy attributes {} {
-    tcrv.exec.capability @toy_template {
+  weft.exec.kernel @available_toy attributes {} {
+    weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
       status = "available",
@@ -345,11 +345,11 @@ module {
     }
   }
 
-  tcrv.exec.kernel @missing_toy attributes {} {
+  weft.exec.kernel @missing_toy attributes {} {
   }
 
-  tcrv.exec.kernel @unavailable_toy attributes {} {
-    tcrv.exec.capability @toy_template {
+  weft.exec.kernel @unavailable_toy attributes {} {
+    weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
       status = "unavailable",
@@ -358,8 +358,8 @@ module {
     }
   }
 
-  tcrv.exec.kernel @malformed_toy attributes {} {
-    tcrv.exec.capability @toy_template {
+  weft.exec.kernel @malformed_toy attributes {} {
+    weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
       status = "available",
@@ -385,7 +385,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerToyExtensionPlugin(registry),
                         "register Toy plugin for proposal gating"))
     return result;
 
@@ -408,42 +408,42 @@ module {
   const VariantProposal &proposal = proposals.front();
   if (int result =
           expect(proposal.getVariantName() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyTemplateFirstSliceVariantName() &&
                      proposal.getOriginPlugin() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyExtensionPluginName() &&
                      proposal.getPolicy() ==
-                         tianchenrv::plugin::toy::getToyTemplatePolicy(),
+                         weft::plugin::toy::getToyTemplatePolicy(),
                  "Toy proposal preserves stable generic metadata"))
     return result;
   if (int result =
           expect(proposal.getRequiredCapabilityIDs().size() == 1 &&
                      proposal.getRequiredCapabilityIDs().front() ==
-                         tianchenrv::plugin::toy::getToyTemplateCapabilityID(),
+                         weft::plugin::toy::getToyTemplateCapabilityID(),
                  "Toy proposal requires toy.template capability id"))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, tianchenrv::plugin::toy::getToyTemplateABIAttrName(),
-          tianchenrv::plugin::toy::getToyExpectedTemplateABI()))
+          proposal, weft::plugin::toy::getToyTemplateABIAttrName(),
+          weft::plugin::toy::getToyExpectedTemplateABI()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, tianchenrv::plugin::toy::getToyHandoffKindAttrName(),
-          tianchenrv::plugin::toy::getToyExpectedHandoffKind()))
+          proposal, weft::plugin::toy::getToyHandoffKindAttrName(),
+          weft::plugin::toy::getToyExpectedHandoffKind()))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_toy.construction_protocol",
-          tianchenrv::plugin::toy::getToyConstructionManifest()
+          proposal, "weft_toy.construction_protocol",
+          weft::plugin::toy::getToyConstructionManifest()
               .protocolVersion))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_toy.semantic_role_graph",
-          tianchenrv::plugin::toy::getToyConstructionManifest()
+          proposal, "weft_toy.semantic_role_graph",
+          weft::plugin::toy::getToyConstructionManifest()
               .semanticRoleGraph))
     return result;
   if (int result = expectProposalStringAttr(
-          proposal, "tcrv_toy.typed_role_realization",
-          tianchenrv::plugin::toy::getToyTypedRoleRealizationSummary()))
+          proposal, "weft_toy.typed_role_realization",
+          weft::plugin::toy::getToyTypedRoleRealizationSummary()))
     return result;
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
@@ -479,7 +479,7 @@ module {
     return result;
   return expect(proposals.empty() && declines.size() == 1 &&
                     declines.front().getPluginName() ==
-                        tianchenrv::plugin::toy::getToyExtensionPluginName() &&
+                        weft::plugin::toy::getToyExtensionPluginName() &&
                     declines.front().getReason().contains("template_abi"),
                 "malformed Toy capability records plugin-local decline");
 }
@@ -487,8 +487,8 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @toy_template_kernel attributes {} {
-    tcrv.exec.capability @toy_template {
+  weft.exec.kernel @toy_template_kernel attributes {} {
+    weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
       status = "available",
@@ -509,7 +509,7 @@ module {
 
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(registry),
+          expectSuccess(weft::plugin::registerToyExtensionPlugin(registry),
                         "register Toy plugin for pipeline hook"))
     return result;
 
@@ -518,7 +518,7 @@ module {
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+          weft::transforms::collectAndMaterializeVariantProposals(
               builder, registry, request, &materializedVariants),
           "materialize Toy proposal"))
     return result;
@@ -529,22 +529,22 @@ module {
 
   VariantOp toyVariant = findVariant(
       kernel,
-      tianchenrv::plugin::toy::getToyTemplateFirstSliceVariantName());
+      weft::plugin::toy::getToyTemplateFirstSliceVariantName());
   if (int result = expect(toyVariant, "Toy variant is materialized"))
     return result;
   if (int result =
           expect(toyVariant->getAttrOfType<mlir::StringAttr>("origin")
                          .getValue() ==
-                     tianchenrv::plugin::toy::getToyExtensionPluginName(),
+                     weft::plugin::toy::getToyExtensionPluginName(),
                  "Toy variant has Toy origin"))
     return result;
   if (int result =
           expect(toyVariant
                          ->getAttrOfType<mlir::StringAttr>(
-                             tianchenrv::plugin::toy::
+                             weft::plugin::toy::
                                  getToyTemplateABIAttrName())
                          .getValue() ==
-                     tianchenrv::plugin::toy::getToyExpectedTemplateABI(),
+                     weft::plugin::toy::getToyExpectedTemplateABI(),
                  "Toy variant carries template ABI metadata"))
     return result;
 
@@ -567,14 +567,14 @@ module {
           expect(estimate.hasScore() && estimate.getScore() == 50.0 &&
                      estimate.hasExplicitPreference() &&
                      estimate.getOriginPlugin() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyExtensionPluginName() &&
                      estimate.getVariantSymbol() == toyVariant.getSymName(),
                  "Toy cost metadata is plugin-owned"))
     return result;
 
   llvm::Expected<VariantSelectionPlan> planOrError =
-      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
                                                          registry);
   if (!planOrError)
     return fail("Toy selection planning failed: " +
@@ -589,7 +589,7 @@ module {
 
   DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeSelectedVariantMarker(
+          weft::transforms::materializeSelectedVariantMarker(
               builder, selectionPlan, &marker),
           "materialize Toy selected marker"))
     return result;
@@ -597,7 +597,7 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          weft::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
           "materialize Toy selected boundary"))
     return result;
@@ -609,9 +609,9 @@ module {
                  "Toy selected path materializes a compute role boundary"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::plugin::toy::verifyToyComputeRoleOpInterface(
-              tianchenrv::plugin::toy::getToyConstructionManifest(),
-              tianchenrv::plugin::toy::getToyTypedRoleGraphRealization(),
+          weft::plugin::toy::verifyToyComputeRoleOpInterface(
+              weft::plugin::toy::getToyConstructionManifest(),
+              weft::plugin::toy::getToyTypedRoleGraphRealization(),
               computeRole.getOperation()),
           "Toy selected compute role validates against construction protocol"))
     return result;
@@ -628,7 +628,7 @@ module {
           "Toy emission readiness routes through active EmitC provider"))
     return result;
   const auto &routeSpec =
-      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+      weft::plugin::toy::getToyTemplateEmitCConstructionRoute();
   if (int result =
           expect(status.isSupported() &&
                      status.getEmissionPath() == routeSpec.routeID,
@@ -646,7 +646,7 @@ module {
   if (int result =
           expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
@@ -667,17 +667,17 @@ module {
                          routeSpec.runtimeGlueRole &&
                      emissionPlan.getLoweringBoundaryOpName() ==
                          routeSpec.loweringBoundaryOpName &&
-                     tianchenrv::support::runtimeABIParametersEqual(
+                     weft::support::runtimeABIParametersEqual(
                          emissionPlan.getRuntimeABIParameters(),
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyTemplateRuntimeABIParameters()) &&
                      emissionPlan.getArtifactMetadata().size() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyTemplateConstructionArtifactMetadata()
                                  .size() &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
-                         tianchenrv::plugin::toy::
+                         weft::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
                  "Toy emission plan advertises the plugin-local "
                  "materialized object/header/bundle artifact bridge"))
@@ -691,14 +691,14 @@ module {
 int main() {
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(
+          expectSuccess(weft::plugin::registerToyExtensionPlugin(
                             dialectPlugins),
                         "register Toy plugin for dialect setup"))
     return result;
 
   mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  weft::registerAllDialects(dialectRegistry);
+  weft::registerPluginDialects(dialectPlugins, dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 

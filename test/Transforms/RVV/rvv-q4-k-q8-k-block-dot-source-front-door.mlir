@@ -1,11 +1,11 @@
 // Track B auto-lowering, the SUPER-BLOCK rung -- one step ABOVE the codebook rung
 // (rvv-iq4-nl-q8-0-block-dot-source-front-door.mlir). The COMPILER auto-CONSTRUCTS
-// the complete tcrv.exec.kernel + variant + dispatch/fallback scaffold around the
+// the complete weft.exec.kernel + variant + dispatch/fallback scaffold around the
 // typed SUPER-BLOCK dual-accumulator loop body
-// (tcrv_rvv.typed_super_block_block_dot_loop_body) DECOMPOSED over the 5 q4_K bricks
+// (weft_rvv.typed_super_block_block_dot_loop_body) DECOMPOSED over the 5 q4_K bricks
 // from a marked ggml `ggml_vec_dot_q4_K_q8_K` OPERATOR-IDENTITY source, instead of a
 // per-kernel hand-authored super-block block-dot emitter input (M-FLAT milestone-3:
-// the front door no longer constructs the opaque monolith tcrv_rvv.q4_k_q8_k_block_dot
+// the front door no longer constructs the opaque monolith weft_rvv.q4_k_q8_k_block_dot
 // op). q4_K is the most-used modern K-quant and the HARDEST
 // Track B rung so far: the weight is a 256-element SUPER-BLOCK (8 sub-blocks of 32),
 // each carrying a 6-bit scale + a 6-bit min PACKED across 12 scale/min bytes, plus a
@@ -30,10 +30,10 @@
 // (modulo the source-op provenance token).
 
 // The auto-constructed attr-less super-block block-dot scaffold (no shape knob).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q4-k-q8-k-block-dot-source-front-door | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door | FileCheck %s --check-prefix=BODY
 //
 // The EMITTED super-block dot core from the SAME auto-constructed attr-less op:
-// q4_K is NOT in any schedule autotuner, so there is NO --tcrv-rvv-materialize-schedule
+// q4_K is NOT in any schedule autotuner, so there is NO --weft-rvv-materialize-schedule
 // stamp step (unlike q4_0/iq4_nl); the op lowers DIRECTLY at the q4_K emitter's
 // default mf2 integer-core anchor. The lowered kernel is BYTE-IDENTICAL to the
 // retired hand-authored q4_K monolith block-dot emit (modulo the source-op
@@ -41,69 +41,69 @@
 // shared CORE helpers are ssh-rvv-pinned to ggml's real ggml_vec_dot_q4_K_q8_K
 // _generic fp32 order). This lowering is VLEN-independent (no flip), so VLEN128 and
 // VLEN256 emit the SAME bytes: COVERAGE, not a capability flip.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 //
 // FAIL-CLOSED (I7): a non-conforming operator-identity signature (the q8_K activation
 // operand is an f32 memref, not the i8 memref the vec_dot identity requires) is
 // REJECTED, not silently constructed.
-// RUN: not tcrv-opt %S/Inputs/q4-k-q8-k-block-dot-source-wrong-signature.mlir --tcrv-rvv-materialize-q4-k-q8-k-block-dot-source-front-door 2>&1 | FileCheck %s --check-prefix=BADSIG
+// RUN: not weft-opt %S/Inputs/q4-k-q8-k-block-dot-source-wrong-signature.mlir --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door 2>&1 | FileCheck %s --check-prefix=BADSIG
 
-module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_q4_K_q8_K_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_q4_K_q8_K_kernel"} {
   func.func @source_q4_K_q8_K_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
 }
 
 // ===================== AUTO-CONSTRUCTED TYPED SUPER-BLOCK LOOP BODY ==========
-// The marked operator-identity source becomes a tcrv.exec.kernel with the
+// The marked operator-identity source becomes a weft.exec.kernel with the
 // auto-built typed SUPER-BLOCK DUAL-accumulator loop body op
-// (tcrv_rvv.typed_super_block_block_dot_loop_body) DECOMPOSED into the 5 q4_K
+// (weft_rvv.typed_super_block_block_dot_loop_body) DECOMPOSED into the 5 q4_K
 // bricks + the four-value ABI set + the dispatch/fallback scaffold. NO per-kernel
-// emitter authored this, and NO opaque monolith tcrv_rvv.q4_k_q8_k_block_dot op is
+// emitter authored this, and NO opaque monolith weft_rvv.q4_k_q8_k_block_dot op is
 // constructed (the M-FLAT milestone-3 flip: the front door now builds typed
 // pattern-library primitives). NO shape knob is stamped (no integer_core_lmul on
 // the loop op or the scaled-dot brick; the q4_K Win-A knob stays dormant, so the
 // emitter lowers at its default mf2 anchor).
-// BODY: tcrv.exec.kernel @ggml_vec_dot_q4_K_q8_K_kernel
-// BODY: tcrv.exec.variant @rvv_q4_K_q8_K_block_dot
+// BODY: weft.exec.kernel @ggml_vec_dot_q4_K_q8_K_kernel
+// BODY: weft.exec.variant @rvv_q4_K_q8_K_block_dot
 // The ggml vec_dot ABI value set -- the EXACT 4-role list (n, s, vx, vy), NO dead
 // aux8/scales/aux32 scratch parameters: the super-block scratch is emitter-owned in
 // the loop form, so the vestigial brick scratch operand slots are wired to the
 // weight base %vx (not minted as placeholder runtime ABI values).
-// BODY: tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"}
-// BODY: tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"}
-// BODY: tcrv_rvv.setvl
+// BODY: weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"}
+// BODY: weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"}
+// BODY: weft_rvv.setvl
 // BODY-SAME: lmul = "m1"
 // BODY-SAME: sew = 32
 // The typed super-block DUAL-accumulator loop body op (the OUTER nb = n/QK_K loop):
 // the bounded super-block facts + the two-level fold model, but NO integer_core_lmul
 // (the dormant q4_K Win-A knob -> emitter default mf2), and NO opaque monolith op.
-// BODY: tcrv_rvv.typed_super_block_block_dot_loop_body
+// BODY: weft_rvv.typed_super_block_block_dot_loop_body
 // BODY-SAME: activation_block_stride = 292 : i64
 // BODY-SAME: fold_model = "super_block_two_level_scale_min"
 // BODY-SAME: kind = "typed_super_block_block_dot_loop_body"
 // BODY-SAME: qk = 256 : i64
 // BODY-SAME: weight_block_stride = 144 : i64
 // BODY-NOT: integer_core_lmul
-// BODY-NOT: tcrv_rvv.q4_k_q8_k_block_dot
+// BODY-NOT: weft_rvv.q4_k_q8_k_block_dot
 // The DUAL-accumulator region entry args: (super_block_index, sums vector<f32 m2>,
 // sumf scalar f32).
-// BODY: ^bb0(%{{.*}}: index, %{{.*}}: !tcrv_rvv.vector<f32, "m2">, %{{.*}}: f32):
+// BODY: ^bb0(%{{.*}}: index, %{{.*}}: !weft_rvv.vector<f32, "m2">, %{{.*}}: f32):
 // The 5 decomposed q4_K bricks, each keyed off the loop induction variable (region
 // arg 0), so the per-super-block addressing is base + ib*stride (operand-driven).
-// BODY: tcrv_rvv.q4_k_nibble_unpack %{{.*}}, %{{.*}} block %{{.*}}
-// BODY: tcrv_rvv.q4_k_scale_min_bit_dance %{{.*}}, %{{.*}} block %{{.*}}
-// BODY: tcrv_rvv.q4_k_scaled_dot %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
-// BODY: tcrv_rvv.q4_k_min_term %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
-// BODY: tcrv_rvv.q4_k_sums_fold_scale_d %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
+// BODY: weft_rvv.q4_k_nibble_unpack %{{.*}}, %{{.*}} block %{{.*}}
+// BODY: weft_rvv.q4_k_scale_min_bit_dance %{{.*}}, %{{.*}} block %{{.*}}
+// BODY: weft_rvv.q4_k_scaled_dot %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
+// BODY: weft_rvv.q4_k_min_term %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
+// BODY: weft_rvv.q4_k_sums_fold_scale_d %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
 // The dual carried-out yield (sums vector + sumf scalar).
-// BODY: tcrv_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}} : !tcrv_rvv.vector<f32, "m2">, f32
+// BODY: weft_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}} : !weft_rvv.vector<f32, "m2">, f32
 // The conservative fallback is authored by the fallback-owning plugin.
-// BODY: tcrv.exec.variant @rvv_q4_K_q8_K_block_dot_scalar_fallback
+// BODY: weft.exec.variant @rvv_q4_K_q8_K_block_dot_scalar_fallback
 // BODY-SAME: fallback_role = "conservative"
-// BODY: tcrv.exec.case @rvv_q4_K_q8_K_block_dot
-// BODY: tcrv.exec.fallback @rvv_q4_K_q8_K_block_dot_scalar_fallback
+// BODY: weft.exec.case @rvv_q4_K_q8_K_block_dot
+// BODY: weft.exec.fallback @rvv_q4_K_q8_K_block_dot_scalar_fallback
 
 // =================== EMITTED super-block dot core (default mf2) ==============
 // The default mf2 integer-core anchor carries through the lowering byte-identical
@@ -112,7 +112,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // bit-dance (NO raw strings), the per-sub-block i32 dot, the MIN term, the deferred
 // fp32 fold (SEPARATE vfmul/vfadd, NEVER a fused vfmacc), and the SEQUENTIAL
 // horizontal sum. The block facts (256/8/144/292/offsets) are op structure.
-// EMIT: emitc.func @tcrv_emitc_ggml_vec_dot_q4_K_q8_K_kernel_rvv_q4_K_q8_K_block_dot(
+// EMIT: emitc.func @weft_emitc_ggml_vec_dot_q4_K_q8_K_kernel_rvv_q4_K_q8_K_block_dot(
 // EMIT: %[[AUX8:.*]] = "emitc.variable"() {{.*}} -> !emitc.array<256x!emitc.opaque<"int8_t">>
 // EMIT: %[[UTMP:.*]] = "emitc.variable"() {{.*}} -> !emitc.array<4x!emitc.opaque<"uint32_t">>
 // EMIT: call_opaque "__riscv_vsetvl_e8m2"
@@ -131,7 +131,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // EMIT: return
 // The residual operator-identity source func lowers to NOTHING (the same as the
 // MVP/dequant/q4_0/iq4_nl sibling front doors): exactly ONE emitc kernel.
-// EMIT-NOT: emitc.func @tcrv_emitc_source_q4_K_q8_K_block_dot
+// EMIT-NOT: emitc.func @weft_emitc_source_q4_K_q8_K_block_dot
 
 // ===================== FAIL-CLOSED diagnostics (I7) =========================
 // BADSIG: ggml Q4_K x Q8_K super-block block-dot source front door failed

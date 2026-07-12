@@ -29,7 +29,7 @@ When evaluating plugin integration, record:
 - verifier orchestration reuse;
 - emission provider reuse.
 - selected-body realization provider reuse;
-- provider-built `TCRVEmitCLowerableRoute` reuse.
+- provider-built `WEFTEmitCLowerableRoute` reuse.
 
 ## Red Flags
 

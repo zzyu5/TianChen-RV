@@ -1,21 +1,21 @@
-// RUN: not tcrv-opt %s --split-input-file 2>&1 | FileCheck %s
+// RUN: not weft-opt %s --split-input-file 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @scalar_boundary_deleted {
-    tcrv.exec.capability @scalar_fallback {
+  weft.exec.kernel @scalar_boundary_deleted {
+    weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+    weft.exec.variant @scalar_fallback_first_slice attributes {
       fallback_role = "conservative",
       origin = "scalar-plugin",
       policy = "portable_scalar_fallback_first_slice",
       requires = [@scalar_fallback]
     } {
     }
-    // CHECK: custom op 'tcrv_scalar.lowering_boundary' is unknown
-    tcrv_scalar.lowering_boundary {
+    // CHECK: custom op 'weft_scalar.lowering_boundary' is unknown
+    weft_scalar.lowering_boundary {
       origin = "scalar-plugin",
       required_capabilities = [@scalar_fallback],
       role = "dispatch fallback",

@@ -1,12 +1,12 @@
-#include "TianChenRV/Transforms/ExecutionPlanCoherence.h"
+#include "Weft/Transforms/ExecutionPlanCoherence.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/ArtifactMetadata.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/ArtifactMetadata.h"
+#include "Weft/Support/RuntimeABIParam.h"
+#include "Weft/Target/TargetArtifactExport.h"
+#include "Weft/Transforms/Passes.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -25,29 +25,29 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_CHECKEXECUTIONPLANCOHERENCE
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
-namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
+namespace execDiagnostic = weft::exec::diagnostic;
 
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::target::TargetArtifactCandidate;
-using tianchenrv::target::TargetArtifactExporter;
-using tianchenrv::target::TargetArtifactExporterRegistry;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::RuntimeParamOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::VariantEmissionRole;
+using weft::plugin::VariantLoweringBoundaryValidationRequest;
+using weft::support::TargetCapabilitySet;
+using weft::target::TargetArtifactCandidate;
+using weft::target::TargetArtifactExporter;
+using weft::target::TargetArtifactExporterRegistry;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::RuntimeParamOp;
+using weft::exec::VariantOp;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
@@ -69,7 +69,7 @@ struct SelectedPath {
 llvm::Error makeCoherenceError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV execution plan coherence check failed";
+  stream << "Weft-RV execution plan coherence check failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -210,18 +210,18 @@ llvm::Error resolveDirectVariant(
     return makeCoherenceError(
         kernel, llvm::Twine(context) + " target @" + symbol +
                     " resolves to a direct sibling symbol that is not a "
-                    "tcrv.exec.variant");
+                    "weft.exec.variant");
 
   VariantOp nested = findNestedVariantBySymbol(kernel, symbol);
   if (nested && !hasDirectParent(nested.getOperation(), kernel))
     return makeCoherenceError(
         kernel, llvm::Twine(context) + " target @" + symbol +
-                    " resolves to a tcrv.exec.variant that is not a direct "
+                    " resolves to a weft.exec.variant that is not a direct "
                     "sibling in the same kernel");
 
   return makeCoherenceError(
       kernel, llvm::Twine(context) + " target @" + symbol +
-                  " does not resolve to a direct sibling tcrv.exec.variant");
+                  " does not resolve to a direct sibling weft.exec.variant");
 }
 
 llvm::Error getRegisteredVariantOrigin(KernelOp kernel, VariantOp variant,
@@ -229,7 +229,7 @@ llvm::Error getRegisteredVariantOrigin(KernelOp kernel, VariantOp variant,
                                        std::string &origin) {
   if (!variant)
     return makeCoherenceError(kernel, "selected path requires a materialized "
-                                      "tcrv.exec.variant");
+                                      "weft.exec.variant");
 
   if (llvm::Error error =
           requireStringAttr(kernel, variant.getOperation(),
@@ -237,7 +237,7 @@ llvm::Error getRegisteredVariantOrigin(KernelOp kernel, VariantOp variant,
                             origin))
     return error;
 
-  const tianchenrv::plugin::ExtensionPlugin *plugin =
+  const weft::plugin::ExtensionPlugin *plugin =
       plugins.lookupPlugin(origin);
   if (!plugin)
     return makeCoherenceError(
@@ -306,7 +306,7 @@ llvm::Error validateRequiredRuntimeGuardLink(
         kernel, llvm::Twine("dispatch case @") + target +
                     " runtime_guard @" + runtimeGuard.getValue() +
                     " resolves to a direct same-kernel symbol that is not a "
-                    "tcrv.exec.runtime_param");
+                    "weft.exec.runtime_param");
 
   auto role = runtimeParam->getAttrOfType<mlir::StringAttr>(
       support::kRuntimeParamABIRoleAttrName);
@@ -317,7 +317,7 @@ llvm::Error validateRequiredRuntimeGuardLink(
     return makeCoherenceError(
         kernel, llvm::Twine("dispatch case @") + target +
                     " runtime_guard @" + runtimeGuard.getValue() +
-                    " must reference a tcrv.exec.runtime_param with ABI role "
+                    " must reference a weft.exec.runtime_param with ABI role "
                     "'dispatch-availability-guard'");
 
   return llvm::Error::success();
@@ -331,7 +331,7 @@ llvm::Error collectDispatchSelectedPaths(
     llvm::SmallVectorImpl<SelectedPath> &paths) {
   if (!dispatch || !hasDirectParent(dispatch.getOperation(), kernel))
     return makeCoherenceError(
-        kernel, "requires selected tcrv.exec.dispatch to be a direct kernel "
+        kernel, "requires selected weft.exec.dispatch to be a direct kernel "
                 "child");
   if (dispatch.getBody().empty())
     return makeCoherenceError(
@@ -373,8 +373,8 @@ llvm::Error collectDispatchSelectedPaths(
         return error;
       paths.push_back(SelectedPath{
           variant, variant.getSymName().str(),
-          tianchenrv::plugin::stringifyVariantEmissionRole(
-              tianchenrv::plugin::VariantEmissionRole::DispatchCase)
+          weft::plugin::stringifyVariantEmissionRole(
+              weft::plugin::VariantEmissionRole::DispatchCase)
               .str(),
           std::move(origin),
           /*requiresLoweringBoundary=*/true});
@@ -409,8 +409,8 @@ llvm::Error collectDispatchSelectedPaths(
         return error;
       paths.push_back(SelectedPath{
           variant, variant.getSymName().str(),
-          tianchenrv::plugin::stringifyVariantEmissionRole(
-              tianchenrv::plugin::VariantEmissionRole::DispatchFallback)
+          weft::plugin::stringifyVariantEmissionRole(
+              weft::plugin::VariantEmissionRole::DispatchFallback)
               .str(),
           std::move(origin),
           /*requiresLoweringBoundary=*/false});
@@ -499,8 +499,8 @@ llvm::Error collectMarkerSelectedPath(
 
   paths.push_back(SelectedPath{
       variant, variant.getSymName().str(),
-      tianchenrv::plugin::stringifyVariantEmissionRole(
-          tianchenrv::plugin::VariantEmissionRole::DirectVariant)
+      weft::plugin::stringifyVariantEmissionRole(
+          weft::plugin::VariantEmissionRole::DirectVariant)
           .str(),
       std::move(origin),
       selectionKind != execDiagnostic::kFallbackOnlySelectionKindValue});
@@ -511,7 +511,7 @@ llvm::Error collectSelectedPaths(
     KernelOp kernel, const ExtensionPluginRegistry &plugins,
     llvm::SmallVectorImpl<SelectedPath> &paths) {
   if (!kernel)
-    return makeCoherenceError(kernel, "requires a tcrv.exec.kernel");
+    return makeCoherenceError(kernel, "requires a weft.exec.kernel");
   if (!hasKernelBody(kernel))
     return makeCoherenceError(
         kernel, "requires kernel to have a materialized body block");
@@ -533,7 +533,7 @@ llvm::Error collectSelectedPaths(
   if (dispatches.size() > 1)
     return makeCoherenceError(
         kernel, "requires exactly one selected dispatch surface; found "
-                "multiple direct tcrv.exec.dispatch operations");
+                "multiple direct weft.exec.dispatch operations");
   if (!dispatches.empty() && !markers.empty())
     return makeCoherenceError(
         kernel, "requires one selected path surface; found both dispatch and "
@@ -564,7 +564,7 @@ bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
   if (op.getName().getStringRef().ends_with(".lowering_boundary"))
     return true;
 
-  if (llvm::isa<tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface>(
+  if (llvm::isa<weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(
           op))
     return true;
 
@@ -1168,9 +1168,9 @@ llvm::Error validateEmissionPlans(
 llvm::Error validateSupportedArtifactCandidates(
     llvm::ArrayRef<TargetArtifactCandidate> inputCandidates,
     const TargetArtifactExporterRegistry &targetExporters) {
-  llvm::Expected<const tianchenrv::target::TargetArtifactCompositeExporter *>
+  llvm::Expected<const weft::target::TargetArtifactCompositeExporter *>
       compositeExporter =
-          tianchenrv::target::selectTargetArtifactCompositeExporter(
+          weft::target::selectTargetArtifactCompositeExporter(
               inputCandidates, targetExporters);
   if (!compositeExporter)
     return compositeExporter.takeError();
@@ -1208,7 +1208,7 @@ llvm::Error validateSupportedArtifactCandidates(
               candidate.routeID + "'");
 
     if (llvm::Error error =
-            tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+            weft::target::validateTargetArtifactCandidateAgainstExporter(
                 candidate, *exporter))
       return error;
   }
@@ -1286,7 +1286,7 @@ llvm::Error checkExecutionPlanCoherence(
   module->walk([&](KernelOp kernel) { kernels.push_back(kernel); });
   if (kernels.empty())
     return makeCoherenceError(KernelOp(),
-                              "requires at least one tcrv.exec.kernel");
+                              "requires at least one weft.exec.kernel");
 
   for (KernelOp kernel : kernels) {
     llvm::SmallVector<TargetArtifactCandidate, 2> supportedCandidates;
@@ -1312,4 +1312,4 @@ std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass(
                                                            targetExporters);
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

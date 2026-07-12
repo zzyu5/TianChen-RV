@@ -1,7 +1,7 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/kind = "typed_elementwise_loop_body"/kind = "plain_loop"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed 's/reduce_map_model = "rotate"/reduce_map_model = "spin"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMODEL
-// RUN: sed 's/kind = "elementwise_rope_rotate_core"/kind = "elementwise_bogus_rotate_core"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADBRICK
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/kind = "typed_elementwise_loop_body"/kind = "plain_loop"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed 's/reduce_map_model = "rotate"/reduce_map_model = "spin"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMODEL
+// RUN: sed 's/kind = "elementwise_rope_rotate_core"/kind = "elementwise_bogus_rotate_core"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADBRICK
 
 // M-FLAT forward-elementwise scaffold ROTATE model (line C, G1-tail) — the
 // CONSTRUCTED f32 forward-pass rope (ggml's ggml_compute_forward_rope_f32 NORMAL
@@ -12,20 +12,20 @@
 // NOT fit the MAP model (a MAP is a vectorized `i += vlmax` strip with NO
 // loop-carried state; rope is a SCALAR per-PAIR loop with a loop-carried f32
 // recurrence), so it lands its OWN increment: a THIRD reduce_map_model "rotate"
-// on the SAME typed elementwise strip-loop op tcrv_rvv.typed_elementwise_loop_body,
+// on the SAME typed elementwise strip-loop op weft_rvv.typed_elementwise_loop_body,
 // which REUSES the loop-carried-scalar region SHAPE the "reduce" model pioneered
 // (a SECOND region arg = the loop-carried value + the yield that carries it back,
 // realized as an emitc.variable lvalue since emitc.for has no iter_args), EXCEPT
 // the carried value is a DATA-INDEPENDENT f32 recurrence (theta *= theta_scale),
 // NOT a reduction of the buffer. The NEW per-op machinery is the rotate core brick
-// tcrv_rvv.elementwise_rope_rotate_core (it carries the whole rope ABI + the
+// weft_rvv.elementwise_rope_rotate_core (it carries the whole rope ABI + the
 // per-pair rotation; anti-bypass: its pair_index is region arg 0 and its theta is
-// region arg 1). The monolith tcrv_rvv.ggml_rope_norm_f32 op + emitGgmlRopeNormF32
+// region arg 1). The monolith weft_rvv.ggml_rope_norm_f32 op + emitGgmlRopeNormF32
 // opaque helper + recognizer + verifier were RETIRED.
 //
 // This is BYTE-EXACT to the retired monolith emit modulo ONLY the source-op
-// provenance token (tcrv_rvv.ggml_rope_norm_f32 ->
-// tcrv_rvv.elementwise_rope_rotate_core). BYTE-EXACTNESS has TWO honest axes:
+// provenance token (weft_rvv.ggml_rope_norm_f32 ->
+// weft_rvv.elementwise_rope_rotate_core). BYTE-EXACTNESS has TWO honest axes:
 // (1) cosf/sinf are SCALAR libm (one call_opaque each — the sanctioned opaque
 // seam, a DIFFERENT byte-exactness axis from silu/soft_max's replicated vectorized
 // exp polynomial: libm-LINKED, bit-exact under same-libm, libm-tolerance on the
@@ -37,17 +37,17 @@
 // constructed-strong). Numerical bit-exact-vs-ggml is pending-hardware.
 
 module {
-  tcrv.exec.kernel @ggml_rope_norm_f32_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_rope_norm_f32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n_dims", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %x = tcrv_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %y = tcrv_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %tb = tcrv_rvv.runtime_abi_value {c_name = "theta_base", c_type = "float", ownership = "target-export-abi-owned", purpose = "scale", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
-      %ts = tcrv_rvv.runtime_abi_value {c_name = "theta_scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "scale", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_rope_norm_f32, sew = 32 : i64, source_kernel = "ggml_rope_norm_f32_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "rotate", element_sew = 32 : i64} {
+  weft.exec.kernel @ggml_rope_norm_f32_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_rope_norm_f32 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n_dims", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %y = weft_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %tb = weft_rvv.runtime_abi_value {c_name = "theta_base", c_type = "float", ownership = "target-export-abi-owned", purpose = "scale", role = "dequant-scale-value"} : !weft_rvv.runtime_abi_value
+      %ts = weft_rvv.runtime_abi_value {c_name = "theta_scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "scale", role = "dequant-scale-value"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_rope_norm_f32, sew = 32 : i64, source_kernel = "ggml_rope_norm_f32_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "rotate", element_sew = 32 : i64} {
         ^bb0(%pair_index: index, %theta: f32):
           // The per-pair rope rotate core brick: read the carried theta, cosf/sinf
           // the angle, load the consecutive pair x[2p]/x[2p+1], write the 2x2
@@ -56,21 +56,21 @@ module {
           // induction variable (region arg 0) and its theta is the loop-carried f32
           // recurrence (region arg 1), the anti-bypass ties. NO strip_lmul knob
           // (cos/sin are scalar libm, the loop is scalar per-pair).
-          %theta_next = tcrv_rvv.elementwise_rope_rotate_core %x, %y, %tb, %ts, %n pair %pair_index theta %theta {kind = "elementwise_rope_rotate_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f32 -> f32
-          tcrv_rvv.typed_elementwise_loop_yield %theta_next : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %theta_next = weft_rvv.elementwise_rope_rotate_core %x, %y, %tb, %ts, %n pair %pair_index theta %theta {kind = "elementwise_rope_rotate_core"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, f32 -> f32
+          weft_rvv.typed_elementwise_loop_yield %theta_next : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // The rope TU calls scalar libm (cosf/sinf), so the emitted module MUST
 // self-include <math.h> to be a self-contained standalone TU (byte-exact to the
 // retired monolith's self-include behavior; keyed on the rotate core brick).
 // CHECK: emitc.include <"math.h">
-// CHECK: emitc.func @tcrv_emitc_ggml_rope_norm_f32_kernel_ggml_rope_norm_f32(
+// CHECK: emitc.func @weft_emitc_ggml_rope_norm_f32_kernel_ggml_rope_norm_f32(
 // The loop-carried f32 angle recurrence theta as an emitc.variable lvalue
 // (emitc.for has no iter_args), seeded from theta_base.
 // CHECK: %[[THETA:.*]] = "emitc.variable"{{.*}}lvalue<!emitc.opaque<"float">>
@@ -103,7 +103,7 @@ module {
 // rotation/recurrence are emitc.mul/sub/add/assign nodes, NOT a raw C blob. The
 // provenance verbatims carry the constructed rotate brick's op identity, NOT the
 // retired monolith op, and NO opaque C blob leaks.
-// CHECK-NOT: tcrv_rvv.ggml_rope_norm_f32
+// CHECK-NOT: weft_rvv.ggml_rope_norm_f32
 // CHECK-NOT: emitc.verbatim {{.*}}__riscv
 
 // The bounded surface is fail-closed on the loop kind, the reduce_map_model fact,

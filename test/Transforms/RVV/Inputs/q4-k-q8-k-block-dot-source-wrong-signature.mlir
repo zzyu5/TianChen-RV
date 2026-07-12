@@ -3,7 +3,7 @@
 // memref, not the i8 memref the vec_dot identity requires). The front door must
 // REJECT it fail-closed (I7), not silently construct a super-block block-dot op
 // around a mismatched ABI.
-module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source"} {
+module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source"} {
   func.func @source_q4_K_q8_K_bad(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xf32>) {
     return
   }

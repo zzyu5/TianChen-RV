@@ -1,7 +1,7 @@
 #include "RVVToEmitCInternal.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
@@ -758,11 +758,11 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ3_KSuperBlockAux32C
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op blockDot;
+    weftrvv::GgmlBlockDotQ6KQ8KAux32Op blockDot;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op>(op))
+      if (auto bd = llvm::dyn_cast<weftrvv::GgmlBlockDotQ6KQ8KAux32Op>(op))
         blockDot = bd;
     }
     if (!blockDot)
@@ -776,8 +776,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial(
       return rewriter.notifyMatchFailure(blockDot,
                                          "q6_K partial ABI operand unmapped");
 
-    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = blockDot.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = blockDot.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
@@ -927,7 +927,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial(
 // Track B q4_K BRICK 1: the plain 4-bit nibble unpack into aux8[256] (Region A),
 // factored out VERBATIM from emitQ4_KSuperBlockAux32Core so the SAME node
 // sequence is reachable both inline (the monolithic q4_K/q5_K integer core) AND
-// through the first-class tcrv_rvv.q4_k_nibble_unpack op. Emits at the current
+// through the first-class weft_rvv.q4_k_nibble_unpack op. Emits at the current
 // insertion point; writes aux8Array as a side effect.
 void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -1052,7 +1052,7 @@ void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
 // decode into the 16 [scales,mins] bytes -- Region B), factored out VERBATIM
 // from emitQ4_KSuperBlockAux32Core so the SAME node sequence is reachable both
 // inline (the monolithic q4_K/q5_K integer core) AND through the first-class
-// tcrv_rvv.q4_k_scale_min_bit_dance op. Emits at the current insertion point;
+// weft_rvv.q4_k_scale_min_bit_dance op. Emits at the current insertion point;
 // fills utmpArray as a side effect and returns scalesU8 = (const uint8_t
 // *)&utmp[0] (the 8 6-bit scales, contiguous with the 8 mins -- 16 bytes total).
 mlir::Value VariantToEmitCFunc::emitQ4_KScaleMinBitDanceCore(
@@ -1169,7 +1169,7 @@ mlir::Value VariantToEmitCFunc::emitQ4_KScaleMinBitDanceCore(
 // aux32 PLUS the integer fold-back (Region C), factored out VERBATIM from
 // emitQ4_KSuperBlockAux32Core so the SAME node sequence is reachable both inline
 // (the monolithic q4_K/q5_K integer core) AND through the first-class
-// tcrv_rvv.q4_k_scaled_dot op. Emits at the current insertion point: declares the
+// weft_rvv.q4_k_scaled_dot op. Emits at the current insertion point: declares the
 // per-super-block aux32 lvalue, seeds it to zero, runs the sub-block loop applying
 // the per-sub-block UINT6 scale `scalesU8[js]` in the i32 domain via the
 // vsetvl_e8<l8>/vle8x2/vwmul i16<l16>/vwmacc i32<l32> MAC strip (cx.numStrips per
@@ -1391,7 +1391,7 @@ VariantToEmitCFunc::emitQ4_KScaledDotIntoAux32(
 // reduction sumi = sum_j(bsums[j] * mins[j/2]), factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
 // monolithic q4_K/q5_K block dot, which emits it BEFORE its deferred positive
-// fold) AND through the first-class tcrv_rvv.q4_k_min_term op. Emits at the
+// fold) AND through the first-class weft_rvv.q4_k_min_term op. Emits at the
 // current insertion point: the bsums base (yb + bsumsOffset, cast const int16_t
 // *), declares + zeroes the per-super-block scalar `int sumi`, then the
 // numBsums-iteration scalar reduction pairing each SIGN-extended int16 bsums with
@@ -1478,7 +1478,7 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ4_KMinTermBsumsDot(
 // contraction sumf -= dmin * (float)sumi, factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
 // monolithic q4_K/q5_K block dot, which emits it AFTER its positive fold) AND
-// through the first-class tcrv_rvv.q4_k_min_term op. Emits at the current
+// through the first-class weft_rvv.q4_k_min_term op. Emits at the current
 // insertion point: dmin = fp16(*(const _Float16 *)(xb + weightDminOffset)) * dy
 // (the once-loaded fp32 activation scale), then `sumf = sumf - dmin *
 // (float)sumi` as ONE emitc.expression (ggml's `sumf -= dmin * sumi`,
@@ -1547,7 +1547,7 @@ void VariantToEmitCFunc::emitQ4_KMinTermSubtract(
 // mechanism), `sums += (fp16(x.d) * dy) * (float)aux32`, factored out VERBATIM
 // from emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline
 // (the monolithic q4_K/q5_K block dot, which emits it BETWEEN its two interleaved
-// MIN-term halves) AND through the first-class tcrv_rvv.q4_k_sums_fold_scale_d
+// MIN-term halves) AND through the first-class weft_rvv.q4_k_sums_fold_scale_d
 // op. Emits at the current insertion point: d = fp16(*(const _Float16 *)(xb +
 // weightDOffset)) * dy (the once-loaded fp32 activation scale), af = vfcvt of the
 // BRICK 3 canonical-8 aux32, pr = vfmul.vf(af, d) (a SEPARATE multiply, NEVER an
@@ -1624,7 +1624,7 @@ void VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
 // Track B q4_K BRICK 7: the POST-LOOP horizontal fold, factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
 // monolithic q4_K block dot, which emits it AFTER its super-block loop) AND through
-// the first-class tcrv_rvv.q4_k_horizontal_fold op. Emits at the current insertion
+// the first-class weft_rvv.q4_k_horizontal_fold op. Emits at the current insertion
 // point: `vse32_v_f32m2(&sums8[0], sums, 8)` materializes the carried 8-lane fp32
 // sums accumulator into the sums8[8] scratch, then the FIXED sequential ascending
 // `sumf = sumf + sums8[l]` for l = 0..numLanes-1 (numLanes == 8) collapses the 8
@@ -1724,13 +1724,13 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
 
     // ---- (A) 4-bit nibble unpack into aux8 (element-ordered, NO bias) ----
     // Factored into the shared Track B brick-1 helper (the SAME node sequence,
-    // also reachable through the first-class tcrv_rvv.q4_k_nibble_unpack op).
+    // also reachable through the first-class weft_rvv.q4_k_nibble_unpack op).
     emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
 
     // ---- (B) the 6-bit scale/min bit-dance (utmp/kmask), STRUCTURED scalar
     // emitc.bitwise ops (NO raw string), mirroring _generic (quants.c:685-690).
     // Factored into the shared Track B brick-2 helper (the SAME node sequence,
-    // also reachable through the first-class tcrv_rvv.q4_k_scale_min_bit_dance
+    // also reachable through the first-class weft_rvv.q4_k_scale_min_bit_dance
     // op); returns scalesU8 = (const uint8_t *)&utmp[0].
     mlir::Value scalesU8 =
         emitQ4_KScaleMinBitDanceCore(rewriter, loc, cx, xb, utmpArray);
@@ -1766,7 +1766,7 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
     // ---- (C) per-sub-block uint6-scaled i32 dot into the 8-lane aux32 + the
     // C-tail integer fold-back ----
     // Factored into the shared Track B brick-3 helper (the SAME node sequence,
-    // also reachable through the first-class tcrv_rvv.q4_k_scaled_dot op); it
+    // also reachable through the first-class weft_rvv.q4_k_scaled_dot op); it
     // seeds + accumulates the running (wide) aux32 via the integer_core_lmul MAC
     // chain reading scalesU8/aux8Base and the q8 base derived from yb, then folds
     // the wide aux32 back to the canonical 8-lane vint32m2 (no-op at mf2), and
@@ -1779,11 +1779,11 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlBlockDotQ4KQ8KAux32Op blockDot;
+    weftrvv::GgmlBlockDotQ4KQ8KAux32Op blockDot;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ4KQ8KAux32Op>(op))
+      if (auto bd = llvm::dyn_cast<weftrvv::GgmlBlockDotQ4KQ8KAux32Op>(op))
         blockDot = bd;
     }
     if (!blockDot)
@@ -1798,8 +1798,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
       return rewriter.notifyMatchFailure(blockDot,
                                          "q4_K partial ABI operand unmapped");
 
-    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = blockDot.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = blockDot.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
@@ -1955,12 +1955,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KNibbleUnpack(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     (void)avlArg; // Region A decodes ONE super-block at a literal vl; no n use.
-    tcrvrvv::Q4KNibbleUnpackOp unpack;
+    weftrvv::Q4KNibbleUnpackOp unpack;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto u = llvm::dyn_cast<tcrvrvv::Q4KNibbleUnpackOp>(op))
+      if (auto u = llvm::dyn_cast<weftrvv::Q4KNibbleUnpackOp>(op))
         unpack = u;
     }
     if (!unpack)
@@ -1972,8 +1972,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KNibbleUnpack(
       return rewriter.notifyMatchFailure(unpack,
                                          "q4_K nibble-unpack weight base unmapped");
 
-    llvm::StringRef opName = unpack.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = unpack.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = unpack.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = unpack.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
@@ -2043,13 +2043,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KNibbleUnpack(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     (void)avlArg; // Region B decodes ONE super-block; the bit-dance is pure
                   // scalar and the vse8 observable uses a literal vl -- no n use.
-    tcrvrvv::Q4KScaleMinBitDanceOp bitDance;
+    weftrvv::Q4KScaleMinBitDanceOp bitDance;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::Q4KScaleMinBitDanceOp>(op))
+      if (auto bd = llvm::dyn_cast<weftrvv::Q4KScaleMinBitDanceOp>(op))
         bitDance = bd;
     }
     if (!bitDance)
@@ -2061,8 +2061,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
       return rewriter.notifyMatchFailure(
           bitDance, "q4_K scale-min-bit-dance weight base unmapped");
 
-    llvm::StringRef opName = bitDance.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = bitDance.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = bitDance.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = bitDance.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
@@ -2210,13 +2210,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     (void)avlArg; // Region C dots ONE super-block; the strips use literal vl ==
                   // stripWidth and the store uses literal 8 -- no n use.
-    tcrvrvv::Q4KScaledDotOp scaledDot;
+    weftrvv::Q4KScaledDotOp scaledDot;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto sd = llvm::dyn_cast<tcrvrvv::Q4KScaledDotOp>(op))
+      if (auto sd = llvm::dyn_cast<weftrvv::Q4KScaledDotOp>(op))
         scaledDot = sd;
     }
     if (!scaledDot)
@@ -2230,8 +2230,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
       return rewriter.notifyMatchFailure(scaledDot,
                                          "q4_K scaled-dot ABI operand unmapped");
 
-    llvm::StringRef opName = scaledDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = scaledDot.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = scaledDot.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = scaledDot.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
@@ -2390,13 +2390,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KMinTerm(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     (void)avlArg; // The MIN term is a SCALAR reduction over a SINGLE super-block
                   // (literal bsums/min counts); NO nb = n/256 loop, no n use.
-    tcrvrvv::Q4KMinTermOp minTerm;
+    weftrvv::Q4KMinTermOp minTerm;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto mt = llvm::dyn_cast<tcrvrvv::Q4KMinTermOp>(op))
+      if (auto mt = llvm::dyn_cast<weftrvv::Q4KMinTermOp>(op))
         minTerm = mt;
     }
     if (!minTerm)
@@ -2410,8 +2410,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KMinTerm(
       return rewriter.notifyMatchFailure(minTerm,
                                          "q4_K min-term ABI operand unmapped");
 
-    llvm::StringRef opName = minTerm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = minTerm.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = minTerm.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = minTerm.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
@@ -2536,13 +2536,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KMinTerm(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     (void)avlArg; // The positive fold dots ONE super-block (the canonical-8 fp
                   // sequence uses literal vl == 8); NO nb = n/256 loop, no n use.
-    tcrvrvv::Q4KSumsFoldScaleDOp fold;
+    weftrvv::Q4KSumsFoldScaleDOp fold;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto fd = llvm::dyn_cast<tcrvrvv::Q4KSumsFoldScaleDOp>(op))
+      if (auto fd = llvm::dyn_cast<weftrvv::Q4KSumsFoldScaleDOp>(op))
         fold = fd;
     }
     if (!fold)
@@ -2556,8 +2556,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
       return rewriter.notifyMatchFailure(fold,
                                          "q4_K sums-fold ABI operand unmapped");
 
-    llvm::StringRef opName = fold.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = fold.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = fold.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = fold.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
@@ -2708,13 +2708,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     (void)avlArg; // The post-loop fold is a fixed-order 8-lane collapse (literal
                   // vl == 8); NO nb = n/256 loop, no n use.
-    tcrvrvv::Q4KHorizontalFoldOp fold;
+    weftrvv::Q4KHorizontalFoldOp fold;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto fd = llvm::dyn_cast<tcrvrvv::Q4KHorizontalFoldOp>(op))
+      if (auto fd = llvm::dyn_cast<weftrvv::Q4KHorizontalFoldOp>(op))
         fold = fd;
     }
     if (!fold)
@@ -2726,8 +2726,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
       return rewriter.notifyMatchFailure(
           fold, "q4_K horizontal-fold ABI operand unmapped");
 
-    llvm::StringRef opName = fold.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = fold.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = fold.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = fold.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
@@ -2826,7 +2826,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
   }
 
 // M-FLAT q4_K/q5_K super-block loop-scaffold emitter (milestone-2/3, W5-W7).
-// Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body to
+// Lowers the region-carrying weft_rvv.typed_super_block_block_dot_loop_body to
 // the byte-exact skeleton the retired q4_K AND q5_K monoliths emitted (this typed
 // emitter is now the SOLE super-block lowering for BOTH: the qh 5th-bit inject the
 // retired emitQ5_KQ8_KBlockDot did is driven here by BRICK 1's optional
@@ -2837,7 +2837,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
 // to the monolith by construction (same helpers, same facts, same order). This
 // is the byte-exact DUAL-accumulator emit the scaffold (milestone-1) deferred:
 // the honest target IR now lowers to a real emitc.func through the
-// tcrv.exec.variant legalization (it no longer stops at the W5-W7 stub).
+// weft.exec.variant legalization (it no longer stops at the W5-W7 stub).
 //
 // W5 (addressing): each per-super-block base = base + ib*stride is built from a
 //   brick's (base operand, block_index induction operand) via a shared per-body
@@ -2850,11 +2850,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
 //   each fed OP-BY-OP from its region brick's operands.
 mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody;
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(op))
+      if (auto lb = llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(op))
         loopBody = lb;
     }
     if (!loopBody)
@@ -2892,25 +2892,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
 
     // ---- Region walk (identify, no emit): the 5 in-loop bricks + the yield. ----
     mlir::Block &coreBlock = loopBody.getBody().front();
-    tcrvrvv::Q4KNibbleUnpackOp b1;
-    tcrvrvv::Q4KScaleMinBitDanceOp b2;
-    tcrvrvv::Q4KScaledDotOp b3;
-    tcrvrvv::Q4KMinTermOp b4;
-    tcrvrvv::Q4KSumsFoldScaleDOp b6;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::Q4KNibbleUnpackOp b1;
+    weftrvv::Q4KScaleMinBitDanceOp b2;
+    weftrvv::Q4KScaledDotOp b3;
+    weftrvv::Q4KMinTermOp b4;
+    weftrvv::Q4KSumsFoldScaleDOp b6;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::Q4KNibbleUnpackOp>(bodyOp))
+      if (auto o = llvm::dyn_cast<weftrvv::Q4KNibbleUnpackOp>(bodyOp))
         b1 = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KScaleMinBitDanceOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::Q4KScaleMinBitDanceOp>(bodyOp))
         b2 = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KScaledDotOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::Q4KScaledDotOp>(bodyOp))
         b3 = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KMinTermOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::Q4KMinTermOp>(bodyOp))
         b4 = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KSumsFoldScaleDOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::Q4KSumsFoldScaleDOp>(bodyOp))
         b6 = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -2959,8 +2959,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
       return rewriter.notifyMatchFailure(
           loopBody, "q4_K super-block loop ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
     mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
@@ -3307,7 +3307,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
   }
 
 // M-FLAT q6_K super-block SINGLE-accumulator loop emitter (milestone-2, W-D).
-// Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body whose
+// Lowers the region-carrying weft_rvv.typed_super_block_block_dot_loop_body whose
 // fold_model is "scales_times_sumi" (the q6_K no-min path) to the byte-exact
 // skeleton the retired q6_K monolith emitQ6_KQ8_KBlockDot emitted: the SAME q6_K
 // integer core (emitQ6_KSuperBlockAux32Core -- the 2-bit qh + 8-bit signed scale
@@ -3323,9 +3323,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalesTimesSumiLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the aux32 core + fold brick + yield.
     // The single-vector no-min body is shared by TWO formats whose ONLY difference
@@ -3333,19 +3333,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalesTimesSumiLoopBody(
     // int8 scale) and q3_K (q3_k_q8_k_aux32_partial -- 2-bit + subtractive-hmask
     // decode + SIGNED 6-bit scale). Both reuse the SAME no-min positive fold
     // (q4_k_sums_fold_scale_d) + single `sums` yield.
-    tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op aux32Op;
-    tcrvrvv::GgmlBlockDotQ3KQ8KAux32Op q3Aux32Op;
-    tcrvrvv::Q4KSumsFoldScaleDOp foldOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotQ6KQ8KAux32Op aux32Op;
+    weftrvv::GgmlBlockDotQ3KQ8KAux32Op q3Aux32Op;
+    weftrvv::Q4KSumsFoldScaleDOp foldOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op>(bodyOp))
+      if (auto o = llvm::dyn_cast<weftrvv::GgmlBlockDotQ6KQ8KAux32Op>(bodyOp))
         aux32Op = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ3KQ8KAux32Op>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::GgmlBlockDotQ3KQ8KAux32Op>(bodyOp))
         q3Aux32Op = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KSumsFoldScaleDOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::Q4KSumsFoldScaleDOp>(bodyOp))
         foldOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -3397,8 +3397,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalesTimesSumiLoopBody(
       return rewriter.notifyMatchFailure(
           loopBody, "q6_K super-block single-accumulator ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -3742,7 +3742,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalesTimesSumiLoopBody(
   }
 
 // M-FLAT q2_K super-block SCALAR-accumulator loop emitter (milestone-2, W-D).
-// Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body whose
+// Lowers the region-carrying weft_rvv.typed_super_block_block_dot_loop_body whose
 // fold_model is "scalar_scale_min" (the q2_K path) to the byte-exact skeleton the
 // retired q2_K monolith emitQ2_KQ8_KBlockDot emitted: the SAME q2_K integer core
 // (emitQ2_KSuperBlockIntegerCore -- the 2-bit unpack + plain uint4-nibble scale/
@@ -3760,19 +3760,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalesTimesSumiLoopBody(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the q2_K integer core + yield. ----
-    tcrvrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp>(
+      if (auto o = llvm::dyn_cast<weftrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp>(
               bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -3812,8 +3812,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
       return rewriter.notifyMatchFailure(
           loopBody, "q2_K super-block scalar-accumulator ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -4009,12 +4009,12 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
   }
 
 // M-FLAT iq1_s super-block SCALAR-accumulator GRID emitter (the flip lowering, M3).
-// Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body whose
+// Lowers the region-carrying weft_rvv.typed_super_block_block_dot_loop_body whose
 // fold_model is "scalar_delta_grid" to the byte-exact skeleton the (now-retired)
-// monolith emitIQ1SQ8KBlockDot emitted: the `static const uint64_t tcrv_iq1s_grid[2048]`
+// monolith emitIQ1SQ8KBlockDot emitted: the `static const uint64_t weft_iq1s_grid[2048]`
 // TERNARY grid decl (keyed off the grid-core brick op identity from the canonical
 // kIQ1SGrid), the `sumf` float SCALAR accumulator seeded ONCE outside the loop (NO
-// 8-lane `sums` vector), nb = n / QK_K, the `tcrv_iq1s_grid` base literal, the outer
+// 8-lane `sums` vector), nb = n / QK_K, the `weft_iq1s_grid` base literal, the outer
 // emitc.for over nb, and (post-loop) the `*s` store. The in-loop per-super-block body
 // is emitted by the SHARED emitIQ1SSuperBlockGridBody helper (the same one the retired
 // monolith called), sourcing the per-super-block ADDRESSES from the grid-core brick's
@@ -4026,18 +4026,18 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // fold_model "scalar_delta_grid" covers BOTH iq1_s and its sibling iq1_m (the SAME
     // SCALAR-accumulator ternary-grid arity + scalar delta fold). Disambiguate by the
     // in-region brick op identity: an iq1_m grid-core brick routes to the iq1_m
     // emitter (packed-scale reconstruct + half-split grid dot + per-group four-sign
-    // delta + the `tcrv_iq1m_grid` decl); otherwise this iq1_s path proceeds.
+    // delta + the `weft_iq1m_grid` decl); otherwise this iq1_s path proceeds.
     {
       bool hasIq1mCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ1MQ8KGridCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ1MQ8KGridCoreOp) {
         hasIq1mCore = true;
       });
       if (hasIq1mCore)
@@ -4046,11 +4046,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     }
     // iq3_xxs (iq1_s grid sibling): an iq3_xxs GRID-of-4 core brick routes to the
     // iq3_xxs emitter (the i32 iq3xxs_grid vluxei16 gather + aux32 4-bit-scale +
-    // 4-sign-group ksigns decode + the `tcrv_iq3xxs_grid`/`tcrv_iq3xxs_ksigns` decls +
+    // 4-sign-group ksigns decode + the `weft_iq3xxs_grid`/`weft_iq3xxs_ksigns` decls +
     // the trailing 0.25f factor); otherwise the iq1_s path proceeds.
     {
       bool hasIq3xxsCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp) {
         hasIq3xxsCore = true;
       });
       if (hasIq3xxsCore)
@@ -4060,12 +4060,12 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // iq2_xxs (iq1_s grid sibling, SIGN-PLANE signs64 variant): an iq2_xxs GRID-of-8 core
     // brick routes to the iq2_xxs emitter (the i64 iq2xxs_grid vluxei16_v_i64<core> gather
     // + the SECOND signs64 vluxei16 gather over the DERIVED keven_signs_q2xs sign plane +
-    // the aux1 4-bit-scale + 4-sign-group decode + the `tcrv_iq2xxs_grid`/`
-    // tcrv_iq2xxs_signs64` decls + the trailing 0.125f factor); otherwise the iq1_s path
+    // the aux1 4-bit-scale + 4-sign-group decode + the `weft_iq2xxs_grid`/`
+    // weft_iq2xxs_signs64` decls + the trailing 0.125f factor); otherwise the iq1_s path
     // proceeds. Carries the Win-A m2/m1 gearbox on the brick's integer_core_lmul.
     {
       bool hasIq2xxsCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp) {
         hasIq2xxsCore = true;
       });
       if (hasIq2xxsCore)
@@ -4076,12 +4076,12 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // an iq2_xs per-half-scale GRID core brick routes to the iq2_xs emitter (the 512-entry
     // iq2xs_grid vluxei16_v_i64m1 gather indexed by `w & 511` + the SECOND signs64 vluxei16
     // gather over the DERIVED keven_signs_q2xs sign plane keyed by `w >> 9` + the EXPLICIT
-    // per-sub-block 4-bit scales[8] two-half split ls1/ls2 + the `tcrv_iq2xs_grid`/`
-    // tcrv_iq2xs_signs64` decls + the trailing 0.125f factor); otherwise the iq1_s path
+    // per-sub-block 4-bit scales[8] two-half split ls1/ls2 + the `weft_iq2xs_grid`/`
+    // weft_iq2xs_signs64` decls + the trailing 0.125f factor); otherwise the iq1_s path
     // proceeds. NO gearbox -- fixed 16-lane per-half shape.
     {
       bool hasIq2xsCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp) {
         hasIq2xsCore = true;
       });
       if (hasIq2xsCore)
@@ -4093,11 +4093,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // 1024-entry iq2s_grid vluxei16_v_i64m1 gather indexed by `qs[l] | ((qh<<(8-2l))&0x300)`
     // + the SECOND signs256 vluxei16 gather over the UNIVERSAL explicit-sign-byte plane keyed
     // by the raw sign byte + the EXPLICIT per-sub-block 4-bit scales[8] two-half split
-    // ls1/ls2 + the `tcrv_iq2s_grid`/`tcrv_iq2s_signs256` decls + the trailing 0.125f
+    // ls1/ls2 + the `weft_iq2s_grid`/`weft_iq2s_signs256` decls + the trailing 0.125f
     // factor); otherwise the iq1_s path proceeds. NO gearbox -- fixed 16-lane per-half shape.
     {
       bool hasIq2sCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ2SQ8KGridCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ2SQ8KGridCoreOp) {
         hasIq2sCore = true;
       });
       if (hasIq2sCore)
@@ -4108,12 +4108,12 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // two-nibble scales): an iq3_s GRID-of-4 core brick routes to the iq3_s emitter (the
     // 512-entry iq3s_grid vluxei16_v_i32m1 gather indexed by `qs[l] | ((qh<<(8-2l))&256)`
     // + the EXPLICIT per-sub-block sign bytes at offset 74 folded via the inline kmask
-    // {1<<j} + the explicit two-nibble scales at offset 106 + the `tcrv_iq3s_grid` decl +
+    // {1<<j} + the explicit two-nibble scales at offset 106 + the `weft_iq3s_grid` decl +
     // NO trailing factor); otherwise the iq1_s path proceeds. NO gearbox -- fixed grid-of-4
     // 8-lane shape, NO ksigns plane (the signs are an explicit memory region).
     {
       bool hasIq3sCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ3SQ8KGridCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ3SQ8KGridCoreOp) {
         hasIq3sCore = true;
       });
       if (hasIq3sCore)
@@ -4121,7 +4121,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
             rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
     }
     // iq4_xs (flat iq4_nl CODEBOOK sibling, SUPER-BLOCK rung): an iq4_xs codebook-core
-    // brick routes to the iq4_xs emitter (the 16-entry non-linear int8 tcrv_iq4_xs_kvalues
+    // brick routes to the iq4_xs emitter (the 16-entry non-linear int8 weft_iq4_xs_kvalues
     // codebook broadcast + per-sub-block vand/vsrl nibble split + vrgather_vv_i8m1 gather +
     // asymmetric vwmul/vwmacc widening product + seed-0 vwredsum, wrapped in the q4_K-style
     // super-block SIGNED 6-bit scale bit-dance ls = ((scales_l>>...)&0xf)|(((scales_h>>...)
@@ -4132,7 +4132,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // identical, and the whole body is emitter-inlined keyed off the codebook-core brick.
     {
       bool hasIq4xsCore = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp) {
         hasIq4xsCore = true;
       });
       if (hasIq4xsCore)
@@ -4150,7 +4150,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // Win-A m2/m1 gearbox on the brick's integer_core_lmul.
     {
       bool hasTq20Core = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp) {
         hasTq20Core = true;
       });
       if (hasTq20Core)
@@ -4169,7 +4169,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     // marginal cost, differing ONLY in the base-3 unpack.
     {
       bool hasTq10Core = false;
-      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp) {
+      loopBody.getBody().walk([&](weftrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp) {
         hasTq10Core = true;
       });
       if (hasTq10Core)
@@ -4177,14 +4177,14 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
             rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
     }
     // ---- Region walk (identify, no emit): the iq1_s grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ1SQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ1SQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -4225,8 +4225,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
           loopBody,
           "iq1_s super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -4280,14 +4280,14 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // const uint64_t *grid = tcrv_iq1s_grid;  (the u64 grid base; the vluxei16
+    // const uint64_t *grid = weft_iq1s_grid;  (the u64 grid base; the vluxei16
     // gather reads it as (const int64_t *) with u16 byte-offset indices idx*8.)
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_byte_view"));
     mlir::Type u64PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint64_t"));
     mlir::Value gridArrayName =
-        rewriter.create<emitc::LiteralOp>(loc, u64PtrType, "tcrv_iq1s_grid");
+        rewriter.create<emitc::LiteralOp>(loc, u64PtrType, "weft_iq1s_grid");
 
     // The context the shared per-super-block grid body reads.
     IQ1SGridBodyContext cx{opName,        role,              sizeType,
@@ -4374,9 +4374,9 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
 // SIBLING). The iq1_m branch of the fold_model "scalar_delta_grid" path (dispatched
 // from emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq1_m
 // grid-core brick). Same wrapper as the iq1_s emitter -- the `static const uint64_t
-// tcrv_iq1m_grid[2048]` TERNARY grid decl (keyed off the iq1_m grid-core brick op
+// weft_iq1m_grid[2048]` TERNARY grid decl (keyed off the iq1_m grid-core brick op
 // identity from the canonical kIQ1MGrid), the `sumf` float SCALAR accumulator seeded
-// ONCE outside the loop, nb = n / QK_K, the `tcrv_iq1m_grid` base literal, the outer
+// ONCE outside the loop, nb = n / QK_K, the `weft_iq1m_grid` base literal, the outer
 // emitc.for over nb, and (post-loop) the `*s` store -- delegating the in-loop
 // per-super-block body to the SHARED emitIQ1MSuperBlockGridBody helper (the same one
 // the retired monolith emitIQ1MQ8KBlockDot called), sourcing the per-super-block
@@ -4388,19 +4388,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq1_m grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ1MQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ1MQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ1MQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ1MQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -4440,8 +4440,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
           loopBody,
           "iq1_m super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -4475,7 +4475,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
     // The 2048-entry TERNARY grid codebook, keyed off the grid-core brick op
     // identity (the grid is NOT carried in the IR) from the canonical kIQ1MGrid --
     // byte-identical to the monolith's carried-attr decl (SAME literals as iq1_s,
-    // distinct decl name `tcrv_iq1m_grid`).
+    // distinct decl name `weft_iq1m_grid`).
     emitIQ1MCanonicalGridTableDecl(rewriter, loc);
 
     // float sumf = 0.0f;  -- the carried SCALAR fp32 accumulator. NO 8-lane vector.
@@ -4494,14 +4494,14 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // const uint64_t *tcrv_iq1m_grid;  (the u64 grid table name; cast to a
+    // const uint64_t *weft_iq1m_grid;  (the u64 grid table name; cast to a
     // (const int64_t *) base for the vluxei16 indexed gather inside the loop.)
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_base"));
     mlir::Type u64PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint64_t"));
     mlir::Value gridArrayName =
-        rewriter.create<emitc::LiteralOp>(loc, u64PtrType, "tcrv_iq1m_grid");
+        rewriter.create<emitc::LiteralOp>(loc, u64PtrType, "weft_iq1m_grid");
 
     // The context the shared per-super-block iq1_m grid body reads.
     IQ1MGridBodyContext cx{opName,        role,              sizeType,
@@ -4583,8 +4583,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
 // iq3_xxs super-block SCALAR-accumulator GRID-of-4 emitter (the flip lowering, iq1_s
 // grid SIBLING). The iq3_xxs branch of the fold_model "scalar_delta_grid" path
 // (dispatched from emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an
-// iq3_xxs grid-core brick). It emits the wrapper -- the `tcrv_iq3xxs_grid`/`
-// tcrv_iq3xxs_ksigns`/`tcrv_iq3xxs_kmask` decls, the `sumf` float SCALAR accumulator
+// iq3_xxs grid-core brick). It emits the wrapper -- the `weft_iq3xxs_grid`/`
+// weft_iq3xxs_ksigns`/`weft_iq3xxs_kmask` decls, the `sumf` float SCALAR accumulator
 // seeded once OUTSIDE the loop, nb = n / QK_K, the ONCE 8-lane kmask load + the (const
 // int32_t *) grid32 view, the outer emitc.for over nb, the per-super-block base built
 // from the brick's (base, block_index) via a shared memo (anti-bypass W4), and the
@@ -4596,19 +4596,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq3_xxs grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -4648,8 +4648,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
           loopBody,
           "iq3_xxs super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -4689,7 +4689,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
     // The kmask sign-bit selector {1<<j} is an inline const (trivial bit-position
     // vector), emitted as a decl + broadcast load ONCE above the super-block loop.
     rewriter.create<emitc::VerbatimOp>(
-        loc, "static const uint8_t tcrv_iq3xxs_kmask[8] = {1, 2, 4, 8, 16, 32, "
+        loc, "static const uint8_t weft_iq3xxs_kmask[8] = {1, 2, 4, 8, 16, 32, "
              "64, 128};");
 
     // float sumf = 0.0f;  -- the carried SCALAR fp32 accumulator (the typed region arg
@@ -4710,7 +4710,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // vuint8m1_t kmask = vle8(tcrv_iq3xxs_kmask, 8);  (ONCE) -- the FULL 8-bit selector
+    // vuint8m1_t kmask = vle8(weft_iq3xxs_kmask, 8);  (ONCE) -- the FULL 8-bit selector
     // {1,2,4,8,16,32,64,128} the 8-lane group body masks the signs byte with.
     mlir::Type u8CoreType = emitc::OpaqueType::get(ctx, "vuint8m1_t");
     mlir::Type u8PtrType =
@@ -4721,12 +4721,12 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
         [&](mlir::OpBuilder &b,
             mlir::Location l) -> llvm::SmallVector<mlir::Value> {
           mlir::Value kmaskName = rewriter.create<emitc::LiteralOp>(
-              loc, u8PtrType, "tcrv_iq3xxs_kmask");
+              loc, u8PtrType, "weft_iq3xxs_kmask");
           return {kmaskName, sizeLit(groupLanes)};
         },
         llvm::StringRef("kmask_table_load"));
 
-    // const int32_t *grid32 = (const int32_t *)tcrv_iq3xxs_grid;  (signed-i32 view of
+    // const int32_t *grid32 = (const int32_t *)weft_iq3xxs_grid;  (signed-i32 view of
     // the uint32[256] grid for the vluxei16 indexed gather.)
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_i32_view"));
@@ -4735,7 +4735,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
     mlir::Type i32PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int32_t"));
     mlir::Value gridArrayName =
-        rewriter.create<emitc::LiteralOp>(loc, u32PtrType, "tcrv_iq3xxs_grid");
+        rewriter.create<emitc::LiteralOp>(loc, u32PtrType, "weft_iq3xxs_grid");
     mlir::Value grid32 =
         rewriter.create<emitc::CastOp>(loc, i32PtrType, gridArrayName)
             .getResult();
@@ -4830,7 +4830,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
 // lowering, iq3_xxs grid SIBLING). The iq3_s branch of the fold_model
 // "scalar_delta_grid" path (dispatched from emitTypedSuperBlockScalarDeltaGridLoopBody
 // when the region carries an iq3_s grid-core brick). It emits the wrapper -- the
-// `tcrv_iq3s_grid` GRID-of-4 decl + the inline `tcrv_iq3s_kmask[8]` decl (iq3_s has NO
+// `weft_iq3s_grid` GRID-of-4 decl + the inline `weft_iq3s_kmask[8]` decl (iq3_s has NO
 // ksigns plane), the `sumf` float SCALAR accumulator seeded once OUTSIDE the loop, nb = n
 // / QK_K, the ONCE 8-lane kmask load + the (const int32_t *) grid32 view, the outer
 // emitc.for over nb, the per-super-block base built from the brick's (base, block_index)
@@ -4843,19 +4843,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq3_s grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ3SQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ3SQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ3SQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ3SQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -4895,8 +4895,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
           loopBody,
           "iq3_s super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -4937,7 +4937,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
     // region); the kmask sign-bit selector {1<<j} is an inline const.
     emitIQ3SCanonicalGridTableDecl(rewriter, loc);
     rewriter.create<emitc::VerbatimOp>(
-        loc, "static const uint8_t tcrv_iq3s_kmask[8] = {1, 2, 4, 8, 16, 32, "
+        loc, "static const uint8_t weft_iq3s_kmask[8] = {1, 2, 4, 8, 16, 32, "
              "64, 128};");
 
     // float sumf = 0.0f;  -- the carried SCALAR fp32 accumulator (the typed region arg
@@ -4958,7 +4958,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // vuint8m1_t kmask = vle8(tcrv_iq3s_kmask, 8);  (ONCE) -- the FULL 8-bit selector
+    // vuint8m1_t kmask = vle8(weft_iq3s_kmask, 8);  (ONCE) -- the FULL 8-bit selector
     // {1,2,4,8,16,32,64,128} the 8-lane group body masks the explicit signs byte with.
     mlir::Type u8CoreType = emitc::OpaqueType::get(ctx, "vuint8m1_t");
     mlir::Type u8PtrType =
@@ -4969,12 +4969,12 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
         [&](mlir::OpBuilder &b,
             mlir::Location l) -> llvm::SmallVector<mlir::Value> {
           mlir::Value kmaskName = rewriter.create<emitc::LiteralOp>(
-              loc, u8PtrType, "tcrv_iq3s_kmask");
+              loc, u8PtrType, "weft_iq3s_kmask");
           return {kmaskName, sizeLit(groupLanes)};
         },
         llvm::StringRef("kmask_table_load"));
 
-    // const int32_t *grid32 = (const int32_t *)tcrv_iq3s_grid;  (signed-i32 view of the
+    // const int32_t *grid32 = (const int32_t *)weft_iq3s_grid;  (signed-i32 view of the
     // uint32[512] grid for the vluxei16 indexed gather.)
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_i32_view"));
@@ -4983,7 +4983,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
     mlir::Type i32PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int32_t"));
     mlir::Value gridArrayName =
-        rewriter.create<emitc::LiteralOp>(loc, u32PtrType, "tcrv_iq3s_grid");
+        rewriter.create<emitc::LiteralOp>(loc, u32PtrType, "weft_iq3s_grid");
     mlir::Value grid32 =
         rewriter.create<emitc::CastOp>(loc, i32PtrType, gridArrayName)
             .getResult();
@@ -5075,7 +5075,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
 // SIBLING, SIGN-PLANE signs64 variant). The iq2_xxs branch of the fold_model
 // "scalar_delta_grid" path (dispatched from emitTypedSuperBlockScalarDeltaGridLoopBody
 // when the region carries an iq2_xxs grid-core brick). It emits the wrapper -- the
-// `tcrv_iq2xxs_grid` GRID-of-8 decl + the DERIVED `tcrv_iq2xxs_signs64` signs64 sign
+// `weft_iq2xxs_grid` GRID-of-8 decl + the DERIVED `weft_iq2xxs_signs64` signs64 sign
 // plane decl, the `sumf` float SCALAR accumulator seeded once OUTSIDE the loop, nb = n /
 // QK_K, the ONCE (const int64_t *) grid64 view + the (const int64_t *) signs64 view, the
 // outer emitc.for over nb, the per-super-block base built from the brick's (base,
@@ -5089,19 +5089,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq2_xxs grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -5141,8 +5141,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
           loopBody,
           "iq2_xxs super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -5197,8 +5197,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // const int64_t *grid64 = (const int64_t *)tcrv_iq2xxs_grid;  and
-    // const int64_t *signs64 = (const int64_t *)tcrv_iq2xxs_signs64;  -- the i64 views
+    // const int64_t *grid64 = (const int64_t *)weft_iq2xxs_grid;  and
+    // const int64_t *signs64 = (const int64_t *)weft_iq2xxs_signs64;  -- the i64 views
     // for the vluxei16 indexed gathers (ggml's grid64/signs64). Each grid u64 entry holds
     // 8 int8 grid bytes; each signs64 u64 entry holds the 8 +-1 sign bytes for that
     // selector.
@@ -5209,11 +5209,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_i64_view"));
     mlir::Value gridName =
-        rewriter.create<emitc::LiteralOp>(loc, i64PtrViewType, "tcrv_iq2xxs_grid");
+        rewriter.create<emitc::LiteralOp>(loc, i64PtrViewType, "weft_iq2xxs_grid");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "signs_table_i64_view"));
     mlir::Value signsArrayName = rewriter.create<emitc::LiteralOp>(
-        loc, i8SignsPtrType, "tcrv_iq2xxs_signs64");
+        loc, i8SignsPtrType, "weft_iq2xxs_signs64");
     mlir::Value signs64 =
         rewriter.create<emitc::CastOp>(loc, i64PtrViewType, signsArrayName)
             .getResult();
@@ -5307,8 +5307,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
 // grid SIBLING, SIGN-PLANE signs64 variant, PER-HALF explicit scale). The iq2_xs branch of
 // the fold_model "scalar_delta_grid" path (dispatched from
 // emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq2_xs grid-core
-// brick). It emits the wrapper -- the `tcrv_iq2xs_grid[512]` decl + the DERIVED
-// `tcrv_iq2xs_signs64` signs64 sign plane decl, the `sumf` float SCALAR accumulator seeded
+// brick). It emits the wrapper -- the `weft_iq2xs_grid[512]` decl + the DERIVED
+// `weft_iq2xs_signs64` signs64 sign plane decl, the `sumf` float SCALAR accumulator seeded
 // once OUTSIDE the loop, nb = n / QK_K, the ONCE (const int64_t *) grid64 view + the
 // (const int64_t *) signs64 view, the outer emitc.for over nb, the per-super-block base
 // built from the brick's (base, block_index) via a shared memo (anti-bypass W4), and the
@@ -5320,19 +5320,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq2_xs grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -5372,8 +5372,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
           loopBody,
           "iq2_xs super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -5427,10 +5427,10 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // const int64_t *grid64 = (const int64_t *)tcrv_iq2xs_grid;  and
-    // const int64_t *signs64 = (const int64_t *)tcrv_iq2xs_signs64;  -- the i64 views for
-    // the vluxei16 indexed gathers. tcrv_iq2xs_grid is already int64_t[512] (the literal IS
-    // an int64_t*); tcrv_iq2xs_signs64 is int8_t[1024] re-cast to const int64_t*.
+    // const int64_t *grid64 = (const int64_t *)weft_iq2xs_grid;  and
+    // const int64_t *signs64 = (const int64_t *)weft_iq2xs_signs64;  -- the i64 views for
+    // the vluxei16 indexed gathers. weft_iq2xs_grid is already int64_t[512] (the literal IS
+    // an int64_t*); weft_iq2xs_signs64 is int8_t[1024] re-cast to const int64_t*.
     mlir::Type i64PtrViewType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int64_t"));
     mlir::Type i8SignsPtrType =
@@ -5438,11 +5438,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_i64_view"));
     mlir::Value gridName =
-        rewriter.create<emitc::LiteralOp>(loc, i64PtrViewType, "tcrv_iq2xs_grid");
+        rewriter.create<emitc::LiteralOp>(loc, i64PtrViewType, "weft_iq2xs_grid");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "signs_table_i64_view"));
     mlir::Value signsArrayName = rewriter.create<emitc::LiteralOp>(
-        loc, i8SignsPtrType, "tcrv_iq2xs_signs64");
+        loc, i8SignsPtrType, "weft_iq2xs_signs64");
     mlir::Value signs64 =
         rewriter.create<emitc::CastOp>(loc, i64PtrViewType, signsArrayName)
             .getResult();
@@ -5536,8 +5536,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
 // SIBLING, SIGN-PLANE explicit-signs variant, PER-HALF explicit scale). The iq2_s branch of
 // the fold_model "scalar_delta_grid" path (dispatched from
 // emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq2_s grid-core
-// brick). It emits the wrapper -- the `tcrv_iq2s_grid[1024]` decl + the UNIVERSAL
-// `tcrv_iq2s_signs256` sign plane decl, the `sumf` float SCALAR accumulator seeded once
+// brick). It emits the wrapper -- the `weft_iq2s_grid[1024]` decl + the UNIVERSAL
+// `weft_iq2s_signs256` sign plane decl, the `sumf` float SCALAR accumulator seeded once
 // OUTSIDE the loop, nb = n / QK_K, the ONCE (const int64_t *) grid64 view + the
 // (const int64_t *) signs256 view, the outer emitc.for over nb, the per-super-block base
 // built from the brick's (base, block_index) via a shared memo (anti-bypass W4), and the
@@ -5549,19 +5549,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    weftrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
     (void)scope;
     // ---- Region walk (identify, no emit): the iq2_s grid-core brick + yield. ----
-    tcrvrvv::GgmlBlockDotIQ2SQ8KGridCoreOp coreOp;
-    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotIQ2SQ8KGridCoreOp coreOp;
+    weftrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ2SQ8KGridCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotIQ2SQ8KGridCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                   llvm::dyn_cast<weftrvv::TypedSuperBlockBlockDotLoopYieldOp>(
                        bodyOp))
         yieldOp = o;
     });
@@ -5601,8 +5601,8 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
           loopBody,
           "iq2_s super-block scalar-accumulator grid ABI operand unmapped");
 
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
@@ -5660,10 +5660,10 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // const int64_t *grid64 = (const int64_t *)tcrv_iq2s_grid;  and
-    // const int64_t *signs256 = (const int64_t *)tcrv_iq2s_signs256;  -- the i64 views for
-    // the vluxei16 indexed gathers. tcrv_iq2s_grid is already int64_t[1024] (the literal IS
-    // an int64_t*); tcrv_iq2s_signs256 is int8_t[2048] re-cast to const int64_t*.
+    // const int64_t *grid64 = (const int64_t *)weft_iq2s_grid;  and
+    // const int64_t *signs256 = (const int64_t *)weft_iq2s_signs256;  -- the i64 views for
+    // the vluxei16 indexed gathers. weft_iq2s_grid is already int64_t[1024] (the literal IS
+    // an int64_t*); weft_iq2s_signs256 is int8_t[2048] re-cast to const int64_t*.
     mlir::Type i64PtrViewType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int64_t"));
     mlir::Type i8SignsPtrType =
@@ -5671,11 +5671,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_i64_view"));
     mlir::Value gridName =
-        rewriter.create<emitc::LiteralOp>(loc, i64PtrViewType, "tcrv_iq2s_grid");
+        rewriter.create<emitc::LiteralOp>(loc, i64PtrViewType, "weft_iq2s_grid");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "signs_table_i64_view"));
     mlir::Value signsArrayName = rewriter.create<emitc::LiteralOp>(
-        loc, i8SignsPtrType, "tcrv_iq2s_signs256");
+        loc, i8SignsPtrType, "weft_iq2s_signs256");
     mlir::Value signs256 =
         rewriter.create<emitc::CastOp>(loc, i64PtrViewType, signsArrayName)
             .getResult();
@@ -6166,4 +6166,4 @@ void VariantToEmitCFunc::emitQ2_KScalarFold(
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

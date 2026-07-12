@@ -1,4 +1,4 @@
-#include "TianChenRV/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/ExtensionBundle.h"
 
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
@@ -6,12 +6,12 @@
 
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 llvm::Error makeExtensionBundleRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV extension bundle registry failed: ") + message,
+      llvm::Twine("Weft-RV extension bundle registry failed: ") + message,
       llvm::errc::invalid_argument);
 }
 
@@ -180,4 +180,4 @@ llvm::Error ExtensionBundleRegistry::registerTargetArtifactExporterBundles(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

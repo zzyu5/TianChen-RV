@@ -1,30 +1,30 @@
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
-#include "TianChenRV/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
-#include "TianChenRV/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
+#include "Weft/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Errc.h"
 
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 namespace {
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
+      llvm::Twine("Weft-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -102,10 +102,10 @@ getUniqueRVVSelectedBodyRealizationOwner(mlir::Operation *bodyOp,
 }
 
 llvm::Expected<mlir::Operation *>
-findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
+findUniquePreRealizedRVVSelectedBody(weft::exec::VariantOp variant) {
   if (!variant)
     return makeRVVPluginError(
-        "selected RVV realization requires a materialized tcrv.exec.variant");
+        "selected RVV realization requires a materialized weft.exec.variant");
 
   llvm::SmallVector<mlir::Operation *, 2> bodies;
   variant.getBody().walk([&](mlir::Operation *op) {
@@ -130,7 +130,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   if (bodies.empty())
     return makeRVVPluginError(
         "selected RVV realization requires exactly one registry-owned "
-        "pre-realized tcrv_rvv body when no realized setvl/with_vl body is "
+        "pre-realized weft_rvv body when no realized setvl/with_vl body is "
         "present");
 
   bool hasRuntimeScalarIndexedGather = false;
@@ -140,14 +140,14 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
     llvm::StringRef opName = body->getName().getStringRef();
     hasRuntimeScalarIndexedGather |=
         opName ==
-        "tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_gather_"
+        "weft_rvv.typed_runtime_scalar_computed_mask_indexed_gather_"
         "pre_realized_body";
     hasRuntimeScalarComputedMaskMAcc |=
         opName ==
-        "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body";
+        "weft_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body";
     hasRuntimeScalarIndexedScatter |=
         opName ==
-        "tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_"
+        "weft_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_"
         "pre_realized_body";
   }
   if (hasRuntimeScalarIndexedGather && hasRuntimeScalarComputedMaskMAcc &&
@@ -158,12 +158,12 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "separate gather, MAcc, and scatter family bodies; this is "
         "fail-closed until one composite selected-body realization owner "
         "imports the typed gather, accumulator/MAcc, scatter, mask, index, "
-        "runtime ABI, and AVL/VL facts into one realized tcrv_rvv body before "
+        "runtime ABI, and AVL/VL facts into one realized weft_rvv body before "
         "provider route construction");
 
   return makeRVVPluginError(
       "selected RVV realization requires exactly one registry-owned "
-      "pre-realized tcrv_rvv body when no realized setvl/with_vl body is "
+      "pre-realized weft_rvv body when no realized setvl/with_vl body is "
       "present; multiple pre-realized bodies matched the owner registry");
 }
 
@@ -181,7 +181,7 @@ getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
 }
 
 std::optional<RVVPreRealizedSelectedBodyMatch>
-findFirstPreRealizedRVVSelectedBodyMatch(tcrv::exec::VariantOp variant) {
+findFirstPreRealizedRVVSelectedBodyMatch(weft::exec::VariantOp variant) {
   if (!variant || variant.getBody().empty())
     return std::nullopt;
 
@@ -200,7 +200,7 @@ findFirstPreRealizedRVVSelectedBodyMatch(tcrv::exec::VariantOp variant) {
   return match;
 }
 
-bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
+bool variantContainsPreRealizedRVVSelectedBody(weft::exec::VariantOp variant) {
   return findFirstPreRealizedRVVSelectedBodyMatch(variant).has_value();
 }
 
@@ -213,11 +213,11 @@ llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
       "lowering-boundary materialization before provider route construction");
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
+llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedBody(
     const VariantLoweringBoundaryRequest &request) {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
         "pre-realized RVV selected-body realization requires materialized "
@@ -243,4 +243,4 @@ realizePreRealizedRVVSelectedBody(
   return (*owner)->realize(request, *bodyOp);
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

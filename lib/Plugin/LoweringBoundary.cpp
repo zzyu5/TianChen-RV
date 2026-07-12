@@ -1,6 +1,6 @@
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -12,22 +12,22 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
-using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::exec::diagnostic::kFallbackOnlySelectionKindValue;
-using tianchenrv::tcrv::exec::diagnostic::kReasonAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kSelectedReasonValue;
-using tianchenrv::tcrv::exec::diagnostic::kSelectionKindAttrName;
-using tianchenrv::tcrv::exec::diagnostic::kStaticSelectionKindValue;
-using tianchenrv::tcrv::exec::diagnostic::kTargetAttrName;
+using weft::support::TargetCapabilitySet;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
+using weft::exec::diagnostic::kFallbackOnlySelectionKindValue;
+using weft::exec::diagnostic::kReasonAttrName;
+using weft::exec::diagnostic::kSelectedReasonValue;
+using weft::exec::diagnostic::kSelectionKindAttrName;
+using weft::exec::diagnostic::kStaticSelectionKindValue;
+using weft::exec::diagnostic::kTargetAttrName;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 
@@ -40,7 +40,7 @@ llvm::Error makeSelectedLoweringBoundaryError(KernelOp kernel,
                                               llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV selected lowering-boundary materialization failed";
+  stream << "Weft-RV selected lowering-boundary materialization failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -147,18 +147,18 @@ llvm::Error resolveSelectedLoweringBoundaryTarget(
     return makeSelectedLoweringBoundaryError(
         kernel, context + " target @" + target +
                     " resolves to a direct sibling symbol that is not a "
-                    "tcrv.exec.variant");
+                    "weft.exec.variant");
 
   VariantOp nestedVariant = findNestedVariantBySymbol(kernel, target);
   if (nestedVariant && !hasDirectParent(nestedVariant.getOperation(), kernel))
     return makeSelectedLoweringBoundaryError(
         kernel, context + " target @" + target +
-                    " resolves to a tcrv.exec.variant that is not a direct "
+                    " resolves to a weft.exec.variant that is not a direct "
                     "sibling in the same kernel");
 
   return makeSelectedLoweringBoundaryError(
       kernel, context + " target @" + target +
-                  " does not resolve to a direct sibling tcrv.exec.variant in "
+                  " does not resolve to a direct sibling weft.exec.variant in "
                   "the same kernel");
 }
 
@@ -179,7 +179,7 @@ llvm::Error collectSelectedMarkerLoweringBoundaryReference(
   if (!diagnostic || !hasDirectParent(diagnostic.getOperation(), kernel))
     return makeSelectedLoweringBoundaryError(
         kernel,
-        "requires selected-path tcrv.exec.diagnostic to be a direct kernel "
+        "requires selected-path weft.exec.diagnostic to be a direct kernel "
         "child");
 
   auto selectionKind =
@@ -254,7 +254,7 @@ llvm::Error collectDispatchLoweringBoundaryReferences(
     llvm::SmallVectorImpl<SelectedLoweringBoundaryReference> &out) {
   if (!dispatch || !hasDirectParent(dispatch.getOperation(), kernel))
     return makeSelectedLoweringBoundaryError(
-        kernel, "requires tcrv.exec.dispatch to be a direct kernel child");
+        kernel, "requires weft.exec.dispatch to be a direct kernel child");
 
   if (dispatch.getBody().empty())
     return makeDispatchSelectedLoweringBoundaryError(
@@ -294,17 +294,17 @@ llvm::Error collectDispatchLoweringBoundaryReferences(
     return makeDispatchSelectedLoweringBoundaryError(
         kernel, dispatch,
         llvm::Twine("unexpected operation '") + op.getName().getStringRef() +
-            "' in tcrv.exec.dispatch; expected tcrv.exec.case or "
-            "tcrv.exec.fallback");
+            "' in weft.exec.dispatch; expected weft.exec.case or "
+            "weft.exec.fallback");
   }
 
   if (caseCount == 0)
     return makeDispatchSelectedLoweringBoundaryError(
-        kernel, dispatch, "requires at least one tcrv.exec.case");
+        kernel, dispatch, "requires at least one weft.exec.case");
 
   if (fallbackCount != 1)
     return makeDispatchSelectedLoweringBoundaryError(
-        kernel, dispatch, "requires exactly one tcrv.exec.fallback");
+        kernel, dispatch, "requires exactly one weft.exec.fallback");
 
   out.append(caseReferences.begin(), caseReferences.end());
   out.append(fallbackReferences.begin(), fallbackReferences.end());
@@ -316,7 +316,7 @@ llvm::Error collectSelectedLoweringBoundaryReferences(
     llvm::SmallVectorImpl<SelectedLoweringBoundaryReference> &references) {
   if (!kernel)
     return makeSelectedLoweringBoundaryError(kernel,
-                                            "requires a tcrv.exec.kernel");
+                                            "requires a weft.exec.kernel");
 
   if (!hasKernelBody(kernel))
     return makeSelectedLoweringBoundaryError(
@@ -334,7 +334,7 @@ llvm::Error collectSelectedLoweringBoundaryReferences(
 
     if (sawDispatch)
       return makeSelectedLoweringBoundaryError(
-          kernel, "requires at most one direct tcrv.exec.dispatch");
+          kernel, "requires at most one direct weft.exec.dispatch");
     sawDispatch = true;
     if (llvm::Error error = collectDispatchLoweringBoundaryReferences(
             kernel, dispatch, directVariants, directSymbols, references))
@@ -354,7 +354,7 @@ llvm::Error collectSelectedLoweringBoundaryReferences(
       return makeSelectedLoweringBoundaryError(
           kernel,
           "requires at most one direct selected-path diagnostic marker when no "
-          "tcrv.exec.dispatch is present");
+          "weft.exec.dispatch is present");
     selectedMarker = diagnostic;
   }
 
@@ -365,7 +365,7 @@ llvm::Error collectSelectedLoweringBoundaryReferences(
   if (hasDirectVariants(kernel))
     return makeSelectedLoweringBoundaryError(
         kernel,
-        "requires selected tcrv.exec.dispatch or direct selected-path "
+        "requires selected weft.exec.dispatch or direct selected-path "
         "diagnostic before materializing selected lowering boundaries");
 
   return llvm::Error::success();
@@ -377,7 +377,7 @@ llvm::Error materializeSelectedLoweringBoundaries(
     KernelOp kernel, const ExtensionPluginRegistry &registry) {
   if (!kernel)
     return makeSelectedLoweringBoundaryError(kernel,
-                                            "requires a tcrv.exec.kernel");
+                                            "requires a weft.exec.kernel");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -414,4 +414,4 @@ llvm::Error materializeSelectedLoweringBoundaries(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

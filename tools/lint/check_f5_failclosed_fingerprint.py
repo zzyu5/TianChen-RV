@@ -3,7 +3,7 @@
 
 Makes the [F-5] fail-closed fuzzer (tools/fuzz/f5_failclosed_fuzz.sh) CI-executable as a
 NON-REGRESSION ratchet. The fuzzer mutates ONE verified-valid typed-region program into a
-batch of illegal variants, feeds each to `tcrv-opt --tcrv-rvv-lower-to-emitc`, and asserts
+batch of illegal variants, feeds each to `weft-opt --weft-rvv-lower-to-emitc`, and asserts
 each is fail-closed rejected (graceful diagnostic + non-zero exit + no crash + no silent
 pass). This gate compares the per-scenario verdicts against a COMMITTED fingerprint baseline
 (schema/f5-failclosed-baseline.v1.json) and fails closed on:
@@ -30,9 +30,9 @@ Two modes (sibling idiom of the falsifier-gate.yml gates):
      classifier FIRES (regression -> RED, corpus drift -> RED) and TOLERATES declared gaps
      (known-fail-open observed FAIL -> GREEN; observed PASS -> GREEN + advisory) before it
      judges the real tree. No compiler needed.
-  (default)  : locates tcrv-opt (build/bin, $TCRV_BUILD/bin, or --opt), runs the fuzz
+  (default)  : locates weft-opt (build/bin, $WEFT_BUILD/bin, or --opt), runs the fuzz
      harness with --csv, parses the per-scenario verdicts, classifies against the baseline.
-     If tcrv-opt is absent the build-free lane SKIPs (exit 0) so binary-free CI stays green;
+     If weft-opt is absent the build-free lane SKIPs (exit 0) so binary-free CI stays green;
      pass --require-binaries to make the absence itself RED.
 
 Stdlib-only.
@@ -111,10 +111,10 @@ def locate_opt(override):
     if override:
         return override if (os.path.isfile(override) or _on_path(override)) else None
     candidates = []
-    env = os.environ.get("TCRV_BUILD")
+    env = os.environ.get("WEFT_BUILD")
     if env:
-        candidates.append(os.path.join(env, "bin", "tcrv-opt"))
-    candidates.append(os.path.join(REPO, "build", "bin", "tcrv-opt"))
+        candidates.append(os.path.join(env, "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build", "bin", "weft-opt"))
     for c in candidates:
         if os.path.isfile(c):
             return c
@@ -160,8 +160,8 @@ def run_real(verbose, opt_override, require_binaries):
 
     opt = locate_opt(opt_override)
     if not opt:
-        msg = ("[f5-fingerprint] tcrv-opt not built "
-               "(looked under $TCRV_BUILD/bin and build/bin)")
+        msg = ("[f5-fingerprint] weft-opt not built "
+               "(looked under $WEFT_BUILD/bin and build/bin)")
         if require_binaries:
             print(msg + " -- RED (--require-binaries)")
             return 2

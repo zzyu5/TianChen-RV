@@ -3,7 +3,7 @@
 ## Role
 
 IME plugin is the IME (spacemit.ime) extension family path inside the unified
-TCRV system. It is the second non-RVV extension family, consumed through the
+WEFT system. It is the second non-RVV extension family, consumed through the
 same capability model / registry / common pipeline with zero core family-name
 branches (I3) — not an independent backend.
 
@@ -58,7 +58,7 @@ ime.toolchain_path
 Reference attribute:
 
 ```mlir
-#tcrv.ext<"spacemit.ime",
+#weft.ext<"spacemit.ime",
           kind = "isa_ext",                          // [S-1] 闭合枚举值
           subclass = "isa-matrix-vector-backed",     // 子分类标签（[S-5]①），非 kind 值
           status = "available",
@@ -72,15 +72,15 @@ Reference attribute:
 Architectural family name:
 
 ```text
-tcrv.ime
+weft.ime
 ```
 
 Types:
 
 ```text
-!tcrv.ime.frag<dtype, shape, layout>
-!tcrv.ime.accfrag<dtype, shape>
-!tcrv.ime.config<...>
+!weft.ime.frag<dtype, shape, layout>
+!weft.ime.accfrag<dtype, shape>
+!weft.ime.config<...>
 ```
 
 The type design must express relation to RVV resources:
@@ -93,15 +93,15 @@ vlen_dependent = true
 Ops:
 
 ```text
-tcrv.ime.config
-tcrv.ime.load_frag
-tcrv.ime.store_frag
-tcrv.ime.pack
-tcrv.ime.unpack
-tcrv.ime.mma
-tcrv.ime.dot
-tcrv.ime.accumulate
-tcrv.ime.convert
+weft.ime.config
+weft.ime.load_frag
+weft.ime.store_frag
+weft.ime.pack
+weft.ime.unpack
+weft.ime.mma
+weft.ime.dot
+weft.ime.accumulate
+weft.ime.convert
 ```
 
 These are IME execution ops, not high-level matmul ops.
@@ -158,7 +158,7 @@ Tuning metadata must stay variant-local and must not pollute high-level semantic
 IME emission currently follows:
 
 ```text
-TCRV IME family ops
+WEFT IME family ops
   -> EmitC
   -> IME/vendor intrinsic C/C++
 ```

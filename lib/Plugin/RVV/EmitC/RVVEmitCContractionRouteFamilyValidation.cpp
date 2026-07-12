@@ -9,13 +9,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
-#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -28,7 +28,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
@@ -68,8 +68,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       isWideningProduct &&
       plan.wideningProductRelation ==
           getContractionWideningProductRelation(
-              tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-              tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+              weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+              weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
               /*isUnsigned=*/true);
   // The codebook route carries an UNSIGNED source signedness (u8 gather index) but
   // is NOT a fully-unsigned chain (its product/result are signed) -- exclude it here
@@ -81,15 +81,15 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       (plan.lowPrecisionPrimitiveSourceSignedness == "unsigned" ||
        plan.wideningProductRelation ==
            getContractionWideningProductRelation(
-               tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-               tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+               weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+               weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
                /*isUnsigned=*/true) ||
        plan.productReductionChainRelation ==
            getContractionProductReductionChainRelation(
-               tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-               tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
-               tcrv::rvv::getRVVFirstSliceSEWBits(),
-               tcrv::rvv::getRVVLMULM1(), /*isUnsigned=*/true));
+               weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+               weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
+               weft::rvv::getRVVFirstSliceSEWBits(),
+               weft::rvv::getRVVLMULM1(), /*isUnsigned=*/true));
   // C4 codebook: the u8 weight gather-index SOURCE is unsigned, but the i16
   // product / i32 result are SIGNED. This un-aliases the two signedness facts that
   // coincide for every symmetric N=2 route: the codebook is unsigned-source /
@@ -176,9 +176,9 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
   const bool isNonDeferredWideProductReductionDequantize =
       plan.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
-      plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW8Bits() &&
-      (plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM1() ||
-       plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM2());
+      plan.runtimeControlPlan.sew == weft::rvv::getRVVSEW8Bits() &&
+      (plan.runtimeControlPlan.lmul == weft::rvv::getRVVLMULM1() ||
+       plan.runtimeControlPlan.lmul == weft::rvv::getRVVLMULM2());
   if (isDeferredWideProductReductionDequantization ||
       isNonDeferredWideProductReductionDequantize) {
     // The deferred-wide route legitimately carries TWO structural configs: the
@@ -189,17 +189,17 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     // always m2 (its i32m8 accumulate caps LMUL at the widest rung); the
     // non-deferred wide strip flips m2 (VLEN128) / m1 (VLEN256).
     const bool stripLMULOK =
-        plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM2() ||
+        plan.runtimeControlPlan.lmul == weft::rvv::getRVVLMULM2() ||
         (isNonDeferredWideProductReductionDequantize &&
-         plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM1());
-    if (plan.runtimeControlPlan.sew != tcrv::rvv::getRVVSEW8Bits() ||
+         plan.runtimeControlPlan.lmul == weft::rvv::getRVVLMULM1());
+    if (plan.runtimeControlPlan.sew != weft::rvv::getRVVSEW8Bits() ||
         !stripLMULOK)
       return makeRVVEmitCRouteProviderError(
           "deferred-wide contraction route-family plan requires the runtime "
           "AVL/VL control plan to run at the realized i8 wide strip config "
           "(m2 deferred / m1 or m2 non-deferred)");
-    if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        plan.lmul != tcrv::rvv::getRVVLMULM1())
+    if (plan.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        plan.lmul != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "deferred-wide contraction route-family plan requires the result "
           "config to be the realized i32m1/f32m1 result config");
@@ -216,14 +216,14 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     // <L> is the budget-selected dot-reduce source rung (m4 at the default budget,
     // a narrower m2/mf2 at a constrained budget), NOT pinned to m4. Assert each
     // against its own structural source (I5: both are realized configs).
-    if (!tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(
+    if (!weft::rvv::isRVVDeferredWideDotReduceStripConfig(
             plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul))
       return makeRVVEmitCRouteProviderError(
           "deferred-wide i16 dot-reduce contraction route-family plan requires "
           "the runtime AVL/VL control plan to run at a realized i16 strip "
           "config (the budget-selected dot-reduce source rung)");
-    if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        plan.lmul != tcrv::rvv::getRVVLMULM1())
+    if (plan.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        plan.lmul != weft::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
           "deferred-wide i16 dot-reduce contraction route-family plan requires "
           "the result config to be the realized i32m1 result config");
@@ -250,23 +250,23 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
         "contraction route-family source typed snapshot requires source "
         "element bit width to match source SEW");
   const bool supportsNarrowProductReductionChain =
-      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      plan.sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
-      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      plan.productLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1();
+      plan.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      plan.sourceLMUL == weft::rvv::getRVVLMULMF4() &&
+      plan.productSEW == weft::rvv::getRVVSEW16Bits() &&
+      plan.productLMUL == weft::rvv::getRVVLMULMF2() &&
+      plan.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == weft::rvv::getRVVLMULM1();
   // The deferred-wide (N3) chain runs the parallel wide ladder: source i8m2,
   // product i16m4, result i32m1 (the i32m8 deferred accumulate is the structural
   // intermediate between product and reduce). Derived structurally (I5).
   const bool supportsDeferredWideProductReductionChain =
       isDeferredWideProductReductionDequantization &&
-      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      plan.sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
-      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      plan.productLMUL == tcrv::rvv::getRVVLMULM4() &&
-      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1();
+      plan.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      plan.sourceLMUL == weft::rvv::getRVVLMULM2() &&
+      plan.productSEW == weft::rvv::getRVVSEW16Bits() &&
+      plan.productLMUL == weft::rvv::getRVVLMULM4() &&
+      plan.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == weft::rvv::getRVVLMULM1();
   // The NON-deferred wide (dequant front door) chain runs the SAME wide ladder
   // (source i8 -> product i16 -> i32m1) but with a per-iteration vwredsum (no i32m8
   // deferred accumulate). The wide source rung FLIPS with VLEN -- m2 -> i16m4 at
@@ -277,13 +277,13 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
   const bool supportsNonDeferredWideProductReductionChain =
       plan.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
-      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (plan.sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
-       plan.sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
-      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      (plan.sourceLMUL == weft::rvv::getRVVLMULM1() ||
+       plan.sourceLMUL == weft::rvv::getRVVLMULM2()) &&
+      plan.productSEW == weft::rvv::getRVVSEW16Bits() &&
       plan.productLMUL == getRVVNextWiderLMUL(plan.sourceLMUL) &&
-      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1();
+      plan.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == weft::rvv::getRVVLMULM1();
   // The C4 codebook plain reduce-add chain runs a FLIPPING i8 source ladder --
   // mf2 -> i16m1 at VLEN256, m1 -> i16m2 at VLEN128 (the gather must span the
   // 16-entry table, so mf4 is pruned) -- with a per-iteration vwredsum to i32m1.
@@ -292,13 +292,13 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
   // codebook marker instead of the dequantize kind, so no other route loosens (I7).
   const bool supportsCodebookProductReductionChain =
       plan.usesCodebookProductReduction &&
-      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (plan.sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
-       plan.sourceLMUL == tcrv::rvv::getRVVLMULM1()) &&
-      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      (plan.sourceLMUL == weft::rvv::getRVVLMULMF2() ||
+       plan.sourceLMUL == weft::rvv::getRVVLMULM1()) &&
+      plan.productSEW == weft::rvv::getRVVSEW16Bits() &&
       plan.productLMUL == getRVVNextWiderLMUL(plan.sourceLMUL) &&
-      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1();
+      plan.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == weft::rvv::getRVVLMULM1();
   const bool supportsProductReductionChain =
       supportsNarrowProductReductionChain ||
       supportsDeferredWideProductReductionChain ||
@@ -319,10 +319,10 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
   // LMUL is the budget-selected rung, NOT pinned to m4.
   const bool supportsDeferredWideDotReduceConfig =
       isDeferredWideDotReduce &&
-      tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sourceSEW,
+      weft::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sourceSEW,
                                                        plan.sourceLMUL) &&
-      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1();
+      plan.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == weft::rvv::getRVVLMULM1();
   if (!isProductReductionChain && !supportsDeferredWideDotReduceConfig &&
       !isSupportedContractionSourceResultConfig(plan.sourceSEW,
                                                 plan.sourceLMUL, plan.sew,
@@ -894,7 +894,7 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "mask type", plan.maskTypeName,
             internContractionDerivedText(
-                (llvm::Twine("!tcrv_rvv.mask<") + plan.elementTypeName +
+                (llvm::Twine("!weft_rvv.mask<") + plan.elementTypeName +
                  ", \"" + plan.lmul + "\">")
                     .str())))
       return error;
@@ -935,7 +935,7 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "mask type", plan.maskTypeName,
             internContractionDerivedText(
-                (llvm::Twine("!tcrv_rvv.mask<") +
+                (llvm::Twine("!weft_rvv.mask<") +
                  getContractionFloatElementTypeName(plan.sew) + ", \"" +
                  plan.lmul + "\">")
                     .str())))
@@ -1062,7 +1062,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           getRVVSelectedBodyContractionRuntimeABIOrder(operation),
           "contraction route-family plan");
@@ -1088,9 +1088,9 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       isProductReductionDequantization;
   // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family): a
   // dot-reduce route whose realized body decomposes the narrow fused
-  // tcrv_rvv.widening_dot_reduce into widening_product -> deferred_accumulate ->
+  // weft_rvv.widening_dot_reduce into widening_product -> deferred_accumulate ->
   // standalone_reduce. Its accumulator/result layouts come from the trailing
-  // tcrv_rvv.standalone_reduce, its source operands from the widening_product
+  // weft_rvv.standalone_reduce, its source operands from the widening_product
   // head. Its ROUTE IDENTITY mirrors the narrow dot-reduce (source i16mf2, result
   // i32m1); only the realized PRIMITIVE intrinsics are wide.
   const bool isDeferredWideDotReduce =
@@ -1171,13 +1171,13 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         reduceInputSlotResult(analysis.slice))
       return makeRVVEmitCRouteProviderError(
           "product-reduction contraction route-family plan requires "
-          "tcrv_rvv.standalone_reduce input to consume the selected "
-          "tcrv_rvv.widening_product result");
+          "weft_rvv.standalone_reduce input to consume the selected "
+          "weft_rvv.widening_product result");
     if (isProductReductionDequantization &&
         !analysis.slice.dequantizeOp)
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
-          "requires tcrv_rvv.dequantize in the selected RVV body");
+          "requires weft_rvv.dequantize in the selected RVV body");
     // Two carriers of the i32 product-reduction result feed the dequant:
     //   - legacy two-scope body: the gearbox_cross_region_handoff output;
     //   - single-scope typed body (Stage 3 flip): the standalone_reduce result
@@ -1194,18 +1194,18 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
              analysis.slice.setvl.getAvl()))
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
-          "requires tcrv_rvv.gearbox_cross_region_handoff to structurally "
+          "requires weft_rvv.gearbox_cross_region_handoff to structurally "
           "forward the selected standalone_reduce result, bind the selected "
           "with_vl token, and consume the selected runtime n/AVL SSA value "
-          "before tcrv_rvv.dequantize");
+          "before weft_rvv.dequantize");
     if (isProductReductionDequantization &&
         !analysis.slice.gearboxCrossRegionHandoffOp &&
         analysis.slice.dequantizeOp.getSource() !=
             analysis.slice.standaloneReduceOp.getResult())
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
-          "requires tcrv_rvv.dequantize to consume the selected "
-          "tcrv_rvv.standalone_reduce i32 result in the single-scope typed "
+          "requires weft_rvv.dequantize to consume the selected "
+          "weft_rvv.standalone_reduce i32 result in the single-scope typed "
           "body");
     if (isProductReductionDequantization &&
         analysis.slice.dequantScaleABI.role !=
@@ -1611,7 +1611,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
             getContractionFloatSelectIntrinsic(typedConfig.sew,
                                                typedConfig.lmul);
         plan.maskTypeName = internContractionDerivedText(
-            (llvm::Twine("!tcrv_rvv.mask<") +
+            (llvm::Twine("!weft_rvv.mask<") +
              getContractionFloatElementTypeName(typedConfig.sew) + ", \"" +
              typedConfig.lmul + "\">")
                 .str());
@@ -1644,9 +1644,9 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       plan.inactiveLaneZeroingRequirement =
           kRVVContractionMaskedInactiveLaneZeroingRequirement;
     } else if (isDeferredWideDotReduce) {
-      // The deferred-wide i16 dot-reduce has NO fused tcrv_rvv.widening_dot_reduce
+      // The deferred-wide i16 dot-reduce has NO fused weft_rvv.widening_dot_reduce
       // op; its accumulator seed/result are carried by the trailing
-      // tcrv_rvv.standalone_reduce. The route IDENTITY layouts/relation are the
+      // weft_rvv.standalone_reduce. The route IDENTITY layouts/relation are the
       // narrow dot-reduce's (the logical op is unchanged): scalar i32 seed,
       // dot-reduction store, narrow signed-i16mf2 dot relation. Read the seed
       // structurally from the standalone_reduce (I5), use the narrow identity
@@ -1768,9 +1768,9 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   const bool isNonDeferredWideProductReductionDequantize =
       plan.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
-      plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW8Bits() &&
-      (plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM1() ||
-       plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM2());
+      plan.runtimeControlPlan.sew == weft::rvv::getRVVSEW8Bits() &&
+      (plan.runtimeControlPlan.lmul == weft::rvv::getRVVLMULM1() ||
+       plan.runtimeControlPlan.lmul == weft::rvv::getRVVLMULM2());
   if (plan.operation ==
           RVVSelectedBodyOperationKind::
               WideningProductDeferredAccumulateReduceDequantizeF32 ||
@@ -1780,8 +1780,8 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
       isNonDeferredWideProductReductionDequantize) {
     description.sew = plan.sew;
     description.lmul = plan.lmul;
-    const tcrv::rvv::RVVSelectedBodyConfigVLContract &resultContract =
-        tcrv::rvv::getRVVSelectedBodyConfigVLContract(
+    const weft::rvv::RVVSelectedBodyConfigVLContract &resultContract =
+        weft::rvv::getRVVSelectedBodyConfigVLContract(
             plan.sew, plan.lmul, plan.runtimeControlPlan.policy);
     description.configContractID = resultContract.configContractID;
     description.runtimeVLContractID = resultContract.runtimeVLContractID;
@@ -2027,24 +2027,24 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           expectedRuntimeABIOrder))
     return error;
   const bool supportsNarrowProductReductionChain =
-      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      description.sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
-      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      description.productLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1();
+      description.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      description.sourceLMUL == weft::rvv::getRVVLMULMF4() &&
+      description.productSEW == weft::rvv::getRVVSEW16Bits() &&
+      description.productLMUL == weft::rvv::getRVVLMULMF2() &&
+      description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == weft::rvv::getRVVLMULM1();
   // The deferred-wide (N3) chain runs i8m2 -> i16m4 -> i32m1 (the i32m8 deferred
   // accumulate is the structural intermediate). Mirror the plan-level support.
   const bool supportsDeferredWideProductReductionChain =
       description.operation ==
           RVVSelectedBodyOperationKind::
               WideningProductDeferredAccumulateReduceDequantizeF32 &&
-      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      description.sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
-      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      description.productLMUL == tcrv::rvv::getRVVLMULM4() &&
-      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1();
+      description.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      description.sourceLMUL == weft::rvv::getRVVLMULM2() &&
+      description.productSEW == weft::rvv::getRVVSEW16Bits() &&
+      description.productLMUL == weft::rvv::getRVVLMULM4() &&
+      description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == weft::rvv::getRVVLMULM1();
   // The NON-deferred wide (dequant front door) chain: same wide ladder, per-
   // iteration vwredsum, exactly the dequantize kind. The wide source rung flips with
   // VLEN (m2 -> i16m4 at VLEN128, m1 -> i16m2 at VLEN256); admitted structurally for
@@ -2053,13 +2053,13 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
   const bool supportsNonDeferredWideProductReductionChain =
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
-      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (description.sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
-       description.sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
-      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      (description.sourceLMUL == weft::rvv::getRVVLMULM1() ||
+       description.sourceLMUL == weft::rvv::getRVVLMULM2()) &&
+      description.productSEW == weft::rvv::getRVVSEW16Bits() &&
       description.productLMUL == getRVVNextWiderLMUL(description.sourceLMUL) &&
-      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1();
+      description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == weft::rvv::getRVVLMULM1();
   // P1f C4: the codebook plain reduce-add chain's FLIPPING i8 source ladder (mf2 ->
   // i16m1 at VLEN256, m1 -> i16m2 at VLEN128; mf4 pruned so the gather spans the
   // 16-entry table), per-iteration vwredsum to i32m1. Mirror the plan-level support;
@@ -2067,13 +2067,13 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
   // marker), gated to that relation so no other route loosens (I7).
   const bool supportsCodebookProductReductionChain =
       description.wideningProductRelation == kRVVCodebookProductRelation &&
-      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (description.sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
-       description.sourceLMUL == tcrv::rvv::getRVVLMULM1()) &&
-      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.sourceSEW == weft::rvv::getRVVSEW8Bits() &&
+      (description.sourceLMUL == weft::rvv::getRVVLMULMF2() ||
+       description.sourceLMUL == weft::rvv::getRVVLMULM1()) &&
+      description.productSEW == weft::rvv::getRVVSEW16Bits() &&
       description.productLMUL == getRVVNextWiderLMUL(description.sourceLMUL) &&
-      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1();
+      description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == weft::rvv::getRVVLMULM1();
   const bool supportsProductReductionChain =
       supportsNarrowProductReductionChain ||
       supportsDeferredWideProductReductionChain ||
@@ -2093,10 +2093,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
       description.operation ==
           RVVSelectedBodyOperationKind::
               WideningProductDeferredDotAccumulateReduceAdd &&
-      tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(description.sourceSEW,
+      weft::rvv::isRVVDeferredWideDotReduceStripConfig(description.sourceSEW,
                                                        description.sourceLMUL) &&
-      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1();
+      description.sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == weft::rvv::getRVVLMULM1();
   if (!usesProductReductionChain && !supportsDeferredWideDotReduceConfig &&
       !isSupportedContractionSourceResultConfig(description.sourceSEW,
                                                 description.sourceLMUL,
@@ -2309,113 +2309,113 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           actual, expected);
     };
 
-#define TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)    \
+#define WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)    \
   if (llvm::Error error = requirePayloadField((FIELD), (ACTUAL), (EXPECTED)))  \
     return error
-#define TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)   \
+#define WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)   \
   if (llvm::Error error =                                                       \
           requirePayloadIntegerField((FIELD), (ACTUAL), (EXPECTED)))           \
     return error
 
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "contract", primitivePayload.contractID,
         description.lowPrecisionPrimitiveContractID);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "kind", primitivePayload.kind,
         description.lowPrecisionPrimitiveKind);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "source dtype", primitivePayload.sourceElementTypeName,
         description.lowPrecisionPrimitiveSourceElementTypeName);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "source signedness", primitivePayload.sourceSignedness,
         description.lowPrecisionPrimitiveSourceSignedness);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "source load", primitivePayload.sourceLoadKind,
         description.lowPrecisionPrimitiveSourceLoadKind);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "source extension", primitivePayload.sourceExtensionKind,
         description.lowPrecisionPrimitiveSourceExtensionKind);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "product dtype", primitivePayload.productElementTypeName,
         description.lowPrecisionPrimitiveProductElementTypeName);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "accumulator dtype", primitivePayload.accumulatorElementTypeName,
         description.lowPrecisionPrimitiveAccumulatorElementTypeName);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "result dtype", primitivePayload.resultElementTypeName,
         description.lowPrecisionPrimitiveResultElementTypeName);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
         "source SEW", primitivePayload.sourceSEW, description.sourceSEW);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "source LMUL", primitivePayload.sourceLMUL, description.sourceLMUL);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
         "product SEW", primitivePayload.productSEW,
         usesProductReductionChain ? description.productSEW : description.sew);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "product LMUL", primitivePayload.productLMUL,
         usesProductReductionChain ? description.productLMUL
                                   : description.lmul);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
         "accumulator SEW", primitivePayload.accumulatorSEW,
         description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
             ? 0
             : description.sew);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "accumulator LMUL", primitivePayload.accumulatorLMUL,
         description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
             ? llvm::StringRef()
             : description.lmul);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
         "result SEW", primitivePayload.resultSEW, description.sew);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "result LMUL", primitivePayload.resultLMUL, description.lmul);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "tail policy", primitivePayload.tailPolicy, description.tailPolicy);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "mask policy", primitivePayload.maskPolicy, description.maskPolicy);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "runtime control plan", primitivePayload.runtimeControlPlanID,
         description.runtimeControlPlanID);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "runtime AVL source", primitivePayload.runtimeAVLASource,
         description.runtimeAVLASource);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "widening product relation",
         primitivePayload.wideningProductRelation,
         description.wideningProductRelation);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "widening product intrinsic",
         primitivePayload.wideningProductIntrinsic,
         description.wideningProductIntrinsic);
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "product-reduction chain relation",
         primitivePayload.productReductionChainRelation,
         usesProductReductionChain ? description.productReductionChainRelation
                                   : llvm::StringRef());
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "reduction intrinsic", primitivePayload.reductionIntrinsic,
         usesProductReductionChain ? description.intrinsic
                                   : llvm::StringRef());
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "scalar seed splat intrinsic",
         primitivePayload.scalarSeedSplatIntrinsic,
         usesProductReductionChain ? description.scalarSeedSplatIntrinsic
                                   : llvm::StringRef());
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "accumulator layout", primitivePayload.accumulatorLayout,
         usesProductReductionChain ? description.reductionAccumulatorLayout
                                   : llvm::StringRef());
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "result layout", primitivePayload.resultLayout,
         usesProductReductionChain ? description.reductionResultLayout
                                   : llvm::StringRef());
-    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+    WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
         "reduction store VL", primitivePayload.reductionStoreVL,
         usesProductReductionChain ? description.reductionStoreVL
                                   : llvm::StringRef());
 
-#undef TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING
-#undef TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER
+#undef WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING
+#undef WEFT_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER
   } else if (primitivePayload.hasPayload) {
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2594,7 +2594,7 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             context, "widening product multiplicand roles",
             description.wideningProductMultiplicandRoleSummary,
             getContractionMultiplicandRoleSummary(
-                "tcrv_rvv.widening_product",
+                "weft_rvv.widening_product",
                 /*isSigned=*/!isUnsignedWideningProductDescription)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
@@ -3062,16 +3062,16 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
       slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningProduct &&
       analysis.description.wideningProductRelation ==
           getContractionWideningProductRelation(
-              tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-              tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+              weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+              weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
               /*isUnsigned=*/true);
   const bool isUnsignedProductReduction =
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd &&
       analysis.description.wideningProductRelation ==
           getContractionWideningProductRelation(
-              tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
-              tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+              weft::rvv::getRVVSEW8Bits(), weft::rvv::getRVVLMULMF4(),
+              weft::rvv::getRVVSEW16Bits(), weft::rvv::getRVVLMULMF2(),
               /*isUnsigned=*/true);
   plan.planID = (isUnsignedWideningProduct
                      ? llvm::StringRef(
@@ -3338,4 +3338,4 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
 }
 
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

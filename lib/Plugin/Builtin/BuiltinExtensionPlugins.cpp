@@ -1,26 +1,26 @@
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "Weft/Plugin/BuiltinExtensionPlugins.h"
 
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/IME/IMEExtensionPlugin.h"
-#include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
-#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
-#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/IME/IMEExtensionPlugin.h"
+#include "Weft/Plugin/Offload/OffloadExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 
 #include <string>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 llvm::Error makeBuiltinExtensionCatalogError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV built-in extension catalog registration "
+      llvm::Twine("Weft-RV built-in extension catalog registration "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -94,4 +94,4 @@ llvm::Error registerBuiltinExtensionBundlePlugins(
   return bundles.registerExtensionPlugins(registry);
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

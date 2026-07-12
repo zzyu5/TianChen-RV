@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -12,7 +12,7 @@
 
 #include <string>
 
-namespace tianchenrv::plugin::tensorext_lite {
+namespace weft::plugin::tensorext_lite {
 namespace {
 
 constexpr llvm::StringLiteral kTensorExtLitePluginName("tensorext-lite-plugin");
@@ -21,23 +21,23 @@ constexpr llvm::StringLiteral kTensorExtLiteFragmentCapabilityID(
 constexpr llvm::StringLiteral kTensorExtLiteFragmentCapabilityKind(
     "fragment-mma-like");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentABIAttrName(
-    "tcrv_tensorext_lite.fragment_abi");
+    "weft_tensorext_lite.fragment_abi");
 constexpr llvm::StringLiteral kTensorExtLiteHandoffKindAttrName(
-    "tcrv_tensorext_lite.handoff_kind");
+    "weft_tensorext_lite.handoff_kind");
 constexpr llvm::StringLiteral kTensorExtLiteConstructionProtocolAttrName(
-    "tcrv_tensorext_lite.construction_protocol");
+    "weft_tensorext_lite.construction_protocol");
 constexpr llvm::StringLiteral kTensorExtLiteConstructionArchetypeAttrName(
-    "tcrv_tensorext_lite.archetype");
+    "weft_tensorext_lite.archetype");
 constexpr llvm::StringLiteral kTensorExtLiteSemanticRoleGraphAttrName(
-    "tcrv_tensorext_lite.semantic_role_graph");
+    "weft_tensorext_lite.semantic_role_graph");
 constexpr llvm::StringLiteral kTensorExtLiteCommonInterfaceRealizationAttrName(
-    "tcrv_tensorext_lite.common_interface_realization");
+    "weft_tensorext_lite.common_interface_realization");
 constexpr llvm::StringLiteral kTensorExtLiteTypedRoleRealizationAttrName(
-    "tcrv_tensorext_lite.typed_role_realization");
+    "weft_tensorext_lite.typed_role_realization");
 constexpr llvm::StringLiteral kTensorExtLiteEmitCRouteMappingAttrName(
-    "tcrv_tensorext_lite.emitc_route_mapping");
+    "weft_tensorext_lite.emitc_route_mapping");
 constexpr llvm::StringLiteral kTensorExtLiteEvidenceProfileAttrName(
-    "tcrv_tensorext_lite.evidence_profile");
+    "weft_tensorext_lite.evidence_profile");
 constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -53,7 +53,7 @@ struct TensorExtLiteFragmentCapabilityView {
 llvm::Error makeTensorExtLitePluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine(
-          "TianChen-RV TensorExtLite extension plugin fragment failed: ") +
+          "Weft-RV TensorExtLite extension plugin fragment failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -164,7 +164,7 @@ buildTensorExtLiteFragmentCapabilityView(
 }
 
 llvm::Expected<bool> variantRequiresTensorExtLiteFragment(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities) {
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -193,7 +193,7 @@ llvm::Expected<bool> variantRequiresTensorExtLiteFragment(
 }
 
 llvm::Error verifyTensorExtLiteVariantMetadata(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const TensorExtLiteFragmentCapabilityView &capabilityView) {
   if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady())
     return error;
@@ -206,7 +206,7 @@ llvm::Error verifyTensorExtLiteVariantMetadata(
     return makeTensorExtLitePluginError(
         llvm::Twine("materialized TensorExtLite variant @") +
         variant.getSymName() +
-        " requires non-empty string 'tcrv_tensorext_lite.fragment_abi' "
+        " requires non-empty string 'weft_tensorext_lite.fragment_abi' "
         "metadata");
   if (fragmentABI.getValue() != capabilityView.fragmentABI)
     return makeTensorExtLitePluginError(
@@ -221,7 +221,7 @@ llvm::Error verifyTensorExtLiteVariantMetadata(
     return makeTensorExtLitePluginError(
         llvm::Twine("materialized TensorExtLite variant @") +
         variant.getSymName() +
-        " requires non-empty string 'tcrv_tensorext_lite.handoff_kind' "
+        " requires non-empty string 'weft_tensorext_lite.handoff_kind' "
         "metadata");
   if (handoffKind.getValue() != capabilityView.handoffKind)
     return makeTensorExtLitePluginError(
@@ -299,11 +299,11 @@ llvm::Error verifyTensorExtLiteVariantMetadata(
 } // namespace
 
 llvm::Error verifyTensorExtLiteSelectedVariantLegality(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp /*kernel*/,
+    weft::exec::VariantOp variant, weft::exec::KernelOp /*kernel*/,
     const support::TargetCapabilitySet &capabilities) {
   if (!variant)
     return makeTensorExtLitePluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
+        "legality verification requires a materialized weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue() != kTensorExtLitePluginName)
@@ -329,4 +329,4 @@ llvm::Error verifyTensorExtLiteSelectedVariantLegality(
   return verifyTensorExtLiteVariantMetadata(variant, *capabilityView);
 }
 
-} // namespace tianchenrv::plugin::tensorext_lite
+} // namespace weft::plugin::tensorext_lite

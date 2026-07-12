@@ -1,38 +1,38 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
-// The --tcrv-rvv-lower-to-emitc pass lowers the typed generic tcrv_rvv
+// The --weft-rvv-lower-to-emitc pass lowers the typed generic weft_rvv
 // base-memory indexed-gather body via a real MLIR DialectConversion:
-//   tcrv_rvv.index_load  -> __riscv_vle32_v_u32m1 (unit-stride index buffer load)
-//   tcrv_rvv.indexed_load -> __riscv_vmul_vx_u32m1 (element->byte index scale)
+//   weft_rvv.index_load  -> __riscv_vle32_v_u32m1 (unit-stride index buffer load)
+//   weft_rvv.indexed_load -> __riscv_vmul_vx_u32m1 (element->byte index scale)
 //                            + __riscv_vloxei32_v_i32m1 (ordered indexed gather)
-//   tcrv_rvv.move{copy}  -> passthrough (no call)
-//   tcrv_rvv.store       -> __riscv_vse32_v_i32m1 (unit-stride store)
-// The !tcrv_rvv.index_vector<i32,"m1"> converts to vuint32m1_t. Byte-equivalence
+//   weft_rvv.move{copy}  -> passthrough (no call)
+//   weft_rvv.store       -> __riscv_vse32_v_i32m1 (unit-stride store)
+// The !weft_rvv.index_vector<i32,"m1"> converts to vuint32m1_t. Byte-equivalence
 // to the legacy materializer C is pinned by the e2e diff; this asserts STRUCTURE.
 
 module {
-  tcrv.exec.kernel @explicit_selected_body_indexed_gather_unit_store_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @explicit_selected_body_rvv_indexed_gather_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %data = tcrv_rvv.runtime_abi_value {c_name = "data", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:data", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:index", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @explicit_selected_body_rvv_indexed_gather_unit_store, sew = 32 : i64, source_kernel = "explicit_selected_body_indexed_gather_unit_store_kernel", status = "selected-lowering-boundary"} {
-        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.index_vector<i32, "m1">
-        %loaded = tcrv_rvv.indexed_load %data, %indices, %vl {index_eew = 32 : i64, offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        tcrv_rvv.store %out, %moved, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @explicit_selected_body_indexed_gather_unit_store_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @explicit_selected_body_rvv_indexed_gather_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %data = weft_rvv.runtime_abi_value {c_name = "data", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:data", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %index = weft_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:index", role = "index-input-buffer"} : !weft_rvv.runtime_abi_value
+      %out = weft_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-indexed-gather-unit-store:n", role = "runtime-element-count"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @explicit_selected_body_rvv_indexed_gather_unit_store, sew = 32 : i64, source_kernel = "explicit_selected_body_indexed_gather_unit_store_kernel", status = "selected-lowering-boundary"} {
+        %indices = weft_rvv.index_load %index, %vl {index_eew = 32 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.index_vector<i32, "m1">
+        %loaded = weft_rvv.indexed_load %data, %indices, %vl {index_eew = 32 : i64, offset_unit = "element"} : !weft_rvv.runtime_abi_value, !weft_rvv.index_vector<i32, "m1">, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        %moved = weft_rvv.move %loaded, %vl {kind = "copy"} : !weft_rvv.vector<i32, "m1">, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        weft_rvv.store %out, %moved, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
+      } : !weft_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: weft_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 
-// CHECK: emitc.func @tcrv_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store(
+// CHECK: emitc.func @weft_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store(
 
 // index_load: unit-stride index buffer pointer + vle32_v_u32m1 -> vuint32m1_t.
 // CHECK: %[[IPTR:.*]] = add %{{.*}} : (!emitc.ptr<!emitc.opaque<"const uint32_t">>, !emitc.opaque<"size_t">) -> !emitc.ptr<!emitc.opaque<"const uint32_t">>

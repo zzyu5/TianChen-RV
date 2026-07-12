@@ -1,13 +1,13 @@
 // Track B auto-lowering, the NIBBLE-UNPACK rung -- one step ABOVE the q8_0-style
-// dequant rung. The COMPILER auto-CONSTRUCTS the complete tcrv.exec.kernel +
+// dequant rung. The COMPILER auto-CONSTRUCTS the complete weft.exec.kernel +
 // variant + dispatch/fallback scaffold from a marked ggml `ggml_vec_dot_q4_0_q8_0`
 // OPERATOR-IDENTITY source (the eight vec_dot ABI roles n/s/bs/vx/bx/vy/by/nrc),
 // instead of a per-kernel hand-authored block-dot emitter input.
 //
 // M-FLAT step 6 (the q4_0 typed-loop FLIP, the sibling of q8_0's step 5b): the
-// q4_0 front door no longer constructs the ONE monolith tcrv_rvv.q4_0_q8_0_block_dot
+// q4_0 front door no longer constructs the ONE monolith weft_rvv.q4_0_q8_0_block_dot
 // op -- it constructs the COMPLETE per-block TYPED LOOP chain
-// (tcrv_rvv.typed_flat_block_dot_loop_body region) whose per-block integer core is
+// (weft_rvv.typed_flat_block_dot_loop_body region) whose per-block integer core is
 // the asymmetric OFFSET-BINARY packed-i4 x i8 product (the q4_0 nibble core:
 // offset-binary (nibble-8) decode = xor-0x88 + low/high sign-extend + the vwmul/
 // vwmacc against the two q8 halves) and whose fp32 fold is q4_0's LEFT-ASSOCIATIVE
@@ -30,41 +30,41 @@
 
 // The auto-constructed typed flat block-dot loop chain (mbf1/m1/elided, no shape
 // knobs -- shape-adaptivity is a later M-FLAT step).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q4-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=BODY
 //
 // The constructed loop chain lowers to the q4_0 nibble core (op structure), a
 // light emit-presence check (byte-exactness is locked by the full-body /
 // full-pipeline lits).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q4-0-q8-0-block-dot-source-front-door --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 //
 // FAIL-CLOSED (I7): a non-conforming operator-identity signature (the q8 activation
 // operand is an f32 memref, not the i8 memref the vec_dot identity requires) is
 // REJECTED, not silently constructed.
-// RUN: not tcrv-opt %S/Inputs/q4-0-q8-0-block-dot-source-wrong-signature.mlir --tcrv-rvv-materialize-q4-0-q8-0-block-dot-source-front-door 2>&1 | FileCheck %s --check-prefix=BADSIG
+// RUN: not weft-opt %S/Inputs/q4-0-q8-0-block-dot-source-wrong-signature.mlir --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door 2>&1 | FileCheck %s --check-prefix=BADSIG
 
-module attributes {tcrv_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source",
-                   tcrv_rvv.source_kernel = "ggml_vec_dot_q4_0_q8_0_kernel"} {
+module attributes {weft_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source",
+                   weft_rvv.source_kernel = "ggml_vec_dot_q4_0_q8_0_kernel"} {
   func.func @source_q4_0_q8_0_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
     return
   }
 }
 
 // ===================== AUTO-CONSTRUCTED TYPED LOOP CHAIN ====================
-// The marked operator-identity source becomes a tcrv.exec.kernel with the
+// The marked operator-identity source becomes a weft.exec.kernel with the
 // auto-built typed flat block-dot loop chain + the full ABI value set + the
 // dispatch/fallback scaffold. NO per-kernel emitter authored this.
-// BODY: tcrv.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel
-// BODY: tcrv.exec.variant @rvv_q4_0_q8_0_block_dot
+// BODY: weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel
+// BODY: weft.exec.variant @rvv_q4_0_q8_0_block_dot
 // The ggml vec_dot ABI value set (n, s, bs, vx, bx, vy, by, nrc).
-// BODY: tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"}
-// BODY: tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"}
+// BODY: weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"}
+// BODY: weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"}
 // The typed core runs at the SEW8/m1 half-block anchor (NOT the monolith sew=32).
-// BODY: tcrv_rvv.setvl
+// BODY: weft_rvv.setvl
 // BODY-SAME: lmul = "m1"
 // BODY-SAME: sew = 8
 // The typed flat block-dot LOOP body op: q4_0's left-assoc fold, m1 integer core,
 // half-block (qk/2) geometry (18/34 strides), mbf1 (no multi_block_factor attr).
-// BODY: tcrv_rvv.typed_flat_block_dot_loop_body
+// BODY: weft_rvv.typed_flat_block_dot_loop_body
 // BODY-SAME: activation_block_stride = 34 : i64
 // BODY-SAME: fold_model = "left_assoc"
 // BODY-SAME: integer_core_lmul = "m1"
@@ -75,27 +75,27 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source
 // BODY-NOT: multi_block_factor
 // The per-block integer core is the asymmetric offset-binary packed-i4 x i8
 // product (i4m1 x i8m1x2 -> i16m2) reduced to the i32m1 lane -> scalar sumi.
-// BODY: tcrv_rvv.packed_i4_offset_binary_x_i8_product
+// BODY: weft_rvv.packed_i4_offset_binary_x_i8_product
 // BODY-SAME: kind = "signed_packed_i4_offset_binary_x_i8_product"
 // BODY-SAME: product_relation = "offset-binary-i4m1-x-i8m1x2-to-i16m2"
-// BODY: tcrv_rvv.standalone_reduce
-// BODY: tcrv_rvv.typed_vector_lane0_to_scalar_extract
+// BODY: weft_rvv.standalone_reduce
+// BODY: weft_rvv.typed_vector_lane0_to_scalar_extract
 // The per-block dequant (brick 2) + cross-block f32 fold (brick 3) + the yield.
-// BODY: tcrv_rvv.block_computed_scale_dequant
-// BODY: tcrv_rvv.cross_block_f32_accumulate
-// BODY: tcrv_rvv.typed_flat_block_dot_loop_yield
+// BODY: weft_rvv.block_computed_scale_dequant
+// BODY: weft_rvv.cross_block_f32_accumulate
+// BODY: weft_rvv.typed_flat_block_dot_loop_yield
 // The conservative fallback is authored by the fallback-owning plugin.
-// BODY: tcrv.exec.variant @rvv_q4_0_q8_0_block_dot_scalar_fallback
+// BODY: weft.exec.variant @rvv_q4_0_q8_0_block_dot_scalar_fallback
 // BODY-SAME: fallback_role = "conservative"
-// BODY: tcrv.exec.case @rvv_q4_0_q8_0_block_dot
-// BODY: tcrv.exec.fallback @rvv_q4_0_q8_0_block_dot_scalar_fallback
+// BODY: weft.exec.case @rvv_q4_0_q8_0_block_dot
+// BODY: weft.exec.fallback @rvv_q4_0_q8_0_block_dot_scalar_fallback
 
 // ===================== LOWERED q4_0 NIBBLE CORE (op structure) ==============
 // The typed loop lowers to the ONE auto-constructed emitc kernel whose integer
 // core is the q4_0 nibble-unpack chain (vxor.vx 0x88 + vsll/vsra sign-extend +
 // vwmul/vwmacc against the q8 halves) + the i16m2 -> i32m1 reduce. Byte-exactness
 // is locked by the full-body / full-pipeline lits.
-// EMIT: emitc.func @tcrv_emitc_ggml_vec_dot_q4_0_q8_0_kernel_rvv_q4_0_q8_0_block_dot(
+// EMIT: emitc.func @weft_emitc_ggml_vec_dot_q4_0_q8_0_kernel_rvv_q4_0_q8_0_block_dot(
 // EMIT: call_opaque "__riscv_vsetvl_e8m1"
 // EMIT: call_opaque "__riscv_vxor_vx_i8m1"
 // EMIT: call_opaque "__riscv_vsll_vx_i8m1"
@@ -106,7 +106,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source
 // EMIT: return
 // The residual operator-identity source func lowers to NOTHING (the marker-only
 // removeAttr): there is exactly ONE emitc kernel (the auto-constructed one).
-// EMIT-NOT: emitc.func @tcrv_emitc_source_q4_0_q8_0_block_dot
+// EMIT-NOT: emitc.func @weft_emitc_source_q4_0_q8_0_block_dot
 
 // ===================== FAIL-CLOSED diagnostics (I7) =========================
 // BADSIG: ggml Q4_0 x Q8_0 block-dot source front door failed

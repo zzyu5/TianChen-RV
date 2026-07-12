@@ -3,7 +3,7 @@
     "manifest_version": "v1",
     "gate": "f1-zero-branch-gate",
     "checker": "tools/lint/check_zero_core_family_branch.py",
-    "falsifier": "[F-1] 零核心分支 (docs/canon/TianChen-RV_科研目标总纲v2.md:105 · .trellis/spec/testing/mlir-testing-contract.md:72)",
+    "falsifier": "[F-1] 零核心分支 (docs/canon/Weft-RV_科研目标总纲v2.md:105 · .trellis/spec/testing/mlir-testing-contract.md:72)",
     "invariant": "I3 零 family-name 分支 (.trellis/spec/architecture/core-invariants.md:13)",
     "purpose": "Family-regex manifest + core-scope + judgment protocol for the [F-1] zero-core-branch falsifier. The core / common dispatch path must reach plugins ONLY through the capability registry + plugin interface, NEVER via an `if RVV` / `if IME` / `if Sophgo` family-name branch. This manifest lists each family's dispatch-key tokens and pins the CORE control-flow file scope; the checker greps the family keys over that scope and, per the judgment protocol below, flags a hit RED iff it is a family-name-keyed control-flow DECISION (if / switch / StringSwitch / starts_with / == on a family key). Declared false-positive classes (comments, mnemonics, dialect-type refs, registration tables, identity comparisons) are NOT branches and are NOT RED.",
     "gate_semantics": "RED iff any core line is a family-name-keyed control-flow/dispatch decision (a real I3 violation) that is not an allow-listed declared false-positive. GREEN == zero family-keyed branch in core (the invariant holds).",
@@ -19,20 +19,20 @@
       "lib/Support",
       "lib/Dialect/Exec",
       "lib/Conversion/EmitC",
-      "include/TianChenRV/Transforms",
-      "include/TianChenRV/Support",
-      "include/TianChenRV/Dialect/Exec",
-      "include/TianChenRV/Conversion/EmitC"
+      "include/Weft/Transforms",
+      "include/Weft/Support",
+      "include/Weft/Dialect/Exec",
+      "include/Weft/Conversion/EmitC"
     ],
     "depth1_roots": [
       "lib/Plugin",
       "lib/Target",
-      "include/TianChenRV/Plugin",
-      "include/TianChenRV/Target"
+      "include/Weft/Plugin",
+      "include/Weft/Target"
     ],
     "single_files": [
-      "lib/InitTianChenRVDialects.cpp",
-      "include/TianChenRV/InitTianChenRVDialects.h"
+      "lib/InitWeftDialects.cpp",
+      "include/Weft/InitWeftDialects.h"
     ],
     "exclude_subdir_names": [
       "RVV", "IME", "Scalar", "Offload", "Sophgo",
@@ -55,7 +55,7 @@
     "declared_false_positive_classes": [
       "1. string literal in a data/table/registration line (family name as data, not a branch) — e.g. the kBuiltinBackendEmitters[] registration table entries.",
       "2. identity comparison by origin (candidate.origin == selectedRoute.originPlugin) — equality on an origin value, not a hardcoded family-name discriminator.",
-      "3. op-attribute name / type mnemonic / pass mnemonic containing a family substring (tcrv_rvv.* type, `tcrv-rvv-lower-to-emitc` pass name, `::tianchenrv::tcrv::rvv::TCRVRVVDialect` dependent-dialect ref) — naming, not a decision.",
+      "3. op-attribute name / type mnemonic / pass mnemonic containing a family substring (weft_rvv.* type, `weft-rvv-lower-to-emitc` pass name, `::weft::rvv::WEFTRVVDialect` dependent-dialect ref) — naming, not a decision.",
       "4. comments / documentation strings (including self-documenting 'does not branch on RVV, IME, ...' pass summaries).",
       "5. a family key passed as a DATA argument to a family-agnostic function (impliedClosureAvoidsNamespace(seed, \"rvv\") — the F-6 independence-ENFORCEMENT mechanism; the generic function compares against its parameter, not a hardcoded family literal)."
     ],
@@ -69,10 +69,10 @@
     "occurrences": [
       { "file": "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp", "lines": "27,31,32", "class": 1, "what": "kBuiltinBackendEmitters[] uniform registration table (rvv/ime/scalar backend register fns), iterated with a for-loop, no `if`." },
       { "file": "lib/Support/CapabilityModel.cpp", "line": "431", "class": 5, "what": "impliedClosureAvoidsRVVNamespace calls the generic impliedClosureAvoidsNamespace(seed, \"rvv\") — the F-6 independence-enforcement mechanism, not family dispatch." },
-      { "file": "lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp", "line": "22", "class": 4, "what": "comment referencing the `--tcrv-rvv-lower-to-emitc` pass name." },
-      { "file": "lib/Conversion/EmitC/BackendEmissionRegistry.cpp", "line": "27", "class": 4, "what": "comment referencing the `--tcrv-rvv-lower-to-emitc` pass name." },
-      { "file": "include/TianChenRV/Transforms/Passes.td", "lines": "42-311+", "class": "3,4", "what": "pass mnemonics `tcrv-rvv-*`, dependentDialect refs `::tianchenrv::tcrv::rvv::TCRVRVVDialect`, and self-documenting 'does not branch on RVV, scalar, IME, offload' summaries." },
-      { "file": "include/TianChenRV/Support/RuntimeABI.h", "lines": "108-177", "class": 3, "what": "runtime-ABI role mnemonics containing 'scalar' (e.g. 'rhs-scalar-value') — role names, not family dispatch." }
+      { "file": "lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp", "line": "22", "class": 4, "what": "comment referencing the `--weft-rvv-lower-to-emitc` pass name." },
+      { "file": "lib/Conversion/EmitC/BackendEmissionRegistry.cpp", "line": "27", "class": 4, "what": "comment referencing the `--weft-rvv-lower-to-emitc` pass name." },
+      { "file": "include/Weft/Transforms/Passes.td", "lines": "42-311+", "class": "3,4", "what": "pass mnemonics `weft-rvv-*`, dependentDialect refs `::weft::rvv::WEFTRVVDialect`, and self-documenting 'does not branch on RVV, scalar, IME, offload' summaries." },
+      { "file": "include/Weft/Support/RuntimeABI.h", "lines": "108-177", "class": 3, "what": "runtime-ABI role mnemonics containing 'scalar' (e.g. 'rhs-scalar-value') — role names, not family dispatch." }
     ]
   }
 }

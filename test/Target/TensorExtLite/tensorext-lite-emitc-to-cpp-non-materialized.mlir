@@ -1,8 +1,8 @@
-// RUN: not tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp %s 2>&1 | FileCheck %s --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
+// RUN: not weft-translate --weft-tensorext-lite-emitc-to-cpp %s 2>&1 | FileCheck %s --implicit-check-not="weft_tensorext_lite_config" --implicit-check-not="weft_tensorext_lite_tile_mma"
 
 module attributes {
-  tcrv_tensorext_lite.source_front_door = "fragment_mma_template",
-  tcrv_tensorext_lite.source_kernel = "tensorext_lite_header_export"
+  weft_tensorext_lite.source_front_door = "fragment_mma_template",
+  weft_tensorext_lite.source_kernel = "tensorext_lite_header_export"
 } {
 }
 

@@ -1,8 +1,8 @@
-#include "TianChenRV/Transforms/Passes.h"
+#include "Weft/Transforms/Passes.h"
 
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/CapabilityModel.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Operation.h"
@@ -13,16 +13,16 @@
 
 #include <utility>
 
-namespace tianchenrv::transforms {
+namespace weft::transforms {
 
 #define GEN_PASS_DEF_CHECKCAPABILITYREQUIRES
-#include "TianChenRV/Transforms/Passes.h.inc"
+#include "Weft/Transforms/Passes.h.inc"
 
 namespace {
 
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
-using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
+using weft::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
 struct RequirementIssue {
   enum class Kind {
@@ -52,7 +52,7 @@ public:
 
   void runOnOperation() override {
     bool foundRequirementIssue = false;
-    getOperation()->walk([&](tcrv::exec::KernelOp kernel) {
+    getOperation()->walk([&](weft::exec::KernelOp kernel) {
       llvm::Expected<support::TargetCapabilitySet> capabilities =
           support::TargetCapabilitySet::buildFromKernelChecked(kernel);
       if (!capabilities) {
@@ -69,19 +69,19 @@ public:
   }
 
 private:
-  void checkKernel(tcrv::exec::KernelOp kernel,
+  void checkKernel(weft::exec::KernelOp kernel,
                    const support::TargetCapabilitySet &capabilities,
                    bool &foundRequirementIssue) const {
     if (!kernel || kernel.getBody().empty())
       return;
 
-    llvm::StringMap<tcrv::exec::VariantOp> variantsBySymbol;
+    llvm::StringMap<weft::exec::VariantOp> variantsBySymbol;
     llvm::StringMap<RequirementIssueList> issuesByVariant;
     llvm::StringSet<> dispatchCaseTargets;
     llvm::StringSet<> fallbackTargets;
 
     for (mlir::Operation &op : kernel.getBody().front()) {
-      auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+      auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
       if (!variant)
         continue;
 
@@ -93,20 +93,20 @@ private:
     }
 
     for (mlir::Operation &op : kernel.getBody().front()) {
-      auto dispatch = llvm::dyn_cast<tcrv::exec::DispatchOp>(op);
+      auto dispatch = llvm::dyn_cast<weft::exec::DispatchOp>(op);
       if (!dispatch || dispatch.getBody().empty())
         continue;
 
       for (mlir::Operation &dispatchBodyOp : dispatch.getBody().front()) {
         if (auto dispatchCase =
-                llvm::dyn_cast<tcrv::exec::DispatchCaseOp>(dispatchBodyOp)) {
+                llvm::dyn_cast<weft::exec::DispatchCaseOp>(dispatchBodyOp)) {
           checkDispatchCase(kernel, dispatchCase, issuesByVariant,
                             dispatchCaseTargets, foundRequirementIssue);
           continue;
         }
 
         if (auto fallback =
-                llvm::dyn_cast<tcrv::exec::FallbackOp>(dispatchBodyOp)) {
+                llvm::dyn_cast<weft::exec::FallbackOp>(dispatchBodyOp)) {
           checkFallback(kernel, fallback, issuesByVariant, fallbackTargets,
                         foundRequirementIssue);
           continue;
@@ -130,14 +130,14 @@ private:
         appendIssueDetails(diagnostic, issue,
                            /*includeRequiredAdjective=*/false);
         diagnostic << " in kernel @" << kernel.getSymName()
-                   << "; variant is not protected by tcrv.exec.dispatch case";
+                   << "; variant is not protected by weft.exec.dispatch case";
         foundRequirementIssue = true;
       }
     }
   }
 
   RequirementIssueList collectRequirementIssues(
-      tcrv::exec::VariantOp variant,
+      weft::exec::VariantOp variant,
       const support::TargetCapabilitySet &capabilities) const {
     RequirementIssueList issues;
     auto requiresAttr =
@@ -193,7 +193,7 @@ private:
   }
 
   void checkDispatchCase(
-      tcrv::exec::KernelOp kernel, tcrv::exec::DispatchCaseOp dispatchCase,
+      weft::exec::KernelOp kernel, weft::exec::DispatchCaseOp dispatchCase,
       const llvm::StringMap<RequirementIssueList> &issuesByVariant,
       llvm::StringSet<> &dispatchCaseTargets,
       bool &foundRequirementIssue) const {
@@ -248,7 +248,7 @@ private:
   }
 
   void checkFallback(
-      tcrv::exec::KernelOp kernel, tcrv::exec::FallbackOp fallback,
+      weft::exec::KernelOp kernel, weft::exec::FallbackOp fallback,
       const llvm::StringMap<RequirementIssueList> &issuesByVariant,
       llvm::StringSet<> &fallbackTargets, bool &foundRequirementIssue) const {
     auto targetAttr =
@@ -339,4 +339,4 @@ std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass() {
   return std::make_unique<CheckCapabilityRequiresPass>();
 }
 
-} // namespace tianchenrv::transforms
+} // namespace weft::transforms

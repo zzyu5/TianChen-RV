@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s 2>&1 | FileCheck %s
+// RUN: not weft-opt %s 2>&1 | FileCheck %s
 
-// CHECK: custom op 'tcrv.exec.matmul' is unknown
-tcrv.exec.matmul @not_a_core_op
+// CHECK: custom op 'weft.exec.matmul' is unknown
+weft.exec.matmul @not_a_core_op

@@ -1,10 +1,10 @@
-#include "TianChenRV/Plugin/Toy/ToySourceFrontDoor.h"
+#include "Weft/Plugin/Toy/ToySourceFrontDoor.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
-#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/Toy/IR/ToyDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -17,12 +17,12 @@
 #include <memory>
 #include <string>
 
-namespace tianchenrv::plugin::toy {
+namespace weft::plugin::toy {
 namespace {
 
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
-    "tcrv_toy.source_front_door");
-constexpr llvm::StringLiteral kSourceKernelAttrName("tcrv_toy.source_kernel");
+    "weft_toy.source_front_door");
+constexpr llvm::StringLiteral kSourceKernelAttrName("weft_toy.source_kernel");
 constexpr llvm::StringLiteral kAcceptedSourceFrontDoorValue(
     "template_compute");
 constexpr llvm::StringLiteral kDefaultKernelName("toy_source_front_door");
@@ -46,7 +46,7 @@ constexpr llvm::StringLiteral kToyComputeTypedRoleID(
     "toy.role.compute.compute_skeleton");
 constexpr llvm::StringLiteral kToyComputeSourceRole("compute");
 constexpr llvm::StringLiteral kToyComputeRoleSpecificInterface(
-    "TCRVComputeOpInterface");
+    "WEFTComputeOpInterface");
 constexpr llvm::StringLiteral kSelectedDiagnosticMessage(
     "selected Toy source front-door route");
 constexpr llvm::StringLiteral kTemplateReason(
@@ -87,7 +87,7 @@ bool hasStaleToyLoweringSeedMetadata(mlir::ModuleOp module) {
   module.walk([&](mlir::Operation *op) {
     if (found)
       return;
-    found = op->hasAttr("tcrv_toy.lowering_seed");
+    found = op->hasAttr("weft_toy.lowering_seed");
   });
   return found;
 }
@@ -98,7 +98,7 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
     if (staleOp || op == module.getOperation())
       return;
     llvm::StringRef dialect = op->getName().getDialectNamespace();
-    if (dialect == "tcrv" || dialect == "tcrv_toy" || dialect == "tcrv_rvv")
+    if (dialect == "weft" || dialect == "weft_toy" || dialect == "weft_rvv")
       staleOp = op;
   });
   if (!staleOp)
@@ -106,7 +106,7 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
 
   return failMaterializer(staleOp,
                           "source materializer requires Toy source-only MLIR "
-                          "input; pre-existing tcrv.exec/tcrv_toy/tcrv_rvv "
+                          "input; pre-existing weft.exec/weft_toy/weft_rvv "
                           "selected-boundary or variant residue is not "
                           "accepted");
 }
@@ -138,13 +138,13 @@ mlir::FailureOr<std::string> matchToySourceFrontDoor(mlir::ModuleOp module) {
   if (marker.getValue().trim() != kAcceptedSourceFrontDoorValue) {
     (void)failMaterializer(
         module,
-        "tcrv_toy.source_front_door must be 'template_compute'");
+        "weft_toy.source_front_door must be 'template_compute'");
     return mlir::failure();
   }
   if (hasStaleToyLoweringSeedMetadata(module)) {
     (void)failMaterializer(
         module,
-        "stale tcrv_toy.lowering_seed metadata is not accepted as "
+        "stale weft_toy.lowering_seed metadata is not accepted as "
         "Toy source-route authority");
     return mlir::failure();
   }
@@ -160,7 +160,7 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 }
 
 void createToyCapability(mlir::OpBuilder &builder, mlir::Location loc) {
-  mlir::OperationState state(loc, "tcrv.exec.capability");
+  mlir::OperationState state(loc, "weft.exec.capability");
   state.addAttribute("sym_name", builder.getStringAttr(kToyCapabilitySymbol));
   state.addAttribute("id", builder.getStringAttr(getToyTemplateCapabilityID()));
   state.addAttribute("kind",
@@ -177,7 +177,7 @@ void createToyTemplateVariant(mlir::OpBuilder &builder, mlir::Location loc,
                               mlir::ArrayAttr requires) {
   const ToyConstructionManifest &manifest = getToyConstructionManifest();
 
-  mlir::OperationState state(loc, "tcrv.exec.variant");
+  mlir::OperationState state(loc, "weft.exec.variant");
   state.addAttribute(
       "sym_name", builder.getStringAttr(getToyTemplateFirstSliceVariantName()));
   state.addAttribute(kOriginAttrName,
@@ -187,23 +187,23 @@ void createToyTemplateVariant(mlir::OpBuilder &builder, mlir::Location loc,
                      builder.getStringAttr(getToyExpectedTemplateABI()));
   state.addAttribute(getToyHandoffKindAttrName(),
                      builder.getStringAttr(getToyExpectedHandoffKind()));
-  state.addAttribute("tcrv_toy.construction_protocol",
+  state.addAttribute("weft_toy.construction_protocol",
                      builder.getStringAttr(manifest.protocolVersion));
-  state.addAttribute("tcrv_toy.archetype",
+  state.addAttribute("weft_toy.archetype",
                      builder.getStringAttr(manifest.archetype));
-  state.addAttribute("tcrv_toy.semantic_role_graph",
+  state.addAttribute("weft_toy.semantic_role_graph",
                      builder.getStringAttr(manifest.semanticRoleGraph));
-  state.addAttribute("tcrv_toy.common_interface_realization",
+  state.addAttribute("weft_toy.common_interface_realization",
                      builder.getStringAttr(
                          getToyConstructionInterfaceRealization()));
-  state.addAttribute("tcrv_toy.typed_role_realization",
+  state.addAttribute("weft_toy.typed_role_realization",
                      builder.getStringAttr(getToyTypedRoleRealizationSummary()));
-  state.addAttribute("tcrv_toy.emitc_route_mapping",
+  state.addAttribute("weft_toy.emitc_route_mapping",
                      builder.getStringAttr(manifest.emitcRoute.routeID));
-  state.addAttribute("tcrv_toy.evidence_profile",
+  state.addAttribute("weft_toy.evidence_profile",
                      builder.getStringAttr(manifest.evidenceProfile));
   state.addRegion();
-  auto variant = llvm::cast<tcrv::exec::VariantOp>(builder.create(state));
+  auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();
 }
 
@@ -211,7 +211,7 @@ void createToyComputeSkeletonBoundary(mlir::OpBuilder &builder,
                                       mlir::Location loc,
                                       llvm::StringRef kernelName,
                                       mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, "tcrv_toy.compute_skeleton");
+  mlir::OperationState state(loc, "weft_toy.compute_skeleton");
   state.addAttribute(kSourceKernelBoundaryAttrName,
                      builder.getStringAttr(kernelName));
   state.addAttribute(kSelectedVariantAttrName,
@@ -240,7 +240,7 @@ void createToyComputeSkeletonBoundary(mlir::OpBuilder &builder,
 
 void createSelectedToyDiagnostic(mlir::OpBuilder &builder,
                                  mlir::Location loc) {
-  mlir::OperationState state(loc, "tcrv.exec.diagnostic");
+  mlir::OperationState state(loc, "weft.exec.diagnostic");
   state.addAttribute("message",
                      builder.getStringAttr(kSelectedDiagnosticMessage));
   state.addAttribute("reason", builder.getStringAttr("variant-selected"));
@@ -257,11 +257,11 @@ void materializeToySourceKernel(mlir::OpBuilder &builder,
                                 llvm::StringRef kernelName) {
   mlir::Location loc = module.getLoc();
 
-  mlir::OperationState kernelState(loc, "tcrv.exec.kernel");
+  mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
   auto kernel =
-      llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+      llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -280,7 +280,7 @@ class MaterializeToyTemplateSourceFrontDoorPass final
                                mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-toy-materialize-template-source-front-door";
+    return "weft-toy-materialize-template-source-front-door";
   }
 
   llvm::StringRef getDescription() const final {
@@ -289,7 +289,7 @@ public:
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<tcrv::exec::TCRVExecDialect, tcrv::toy::TCRVToyDialect>();
+    registry.insert<weft::exec::WEFTExecDialect, weft::toy::WEFTToyDialect>();
   }
 
   void runOnOperation() final {
@@ -317,4 +317,4 @@ std::unique_ptr<::mlir::Pass> createMaterializeToyTemplateSourceFrontDoorPass() 
   return std::make_unique<MaterializeToyTemplateSourceFrontDoorPass>();
 }
 
-} // namespace tianchenrv::plugin::toy
+} // namespace weft::plugin::toy

@@ -1,11 +1,11 @@
-add_mlir_library(TianChenRVRVVConstructionProtocol
+add_mlir_library(WeftRVVConstructionProtocol
   RVVConstructionProtocol.cpp
   RVVContractionRouteIdentity.cpp
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVPluginConstructionProtocol
-  TianChenRVSupport
+  WeftConversionEmitC
+  WeftPluginConstructionProtocol
+  WeftSupport
   MLIRIR
   MLIRSupport
 )

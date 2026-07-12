@@ -1,19 +1,19 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "RVVEmitCRoutePlanningInternal.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -35,19 +35,19 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine(
-          "TianChen-RV RVV plugin-owned EmitC route provider failed: ") +
+          "Weft-RV RVV plugin-owned EmitC route provider failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
 llvm::Error makeRVVSelectedTargetCapabilityError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV selected target-capability gate failed: ") +
+      llvm::Twine("Weft-RV RVV selected target-capability gate failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -156,13 +156,13 @@ llvm::Error verifyRVVCapabilityProfileProperties(
 
 llvm::Expected<RVVSelectedTargetCapabilityFacts>
 collectRVVSelectedTargetCapabilityFacts(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
     llvm::StringRef context) {
   if (!variant)
     return makeRVVSelectedTargetCapabilityError(
         llvm::Twine(context) +
-        " requires a materialized tcrv.exec.variant");
+        " requires a materialized weft.exec.variant");
 
   auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>(
       kRequiresAttrName);
@@ -187,7 +187,7 @@ collectRVVSelectedTargetCapabilityFacts(
       return makeRVVSelectedTargetCapabilityError(
           llvm::Twine(context) + " selected variant requires entry @" +
           symbolRef.getValue() +
-          " does not resolve in the tcrv.exec target capability set");
+          " does not resolve in the weft.exec target capability set");
 
     if (capability->satisfiesID(kRVVCapabilityID))
       selectedRVVProviders.push_back(capability);
@@ -322,20 +322,20 @@ constexpr llvm::StringLiteral kABIRoleAttrName("abi_role");
 constexpr llvm::StringLiteral kDispatchAvailabilityGuardRoleValue(
     "dispatch-availability-guard");
 
-tcrv::exec::VariantOp findDirectKernelVariant(tcrv::exec::KernelOp kernel,
+weft::exec::VariantOp findDirectKernelVariant(weft::exec::KernelOp kernel,
                                               llvm::StringRef symbol) {
   if (!kernel || kernel.getBody().empty())
     return {};
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
     if (variant && variant.getSymName() == symbol)
       return variant;
   }
   return {};
 }
 
-mlir::Operation *findDirectKernelSymbol(tcrv::exec::KernelOp kernel,
+mlir::Operation *findDirectKernelSymbol(weft::exec::KernelOp kernel,
                                         llvm::StringRef symbol) {
   if (!kernel || kernel.getBody().empty())
     return nullptr;
@@ -355,8 +355,8 @@ std::string getOptionalStringAttr(mlir::Operation *op,
   return attr ? attr.getValue().str() : std::string();
 }
 
-llvm::Error verifyDispatchRuntimeGuardLink(tcrv::exec::KernelOp kernel,
-                                           tcrv::exec::DispatchCaseOp op,
+llvm::Error verifyDispatchRuntimeGuardLink(weft::exec::KernelOp kernel,
+                                           weft::exec::DispatchCaseOp op,
                                            llvm::StringRef context,
                                            std::string &guardMirror) {
   auto required = op->getAttrOfType<mlir::BoolAttr>(
@@ -380,22 +380,22 @@ llvm::Error verifyDispatchRuntimeGuardLink(tcrv::exec::KernelOp kernel,
   if (!resolved)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " selected dispatch case runtime_guard @" +
-        guard.getValue() + " does not resolve in the same tcrv.exec.kernel");
+        guard.getValue() + " does not resolve in the same weft.exec.kernel");
 
-  auto runtimeParam = llvm::dyn_cast<tcrv::exec::RuntimeParamOp>(resolved);
+  auto runtimeParam = llvm::dyn_cast<weft::exec::RuntimeParamOp>(resolved);
   if (!runtimeParam)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " selected dispatch case runtime_guard @" +
         guard.getValue() +
         " resolves to a direct sibling symbol that is not a "
-        "tcrv.exec.runtime_param");
+        "weft.exec.runtime_param");
 
   auto role = runtimeParam->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);
   if (!role || role.getValue() != kDispatchAvailabilityGuardRoleValue)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " selected dispatch case runtime_guard @" +
         guard.getValue() +
-        " must reference a tcrv.exec.runtime_param with ABI role '" +
+        " must reference a weft.exec.runtime_param with ABI role '" +
         kDispatchAvailabilityGuardRoleValue + "'");
 
   guardMirror =
@@ -406,7 +406,7 @@ llvm::Error verifyDispatchRuntimeGuardLink(tcrv::exec::KernelOp kernel,
 }
 
 std::string formatRVVSelectedDispatchCaseMirror(
-    tcrv::exec::DispatchCaseOp dispatchCase, tcrv::exec::VariantOp variant,
+    weft::exec::DispatchCaseOp dispatchCase, weft::exec::VariantOp variant,
     llvm::StringRef guardMirror) {
   std::string mirror;
   llvm::raw_string_ostream stream(mirror);
@@ -426,7 +426,7 @@ std::string formatRVVSelectedDispatchCaseMirror(
 }
 
 std::string formatRVVSelectedDispatchFallbackMirror(
-    tcrv::exec::FallbackOp fallback, tcrv::exec::VariantOp variant) {
+    weft::exec::FallbackOp fallback, weft::exec::VariantOp variant) {
   std::string mirror;
   llvm::raw_string_ostream stream(mirror);
   stream << "selected_dispatch_fallback_mirror:@" << variant.getSymName()
@@ -455,46 +455,46 @@ collectRVVSelectedDispatchEnvelopeFacts(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " refuses RVV route construction for a dispatch fallback role; "
-        "fallback linkage is an explicit tcrv.exec envelope boundary and is "
+        "fallback linkage is an explicit weft.exec envelope boundary and is "
         "not RVV route authority");
 
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  tcrv::exec::VariantOp selectedVariant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp selectedVariant = request.getVariant();
   if (!kernel || kernel.getBody().empty())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " requires a materialized tcrv.exec.kernel with a selected dispatch");
+        " requires a materialized weft.exec.kernel with a selected dispatch");
   if (!selectedVariant)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " requires a materialized selected tcrv.exec.variant");
+        " requires a materialized selected weft.exec.variant");
 
-  tcrv::exec::DispatchOp selectedDispatch;
+  weft::exec::DispatchOp selectedDispatch;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto dispatch = llvm::dyn_cast<tcrv::exec::DispatchOp>(op);
+    auto dispatch = llvm::dyn_cast<weft::exec::DispatchOp>(op);
     if (!dispatch)
       continue;
     if (selectedDispatch)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
-          " requires exactly one direct tcrv.exec.dispatch before RVV "
+          " requires exactly one direct weft.exec.dispatch before RVV "
           "dispatch-case route construction");
     selectedDispatch = dispatch;
   }
   if (!selectedDispatch)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " requires a direct tcrv.exec.dispatch before RVV dispatch-case "
+        " requires a direct weft.exec.dispatch before RVV dispatch-case "
         "route construction");
 
-  tcrv::exec::DispatchCaseOp selectedCase;
-  tcrv::exec::FallbackOp fallbackOp;
-  tcrv::exec::VariantOp fallbackVariant;
+  weft::exec::DispatchCaseOp selectedCase;
+  weft::exec::FallbackOp fallbackOp;
+  weft::exec::VariantOp fallbackVariant;
   unsigned caseCount = 0;
   unsigned fallbackCount = 0;
 
   for (mlir::Operation &op : selectedDispatch.getBody().front()) {
-    if (auto dispatchCase = llvm::dyn_cast<tcrv::exec::DispatchCaseOp>(op)) {
+    if (auto dispatchCase = llvm::dyn_cast<weft::exec::DispatchCaseOp>(op)) {
       ++caseCount;
       auto target =
           dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
@@ -510,7 +510,7 @@ collectRVVSelectedDispatchEnvelopeFacts(
       continue;
     }
 
-    if (auto fallback = llvm::dyn_cast<tcrv::exec::FallbackOp>(op)) {
+    if (auto fallback = llvm::dyn_cast<weft::exec::FallbackOp>(op)) {
       ++fallbackCount;
       auto target =
           fallback->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
@@ -523,7 +523,7 @@ collectRVVSelectedDispatchEnvelopeFacts(
         return makeRVVEmitCRouteProviderError(
             llvm::Twine(context) + " selected dispatch fallback target @" +
             target.getValue() +
-            " does not resolve to a direct sibling tcrv.exec.variant");
+            " does not resolve to a direct sibling weft.exec.variant");
       fallbackOp = fallback;
       continue;
     }
@@ -533,11 +533,11 @@ collectRVVSelectedDispatchEnvelopeFacts(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " requires the selected RVV variant to be referenced by a "
-        "tcrv.exec.dispatch case before route construction");
+        "weft.exec.dispatch case before route construction");
   if (fallbackCount != 1 || !fallbackOp || !fallbackVariant)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " requires exactly one explicit tcrv.exec.fallback target before RVV "
+        " requires exactly one explicit weft.exec.fallback target before RVV "
         "dispatch-case route construction");
 
   auto fallbackRole = fallbackVariant->getAttrOfType<mlir::StringAttr>(
@@ -547,7 +547,7 @@ collectRVVSelectedDispatchEnvelopeFacts(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " selected dispatch fallback target @" +
         fallbackVariant.getSymName() +
-        " must be a fallback-eligible tcrv.exec.variant with "
+        " must be a fallback-eligible weft.exec.variant with "
         "fallback_role='conservative'");
 
   std::string guardMirror;
@@ -826,8 +826,8 @@ bool populateRVVStandaloneReductionRouteFacts(
           ? RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideStandaloneReduction
           : RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
   facts.typedComputeOpName =
-      isComputedMask ? llvm::StringRef("tcrv_rvv.masked_standalone_reduce")
-                     : llvm::StringRef("tcrv_rvv.standalone_reduce");
+      isComputedMask ? llvm::StringRef("weft_rvv.masked_standalone_reduce")
+                     : llvm::StringRef("weft_rvv.standalone_reduce");
   facts.runtimeABIOrder =
       isRuntimeScalarComputedMask
           ? llvm::StringRef("cmp_lhs,rhs_scalar,src,acc,out,n")
@@ -1845,28 +1845,28 @@ constexpr llvm::StringLiteral kRVVRuntimeAVLVLControlPlanID(
 
 llvm::Error makeRVVRuntimeAVLVLControlPlanError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV runtime AVL/VL control plan invalid: ") +
+      llvm::Twine("Weft-RV RVV runtime AVL/VL control plan invalid: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
 llvm::StringRef stringifyRuntimeControlTailPolicy(
-    tcrv::rvv::TailPolicy policy) {
+    weft::rvv::TailPolicy policy) {
   switch (policy) {
-  case tcrv::rvv::TailPolicy::Agnostic:
+  case weft::rvv::TailPolicy::Agnostic:
     return "agnostic";
-  case tcrv::rvv::TailPolicy::Undisturbed:
+  case weft::rvv::TailPolicy::Undisturbed:
     return "undisturbed";
   }
   return "unknown";
 }
 
 llvm::StringRef stringifyRuntimeControlMaskPolicy(
-    tcrv::rvv::MaskPolicy policy) {
+    weft::rvv::MaskPolicy policy) {
   switch (policy) {
-  case tcrv::rvv::MaskPolicy::Agnostic:
+  case weft::rvv::MaskPolicy::Agnostic:
     return "agnostic";
-  case tcrv::rvv::MaskPolicy::Undisturbed:
+  case weft::rvv::MaskPolicy::Undisturbed:
     return "undisturbed";
   }
   return "unknown";
@@ -1875,11 +1875,11 @@ llvm::StringRef stringifyRuntimeControlMaskPolicy(
 llvm::Expected<support::RuntimeABIParameter>
 getRuntimeAVLParameterBindingFromValue(mlir::Value value,
                                        llvm::StringRef context) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
-        " AVL must be defined by explicit tcrv_rvv.runtime_abi_value");
+        " AVL must be defined by explicit weft_rvv.runtime_abi_value");
   if (llvm::Error error =
           verifyRVVRuntimeABIValueRoleOpInterface(binding.getOperation()))
     return std::move(error);
@@ -1908,10 +1908,10 @@ getRuntimeAVLParameterBindingFromValue(mlir::Value value,
   support::RuntimeABIParameter parameter(binding.getCName(),
                                          binding.getCType(), *role,
                                          *ownership);
-  if (parameter.cName != tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
+  if (parameter.cName != weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) + " AVL runtime ABI parameter must be named '" +
-        tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName() +
+        weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName() +
         "' but found '" + parameter.cName + "'");
   if (parameter.cType != "size_t")
     return makeRVVRuntimeAVLVLControlPlanError(
@@ -1927,24 +1927,24 @@ getRuntimeAVLParameterBindingFromValue(mlir::Value value,
   return parameter;
 }
 
-llvm::Error validateSingleRuntimeAVLBinding(tcrv::exec::VariantOp variant,
+llvm::Error validateSingleRuntimeAVLBinding(weft::exec::VariantOp variant,
                                             mlir::Value runtimeAVLValue,
                                             llvm::StringRef context) {
   if (!variant)
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
-        " requires a materialized selected tcrv.exec.variant");
+        " requires a materialized selected weft.exec.variant");
 
   auto selectedBinding =
-      runtimeAVLValue.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+      runtimeAVLValue.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!selectedBinding)
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
-        " runtime AVL value must be a tcrv_rvv.runtime_abi_value");
+        " runtime AVL value must be a weft_rvv.runtime_abi_value");
 
   unsigned runtimeElementCountBindings = 0;
   bool selectedIsTheRuntimeCount = false;
-  variant.getBody().walk([&](tcrv::rvv::RuntimeABIValueOp op) {
+  variant.getBody().walk([&](weft::rvv::RuntimeABIValueOp op) {
     std::optional<support::RuntimeABIParameterRole> role =
         support::symbolizeRuntimeABIParameterRole(op.getRole());
     if (!role || *role != support::RuntimeABIParameterRole::RuntimeElementCount)
@@ -1969,8 +1969,8 @@ llvm::Error validateSingleRuntimeAVLBinding(tcrv::exec::VariantOp variant,
 
 llvm::Expected<RVVRuntimeAVLVLControlPlan>
 buildRuntimeAVLVLControlPlan(
-    tcrv::exec::VariantOp variant, mlir::Value runtimeAVLValue,
-    std::int64_t sew, llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy,
+    weft::exec::VariantOp variant, mlir::Value runtimeAVLValue,
+    std::int64_t sew, llvm::StringRef lmul, weft::rvv::PolicyAttr policy,
     llvm::StringRef runtimeABIOrder, llvm::StringRef context) {
   llvm::Expected<support::RuntimeABIParameter> runtimeAVL =
       getRuntimeAVLParameterBindingFromValue(runtimeAVLValue, context);
@@ -1980,8 +1980,8 @@ buildRuntimeAVLVLControlPlan(
           validateSingleRuntimeAVLBinding(variant, runtimeAVLValue, context))
     return std::move(error);
 
-  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
-      tcrv::rvv::getRVVSelectedBodyConfigVLContract(sew, lmul, policy);
+  const weft::rvv::RVVSelectedBodyConfigVLContract &configContract =
+      weft::rvv::getRVVSelectedBodyConfigVLContract(sew, lmul, policy);
 
   RVVRuntimeAVLVLControlPlan plan;
   plan.sew = sew;
@@ -2004,7 +2004,7 @@ buildRuntimeAVLVLControlPlan(
   plan.emitCLoopKind = configContract.emitCLoopKind;
   plan.emitCLoopInductionName = configContract.emitCLoopInductionName;
   plan.emitCFullChunkVLName = configContract.emitCFullChunkVLName;
-  plan.emitCLoopVLName = tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName();
+  plan.emitCLoopVLName = weft::rvv::getRVVSelectedBodyEmitCLoopVLName();
   plan.remainingAVLMetadata = configContract.remainingAVLMetadata;
   plan.pointerAdvanceMetadata = configContract.pointerAdvanceMetadata;
   plan.boundedSlice = configContract.boundedSlice;
@@ -2042,8 +2042,8 @@ getRVVRuntimeAVLVLSelectedBoundaryContract(
   if (!runtimeAVLParameter)
     return std::nullopt;
 
-  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
-      tcrv::rvv::getRVVSelectedBodyConfigVLContract(sew, lmul);
+  const weft::rvv::RVVSelectedBodyConfigVLContract &configContract =
+      weft::rvv::getRVVSelectedBodyConfigVLContract(sew, lmul);
 
   RVVRuntimeAVLVLSelectedBoundaryContract contract;
   contract.consumerLabel = consumerLabel;
@@ -2060,7 +2060,7 @@ getRVVRuntimeAVLVLSelectedBoundaryContract(
   contract.runtimeABIOrder = runtimeABIOrder.str();
   contract.selectedBoundaryOpName = configContract.vlScopeOpName.str();
   contract.selectedBodyProvenance =
-      "provider-derived selected typed tcrv_rvv setvl/with_vl body";
+      "provider-derived selected typed weft_rvv setvl/with_vl body";
   contract.vlDefOpName = configContract.vlDefOpName.str();
   contract.vlScopeOpName = configContract.vlScopeOpName.str();
   contract.vlUses = configContract.vlUses.str();
@@ -2070,7 +2070,7 @@ getRVVRuntimeAVLVLSelectedBoundaryContract(
   contract.emitCLoopInductionName =
       configContract.emitCLoopInductionName.str();
   contract.emitCFullChunkVLName = configContract.emitCFullChunkVLName.str();
-  contract.emitCLoopVLName = tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName().str();
+  contract.emitCLoopVLName = weft::rvv::getRVVSelectedBodyEmitCLoopVLName().str();
   contract.remainingAVLMetadata = configContract.remainingAVLMetadata.str();
   contract.pointerAdvanceMetadata =
       configContract.pointerAdvanceMetadata.str();
@@ -2101,24 +2101,24 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
   // door) runs its loop at the i8 strip config (sew8 at the realized m1/m2 anchor,
   // VLEN-flipped). Admit each parallel strip config alongside the first-slice
   // dataflow configs (I5: each is the realized setvl config of its route).
-  if (!tcrv::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul) &&
-      !tcrv::rvv::isRVVDeferredWideStripConfig(plan.sew, plan.lmul) &&
-      !tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sew, plan.lmul) &&
-      !tcrv::rvv::isRVVNonDeferredWideProductReductionStripConfig(plan.sew,
+  if (!weft::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul) &&
+      !weft::rvv::isRVVDeferredWideStripConfig(plan.sew, plan.lmul) &&
+      !weft::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sew, plan.lmul) &&
+      !weft::rvv::isRVVNonDeferredWideProductReductionStripConfig(plan.sew,
                                                                   plan.lmul))
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
         " requires a supported typed RVV SEW/LMUL config");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(plan.policy) &&
-      !tcrv::rvv::isRVVUndisturbedPolicy(plan.policy))
+  if (!weft::rvv::isRVVAgnosticPolicy(plan.policy) &&
+      !weft::rvv::isRVVUndisturbedPolicy(plan.policy))
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
         " requires an explicitly supported runtime VL policy");
   if (plan.runtimeAVLABIParameterName !=
-      tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
+      weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) + " must use runtime AVL ABI parameter '" +
-        tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName() + "'");
+        weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName() + "'");
   if (plan.runtimeAVLASource != "runtime_abi:n")
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
@@ -2129,10 +2129,10 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
         llvm::Twine(context) +
         " must carry runtime-element-count as AVL parameter role");
   if (plan.runtimeAVLParameter.cName !=
-      tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
+      weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) + " must carry runtime AVL ABI parameter name '" +
-        tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName() + "'");
+        weft::rvv::getRVVSelectedBodyRuntimeAVLParameterName() + "'");
   if (plan.runtimeAVLParameter.cType != "size_t")
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) + " must carry runtime AVL ABI C type 'size_t'");
@@ -2141,11 +2141,11 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
         " must carry target-export-owned runtime AVL ABI ownership");
-  if (plan.vlDefOpName != "tcrv_rvv.setvl" ||
-      plan.vlScopeOpName != "tcrv_rvv.with_vl")
+  if (plan.vlDefOpName != "weft_rvv.setvl" ||
+      plan.vlScopeOpName != "weft_rvv.with_vl")
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
-        " must route VL through tcrv_rvv.setvl and tcrv_rvv.with_vl");
+        " must route VL through weft_rvv.setvl and weft_rvv.with_vl");
   if (plan.remainingAVLMetadata != "n-offset" ||
       plan.pointerAdvanceMetadata != "offset")
     return makeRVVRuntimeAVLVLControlPlanError(
@@ -2159,8 +2159,8 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
 
 llvm::Expected<RVVRuntimeAVLVLControlPlan>
 deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
-    tcrv::exec::VariantOp variant, mlir::Value runtimeAVLValue,
-    std::int64_t sew, llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy,
+    weft::exec::VariantOp variant, mlir::Value runtimeAVLValue,
+    std::int64_t sew, llvm::StringRef lmul, weft::rvv::PolicyAttr policy,
     llvm::StringRef runtimeABIOrder, llvm::StringRef context) {
   return buildRuntimeAVLVLControlPlan(variant, runtimeAVLValue, sew, lmul,
                                       policy, runtimeABIOrder, context);
@@ -2168,29 +2168,29 @@ deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
 
 llvm::Expected<RVVRuntimeAVLVLControlPlan>
 deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-    tcrv::exec::VariantOp variant, tcrv::rvv::SetVLOp setvl,
-    tcrv::rvv::WithVLOp withVL, llvm::StringRef runtimeABIOrder,
+    weft::exec::VariantOp variant, weft::rvv::SetVLOp setvl,
+    weft::rvv::WithVLOp withVL, llvm::StringRef runtimeABIOrder,
     llvm::StringRef context) {
   if (!setvl)
     return makeRVVRuntimeAVLVLControlPlanError(
-        llvm::Twine(context) + " requires a validated tcrv_rvv.setvl op");
+        llvm::Twine(context) + " requires a validated weft_rvv.setvl op");
   if (!withVL)
     return makeRVVRuntimeAVLVLControlPlanError(
-        llvm::Twine(context) + " requires a validated tcrv_rvv.with_vl op");
+        llvm::Twine(context) + " requires a validated weft_rvv.with_vl op");
   if (setvl->getBlock() != withVL->getBlock() ||
       !setvl->isBeforeInBlock(withVL.getOperation()))
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
-        " requires tcrv_rvv.setvl to dominate the tcrv_rvv.with_vl scope");
+        " requires weft_rvv.setvl to dominate the weft_rvv.with_vl scope");
 
-  tcrv::rvv::RVVConfigContractDiagnostic structure =
-      tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(setvl, withVL);
+  weft::rvv::RVVConfigContractDiagnostic structure =
+      weft::rvv::validateRVVSelectedBodyConfigVLStructure(setvl, withVL);
   if (!structure.ok)
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) + " " + structure.message);
 
-  tcrv::rvv::RVVCompileTimeConfig config =
-      tcrv::rvv::getRVVSetVLCompileTimeConfig(setvl);
+  weft::rvv::RVVCompileTimeConfig config =
+      weft::rvv::getRVVSetVLCompileTimeConfig(setvl);
   return buildRuntimeAVLVLControlPlan(variant, setvl.getAvl(), config.sew,
                                       config.lmul, config.policy,
                                       runtimeABIOrder, context);
@@ -2219,8 +2219,8 @@ getRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
 std::optional<RVVUnitStrideMaskedMemoryRouteFacts>
 getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
   return getRVVUnitStrideMaskedMemoryRouteFacts(
-      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
-      tcrv::rvv::getRVVLMULM1());
+      operation, weft::rvv::getRVVFirstSliceSEWBits(),
+      weft::rvv::getRVVLMULM1());
 }
 
 std::optional<RVVUnitStrideMaskedMemoryRouteFacts>
@@ -2246,8 +2246,8 @@ getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation,
   if (!isStaticMask && !isComputedMask)
     return std::nullopt;
   if (isStaticMask || isComputedMaskUnitLoadStore) {
-    if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        lmul != tcrv::rvv::getRVVLMULM1())
+    if (sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        lmul != weft::rvv::getRVVLMULM1())
       return std::nullopt;
   } else if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew,
                                                                      lmul)) {
@@ -2317,8 +2317,8 @@ getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation,
     facts.routeOperandBindingPlanID = baseFacts->routeOperandBindingPlanID;
     facts.baseMemoryMovementRouteFamilyPlanID = baseFacts->routeFamilyPlanID;
     facts.typedComputeOpName =
-        isStaticMaskLoad ? llvm::StringRef("tcrv_rvv.masked_load")
-                         : llvm::StringRef("tcrv_rvv.masked_store");
+        isStaticMaskLoad ? llvm::StringRef("weft_rvv.masked_load")
+                         : llvm::StringRef("weft_rvv.masked_store");
     facts.inactiveLaneContract = baseFacts->inactiveLaneContract;
     facts.maskedPassthroughLayout = baseFacts->maskedPassthroughLayout;
     facts.maskedMemoryLayout = baseFacts->indexedMemoryLayout;
@@ -2353,8 +2353,8 @@ getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
   facts.typedComputeOpName =
       (isRuntimeScalarStore)
-          ? llvm::StringRef("tcrv_rvv.masked_store")
-          : llvm::StringRef("tcrv_rvv.masked_load");
+          ? llvm::StringRef("weft_rvv.masked_store")
+          : llvm::StringRef("weft_rvv.masked_load");
   facts.inactiveLaneContract = getComputedMaskMemoryInactiveLaneContract(operation);
   facts.maskedPassthroughLayout =
       getComputedMaskMemoryPassthroughLayout(operation);
@@ -2364,10 +2364,10 @@ getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation,
       getComputedMaskMemoryDestinationMemoryForm(operation);
   facts.runtimeABIParameters =
       isRuntimeScalar
-          ? tcrv::rvv::
+          ? weft::rvv::
                 buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
                     facts.scalarCType)
-          : tcrv::rvv::getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
+          : weft::rvv::getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
 
   RVVRouteOperandBindingPlan plan =
       buildUnitStrideMaskedMemoryRouteOperandBindingPlanFromFacts(facts);
@@ -2412,8 +2412,8 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
   RVVComputedMaskIndexedMemoryRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
-  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.sew = weft::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = weft::rvv::getRVVLMULM1();
   facts.tailPolicy = "agnostic";
   facts.maskPolicy = "agnostic";
   facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
@@ -2431,8 +2431,8 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
       isRuntimeScalarGatherMAccScatter
           ? llvm::StringRef(kRVVCompositeGatherMAccScatterTypedComputeChain)
       : (isGather || isRuntimeScalarGather)
-          ? llvm::StringRef("tcrv_rvv.masked_indexed_load")
-          : llvm::StringRef("tcrv_rvv.masked_indexed_store");
+          ? llvm::StringRef("weft_rvv.masked_indexed_load")
+          : llvm::StringRef("weft_rvv.masked_indexed_store");
   facts.comparePredicateKind =
       getComputedMaskMemoryComparePredicateKind(operation);
   facts.vlCType = "size_t";
@@ -2547,8 +2547,8 @@ getRVVComputedMaskStridedMemoryRouteFacts(
   RVVComputedMaskStridedMemoryRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
-  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.sew = weft::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = weft::rvv::getRVVLMULM1();
   facts.tailPolicy = "agnostic";
   facts.maskPolicy = "agnostic";
   facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
@@ -2563,8 +2563,8 @@ getRVVComputedMaskStridedMemoryRouteFacts(
   facts.routeOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operation);
   facts.typedComputeOpName =
-      isStore ? llvm::StringRef("tcrv_rvv.masked_strided_store")
-              : llvm::StringRef("tcrv_rvv.masked_strided_load");
+      isStore ? llvm::StringRef("weft_rvv.masked_strided_store")
+              : llvm::StringRef("weft_rvv.masked_strided_load");
   facts.comparePredicateKind = getComputedMaskMemoryComparePredicateKind(
       operation);
   facts.vlCType = "size_t";
@@ -2652,8 +2652,8 @@ getRVVPlainSegment2MemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
   RVVPlainSegment2MemoryRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = getSegment2MemoryRouteFamilyMemoryForm(operation);
-  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.sew = weft::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = weft::rvv::getRVVLMULM1();
   facts.tailPolicy = "agnostic";
   facts.maskPolicy = "agnostic";
   facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
@@ -2666,8 +2666,8 @@ getRVVPlainSegment2MemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.routeOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operation);
   facts.typedComputeOpName =
-      isDeinterleave ? llvm::StringRef("tcrv_rvv.move")
-                     : llvm::StringRef("tcrv_rvv.segment2_store");
+      isDeinterleave ? llvm::StringRef("weft_rvv.move")
+                     : llvm::StringRef("weft_rvv.segment2_store");
   facts.segment2MemoryRouteFamilyPlanID = kRVVSegment2MemoryRouteFamilyPlanID;
   facts.segment2Direction =
       isDeinterleave ? llvm::StringRef("deinterleave-load")
@@ -2755,8 +2755,8 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   RVVComputedMaskSegment2MemoryRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
-  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.sew = weft::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = weft::rvv::getRVVLMULM1();
   facts.tailPolicy = "agnostic";
   facts.maskPolicy = "agnostic";
   facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
@@ -2771,10 +2771,10 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   facts.routeOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operation);
   facts.typedComputeOpName =
-      isLoadLike ? llvm::StringRef("tcrv_rvv.masked_segment2_load")
+      isLoadLike ? llvm::StringRef("weft_rvv.masked_segment2_load")
       : (isStore || isRuntimeScalarStore)
-            ? llvm::StringRef("tcrv_rvv.masked_segment2_store")
-            : llvm::StringRef("tcrv_rvv.binary");
+            ? llvm::StringRef("weft_rvv.masked_segment2_store")
+            : llvm::StringRef("weft_rvv.binary");
   facts.comparePredicateKind = getComputedMaskMemoryComparePredicateKind(operation);
   facts.computedMaskMemoryRouteFamilyPlanID =
       kRVVComputedMaskMemoryRouteFamilyPlanID;
@@ -2963,8 +2963,8 @@ getRVVCompareSelectRouteFacts(RVVSelectedBodyOperationKind operation) {
   if (predicate.empty())
     return std::nullopt;
   return getRVVCompareSelectRouteFacts(
-      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
-      tcrv::rvv::getRVVLMULM1(), predicate, secondaryPredicate);
+      operation, weft::rvv::getRVVFirstSliceSEWBits(),
+      weft::rvv::getRVVLMULM1(), predicate, secondaryPredicate);
 }
 
 std::optional<RVVCompareSelectRouteFacts>
@@ -2985,8 +2985,8 @@ getRVVCompareSelectRouteFacts(RVVSelectedBodyOperationKind operation,
       operation == RVVSelectedBodyOperationKind::DequantClampF32Epilogue) {
     const bool isDequantClamp =
         operation == RVVSelectedBodyOperationKind::DequantClampF32Epilogue;
-    if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        lmul != tcrv::rvv::getRVVLMULM1())
+    if (sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+        lmul != weft::rvv::getRVVLMULM1())
       return std::nullopt;
 
     const llvm::StringRef elementTypeName =
@@ -3063,7 +3063,7 @@ getRVVCompareSelectRouteFacts(RVVSelectedBodyOperationKind operation,
             : llvm::StringRef(kRVVF32ClampSelectCTypeMappingSummary);
     facts.routeOperandBindingPlanID =
         getExpectedRVVRouteOperandBindingPlanID(operation);
-    facts.typedComputeOpName = "tcrv_rvv.select";
+    facts.typedComputeOpName = "weft_rvv.select";
     facts.vlCType = "size_t";
     facts.vectorTypeName = vectorTypeName;
     facts.vectorCType = vectorCType;
@@ -3254,7 +3254,7 @@ getRVVCompareSelectRouteFacts(RVVSelectedBodyOperationKind operation,
               : getComputedMaskSelectCTypeMappingSummary(operation);
   facts.routeOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operation);
-  facts.typedComputeOpName = "tcrv_rvv.select";
+  facts.typedComputeOpName = "weft_rvv.select";
   facts.vlCType = "size_t";
   facts.vectorTypeName = vectorTypeName;
   facts.vectorCType = vectorCType;
@@ -3403,8 +3403,8 @@ std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
 getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
     RVVSelectedBodyOperationKind operation) {
   return getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
-      tcrv::rvv::getRVVLMULM1());
+      operation, weft::rvv::getRVVFirstSliceSEWBits(),
+      weft::rvv::getRVVLMULM1());
 }
 
 std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
@@ -3511,28 +3511,28 @@ void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
           RVVSelectedBodyOperationKind::
               RuntimeScalarComputedMaskSegment2LoadUnitStore) {
     metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
+        {"weft_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"weft_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+    metadata.push_back({"weft_rvv.segment_memory_layout",
                         description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
+    metadata.push_back({"weft_rvv.segment_count",
                         llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+    metadata.push_back({"weft_rvv.segment_tuple_c_type",
                         description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
+    metadata.push_back({"weft_rvv.segment_load_intrinsic",
                         description.segmentLoadIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
+    metadata.push_back({"weft_rvv.segment_tuple_create_intrinsic",
                         description.segmentStoreIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
+    metadata.push_back({"weft_rvv.segment_field_extract_intrinsic",
                         description.segmentFieldExtractIntrinsic});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_destination_memory_form",
+    metadata.push_back({"weft_rvv.field0_role", description.field0Role});
+    metadata.push_back({"weft_rvv.field1_role", description.field1Role});
+    metadata.push_back({"weft_rvv.field0_name", description.field0Name});
+    metadata.push_back({"weft_rvv.field1_name", description.field1Name});
+    metadata.push_back({"weft_rvv.field0_destination_memory_form",
                         description.field0DestinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
+    metadata.push_back({"weft_rvv.field1_destination_memory_form",
                         description.field1DestinationMemoryForm});
     return;
   }
@@ -3546,85 +3546,85 @@ void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const bool isUpdate =
         description.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+    metadata.push_back({"weft_rvv.segment_memory_layout",
                         description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
+    metadata.push_back({"weft_rvv.segment_count",
                         llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+    metadata.push_back({"weft_rvv.segment_tuple_c_type",
                         description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+    metadata.push_back({"weft_rvv.segment_store_intrinsic",
                         description.segmentStoreIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
+    metadata.push_back({"weft_rvv.segment_tuple_create_intrinsic",
                         description.segmentFieldExtractIntrinsic});
     metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
+        {"weft_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"weft_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
+    metadata.push_back({"weft_rvv.field0_role", description.field0Role});
+    metadata.push_back({"weft_rvv.field1_role", description.field1Role});
+    metadata.push_back({"weft_rvv.field0_name", description.field0Name});
+    metadata.push_back({"weft_rvv.field1_name", description.field1Name});
+    metadata.push_back({"weft_rvv.field0_source_memory_form",
                         description.field0SourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
+    metadata.push_back({"weft_rvv.field1_source_memory_form",
                         description.field1SourceMemoryForm});
     if (isUpdate) {
-      metadata.push_back({"tcrv_rvv.segment2_update_arithmetic_kind",
+      metadata.push_back({"weft_rvv.segment2_update_arithmetic_kind",
                           description.segment2UpdateArithmeticKind});
-      metadata.push_back({"tcrv_rvv.segment2_update_arithmetic_intrinsic",
+      metadata.push_back({"weft_rvv.segment2_update_arithmetic_intrinsic",
                           description.segment2UpdateArithmeticIntrinsic});
     }
     return;
   }
   if (description.operation ==
       RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) {
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+    metadata.push_back({"weft_rvv.segment_memory_layout",
                         description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
+    metadata.push_back({"weft_rvv.segment_count",
                         llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+    metadata.push_back({"weft_rvv.segment_tuple_c_type",
                         description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
+    metadata.push_back({"weft_rvv.segment_load_intrinsic",
                         description.segmentLoadIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
+    metadata.push_back({"weft_rvv.segment_field_extract_intrinsic",
                         description.segmentFieldExtractIntrinsic});
     metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
+        {"weft_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"weft_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_destination_memory_form",
+    metadata.push_back({"weft_rvv.field0_role", description.field0Role});
+    metadata.push_back({"weft_rvv.field1_role", description.field1Role});
+    metadata.push_back({"weft_rvv.field0_name", description.field0Name});
+    metadata.push_back({"weft_rvv.field1_name", description.field1Name});
+    metadata.push_back({"weft_rvv.field0_destination_memory_form",
                         description.field0DestinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
+    metadata.push_back({"weft_rvv.field1_destination_memory_form",
                         description.field1DestinationMemoryForm});
     return;
   }
   if (description.operation ==
       RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+    metadata.push_back({"weft_rvv.segment_memory_layout",
                         description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
+    metadata.push_back({"weft_rvv.segment_count",
                         llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+    metadata.push_back({"weft_rvv.segment_tuple_c_type",
                         description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+    metadata.push_back({"weft_rvv.segment_store_intrinsic",
                         description.segmentStoreIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
+    metadata.push_back({"weft_rvv.segment_tuple_create_intrinsic",
                         description.segmentFieldExtractIntrinsic});
     metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
+        {"weft_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"weft_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
+    metadata.push_back({"weft_rvv.field0_role", description.field0Role});
+    metadata.push_back({"weft_rvv.field1_role", description.field1Role});
+    metadata.push_back({"weft_rvv.field0_name", description.field0Name});
+    metadata.push_back({"weft_rvv.field1_name", description.field1Name});
+    metadata.push_back({"weft_rvv.field0_source_memory_form",
                         description.field0SourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
+    metadata.push_back({"weft_rvv.field1_source_memory_form",
                         description.field1SourceMemoryForm});
   }
 }
@@ -3633,10 +3633,10 @@ llvm::Expected<RVVSelectedBodyRouteAnalysis>
 analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (!request.getVariant())
     return makeRVVEmitCRouteProviderError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
+        "EmitC route construction requires a materialized weft.exec.variant");
   if (!request.getKernel())
     return makeRVVEmitCRouteProviderError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+        "EmitC route construction requires an enclosing weft.exec.kernel");
 
   if (llvm::Error error = requireRVVVariantLegality(request.getVariant()))
     return std::move(error);
@@ -3649,7 +3649,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         llvm::Twine("RVV selected-body realization boundary must run before "
                     "route facts are collected for selected variant @") +
         request.getVariant().getSymName() +
-        "; route planning/provider saw a pre-realized tcrv_rvv body '" +
+        "; route planning/provider saw a pre-realized weft_rvv body '" +
         preRealizedBody->bodyOp->getName().getStringRef() +
         "' owned by selected-body realization owner '" +
         preRealizedBody->familyName +
@@ -3660,8 +3660,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (!slice)
     return slice.takeError();
 
-  tcrv::rvv::RVVCompileTimeConfig config =
-      tcrv::rvv::getRVVSetVLCompileTimeConfig(slice->setvl);
+  weft::rvv::RVVCompileTimeConfig config =
+      weft::rvv::getRVVSetVLCompileTimeConfig(slice->setvl);
   if (llvm::Error error =
           validateRVVSelectedBodyTypedConfigFacts(*slice, config))
     return std::move(error);
@@ -3677,8 +3677,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (slice->arithmeticKind ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredAccumulateReduceDequantizeF32) {
-    config.sew = tcrv::rvv::getRVVSEW32Bits();
-    config.lmul = tcrv::rvv::getRVVLMULM1();
+    config.sew = weft::rvv::getRVVSEW32Bits();
+    config.lmul = weft::rvv::getRVVLMULM1();
   }
   // The NON-deferred wide product-reduce-dequant realization (the capability-driven
   // dequant front door's auto-constructed body: load i8 -> widening_product i16 ->
@@ -3691,11 +3691,11 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   // the sew8 source-strip guard and left byte-identical (I5).
   if (slice->arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
-      config.sew == tcrv::rvv::getRVVSEW8Bits() &&
-      (config.lmul == tcrv::rvv::getRVVLMULM1() ||
-       config.lmul == tcrv::rvv::getRVVLMULM2())) {
-    config.sew = tcrv::rvv::getRVVSEW32Bits();
-    config.lmul = tcrv::rvv::getRVVLMULM1();
+      config.sew == weft::rvv::getRVVSEW8Bits() &&
+      (config.lmul == weft::rvv::getRVVLMULM1() ||
+       config.lmul == weft::rvv::getRVVLMULM2())) {
+    config.sew = weft::rvv::getRVVSEW32Bits();
+    config.lmul = weft::rvv::getRVVLMULM1();
   }
   // The deferred-wide i16 dot-reduce realization (2nd kernel family) carries its
   // SOURCE strip config (sew16/m4) on the setvl, but the route's LOGICAL profile
@@ -3710,11 +3710,11 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (slice->arithmeticKind ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredDotAccumulateReduceAdd) {
-    config.sew = tcrv::rvv::getRVVSEW32Bits();
-    config.lmul = tcrv::rvv::getRVVLMULM1();
+    config.sew = weft::rvv::getRVVSEW32Bits();
+    config.lmul = weft::rvv::getRVVLMULM1();
   }
   const auto &configContract =
-      tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.sew, config.lmul,
+      weft::rvv::getRVVSelectedBodyConfigVLContract(config.sew, config.lmul,
                                                     config.policy);
 
   RVVSelectedBodyRouteAnalysis analysis;
@@ -3986,7 +3986,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.emitCFullChunkVLName =
       configContract.emitCFullChunkVLName;
   analysis.description.emitCLoopVLName =
-      tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName();
+      weft::rvv::getRVVSelectedBodyEmitCLoopVLName();
   analysis.description.remainingAVLMetadata =
       configContract.remainingAVLMetadata;
   analysis.description.pointerAdvanceMetadata =
@@ -3997,8 +3997,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       RVVSelectedBodyMemoryForm::UnitStrideConversion) {
     if (analysis.slice.arithmeticKind ==
         RVVSelectedBodyOperationKind::WidenI16ToI32) {
-      analysis.description.sourceSEW = tcrv::rvv::getRVVSEW16Bits();
-      analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULMF2();
+      analysis.description.sourceSEW = weft::rvv::getRVVSEW16Bits();
+      analysis.description.sourceLMUL = weft::rvv::getRVVLMULMF2();
       analysis.description.sourceVectorTypeName =
           getRVVSelectedBodyVectorTypeName(analysis.description.sourceSEW,
                                            analysis.description.sourceLMUL);
@@ -4012,8 +4012,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.description.conversionRelation =
           kRVVWidenI16ToI32ConversionRelation;
     } else {
-      analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-      analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
+      analysis.description.sourceSEW = weft::rvv::getRVVFirstSliceSEWBits();
+      analysis.description.sourceLMUL = weft::rvv::getRVVLMULM1();
       analysis.description.sourceVectorTypeName =
           getRVVSelectedBodyVectorTypeName(analysis.description.sourceSEW,
                                            analysis.description.sourceLMUL);
@@ -4029,8 +4029,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   }
   if (analysis.slice.memoryForm ==
       RVVSelectedBodyMemoryForm::UnitStrideDequantization) {
-    analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-    analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
+    analysis.description.sourceSEW = weft::rvv::getRVVFirstSliceSEWBits();
+    analysis.description.sourceLMUL = weft::rvv::getRVVLMULM1();
     analysis.description.sourceElementTypeName =
         getRVVSelectedBodyIntegerElementTypeName(
             analysis.description.sourceSEW);
@@ -4045,7 +4045,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
             analysis.description.sourceSEW, analysis.description.sourceLMUL);
     analysis.description.resultElementTypeName =
         getRVVSelectedBodyFloatElementTypeName(
-            tcrv::rvv::getRVVFirstSliceSEWBits());
+            weft::rvv::getRVVFirstSliceSEWBits());
     analysis.description.conversionKind = kRVVDequantizeI32ToF32Kind;
     analysis.description.dequantizationRelation =
         kRVVDequantizeI32ToF32Relation;
@@ -4055,8 +4055,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   }
   if (analysis.slice.memoryForm ==
       RVVSelectedBodyMemoryForm::UnitStrideDequantClampF32Epilogue) {
-    analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-    analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
+    analysis.description.sourceSEW = weft::rvv::getRVVFirstSliceSEWBits();
+    analysis.description.sourceLMUL = weft::rvv::getRVVLMULM1();
     analysis.description.sourceElementTypeName =
         getRVVSelectedBodyIntegerElementTypeName(
             analysis.description.sourceSEW);
@@ -4071,7 +4071,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
             analysis.description.sourceSEW, analysis.description.sourceLMUL);
     analysis.description.resultElementTypeName =
         getRVVSelectedBodyFloatElementTypeName(
-            tcrv::rvv::getRVVFirstSliceSEWBits());
+            weft::rvv::getRVVFirstSliceSEWBits());
     analysis.description.conversionKind = kRVVDequantizeI32ToF32Kind;
     analysis.description.dequantizationRelation =
         kRVVDequantizeI32ToF32Relation;
@@ -4409,11 +4409,11 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
                      WideningProductDeferredDotAccumulateReduceAdd) {
     // The deferred-wide i16 dot-reduce realized body is the structural chain
     // widening_product -> deferred_accumulate -> standalone_reduce (no fused
-    // tcrv_rvv.widening_dot_reduce). Report that chain from the actual ops (I5),
+    // weft_rvv.widening_dot_reduce). Report that chain from the actual ops (I5),
     // not the trailing arithmeticOp alone.
     analysis.description.typedComputeOpName =
-        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
-        "tcrv_rvv.standalone_reduce";
+        "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+        "weft_rvv.standalone_reduce";
   } else {
     analysis.description.typedComputeOpName =
         (routeProfile->operation.operation ==
@@ -5416,7 +5416,7 @@ llvm::StringRef getRVVSelectedBodyRuntimeGlueRole() {
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters() {
-  return tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
+  return weft::rvv::getRVVSelectedBodyRuntimeABIParameters();
 }
 
 RVVSelectedBodyConstructionMetadataFacts
@@ -5435,4 +5435,4 @@ getRVVSelectedBodyConstructionMetadataFacts(
   return facts;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

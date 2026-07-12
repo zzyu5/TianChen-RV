@@ -11,22 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "RVVEmitCRoutePlanningInternal.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
+#include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -50,63 +50,63 @@
 
 
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 llvm::Expected<RVVSelectedBodyTargetLeafProfile>
 deriveRVVSelectedBodyTargetLeafProfile(
     const RVVSelectedBodyEmitCRouteDescription &description,
     const RVVSelectedBodyOperationProfile &operationProfile,
     const RVVSelectedBodyConfigProfile &configProfile) {
-  if (configProfile.sew == tcrv::rvv::getRVVSEW64Bits() &&
+  if (configProfile.sew == weft::rvv::getRVVSEW64Bits() &&
       description.operation != RVVSelectedBodyOperationKind::WidenI32ToI64) {
     const bool supportsPlainI64Add =
         description.operation == RVVSelectedBodyOperationKind::Add &&
         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsMaskedI64Arithmetic =
         operationProfile.isMaskedArithmetic &&
         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsPlainI64CompareSelect =
         description.operation == RVVSelectedBodyOperationKind::CmpSelect &&
         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsComputedMaskI64CompareSelect =
         description.operation ==
             RVVSelectedBodyOperationKind::ComputedMaskSelect &&
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsRuntimeScalarI64CompareSelect =
         description.operation ==
             RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect &&
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsRuntimeScalarI64DualCompareMaskAndSelect =
         description.operation == RVVSelectedBodyOperationKind::
                                      RuntimeScalarDualCompareMaskAndSelect &&
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsRuntimeScalarI64ComputedMaskStore =
         description.operation ==
             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore &&
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsRuntimeScalarI64ComputedMaskLoadStore =
         description.operation ==
             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore &&
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     const bool supportsRuntimeScalarI64ComputedMaskStandaloneReduction =
         description.operation == RVVSelectedBodyOperationKind::
                                      RuntimeScalarComputedMaskStandaloneReduceAdd &&
         description.memoryForm == RVVSelectedBodyMemoryForm::
                                       RuntimeScalarComputedMaskUnitStrideStandaloneReduction &&
-        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+        configProfile.lmul == weft::rvv::getRVVLMULM1();
     if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic &&
         !supportsPlainI64CompareSelect &&
         !supportsComputedMaskI64CompareSelect &&
@@ -167,8 +167,8 @@ deriveRVVSelectedBodyTargetLeafProfile(
           (isDequantClampF32Epilogue &&
            description.memoryForm !=
                RVVSelectedBodyMemoryForm::UnitStrideDequantClampF32Epilogue) ||
-          configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-          configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+          configProfile.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+          configProfile.lmul != weft::rvv::getRVVLMULM1())
         return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
       llvm::StringRef compareIntrinsic =
           getRVVSelectedBodyFloatCompareIntrinsicForPredicate(
@@ -433,7 +433,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
          description.memoryForm !=
              RVVSelectedBodyMemoryForm::UnitLoadStridedStore))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    if (configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    if (configProfile.lmul != weft::rvv::getRVVLMULM1())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{"", "", "", ""};
   }
@@ -463,8 +463,8 @@ deriveRVVSelectedBodyTargetLeafProfile(
         description.memoryForm !=
             RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    if (configProfile.lmul != tcrv::rvv::getRVVLMULM1() ||
-        configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+    if (configProfile.lmul != weft::rvv::getRVVLMULM1() ||
+        configProfile.sew != weft::rvv::getRVVFirstSliceSEWBits())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (isComputedMaskSegment2Load)
       return RVVSelectedBodyTargetLeafProfile{
@@ -538,7 +538,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
              RVVSelectedBodyMemoryForm::
                  ComputedMaskUnitLoadIndexedScatterStore))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    if (configProfile.lmul != tcrv::rvv::getRVVLMULM1() ||
+    if (configProfile.lmul != weft::rvv::getRVVLMULM1() ||
         configProfile.indexLoadIntrinsic.empty() ||
         configProfile.indexScaleIntrinsic.empty() ||
         (isGather && configProfile.indexedLoadIntrinsic.empty()) ||
@@ -627,7 +627,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
             configProfile.sew, configProfile.lmul))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (!isRuntimeScalarComputedMaskMemory &&
-        configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+        configProfile.lmul != weft::rvv::getRVVLMULM1())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
       isComputedMaskIndexedScatter
@@ -670,7 +670,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
   if (operationProfile.isStridedMemory) {
     if (description.memoryForm != RVVSelectedBodyMemoryForm::StridedLoadStore)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    if (configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    if (configProfile.lmul != weft::rvv::getRVVLMULM1())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyArithmeticIntrinsic(
@@ -795,7 +795,7 @@ llvm::Expected<std::string> requireRVVCompositeResourceStringFact(
   if (!op)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " requires realized composite resource facts on a concrete tcrv_rvv "
+        " requires realized composite resource facts on a concrete weft_rvv "
         "operation");
   mlir::StringAttr attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   if (!attr || attr.getValue().trim().empty())
@@ -811,7 +811,7 @@ llvm::Expected<std::int64_t> requireRVVCompositeResourceIntegerFact(
   if (!op)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " requires realized composite resource facts on a concrete tcrv_rvv "
+        " requires realized composite resource facts on a concrete weft_rvv "
         "operation");
   mlir::IntegerAttr attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
   if (!attr)
@@ -893,7 +893,7 @@ deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
   RVVCompositeGatherMAccScatterResourceSelection selection;
   selection.hasSelection = true;
 
-#define TCRV_READ_COMPOSITE_STRING(Field, AttrName)                           \
+#define WEFT_READ_COMPOSITE_STRING(Field, AttrName)                           \
   {                                                                           \
     llvm::Expected<std::string> value =                                       \
         requireRVVCompositeResourceStringFact(op, context, AttrName);         \
@@ -901,7 +901,7 @@ deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
       return value.takeError();                                               \
     selection.Field = std::move(*value);                                      \
   }
-#define TCRV_READ_COMPOSITE_INTEGER(Field, AttrName)                          \
+#define WEFT_READ_COMPOSITE_INTEGER(Field, AttrName)                          \
   {                                                                           \
     llvm::Expected<std::int64_t> value =                                      \
         requireRVVCompositeResourceIntegerFact(op, context, AttrName);        \
@@ -910,50 +910,50 @@ deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
     selection.Field = *value;                                                 \
   }
 
-  TCRV_READ_COMPOSITE_STRING(candidateSetID,
+  WEFT_READ_COMPOSITE_STRING(candidateSetID,
                              kRVVCompositeResourceCandidateSetAttrName);
-  TCRV_READ_COMPOSITE_STRING(selectedCandidateID,
+  WEFT_READ_COMPOSITE_STRING(selectedCandidateID,
                              kRVVCompositeResourceSelectedCandidateAttrName);
-  TCRV_READ_COMPOSITE_STRING(selectionReason,
+  WEFT_READ_COMPOSITE_STRING(selectionReason,
                              kRVVCompositeResourceSelectionReasonAttrName);
-  TCRV_READ_COMPOSITE_STRING(legalityScope,
+  WEFT_READ_COMPOSITE_STRING(legalityScope,
                              kRVVCompositeResourceLegalityScopeAttrName);
-  TCRV_READ_COMPOSITE_STRING(operation,
+  WEFT_READ_COMPOSITE_STRING(operation,
                              kRVVCompositeResourceOperationAttrName);
-  TCRV_READ_COMPOSITE_STRING(memoryForm,
+  WEFT_READ_COMPOSITE_STRING(memoryForm,
                              kRVVCompositeResourceMemoryFormAttrName);
-  TCRV_READ_COMPOSITE_INTEGER(sew, kRVVCompositeResourceSEWAttrName);
-  TCRV_READ_COMPOSITE_STRING(lmul, kRVVCompositeResourceLMULAttrName);
-  TCRV_READ_COMPOSITE_STRING(tailPolicy,
+  WEFT_READ_COMPOSITE_INTEGER(sew, kRVVCompositeResourceSEWAttrName);
+  WEFT_READ_COMPOSITE_STRING(lmul, kRVVCompositeResourceLMULAttrName);
+  WEFT_READ_COMPOSITE_STRING(tailPolicy,
                              kRVVCompositeResourceTailPolicyAttrName);
-  TCRV_READ_COMPOSITE_STRING(maskPolicy,
+  WEFT_READ_COMPOSITE_STRING(maskPolicy,
                              kRVVCompositeResourceMaskPolicyAttrName);
-  TCRV_READ_COMPOSITE_STRING(vlPolicy,
+  WEFT_READ_COMPOSITE_STRING(vlPolicy,
                              kRVVCompositeResourceVLPolicyAttrName);
-  TCRV_READ_COMPOSITE_STRING(
+  WEFT_READ_COMPOSITE_STRING(
       accumulatorLayout, kRVVCompositeResourceAccumulatorLayoutAttrName);
-  TCRV_READ_COMPOSITE_INTEGER(unrollFactor,
+  WEFT_READ_COMPOSITE_INTEGER(unrollFactor,
                               kRVVCompositeResourceUnrollFactorAttrName);
-  TCRV_READ_COMPOSITE_STRING(pipelineIntent,
+  WEFT_READ_COMPOSITE_STRING(pipelineIntent,
                              kRVVCompositeResourcePipelineIntentAttrName);
-  TCRV_READ_COMPOSITE_STRING(prefetchIntent,
+  WEFT_READ_COMPOSITE_STRING(prefetchIntent,
                              kRVVCompositeResourcePrefetchIntentAttrName);
-  TCRV_READ_COMPOSITE_INTEGER(
+  WEFT_READ_COMPOSITE_INTEGER(
       vsetvlRegionCount, kRVVCompositeResourceVSetVLRegionCountAttrName);
-  TCRV_READ_COMPOSITE_INTEGER(
+  WEFT_READ_COMPOSITE_INTEGER(
       peakLiveVectorGroups,
       kRVVCompositeResourcePeakLiveVectorGroupsAttrName);
-  TCRV_READ_COMPOSITE_INTEGER(
+  WEFT_READ_COMPOSITE_INTEGER(
       vectorRegisterBudget,
       kRVVCompositeResourceVectorRegisterBudgetAttrName);
-  TCRV_READ_COMPOSITE_STRING(
+  WEFT_READ_COMPOSITE_STRING(
       runtimeAVLSource, kRVVCompositeResourceRuntimeAVLSourceAttrName);
-  TCRV_READ_COMPOSITE_STRING(
+  WEFT_READ_COMPOSITE_STRING(
       runtimeABIOrder, kRVVCompositeResourceRuntimeABIOrderAttrName);
-  TCRV_READ_COMPOSITE_STRING(
+  WEFT_READ_COMPOSITE_STRING(
       targetCapabilityProviderMirror,
       kRVVCompositeResourceTargetCapabilityProviderMirrorAttrName);
-  TCRV_READ_COMPOSITE_STRING(
+  WEFT_READ_COMPOSITE_STRING(
       targetCapabilityLegalityMirror,
       kRVVCompositeResourceTargetCapabilityLegalityMirrorAttrName);
   std::string legality;
@@ -965,11 +965,11 @@ deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
     legality = std::move(*value);
   }
   selection.isLegal = legality == kRVVCompositeResourceLegal;
-  TCRV_READ_COMPOSITE_STRING(
+  WEFT_READ_COMPOSITE_STRING(
       rejectionReason, kRVVCompositeResourceRejectionReasonAttrName);
 
-#undef TCRV_READ_COMPOSITE_STRING
-#undef TCRV_READ_COMPOSITE_INTEGER
+#undef WEFT_READ_COMPOSITE_STRING
+#undef WEFT_READ_COMPOSITE_INTEGER
 
   if (llvm::Error error = requireRVVCompositeResourceStringField(
           context, "candidate set", selection.candidateSetID,
@@ -1111,21 +1111,21 @@ llvm::Error verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
   return llvm::Error::success();
 }
 
-llvm::StringRef stringifyRVVTailPolicy(tcrv::rvv::TailPolicy policy) {
+llvm::StringRef stringifyRVVTailPolicy(weft::rvv::TailPolicy policy) {
   switch (policy) {
-  case tcrv::rvv::TailPolicy::Agnostic:
+  case weft::rvv::TailPolicy::Agnostic:
     return "agnostic";
-  case tcrv::rvv::TailPolicy::Undisturbed:
+  case weft::rvv::TailPolicy::Undisturbed:
     return "undisturbed";
   }
   llvm_unreachable("unknown RVV tail policy");
 }
 
-llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy) {
+llvm::StringRef stringifyRVVMaskPolicy(weft::rvv::MaskPolicy policy) {
   switch (policy) {
-  case tcrv::rvv::MaskPolicy::Agnostic:
+  case weft::rvv::MaskPolicy::Agnostic:
     return "agnostic";
-  case tcrv::rvv::MaskPolicy::Undisturbed:
+  case weft::rvv::MaskPolicy::Undisturbed:
     return "undisturbed";
   }
   llvm_unreachable("unknown RVV mask policy");
@@ -1134,11 +1134,11 @@ llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy) {
 llvm::Expected<llvm::StringRef>
 getRVVSelectedBodyElementTypeNameForSEW(std::int64_t sew,
                                         llvm::StringRef context) {
-  if (sew == tcrv::rvv::getRVVSEW16Bits())
+  if (sew == weft::rvv::getRVVSEW16Bits())
     return llvm::StringRef("i16");
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
     return llvm::StringRef("i32");
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
+  if (sew == weft::rvv::getRVVSEW64Bits())
     return llvm::StringRef("i64");
   return makeRVVEmitCRouteProviderError(
       llvm::Twine(context) +
@@ -1148,14 +1148,14 @@ getRVVSelectedBodyElementTypeNameForSEW(std::int64_t sew,
 
 llvm::Expected<RVVSelectedBodyTypedConfigFacts>
 deriveRVVSelectedBodyTypedConfigFacts(
-    const tcrv::rvv::RVVCompileTimeConfig &config,
+    const weft::rvv::RVVCompileTimeConfig &config,
     const RVVSelectedBodyConfigProfile &configProfile,
     llvm::StringRef context) {
   if (configProfile.sew != config.sew || configProfile.lmul != config.lmul)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " typed config facts require the provider config profile to mirror "
-        "realized tcrv_rvv.setvl SEW/LMUL");
+        "realized weft_rvv.setvl SEW/LMUL");
   if (!config.policy)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -1176,14 +1176,14 @@ deriveRVVSelectedBodyTypedConfigFacts(
         "VL type, setvl, load, scalar-splat, and store leaves");
 
   llvm::StringRef elementTypeNameStorage;
-  if (configProfile.vectorTypeName.contains("!tcrv_rvv.vector<f32")) {
+  if (configProfile.vectorTypeName.contains("!weft_rvv.vector<f32")) {
     elementTypeNameStorage = getRVVSelectedBodyFloatElementTypeName(config.sew);
     if (elementTypeNameStorage.empty())
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " typed config facts require a supported f32 element type for SEW " +
           llvm::Twine(config.sew));
-  } else if (configProfile.vectorTypeName.contains("!tcrv_rvv.vector<u")) {
+  } else if (configProfile.vectorTypeName.contains("!weft_rvv.vector<u")) {
     elementTypeNameStorage =
         getRVVSelectedBodyUnsignedIntegerElementTypeName(config.sew);
     if (elementTypeNameStorage.empty())
@@ -1247,7 +1247,7 @@ getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
   return **route;
 }
 
-bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
+bool variantContainsExplicitTypedRVVBody(weft::exec::VariantOp variant) {
   if (!variant || variant.getBody().empty())
     return false;
 
@@ -1255,16 +1255,16 @@ bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   variant.getBody().walk([&](mlir::Operation *op) {
     if (found || op == variant.getOperation())
       return;
-    if (op->getName().getDialectNamespace() == "tcrv_rvv")
+    if (op->getName().getDialectNamespace() == "weft_rvv")
       found = true;
   });
   return found;
 }
 
-llvm::Error requireRVVVariantLegality(tcrv::exec::VariantOp variant) {
+llvm::Error requireRVVVariantLegality(weft::exec::VariantOp variant) {
   if (!variant)
     return makeRVVEmitCRouteProviderError(
-        "requires a materialized tcrv.exec.variant");
+        "requires a materialized weft.exec.variant");
 
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>("origin");
   if (!originAttr || originAttr.getValue() != kRVVPluginName)
@@ -1281,16 +1281,16 @@ llvm::Error requireRVVVariantLegality(tcrv::exec::VariantOp variant) {
 
 llvm::Error validateRVVSelectedBodyVectorTypeAgainstConfig(
     mlir::Value value, llvm::StringRef role,
-    const tcrv::rvv::RVVCompileTimeConfig &config) {
+    const weft::rvv::RVVCompileTimeConfig &config) {
   if (!value)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " to be present before route construction");
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(value.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(value.getType());
   if (!vectorType)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
-        " to be a generic !tcrv_rvv.vector value before route construction");
+        " to be a generic !weft_rvv.vector value before route construction");
 
   auto integerElementType =
       llvm::dyn_cast<mlir::IntegerType>(vectorType.getElementType());
@@ -1314,16 +1314,16 @@ llvm::Error validateRVVSelectedBodyVectorTypeAgainstConfig(
 
 llvm::Error validateRVVSelectedBodyF32VectorTypeAgainstConfig(
     mlir::Value value, llvm::StringRef role,
-    const tcrv::rvv::RVVCompileTimeConfig &config) {
+    const weft::rvv::RVVCompileTimeConfig &config) {
   if (!value)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " to be present before route construction");
-  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(value.getType());
+  auto vectorType = llvm::dyn_cast<weft::rvv::VectorType>(value.getType());
   if (!vectorType)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
-        " to be a generic !tcrv_rvv.vector value before route construction");
+        " to be a generic !weft_rvv.vector value before route construction");
 
   auto floatElementType =
       llvm::dyn_cast<mlir::FloatType>(vectorType.getElementType());
@@ -1331,7 +1331,7 @@ llvm::Error validateRVVSelectedBodyF32VectorTypeAgainstConfig(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " element type to be f32");
-  if (config.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (config.sew != weft::rvv::getRVVFirstSliceSEWBits())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " selected config SEW32 for f32 dequantization vectors");
@@ -1346,12 +1346,12 @@ llvm::Error validateRVVSelectedBodyF32VectorTypeAgainstConfig(
 
 llvm::Error validateRVVSelectedBodyMaskTypeAgainstConfig(
     mlir::Value value, llvm::StringRef role,
-    const tcrv::rvv::RVVCompileTimeConfig &config) {
-  auto maskType = llvm::dyn_cast<tcrv::rvv::MaskType>(value.getType());
+    const weft::rvv::RVVCompileTimeConfig &config) {
+  auto maskType = llvm::dyn_cast<weft::rvv::MaskType>(value.getType());
   if (!maskType)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
-        " to be a generic !tcrv_rvv.mask value before route construction");
+        " to be a generic !weft_rvv.mask value before route construction");
 
   auto integerElementType =
       llvm::dyn_cast<mlir::IntegerType>(maskType.getElementType());
@@ -1375,12 +1375,12 @@ llvm::Error validateRVVSelectedBodyMaskTypeAgainstConfig(
 
 llvm::Error validateRVVSelectedBodyF32MaskTypeAgainstConfig(
     mlir::Value value, llvm::StringRef role,
-    const tcrv::rvv::RVVCompileTimeConfig &config) {
-  auto maskType = llvm::dyn_cast<tcrv::rvv::MaskType>(value.getType());
+    const weft::rvv::RVVCompileTimeConfig &config) {
+  auto maskType = llvm::dyn_cast<weft::rvv::MaskType>(value.getType());
   if (!maskType)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
-        " to be a generic !tcrv_rvv.mask value before route construction");
+        " to be a generic !weft_rvv.mask value before route construction");
 
   auto floatElementType =
       llvm::dyn_cast<mlir::FloatType>(maskType.getElementType());
@@ -1388,7 +1388,7 @@ llvm::Error validateRVVSelectedBodyF32MaskTypeAgainstConfig(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " element type to be f32");
-  if (config.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (config.sew != weft::rvv::getRVVFirstSliceSEWBits())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " selected config SEW32 for f32 compare/select masks");
@@ -1403,13 +1403,13 @@ llvm::Error validateRVVSelectedBodyF32MaskTypeAgainstConfig(
 
 llvm::Error validateRVVSelectedBodyIndexVectorTypeAgainstConfig(
     mlir::Value value, llvm::StringRef role,
-    const tcrv::rvv::RVVCompileTimeConfig &config) {
+    const weft::rvv::RVVCompileTimeConfig &config) {
   auto vectorType =
-      llvm::dyn_cast<tcrv::rvv::IndexVectorType>(value.getType());
+      llvm::dyn_cast<weft::rvv::IndexVectorType>(value.getType());
   if (!vectorType)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
-        " to be a generic !tcrv_rvv.index_vector value before route "
+        " to be a generic !weft_rvv.index_vector value before route "
         "construction");
 
   auto integerElementType =
@@ -1423,7 +1423,7 @@ llvm::Error validateRVVSelectedBodyIndexVectorTypeAgainstConfig(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " index element width 32 for the bounded indexed gather route");
   if (vectorType.getLmul() != config.lmul ||
-      vectorType.getLmul() != tcrv::rvv::getRVVLMULM1())
+      vectorType.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV typed config resolver requires ") + role +
         " LMUL '" + vectorType.getLmul() +
@@ -1434,7 +1434,7 @@ llvm::Error validateRVVSelectedBodyIndexVectorTypeAgainstConfig(
 
 llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     RVVSelectedBodyRouteSlice &slice,
-    const tcrv::rvv::RVVCompileTimeConfig &config) {
+    const weft::rvv::RVVCompileTimeConfig &config) {
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::RuntimeScalarSplatStore) {
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
@@ -1448,13 +1448,13 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
 
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
       slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
     if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32) {
-      sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-      sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+      sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+      sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
     } else {
-      sourceConfig.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-      sourceConfig.lmul = tcrv::rvv::getRVVLMULM1();
+      sourceConfig.sew = weft::rvv::getRVVFirstSliceSEWBits();
+      sourceConfig.lmul = weft::rvv::getRVVLMULM1();
     }
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
@@ -1522,9 +1522,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
   }
 
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningMAccAdd) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue, "widening macc lhs source vector", sourceConfig))
@@ -1545,9 +1545,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
   }
 
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningProduct) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW8Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF4();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW8Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULMF4();
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue, "widening product lhs source vector", sourceConfig))
@@ -1588,7 +1588,7 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     // next-wider step. The wide strip is admitted ONLY for the dequantize kind (the
     // single front-door producer); the plain reduce-add and dequant-clamp kinds have
     // no wide producer and stay narrow (fail-closed for any other width, I7).
-    auto lhsSourceType = llvm::dyn_cast_or_null<tcrv::rvv::VectorType>(
+    auto lhsSourceType = llvm::dyn_cast_or_null<weft::rvv::VectorType>(
         slice.lhsValue ? slice.lhsValue.getType() : mlir::Type());
     if (!lhsSourceType)
       return makeRVVEmitCRouteProviderError(
@@ -1600,8 +1600,8 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     // below). Admit either wide rung -- gated to the dequantize kind so the plain
     // reduce-add / dequant-clamp kinds stay narrow (fail-closed, I7).
     const bool isWideStrip = isWideningProductReduceDequantize &&
-                             (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
-                              sourceLMUL == tcrv::rvv::getRVVLMULM2());
+                             (sourceLMUL == weft::rvv::getRVVLMULM1() ||
+                              sourceLMUL == weft::rvv::getRVVLMULM2());
     // The C4 codebook plain reduce-add strip FLIPS its i8 source rung with VLEN
     // (mf2 at VLEN256, m1 at VLEN128 -- the gather must index the whole 16-entry
     // table, so mf4 is pruned), UNLIKE the VLEN-invariant C3 offset-binary core
@@ -1611,20 +1611,20 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     // (mf2 -> i16m1, m1 -> i16m2) below.
     const bool isCodebookStrip =
         slice.codebookGatherProductOp &&
-        (sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
-         sourceLMUL == tcrv::rvv::getRVVLMULM1());
-    if (sourceLMUL != tcrv::rvv::getRVVLMULMF4() && !isWideStrip &&
+        (sourceLMUL == weft::rvv::getRVVLMULMF2() ||
+         sourceLMUL == weft::rvv::getRVVLMULM1());
+    if (sourceLMUL != weft::rvv::getRVVLMULMF4() && !isWideStrip &&
         !isCodebookStrip)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("selected RVV typed config resolver requires "
                       "product-reduction source vector LMUL '") +
           sourceLMUL + "' to be a supported i8 mf4/m1/m2 strip rung");
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW8Bits();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW8Bits();
     sourceConfig.lmul = sourceLMUL;
     sourceConfig.policy = config.policy;
-    tcrv::rvv::RVVCompileTimeConfig productConfig;
-    productConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+    weft::rvv::RVVCompileTimeConfig productConfig;
+    productConfig.sew = weft::rvv::getRVVSEW16Bits();
     productConfig.lmul = getRVVNextWiderLMUL(sourceLMUL);
     productConfig.policy = config.policy;
     // For the NARROW strip the setvl carries the i32m1/f32m1 RESULT config, so the
@@ -1632,10 +1632,10 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     // WIDE strip the setvl carries the SOURCE config (sew8 at the realized m1/m2
     // strip rung), so the result config (sew32/m1) is derived explicitly here --
     // mirroring the deferred-wide branch below (I5).
-    tcrv::rvv::RVVCompileTimeConfig resultConfig = config;
+    weft::rvv::RVVCompileTimeConfig resultConfig = config;
     if (isWideStrip) {
-      resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
-      resultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+      resultConfig.sew = weft::rvv::getRVVSEW32Bits();
+      resultConfig.lmul = weft::rvv::getRVVLMULM1();
       resultConfig.policy = config.policy;
     }
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
@@ -1735,21 +1735,21 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredAccumulateReduceDequantizeF32) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW8Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULM2();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW8Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULM2();
     sourceConfig.policy = config.policy;
-    tcrv::rvv::RVVCompileTimeConfig productConfig;
-    productConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    productConfig.lmul = tcrv::rvv::getRVVLMULM4();
+    weft::rvv::RVVCompileTimeConfig productConfig;
+    productConfig.sew = weft::rvv::getRVVSEW16Bits();
+    productConfig.lmul = weft::rvv::getRVVLMULM4();
     productConfig.policy = config.policy;
-    tcrv::rvv::RVVCompileTimeConfig accumulateConfig;
-    accumulateConfig.sew = tcrv::rvv::getRVVSEW32Bits();
-    accumulateConfig.lmul = tcrv::rvv::getRVVLMULM8();
+    weft::rvv::RVVCompileTimeConfig accumulateConfig;
+    accumulateConfig.sew = weft::rvv::getRVVSEW32Bits();
+    accumulateConfig.lmul = weft::rvv::getRVVLMULM8();
     accumulateConfig.policy = config.policy;
-    tcrv::rvv::RVVCompileTimeConfig resultConfig;
-    resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
-    resultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    weft::rvv::RVVCompileTimeConfig resultConfig;
+    resultConfig.sew = weft::rvv::getRVVSEW32Bits();
+    resultConfig.lmul = weft::rvv::getRVVLMULM1();
     resultConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
@@ -1810,7 +1810,7 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     // Read the realized source/accumulator LMUL from the deferred-accumulate
     // result type (the budget-selected i32 accumulator <W>); the i16 source <L>
     // is <W> un-widened one step (the i32 product is one EMUL step wider).
-    auto accumulateType = llvm::dyn_cast_or_null<tcrv::rvv::VectorType>(
+    auto accumulateType = llvm::dyn_cast_or_null<weft::rvv::VectorType>(
         slice.deferredAccumulateOp
             ? slice.deferredAccumulateOp.getResult().getType()
             : mlir::Type());
@@ -1829,17 +1829,17 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
       return makeRVVEmitCRouteProviderError(
           "deferred-wide dot-reduction accumulator LMUL is not a legal i16->i32 "
           "single-widening rung");
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
     sourceConfig.lmul = sourceLMUL;
     sourceConfig.policy = config.policy;
-    tcrv::rvv::RVVCompileTimeConfig accumulateConfig;
-    accumulateConfig.sew = tcrv::rvv::getRVVSEW32Bits();
+    weft::rvv::RVVCompileTimeConfig accumulateConfig;
+    accumulateConfig.sew = weft::rvv::getRVVSEW32Bits();
     accumulateConfig.lmul = accumulatorLMUL;
     accumulateConfig.policy = config.policy;
-    tcrv::rvv::RVVCompileTimeConfig resultConfig;
-    resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
-    resultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    weft::rvv::RVVCompileTimeConfig resultConfig;
+    resultConfig.sew = weft::rvv::getRVVSEW32Bits();
+    resultConfig.lmul = weft::rvv::getRVVLMULM1();
     resultConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
@@ -1877,9 +1877,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
 
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue, "widening dot-reduction lhs source vector",
@@ -1901,9 +1901,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
 
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
@@ -1926,9 +1926,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
 
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
@@ -1964,9 +1964,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::
           ComputedMaskStridedInputWideningDotReduceAdd) {
-    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    weft::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
@@ -2523,8 +2523,8 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
 
   if (isRVVSelectedBodyStandaloneReductionRouteOperation(
           slice.arithmeticKind)) {
-    tcrv::rvv::RVVCompileTimeConfig scalarResultConfig = config;
-    scalarResultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    weft::rvv::RVVCompileTimeConfig scalarResultConfig = config;
+    scalarResultConfig.lmul = weft::rvv::getRVVLMULM1();
     if (isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
             slice.arithmeticKind) ||
         isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
@@ -2548,9 +2548,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     } else {
       if (slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) {
-        tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-        sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-        sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+        weft::rvv::RVVCompileTimeConfig sourceConfig;
+        sourceConfig.sew = weft::rvv::getRVVSEW16Bits();
+        sourceConfig.lmul = weft::rvv::getRVVLMULMF2();
         sourceConfig.policy = config.policy;
         if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
                 slice.lhsValue,
@@ -2616,7 +2616,7 @@ std::string formatRuntimeABIExpectedRoles(
   return expected;
 }
 
-bool variantRequiresRVVExecABIBindings(tcrv::exec::VariantOp variant) {
+bool variantRequiresRVVExecABIBindings(weft::exec::VariantOp variant) {
   if (!variant)
     return false;
   auto required =
@@ -2626,7 +2626,7 @@ bool variantRequiresRVVExecABIBindings(tcrv::exec::VariantOp variant) {
 
 bool runtimeABIParametersMatchRuntimeABIValue(
     const support::RuntimeABIParameter &parameter,
-    tcrv::rvv::RuntimeABIValueOp binding) {
+    weft::rvv::RuntimeABIValueOp binding) {
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
   std::optional<support::RuntimeABIParameterOwnership> ownership =
@@ -2637,13 +2637,13 @@ bool runtimeABIParametersMatchRuntimeABIValue(
          parameter.cType == binding.getCType();
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
-findRuntimeABIValueForParameter(tcrv::exec::VariantOp variant,
+llvm::Expected<weft::rvv::RuntimeABIValueOp>
+findRuntimeABIValueForParameter(weft::exec::VariantOp variant,
                                 const support::RuntimeABIParameter &parameter,
                                 llvm::StringRef context) {
-  tcrv::rvv::RuntimeABIValueOp matched;
+  weft::rvv::RuntimeABIValueOp matched;
   unsigned count = 0;
-  variant.getBody().walk([&](tcrv::rvv::RuntimeABIValueOp binding) {
+  variant.getBody().walk([&](weft::rvv::RuntimeABIValueOp binding) {
     if (!runtimeABIParametersMatchRuntimeABIValue(parameter, binding))
       return;
     matched = binding;
@@ -2655,7 +2655,7 @@ findRuntimeABIValueForParameter(tcrv::exec::VariantOp variant,
 
   return makeRVVEmitCRouteProviderError(
       llvm::Twine(context) +
-      " requires exactly one tcrv_rvv.runtime_abi_value matching ABI "
+      " requires exactly one weft_rvv.runtime_abi_value matching ABI "
       "parameter '" +
       parameter.cName + "' with role '" +
       support::stringifyRuntimeABIParameterRole(parameter.role) +
@@ -2665,14 +2665,14 @@ findRuntimeABIValueForParameter(tcrv::exec::VariantOp variant,
 
 llvm::Expected<std::string>
 summarizeRVVSelectedBodyExecABIBindings(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
     llvm::StringRef context) {
   const bool required = variantRequiresRVVExecABIBindings(variant);
   llvm::SmallVector<std::string, 8> entries;
 
   for (const support::RuntimeABIParameter &parameter : runtimeABIParameters) {
-    llvm::Expected<tcrv::rvv::RuntimeABIValueOp> binding =
+    llvm::Expected<weft::rvv::RuntimeABIValueOp> binding =
         findRuntimeABIValueForParameter(variant, parameter, context);
     if (!binding)
       return binding.takeError();
@@ -2683,10 +2683,10 @@ summarizeRVVSelectedBodyExecABIBindings(
       if (required)
         return makeRVVEmitCRouteProviderError(
             llvm::Twine(context) +
-            " requires tcrv_rvv.runtime_abi_value '" + parameter.cName +
+            " requires weft_rvv.runtime_abi_value '" + parameter.cName +
             "' with role '" +
             support::stringifyRuntimeABIParameterRole(parameter.role) +
-            "' to carry exec_binding to a tcrv.exec ABI declaration");
+            "' to carry exec_binding to a weft.exec ABI declaration");
       continue;
     }
 
@@ -2712,11 +2712,11 @@ llvm::Expected<support::RuntimeABIParameter>
 getRuntimeABIParameterBindingFromValue(
     mlir::Value value, llvm::StringRef context,
     llvm::ArrayRef<support::RuntimeABIParameterRole> expectedRoles) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " must be defined by explicit tcrv_rvv.runtime_abi_value before "
+        " must be defined by explicit weft_rvv.runtime_abi_value before "
         "RVV EmitC route construction");
   if (llvm::Error error =
           verifyRVVRuntimeABIValueRoleOpInterface(binding.getOperation()))
@@ -2768,7 +2768,7 @@ getRuntimeABIParameterBindingFromValue(
 static llvm::Error
 recordRVVBoundProductSource(RVVSelectedBodyRouteSlice &slice,
                             const support::RuntimeABIParameter &parameter,
-                            tcrv::rvv::LoadOp load, unsigned legacySlot) {
+                            weft::rvv::LoadOp load, unsigned legacySlot) {
   // P1e W2: carry the full per-source binding state (loaded value + input
   // buffer + ABI + load op) onto the productSources[] entry so a descriptor-
   // driven consumer can reach the k-th source's buffer/role by INDEX (the W4
@@ -2803,7 +2803,7 @@ recordRVVBoundProductSource(RVVSelectedBodyRouteSlice &slice,
 
 llvm::Error
 assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
-                            tcrv::rvv::LoadOp load,
+                            weft::rvv::LoadOp load,
                             const support::RuntimeABIParameter &parameter) {
   if (parameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
     if (slice.lhsLoadOperation)
@@ -3025,7 +3025,7 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error assignRVVGenericBroadcastBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::BroadcastLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::BroadcastLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::RHSInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3046,7 +3046,7 @@ llvm::Error assignRVVGenericBroadcastBinding(
 }
 
 llvm::Error assignRVVGenericScalarSplatBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::SplatOp splat,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::SplatOp splat,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role ==
       support::RuntimeABIParameterRole::LowerBoundScalarValue) {
@@ -3125,7 +3125,7 @@ llvm::Error assignRVVGenericScalarSplatBinding(
 }
 
 llvm::Error assignRVVGenericStridedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::StridedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::StridedLoadOp load,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter) {
   if (bufferParameter.role ==
@@ -3262,7 +3262,7 @@ llvm::Error assignRVVGenericStridedLoadBinding(
 }
 
 llvm::Error assignRVVGenericStridedStoreBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::StridedStoreOp store,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::StridedStoreOp store,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter,
     bool requiresDestinationByteStride) {
@@ -3291,7 +3291,7 @@ llvm::Error assignRVVGenericStridedStoreBinding(
 }
 
 llvm::Error assignRVVGenericIndexLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::IndexLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::IndexLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::IndexInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3300,7 +3300,7 @@ llvm::Error assignRVVGenericIndexLoadBinding(
   if (slice.indexLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route requires a unique "
-        "tcrv_rvv.index_load op");
+        "weft_rvv.index_load op");
   if (static_cast<std::int64_t>(load.getIndexEew()) != 32)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route supports only index_eew 32");
@@ -3314,7 +3314,7 @@ llvm::Error assignRVVGenericIndexLoadBinding(
 }
 
 llvm::Error assignRVVGenericIndexedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::IndexedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::IndexedLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::LHSInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3323,7 +3323,7 @@ llvm::Error assignRVVGenericIndexedLoadBinding(
   if (slice.lhsLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route requires a unique data "
-        "source tcrv_rvv.indexed_load op");
+        "source weft_rvv.indexed_load op");
   if (static_cast<std::int64_t>(load.getIndexEew()) != 32)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed gather route supports only index_eew 32");
@@ -3344,7 +3344,7 @@ llvm::Error assignRVVGenericIndexedLoadBinding(
 }
 
 llvm::Error assignRVVGenericIndexedStoreBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::IndexedStoreOp store,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::IndexedStoreOp store,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::OutputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3353,7 +3353,7 @@ llvm::Error assignRVVGenericIndexedStoreBinding(
   if (slice.indexedStoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route requires a unique "
-        "tcrv_rvv.indexed_store op");
+        "weft_rvv.indexed_store op");
   if (static_cast<std::int64_t>(store.getIndexEew()) != 32)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route supports only index_eew "
@@ -3375,7 +3375,7 @@ llvm::Error assignRVVGenericIndexedStoreBinding(
 }
 
 llvm::Error assignRVVGenericMaskLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::MaskInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3384,7 +3384,7 @@ llvm::Error assignRVVGenericMaskLoadBinding(
   if (slice.maskLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route requires a unique "
-        "tcrv_rvv.mask_load op");
+        "weft_rvv.mask_load op");
   if (load.getMaskRole() != kRVVMaskRole)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route requires mask_role "
@@ -3403,7 +3403,7 @@ llvm::Error assignRVVGenericMaskLoadBinding(
 }
 
 llvm::Error assignRVVGenericMaskedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (load.getMemoryForm() != kRVVMaskedLoadMemoryForm)
     return makeRVVEmitCRouteProviderError(
@@ -3418,7 +3418,7 @@ llvm::Error assignRVVGenericMaskedLoadBinding(
     if (slice.lhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV masked unit-load-store route requires a unique "
-          "lhs-input-buffer tcrv_rvv.masked_load");
+          "lhs-input-buffer weft_rvv.masked_load");
     slice.maskedLoadOp = load;
     slice.maskedLoadOperation = load.getOperation();
     slice.lhsLoadOperation = load.getOperation();
@@ -3432,7 +3432,7 @@ llvm::Error assignRVVGenericMaskedLoadBinding(
     if (slice.sourceLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV computed-mask unit-load-store route requires a unique "
-          "source-input-buffer tcrv_rvv.masked_load");
+          "source-input-buffer weft_rvv.masked_load");
     slice.maskedLoadOp = load;
     slice.maskedLoadOperation = load.getOperation();
     slice.sourceLoadOperation = load.getOperation();
@@ -3449,24 +3449,24 @@ llvm::Error assignRVVGenericMaskedLoadBinding(
 }
 
 llvm::Error assignRVVGenericMaskedStridedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedStridedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedStridedLoadOp load,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter) {
   if (load.getMemoryForm() != kRVVMaskedStridedLoadSourceMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_load "
                     "memory_form '") +
         load.getMemoryForm() +
         "' for bounded RVV computed-mask strided load route");
   if (load.getStrideUnit() != "byte")
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_load "
                     "stride_unit '") +
         load.getStrideUnit() +
         "' for bounded RVV computed-mask strided load route");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_strided_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask strided load route");
@@ -3485,7 +3485,7 @@ llvm::Error assignRVVGenericMaskedStridedLoadBinding(
   if (slice.sourceLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask strided-load route requires a unique "
-        "source-input-buffer tcrv_rvv.masked_strided_load");
+        "source-input-buffer weft_rvv.masked_strided_load");
 
   slice.maskedStridedLoadOp = load;
   slice.maskedStridedLoadOperation = load.getOperation();
@@ -3499,17 +3499,17 @@ llvm::Error assignRVVGenericMaskedStridedLoadBinding(
 }
 
 llvm::Error assignRVVGenericMaskedIndexedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedIndexedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedIndexedLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (load.getMemoryForm() != kRVVMaskedIndexedLoadSourceMemoryForm)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_load "
                     "memory_form '") +
         load.getMemoryForm() +
         "' for bounded RVV computed-mask indexed gather-load route");
   if (load.getOffsetUnit() != kRVVIndexedGatherOffsetUnit)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_load "
                     "offset_unit '") +
         load.getOffsetUnit() +
         "' for bounded RVV computed-mask indexed gather-load route");
@@ -3519,7 +3519,7 @@ llvm::Error assignRVVGenericMaskedIndexedLoadBinding(
         "supports only index_eew 32");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_indexed_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_indexed_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask indexed gather-load route");
@@ -3532,7 +3532,7 @@ llvm::Error assignRVVGenericMaskedIndexedLoadBinding(
   if (slice.sourceLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV computed-mask indexed gather-load route requires a "
-        "unique source-input-buffer tcrv_rvv.masked_indexed_load");
+        "unique source-input-buffer weft_rvv.masked_indexed_load");
 
   slice.maskedIndexedLoadOp = load;
   slice.maskedIndexedLoadOperation = load.getOperation();
@@ -3547,7 +3547,7 @@ llvm::Error assignRVVGenericMaskedIndexedLoadBinding(
 }
 
 llvm::Error assignRVVGenericSegment2LoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::Segment2LoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::Segment2LoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::LHSInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3556,7 +3556,7 @@ llvm::Error assignRVVGenericSegment2LoadBinding(
   if (slice.segment2LoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires a unique "
-        "tcrv_rvv.segment2_load op");
+        "weft_rvv.segment2_load op");
   if (static_cast<std::int64_t>(load.getSegmentCount()) != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires "
@@ -3588,7 +3588,7 @@ llvm::Error assignRVVGenericSegment2LoadBinding(
 }
 
 llvm::Error assignRVVGenericMaskedSegment2LoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedSegment2LoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedSegment2LoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::SourceInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -3598,12 +3598,12 @@ llvm::Error assignRVVGenericMaskedSegment2LoadBinding(
       slice.maskedSegment2LoadOperation != load.getOperation())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route requires a "
-        "unique tcrv_rvv.masked_segment2_load op");
+        "unique weft_rvv.masked_segment2_load op");
   if (slice.sourceLoadOperation &&
       slice.sourceLoadOperation != load.getOperation())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route requires a "
-        "unique source-input-buffer tcrv_rvv.masked_segment2_load");
+        "unique source-input-buffer weft_rvv.masked_segment2_load");
   if (static_cast<std::int64_t>(load.getSegmentCount()) != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route requires "
@@ -3624,7 +3624,7 @@ llvm::Error assignRVVGenericMaskedSegment2LoadBinding(
         "distinct field roles");
   if (load.getInactiveLanePolicy() != kRVVMaskedLoadInactiveLanePolicy)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.masked_segment2_load "
+        llvm::Twine("unsupported generic weft_rvv.masked_segment2_load "
                     "inactive_lane_policy '") +
         load.getInactiveLanePolicy() +
         "' for bounded RVV computed-mask segment2 load route");
@@ -3643,7 +3643,7 @@ llvm::Error assignRVVGenericMaskedSegment2LoadBinding(
 }
 
 llvm::Error assignRVVGenericSegment2StoreBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::Segment2StoreOp store,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::Segment2StoreOp store,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role !=
       support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer)
@@ -3653,7 +3653,7 @@ llvm::Error assignRVVGenericSegment2StoreBinding(
   if (slice.segment2StoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route requires a unique "
-        "tcrv_rvv.segment2_store op");
+        "weft_rvv.segment2_store op");
   if (static_cast<std::int64_t>(store.getSegmentCount()) != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route requires "
@@ -3687,7 +3687,7 @@ llvm::Error assignRVVGenericSegment2StoreBinding(
 
 llvm::Error assignRVVGenericMaskedSegment2StoreBinding(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedSegment2StoreOp store,
+    weft::rvv::MaskedSegment2StoreOp store,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role !=
       support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer)
@@ -3698,7 +3698,7 @@ llvm::Error assignRVVGenericMaskedSegment2StoreBinding(
       slice.maskedSegment2StoreOperation != store.getOperation())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 store route requires a "
-        "unique tcrv_rvv.masked_segment2_store op");
+        "unique weft_rvv.masked_segment2_store op");
   if (slice.storeOperation && slice.storeOperation != store.getOperation())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 store route requires a "
@@ -3827,7 +3827,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit runtime scalar "
                 "splat-store runtime ABI values"))
@@ -3845,7 +3845,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit runtime scalar "
                 "dual-compare mask-and select runtime ABI values"))
@@ -3859,7 +3859,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit f32 clamp/select runtime "
                 "ABI values"))
@@ -3873,7 +3873,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit dequant-clamp f32 "
                 "epilogue runtime ABI values"))
@@ -3885,7 +3885,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit i32-to-f32 "
                 "dequantization runtime ABI values"))
@@ -3899,7 +3899,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit low-precision "
                 "product-reduction dequantization runtime ABI values"))
@@ -3915,7 +3915,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit low-precision "
                 "product-reduction dequant-clamp runtime ABI values"))
@@ -3929,7 +3929,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit runtime scalar "
                 "compare/select runtime ABI values"))
@@ -3944,7 +3944,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit computed-mask "
                 "multiply-accumulate runtime ABI values"))
@@ -3957,7 +3957,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit scalar-broadcast "
                 "multiply-accumulate composition runtime ABI values"))
@@ -3972,7 +3972,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit runtime scalar computed-mask "
                 "multiply-accumulate runtime ABI values"))
@@ -3988,7 +3988,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit runtime scalar "
                 "computed-mask indexed gather-MAcc-scatter runtime ABI "
@@ -4004,7 +4004,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit computed-mask widening "
                 "dot-product reduction runtime ABI values"))
@@ -4021,7 +4021,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.lhsStrideABI);
     ordered.push_back(slice.rhsStrideABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit computed-mask "
                 "strided-input widening dot-product reduction runtime ABI "
@@ -4036,7 +4036,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit computed-mask standalone "
                 "reduction runtime ABI values"))
@@ -4050,7 +4050,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit runtime scalar computed-mask "
                 "standalone reduction runtime ABI values"))
@@ -4065,7 +4065,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.field1ABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit computed-mask segment2 "
                 "load runtime ABI values"))
@@ -4080,7 +4080,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit computed-mask segment2 "
                 "store runtime ABI values"))
@@ -4092,7 +4092,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.field1ABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit segment2 runtime ABI "
                 "values"))
@@ -4104,7 +4104,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.outABI);
     ordered.push_back(slice.runtimeElementCountABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit segment2 interleave "
                 "runtime ABI values"))
@@ -4172,7 +4172,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.lhsStrideABI);
     ordered.push_back(slice.rhsStrideABI);
     if (llvm::Error error =
-            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+            weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit strided-input widening "
                 "dot-product reduction runtime ABI values"))
@@ -4230,7 +4230,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     if (isWideningMAcc || isWideningDotReduce || isWideningProduct ||
         isWideningProductReduce) {
       if (llvm::Error error =
-              tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+              weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
                   ordered,
                   isWideningDotReduce
                       ? "selected RVV EmitC route explicit widening "
@@ -4261,7 +4261,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   }
 
   if (isStandaloneReduction) {
-    if (llvm::Error error = tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+    if (llvm::Error error = weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
             ordered,
             "selected RVV EmitC route explicit standalone reduction runtime "
             "ABI values"))
@@ -4269,7 +4269,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     return llvm::Error::success();
   }
 
-  if (llvm::Error error = tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+  if (llvm::Error error = weft::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
           ordered, "selected RVV EmitC route explicit runtime ABI values"))
     return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
 
@@ -4293,22 +4293,22 @@ getRVVComputedMaskIndexedMemoryRuntimeABIParameters(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherMAccScatter:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
   default:
     return {};
@@ -4320,10 +4320,10 @@ getRVVComputedMaskStridedMemoryRuntimeABIParameters(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
   default:
     return {};
@@ -4335,19 +4335,19 @@ getRVVComputedMaskSegment2MemoryRuntimeABIParameters(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2LoadUnitStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2StoreUnitLoad:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
   default:
     return {};
@@ -4359,10 +4359,10 @@ getRVVPlainSegment2MemoryRuntimeABIParameters(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
   case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    return tcrv::rvv::
+    return weft::rvv::
         getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
   default:
     return {};
@@ -5564,4 +5564,4 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
   return plan;
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

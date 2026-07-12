@@ -2,9 +2,9 @@
 // M-FLAT typed q8_0 x q8_0 flat block-dot kernel.
 //
 // It links against the REAL exported RISC-V relocatable object
-//   tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
-// (front-door -> materialize-emission-plans -> tcrv-translate
-//  --tcrv-export-target-artifact), calls it on hardware, and:
+//   weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
+// (front-door -> materialize-emission-plans -> weft-translate
+//  --weft-export-target-artifact), calls it on hardware, and:
 //   1. VERIFY: quantizes random data to q8_0, compares the kernel result
 //      bit-for-bit against the PINNED fp-fold oracle
 //      [testing/flat-block-dot-fp-fold-oracle.md §1]: t=(float)sumi*d_x; t=t*d_y;
@@ -239,7 +239,7 @@ static void make_block(block_q8_0 *b, uint16_t d_bits, const int8_t *qs) {
 }
 
 // ---- kernel under test (real exported .o) ---------------------------------
-extern void tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot(
+extern void weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot(
     size_t n, float *s, size_t bs, const uint8_t *vx, size_t bx,
     const uint8_t *vy, size_t by, int32_t nrc, const int32_t *zero_seed);
 
@@ -247,7 +247,7 @@ static const int32_t g_zero_seed = 0;
 
 static void call_kernel(size_t n, float *s, const block_q8_0 *x,
                         const block_q8_0 *y) {
-  tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot(
+  weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot(
       n, s, /*bs=*/0, (const uint8_t *)x, /*bx=*/0, (const uint8_t *)y,
       /*by=*/0, /*nrc=*/1, &g_zero_seed);
 }

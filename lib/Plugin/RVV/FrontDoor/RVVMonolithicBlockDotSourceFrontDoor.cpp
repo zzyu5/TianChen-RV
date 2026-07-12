@@ -6,9 +6,9 @@
 // construction DATA; this file carries the ONE shared construction MECHANISM.
 //
 // For a marked GENERIC source carrying a ggml `ggml_vec_dot_<op>` OPERATOR IDENTITY
-// (the vec_dot ABI roles), the pass auto-constructs the complete tcrv.exec.kernel +
+// (the vec_dot ABI roles), the pass auto-constructs the complete weft.exec.kernel +
 // variant + dispatch/fallback scaffold around ONE attr-less (modulo the row's
-// integer_core_lmul) tcrv_rvv.<op>_block_dot op, instead of a per-kernel
+// integer_core_lmul) weft_rvv.<op>_block_dot op, instead of a per-kernel
 // hand-authored block-dot emitter input. The per-block scale model, the integer
 // decode/product/reduce core, the super-block bit-dance, the codebook gather, and
 // the deferred fold are FIRST-CLASS STRUCTURE inside that op and its existing
@@ -25,19 +25,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/DeclaredInstanceHash.h"
-#include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Transforms/VariantMaterialization.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/DeclaredInstanceHash.h"
+#include "Weft/Support/RuntimeABI.h"
+#include "Weft/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -64,18 +64,18 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
-namespace tcrvexec = ::tianchenrv::tcrv::exec;
-namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace weftexec = ::weft::exec;
+namespace weftrvv = ::weft::rvv;
 
 // The marker/kernel module attributes shared by the whole family (identical across
 // every former per-op front door; only the marker VALUE is per-op DATA in the row).
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
-    "tcrv_rvv.source_front_door");
-constexpr llvm::StringLiteral kSourceKernelAttrName("tcrv_rvv.source_kernel");
-constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
+    "weft_rvv.source_front_door");
+constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
+constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kFallbackCapabilitySymbol("scalar_fallback");
@@ -97,7 +97,7 @@ constexpr llvm::StringLiteral kRVVConstructionProtocol(
 // The single generic pass description (shown in --help for every family front door;
 // not a byte-exact-gated string, so it is shared rather than per-op prose).
 constexpr llvm::StringLiteral kPassDescription(
-    "Auto-construct the attr-less tcrv_rvv.<op>_block_dot op + "
+    "Auto-construct the attr-less weft_rvv.<op>_block_dot op + "
     "kernel/variant/dispatch/fallback scaffold from a marked ggml vec_dot "
     "operator-identity source (the block loop, scale model, integer core, "
     "super-block bit-dance, codebook gather, and deferred fold are first-class op "
@@ -162,7 +162,7 @@ matchBlockDotSourceFunc(const MonolithicBlockDotOpEntry &entry,
 }
 
 //===----------------------------------------------------------------------===//
-// (2) Body builder: auto-construct the tcrv_rvv.<op>_block_dot op scaffold
+// (2) Body builder: auto-construct the weft_rvv.<op>_block_dot op scaffold
 //     (kernel + variant + dispatch/fallback) generically from the table row.
 //===----------------------------------------------------------------------===//
 
@@ -174,7 +174,7 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 void createCapability(mlir::OpBuilder &builder, mlir::Location loc,
                       llvm::StringRef symbol, llvm::StringRef id,
                       llvm::StringRef kind) {
-  mlir::OperationState state(loc, tcrvexec::CapabilityOp::getOperationName());
+  mlir::OperationState state(loc, weftexec::CapabilityOp::getOperationName());
   state.addAttribute("sym_name", builder.getStringAttr(symbol));
   state.addAttribute("id", builder.getStringAttr(id));
   state.addAttribute("kind", builder.getStringAttr(kind));
@@ -186,10 +186,10 @@ mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol)
   return builder.getArrayAttr({symbolRef(builder, symbol)});
 }
 
-tcrvrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return tcrvrvv::PolicyAttr::get(builder.getContext(),
-                                  tcrvrvv::TailPolicy::Agnostic,
-                                  tcrvrvv::MaskPolicy::Agnostic);
+weftrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
+  return weftrvv::PolicyAttr::get(builder.getContext(),
+                                  weftrvv::TailPolicy::Agnostic,
+                                  weftrvv::MaskPolicy::Agnostic);
 }
 
 mlir::Value createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
@@ -197,7 +197,7 @@ mlir::Value createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
                                   llvm::StringRef cType, llvm::StringRef purpose,
                                   mlir::Type resultType) {
   mlir::OperationState state(loc,
-                             tcrvrvv::RuntimeABIValueOp::getOperationName());
+                             weftrvv::RuntimeABIValueOp::getOperationName());
   state.addAttribute("role", builder.getStringAttr(role));
   state.addAttribute("c_name", builder.getStringAttr(cName));
   state.addAttribute("c_type", builder.getStringAttr(cType));
@@ -254,25 +254,25 @@ llvm::StringRef abiRolePurpose(const MonolithicBlockDotOpEntry &entry,
   }
 }
 
-tcrvrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
+weftrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
                              mlir::Value n, std::int64_t sew,
-                             llvm::StringRef lmul, tcrvrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, tcrvrvv::SetVLOp::getOperationName());
+                             llvm::StringRef lmul, weftrvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, weftrvv::SetVLOp::getOperationName());
   state.addOperands(n);
   state.addAttribute("sew", builder.getI64IntegerAttr(sew));
   state.addAttribute("lmul", builder.getStringAttr(lmul));
   state.addAttribute("policy", policy);
-  state.addTypes(tcrvrvv::VLType::get(builder.getContext()));
-  return llvm::cast<tcrvrvv::SetVLOp>(builder.create(state));
+  state.addTypes(weftrvv::VLType::get(builder.getContext()));
+  return llvm::cast<weftrvv::SetVLOp>(builder.create(state));
 }
 
-tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
+weftrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
                                mlir::Value vl, std::int64_t sew,
-                               llvm::StringRef lmul, tcrvrvv::PolicyAttr policy,
+                               llvm::StringRef lmul, weftrvv::PolicyAttr policy,
                                llvm::StringRef kernelName,
                                llvm::StringRef selectedVariantSymbol,
                                mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, tcrvrvv::WithVLOp::getOperationName());
+  mlir::OperationState state(loc, weftrvv::WithVLOp::getOperationName());
   state.addOperands(vl);
   state.addAttribute("sew", builder.getI64IntegerAttr(sew));
   state.addAttribute("lmul", builder.getStringAttr(lmul));
@@ -292,7 +292,7 @@ tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(kRVVConstructionProtocolAttrName,
                      builder.getStringAttr(kRVVConstructionProtocol));
   state.addRegion();
-  auto withVL = llvm::cast<tcrvrvv::WithVLOp>(builder.create(state));
+  auto withVL = llvm::cast<weftrvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
 }
@@ -301,7 +301,7 @@ tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
 // Typed flat block-dot loop-body construction (M-FLAT step 5b, q8_0 only).
 //
 // The gated typed path builds the COMPLETE per-block typed chain
-// (tcrv_rvv.typed_flat_block_dot_loop_body region: brick 1 dual-fp16 scale
+// (weft_rvv.typed_flat_block_dot_loop_body region: brick 1 dual-fp16 scale
 // product -> two per-block i8 loads -> signed widening product -> standalone
 // reduce -> lane0 scalar extract -> brick 2 computed-scale dequant -> brick 3
 // cross-block f32 accumulate -> yield) instead of the ONE monolith block-dot op.
@@ -318,7 +318,7 @@ mlir::Value createRVVBlockLoad(mlir::OpBuilder &builder, mlir::Location loc,
                                mlir::Value blockIndex, std::int64_t blockStride,
                                std::int64_t quantByteOffset,
                                mlir::Type vectorType) {
-  mlir::OperationState state(loc, tcrvrvv::LoadOp::getOperationName());
+  mlir::OperationState state(loc, weftrvv::LoadOp::getOperationName());
   state.addOperands({buffer, vl, blockIndex});
   state.addAttribute("block_stride", builder.getI64IntegerAttr(blockStride));
   state.addAttribute("quant_byte_offset",
@@ -332,7 +332,7 @@ mlir::Value createWideningProduct(mlir::OpBuilder &builder, mlir::Location loc,
                                   mlir::Value vl, mlir::Type productType,
                                   llvm::StringRef productRelation) {
   mlir::OperationState state(loc,
-                             tcrvrvv::WideningProductOp::getOperationName());
+                             weftrvv::WideningProductOp::getOperationName());
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr("signed_widening_product"));
   state.addAttribute("product_relation", builder.getStringAttr(productRelation));
@@ -351,7 +351,7 @@ mlir::Value createPackedI4OffsetBinaryProduct(
     mlir::Value activationLow, mlir::Value activationHigh, mlir::Value vl,
     mlir::Type productType, llvm::StringRef productRelation) {
   mlir::OperationState state(
-      loc, tcrvrvv::PackedI4OffsetBinaryXI8ProductOp::getOperationName());
+      loc, weftrvv::PackedI4OffsetBinaryXI8ProductOp::getOperationName());
   state.addOperands({weight, activationLow, activationHigh, vl});
   state.addAttribute(
       "kind", builder.getStringAttr("signed_packed_i4_offset_binary_x_i8_product"));
@@ -373,7 +373,7 @@ mlir::Value createUnsignedNibbleXI8Product(
     mlir::Value activationLow, mlir::Value activationHigh, mlir::Value vl,
     mlir::Type productType, llvm::StringRef productRelation) {
   mlir::OperationState state(
-      loc, tcrvrvv::UnsignedNibbleXI8ProductOp::getOperationName());
+      loc, weftrvv::UnsignedNibbleXI8ProductOp::getOperationName());
   state.addOperands({weight, activationLow, activationHigh, vl});
   state.addAttribute("kind",
                      builder.getStringAttr("unsigned_nibble_x_i8_product"));
@@ -395,7 +395,7 @@ mlir::Value createFiveBitOffsetBinaryXI8Product(
     mlir::Value qhSource, mlir::Value activationLow, mlir::Value activationHigh,
     mlir::Value vl, mlir::Type productType, llvm::StringRef productRelation) {
   mlir::OperationState state(
-      loc, tcrvrvv::FiveBitOffsetBinaryXI8ProductOp::getOperationName());
+      loc, weftrvv::FiveBitOffsetBinaryXI8ProductOp::getOperationName());
   state.addOperands({weight, qhSource, activationLow, activationHigh, vl});
   state.addAttribute(
       "kind", builder.getStringAttr("five_bit_offset_binary_x_i8_product"));
@@ -415,7 +415,7 @@ mlir::Value createCodebookTableBroadcast(mlir::OpBuilder &builder,
                                          llvm::StringRef tableSymbol,
                                          mlir::Type tableType) {
   mlir::OperationState state(
-      loc, tcrvrvv::CodebookTableBroadcastOp::getOperationName());
+      loc, weftrvv::CodebookTableBroadcastOp::getOperationName());
   state.addAttribute("codebook", builder.getDenseI8ArrayAttr(codebook));
   state.addAttribute("table_symbol", builder.getStringAttr(tableSymbol));
   state.addTypes(tableType);
@@ -437,7 +437,7 @@ mlir::Value createCodebookGatherXI8Product(
     mlir::Value activationLow, mlir::Value activationHigh, mlir::Value table,
     mlir::Value vl, mlir::Type productType, llvm::StringRef productRelation) {
   mlir::OperationState state(
-      loc, tcrvrvv::CodebookGatherXI8ProductOp::getOperationName());
+      loc, weftrvv::CodebookGatherXI8ProductOp::getOperationName());
   state.addOperands({weight, activationLow, activationHigh, table, vl});
   state.addAttribute(
       "kind", builder.getStringAttr("signed_codebook_gather_x_i8_product"));
@@ -450,7 +450,7 @@ mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
                                    mlir::Value input, mlir::Value accumulatorSeed,
                                    mlir::Value vl, mlir::Type resultType) {
   mlir::OperationState state(loc,
-                             tcrvrvv::StandaloneReduceOp::getOperationName());
+                             weftrvv::StandaloneReduceOp::getOperationName());
   state.addOperands({input, accumulatorSeed, vl});
   state.addAttribute("kind",
                      builder.getStringAttr("signed_widening_reduce_add"));
@@ -473,7 +473,7 @@ mlir::Value createBlockFp16ScaleProduct(mlir::OpBuilder &builder,
                                         std::int64_t lhsBlockStride,
                                         std::int64_t rhsBlockStride) {
   mlir::OperationState state(
-      loc, tcrvrvv::BlockFp16ScaleProductOp::getOperationName());
+      loc, weftrvv::BlockFp16ScaleProductOp::getOperationName());
   state.addOperands({lhsScaleBase, rhsScaleBase, blockIndex});
   state.addAttribute("kind",
                      builder.getStringAttr("dual_fp16_per_block_scale_product"));
@@ -498,7 +498,7 @@ mlir::Value createBlockFp16MinProduct(
     std::int64_t rhsBlockStride, std::int64_t lhsMinByteOffset,
     std::int64_t rhsSumByteOffset) {
   mlir::OperationState state(
-      loc, tcrvrvv::BlockFp16MinProductOp::getOperationName());
+      loc, weftrvv::BlockFp16MinProductOp::getOperationName());
   state.addOperands({lhsMinBase, rhsSumBase, blockIndex});
   state.addAttribute("kind",
                      builder.getStringAttr("dual_fp16_per_block_min_product"));
@@ -529,7 +529,7 @@ mlir::Value createBlockFiveBitQhSource(mlir::OpBuilder &builder,
                                        std::int64_t blockStride,
                                        std::int64_t qhByteOffset) {
   mlir::OperationState state(
-      loc, tcrvrvv::BlockFiveBitQhSourceOp::getOperationName());
+      loc, weftrvv::BlockFiveBitQhSourceOp::getOperationName());
   state.addOperands({qhBase, blockIndex});
   state.addAttribute("kind",
                      builder.getStringAttr("block_five_bit_qh_source"));
@@ -545,7 +545,7 @@ mlir::Value createTypedVectorLane0ToScalarExtract(mlir::OpBuilder &builder,
                                                   mlir::Value input,
                                                   mlir::Value vl) {
   mlir::OperationState state(
-      loc, tcrvrvv::TypedVectorLane0ToScalarExtractOp::getOperationName());
+      loc, weftrvv::TypedVectorLane0ToScalarExtractOp::getOperationName());
   state.addOperands({input, vl});
   state.addAttribute("kind",
                      builder.getStringAttr("vector_lane0_to_scalar_i32_extract"));
@@ -561,7 +561,7 @@ mlir::Value createBlockComputedScaleDequant(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value sumi,
     mlir::Value computedScale, mlir::Value minTerm = mlir::Value()) {
   mlir::OperationState state(
-      loc, tcrvrvv::BlockComputedScaleDequantOp::getOperationName());
+      loc, weftrvv::BlockComputedScaleDequantOp::getOperationName());
   if (minTerm)
     state.addOperands({sumi, computedScale, minTerm});
   else
@@ -579,7 +579,7 @@ mlir::Value createCrossBlockF32Accumulate(mlir::OpBuilder &builder,
                                           mlir::Location loc, mlir::Value acc,
                                           mlir::Value term) {
   mlir::OperationState state(
-      loc, tcrvrvv::CrossBlockF32AccumulateOp::getOperationName());
+      loc, weftrvv::CrossBlockF32AccumulateOp::getOperationName());
   state.addOperands({acc, term});
   state.addAttribute("kind",
                      builder.getStringAttr("cross_block_f32_scalar_accumulate"));
@@ -592,13 +592,13 @@ mlir::Value createCrossBlockF32Accumulate(mlir::OpBuilder &builder,
 void createTypedFlatBlockDotLoopYield(mlir::OpBuilder &builder,
                                       mlir::Location loc, mlir::Value accNext) {
   mlir::OperationState state(
-      loc, tcrvrvv::TypedFlatBlockDotLoopYieldOp::getOperationName());
+      loc, weftrvv::TypedFlatBlockDotLoopYieldOp::getOperationName());
   state.addOperands(accNext);
   (void)builder.create(state);
 }
 
 // The gated typed q8_0 path: build the whole per-block typed chain inside a new
-// tcrv_rvv.typed_flat_block_dot_loop_body region (result-less, region-carrying),
+// weft_rvv.typed_flat_block_dot_loop_body region (result-less, region-carrying),
 // replacing the ONE monolith block-dot op. The loop-body op's block strides / qk /
 // quant offset come from entry.facts (by-name lookup); multi_block_factor is OMITTED
 // (absent = mbf 1). weight/activation/out/n are the shared variant-scope ABI values;
@@ -635,19 +635,19 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // take the typed loop path; everything else stays the monolith op. q8_0's chain
   // is byte-unchanged from before the branch.
   const bool isQ40 =
-      entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ40Q80Op::getOperationName();
   // q4_1 (Family-B): shares q4_0's HALF-block m1 packed-i4 shape (3 loads, m1
   // core), diverging only in {u8 weight load, unsigned-nibble product op, the
   // added MIN brick, the scale_plus_min fold}. Every q4_0-guarded knob below is
   // shared (isQ40 || isQ41) EXCEPT the three-way fold_model.
   const bool isQ41 =
-      entry.opName == "tcrv_rvv.q4_1_q8_1_block_dot";
+      entry.opName == "weft_rvv.q4_1_q8_1_block_dot";
   // q5_0 (five-bit): shares the HALF-block m1 packed-i4 shape (3 loads, m1 core,
   // u8 weight load like q4_1), diverging in {the qh 5th-bit source brick, the
   // five-bit offset-binary product with the `-16` bias, the ScalesTimesSumi fold,
   // and a DISTINCT activation quant offset (weight qs@6, activation qs@2)}.
   const bool isQ50 =
-      entry.opName == "tcrv_rvv.q5_0_q8_0_block_dot";
+      entry.opName == "weft_rvv.q5_0_q8_0_block_dot";
   // q5_1 (Family-B five-bit, M-FLAT cohort LAST cell): the UNION of q5_0's
   // five-bit integer core (qh 5th-bit brick + five-bit product) and q4_1's MIN
   // term (min brick + scale_plus_min fold). Every knob is shared with EITHER q5_0
@@ -655,7 +655,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // brick, scale_plus_min fold) -- no q5_1-only knob. The ONE arithmetic delta vs
   // q5_0 (applyOffsetBias=false) lives entirely in the emit driver.
   const bool isQ51 =
-      entry.opName == "tcrv_rvv.q5_1_q8_1_block_dot";
+      entry.opName == "weft_rvv.q5_1_q8_1_block_dot";
   // iq4_nl (CODEBOOK class, 2nd primitive class): shares the q4_1 HALF-block m1
   // 3-load shape (a u8 packed-i4 weight + the two plain-i8 q8 halves), but the
   // weight nibble is a codebook INDEX (vrgather through the 16-entry kvalues
@@ -665,13 +665,13 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // to q8_0). It is NOT in isHalfBlock (that flag gates the offset-binary/unsigned
   // packed-i4 product branch); its high-half activation offset is sourced the SAME
   // way (activation_high_byte_offset).
-  const bool isIq4Nl = entry.opName == "tcrv_rvv.iq4_nl_q8_0_block_dot";
+  const bool isIq4Nl = entry.opName == "weft_rvv.iq4_nl_q8_0_block_dot";
   const bool isHalfBlock = isQ40 || isQ41 || isQ50 || isQ51;
   std::int64_t activationHighOffset =
       (isHalfBlock || isIq4Nl) ? factByName("activation_high_byte_offset") : 0;
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute("kind",
                          builder.getStringAttr("typed_flat_block_dot_loop_body"));
@@ -706,7 +706,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                                                                        : "elided"));
   // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedFlatBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -725,17 +725,17 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   llvm::StringRef coreLmul = lmul;
   llvm::StringRef wideLmul = (lmul == "m1") ? "m2" : "m4";
   mlir::Type i8VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI8Type(), coreLmul);
+      weftrvv::VectorType::get(ctx, builder.getI8Type(), coreLmul);
   // q4_1's packed weight strip is UNSIGNED (the nibble value IS the weight, the
   // `-8` folded into the block minimum), so the region weight LoadOp carries a
   // u8-m1 vector type (cf. the codebook front door). q4_0's weight strip stays
   // signed i8.
-  mlir::Type ui8VecType = tcrvrvv::VectorType::get(
+  mlir::Type ui8VecType = weftrvv::VectorType::get(
       ctx, builder.getIntegerType(8, /*isSigned=*/false), coreLmul);
   mlir::Type i16VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI16Type(), wideLmul);
+      weftrvv::VectorType::get(ctx, builder.getI16Type(), wideLmul);
   mlir::Type i32VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
+      weftrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
 
   // brick 1: the per-block d_x * d_y fp16 scale product over block_index (shared;
   // the AoS strides differ per format but the scale model is identical).
@@ -791,7 +791,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
     // decode); the gathered i8 weight lanes feed the SAME widening product tail
     // (i8m1 x i8m1x2 -> i16m2). fold_model is SumiTimesScales (the else-default).
     mlir::Value table = createCodebookTableBroadcast(
-        builder, loc, entry.codebook, "tcrv_iq4_nl_kvalues", i8VecType);
+        builder, loc, entry.codebook, "weft_iq4_nl_kvalues", i8VecType);
     mlir::Value wv =
         createRVVBlockLoad(builder, loc, weight, vl, blockIndex, weightStride,
                            quantByteOffset, ui8VecType);
@@ -905,7 +905,7 @@ void createTypedFlatBlockDotLoopChainQ10(
   mlir::Type i32ScalarType = builder.getI32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute("kind",
                          builder.getStringAttr("typed_flat_block_dot_loop_body"));
@@ -921,7 +921,7 @@ void createTypedFlatBlockDotLoopChainQ10(
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("flat_binary_two_level"));
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedFlatBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -941,7 +941,7 @@ void createTypedFlatBlockDotLoopChainQ10(
   // integer_core_lmul m2/m1 from the VLEN capability fact (kernel key "q1_0").
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotQ10Q80BinarySignCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotQ10Q80BinarySignCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, blockIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_q1_0_q8_0_binary_sign_core"));
@@ -1014,7 +1014,7 @@ void createTypedFlatBlockDotLoopChainNvfp4(
   mlir::Type i32ScalarType = builder.getI32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute("kind",
                          builder.getStringAttr("typed_flat_block_dot_loop_body"));
@@ -1031,7 +1031,7 @@ void createTypedFlatBlockDotLoopChainNvfp4(
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("flat_nvfp4_codebook"));
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedFlatBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1053,7 +1053,7 @@ void createTypedFlatBlockDotLoopChainNvfp4(
   // DenseI8ArrayAttr like the monolith.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, blockIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_nvfp4_q8_0_codebook_core"));
@@ -1087,11 +1087,11 @@ void createTypedFlatBlockDotLoopChainNvfp4(
 //
 // The super-block sibling of createTypedFlatBlockDotLoopChain: it assembles the
 // q4_K/q5_K OUTER nb = n/QK_K loop as ONE region-carrying
-// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a DUAL accumulator
+// weft_rvv.typed_super_block_block_dot_loop_body op carrying a DUAL accumulator
 // (the `sums` 8-lane fp32 vector + the `sumf` scalar fp32), with the 5 in-loop
 // q4_K bricks (nibble_unpack -> scale_min_bit_dance -> scaled_dot -> min_term ->
 // sums_fold_scale_d) + the dual yield inside the region, replacing the ONE
-// monolith tcrv_rvv.q4_k_q8_k_block_dot op. Every brick's per-super-block
+// monolith weft_rvv.q4_k_q8_k_block_dot op. Every brick's per-super-block
 // addressing keys off the loop induction variable (region arg 0), so the emit is
 // operand-driven (anti-bypass): a changed brick base operand emits a different
 // base, and a dropped block_index fails to legalize.
@@ -1147,12 +1147,12 @@ void createTypedSuperBlockBlockDotLoopChain(
 
   mlir::MLIRContext *ctx = builder.getContext();
   mlir::Type i32VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
+      weftrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
   mlir::Type f32M2VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getF32Type(), "m2");
+      weftrvv::VectorType::get(ctx, builder.getF32Type(), "m2");
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1166,7 +1166,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // integer_core_lmul is LEFT OFF (emitter default mf2) -- byte-identical to the
   // untuned monolith export.
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1180,7 +1180,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // BRICK 1: plain 4-bit nibble unpack -> aux8[256] scratch (Region A). Weight base
   // + block_index (per-super-block address vx + ib*144).
   {
-    mlir::OperationState s(loc, tcrvrvv::Q4KNibbleUnpackOp::getOperationName());
+    mlir::OperationState s(loc, weftrvv::Q4KNibbleUnpackOp::getOperationName());
     s.addOperands({weight, vl, sbIndex});
     s.addAttribute("kind", builder.getStringAttr("q4_k_nibble_unpack"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
@@ -1200,7 +1200,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // BRICK 2: 6-bit scale/min bit-dance -> utmp[4] scratch (Region B).
   {
     mlir::OperationState s(loc,
-                           tcrvrvv::Q4KScaleMinBitDanceOp::getOperationName());
+                           weftrvv::Q4KScaleMinBitDanceOp::getOperationName());
     s.addOperands({weight, vl, sbIndex});
     s.addAttribute("kind", builder.getStringAttr("q4_k_scale_min_bit_dance"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
@@ -1217,7 +1217,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // vestigial (emitter-owned), so they are wired to the weight base (%vx). q8 lives
   // at yb + activation_quant_byte_offset (4).
   {
-    mlir::OperationState s(loc, tcrvrvv::Q4KScaledDotOp::getOperationName());
+    mlir::OperationState s(loc, weftrvv::Q4KScaledDotOp::getOperationName());
     s.addOperands({weight, weight, activation, vl, sbIndex});
     s.addAttribute("kind", builder.getStringAttr("q4_k_scaled_dot"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
@@ -1233,7 +1233,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // BRICK 4: MIN term (sumf -= dmin * sum(mins * bsums)) -- the SCALAR sumf chain.
   // The scales scratch slot is vestigial -> wired to the weight base (%vx).
   {
-    mlir::OperationState s(loc, tcrvrvv::Q4KMinTermOp::getOperationName());
+    mlir::OperationState s(loc, weftrvv::Q4KMinTermOp::getOperationName());
     s.addOperands({weight, weight, activation, vl, sbIndex});
     s.addAttribute("kind", builder.getStringAttr("q4_k_min_term"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
@@ -1249,7 +1249,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // sums VECTOR chain. The aux32 scratch slot is vestigial -> wired to %vx.
   {
     mlir::OperationState s(loc,
-                           tcrvrvv::Q4KSumsFoldScaleDOp::getOperationName());
+                           weftrvv::Q4KSumsFoldScaleDOp::getOperationName());
     s.addOperands({weight, weight, activation, vl, sbIndex});
     s.addAttribute("kind", builder.getStringAttr("q4_k_sums_fold_scale_d"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
@@ -1263,7 +1263,7 @@ void createTypedSuperBlockBlockDotLoopChain(
   // The DUAL carried-out accumulators (sums vector + sumf scalar).
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sums, sumf});
     (void)builder.create(s);
   }
@@ -1275,15 +1275,15 @@ void createTypedSuperBlockBlockDotLoopChain(
 //
 // The q6_K sibling of createTypedSuperBlockBlockDotLoopChain. q6_K has NO
 // per-block min, so it assembles the OUTER nb = n/QK_K loop as ONE region-carrying
-// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE accumulator
+// weft_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE accumulator
 // (the `sums` 8-lane fp32 vector -- no `sumf` scalar), with just TWO in-loop
 // bricks inside the region: the q6_K INTEGER CORE
-// (tcrv_rvv.q6_k_q8_k_aux32_partial: the 2-bit qh + 8-bit signed scale unpack into
+// (weft_rvv.q6_k_q8_k_aux32_partial: the 2-bit qh + 8-bit signed scale unpack into
 // the per-super-block aux32[8]) followed by the REUSED no-min positive fold
-// (tcrv_rvv.q4_k_sums_fold_scale_d: sums += fp16(x.d) * y.d * (float)aux32, the
+// (weft_rvv.q4_k_sums_fold_scale_d: sums += fp16(x.d) * y.d * (float)aux32, the
 // SAME positive fold q4_K/q5_K use, differing only in the d byte offset 208), then
 // a SINGLE yield naming the `sums` vector. It replaces the ONE monolith
-// tcrv_rvv.q6_k_q8_k_block_dot op. fold_model "scales_times_sumi" KEYS the
+// weft_rvv.q6_k_q8_k_block_dot op. fold_model "scales_times_sumi" KEYS the
 // single-accumulator arity (the loop op verifier rejects a sumf-carrying yield
 // here). Each brick's per-super-block addressing keys off the loop induction
 // variable (region arg 0), so the emit is operand-driven (anti-bypass).
@@ -1325,7 +1325,7 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // the hmask high-bit plane @0 + the 2-bit qs plane @32. The reused positive fold
   // + single `sums` yield are IDENTICAL.
   const bool isQ3K =
-      entry.opName == tcrvrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
   std::int64_t weightQhOffset = isQ3K ? 0 : factByName("weight_qh_byte_offset");
   std::int64_t weightHmaskOffset =
       isQ3K ? factByName("weight_hmask_byte_offset") : 0;      //   0
@@ -1334,12 +1334,12 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
 
   mlir::MLIRContext *ctx = builder.getContext();
   mlir::Type i32VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
+      weftrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
   mlir::Type f32M2VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getF32Type(), "m2");
+      weftrvv::VectorType::get(ctx, builder.getF32Type(), "m2");
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1354,7 +1354,7 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // integer_core_lmul is LEFT OFF (emitter default mf2) -- byte-identical to the
   // untuned monolith export.
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1372,8 +1372,8 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // SUBTRACTIVE-hmask unpack + the SIGNED 6-bit scale dance (its OWN brick op).
   {
     mlir::OperationState s(
-        loc, isQ3K ? tcrvrvv::GgmlBlockDotQ3KQ8KAux32Op::getOperationName()
-                   : tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op::getOperationName());
+        loc, isQ3K ? weftrvv::GgmlBlockDotQ3KQ8KAux32Op::getOperationName()
+                   : weftrvv::GgmlBlockDotQ6KQ8KAux32Op::getOperationName());
     s.addOperands({weight, activation, weight, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr(isQ3K ? "ggml_q3_k_q8_k_aux32_partial"
@@ -1414,7 +1414,7 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // fold's fixed 8-lane facts (32/8), which the 8-lane fp fold does not read.
   {
     mlir::OperationState s(loc,
-                           tcrvrvv::Q4KSumsFoldScaleDOp::getOperationName());
+                           weftrvv::Q4KSumsFoldScaleDOp::getOperationName());
     s.addOperands({weight, weight, activation, vl, sbIndex});
     s.addAttribute("kind", builder.getStringAttr("q4_k_sums_fold_scale_d"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
@@ -1428,7 +1428,7 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // The SINGLE carried-out accumulator (the `sums` vector ONLY -- no sumf).
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sums});
     (void)builder.create(s);
   }
@@ -1443,15 +1443,15 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
 // SCALAR `sumf += dall*isum - dmin*summs` (isum/summs being the two SCALAR
 // integer states of the q2_K integer core), NOT an 8-lane deferred vector. So it
 // assembles the OUTER nb = n/QK_K loop as ONE region-carrying
-// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE `sumf`
+// weft_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE `sumf`
 // SCALAR accumulator (region args (index, sumf:f32)), with just ONE in-loop brick
 // inside the region: the q2_K INTEGER CORE
-// (tcrv_rvv.q2_k_q8_k_integer_core: the 2-bit unpack + PLAIN uint4-nibble scale/
+// (weft_rvv.q2_k_q8_k_integer_core: the 2-bit unpack + PLAIN uint4-nibble scale/
 // min + per-sub-block scalar i32 dot producing the two scalar states isum +
 // summs), then a SINGLE yield naming the `sumf` scalar. The scalar fold itself
 // (dall*isum - dmin*summs, fp16 d@80/dmin@82) has NO separate fold brick -- its
 // offsets are FIXED block_q2_K constants, so the SCALAR-accumulator lowering
-// emitter inlines it. It replaces the ONE monolith tcrv_rvv.q2_k_q8_k_block_dot
+// emitter inlines it. It replaces the ONE monolith weft_rvv.q2_k_q8_k_block_dot
 // op. fold_model "scalar_scale_min" KEYS the scalar-accumulator arity (the loop
 // op verifier rejects an 8-lane `sums` vector region here). The brick's
 // per-super-block addressing keys off the loop induction variable (region arg 0),
@@ -1488,7 +1488,7 @@ void createTypedSuperBlockScalarScaleMinLoopChain(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1503,7 +1503,7 @@ void createTypedSuperBlockScalarScaleMinLoopChain(
   // integer_core_lmul is LEFT OFF (q2_K carries no shape knob; the emitter's
   // fixed e8m1/i16m2/i32m1 dot matches the untuned monolith byte-identically).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1521,7 +1521,7 @@ void createTypedSuperBlockScalarScaleMinLoopChain(
   // vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_q2_k_q8_k_integer_core"));
@@ -1549,7 +1549,7 @@ void createTypedSuperBlockScalarScaleMinLoopChain(
   // `sums` vector, no second min-term operand).
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -1563,17 +1563,17 @@ void createTypedSuperBlockScalarScaleMinLoopChain(
 // accumulator arity as q2_K, with sumi (the qh-scaled POSITIVE ternary-grid dot) and
 // sumi1 (the iq1_s DELTA-bsum integer sum) being the two SCALAR i32 states of the
 // iq1_s grid core. So it assembles the OUTER nb = n/QK_K loop as ONE region-carrying
-// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE `sumf` SCALAR
+// weft_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE `sumf` SCALAR
 // accumulator (region args (index, sumf:f32)), with just ONE in-loop brick inside
 // the region: the iq1_s TERNARY-grid INTEGER CORE
-// (tcrv_rvv.iq1_s_q8_k_grid_core: the 11-bit grid index build from qs+qh + the
+// (weft_rvv.iq1_s_q8_k_grid_core: the 11-bit grid index build from qs+qh + the
 // vluxei16 ternary-grid gather + the signed widening grid dot + the qh-encoded
 // per-sub-block scale + the delta-bsum sum, producing the two scalar states sumi +
 // sumi1), then a SINGLE yield naming the `sumf` scalar. The scalar delta fold itself
 // (d*((float)sumi + 0.125f*(float)sumi1), fp16 x.d @0 / fp32 y.d @0) has NO separate
 // fold brick -- its offsets are FIXED block_iq1_s / block_q8_K constants, so the
 // SCALAR-accumulator GRID lowering emitter inlines it. It replaces the ONE monolith
-// tcrv_rvv.iq1_s_q8_k_block_dot op (RETIRED the SAME action as the flip). fold_model
+// weft_rvv.iq1_s_q8_k_block_dot op (RETIRED the SAME action as the flip). fold_model
 // "scalar_delta_grid" KEYS the scalar-accumulator arity AND the iq1_s grid emitter
 // (the loop op verifier rejects an 8-lane `sums` vector region here; the emitter
 // dispatch keys the grid gather off this fold_model). The brick's per-super-block
@@ -1611,7 +1611,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChain(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1627,7 +1627,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChain(
   // integer_core_lmul is LEFT OFF (iq1_s carries no shape knob; the emitter's fixed
   // vluxei16/i8m2 grid dot matches the untuned monolith byte-identically).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1645,7 +1645,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChain(
   // registers, like q2_K's). Per-super-block address vx + ib*50, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ1SQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq1_s_q8_k_grid_core"));
@@ -1675,7 +1675,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChain(
   // emitter-inlined).
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -1683,12 +1683,12 @@ void createTypedSuperBlockScalarDeltaGridLoopChain(
 
 // The iq1_m sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the C2
 // marginal-cost payoff. iq1_m REUSES the WHOLE iq1_s super-block SCALAR-accumulator
-// GRID scaffold (the SAME loop op tcrv_rvv.typed_super_block_block_dot_loop_body with
+// GRID scaffold (the SAME loop op weft_rvv.typed_super_block_block_dot_loop_body with
 // fold_model "scalar_delta_grid", the SAME single `sumf` scalar accumulator + region
 // (index, sumf:f32) contract, the SAME selector SuperBlockScalarDeltaGrid, the SAME
 // emitter dispatch, the SAME single-yield): the ONLY marginal cost is a DISTINCT
 // in-loop brick -- the iq1_m TERNARY-grid integer core
-// (tcrv_rvv.iq1_m_q8_k_grid_core, producing the two scalar states sumi1 (the qh-index
+// (weft_rvv.iq1_m_q8_k_grid_core, producing the two scalar states sumi1 (the qh-index
 // half-scaled grid dot) + sumi2 (the per-group four-sign delta sum)) -- because
 // iq1_m's integer decode is structurally different (a packed-scale fp16 reconstruct,
 // TWO per-sub-block half scales ls1/ls2, a half-split per-half grid dot, a per-group
@@ -1727,7 +1727,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq1M(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1743,7 +1743,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq1M(
   // integer_core_lmul is LEFT OFF (iq1_m carries no shape knob; the emitter's fixed
   // vluxei16/i8m1/i16m2 grid dot matches the untuned monolith byte-identically).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1761,7 +1761,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq1M(
   // like iq1_s's). Per-super-block address vx + ib*56, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ1MQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ1MQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq1_m_q8_k_grid_core"));
@@ -1792,7 +1792,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq1M(
   // emitter-inlined). IDENTICAL to iq1_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -1803,10 +1803,10 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq1M(
 // the SAME SINGLE per-super-block SCALAR accumulator arity as iq1_s (fold_model
 // "scalar_delta_grid", single `sumf` scalar, emitter-inlined fold), REUSING the whole
 // iq1_s super-block SCALAR-accumulator GRID scaffold (the SAME loop op
-// tcrv_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the
+// weft_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the
 // SAME selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY
 // marginal cost is a DISTINCT in-loop brick -- the iq3_xxs GRID-of-4 integer core
-// (tcrv_rvv.iq3_xxs_q8_k_grid_core, producing the ONE scalar state bsum) -- because
+// (weft_rvv.iq3_xxs_q8_k_grid_core, producing the ONE scalar state bsum) -- because
 // iq3_xxs's decode is structurally different from iq1: the 256-entry uint32
 // iq3xxs_grid GRID-of-4 gathered via vluxei16_v_i32m1 (vs iq1_s's uint64 grid-of-8),
 // the per-sign-group ksigns_iq2xs SIGN plane (per-group 7-bit selectors), the
@@ -1846,7 +1846,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1862,7 +1862,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
   // integer_core_lmul is LEFT OFF (iq3_xxs carries no shape knob; the emitter's fixed
   // vluxei16/i8m1/i16m2 grid-of-4 dot matches the untuned monolith byte-identically).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -1880,7 +1880,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
   // register, like iq1_s's states). Per-super-block address vx + ib*98, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ3XXSQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq3_xxs_q8_k_grid_core"));
@@ -1912,7 +1912,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
   // iq1_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -1924,10 +1924,10 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
 // per-super-block SCALAR accumulator arity as iq1_s/iq3_xxs (fold_model
 // "scalar_delta_grid", single `sumf` scalar, emitter-inlined fold), REUSING the whole
 // iq1_s super-block SCALAR-accumulator GRID scaffold (the SAME loop op
-// tcrv_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the SAME
+// weft_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the SAME
 // selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY marginal cost
 // is a DISTINCT in-loop brick -- the iq3_s GRID-of-4 explicit-signs integer core
-// (tcrv_rvv.iq3_s_q8_k_grid_core, producing the ONE scalar state bsum) -- because iq3_s's
+// (weft_rvv.iq3_s_q8_k_grid_core, producing the ONE scalar state bsum) -- because iq3_s's
 // decode swaps THREE mechanisms from iq3_xxs to iq2_s: the 512-entry uint32 iq3s_grid
 // GRID-of-4 gathered via vluxei16_v_i32m1 (a LARGER 9-bit-index table than iq3_xxs's
 // 256-entry 8-bit one), the qh 9th-bit inject (mask 256, the two passes taking shifts
@@ -1973,7 +1973,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -1990,7 +1990,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
   // integer_core_lmul is LEFT OFF (iq3_s carries no shape knob; the emitter's fixed
   // vluxei16/i8m1/i16m2 grid-of-4 dot matches the untuned monolith byte-identically).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2009,7 +2009,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
   // ib*110, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ3SQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ3SQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq3_s_q8_k_grid_core"));
@@ -2045,7 +2045,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
   // factor). IDENTICAL to iq1_s/iq3_xxs's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2057,10 +2057,10 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
 // fold is the SAME SINGLE per-super-block SCALAR accumulator arity as iq1_s/iq3_s
 // (fold_model "scalar_delta_grid", single `sumf` scalar, emitter-inlined fold), REUSING the
 // whole iq1_s super-block SCALAR-accumulator scaffold (the SAME loop op
-// tcrv_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the SAME
+// weft_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the SAME
 // selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY marginal cost is
 // a DISTINCT in-loop brick -- the iq4_xs CODEBOOK integer core
-// (tcrv_rvv.iq4_xs_q8_k_codebook_core) -- because iq4_xs's decode swaps the grid gather for
+// (weft_rvv.iq4_xs_q8_k_codebook_core) -- because iq4_xs's decode swaps the grid gather for
 // iq4_nl's 16-entry non-linear int8 CODEBOOK gather (the SAME kvalues_iq4nl[16] vrgather
 // lookup iq4_nl uses, carried as a DenseI8ArrayAttr:$codebook) wrapped in the q4_K-style
 // super-block SIGNED 6-bit scale bit-dance (per-sub-block ls = ((scales_l>>...)&0xf) |
@@ -2104,7 +2104,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq4xs(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -2122,7 +2122,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq4xs(
   // m1, and the emitter's fixed vrgather/i8m1/i16m2 codebook dot matches the untuned
   // monolith byte-identically).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2142,7 +2142,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq4xs(
   // 16-entry codebook (kvalues_iq4nl[16]) is carried as a DenseI8ArrayAttr like the monolith.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq4_xs_q8_k_codebook_core"));
@@ -2177,7 +2177,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq4xs(
   // factor). IDENTICAL to iq1_s/iq3_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2188,10 +2188,10 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq4xs(
 // whole fold is the SAME SINGLE per-super-block SCALAR accumulator arity as iq1_s/iq3_s
 // (fold_model "scalar_delta_grid", single `sumf` scalar, emitter-inlined fold), REUSING the
 // whole iq1_s super-block SCALAR-accumulator scaffold (the SAME loop op
-// tcrv_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the SAME
+// weft_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield contract, the SAME
 // selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY marginal cost is a
 // DISTINCT in-loop brick -- the tq2_0 FUSED 2-bit TERNARY integer core
-// (tcrv_rvv.tq2_0_q8_k_ternary_core) -- because tq2_0's decode is ARITHMETIC (q2_K's 2-bit
+// (weft_rvv.tq2_0_q8_k_ternary_core) -- because tq2_0's decode is ARITHMETIC (q2_K's 2-bit
 // `(qs>>shift)&3` unpack + the per-element `-1` ternary bias, NO grid/codebook gather). Its
 // whole fold is a single per-super-block scalar `sumf += (float)sumi * d` with `d = fp16(x.d
 // @64) * y.d @0` and NO trailing factor, so the whole per-super-block body is emitter-inlined
@@ -2225,7 +2225,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -2243,7 +2243,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
   // byte-exact CORE target); tq2_0's Win-A gearbox lives on the ternary-core brick below and
   // is refined m2->m1 at VLEN>=256 by the separate schedule pass.
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2263,7 +2263,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
   // so the gearbox is free to stamp integer_core_lmul m2/m1 from the VLEN capability fact.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_tq2_0_q8_k_ternary_core"));
@@ -2292,7 +2292,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
   // NO trailing factor). IDENTICAL to iq1_s/iq3_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2303,10 +2303,10 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
 // TERNARY ({-1,0,+1}) TriLM K-quant whose whole fold is the SAME SINGLE per-super-block
 // SCALAR accumulator arity as tq2_0/iq1_s (fold_model "scalar_delta_grid", single `sumf`
 // scalar, emitter-inlined fold), REUSING the WHOLE tq2_0 ternary scaffold at C2 marginal cost
-// (the SAME loop op tcrv_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield
+// (the SAME loop op weft_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield
 // contract, the SAME selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY
 // marginal cost is a DISTINCT in-loop brick -- the tq1_0 BASE-3 TERNARY integer core
-// (tcrv_rvv.tq1_0_q8_k_ternary_core) -- because tq1_0's decode is base-3 (the `q =
+// (weft_rvv.tq1_0_q8_k_ternary_core) -- because tq1_0's decode is base-3 (the `q =
 // (uint8_t)(byte*pow3[l]); xi = ((uint16_t)q*3)>>8; xi-1` power-of-three trit unpack over the
 // qs+qh weight arrays, NOT tq2_0's `(qs>>shift)&3` 2-bit field). Its whole fold is a single
 // per-super-block scalar `sumf += (float)sumi * d` with `d = fp16(x.d @52) * y.d @0` and NO
@@ -2343,7 +2343,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -2361,7 +2361,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
   // byte-exact CORE target); tq1_0's Win-A gearbox lives on the ternary-core brick below and
   // is refined m2->m1 at VLEN>=256 by the separate schedule pass.
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2381,7 +2381,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
   // free to stamp integer_core_lmul m2/m1 from the VLEN capability fact.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_tq1_0_q8_k_ternary_core"));
@@ -2411,7 +2411,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
   // NO trailing factor). IDENTICAL to tq2_0/iq1_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2425,7 +2425,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
 // GRID scaffold (the SAME loop op, the SAME single-yield contract, the SAME selector
 // SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY marginal cost is a
 // DISTINCT in-loop brick -- the iq2_xxs GRID-of-8 integer core
-// (tcrv_rvv.iq2_xxs_q8_k_grid_core, producing the ONE scalar state bsum) -- because
+// (weft_rvv.iq2_xxs_q8_k_grid_core, producing the ONE scalar state bsum) -- because
 // iq2_xxs's decode is structurally different: the 256-entry uint64 iq2xxs_grid GRID-of-8
 // gathered via vluxei16_v_i64<core> (vs iq3_xxs's uint32 grid-of-4), the SIGN read via a
 // SECOND vluxei16 gather over the DERIVED keven_signs_q2xs signs64 sign plane (vs
@@ -2465,7 +2465,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -2482,7 +2482,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
   // default = the retired monolith's byte-exact default; the unified autotuner REFINES
   // m2->m1 at VLEN256 by stamping the brick -- the Win-A gearbox, preserved).
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2500,7 +2500,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
   // iq2_xxs's bsum is a scalar register). Per-super-block address vx + ib*66, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ2XXSQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq2_xxs_q8_k_grid_core"));
@@ -2530,7 +2530,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
   // yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2544,7 +2544,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
 // SCALAR-accumulator GRID scaffold (the SAME loop op, the SAME single-yield contract, the
 // SAME selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY marginal
 // cost is a DISTINCT in-loop brick -- the iq2_xs per-half-explicit-scale GRID integer core
-// (tcrv_rvv.iq2_xs_q8_k_grid_core, producing the ONE scalar state bsum) -- because iq2_xs's
+// (weft_rvv.iq2_xs_q8_k_grid_core, producing the ONE scalar state bsum) -- because iq2_xs's
 // decode is structurally different from iq2_xxs: the 512-entry uint64 iq2xs_grid indexed by
 // the 9-bit `w & 511` of each uint16 qs word (vs iq2_xxs's 256-entry aux1-interleaved
 // grid), the SIGN read via a SECOND vluxei16 gather over the DERIVED keven_signs_q2xs
@@ -2586,7 +2586,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -2601,7 +2601,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("scalar_delta_grid"));
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2620,7 +2620,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
   // Per-super-block address vx + ib*74, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ2XSQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq2_xs_q8_k_grid_core"));
@@ -2651,7 +2651,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
   // iq1_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2665,7 +2665,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
 // SCALAR-accumulator GRID scaffold (the SAME loop op, the SAME single-yield contract, the
 // SAME selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY marginal
 // cost is a DISTINCT in-loop brick -- the iq2_s per-half-explicit-scale GRID integer core
-// (tcrv_rvv.iq2_s_q8_k_grid_core, producing the ONE scalar state bsum) -- because iq2_s's
+// (weft_rvv.iq2_s_q8_k_grid_core, producing the ONE scalar state bsum) -- because iq2_s's
 // decode is structurally different from iq2_xs: the 1024-entry uint64 iq2s_grid indexed by
 // the 10-bit `qs[l] | ((qh<<(8-2l))&0x300)` (a single index byte + 2 qh-plane bits, vs
 // iq2_xs's 9-bit `w & 511` of a uint16 qs word), the SIGN read via a SECOND vluxei16 gather
@@ -2711,7 +2711,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2s(
   mlir::Type f32ScalarType = builder.getF32Type();
 
   mlir::OperationState loopState(
-      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+      loc, weftrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
   loopState.addAttribute(
       "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
@@ -2726,7 +2726,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2s(
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("scalar_delta_grid"));
   loopState.addRegion();
-  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+  auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
 
   mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2745,7 +2745,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2s(
   // bsum is a scalar register). Per-super-block address vx + ib*82, vy + ib*292.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::GgmlBlockDotIQ2SQ8KGridCoreOp::getOperationName());
+        loc, weftrvv::GgmlBlockDotIQ2SQ8KGridCoreOp::getOperationName());
     s.addOperands({weight, activation, n, vl, sbIndex});
     s.addAttribute("kind",
                    builder.getStringAttr("ggml_iq2_s_q8_k_grid_core"));
@@ -2780,7 +2780,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2s(
   // iq1_s's yield -- the shared scaffold.
   {
     mlir::OperationState s(
-        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+        loc, weftrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
     s.addOperands({sumf});
     (void)builder.create(s);
   }
@@ -2814,23 +2814,23 @@ mlir::Value createBlockDot(mlir::OpBuilder &builder, mlir::Location loc,
   if (!entry.integerCoreLmul.empty())
     state.addAttribute("integer_core_lmul",
                        builder.getStringAttr(entry.integerCoreLmul));
-  state.addTypes(tcrvrvv::VectorType::get(builder.getContext(),
+  state.addTypes(weftrvv::VectorType::get(builder.getContext(),
                                           builder.getI32Type(), "m1"));
   return builder.create(state)->getResult(0);
 }
 
-tcrvexec::VariantOp createVariant(mlir::OpBuilder &builder, mlir::Location loc,
+weftexec::VariantOp createVariant(mlir::OpBuilder &builder, mlir::Location loc,
                                   llvm::StringRef selectedVariantSymbol,
                                   mlir::ArrayAttr requires,
-                                  tcrvrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, tcrvexec::VariantOp::getOperationName());
+                                  weftrvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, weftexec::VariantOp::getOperationName());
   state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
   state.addAttribute(kOriginAttrName,
                      builder.getStringAttr(getRVVExtensionPluginName()));
   state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("tcrv_rvv.policy", policy);
+  state.addAttribute("weft_rvv.policy", policy);
   state.addRegion();
-  auto variant = llvm::cast<tcrvexec::VariantOp>(builder.create(state));
+  auto variant = llvm::cast<weftexec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();
   return variant;
 }
@@ -2857,7 +2857,7 @@ mlir::LogicalResult createConservativeFallbackCapability(
 
 mlir::FailureOr<std::string> materializeConservativeFallbackVariantViaPlugin(
     const MonolithicBlockDotOpEntry &entry, mlir::OpBuilder &builder,
-    tcrvexec::KernelOp kernel, mlir::Operation *highLevelOp,
+    weftexec::KernelOp kernel, mlir::Operation *highLevelOp,
     const ExtensionPluginRegistry &registry,
     llvm::StringRef fallbackVariantSymbol) {
   llvm::Expected<support::TargetCapabilitySet> capabilities =
@@ -2918,17 +2918,17 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
                     llvm::StringRef fallbackVariantSymbol,
                     llvm::StringRef fallbackOrigin) {
   mlir::OperationState dispatchState(loc,
-                                     tcrvexec::DispatchOp::getOperationName());
+                                     weftexec::DispatchOp::getOperationName());
   dispatchState.addRegion();
   auto dispatch =
-      llvm::cast<tcrvexec::DispatchOp>(builder.create(dispatchState));
+      llvm::cast<weftexec::DispatchOp>(builder.create(dispatchState));
   dispatch.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(&dispatch.getBody().front());
 
   mlir::OperationState caseState(loc,
-                                 tcrvexec::DispatchCaseOp::getOperationName());
+                                 weftexec::DispatchCaseOp::getOperationName());
   caseState.addAttribute("target", symbolRef(builder, selectedVariantSymbol));
   caseState.addAttribute(kOriginAttrName,
                          builder.getStringAttr(getRVVExtensionPluginName()));
@@ -2936,7 +2936,7 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(caseState);
 
   mlir::OperationState fallbackState(loc,
-                                     tcrvexec::FallbackOp::getOperationName());
+                                     weftexec::FallbackOp::getOperationName());
   fallbackState.addAttribute("target",
                              symbolRef(builder, fallbackVariantSymbol));
   fallbackState.addAttribute(kOriginAttrName,
@@ -3021,15 +3021,15 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                   llvm::raw_ostream *attributionStream,
                   bool attributionNoTimestamp) {
   mlir::Location loc = source.func.getLoc();
-  tcrvrvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol = entry.variantSymbol.str();
   std::string fallbackVariantSymbol =
       (entry.variantSymbol + "_scalar_fallback").str();
 
-  mlir::OperationState kernelState(loc, tcrvexec::KernelOp::getOperationName());
+  mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
-  auto kernel = llvm::cast<tcrvexec::KernelOp>(builder.create(kernelState));
+  auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -3041,13 +3041,13 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     return mlir::failure();
   mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
 
-  tcrvexec::VariantOp rvvVariant =
+  weftexec::VariantOp rvvVariant =
       createVariant(builder, loc, selectedVariantSymbol, rvvRequires, policy);
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
   mlir::Type runtimeABIType =
-      tcrvrvv::RuntimeABIValueType::get(builder.getContext());
+      weftrvv::RuntimeABIValueType::get(builder.getContext());
   mlir::Type indexType = builder.getIndexType();
   mlir::Type i32Type = builder.getI32Type();
 
@@ -3091,15 +3091,15 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // Dispatch/coherence follow the constructed op format-agnostically.
   // multi_block_factor is pinned to 1 (absent on the loop-body op).
   const bool isQ80TypedFlat =
-      entry.opName == "tcrv_rvv.q8_0_q8_0_block_dot";
+      entry.opName == "weft_rvv.q8_0_q8_0_block_dot";
   const bool isQ40TypedFlat =
-      entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ40Q80Op::getOperationName();
   const bool isQ41TypedFlat =
-      entry.opName == "tcrv_rvv.q4_1_q8_1_block_dot";
+      entry.opName == "weft_rvv.q4_1_q8_1_block_dot";
   const bool isQ50TypedFlat =
-      entry.opName == "tcrv_rvv.q5_0_q8_0_block_dot";
+      entry.opName == "weft_rvv.q5_0_q8_0_block_dot";
   const bool isQ51TypedFlat =
-      entry.opName == "tcrv_rvv.q5_1_q8_1_block_dot";
+      entry.opName == "weft_rvv.q5_1_q8_1_block_dot";
   // iq4_nl (CODEBOOK class, 2nd primitive class): the 3rd flat DECODE axis flips to
   // the typed flat loop path (its codebook branch constructs the codebook_table_
   // broadcast + codebook_gather_x_i8_product bricks). Unlike the plain flat cores,
@@ -3107,35 +3107,35 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // the e8m1 codebook gather runs its own vsetvl INSIDE the region), so configSEW
   // stays 32 for it (below).
   const bool isIq4NlTypedFlat =
-      entry.opName == "tcrv_rvv.iq4_nl_q8_0_block_dot";
+      entry.opName == "weft_rvv.iq4_nl_q8_0_block_dot";
   const bool typedFlatLoopPath = isQ80TypedFlat || isQ40TypedFlat ||
                                  isQ41TypedFlat || isQ50TypedFlat ||
                                  isQ51TypedFlat || isIq4NlTypedFlat;
   // GATED typed SUPER-BLOCK path (M-FLAT q4_K milestone-3): q4_K's front door
   // constructs the COMPLETE per-super-block TYPED DUAL-accumulator loop chain
   // (typed_super_block_block_dot_loop_body region) instead of the ONE monolith
-  // tcrv_rvv.q4_k_q8_k_block_dot op. Unlike the flat typed path, the super-block
+  // weft_rvv.q4_k_q8_k_block_dot op. Unlike the flat typed path, the super-block
   // integer core runs at the shared SEW32/m1 config (the SAME setvl/with_vl the
   // monolith used -- the per-sub-block e8/i16/i32 widening lives INSIDE the bricks),
   // so configSEW/configLMUL are UNCHANGED from the monolith path (32/"m1"), and
   // there is NO zero_seed (the dual accumulators are seeded internally by the
   // lowering). Every other (monolith) row stays byte-unchanged.
   const bool isQ4KTypedSuperBlock =
-      entry.opName == tcrvrvv::GgmlBlockDotQ4KQ8KOp::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ4KQ8KOp::getOperationName();
   // q5_K first flip: q5_K == q4_K + the qh 5th-bit plane. It takes the SAME typed
   // super-block dual-accumulator loop chain (the 5 shared bricks + dual yield),
   // the ONLY addition being BRICK 1's weight_qh_byte_offset attr (stamped from
   // kQ5KFacts inside the chain builder). The stride-176 facts + qh offset flow
   // through entry.facts, so no q5_K-specific construction code is needed here.
   const bool isQ5KTypedSuperBlock =
-      entry.opName == tcrvrvv::GgmlBlockDotQ5KQ8KOp::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ5KQ8KOp::getOperationName();
   const bool isTypedSuperBlock = isQ4KTypedSuperBlock || isQ5KTypedSuperBlock;
   // q6_K first flip: q6_K has NO per-block min, so it flips to the typed super-block
   // SINGLE-accumulator loop chain (fold_model "scales_times_sumi" -- the aux32
   // integer core + the no-min positive fold + a single `sums` yield), NOT the
   // q4_K/q5_K dual chain. Its stride-210 facts flow through entry.facts.
   const bool isQ6KTypedSuperBlock =
-      entry.opName == tcrvrvv::GgmlBlockDotQ6KQ8KOp::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ6KQ8KOp::getOperationName();
   // q3_K first flip: q3_K is SYMMETRIC (NO per-block min), so it flips to the SAME
   // typed super-block SINGLE-accumulator loop chain as q6_K (fold_model
   // "scales_times_sumi" -- the q3_K aux32 integer core + the reused no-min positive
@@ -3143,7 +3143,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // 110, hmask/qs planes) from q6_K (stride 210, qh plane) by entry.opName; its
   // stride-110 facts flow through entry.facts.
   const bool isQ3KTypedSuperBlock =
-      entry.opName == tcrvrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
   // q2_K first flip: q2_K HAS a per-block min (like q4_K/q5_K) but its whole fold
   // is a SINGLE per-super-block SCALAR `sumf += dall*isum - dmin*summs`, so it
   // flips to the typed super-block SCALAR-accumulator loop chain (fold_model
@@ -3151,7 +3151,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // + a single `sumf` scalar yield), NOT the q4_K/q5_K dual nor the q6_K
   // single-vector chain. Its stride-84 facts flow through entry.facts.
   const bool isQ2KTypedSuperBlock =
-      entry.opName == tcrvrvv::GgmlBlockDotQ2KQ8KOp::getOperationName();
+      entry.opName == weftrvv::GgmlBlockDotQ2KQ8KOp::getOperationName();
   // iq1_s flip (L3 M3): iq1_s is a super-block GRID/codebook quant whose whole fold
   // is a SINGLE per-super-block SCALAR `sumf += d*((float)sumi + IQ1S_DELTA*
   // (float)sumi1)` (the SAME scalar-accumulator arity as q2_K), so it flips to the
@@ -3159,10 +3159,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // -- the iq1_s ternary-grid integer core + the emitter-inlined scalar delta fold +
   // a single `sumf` scalar yield), NOT the q4_K/q5_K dual, the q6_K single-vector,
   // nor q2_K's arithmetic scalar chain. Its stride-50 facts + the iq1s_grid flow
-  // through entry.facts. The monolith op tcrv_rvv.iq1_s_q8_k_block_dot is retired, so
+  // through entry.facts. The monolith op weft_rvv.iq1_s_q8_k_block_dot is retired, so
   // this gate keys off the entry.opName STRING (no op type reference).
   const bool isIq1sTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq1_s_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq1_s_q8_k_block_dot";
   // iq1_m flip (L3): iq1_m is the iq1_s sibling -- a super-block GRID/codebook quant
   // whose whole fold is the SAME SINGLE per-super-block SCALAR `sumf += d*((float)sumi1
   // + IQ1M_DELTA*(float)sumi2)` (fold_model "scalar_delta_grid"), REUSING the whole
@@ -3170,10 +3170,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // core brick (packed-scale reconstruct + half-split grid dot + per-group four-sign
   // delta). It flips to the typed super-block SCALAR-accumulator loop chain, resolving
   // to its OWN export entry by weight_block_stride 56 (vs iq1_s 50). The monolith op
-  // tcrv_rvv.iq1_m_q8_k_block_dot is retired, so this gate keys off the entry.opName
+  // weft_rvv.iq1_m_q8_k_block_dot is retired, so this gate keys off the entry.opName
   // STRING (no op type reference).
   const bool isIq1mTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq1_m_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq1_m_q8_k_block_dot";
   // iq3_xxs flip (L3 coverage): iq3_xxs is another iq1_s grid sibling -- a super-block
   // GRID/codebook quant whose whole fold is the SAME SINGLE per-super-block SCALAR
   // accumulator arity (fold_model "scalar_delta_grid"), REUSING the whole iq1_s
@@ -3181,10 +3181,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // brick (i32 iq3xxs_grid vluxei16 gather + aux32 4-bit-scale + 4-sign-group ksigns +
   // 0.25f trailing factor). It flips to the typed super-block SCALAR-accumulator loop
   // chain, resolving to its OWN export entry by weight_block_stride 98 (vs iq1_s 50,
-  // iq1_m 56). The monolith op tcrv_rvv.iq3_xxs_q8_k_block_dot is retired, so this gate
+  // iq1_m 56). The monolith op weft_rvv.iq3_xxs_q8_k_block_dot is retired, so this gate
   // keys off the entry.opName STRING (no op type reference).
   const bool isIq3xxsTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq3_xxs_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq3_xxs_q8_k_block_dot";
   // iq2_xxs flip (L3 coverage, SIGN-PLANE signs64 variant): iq2_xxs is another iq1_s grid
   // sibling -- a super-block GRID/codebook quant whose whole fold is the SAME SINGLE
   // per-super-block SCALAR accumulator arity (fold_model "scalar_delta_grid"), REUSING the
@@ -3194,10 +3194,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // decode + 0.125f trailing factor). It flips to the typed super-block SCALAR-accumulator
   // loop chain, resolving to its OWN export entry by weight_block_stride 66 (vs iq1_s 50,
   // iq1_m 56, iq3_xxs 98). The brick carries the SAME Win-A integer_core_lmul gearbox. The
-  // monolith op tcrv_rvv.iq2_xxs_q8_k_block_dot is retired, so this gate keys off the
+  // monolith op weft_rvv.iq2_xxs_q8_k_block_dot is retired, so this gate keys off the
   // entry.opName STRING (no op type reference).
   const bool isIq2xxsTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq2_xxs_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq2_xxs_q8_k_block_dot";
   // iq2_xs flip (L3 coverage, SIGN-PLANE signs64 variant, PER-HALF explicit scale): iq2_xs
   // is the iq2_xxs grid sibling -- a super-block GRID/codebook quant whose whole fold is the
   // SAME SINGLE per-super-block SCALAR accumulator arity (fold_model "scalar_delta_grid"),
@@ -3209,10 +3209,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // super-block SCALAR-accumulator loop chain, resolving to its OWN export entry by
   // weight_block_stride 74 (vs iq1_s 50, iq1_m 56, iq3_xxs 98, iq2_xxs 66). UNLIKE iq2_xxs
   // the brick carries NO gearbox (fixed 16-lane per-half shape). The monolith op
-  // tcrv_rvv.iq2_xs_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
+  // weft_rvv.iq2_xs_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
   // (no op type reference).
   const bool isIq2xsTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq2_xs_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq2_xs_q8_k_block_dot";
   // iq2_s flip (L3 coverage, SIGN-PLANE explicit-signs variant, PER-HALF explicit scale):
   // iq2_s is the iq2_xs grid sibling -- a super-block GRID/codebook quant whose whole fold is
   // the SAME SINGLE per-super-block SCALAR accumulator arity (fold_model "scalar_delta_grid"),
@@ -3224,10 +3224,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // to the typed super-block SCALAR-accumulator loop chain, resolving to its OWN export entry
   // by weight_block_stride 82 (vs iq1_s 50, iq1_m 56, iq3_xxs 98, iq2_xxs 66, iq2_xs 74). Like
   // iq2_xs the brick carries NO gearbox (fixed 16-lane per-half shape). The monolith op
-  // tcrv_rvv.iq2_s_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
+  // weft_rvv.iq2_s_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
   // (no op type reference).
   const bool isIq2sTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq2_s_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq2_s_q8_k_block_dot";
   // iq3_s flip (C_construct 22->23, EXPLICIT-SIGNS variant): iq3_s is the iq3_xxs GRID-of-4
   // sibling -- a super-block GRID/codebook quant whose whole fold is the SAME SINGLE
   // per-super-block SCALAR accumulator arity (fold_model "scalar_delta_grid"), REUSING the
@@ -3239,10 +3239,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // chain, resolving to its OWN export entry by weight_block_stride 110 (vs iq1_s 50, iq1_m
   // 56, iq3_xxs 98, iq2_xxs 66, iq2_xs 74, iq2_s 82). UNLIKE iq3_xxs there is NO ksigns
   // plane (the signs are an explicit memory region); NO gearbox (fixed grid-of-4 shape).
-  // The monolith op tcrv_rvv.iq3_s_q8_k_block_dot is retired, so this gate keys off the
+  // The monolith op weft_rvv.iq3_s_q8_k_block_dot is retired, so this gate keys off the
   // entry.opName STRING (no op type reference).
   const bool isIq3sTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq3_s_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq3_s_q8_k_block_dot";
   // iq4_xs flip (C_construct 23->24, the FIRST super-block CODEBOOK member): iq4_xs is the
   // SUPER-BLOCK rung of the flat iq4_nl codebook -- a super-block CODEBOOK quant whose whole
   // fold is the SAME SINGLE per-super-block SCALAR accumulator arity (fold_model
@@ -3254,10 +3254,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // 136 (vs iq1_s 50, iq1_m 56, iq3_xxs 98, iq2_xxs 66, iq2_xs 74, iq2_s 82, iq3_s 110).
   // UNLIKE the grid siblings the fold runs per-sub-block in float, but the single-scalar
   // accumulator arity is identical; NO gearbox (the codebook gather pins m1). The monolith
-  // op tcrv_rvv.iq4_xs_q8_k_block_dot is retired, so this gate keys off the entry.opName
+  // op weft_rvv.iq4_xs_q8_k_block_dot is retired, so this gate keys off the entry.opName
   // STRING (no op type reference).
   const bool isIq4xsTypedSuperBlock =
-      entry.opName == "tcrv_rvv.iq4_xs_q8_k_block_dot";
+      entry.opName == "weft_rvv.iq4_xs_q8_k_block_dot";
   // tq2_0 flip (C_construct 24->25, the FIRST TQ-family member): tq2_0 is the 2-bit TERNARY
   // ({-1,0,+1}) TriLM K-quant whose whole fold is the SAME SINGLE per-super-block SCALAR
   // accumulator arity (fold_model "scalar_delta_grid"), REUSING the whole iq1_s scaffold; the
@@ -3268,10 +3268,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // pass name (it SHARES weight_block_stride 66 with iq2_xxs but the DISTINCT brick op type
   // disambiguates the emitter). UNLIKE the iq4_xs codebook sibling the brick PRESERVES tq2_0's
   // Win-A integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"). The monolith op
-  // tcrv_rvv.tq2_0_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
+  // weft_rvv.tq2_0_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
   // (no op type reference).
   const bool isTq20TypedSuperBlock =
-      entry.opName == "tcrv_rvv.tq2_0_q8_k_block_dot";
+      entry.opName == "weft_rvv.tq2_0_q8_k_block_dot";
   // tq1_0 flip (C_construct 25->26, the SECOND TQ-family member): tq1_0 is the BASE-3
   // TERNARY ({-1,0,+1}) TriLM K-quant whose whole fold is the SAME SINGLE per-super-block
   // SCALAR accumulator arity (fold_model "scalar_delta_grid"), REUSING the whole tq2_0
@@ -3282,10 +3282,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // the marker pass name (its weight_block_stride 54 is UNIQUE among the scalar_delta_grid
   // bricks, so no stride tie-breaker is needed). Like tq2_0 the brick PRESERVES tq1_0's Win-A
   // integer_core_lmul m2/m1 gearbox (kernel key "tq1_0"). The monolith op
-  // tcrv_rvv.tq1_0_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
+  // weft_rvv.tq1_0_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
   // (no op type reference).
   const bool isTq10TypedSuperBlock =
-      entry.opName == "tcrv_rvv.tq1_0_q8_k_block_dot";
+      entry.opName == "weft_rvv.tq1_0_q8_k_block_dot";
   // q1_0 flip (C_construct 26->27, the LAST flat block-dot family member): q1_0 is
   // the BINARY {-1,+1}-sign class whose per-super-block contribution is a
   // FOUR-sub-block binary sign decode with a DISTINCT TWO-LEVEL fp32 fold
@@ -3296,9 +3296,9 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // chain. It is DELIBERATELY kept OUT of typedFlatLoopPath: q1_0's OUTER with_vl
   // frame stays SEW32/m1 (like the monolith / iq4_nl -- the e8m2 binary sign
   // decode runs its OWN vsetvl INSIDE the brick), whereas typedFlatLoopPath forces
-  // the SEW8 outer config. The monolith op tcrv_rvv.q1_0_q8_0_block_dot is retired,
+  // the SEW8 outer config. The monolith op weft_rvv.q1_0_q8_0_block_dot is retired,
   // so this gate keys off the entry.opName STRING (no op type reference).
-  const bool isQ10TypedFlat = entry.opName == "tcrv_rvv.q1_0_q8_0_block_dot";
+  const bool isQ10TypedFlat = entry.opName == "weft_rvv.q1_0_q8_0_block_dot";
   // nvfp4 flip (C_construct 27->28, the LAST dispatch-wired vec_dot, closing the ①
   // G1 literal-block-dot zoo): nvfp4 (NVIDIA's FP4, the SECOND FP4-CODEBOOK class) is
   // a SUPER-BLOCK codebook quant whose 64 elements span TWO block_q8_0 activation
@@ -3309,10 +3309,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // chain. Like q1_0 it is DELIBERATELY kept OUT of typedFlatLoopPath: nvfp4's OUTER
   // with_vl frame stays SEW32/m1 (the e8m1 codebook strip runs its OWN vsetvl INSIDE
   // the brick), whereas typedFlatLoopPath forces the SEW8 outer config. The monolith
-  // op tcrv_rvv.nvfp4_q8_0_block_dot is retired, so this gate keys off the
+  // op weft_rvv.nvfp4_q8_0_block_dot is retired, so this gate keys off the
   // entry.opName STRING (no op type reference).
   const bool isNvfp4TypedFlat =
-      entry.opName == "tcrv_rvv.nvfp4_q8_0_block_dot";
+      entry.opName == "weft_rvv.nvfp4_q8_0_block_dot";
   // iq4_nl frames its OUTER with_vl at SEW32/m1 (the codebook standalone_reduce
   // framing; the e8m1 gather core runs its own vsetvl inside the region), unlike the
   // plain flat cores which frame the OUTER config at SEW8.
@@ -3369,9 +3369,9 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                                      "zero_seed", "const int32_t *",
                                      "loop-body:reduce-seed", runtimeABIType);
 
-  tcrvrvv::SetVLOp setvl =
+  weftrvv::SetVLOp setvl =
       createSetVL(builder, loc, n, configSEW, configLMUL, policy);
-  tcrvrvv::WithVLOp withVL =
+  weftrvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), configSEW, configLMUL, policy,
                    kernelName, selectedVariantSymbol, rvvRequires);
 
@@ -3635,8 +3635,8 @@ requireRVVSourceOnlyModule(const MonolithicBlockDotOpEntry &entry,
     if (staleOp || op == module.getOperation())
       return;
     llvm::StringRef dialect = op->getName().getDialectNamespace();
-    if (dialect == "tcrv" || dialect == "tcrv_rvv" || dialect == "tcrv_toy" ||
-        dialect == "tcrv_tensorext_lite")
+    if (dialect == "weft" || dialect == "weft_rvv" || dialect == "weft_toy" ||
+        dialect == "weft_tensorext_lite")
       staleOp = op;
   });
   if (!staleOp)
@@ -3726,8 +3726,8 @@ public:
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
     registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
                     mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect, tcrvexec::TCRVExecDialect,
-                    tcrvrvv::TCRVRVVDialect>();
+                    mlir::vector::VectorDialect, weftexec::WEFTExecDialect,
+                    weftrvv::WEFTRVVDialect>();
   }
 
   void runOnOperation() final {
@@ -3748,7 +3748,7 @@ public:
 
     if (hasStaleRVVLoweringSeedMetadata(module)) {
       (void)fail(*entry, module,
-                 "rejected stale tcrv_rvv.lowering_seed metadata as RVV "
+                 "rejected stale weft_rvv.lowering_seed metadata as RVV "
                  "source-route authority");
       signalPassFailure();
       return;
@@ -3842,4 +3842,4 @@ llvm::Error registerRVVMonolithicBlockDotSourceFrontDoorPasses(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

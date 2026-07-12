@@ -1,4 +1,4 @@
-# RUN: tianchenrv-rvv-q4-0-q8-0-shape-selection-test | FileCheck %s
+# RUN: weft-rvv-q4-0-q8-0-shape-selection-test | FileCheck %s
 
 # The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 and the
 # Family-A sibling Q8_0 x Q8_0 block-dots: the COMPILER SELECTS the kernel shape,

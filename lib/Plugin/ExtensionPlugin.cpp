@@ -1,4 +1,4 @@
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -15,7 +15,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin {
+namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -139,8 +139,8 @@ void setDefaultUnsupportedRuntimeOwnershipMetadata(VariantEmissionPlan &plan) {
 }
 
 void appendVariantContext(llvm::raw_ostream &stream,
-                          tcrv::exec::VariantOp variant,
-                          tcrv::exec::KernelOp kernel) {
+                          weft::exec::VariantOp variant,
+                          weft::exec::KernelOp kernel) {
   stream << "variant ";
   if (variant)
     stream << "@" << variant.getSymName();
@@ -154,60 +154,60 @@ void appendVariantContext(llvm::raw_ostream &stream,
     stream << "<missing>";
 }
 
-llvm::Error makeVariantLegalityError(tcrv::exec::VariantOp variant,
-                                     tcrv::exec::KernelOp kernel,
+llvm::Error makeVariantLegalityError(weft::exec::VariantOp variant,
+                                     weft::exec::KernelOp kernel,
                                      llvm::Twine message) {
   std::string description;
   llvm::raw_string_ostream stream(description);
-  stream << "TianChen-RV variant legality verification failed for ";
+  stream << "Weft-RV variant legality verification failed for ";
   appendVariantContext(stream, variant, kernel);
   stream << ": " << message;
   return makePluginRegistryError(stream.str());
 }
 
-llvm::Error makeVariantCostError(tcrv::exec::VariantOp variant,
-                                 tcrv::exec::KernelOp kernel,
+llvm::Error makeVariantCostError(weft::exec::VariantOp variant,
+                                 weft::exec::KernelOp kernel,
                                  llvm::Twine message) {
   std::string description;
   llvm::raw_string_ostream stream(description);
-  stream << "TianChen-RV variant cost estimation failed for ";
+  stream << "Weft-RV variant cost estimation failed for ";
   appendVariantContext(stream, variant, kernel);
   stream << ": " << message;
   return makePluginRegistryError(stream.str());
 }
 
-llvm::Error makeVariantEmissionError(tcrv::exec::VariantOp variant,
-                                     tcrv::exec::KernelOp kernel,
+llvm::Error makeVariantEmissionError(weft::exec::VariantOp variant,
+                                     weft::exec::KernelOp kernel,
                                      VariantEmissionRole role,
                                      llvm::Twine message) {
   std::string description;
   llvm::raw_string_ostream stream(description);
-  stream << "TianChen-RV variant emission readiness check failed for ";
+  stream << "Weft-RV variant emission readiness check failed for ";
   appendVariantContext(stream, variant, kernel);
   stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
   return makePluginRegistryError(stream.str());
 }
 
-llvm::Error makeVariantEmissionPlanError(tcrv::exec::VariantOp variant,
-                                         tcrv::exec::KernelOp kernel,
+llvm::Error makeVariantEmissionPlanError(weft::exec::VariantOp variant,
+                                         weft::exec::KernelOp kernel,
                                          VariantEmissionRole role,
                                          llvm::Twine message) {
   std::string description;
   llvm::raw_string_ostream stream(description);
-  stream << "TianChen-RV variant emission plan collection failed for ";
+  stream << "Weft-RV variant emission plan collection failed for ";
   appendVariantContext(stream, variant, kernel);
   stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
   return makePluginRegistryError(stream.str());
 }
 
 llvm::Error
-makeVariantLoweringBoundaryError(tcrv::exec::VariantOp variant,
-                                 tcrv::exec::KernelOp kernel,
+makeVariantLoweringBoundaryError(weft::exec::VariantOp variant,
+                                 weft::exec::KernelOp kernel,
                                  VariantEmissionRole role,
                                  llvm::Twine message) {
   std::string description;
   llvm::raw_string_ostream stream(description);
-  stream << "TianChen-RV selected lowering-boundary materialization failed for ";
+  stream << "Weft-RV selected lowering-boundary materialization failed for ";
   appendVariantContext(stream, variant, kernel);
   stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
   return makePluginRegistryError(stream.str());
@@ -217,7 +217,7 @@ llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
                                      const VariantProposal &proposal,
                                      llvm::Twine message) {
   return makePluginRegistryError(
-      llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+      llvm::Twine("Weft-RV extension plugin '") + plugin.getName() +
       "' produced invalid variant proposal '" + proposal.getVariantName() +
       "': " + message);
 }
@@ -226,7 +226,7 @@ llvm::Error makeSourceFrontDoorPassRegistrationError(
     const ExtensionPlugin &plugin, const SourceFrontDoorPassRegistration &pass,
     llvm::Twine message) {
   return makePluginRegistryError(
-      llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+      llvm::Twine("Weft-RV extension plugin '") + plugin.getName() +
       "' produced invalid source front-door pass registration '" +
       pass.getArgument() + "': " + message);
 }
@@ -295,7 +295,7 @@ llvm::Error validateProposalPluginAttributes(const ExtensionPlugin &plugin,
       return makeVariantProposalError(
           plugin, proposal,
           llvm::Twine("plugin-owned attribute '") + name +
-              "' collides with required tcrv.exec.variant attribute");
+              "' collides with required weft.exec.variant attribute");
 
     if (!isValidPluginAttributeName(name))
       return makeVariantProposalError(
@@ -347,28 +347,28 @@ SourceFrontDoorPassRegistration::SourceFrontDoorPassRegistration(
       defaultArtifactFrontDoorPolicy(policy) {}
 
 VariantProposalRequest::VariantProposalRequest(
-    mlir::Operation *highLevelOp, tcrv::exec::KernelOp kernel,
+    mlir::Operation *highLevelOp, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities)
     : highLevelOp(highLevelOp), kernel(kernel), capabilities(capabilities) {}
 
 VariantLegalityRequest::VariantLegalityRequest(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities)
     : variant(variant), kernel(kernel), capabilities(capabilities) {}
 
 VariantCostRequest::VariantCostRequest(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities)
     : variant(variant), kernel(kernel), capabilities(capabilities) {}
 
 VariantEmissionRequest::VariantEmissionRequest(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities, VariantEmissionRole role)
     : variant(variant), kernel(kernel), capabilities(capabilities),
       role(role) {}
 
 VariantLoweringBoundaryRequest::VariantLoweringBoundaryRequest(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities, VariantEmissionRole role,
     mlir::OpBuilder &builder)
     : variant(variant), kernel(kernel), capabilities(capabilities), role(role),
@@ -376,14 +376,14 @@ VariantLoweringBoundaryRequest::VariantLoweringBoundaryRequest(
 
 VariantLoweringBoundaryValidationRequest::
     VariantLoweringBoundaryValidationRequest(
-        tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+        weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
         const support::TargetCapabilitySet &capabilities,
         VariantEmissionRole role, mlir::Operation *boundary)
     : variant(variant), kernel(kernel), capabilities(capabilities), role(role),
       boundary(boundary) {}
 
 VariantEmitCLowerableRequest::VariantEmitCLowerableRequest(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities, VariantEmissionRole role)
     : variant(variant), kernel(kernel), capabilities(capabilities), role(role) {}
 
@@ -484,13 +484,13 @@ VariantEmissionPlan VariantEmissionPlan::getUnsupported(
 }
 
 llvm::Error VariantEmissionPlan::setRequiredCapabilitySymbolsFromVariant(
-    tcrv::exec::VariantOp variant) {
+    weft::exec::VariantOp variant) {
   clearRequiredCapabilitySymbols();
 
   if (!variant)
     return makePluginRegistryError(
         "emission plan required capability metadata requires a materialized "
-        "tcrv.exec.variant");
+        "weft.exec.variant");
 
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -599,7 +599,7 @@ llvm::Error ExtensionPlugin::estimateVariantCost(
   out.setScore(0.0);
   out.setExplicitPreference(false);
   out.setOriginPlugin(getName());
-  if (tcrv::exec::VariantOp variant = request.getVariant())
+  if (weft::exec::VariantOp variant = request.getVariant())
     out.setVariantSymbol(variant.getSymName());
   return llvm::Error::success();
 }
@@ -677,11 +677,11 @@ llvm::Error ExtensionPluginRegistry::registerPlugin(
   llvm::StringRef name = plugin.getName();
   if (name.trim().empty())
     return makePluginRegistryError(
-        "TianChen-RV extension plugin name must be non-empty");
+        "Weft-RV extension plugin name must be non-empty");
 
   if (pluginsByName.count(name))
     return makePluginRegistryError(
-        llvm::Twine("duplicate TianChen-RV extension plugin '") + name + "'");
+        llvm::Twine("duplicate Weft-RV extension plugin '") + name + "'");
 
   if (llvm::Error error = plugin.verifyExecutableConstructionConformance()) {
     std::string message = llvm::toString(std::move(error));
@@ -871,24 +871,24 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
 
 llvm::Error ExtensionPluginRegistry::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
 
   if (!variant)
     return makeVariantLegalityError(
-        variant, kernel, "requires a materialized tcrv.exec.variant");
+        variant, kernel, "requires a materialized weft.exec.variant");
 
   if (!kernel)
     return makeVariantLegalityError(
-        variant, kernel, "requires an enclosing tcrv.exec.kernel");
+        variant, kernel, "requires an enclosing weft.exec.kernel");
 
-  tcrv::exec::KernelOp actualKernel =
-      variant->getParentOfType<tcrv::exec::KernelOp>();
+  weft::exec::KernelOp actualKernel =
+      variant->getParentOfType<weft::exec::KernelOp>();
   if (!actualKernel ||
       actualKernel.getOperation() != kernel.getOperation()) {
     return makeVariantLegalityError(
         variant, kernel,
-        "variant is not enclosed by the request tcrv.exec.kernel");
+        "variant is not enclosed by the request weft.exec.kernel");
   }
 
   auto originAttr =
@@ -923,10 +923,10 @@ llvm::Error ExtensionPluginRegistry::verifyVariantLegality(
 }
 
 llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
-    tcrv::exec::KernelOp kernel) const {
+    weft::exec::KernelOp kernel) const {
   if (!kernel)
-    return makeVariantLegalityError(tcrv::exec::VariantOp(), kernel,
-                                    "requires a tcrv.exec.kernel");
+    return makeVariantLegalityError(weft::exec::VariantOp(), kernel,
+                                    "requires a weft.exec.kernel");
 
   llvm::Expected<support::TargetCapabilitySet> capabilities =
       support::TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -936,19 +936,19 @@ llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
 }
 
 llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
-    tcrv::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities) const {
   if (!kernel)
-    return makeVariantLegalityError(tcrv::exec::VariantOp(), kernel,
-                                    "requires a tcrv.exec.kernel");
+    return makeVariantLegalityError(weft::exec::VariantOp(), kernel,
+                                    "requires a weft.exec.kernel");
 
   if (kernel.getBody().empty())
     return makeVariantLegalityError(
-        tcrv::exec::VariantOp(), kernel,
+        weft::exec::VariantOp(), kernel,
         "requires kernel to have a materialized body block");
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
     if (!variant)
       continue;
 
@@ -962,24 +962,24 @@ llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
 
 llvm::Error ExtensionPluginRegistry::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
 
   if (!variant)
     return makeVariantCostError(
-        variant, kernel, "requires a materialized tcrv.exec.variant");
+        variant, kernel, "requires a materialized weft.exec.variant");
 
   if (!kernel)
     return makeVariantCostError(
-        variant, kernel, "requires an enclosing tcrv.exec.kernel");
+        variant, kernel, "requires an enclosing weft.exec.kernel");
 
-  tcrv::exec::KernelOp actualKernel =
-      variant->getParentOfType<tcrv::exec::KernelOp>();
+  weft::exec::KernelOp actualKernel =
+      variant->getParentOfType<weft::exec::KernelOp>();
   if (!actualKernel ||
       actualKernel.getOperation() != kernel.getOperation()) {
     return makeVariantCostError(
         variant, kernel,
-        "variant is not enclosed by the request tcrv.exec.kernel");
+        "variant is not enclosed by the request weft.exec.kernel");
   }
 
   auto originAttr =
@@ -1021,22 +1021,22 @@ llvm::Error ExtensionPluginRegistry::estimateVariantCost(
 
 llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
     const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!variant)
     return makeVariantEmissionError(
-        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+        variant, kernel, role, "requires a materialized weft.exec.variant");
 
   if (!kernel)
     return makeVariantEmissionError(
-        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+        variant, kernel, role, "requires an enclosing weft.exec.kernel");
 
   if (variant->getParentOp() != kernel.getOperation())
     return makeVariantEmissionError(
         variant, kernel, role,
-        "variant is not directly enclosed by the request tcrv.exec.kernel");
+        "variant is not directly enclosed by the request weft.exec.kernel");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -1084,22 +1084,22 @@ llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
 
 llvm::Error ExtensionPluginRegistry::buildVariantEmissionPlan(
     const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!variant)
     return makeVariantEmissionPlanError(
-        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+        variant, kernel, role, "requires a materialized weft.exec.variant");
 
   if (!kernel)
     return makeVariantEmissionPlanError(
-        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+        variant, kernel, role, "requires an enclosing weft.exec.kernel");
 
   if (variant->getParentOp() != kernel.getOperation())
     return makeVariantEmissionPlanError(
         variant, kernel, role,
-        "variant is not directly enclosed by the request tcrv.exec.kernel");
+        "variant is not directly enclosed by the request weft.exec.kernel");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -1141,22 +1141,22 @@ llvm::Error ExtensionPluginRegistry::buildVariantEmissionPlan(
 llvm::Error ExtensionPluginRegistry::materializeSelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!variant)
     return makeVariantLoweringBoundaryError(
-        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+        variant, kernel, role, "requires a materialized weft.exec.variant");
 
   if (!kernel)
     return makeVariantLoweringBoundaryError(
-        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+        variant, kernel, role, "requires an enclosing weft.exec.kernel");
 
   if (variant->getParentOp() != kernel.getOperation())
     return makeVariantLoweringBoundaryError(
         variant, kernel, role,
-        "variant is not directly enclosed by the request tcrv.exec.kernel");
+        "variant is not directly enclosed by the request weft.exec.kernel");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -1207,17 +1207,17 @@ llvm::Error ExtensionPluginRegistry::
     validateVariantLoweringBoundaryValidationRequest(
         const VariantLoweringBoundaryValidationRequest &request,
         const ExtensionPlugin *&plugin, llvm::StringRef &origin) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!variant)
     return makeVariantLoweringBoundaryError(
-        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+        variant, kernel, role, "requires a materialized weft.exec.variant");
 
   if (!kernel)
     return makeVariantLoweringBoundaryError(
-        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+        variant, kernel, role, "requires an enclosing weft.exec.kernel");
 
   if (!request.getBoundary())
     return makeVariantLoweringBoundaryError(
@@ -1227,7 +1227,7 @@ llvm::Error ExtensionPluginRegistry::
   if (variant->getParentOp() != kernel.getOperation())
     return makeVariantLoweringBoundaryError(
         variant, kernel, role,
-        "variant is not directly enclosed by the request tcrv.exec.kernel");
+        "variant is not directly enclosed by the request weft.exec.kernel");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -1273,11 +1273,11 @@ llvm::Error ExtensionPluginRegistry::validateSelectedLoweringBoundary(
 }
 
 llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
-    tcrv::exec::KernelOp kernel) const {
+    weft::exec::KernelOp kernel) const {
   if (!kernel)
-    return makeVariantEmissionError(tcrv::exec::VariantOp(), kernel,
+    return makeVariantEmissionError(weft::exec::VariantOp(), kernel,
                                     VariantEmissionRole::DirectVariant,
-                                    "requires a tcrv.exec.kernel");
+                                    "requires a weft.exec.kernel");
 
   llvm::Expected<support::TargetCapabilitySet> capabilities =
       support::TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -1287,20 +1287,20 @@ llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
 }
 
 llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
-    tcrv::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities) const {
   if (!kernel)
-    return makeVariantEmissionError(tcrv::exec::VariantOp(), kernel,
+    return makeVariantEmissionError(weft::exec::VariantOp(), kernel,
                                     VariantEmissionRole::DirectVariant,
-                                    "requires a tcrv.exec.kernel");
+                                    "requires a weft.exec.kernel");
 
   if (kernel.getBody().empty())
     return makeVariantEmissionError(
-        tcrv::exec::VariantOp(), kernel, VariantEmissionRole::DirectVariant,
+        weft::exec::VariantOp(), kernel, VariantEmissionRole::DirectVariant,
         "requires kernel to have a materialized body block");
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
     if (!variant)
       continue;
 
@@ -1315,11 +1315,11 @@ llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
 }
 
 llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
-    tcrv::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel,
     llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
   if (!kernel)
-    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
-                                "requires a tcrv.exec.kernel");
+    return makeVariantCostError(weft::exec::VariantOp(), kernel,
+                                "requires a weft.exec.kernel");
 
   llvm::Expected<support::TargetCapabilitySet> capabilities =
       support::TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -1329,21 +1329,21 @@ llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
 }
 
 llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
-    tcrv::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities,
     llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
   if (!kernel)
-    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
-                                "requires a tcrv.exec.kernel");
+    return makeVariantCostError(weft::exec::VariantOp(), kernel,
+                                "requires a weft.exec.kernel");
 
   if (kernel.getBody().empty())
-    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
+    return makeVariantCostError(weft::exec::VariantOp(), kernel,
                                 "requires kernel to have a materialized body "
                                 "block");
 
   std::size_t originalIndex = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
     if (!variant)
       continue;
 
@@ -1360,11 +1360,11 @@ llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
 }
 
 llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
-    tcrv::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel,
     llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
   if (!kernel)
-    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
-                                "requires a tcrv.exec.kernel");
+    return makeVariantCostError(weft::exec::VariantOp(), kernel,
+                                "requires a weft.exec.kernel");
 
   llvm::Expected<support::TargetCapabilitySet> capabilities =
       support::TargetCapabilitySet::buildFromKernelChecked(kernel);
@@ -1374,7 +1374,7 @@ llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
 }
 
 llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
-    tcrv::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities,
     llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
   if (llvm::Error error = collectKernelVariantCosts(kernel, capabilities, out))
@@ -1409,12 +1409,12 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
     const VariantProposal &proposal) const {
   if (proposal.getVariantName().trim().empty())
     return makePluginRegistryError(
-        llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+        llvm::Twine("Weft-RV extension plugin '") + plugin.getName() +
         "' produced invalid variant proposal: variant name must be non-empty");
 
   if (proposal.getOriginPlugin().trim().empty())
     return makePluginRegistryError(
-        llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+        llvm::Twine("Weft-RV extension plugin '") + plugin.getName() +
         "' produced invalid variant proposal: origin plugin must be non-empty");
 
   const support::TargetCapabilitySet &capabilities = request.getCapabilities();
@@ -1470,8 +1470,8 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
 llvm::Error ExtensionPluginRegistry::validateVariantCostEstimate(
     const VariantCostRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantCostEstimate &estimate) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
 
   if (!estimate.hasScore())
     return makeVariantCostError(
@@ -1542,8 +1542,8 @@ llvm::Error ExtensionPluginRegistry::validateVariantCostEstimate(
 llvm::Error ExtensionPluginRegistry::validateVariantEmissionStatus(
     const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantEmissionStatus &status) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!status.hasStatus())
@@ -1599,8 +1599,8 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionStatus(
   return llvm::Error::success();
 }
 
-llvm::Error validateBoundedPlanText(tcrv::exec::VariantOp variant,
-                                    tcrv::exec::KernelOp kernel,
+llvm::Error validateBoundedPlanText(weft::exec::VariantOp variant,
+                                    weft::exec::KernelOp kernel,
                                     VariantEmissionRole role,
                                     const ExtensionPlugin &plugin,
                                     const VariantEmissionPlan &plan,
@@ -1625,7 +1625,7 @@ llvm::Error validateBoundedPlanText(tcrv::exec::VariantOp variant,
 }
 
 llvm::Error validatePlanRequiredCapabilitySymbols(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     VariantEmissionRole role, const ExtensionPlugin &plugin,
     const VariantEmissionPlan &plan) {
   auto requiresAttr =
@@ -1692,7 +1692,7 @@ llvm::Error validatePlanRequiredCapabilitySymbols(
 }
 
 llvm::Error validateRuntimeABIParameters(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     VariantEmissionRole role, const ExtensionPlugin &plugin,
     const VariantEmissionPlan &plan) {
   llvm::ArrayRef<support::RuntimeABIParameter> parameters =
@@ -1771,7 +1771,7 @@ llvm::Error validateRuntimeABIParameters(
 }
 
 llvm::Error validateCurrentArtifactKindShape(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     VariantEmissionRole role, const ExtensionPlugin &plugin,
     const VariantEmissionPlan &plan) {
   if (plan.getArtifactKind().trim().empty())
@@ -1796,8 +1796,8 @@ llvm::Error validateCurrentArtifactKindShape(
 llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
     const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantEmissionPlan &plan) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!plan.hasStatus())
@@ -1982,8 +1982,8 @@ llvm::Error ExtensionPluginRegistry::validateVariantLoweringBoundaryResult(
     const VariantLoweringBoundaryRequest &request,
     const ExtensionPlugin &plugin, llvm::StringRef origin,
     const VariantLoweringBoundaryResult &result) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
+  weft::exec::VariantOp variant = request.getVariant();
+  weft::exec::KernelOp kernel = request.getKernel();
   VariantEmissionRole role = request.getRole();
 
   if (!result.hasStatus())
@@ -2062,8 +2062,8 @@ llvm::Error ExtensionPluginRegistry::validateVariantLoweringBoundaryResult(
           llvm::Twine("origin plugin '") + plugin.getName() +
               "' produced invalid lowering-boundary result: materialized "
               "operation must be a direct child of the request "
-              "tcrv.exec.kernel or nested under the selected "
-              "tcrv.exec.variant");
+              "weft.exec.kernel or nested under the selected "
+              "weft.exec.variant");
 
     if (!result.getReason().empty())
       return makeVariantLoweringBoundaryError(
@@ -2093,4 +2093,4 @@ llvm::Error ExtensionPluginRegistry::validateVariantLoweringBoundaryResult(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::plugin
+} // namespace weft::plugin

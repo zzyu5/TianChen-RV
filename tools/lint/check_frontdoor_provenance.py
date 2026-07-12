@@ -2,7 +2,7 @@
 """check_frontdoor_provenance.py -- G3 裁决一.3 [F-EMIT] direct-emitter bypass gate.
 
 Terminal state [K-3b]: the repack front door (RVVLowerQuantContraction.cpp
-lowerToRepackGemv/lowerToRepackGemm -> tcrv_rvv.typed_repack_gem{v,m}_loop_body) is the
+lowerToRepackGemv/lowerToRepackGemm -> weft_rvv.typed_repack_gem{v,m}_loop_body) is the
 SOLE emission authority and every gemm_tile is CONSTRUCTED as a typed region (the q4_0
 decode/prefill precedent). A hand-written emitRepackGem{v,m}<fmt> wired into the production
 dispatch table kBlockDotKernels emits the whole repacked GEVM/GEMM body BY HAND, BYPASSING

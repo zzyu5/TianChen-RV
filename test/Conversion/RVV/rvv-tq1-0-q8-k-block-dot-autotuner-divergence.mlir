@@ -4,7 +4,7 @@
 // schedule autotuner (the SAME walk-all pass that auto-discovers every
 // TunableScheduleOpInterface op, NO per-tq1_0 pass). The monolith op was RETIRED at
 // the flip; the Win-A gearbox moved verbatim onto the CONSTRUCTED
-// tcrv_rvv.tq1_0_q8_k_ternary_core brick (SAME kernel key "tq1_0"), so the autotuner
+// weft_rvv.tq1_0_q8_k_ternary_core brick (SAME kernel key "tq1_0"), so the autotuner
 // stamps the SAME m2->m1 selection onto the brick with NO registry change. This test
 // now drives the CONSTRUCTED typed super-block SCALAR-accumulator BASE-3 TERNARY loop
 // body (fold_model "scalar_delta_grid"), not the retired monolith op. It REUSES the
@@ -31,31 +31,31 @@
 // First, the DECISION-LEVEL proof: the unified autotuner stamps DIFFERENT anchors
 // onto the SAME attr-less ternary-core brick purely by the VLEN capability fact (no
 // lowering).
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
 //
 // Then the EMISSION-LEVEL non-NULL proof: VLEN256 emits a BYTE-DIFFERENT dot from
 // VLEN128 (vwmul_vv_i16m2 / vwredsum_i16m2 vs vwmul_vv_i16m4 / vwredsum_i16m4). A
 // capability FACT changes the lowering -- NOT a structural NULL.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
 
 module {
-  tcrv.exec.kernel @ggml_vec_dot_tq1_0_q8_K_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_vec_dot_tq1_0_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "tq1-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_tq1_0_q8_K, sew = 32 : i64, source_kernel = "ggml_vec_dot_tq1_0_q8_K_kernel", status = "selected-lowering-boundary"} {
-        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, fold_model = "scalar_delta_grid"} {
+  weft.exec.kernel @ggml_vec_dot_tq1_0_q8_K_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_vec_dot_tq1_0_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "tq1-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_tq1_0_q8_K, sew = 32 : i64, source_kernel = "ggml_vec_dot_tq1_0_q8_K_kernel", status = "selected-lowering-boundary"} {
+        weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, fold_model = "scalar_delta_grid"} {
         ^bb0(%super_block_index: index, %sumf: f32):
-          %sumi = tcrv_rvv.tq1_0_q8_k_ternary_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_tq1_0_q8_k_ternary_core", scale_model = "ternary-base3-single-fp16-scale-i32-domain", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_qh_byte_offset = 48 : i64, weight_d_byte_offset = 52 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
-          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
-        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
-      } : !tcrv_rvv.vl
+          %sumi = weft_rvv.tq1_0_q8_k_ternary_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_tq1_0_q8_k_ternary_core", scale_model = "ternary-base3-single-fp16-scale-i32-domain", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_qh_byte_offset = 48 : i64, weight_d_byte_offset = 52 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
+          weft_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+      } : !weft_rvv.vl
     }
   }
 }
@@ -64,23 +64,23 @@ module {
 // rv64gcv (VLEN128): the compiler SELECTED m2 (the ONLY anchor whose e8 VLMAX 32
 // spans the 32-lane dot strip at VLEN128) + the SEMANTIC minimum_vlen = 128. The
 // gearbox now stamps the CONSTRUCTED brick.
-// STAMP-VLEN128: tcrv_rvv.tq1_0_q8_k_ternary_core
+// STAMP-VLEN128: weft_rvv.tq1_0_q8_k_ternary_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
-// STAMP-VLEN128-SAME: tcrv_rvv.tq1_0_schedule.has_zvl128b = true
-// STAMP-VLEN128-SAME: tcrv_rvv.tq1_0_schedule.producer = "rvv-tq1-0-autotuner"
+// STAMP-VLEN128-SAME: weft_rvv.tq1_0_schedule.has_zvl128b = true
+// STAMP-VLEN128-SAME: weft_rvv.tq1_0_schedule.producer = "rvv-tq1-0-autotuner"
 //
 // rv64gcv_zvl256b (VLEN256): the SAME brick FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
 // reaches 32, spans the strip in ONE vsetvl, and the lighter footprint breaks the
 // tie to m1. minimum_vlen = 256 is stamped.
-// STAMP-VLEN256: tcrv_rvv.tq1_0_q8_k_ternary_core
+// STAMP-VLEN256: weft_rvv.tq1_0_q8_k_ternary_core
 // STAMP-VLEN256-SAME: integer_core_lmul = "m1"
 // STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
 
 // ===================== VLEN128 (rv64gcv) — the m2 dot anchor ================
 // The compiler SELECTED m2: the integer dot widens to vle8_v_i8m2 + vwmul_vv_i16m4
 // + vwredsum_vs_i16m4_i32m1 (the base-3 unpack -- vwmulu_vx_u16m4 etc -- is fixed).
-// VLEN128: emitc.func @tcrv_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
+// VLEN128: emitc.func @weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
 // VLEN128: call_opaque "__riscv_vwmul_vv_i16m4"
 // VLEN128: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // VLEN128-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
@@ -91,7 +91,7 @@ module {
 // The compiler SELECTED m1: a BYTE-DIFFERENT dot from the VLEN128 m2 shape. The
 // dot MAC narrows to vwmul_vv_i16m2 and the reduce to vwredsum_vs_i16m2_i32m1.
 // This is the NON-NULL proof: the two VLENs do NOT emit the same dot bytes.
-// VLEN256: emitc.func @tcrv_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
+// VLEN256: emitc.func @weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
 // VLEN256: call_opaque "__riscv_vwmul_vv_i16m2"
 // VLEN256: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // VLEN256-NOT: call_opaque "__riscv_vwmul_vv_i16m4"

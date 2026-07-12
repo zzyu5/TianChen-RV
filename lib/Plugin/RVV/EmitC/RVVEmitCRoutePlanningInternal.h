@@ -15,12 +15,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TIANCHENRV_PLUGIN_RVV_EMITC_RVVEMITCROUTEPLANNINGINTERNAL_H
-#define TIANCHENRV_PLUGIN_RVV_EMITC_RVVEMITCROUTEPLANNINGINTERNAL_H
+#ifndef WEFT_PLUGIN_RVV_EMITC_RVVEMITCROUTEPLANNINGINTERNAL_H
+#define WEFT_PLUGIN_RVV_EMITC_RVVEMITCROUTEPLANNINGINTERNAL_H
 
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -30,7 +30,7 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 
 // The intrinsic / type / CType profile triple consumed by the route-family
 // derivation. Plain POD aggregates depending only on RVVSelectedBodyOperationKind
@@ -59,7 +59,7 @@ struct RVVSelectedBodyConfigProfile {
   llvm::StringRef lmul;
   llvm::StringRef tailPolicy;
   llvm::StringRef maskPolicy;
-  const tcrv::rvv::RVVSelectedBodyConfigVLContract *configContract = nullptr;
+  const weft::rvv::RVVSelectedBodyConfigVLContract *configContract = nullptr;
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef indexVectorTypeName;
@@ -276,7 +276,7 @@ constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyEmissionKind("materialized-emitc-cpp-rvv-intrinsic-object");
 constexpr llvm::StringLiteral
-    kRVVSelectedBodyLoweringBoundaryOpName("tcrv_rvv.with_vl");
+    kRVVSelectedBodyLoweringBoundaryOpName("weft_rvv.with_vl");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyRuntimeABIKind("plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral
@@ -555,8 +555,8 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryRouteFamilyPlanID(
 constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterRouteFamilyPlanID(
     "rvv-composite-gather-macc-scatter-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterTypedComputeChain(
-    "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
-    "tcrv_rvv.masked_indexed_store");
+    "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+"
+    "weft_rvv.masked_indexed_store");
 constexpr llvm::StringLiteral
     kRVVComputedMaskMemoryVectorCompareProducerSource(
         "vector-compare-rhs-load");
@@ -1003,7 +1003,7 @@ constexpr llvm::StringLiteral kRVVDequantizeI32ToF32OperandBindingPlanID(
 constexpr llvm::StringLiteral kRVVRuntimeABIExecBindingAttrName(
     "exec_binding");
 constexpr llvm::StringLiteral kRVVRequireExecABIBindingsAttrName(
-    "tcrv_rvv.require_exec_abi_bindings");
+    "weft_rvv.require_exec_abi_bindings");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreOperandBindingPlanID(
     "rvv-route-operand-binding:runtime_scalar_splat_store.v1");
 constexpr llvm::StringLiteral
@@ -1053,7 +1053,7 @@ constexpr llvm::StringLiteral kGearboxHandoffPlanningContractAttrName(
 // to external linkage; bodies are relocated byte-identical.
 // RVVEmitCRouteAnalysis.cpp (route-slice collection + role-sequence verify).
 llvm::Expected<RVVSelectedBodyRouteSlice>
-collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant);
+collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant);
 llvm::Error verifySelectedRVVRoleSequence(
     RVVSelectedBodyRouteSlice &slice,
     const VariantEmitCLowerableRequest &request,
@@ -1301,25 +1301,25 @@ deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
 llvm::Error verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::StringRef context);
-llvm::StringRef stringifyRVVTailPolicy(tcrv::rvv::TailPolicy policy);
-llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy);
+llvm::StringRef stringifyRVVTailPolicy(weft::rvv::TailPolicy policy);
+llvm::StringRef stringifyRVVMaskPolicy(weft::rvv::MaskPolicy policy);
 llvm::Expected<llvm::StringRef>
 getRVVSelectedBodyElementTypeNameForSEW(std::int64_t sew,
                                         llvm::StringRef context);
 llvm::Expected<RVVSelectedBodyTypedConfigFacts>
 deriveRVVSelectedBodyTypedConfigFacts(
-    const tcrv::rvv::RVVCompileTimeConfig &config,
+    const weft::rvv::RVVCompileTimeConfig &config,
     const RVVSelectedBodyConfigProfile &configProfile,
     llvm::StringRef context);
 const RVVSelectedBodyConstructionRoute &
 getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op);
-llvm::Error requireRVVVariantLegality(tcrv::exec::VariantOp variant);
+llvm::Error requireRVVVariantLegality(weft::exec::VariantOp variant);
 llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     RVVSelectedBodyRouteSlice &slice,
-    const tcrv::rvv::RVVCompileTimeConfig &config);
+    const weft::rvv::RVVCompileTimeConfig &config);
 llvm::Expected<std::string>
 summarizeRVVSelectedBodyExecABIBindings(
-    tcrv::exec::VariantOp variant,
+    weft::exec::VariantOp variant,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
     llvm::StringRef context);
 llvm::Expected<support::RuntimeABIParameter>
@@ -1328,57 +1328,57 @@ getRuntimeABIParameterBindingFromValue(
     llvm::ArrayRef<support::RuntimeABIParameterRole> expectedRoles);
 llvm::Error
 assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
-                            tcrv::rvv::LoadOp load,
+                            weft::rvv::LoadOp load,
                             const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericBroadcastBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::BroadcastLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::BroadcastLoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericScalarSplatBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::SplatOp splat,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::SplatOp splat,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericStridedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::StridedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::StridedLoadOp load,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter);
 llvm::Error assignRVVGenericStridedStoreBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::StridedStoreOp store,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::StridedStoreOp store,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter,
     bool requiresDestinationByteStride);
 llvm::Error assignRVVGenericIndexLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::IndexLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::IndexLoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericIndexedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::IndexedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::IndexedLoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericIndexedStoreBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::IndexedStoreOp store,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::IndexedStoreOp store,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericMaskLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskLoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericMaskedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedLoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericMaskedStridedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedStridedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedStridedLoadOp load,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter);
 llvm::Error assignRVVGenericMaskedIndexedLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedIndexedLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedIndexedLoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericSegment2LoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::Segment2LoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::Segment2LoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericMaskedSegment2LoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::MaskedSegment2LoadOp load,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::MaskedSegment2LoadOp load,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericSegment2StoreBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::Segment2StoreOp store,
+    RVVSelectedBodyRouteSlice &slice, weft::rvv::Segment2StoreOp store,
     const support::RuntimeABIParameter &parameter);
 llvm::Error assignRVVGenericMaskedSegment2StoreBinding(
     RVVSelectedBodyRouteSlice &slice,
-    tcrv::rvv::MaskedSegment2StoreOp store,
+    weft::rvv::MaskedSegment2StoreOp store,
     const support::RuntimeABIParameter &parameter);
 llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     RVVSelectedBodyRouteSlice &slice,
@@ -1419,6 +1419,6 @@ llvm::Expected<RVVRouteOperandBindingPlan>
 deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis);
 // ===== ROUTE-DERIVATION-DECLS-END =====
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv
 
-#endif // TIANCHENRV_PLUGIN_RVV_EMITC_RVVEMITCROUTEPLANNINGINTERNAL_H
+#endif // WEFT_PLUGIN_RVV_EMITC_RVVEMITCROUTEPLANNINGINTERNAL_H

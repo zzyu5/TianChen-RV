@@ -1,8 +1,8 @@
 #include "RVVToEmitCInternal.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h"
+#include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVRepackTilingSelection.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv {
+namespace weft {
 namespace conversion {
 namespace rvv {
 namespace detail {
@@ -29,14 +29,14 @@ namespace detail {
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
     // Thin shim: q4_0 offset_binary_nibble / half-block / LeftAssoc instance of the descriptor-driven emitFlatBlockDot.
     // Resolve the ABI operands + provenance, derive the block-format descriptor
     // (from `kind`/attrs) + the scheduled BlockDotFacts, emit the shared body.
-    tcrvrvv::GgmlBlockDotQ40Q80Op blockDot;
+    weftrvv::GgmlBlockDotQ40Q80Op blockDot;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ40Q80Op>(op))
+      if (auto bd = llvm::dyn_cast<weftrvv::GgmlBlockDotQ40Q80Op>(op))
         blockDot = bd;
     }
     if (!blockDot)
@@ -59,18 +59,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
         deriveBlockDotFacts(blockDot, descriptor->defaultCoreLmul);
     return emitFlatBlockDot(rewriter, loc, weightBase, activationBase, output,
                             blockDot.getResult(), avlArg, sizeType, valueMap,
-                            blockDot.getTCRVEmitCLowerableSourceOpName(),
-                            blockDot.getTCRVEmitCLowerableSourceRole(), facts,
+                            blockDot.getWEFTEmitCLowerableSourceOpName(),
+                            blockDot.getWEFTEmitCLowerableSourceRole(), facts,
                             *descriptor);
   }
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0GemmTile(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlGemmTileQ40Q80Op tile;
+    weftrvv::GgmlGemmTileQ40Q80Op tile;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto t = llvm::dyn_cast<tcrvrvv::GgmlGemmTileQ40Q80Op>(op))
+      if (auto t = llvm::dyn_cast<weftrvv::GgmlGemmTileQ40Q80Op>(op))
         tile = t;
     }
     if (!tile)
@@ -83,8 +83,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0GemmTile(
     if (!weightBase || !activationBase || !columnStride || !output)
       return rewriter.notifyMatchFailure(tile, "gemm-tile ABI operand unmapped");
 
-    llvm::StringRef opName = tile.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = tile.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = tile.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = tile.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -344,11 +344,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0GemmTile(
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0Gemm(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlGemmQ40Q80Op gemm;
+    weftrvv::GgmlGemmQ40Q80Op gemm;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlGemmQ40Q80Op>(op))
+      if (auto g = llvm::dyn_cast<weftrvv::GgmlGemmQ40Q80Op>(op))
         gemm = g;
     }
     if (!gemm)
@@ -366,8 +366,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0Gemm(
         !rowCount || !columnCount || !weightRowStride || !outputRowStride)
       return rewriter.notifyMatchFailure(gemm, "gemm ABI operand unmapped");
 
-    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = gemm.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemm.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -757,7 +757,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0Gemm(
 // block-loop body so the SAME node sequence (seed per-column i16 lo/hi -> nibble-step
 // vwmacc loop over ONE strip at the runtime roff and the [cLo,cHi) interleaved
 // activation columns -> per-column lo/hi vwadd combine) is driven by the first-class
-// GEMM integer-core brick inside the typed tcrv_rvv.typed_repack_gemm_loop_body region
+// GEMM integer-core brick inside the typed weft_rvv.typed_repack_gemm_loop_body region
 // (emitTypedRepackGemmLoopBody) -- the SOLE caller now the monolith is retired,
 // byte-identity by construction preserved. Given the per-block bases bl/al (already
 // advanced by
@@ -1192,7 +1192,7 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
 // block-loop scale-fold tail so the SAME node sequence (vle16 the per-strip weight
 // scales -> per column _Float16 act scale / vfwmul / vfcvt / vfmacc into the column
 // f32 accumulator) is driven by the first-class GEMM scale-fold brick inside the typed
-// tcrv_rvv.typed_repack_gemm_loop_body region (emitTypedRepackGemmLoopBody) -- the SOLE
+// weft_rvv.typed_repack_gemm_loop_body region (emitTypedRepackGemmLoopBody) -- the SOLE
 // caller now the monolith is retired, byte-identity by construction preserved. Given
 // the per-block bases bl/al,
 // the runtime strip row offset roff, the per-column i32 `sumi`, and the per-column
@@ -1316,11 +1316,11 @@ void VariantToEmitCFunc::emitRepackGemmDualFp16ScaleFold(
 
 mlir::LogicalResult VariantToEmitCFunc::emitPackQ4_0ToX16(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlPackQ40ToX16Op pack;
+    weftrvv::GgmlPackQ40ToX16Op pack;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto p = llvm::dyn_cast<tcrvrvv::GgmlPackQ40ToX16Op>(op))
+      if (auto p = llvm::dyn_cast<weftrvv::GgmlPackQ40ToX16Op>(op))
         pack = p;
     }
     if (!pack)
@@ -1332,8 +1332,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackQ4_0ToX16(
     if (!src || !dst || !nblocks)
       return rewriter.notifyMatchFailure(pack, "pack ABI operand unmapped");
 
-    llvm::StringRef opName = pack.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = pack.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = pack.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = pack.getWEFTEmitCLowerableSourceRole();
 
     // The plain q4_0 -> q4_0x16 PACK structural facts (I4 mirror, pinned by the
     // verifier): QK=32, block_q4_0 source stride 18 (1 inline fp16 scale @+0, 16
@@ -1497,8 +1497,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackQ4_0ToX16(
 // VERBATIM out of emitRepackGemvQ4_0Q8_0's block-loop body so the SAME node
 // sequence (seed i16 lo/hi per strip -> nibble-step vwmacc loop -> lo/hi vwadd
 // combine) is reachable both inline (the monolith) AND through the first-class
-// tcrv_rvv.repack_lane_wise_q4_x_i8_dot brick inside the typed
-// tcrv_rvv.typed_repack_gemv_loop_body region -- byte-identity by construction.
+// weft_rvv.repack_lane_wise_q4_x_i8_dot brick inside the typed
+// weft_rvv.typed_repack_gemv_loop_body region -- byte-identity by construction.
 // Given the per-block bases bl/al (already advanced by block_index*stride) it
 // returns the per-strip i32 `sumi` values (numHalves entries); the dual-fp16
 // per-strip scale fold that consumes them is the caller's.
@@ -1971,8 +1971,8 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
 // the SAME node sequence (per-strip vle16 weight scale -> ONE _Float16 activation
 // scale -> per-strip vfwmul/vfcvt/vfmacc into the f32 accumulator) is reachable
 // both inline (the monolith) AND through the first-class
-// tcrv_rvv.repack_dual_fp16_scale_fold brick inside the typed
-// tcrv_rvv.typed_repack_gemv_loop_body region -- byte-identity by construction.
+// weft_rvv.repack_dual_fp16_scale_fold brick inside the typed
+// weft_rvv.typed_repack_gemv_loop_body region -- byte-identity by construction.
 // Given the per-block bases bl/al (already advanced by block_index*stride), the
 // per-strip i32 `sumi` from the integer core, and the per-strip f32 accumulator
 // lvalues `sumfVar`, it folds sumi into each accumulator in place.
@@ -2120,7 +2120,7 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
 
 // M-FLAT REPACK loop-scaffold Phase B (full-body byte-exact, ALL arms): the typed
 // region-carrying sibling of the monolithic emitRepackGemvQ4_0Q8_0. It lowers
-// tcrv_rvv.typed_repack_gemv_loop_body -- whose region carries the inner
+// weft_rvv.typed_repack_gemv_loop_body -- whose region carries the inner
 // contraction-block loop with the numHalves per-strip LANE-WISE f32 VECTOR
 // loop-carried accumulators -- to the byte-exact repacked GEVM kernel across EVERY
 // resource arm: the VLEN=256 fractional one-strip mf2 form (numHalves==1, f32m2),
@@ -2131,10 +2131,10 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
 // vfmv_v_f(0.0f), the inner block emitc.for, and the per-strip lane-wise vse32
 // stores (NO horizontal reduction -- each repacked block-as-lane strip writes its
 // 16/8 columns straight to s + x*16 + strip*half). The inner body is FULL-BODY
-// byte-exact: the integer CORE brick (tcrv_rvv.repack_lane_wise_q4_x_i8_dot -> the
+// byte-exact: the integer CORE brick (weft_rvv.repack_lane_wise_q4_x_i8_dot -> the
 // SHARED emitRepackQ4LaneWiseIntegerCore leaf, producing numHalves per-strip sumi)
 // is FOLLOWED by the numHalves dual-fp16 scale FOLD bricks
-// (tcrv_rvv.repack_dual_fp16_scale_fold -> the SHARED emitRepackDualFp16ScaleFold
+// (weft_rvv.repack_dual_fp16_scale_fold -> the SHARED emitRepackDualFp16ScaleFold
 // leaf, called ONCE over all strips: load each weight scale / ONE _Float16 act
 // scale / per-strip vfwmul / vfcvt / vfmacc, load acc, fold, assign back). Both
 // leaves are shared VERBATIM with the monolith and driven by the SAME numHalves /
@@ -2143,13 +2143,13 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
 // unused-result token is its only residue -- the loop-body op has no result).
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
 
-  tcrvrvv::TypedRepackGemvLoopBodyOp loopBody;
+  weftrvv::TypedRepackGemvLoopBodyOp loopBody;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(op))
+    if (auto lb = llvm::dyn_cast<weftrvv::TypedRepackGemvLoopBodyOp>(op))
       loopBody = lb;
   }
   if (!loopBody)
@@ -2159,19 +2159,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // ---- TERNARY front-door dispatch (the retired emitRepackGem{v}TQ{20,10}Q8K
   // direct emitters, now CONSTRUCTED through this typed-region front door). When the
   // loop body carries the ternary fold_model its decomposed in-region brick is the
-  // tcrv_rvv.repack_gemv_ternary_core (NOT the q4_0 nibble core + dual-fp16 fold).
+  // weft_rvv.repack_gemv_ternary_core (NOT the q4_0 nibble core + dual-fp16 fold).
   // We GATE the emit on that brick's block_index-tied + base-tied anti-bypass, then
   // RE-EMIT the byte-exact ternary GEVM body from the shared body leaf (the SAME
   // construction discipline as the flat ternary vec_dot core brick; byte-exactness
   // to the retired direct emitter is by construction). ----
   if (loopBody.getFoldModel() == "ternary_single_fp16_scale") {
-    tcrvrvv::RepackGemvTernaryCoreOp coreBrick;
+    weftrvv::RepackGemvTernaryCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemvTernaryCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemvTernaryCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "ternary repack GEVM loop body requires the region "
-                    "tcrv_rvv.repack_gemv_ternary_core integer-core brick");
+                    "weft_rvv.repack_gemv_ternary_core integer-core brick");
     if (coreBrick.getBlockIndex() !=
         loopBody.getBody().front().getArgument(0))
       return rewriter.notifyMatchFailure(
@@ -2190,8 +2190,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(
           loopBody, "ternary repack GEVM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     if (coreBrick.getDecodeModel() == "tq2_0")
       return emitRepackTernaryGemvBodyTQ20(
@@ -2233,7 +2233,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // ---- CODEBOOK front-door dispatch (the retired emitRepackGem{v,m}Iq4{Nl,Xs} direct
   // emitters, now CONSTRUCTED through this typed-region front door). When the loop body
   // carries a codebook fold_model its decomposed in-region brick is the
-  // tcrv_rvv.repack_gemv_codebook_core (decode_model "iq4_nl" flat OR "iq4_xs"
+  // weft_rvv.repack_gemv_codebook_core (decode_model "iq4_nl" flat OR "iq4_xs"
   // super-block). We GATE the emit on that brick's block_index-tied + base-tied
   // anti-bypass, then RE-EMIT the byte-exact codebook GEVM body (the 16-entry MEMORY
   // vluxei16 codebook gather + the i32 dot; iq4_nl: single fp16 scale fold; iq4_xs: the
@@ -2251,13 +2251,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   bool isCodebookE8m0FoldV =
       loopBody.getFoldModel() == "codebook_flat_e8m0_scale";
   if (isCodebookFlatFoldV || isCodebookSuperblockFoldV || isCodebookE8m0FoldV) {
-    tcrvrvv::RepackGemvCodebookCoreOp coreBrick;
+    weftrvv::RepackGemvCodebookCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemvCodebookCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemvCodebookCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "codebook repack GEVM loop body requires the region "
-                    "tcrv_rvv.repack_gemv_codebook_core integer-core brick");
+                    "weft_rvv.repack_gemv_codebook_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0))
       return rewriter.notifyMatchFailure(
           coreBrick, "the codebook core brick's block_index must be the loop "
@@ -2289,8 +2289,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(
           loopBody, "codebook repack GEVM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // The iq4_xs SUPER-BLOCK sibling: the SAME codebook gather + i32 dot PLUS the
     // K-quant 6-bit SIGNED per-sub-block scale fold. Its super-block decode facts
@@ -2349,7 +2349,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 
   // ---- GRID front-door dispatch (the retired emitRepackGemvIq2XxsQ8K direct emitter,
   // now CONSTRUCTED through this typed-region front door). When the loop body carries the
-  // grid fold_model its decomposed in-region brick is the tcrv_rvv.repack_gemv_grid_core
+  // grid fold_model its decomposed in-region brick is the weft_rvv.repack_gemv_grid_core
   // (decode_model "iq2_xxs", NOT the codebook / K-quant / q4_0 cores). We GATE the emit on
   // that brick's block_index-tied + base-tied anti-bypass, then RE-EMIT the byte-exact
   // iq2_xxs GEVM body (the REAL grid-index vluxei16 GATHER + the sign-plane vluxei16 GATHER
@@ -2360,13 +2360,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // DERIVED signs64 planes are emit-period static const decls (NEVER op attrs). ----
   if (loopBody.getFoldModel() == "grid_sign_single_scale_eighth" ||
       loopBody.getFoldModel() == "grid_sign_dualscale_eighth") {
-    tcrvrvv::RepackGemvGridCoreOp coreBrick;
+    weftrvv::RepackGemvGridCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemvGridCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemvGridCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "grid repack GEVM loop body requires the region "
-                    "tcrv_rvv.repack_gemv_grid_core integer-core brick");
+                    "weft_rvv.repack_gemv_grid_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0))
       return rewriter.notifyMatchFailure(
           coreBrick, "the grid core brick's block_index must be the loop "
@@ -2390,8 +2390,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(
           loopBody, "grid repack GEVM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // iq2_xxs (single ls) rides the iq2_xxs body leaf; iq2_xs / iq2_s (dual ls) share the
     // Iq2DualGridVariant dual-ls body leaf (grid table + sign plane selected by variant).
@@ -2429,7 +2429,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // ---- K-QUANT front-door dispatch (the retired emitRepackGemvQ4KQ8K direct
   // emitter, now CONSTRUCTED through this typed-region front door). When the loop
   // body carries the K-quant fold_model its decomposed in-region brick is the
-  // tcrv_rvv.repack_gemv_kquant_core (decode_model "q4_K", NOT the q4_0 nibble core
+  // weft_rvv.repack_gemv_kquant_core (decode_model "q4_K", NOT the q4_0 nibble core
   // + dual-fp16 fold). We GATE the emit on that brick's block_index-tied + base-tied
   // anti-bypass, then RE-EMIT the byte-exact q4_K GEVM body (the 8-sub-block 6-bit
   // scale/min lane-wise unpack + the split-32 main dot + the bsums-min correction +
@@ -2438,13 +2438,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // super-block decode facts (dmin @32, 6-bit scales/mins @64, activation bsums,
   // n_subblocks) ride on the loop body op's OPTIONAL K-quant attrs. ----
   if (loopBody.getFoldModel() == "kquant_dmin_bsums_min") {
-    tcrvrvv::RepackGemvKQuantCoreOp coreBrick;
+    weftrvv::RepackGemvKQuantCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemvKQuantCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemvKQuantCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "K-quant repack GEVM loop body requires the region "
-                    "tcrv_rvv.repack_gemv_kquant_core integer-core brick");
+                    "weft_rvv.repack_gemv_kquant_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0))
       return rewriter.notifyMatchFailure(
           coreBrick, "the K-quant core brick's block_index must be the loop "
@@ -2484,8 +2484,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(
           loopBody, "K-quant repack GEVM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // The q5_K (4-bit nibble + qh 5th bit) sibling shares the SAME leaf signature +
     // facts as q4_K PLUS the qh 5th-bit plane byte offset (weight_qh_byte_offset, the
@@ -2544,7 +2544,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // ---- K-QUANT q6_K NO-MIN front-door dispatch (the retired emitRepackGemvQ6KQ8K
   // direct emitter, now CONSTRUCTED through this typed-region front door). When the
   // loop body carries the q6_K single-accumulator no-min fold_model its decomposed
-  // in-region brick is the tcrv_rvv.repack_gemv_kquant_core (decode_model "q6_K"). We
+  // in-region brick is the weft_rvv.repack_gemv_kquant_core (decode_model "q6_K"). We
   // GATE the emit on that brick's block_index-tied + base-tied anti-bypass, then
   // RE-EMIT the byte-exact q6_K GEVM body (the 6-bit ql|qh two-plane -32 offset-binary
   // weight assembly + the SIGNED int8 scale sign-extend + the SINGLE-accumulator
@@ -2552,13 +2552,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // scales @32, qh high-2-bit plane @288, n_subblocks 16 -- NO dmin, NO bsums) ride on
   // the loop body op's OPTIONAL K-quant attrs. ----
   if (loopBody.getFoldModel() == "kquant_single_scale_no_min") {
-    tcrvrvv::RepackGemvKQuantCoreOp coreBrick;
+    weftrvv::RepackGemvKQuantCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemvKQuantCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemvKQuantCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "q6_K repack GEVM loop body requires the region "
-                    "tcrv_rvv.repack_gemv_kquant_core integer-core brick");
+                    "weft_rvv.repack_gemv_kquant_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0))
       return rewriter.notifyMatchFailure(
           coreBrick, "the q6_K core brick's block_index must be the loop "
@@ -2597,8 +2597,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(
           loopBody, "K-quant no-min repack GEVM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // q3_K (3-bit subtractive qs|hmask): the qh slot carries the hmask plane offset.
     // RE-EMITs the byte-exact q3_K GEVM body (the no-min sibling of q6_K).
@@ -2645,24 +2645,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 
   // ---- Region walk + region-driven gates (fail-closed, I7). The full-body region
   // carries the (block_index, numHalves per-strip vector acc) entry args, ONE
-  // integer-core brick tcrv_rvv.repack_lane_wise_q4_x_i8_dot producing numHalves
+  // integer-core brick weft_rvv.repack_lane_wise_q4_x_i8_dot producing numHalves
   // per-strip sumi, numHalves per-strip dual-fp16 scale FOLD bricks
-  // tcrv_rvv.repack_dual_fp16_scale_fold (each folding one sumi + one carried acc),
+  // weft_rvv.repack_dual_fp16_scale_fold (each folding one sumi + one carried acc),
   // and a yield naming the numHalves carried-out vectors. Every brick is
   // block_index-tied (anti-bypass) and dataflow-tied (the strip-h fold consumes the
   // integer brick's strip-h sumi + the strip-h loop-carried acc, the yield names
   // the folds' acc_next), so the emit provably tracks the region's brick +
   // accumulator dataflow, not merely the loop-op attrs. ----
   mlir::Block &coreBlock = loopBody.getBody().front();
-  tcrvrvv::TypedRepackGemvLoopYieldOp yieldOp;
-  tcrvrvv::RepackLaneWiseQ4Q8DotOp coreBrick;
-  llvm::SmallVector<tcrvrvv::RepackDualFp16ScaleFoldOp> foldBricks;
+  weftrvv::TypedRepackGemvLoopYieldOp yieldOp;
+  weftrvv::RepackLaneWiseQ4Q8DotOp coreBrick;
+  llvm::SmallVector<weftrvv::RepackDualFp16ScaleFoldOp> foldBricks;
   loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-    if (auto o = llvm::dyn_cast<tcrvrvv::TypedRepackGemvLoopYieldOp>(bodyOp))
+    if (auto o = llvm::dyn_cast<weftrvv::TypedRepackGemvLoopYieldOp>(bodyOp))
       yieldOp = o;
-    else if (auto o = llvm::dyn_cast<tcrvrvv::RepackLaneWiseQ4Q8DotOp>(bodyOp))
+    else if (auto o = llvm::dyn_cast<weftrvv::RepackLaneWiseQ4Q8DotOp>(bodyOp))
       coreBrick = o;
-    else if (auto o = llvm::dyn_cast<tcrvrvv::RepackDualFp16ScaleFoldOp>(bodyOp))
+    else if (auto o = llvm::dyn_cast<weftrvv::RepackDualFp16ScaleFoldOp>(bodyOp))
       foldBricks.push_back(o);
   });
   if (!yieldOp)
@@ -2683,7 +2683,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   if (!coreBrick)
     return rewriter.notifyMatchFailure(
         loopBody, "repack GEVM loop body requires the region integer CORE brick "
-                  "tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the per-block lane-wise "
+                  "weft_rvv.repack_lane_wise_q4_x_i8_dot (the per-block lane-wise "
                   "nibble dot)");
   if (coreBrick.getBlockIndex() != blockIndexArg)
     return rewriter.notifyMatchFailure(
@@ -2709,17 +2709,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   if (static_cast<int64_t>(foldBricks.size()) != numHalves)
     return rewriter.notifyMatchFailure(
         loopBody, "repack GEVM loop body requires one dual-fp16 scale FOLD brick "
-                  "tcrv_rvv.repack_dual_fp16_scale_fold per accumulator strip "
+                  "weft_rvv.repack_dual_fp16_scale_fold per accumulator strip "
                   "(numHalves bricks)");
   if (static_cast<int64_t>(yieldOp.getAccNext().size()) != numHalves)
     return rewriter.notifyMatchFailure(
         yieldOp, "repack GEVM loop yield must name one carried-out per-strip "
                  "accumulator per strip (numHalves acc_next)");
-  llvm::SmallVector<tcrvrvv::RepackDualFp16ScaleFoldOp> foldByStrip(numHalves);
+  llvm::SmallVector<weftrvv::RepackDualFp16ScaleFoldOp> foldByStrip(numHalves);
   for (int64_t h = 0; h < numHalves; ++h) {
     mlir::Value accArg = coreBlock.getArgument(1 + h);
-    tcrvrvv::RepackDualFp16ScaleFoldOp fb;
-    for (tcrvrvv::RepackDualFp16ScaleFoldOp cand : foldBricks) {
+    weftrvv::RepackDualFp16ScaleFoldOp fb;
+    for (weftrvv::RepackDualFp16ScaleFoldOp cand : foldBricks) {
       if (cand.getAcc() == accArg) {
         fb = cand;
         break;
@@ -2765,8 +2765,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     return rewriter.notifyMatchFailure(loopBody,
                                        "repack GEVM loop ABI operand unmapped");
 
-  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
 
   int64_t weightQuantOffset = coreBrick.getWeightQuantByteOffset();
   int64_t activationQuantOffset = coreBrick.getActivationQuantByteOffset();
@@ -2906,7 +2906,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
       mlir::Value al = rewriter.create<emitc::AddOp>(loc, activationPtrType,
                                                      activationBase, alOff);
 
-      // ===== The region integer CORE: the tcrv_rvv.repack_lane_wise_q4_x_i8_dot
+      // ===== The region integer CORE: the weft_rvv.repack_lane_wise_q4_x_i8_dot
       // brick lowers to the SHARED emitRepackQ4LaneWiseIntegerCore leaf (per strip:
       // seed i16 lo/hi -> nibble-step vwmacc loop -> lo/hi vwadd combine), byte-
       // exact to the monolithic emitRepackGemvQ4_0Q8_0's integer part, producing
@@ -2926,7 +2926,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
 
       // ===== The region dual-fp16 scale FOLD: the numHalves
-      // tcrv_rvv.repack_dual_fp16_scale_fold bricks lower through ONE call to the
+      // weft_rvv.repack_dual_fp16_scale_fold bricks lower through ONE call to the
       // SHARED emitRepackDualFp16ScaleFold leaf (per strip: vle16 weight scale ->
       // ONE _Float16 act scale -> vfwmul/vfcvt/vfmacc into the strip's f32
       // accumulator; load sumf_h, fold, assign back), byte-exact to the monolithic
@@ -2969,7 +2969,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 }
 
 // M-FLAT REPACK GEMM finale M2: the typed region-carrying sibling of the
-// monolithic emitRepackGemmQ4_0Q8_0. It lowers tcrv_rvv.typed_repack_gemm_loop_body
+// monolithic emitRepackGemmQ4_0Q8_0. It lowers weft_rvv.typed_repack_gemm_loop_body
 // -- whose region carries the inner contraction-block loop with the columnsPerPass
 // per-column LANE-WISE f32 VECTOR loop-carried accumulators (plus the block_index
 // and the runtime strip_row_offset entry args) -- to the byte-exact repacked GEMM
@@ -2991,13 +2991,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 // integer core are SOURCED from the CORE brick (the anti-bypass surface).
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
 
-  tcrvrvv::TypedRepackGemmLoopBodyOp loopBody;
+  weftrvv::TypedRepackGemmLoopBodyOp loopBody;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedRepackGemmLoopBodyOp>(op))
+    if (auto lb = llvm::dyn_cast<weftrvv::TypedRepackGemmLoopBodyOp>(op))
       loopBody = lb;
   }
   if (!loopBody)
@@ -3006,17 +3006,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 
   // ---- TERNARY front-door dispatch (the retired emitRepackGem{m}TQ{20,10}Q8K
   // direct emitters, now CONSTRUCTED through this typed-region front door). Gate on
-  // the in-region tcrv_rvv.repack_gemm_ternary_core brick's block_index +
+  // the in-region weft_rvv.repack_gemm_ternary_core brick's block_index +
   // strip_row_offset + base anti-bypass ties, then RE-EMIT the byte-exact ternary
   // GEMM body from the shared body leaf. ----
   if (loopBody.getFoldModel() == "ternary_single_fp16_scale") {
-    tcrvrvv::RepackGemmTernaryCoreOp coreBrick;
+    weftrvv::RepackGemmTernaryCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemmTernaryCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemmTernaryCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "ternary repack GEMM loop body requires the region "
-                    "tcrv_rvv.repack_gemm_ternary_core integer-core brick");
+                    "weft_rvv.repack_gemm_ternary_core integer-core brick");
     if (coreBrick.getBlockIndex() !=
             loopBody.getBody().front().getArgument(0) ||
         coreBrick.getStripRowOffset() !=
@@ -3041,8 +3041,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         !columnCount || !outputRowStride)
       return rewriter.notifyMatchFailure(
           loopBody, "ternary repack GEMM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     if (coreBrick.getDecodeModel() == "tq2_0")
       return emitRepackTernaryGemmBodyTQ20(
@@ -3085,7 +3085,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 
   // ---- CODEBOOK front-door dispatch (the retired emitRepackGem{m}Iq4{Nl,Xs} direct
   // emitters, now CONSTRUCTED through this typed-region front door). Gate on the in-region
-  // tcrv_rvv.repack_gemm_codebook_core brick's block_index + strip_row_offset + base
+  // weft_rvv.repack_gemm_codebook_core brick's block_index + strip_row_offset + base
   // anti-bypass ties, then RE-EMIT the byte-exact codebook GEMM body (iq4_nl flat OR
   // iq4_xs super-block signed-6) from the shared body leaf. The GEMM body ships PLAIN
   // (untiled): iq4_nl/iq4_xs already sit at the <=32-vreg cliff, so S6 output tiling is a
@@ -3100,13 +3100,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   bool isCodebookE8m0FoldM =
       loopBody.getFoldModel() == "codebook_flat_e8m0_scale";
   if (isCodebookFlatFoldM || isCodebookSuperblockFoldM || isCodebookE8m0FoldM) {
-    tcrvrvv::RepackGemmCodebookCoreOp coreBrick;
+    weftrvv::RepackGemmCodebookCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemmCodebookCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemmCodebookCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "codebook repack GEMM loop body requires the region "
-                    "tcrv_rvv.repack_gemm_codebook_core integer-core brick");
+                    "weft_rvv.repack_gemm_codebook_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0) ||
         coreBrick.getStripRowOffset() !=
             loopBody.getBody().front().getArgument(1))
@@ -3143,8 +3143,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         !columnCount || !outputRowStride)
       return rewriter.notifyMatchFailure(
           loopBody, "codebook repack GEMM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // The iq4_xs SUPER-BLOCK sibling: the SAME codebook gather + i32 dot PLUS the
     // K-quant 6-bit SIGNED per-sub-block scale fold, AMORTIZED across the 4 interleaved
@@ -3207,7 +3207,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 
   // ---- GRID front-door dispatch (the retired emitRepackGemmIq2XxsQ8K direct emitter,
   // now CONSTRUCTED through this typed-region front door). Gate on the in-region
-  // tcrv_rvv.repack_gemm_grid_core brick's block_index + strip_row_offset + base
+  // weft_rvv.repack_gemm_grid_core brick's block_index + strip_row_offset + base
   // anti-bypass ties, then RE-EMIT the byte-exact iq2_xxs GEMM body (the SAME grid GATHER
   // + sign-plane GATHER + ls-scale fold AMORTIZED across the 4 interleaved block_q8_Kx4
   // columns) from the shared body leaf; byte-exact to the retired direct emitter by
@@ -3216,13 +3216,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // memory-gather grid decode already <= the 32-vreg cliff. ----
   if (loopBody.getFoldModel() == "grid_sign_single_scale_eighth" ||
       loopBody.getFoldModel() == "grid_sign_dualscale_eighth") {
-    tcrvrvv::RepackGemmGridCoreOp coreBrick;
+    weftrvv::RepackGemmGridCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemmGridCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemmGridCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "grid repack GEMM loop body requires the region "
-                    "tcrv_rvv.repack_gemm_grid_core integer-core brick");
+                    "weft_rvv.repack_gemm_grid_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0))
       return rewriter.notifyMatchFailure(
           coreBrick, "the grid core brick's block_index must be the loop "
@@ -3253,8 +3253,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         !columnCount || !outputRowStride)
       return rewriter.notifyMatchFailure(
           loopBody, "grid repack GEMM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // iq2_xxs (single ls) rides the iq2_xxs body leaf; iq2_xs / iq2_s (dual ls) share the
     // Iq2DualGridVariant dual-ls body leaf (grid table + sign plane selected by variant).
@@ -3293,17 +3293,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 
   // ---- K-QUANT front-door dispatch (the retired emitRepackGemmQ4KQ8K direct
   // emitter, now CONSTRUCTED through this typed-region front door). Gate on the
-  // in-region tcrv_rvv.repack_gemm_kquant_core brick's block_index + strip_row_offset
+  // in-region weft_rvv.repack_gemm_kquant_core brick's block_index + strip_row_offset
   // + base anti-bypass ties, then RE-EMIT the byte-exact q4_K GEMM body from the
   // shared body leaf. ----
   if (loopBody.getFoldModel() == "kquant_dmin_bsums_min") {
-    tcrvrvv::RepackGemmKQuantCoreOp coreBrick;
+    weftrvv::RepackGemmKQuantCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemmKQuantCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemmKQuantCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "K-quant repack GEMM loop body requires the region "
-                    "tcrv_rvv.repack_gemm_kquant_core integer-core brick");
+                    "weft_rvv.repack_gemm_kquant_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0) ||
         coreBrick.getStripRowOffset() !=
             loopBody.getBody().front().getArgument(1))
@@ -3345,11 +3345,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         !columnCount || !outputRowStride)
       return rewriter.notifyMatchFailure(
           loopBody, "K-quant repack GEMM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // [G3 主线C / SEL-1] T3: the min-fold (q4_K/q2_K/q5_K) SP4 output-tiling PURE
-    // REALIZE gate. The front-door selection pass stamped tcrv_rvv.tiling_variant on
+    // REALIZE gate. The front-door selection pass stamped weft_rvv.tiling_variant on
     // this loop-body op from capability facts + the offline-profile measurement
     // library; the emitter is a pure REALIZE that reads it. ABSENT => S6Tiled (the
     // byte-exact default that keeps the hand-authored emitter fixtures bit-identical);
@@ -3361,7 +3361,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // label; the measured min-fold winner is never plain, so this arm is not taken in
     // production.
     if (auto tilingVariant = loopBody->getAttrOfType<mlir::StringAttr>(
-            "tcrv_rvv.tiling_variant")) {
+            "weft_rvv.tiling_variant")) {
       if (tilingVariant.getValue() == "plain")
         return rewriter.notifyMatchFailure(
             loopBody,
@@ -3410,15 +3410,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // q4_K: the min-fold family default arm (the s6_tiled PURE REALIZE was gated for
     // the WHOLE min-fold family above). RE-EMITs the byte-exact S6-tiled q4_K GEMM body.
     // [M1c] Resolve the loop-order schedule axis: PREFER the front-door SEL-1 stamp
-    // (tcrv_rvv.loop_order = "col_outer" | "row_outer"), else fall back to the SAME
+    // (weft_rvv.loop_order = "col_outer" | "row_outer"), else fall back to the SAME
     // repackColGroupOuterForLayout stride predicate the selector keys on -- so the stamp
     // and the emitter carry ONE stride fact and an un-stamped (emitter-direct) fixture
     // stays byte-identical to the M1b-committed behavior.
-    bool colGroupOuter = tianchenrv::plugin::rvv::repackColGroupOuterForLayout(
+    bool colGroupOuter = weft::plugin::rvv::repackColGroupOuterForLayout(
         static_cast<int64_t>(loopBody.getWeightBlockStride()),
         static_cast<int64_t>(loopBody.getActivationBlockStride()));
     if (auto loopOrder = loopBody->getAttrOfType<mlir::StringAttr>(
-            "tcrv_rvv.loop_order")) {
+            "weft_rvv.loop_order")) {
       if (loopOrder.getValue() == "col_outer")
         colGroupOuter = true;
       else if (loopOrder.getValue() == "row_outer")
@@ -3441,20 +3441,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 
   // ---- K-QUANT q6_K NO-MIN front-door dispatch (the retired emitRepackGemmQ6KQ8K
   // direct emitter, now CONSTRUCTED through this typed-region front door). Gate on the
-  // in-region tcrv_rvv.repack_gemm_kquant_core brick's block_index + strip_row_offset +
+  // in-region weft_rvv.repack_gemm_kquant_core brick's block_index + strip_row_offset +
   // base anti-bypass ties (decode_model "q6_K"), then RE-EMIT the byte-exact PLAIN
   // (UNTILED) q6_K GEMM body (block-top f32 d widen + per-block scaleVal, NO min-fold)
   // from the shared body leaf. Output tiling is a family-lever NULL on q6_K: its
   // ~900-spill bottleneck is the two-plane 6-bit weight reconstruction, not the panel
   // decode strips q4_K's S6 register-cliff targets, so q6_K ships construction-only. ----
   if (loopBody.getFoldModel() == "kquant_single_scale_no_min") {
-    tcrvrvv::RepackGemmKQuantCoreOp coreBrick;
+    weftrvv::RepackGemmKQuantCoreOp coreBrick;
     loopBody.getBody().walk(
-        [&](tcrvrvv::RepackGemmKQuantCoreOp o) { coreBrick = o; });
+        [&](weftrvv::RepackGemmKQuantCoreOp o) { coreBrick = o; });
     if (!coreBrick)
       return rewriter.notifyMatchFailure(
           loopBody, "q6_K repack GEMM loop body requires the region "
-                    "tcrv_rvv.repack_gemm_kquant_core integer-core brick");
+                    "weft_rvv.repack_gemm_kquant_core integer-core brick");
     if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0) ||
         coreBrick.getStripRowOffset() !=
             loopBody.getBody().front().getArgument(1))
@@ -3494,8 +3494,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         !columnCount || !outputRowStride)
       return rewriter.notifyMatchFailure(
           loopBody, "K-quant no-min repack GEMM loop ABI operand unmapped");
-    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // q3_K (3-bit subtractive qs|hmask): the qh slot carries the hmask plane offset.
     // RE-EMITs the byte-exact PLAIN q3_K GEMM body (the no-min sibling of q6_K).
@@ -3562,24 +3562,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 
   // ---- Region walk + region-driven gates (fail-closed, I7). The full-body region
   // carries the (block_index, strip_row_offset, columnsPerPass per-column vector
-  // acc) entry args, ONE integer-core brick tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_
+  // acc) entry args, ONE integer-core brick weft_rvv.repack_gemm_lane_wise_q4_x_i8_
   // dot producing columnsPerPass per-column sumi, columnsPerPass per-column dual-
-  // fp16 scale FOLD bricks tcrv_rvv.repack_gemm_dual_fp16_scale_fold (each folding
+  // fp16 scale FOLD bricks weft_rvv.repack_gemm_dual_fp16_scale_fold (each folding
   // one sumi + one carried acc), and a yield naming the columnsPerPass carried-out
   // vectors. Every brick is block_index + strip_row_offset tied (anti-bypass) and
   // dataflow-tied (the column-c fold consumes the integer brick's column-c sumi +
   // the column-c loop-carried acc; the yield names the folds' acc_next). ----
   mlir::Block &coreBlock = loopBody.getBody().front();
-  tcrvrvv::TypedRepackGemmLoopYieldOp yieldOp;
-  tcrvrvv::RepackGemmLaneWiseQ4Q8DotOp coreBrick;
-  llvm::SmallVector<tcrvrvv::RepackGemmDualFp16ScaleFoldOp> foldBricks;
+  weftrvv::TypedRepackGemmLoopYieldOp yieldOp;
+  weftrvv::RepackGemmLaneWiseQ4Q8DotOp coreBrick;
+  llvm::SmallVector<weftrvv::RepackGemmDualFp16ScaleFoldOp> foldBricks;
   loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-    if (auto o = llvm::dyn_cast<tcrvrvv::TypedRepackGemmLoopYieldOp>(bodyOp))
+    if (auto o = llvm::dyn_cast<weftrvv::TypedRepackGemmLoopYieldOp>(bodyOp))
       yieldOp = o;
-    else if (auto o = llvm::dyn_cast<tcrvrvv::RepackGemmLaneWiseQ4Q8DotOp>(bodyOp))
+    else if (auto o = llvm::dyn_cast<weftrvv::RepackGemmLaneWiseQ4Q8DotOp>(bodyOp))
       coreBrick = o;
     else if (auto o =
-                 llvm::dyn_cast<tcrvrvv::RepackGemmDualFp16ScaleFoldOp>(bodyOp))
+                 llvm::dyn_cast<weftrvv::RepackGemmDualFp16ScaleFoldOp>(bodyOp))
       foldBricks.push_back(o);
   });
   if (!yieldOp)
@@ -3604,7 +3604,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   if (!coreBrick)
     return rewriter.notifyMatchFailure(
         loopBody, "repack GEMM loop body requires the region integer CORE brick "
-                  "tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot (the one-strip "
+                  "weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot (the one-strip "
                   "N-column per-block lane-wise nibble dot)");
   if (coreBrick.getBlockIndex() != blockIndexArg)
     return rewriter.notifyMatchFailure(
@@ -3633,18 +3633,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   if (static_cast<int64_t>(foldBricks.size()) != columnsPerPass)
     return rewriter.notifyMatchFailure(
         loopBody, "repack GEMM loop body requires one dual-fp16 scale FOLD brick "
-                  "tcrv_rvv.repack_gemm_dual_fp16_scale_fold per pass column "
+                  "weft_rvv.repack_gemm_dual_fp16_scale_fold per pass column "
                   "(columnsPerPass bricks)");
   if (static_cast<int64_t>(yieldOp.getAccNext().size()) != columnsPerPass)
     return rewriter.notifyMatchFailure(
         yieldOp, "repack GEMM loop yield must name one carried-out per-column "
                  "accumulator per pass column (columnsPerPass acc_next)");
-  llvm::SmallVector<tcrvrvv::RepackGemmDualFp16ScaleFoldOp> foldByColumn(
+  llvm::SmallVector<weftrvv::RepackGemmDualFp16ScaleFoldOp> foldByColumn(
       columnsPerPass);
   for (int64_t c = 0; c < columnsPerPass; ++c) {
     mlir::Value accArg = coreBlock.getArgument(2 + c);
-    tcrvrvv::RepackGemmDualFp16ScaleFoldOp fb;
-    for (tcrvrvv::RepackGemmDualFp16ScaleFoldOp cand : foldBricks) {
+    weftrvv::RepackGemmDualFp16ScaleFoldOp fb;
+    for (weftrvv::RepackGemmDualFp16ScaleFoldOp cand : foldBricks) {
       if (cand.getAcc() == accArg) {
         fb = cand;
         break;
@@ -3699,8 +3699,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     return rewriter.notifyMatchFailure(loopBody,
                                        "repack GEMM loop ABI operand unmapped");
 
-  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
 
   // The within-block quant byte offsets driving the integer core are SOURCED from
   // the CORE brick (a rewired offset changes the emitted addresses -- the
@@ -3867,7 +3867,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
             mlir::Value al = rewriter.create<emitc::AddOp>(
                 loc, activationPtrType, aGroup, alOff);
 
-            // ===== The region integer CORE: the tcrv_rvv.repack_gemm_lane_wise_
+            // ===== The region integer CORE: the weft_rvv.repack_gemm_lane_wise_
             // q4_x_i8_dot brick lowers to the SHARED emitRepackGemmQ4LaneWise
             // IntegerCore leaf (seed per-column i16 lo/hi -> nibble-step vwmacc
             // loop over ONE strip at the runtime roff and the [cLo,cHi) interleaved
@@ -3889,7 +3889,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
                                                     roff, cLo, cHi);
 
             // ===== The region dual-fp16 scale FOLD: the columnsPerPass
-            // tcrv_rvv.repack_gemm_dual_fp16_scale_fold bricks lower through ONE
+            // weft_rvv.repack_gemm_dual_fp16_scale_fold bricks lower through ONE
             // call to the SHARED emitRepackGemmDualFp16ScaleFold leaf (vle16 the
             // per-strip weight scales -> per column widen d = vfwmul(b_d, act_d),
             // convert the column sumi, vfmacc into sumf_c; load sumf_c, fold, assign
@@ -3949,11 +3949,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
 // scale fold are byte-identical to emitRepackGemvQ4_0Q8_0.
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ50Q80Op gemv;
+    weftrvv::GgmlRepackGemvQ50Q80Op gemv;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ50Q80Op>(op))
+      if (auto g = llvm::dyn_cast<weftrvv::GgmlRepackGemvQ50Q80Op>(op))
         gemv = g;
     }
     if (!gemv)
@@ -3966,8 +3966,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(gemv, "repack-gemv ABI operand unmapped");
 
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = gemv.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemv.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
@@ -4457,11 +4457,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0(
 // q5_1 by construction.
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ51Q81Op gemv;
+    weftrvv::GgmlRepackGemvQ51Q81Op gemv;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ51Q81Op>(op))
+      if (auto g = llvm::dyn_cast<weftrvv::GgmlRepackGemvQ51Q81Op>(op))
         gemv = g;
     }
     if (!gemv)
@@ -4475,8 +4475,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1(
       return rewriter.notifyMatchFailure(gemv,
                                          "repack-gemv-q5_1 ABI operand unmapped");
 
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = gemv.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemv.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -4989,11 +4989,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1(
 
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ80Q80Op gemv;
+    weftrvv::GgmlRepackGemvQ80Q80Op gemv;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ80Q80Op>(op))
+      if (auto g = llvm::dyn_cast<weftrvv::GgmlRepackGemvQ80Q80Op>(op))
         gemv = g;
     }
     if (!gemv)
@@ -5006,8 +5006,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0(
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(gemv, "repack-gemv ABI operand unmapped");
 
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = gemv.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemv.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -5408,11 +5408,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0(
 
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ41Q81Op gemv;
+    weftrvv::GgmlRepackGemvQ41Q81Op gemv;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ41Q81Op>(op))
+      if (auto g = llvm::dyn_cast<weftrvv::GgmlRepackGemvQ41Q81Op>(op))
         gemv = g;
     }
     if (!gemv)
@@ -5426,8 +5426,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
       return rewriter.notifyMatchFailure(gemv,
                                          "repack-gemv-q4_1 ABI operand unmapped");
 
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = gemv.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemv.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -6436,11 +6436,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ4K(
 
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmQ41Q81Op gemm;
+    weftrvv::GgmlRepackGemmQ41Q81Op gemm;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmQ41Q81Op>(op))
+      if (auto g = llvm::dyn_cast<weftrvv::GgmlRepackGemmQ41Q81Op>(op))
         gemm = g;
     }
     if (!gemm)
@@ -6458,8 +6458,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
       return rewriter.notifyMatchFailure(gemm,
                                          "repack-gemm-q4_1 ABI operand unmapped");
 
-    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = gemm.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemm.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -7258,7 +7258,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     // on a LAYOUT/cache FACT (NOT a hardcoded constant). Under M1b this predicate was
     // INLINED here (`weightStride >= activationStride`); under M1c it is LIFTED to the
     // first-class SEL-1 loop-order selector (RVVRepackTilingSelection selectRepackLoopOrder,
-    // stamped as tcrv_rvv.loop_order) and this emitter degenerates to a PURE REALIZE:
+    // stamped as weft_rvv.loop_order) and this emitter degenerates to a PURE REALIZE:
     // `colGroupOuter` is resolved by the caller from the stamped attr, falling back to
     // the SAME repackColGroupOuterForLayout stride predicate the selector keys on -- so
     // the front-door selection and the emitter carry ONE stride fact (同源同事实), never
@@ -10222,7 +10222,7 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
     d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2; // 16 nibble bytes / q8 half lanes per block
     d.weightScaleSource = FlatWeightScaleSource::Fp16;
-    d.codebookTableName = "tcrv_iq4_nl_kvalues";
+    d.codebookTableName = "weft_iq4_nl_kvalues";
   } else if (kind == "ggml_mxfp4_q8_0_block_dot") {
     // The FP4-class codebook: the SAME 16-entry gather as iq4_nl, but the weight
     // scale is the structured E8M0 -> fp32 half reconstruction (no fp16 weight
@@ -10233,7 +10233,7 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
     d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2;
     d.weightScaleSource = FlatWeightScaleSource::E8M0;
-    d.codebookTableName = "tcrv_mxfp4_kvalues";
+    d.codebookTableName = "weft_mxfp4_kvalues";
   } else {
     return std::nullopt;
   }
@@ -12104,7 +12104,7 @@ mlir::FailureOr<FlatBlockCore> VariantToEmitCFunc::emitFlatBlockCore(
 
 
 // M-FLAT loop-scaffold step 1/6: lower the region-carrying
-// tcrv_rvv.typed_flat_block_dot_loop_body to the byte-exact SKELETON that
+// weft_rvv.typed_flat_block_dot_loop_body to the byte-exact SKELETON that
 // emitFlatBlockDot emits for its mbf==1 form. The isolated hard bone this step
 // proves is the SSA loop-carried f32 accumulator -> emitc mutable-variable
 // mapping: emitc.for has no iter_args, so the region's carried-IN `acc` block
@@ -12114,20 +12114,20 @@ mlir::FailureOr<FlatBlockCore> VariantToEmitCFunc::emitFlatBlockCore(
 // The seed is the literal `0.0f` emitted directly (ggml's `float sumf = 0.0f;`
 // is a hardcoded zero, not a caller value; the op carries no init operand,
 // mirroring the monolithic block-dot ops). The minimal region body is a single
-// tcrv_rvv.cross_block_f32_accumulate (brick 3) over a stub term, dispatched
+// weft_rvv.cross_block_f32_accumulate (brick 3) over a stub term, dispatched
 // through the existing brick emitter; the full per-block primitive chain and
 // full-body byte-exactness are later steps. Only the mbf==1 skeleton form is
 // lowered here; any unroll form is fail-closed (I7).
 mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
   mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
 
-  tcrvrvv::TypedFlatBlockDotLoopBodyOp loopBody;
+  weftrvv::TypedFlatBlockDotLoopBodyOp loopBody;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(op))
+    if (auto lb = llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopBodyOp>(op))
       loopBody = lb;
   }
   if (!loopBody)
@@ -12151,8 +12151,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     return rewriter.notifyMatchFailure(loopBody,
                                        "loop-body ABI operand unmapped");
 
-  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
   int64_t qk = loopBody.getQk();
 
   auto sizeLit = [&](int64_t v) -> mlir::Value {
@@ -12173,14 +12173,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // ABI bases are sourced from the BRICK's operands (not the loop op attrs) and
   // the brick's block_index MUST be the region induction variable.
   if (loopBody.getFoldModel() == "flat_binary_two_level") {
-    tcrvrvv::GgmlBlockDotQ10Q80BinarySignCoreOp coreOp;
-    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotQ10Q80BinarySignCoreOp coreOp;
+    weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ10Q80BinarySignCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotQ10Q80BinarySignCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
         yieldOp = o;
     });
     mlir::Block &coreBlock = loopBody.getBody().front();
@@ -12250,14 +12250,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // sourced from the BRICK's operands (not the loop op attrs) and the brick's
   // block_index MUST be the region induction variable.
   if (loopBody.getFoldModel() == "flat_nvfp4_codebook") {
-    tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp coreOp;
-    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    weftrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp coreOp;
+    weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o =
-              llvm::dyn_cast<tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp>(bodyOp))
+              llvm::dyn_cast<weftrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp>(bodyOp))
         coreOp = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
         yieldOp = o;
     });
     mlir::Block &coreBlock = loopBody.getBody().front();
@@ -12321,12 +12321,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // dispatch below routes to the codebook branch. Null for every non-codebook
   // fold (monotonic: their region carries no codebook brick), so those paths are
   // structurally unchanged.
-  tcrvrvv::CodebookTableBroadcastOp peekCodebookTable;
+  weftrvv::CodebookTableBroadcastOp peekCodebookTable;
   loopBody.getBody().walk(
-      [&](tcrvrvv::CodebookTableBroadcastOp o) { peekCodebookTable = o; });
-  tcrvrvv::CodebookGatherXI8ProductOp peekCodebookGather;
+      [&](weftrvv::CodebookTableBroadcastOp o) { peekCodebookTable = o; });
+  weftrvv::CodebookGatherXI8ProductOp peekCodebookGather;
   loopBody.getBody().walk(
-      [&](tcrvrvv::CodebookGatherXI8ProductOp o) { peekCodebookGather = o; });
+      [&](weftrvv::CodebookGatherXI8ProductOp o) { peekCodebookGather = o; });
 
   rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -12396,9 +12396,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // Peek the region format WITHOUT emitting: a full body carries brick 2
   // (the computed-scale dequant); the q4_0 (left_assoc) full body is the one the
   // schedule-parametrization step materializes across ALL legal knob combos.
-  tcrvrvv::BlockComputedScaleDequantOp peekBrick2;
+  weftrvv::BlockComputedScaleDequantOp peekBrick2;
   loopBody.getBody().walk(
-      [&](tcrvrvv::BlockComputedScaleDequantOp o) { peekBrick2 = o; });
+      [&](weftrvv::BlockComputedScaleDequantOp o) { peekBrick2 = o; });
   const bool isQ40ScheduleParam =
       peekBrick2 && loopBody.getFoldModel() == "left_assoc";
   // The q8_0 (sumi_times_scales) full body is the SECOND flat fold whose FULL
@@ -12462,33 +12462,33 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     mlir::Block &coreBlock = loopBody.getBody().front();
 
     // ---- Region walk (identify, no emit) ----
-    tcrvrvv::BlockFp16ScaleProductOp brick1;
-    tcrvrvv::BlockComputedScaleDequantOp brick2 = peekBrick2;
-    tcrvrvv::CrossBlockF32AccumulateOp brick3;
-    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
-    tcrvrvv::StandaloneReduceOp coreReduce;
-    tcrvrvv::TypedVectorLane0ToScalarExtractOp coreExtract;
-    tcrvrvv::PackedI4OffsetBinaryXI8ProductOp packedProduct;
-    llvm::SmallVector<tcrvrvv::LoadOp, 3> coreLoads;
+    weftrvv::BlockFp16ScaleProductOp brick1;
+    weftrvv::BlockComputedScaleDequantOp brick2 = peekBrick2;
+    weftrvv::CrossBlockF32AccumulateOp brick3;
+    weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    weftrvv::StandaloneReduceOp coreReduce;
+    weftrvv::TypedVectorLane0ToScalarExtractOp coreExtract;
+    weftrvv::PackedI4OffsetBinaryXI8ProductOp packedProduct;
+    llvm::SmallVector<weftrvv::LoadOp, 3> coreLoads;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::BlockFp16ScaleProductOp>(bodyOp))
+      if (auto o = llvm::dyn_cast<weftrvv::BlockFp16ScaleProductOp>(bodyOp))
         brick1 = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::CrossBlockF32AccumulateOp>(bodyOp))
         brick3 = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
         yieldOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::StandaloneReduceOp>(bodyOp))
         coreReduce = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedVectorLane0ToScalarExtractOp>(
+                   llvm::dyn_cast<weftrvv::TypedVectorLane0ToScalarExtractOp>(
                        bodyOp))
         coreExtract = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::PackedI4OffsetBinaryXI8ProductOp>(
+                   llvm::dyn_cast<weftrvv::PackedI4OffsetBinaryXI8ProductOp>(
                        bodyOp))
         packedProduct = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::LoadOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::LoadOp>(bodyOp))
         coreLoads.push_back(o);
     });
 
@@ -12524,11 +12524,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     if (brick2.getSumi() != coreExtract.getResult())
       return rewriter.notifyMatchFailure(
           brick2, "brick 2 sumi must be the integer-core lane0 extract result");
-    auto q40WeightLoad = packedProduct.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+    auto q40WeightLoad = packedProduct.getWeight().getDefiningOp<weftrvv::LoadOp>();
     auto q40LowLoad =
-        packedProduct.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+        packedProduct.getActivationLow().getDefiningOp<weftrvv::LoadOp>();
     auto q40HighLoad =
-        packedProduct.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+        packedProduct.getActivationHigh().getDefiningOp<weftrvv::LoadOp>();
     if (!q40WeightLoad || !q40LowLoad || !q40HighLoad ||
         q40WeightLoad.getBuffer() != loopBody.getWeightBase() ||
         q40LowLoad.getBuffer() != loopBody.getActivationBase() ||
@@ -12563,10 +12563,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
     llvm::StringRef coreLmul =
-        llvm::cast<tcrvrvv::VectorType>(q40WeightLoad.getLoaded().getType())
+        llvm::cast<weftrvv::VectorType>(q40WeightLoad.getLoaded().getType())
             .getLmul();
     llvm::StringRef wideLmul =
-        llvm::cast<tcrvrvv::VectorType>(packedProduct.getResult().getType())
+        llvm::cast<weftrvv::VectorType>(packedProduct.getResult().getType())
             .getLmul();
     mlir::Type i8CoreType =
         emitc::OpaqueType::get(ctx, ("vint8" + coreLmul + "_t").str());
@@ -12829,31 +12829,31 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     mlir::Block &coreBlock = loopBody.getBody().front();
 
     // ---- Region walk (identify, no emit) ----
-    tcrvrvv::BlockFp16ScaleProductOp brick1;
-    tcrvrvv::BlockComputedScaleDequantOp brick2 = peekBrick2;
-    tcrvrvv::CrossBlockF32AccumulateOp brick3;
-    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
-    tcrvrvv::WideningProductOp coreProduct;
-    tcrvrvv::StandaloneReduceOp coreReduce;
-    tcrvrvv::TypedVectorLane0ToScalarExtractOp coreExtract;
-    llvm::SmallVector<tcrvrvv::LoadOp, 2> coreLoads;
+    weftrvv::BlockFp16ScaleProductOp brick1;
+    weftrvv::BlockComputedScaleDequantOp brick2 = peekBrick2;
+    weftrvv::CrossBlockF32AccumulateOp brick3;
+    weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    weftrvv::WideningProductOp coreProduct;
+    weftrvv::StandaloneReduceOp coreReduce;
+    weftrvv::TypedVectorLane0ToScalarExtractOp coreExtract;
+    llvm::SmallVector<weftrvv::LoadOp, 2> coreLoads;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::BlockFp16ScaleProductOp>(bodyOp))
+      if (auto o = llvm::dyn_cast<weftrvv::BlockFp16ScaleProductOp>(bodyOp))
         brick1 = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::CrossBlockF32AccumulateOp>(bodyOp))
         brick3 = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
         yieldOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::WideningProductOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::WideningProductOp>(bodyOp))
         coreProduct = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::StandaloneReduceOp>(bodyOp))
         coreReduce = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedVectorLane0ToScalarExtractOp>(
+                   llvm::dyn_cast<weftrvv::TypedVectorLane0ToScalarExtractOp>(
                        bodyOp))
         coreExtract = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::LoadOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::LoadOp>(bodyOp))
         coreLoads.push_back(o);
     });
 
@@ -12892,8 +12892,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     // Identify the weight vs activation per-block load by ABI buffer; both must
     // carry the per-block block_stride + quant_byte_offset the address
     // arithmetic depends on (the operand-flow real gate).
-    tcrvrvv::LoadOp weightLoad, activationLoad;
-    for (tcrvrvv::LoadOp ld : coreLoads) {
+    weftrvv::LoadOp weightLoad, activationLoad;
+    for (weftrvv::LoadOp ld : coreLoads) {
       if (ld.getBuffer() == loopBody.getWeightBase())
         weightLoad = ld;
       else if (ld.getBuffer() == loopBody.getActivationBase())
@@ -12947,10 +12947,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
     llvm::StringRef coreLmul =
-        llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType())
+        llvm::cast<weftrvv::VectorType>(weightLoad.getLoaded().getType())
             .getLmul();
     llvm::StringRef wideLmul =
-        llvm::cast<tcrvrvv::VectorType>(coreProduct.getResult().getType())
+        llvm::cast<weftrvv::VectorType>(coreProduct.getResult().getType())
             .getLmul();
     mlir::Type i8CoreType =
         emitc::OpaqueType::get(ctx, ("vint8" + coreLmul + "_t").str());
@@ -13563,38 +13563,38 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     // reused emitFlatFold, fed the operand-derived d_x/d_y + sumi. The result is
     // byte-identical to the monolithic q8_0 (verified by golden diff) yet sourced
     // from the region ops, not the attrs.
-    tcrvrvv::BlockFp16ScaleProductOp brick1;
-    tcrvrvv::BlockComputedScaleDequantOp brick2;
-    tcrvrvv::CrossBlockF32AccumulateOp brick3;
-    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    weftrvv::BlockFp16ScaleProductOp brick1;
+    weftrvv::BlockComputedScaleDequantOp brick2;
+    weftrvv::CrossBlockF32AccumulateOp brick3;
+    weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
     // W4: the region's vector integer-core chain (two per-block i8 loads ->
     // signed widening product -> standalone reduce -> lane0 scalar extract ->
     // the scalar i32 sumi feeding brick 2). Collected so the full-body gate can
     // check every link against the actual region SSA wiring.
-    llvm::SmallVector<tcrvrvv::LoadOp, 2> coreLoads;
-    tcrvrvv::WideningProductOp coreProduct;
-    tcrvrvv::StandaloneReduceOp coreReduce;
-    tcrvrvv::TypedVectorLane0ToScalarExtractOp coreExtract;
+    llvm::SmallVector<weftrvv::LoadOp, 2> coreLoads;
+    weftrvv::WideningProductOp coreProduct;
+    weftrvv::StandaloneReduceOp coreReduce;
+    weftrvv::TypedVectorLane0ToScalarExtractOp coreExtract;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
-      if (auto o = llvm::dyn_cast<tcrvrvv::BlockFp16ScaleProductOp>(bodyOp))
+      if (auto o = llvm::dyn_cast<weftrvv::BlockFp16ScaleProductOp>(bodyOp))
         brick1 = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::BlockComputedScaleDequantOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::BlockComputedScaleDequantOp>(bodyOp))
         brick2 = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::CrossBlockF32AccumulateOp>(bodyOp))
         brick3 = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+                   llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
         yieldOp = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::LoadOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::LoadOp>(bodyOp))
         coreLoads.push_back(o);
-      else if (auto o = llvm::dyn_cast<tcrvrvv::WideningProductOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::WideningProductOp>(bodyOp))
         coreProduct = o;
-      else if (auto o = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(bodyOp))
+      else if (auto o = llvm::dyn_cast<weftrvv::StandaloneReduceOp>(bodyOp))
         coreReduce = o;
       else if (auto o =
-                   llvm::dyn_cast<tcrvrvv::TypedVectorLane0ToScalarExtractOp>(
+                   llvm::dyn_cast<weftrvv::TypedVectorLane0ToScalarExtractOp>(
                        bodyOp))
         coreExtract = o;
     });
@@ -13633,16 +13633,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       // q5_1; else the fold_model chain below dispatches q8_0/q4_0/q4_1/q5_0
       // byte-unchanged (q5_0's scales_times_sumi + q4_1's min-only scale_plus_min
       // both fail this predicate).
-      tcrvrvv::FiveBitOffsetBinaryXI8ProductOp q51FiveBitProduct;
-      loopBody.getBody().walk([&](tcrvrvv::FiveBitOffsetBinaryXI8ProductOp o) {
+      weftrvv::FiveBitOffsetBinaryXI8ProductOp q51FiveBitProduct;
+      loopBody.getBody().walk([&](weftrvv::FiveBitOffsetBinaryXI8ProductOp o) {
         q51FiveBitProduct = o;
       });
-      tcrvrvv::BlockFiveBitQhSourceOp q51QhBrick;
+      weftrvv::BlockFiveBitQhSourceOp q51QhBrick;
       loopBody.getBody().walk(
-          [&](tcrvrvv::BlockFiveBitQhSourceOp o) { q51QhBrick = o; });
-      tcrvrvv::BlockFp16MinProductOp q51MinBrick;
+          [&](weftrvv::BlockFiveBitQhSourceOp o) { q51QhBrick = o; });
+      weftrvv::BlockFp16MinProductOp q51MinBrick;
       loopBody.getBody().walk(
-          [&](tcrvrvv::BlockFp16MinProductOp o) { q51MinBrick = o; });
+          [&](weftrvv::BlockFp16MinProductOp o) { q51MinBrick = o; });
       const bool isQ51Body = loopBody.getFoldModel() == "scale_plus_min" &&
                              q51FiveBitProduct && q51QhBrick;
 
@@ -13666,9 +13666,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // (dX,dY,mX,sY,qhLow16,qhHigh16). The decode + fold + qh source + MIN are
         // all selected from the WALKED op identity (anti-bypass gates product + qh
         // + min), not the fold_model string. ----
-        tcrvrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct = q51FiveBitProduct;
-        tcrvrvv::BlockFiveBitQhSourceOp qhBrick = q51QhBrick;
-        tcrvrvv::BlockFp16MinProductOp minBrick = q51MinBrick;
+        weftrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct = q51FiveBitProduct;
+        weftrvv::BlockFiveBitQhSourceOp qhBrick = q51QhBrick;
+        weftrvv::BlockFp16MinProductOp minBrick = q51MinBrick;
         if (!fiveBitProduct || !qhBrick || !minBrick || coreLoads.size() != 3 ||
             !coreExtract)
           return rewriter.notifyMatchFailure(
@@ -13700,11 +13700,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // operand-flow real gate): weight <- getWeight (u8), q8 low half <-
         // getActivationLow, q8 high half <- getActivationHigh.
         auto weightLoad =
-            fiveBitProduct.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+            fiveBitProduct.getWeight().getDefiningOp<weftrvv::LoadOp>();
         auto lowLoad =
-            fiveBitProduct.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+            fiveBitProduct.getActivationLow().getDefiningOp<weftrvv::LoadOp>();
         auto highLoad =
-            fiveBitProduct.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+            fiveBitProduct.getActivationHigh().getDefiningOp<weftrvv::LoadOp>();
         if (!weightLoad || !lowLoad || !highLoad ||
             weightLoad.getBuffer() != loopBody.getWeightBase() ||
             lowLoad.getBuffer() != loopBody.getActivationBase() ||
@@ -13835,7 +13835,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // The inner block-capped vl: ONE vsetvl_e8<lmul>(qk/2). coreLmul is the
         // LOAD result LMUL (u8m1 for the weight; the vsetvl spelling is m1).
         auto loadVecType =
-            llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType());
+            llvm::cast<weftrvv::VectorType>(weightLoad.getLoaded().getType());
         llvm::StringRef coreLmul = loadVecType.getLmul();
         unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
         llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
@@ -13896,7 +13896,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // the valueMap) + the re-read qh halves + chunkOffset 0. applyOffsetBias
         // =FALSE is the ONE arithmetic delta vs q5_0: NO `vsub 16` is emitted (the
         // bias lives in the per-block MIN scale, folded through m_x*s_y).
-        auto prodVecType = llvm::cast<tcrvrvv::VectorType>(
+        auto prodVecType = llvm::cast<weftrvv::VectorType>(
             fiveBitProduct.getResult().getType());
         llvm::StringRef wideLmul = prodVecType.getLmul();
         mlir::Type i16WideType =
@@ -13999,11 +13999,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // off the ABI buffers) and its table operand is the region's broadcast; the
         // product feeds the reduce -> lane0 extract -> brick 2's sumi.
         auto weightLoad =
-            peekCodebookGather.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+            peekCodebookGather.getWeight().getDefiningOp<weftrvv::LoadOp>();
         auto lowLoad =
-            peekCodebookGather.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+            peekCodebookGather.getActivationLow().getDefiningOp<weftrvv::LoadOp>();
         auto highLoad =
-            peekCodebookGather.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+            peekCodebookGather.getActivationHigh().getDefiningOp<weftrvv::LoadOp>();
         if (!peekCodebookTable || !weightLoad || !lowLoad || !highLoad ||
             coreLoads.size() != 3 || !coreExtract ||
             weightLoad.getBuffer() != loopBody.getWeightBase() ||
@@ -14083,9 +14083,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // 2's sumi. Then the descriptor-driven emit reuses the SAME
         // emitFlatBlockCore + emitFlatFold the monolithic q4_0 uses, so the body
         // is byte-identical (the OffsetBinaryNibble decode + LeftAssoc fold). ----
-        tcrvrvv::PackedI4OffsetBinaryXI8ProductOp packedProduct;
+        weftrvv::PackedI4OffsetBinaryXI8ProductOp packedProduct;
         loopBody.getBody().walk(
-            [&](tcrvrvv::PackedI4OffsetBinaryXI8ProductOp o) {
+            [&](weftrvv::PackedI4OffsetBinaryXI8ProductOp o) {
               packedProduct = o;
             });
         if (!packedProduct || coreLoads.size() != 3 || !coreExtract)
@@ -14124,11 +14124,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // getActivationLow, q8 high half <- getActivationHigh. Each must be a
         // per-block load reading the matching ABI buffer with a quant_byte_offset.
         auto weightLoad =
-            packedProduct.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+            packedProduct.getWeight().getDefiningOp<weftrvv::LoadOp>();
         auto lowLoad =
-            packedProduct.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+            packedProduct.getActivationLow().getDefiningOp<weftrvv::LoadOp>();
         auto highLoad =
-            packedProduct.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+            packedProduct.getActivationHigh().getDefiningOp<weftrvv::LoadOp>();
         if (!weightLoad || !lowLoad || !highLoad ||
             weightLoad.getBuffer() != loopBody.getWeightBase() ||
             lowLoad.getBuffer() != loopBody.getActivationBase() ||
@@ -14241,7 +14241,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // half-block strip is qk/2 bytes (NOT the whole qk q8_0 uses). coreLmul is
         // the LOAD result LMUL (i8m1).
         auto loadVecType =
-            llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType());
+            llvm::cast<weftrvv::VectorType>(weightLoad.getLoaded().getType());
         llvm::StringRef coreLmul = loadVecType.getLmul();
         unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
         llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
@@ -14290,7 +14290,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // monolith's OffsetBinaryNibble strip reduce runs, so byte-identical while
         // the operands stay op-sourced. wideLmul is the product RESULT LMUL (i16m2).
         auto prodVecType =
-            llvm::cast<tcrvrvv::VectorType>(packedProduct.getResult().getType());
+            llvm::cast<weftrvv::VectorType>(packedProduct.getResult().getType());
         llvm::StringRef wideLmul = prodVecType.getLmul();
         mlir::Type i16WideType =
             emitc::OpaqueType::get(ctx, ("vint16" + wideLmul + "_t").str());
@@ -14375,8 +14375,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             "reduce, and a lane0 scalar extract");
 
       // Identify the weight vs activation per-block load by ABI buffer.
-      tcrvrvv::LoadOp weightLoad, activationLoad;
-      for (tcrvrvv::LoadOp ld : coreLoads) {
+      weftrvv::LoadOp weightLoad, activationLoad;
+      for (weftrvv::LoadOp ld : coreLoads) {
         if (ld.getBuffer() == loopBody.getWeightBase())
           weightLoad = ld;
         else if (ld.getBuffer() == loopBody.getActivationBase())
@@ -14539,7 +14539,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       // byte-exact core caps the active vl at the qk sub-block. coreLmul is derived
       // from the LOAD's result vector type.
       auto loadVecType =
-          llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType());
+          llvm::cast<weftrvv::VectorType>(weightLoad.getLoaded().getType());
       llvm::StringRef coreLmul = loadVecType.getLmul();
       unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
       llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
@@ -14588,7 +14588,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       // monolith's loop-body provenance); hand-emitting here keeps the whole body
       // byte-identical while the operands + callee stay op-sourced.
       auto prodVecType =
-          llvm::cast<tcrvrvv::VectorType>(coreProduct.getResult().getType());
+          llvm::cast<weftrvv::VectorType>(coreProduct.getResult().getType());
       llvm::StringRef wideLmul = prodVecType.getLmul();
       mlir::Type i16WideType =
           emitc::OpaqueType::get(ctx, ("vint16" + wideLmul + "_t").str());
@@ -14647,12 +14647,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // ScalePlusMin tree fed the harvested m_x/s_y. Byte-identical to the
         // monolithic q4_1 mbf1/elided instance; the decode + fold are selected
         // from the WALKED op identity, not the fold_model string. ----
-        tcrvrvv::UnsignedNibbleXI8ProductOp unsignedProduct;
+        weftrvv::UnsignedNibbleXI8ProductOp unsignedProduct;
         loopBody.getBody().walk(
-            [&](tcrvrvv::UnsignedNibbleXI8ProductOp o) { unsignedProduct = o; });
-        tcrvrvv::BlockFp16MinProductOp minBrick;
+            [&](weftrvv::UnsignedNibbleXI8ProductOp o) { unsignedProduct = o; });
+        weftrvv::BlockFp16MinProductOp minBrick;
         loopBody.getBody().walk(
-            [&](tcrvrvv::BlockFp16MinProductOp o) { minBrick = o; });
+            [&](weftrvv::BlockFp16MinProductOp o) { minBrick = o; });
         if (!unsignedProduct || !minBrick || coreLoads.size() != 3 ||
             !coreExtract)
           return rewriter.notifyMatchFailure(
@@ -14677,11 +14677,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // operand-flow real gate): weight <- getWeight (u8), q8 low half <-
         // getActivationLow, q8 high half <- getActivationHigh.
         auto weightLoad =
-            unsignedProduct.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+            unsignedProduct.getWeight().getDefiningOp<weftrvv::LoadOp>();
         auto lowLoad =
-            unsignedProduct.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+            unsignedProduct.getActivationLow().getDefiningOp<weftrvv::LoadOp>();
         auto highLoad =
-            unsignedProduct.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+            unsignedProduct.getActivationHigh().getDefiningOp<weftrvv::LoadOp>();
         if (!weightLoad || !lowLoad || !highLoad ||
             weightLoad.getBuffer() != loopBody.getWeightBase() ||
             lowLoad.getBuffer() != loopBody.getActivationBase() ||
@@ -14787,7 +14787,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // The inner block-capped vl: ONE vsetvl_e8<lmul>(qk/2). coreLmul is the
         // LOAD result LMUL (u8m1 for the weight; the vsetvl spelling is m1).
         auto loadVecType =
-            llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType());
+            llvm::cast<weftrvv::VectorType>(weightLoad.getLoaded().getType());
         llvm::StringRef coreLmul = loadVecType.getLmul();
         unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
         llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
@@ -14849,7 +14849,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // the product op's OWN weight/low/high operands (via the valueMap) -- the
         // SAME emitUnsignedNibbleDecodeProductValue arithmetic the monolith's
         // UnsignedNibble strip reduce runs, so byte-identical while op-sourced.
-        auto prodVecType = llvm::cast<tcrvrvv::VectorType>(
+        auto prodVecType = llvm::cast<weftrvv::VectorType>(
             unsignedProduct.getResult().getType());
         llvm::StringRef wideLmul = prodVecType.getLmul();
         mlir::Type i16WideType =
@@ -14947,14 +14947,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // (five_bit_offset_binary / half-block / ScalesTimesSumi, m1, elided, mbf
         // 1) instance; the decode + fold + qh source are selected from the WALKED
         // op identity, not the fold_model string. ----
-        tcrvrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct;
+        weftrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct;
         loopBody.getBody().walk(
-            [&](tcrvrvv::FiveBitOffsetBinaryXI8ProductOp o) {
+            [&](weftrvv::FiveBitOffsetBinaryXI8ProductOp o) {
               fiveBitProduct = o;
             });
-        tcrvrvv::BlockFiveBitQhSourceOp qhBrick;
+        weftrvv::BlockFiveBitQhSourceOp qhBrick;
         loopBody.getBody().walk(
-            [&](tcrvrvv::BlockFiveBitQhSourceOp o) { qhBrick = o; });
+            [&](weftrvv::BlockFiveBitQhSourceOp o) { qhBrick = o; });
         if (!fiveBitProduct || !qhBrick || coreLoads.size() != 3 || !coreExtract)
           return rewriter.notifyMatchFailure(
               loopBody,
@@ -14984,11 +14984,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // operand-flow real gate): weight <- getWeight (u8), q8 low half <-
         // getActivationLow, q8 high half <- getActivationHigh.
         auto weightLoad =
-            fiveBitProduct.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+            fiveBitProduct.getWeight().getDefiningOp<weftrvv::LoadOp>();
         auto lowLoad =
-            fiveBitProduct.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+            fiveBitProduct.getActivationLow().getDefiningOp<weftrvv::LoadOp>();
         auto highLoad =
-            fiveBitProduct.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+            fiveBitProduct.getActivationHigh().getDefiningOp<weftrvv::LoadOp>();
         if (!weightLoad || !lowLoad || !highLoad ||
             weightLoad.getBuffer() != loopBody.getWeightBase() ||
             lowLoad.getBuffer() != loopBody.getActivationBase() ||
@@ -15120,7 +15120,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // The inner block-capped vl: ONE vsetvl_e8<lmul>(qk/2). coreLmul is the
         // LOAD result LMUL (u8m1 for the weight; the vsetvl spelling is m1).
         auto loadVecType =
-            llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType());
+            llvm::cast<weftrvv::VectorType>(weightLoad.getLoaded().getType());
         llvm::StringRef coreLmul = loadVecType.getLmul();
         unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
         llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
@@ -15184,7 +15184,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // arithmetic the monolith's FiveBitOffsetBinary strip reduce runs, so
         // byte-identical while op-sourced. applyOffsetBias=true is the q5_0 `-16`
         // vsub (q5_1 shares the fn with false).
-        auto prodVecType = llvm::cast<tcrvrvv::VectorType>(
+        auto prodVecType = llvm::cast<weftrvv::VectorType>(
             fiveBitProduct.getResult().getType());
         llvm::StringRef wideLmul = prodVecType.getLmul();
         mlir::Type i16WideType =
@@ -15274,19 +15274,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
           rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
       for (mlir::Operation &op : coreBlock) {
         if (auto scaleProduct =
-                llvm::dyn_cast<tcrvrvv::BlockFp16ScaleProductOp>(op)) {
+                llvm::dyn_cast<weftrvv::BlockFp16ScaleProductOp>(op)) {
           if (mlir::failed(emitBlockFp16ScaleProduct(
                   rewriter, loc, scaleProduct, valueMap,
                   /*bodyVL=*/mlir::Value())))
             return mlir::failure();
         } else if (auto accumulate =
-                       llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(op)) {
+                       llvm::dyn_cast<weftrvv::CrossBlockF32AccumulateOp>(op)) {
           if (mlir::failed(emitCrossBlockF32Accumulate(
                   rewriter, loc, accumulate, valueMap,
                   /*bodyVL=*/mlir::Value())))
             return mlir::failure();
         } else if (auto yield =
-                       llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(
+                       llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(
                            op)) {
           mlir::Value accNext = valueMap.lookup(yield.getAccNext());
           if (!accNext)
@@ -15625,11 +15625,11 @@ mlir::Value VariantToEmitCFunc::emitQ1_0BlockDotBodyShared(
 // emitQ1_0BlockDotBodyShared unchanged).
 mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-  tcrvrvv::GgmlBlockDotQ10Q80Op blockDot;
+  weftrvv::GgmlBlockDotQ10Q80Op blockDot;
   for (mlir::Operation &op : scope.getBody().front()) {
-    if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ10Q80Op>(op))
+    if (auto bd = llvm::dyn_cast<weftrvv::GgmlBlockDotQ10Q80Op>(op))
       blockDot = bd;
   }
   if (!blockDot)
@@ -15651,8 +15651,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
 
   mlir::Value sumfFinal = emitQ1_0BlockDotBodyShared(
       rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
-      blockDot.getTCRVEmitCLowerableSourceOpName(),
-      blockDot.getTCRVEmitCLowerableSourceRole(), coreLmul, blockDot.getQk(),
+      blockDot.getWEFTEmitCLowerableSourceOpName(),
+      blockDot.getWEFTEmitCLowerableSourceRole(), coreLmul, blockDot.getQk(),
       blockDot.getWeightBlockStride(), blockDot.getActivationBlockStride(),
       blockDot.getActivationBlocksPerWeight(),
       blockDot.getWeightQuantByteOffset(),
@@ -15675,7 +15675,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
 // op is scalar (no vl); bodyVL is unused.
 mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::BlockFp16ScaleProductOp scaleProduct,
+    weftrvv::BlockFp16ScaleProductOp scaleProduct,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
     mlir::Value /*bodyVL*/) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
@@ -15689,11 +15689,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
                                        "block_fp16_scale_product operand "
                                        "unmapped");
 
-  llvm::StringRef opName = scaleProduct.getTCRVEmitCLowerableSourceOpName();
-  llvm::StringRef role = scaleProduct.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef opName = scaleProduct.getWEFTEmitCLowerableSourceOpName();
+  llvm::StringRef role = scaleProduct.getWEFTEmitCLowerableSourceRole();
 
   // M-FLAT step 3 -- the loop-capable per-block-source form. When block_index
-  // is present it is the enclosing tcrv_rvv.typed_flat_block_dot_loop_body
+  // is present it is the enclosing weft_rvv.typed_flat_block_dot_loop_body
   // region's induction variable, so each per-block fp16 scale header lives at
   // `base + block_index*stride (+ byte_offset)`. This branch replicates
   // emitFlatBlockDot's blockBaseValue (:5451-5462, blockOffset 0) + fp16ReadAt
@@ -15781,7 +15781,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
 
 mlir::LogicalResult VariantToEmitCFunc::emitBlockComputedScaleDequant(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::BlockComputedScaleDequantOp dequant,
+    weftrvv::BlockComputedScaleDequantOp dequant,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
     mlir::Value /*bodyVL*/) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
@@ -15798,7 +15798,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockComputedScaleDequant(
   // spelling level to the monolithic block-dot fold: the SAME i32 -> float
   // emitc.cast (the `(float)sumi` sitofp) + the SAME scalar float emitc.mul the
   // monolith produces inline for the per-block `(float)sumi * <scale>` term.
-  // scale is the COMPUTED tcrv_rvv.block_fp16_scale_product output (d_x*d_y),
+  // scale is the COMPUTED weft_rvv.block_fp16_scale_product output (d_x*d_y),
   // not an imported ABI scale. This op stops at the per-block term; the
   // cross-block fp32 accumulate (`sumf += term`) is a separate typed step.
   mlir::Value sumiFloat =
@@ -15812,7 +15812,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockComputedScaleDequant(
 
 mlir::LogicalResult VariantToEmitCFunc::emitCrossBlockF32Accumulate(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::CrossBlockF32AccumulateOp accumulate,
+    weftrvv::CrossBlockF32AccumulateOp accumulate,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
     mlir::Value /*bodyVL*/) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
@@ -15830,7 +15830,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitCrossBlockF32Accumulate(
   // emitc.add the monolith produces for `sumf + <block term>`. The caller folds
   // in STRICT ascending block order (block-carried), so the fp non-associativity
   // matches ggml byte-for-byte. acc is the block-carried f32 accumulator, term
-  // is the COMPUTED tcrv_rvv.block_computed_scale_dequant output
+  // is the COMPUTED weft_rvv.block_computed_scale_dequant output
   // (`(float)sumi * scale`). The op stops at the fold; the block loop and the
   // final scalar store are separate typed steps.
   mlir::Value sumfNext =
@@ -15841,7 +15841,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitCrossBlockF32Accumulate(
 
 mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::TypedVectorLane0ToScalarExtractOp extract,
+    weftrvv::TypedVectorLane0ToScalarExtractOp extract,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
     mlir::Value /*bodyVL*/) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
@@ -15862,8 +15862,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
   mlir::Value scalar =
       emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
                      mlir::ValueRange{input},
-                     extract.getTCRVEmitCLowerableSourceOpName(),
-                     extract.getTCRVEmitCLowerableSourceRole());
+                     extract.getWEFTEmitCLowerableSourceOpName(),
+                     extract.getWEFTEmitCLowerableSourceRole());
   valueMap[extract.getResult()] = scalar;
   return mlir::success();
 }
@@ -15886,7 +15886,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
 // the RETIRED monolithic direct emitter emitRepackGemvQ3KQ8K, refactored to take the
 // mapped ABI values + block-format facts as PARAMETERS (no monolith-op lookup, no
 // trailing unused-result token); called ONLY from emitTypedRepackGemvLoopBody's K-quant
-// no-min branch, gated on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass
+// no-min branch, gated on the in-region weft_rvv.repack_gemv_kquant_core anti-bypass
 // brick (decode_model "q3_K"). Oracle-verified vs an INDEPENDENT scalar q3_K
 // dequant-matmul reference (controls HMASK-OFF / HMASK-INV / SCALE-ROT / BIAS-OFF).
 // RESULT-LESS (no monolith token). The hmask SECOND weight plane rides the SHARED qh
@@ -16890,7 +16890,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
 // monolithic direct emitter emitRepackGemvTQ20Q8K, refactored to take the mapped
 // ABI values + block-format facts as PARAMETERS (no monolith-op lookup, no trailing
 // unused-result token). It is called ONLY from emitTypedRepackGemvLoopBody's ternary
-// branch, gated on the in-region tcrv_rvv.repack_gemv_ternary_core anti-bypass brick,
+// branch, gated on the in-region weft_rvv.repack_gemv_ternary_core anti-bypass brick,
 // so the ternary repacked GEVM is now CONSTRUCTED through the typed-region front door
 // (the q4_0 typed_repack precedent) and byte-exactness to the old direct emitter is by
 // construction (the SAME emit code). tq1_0 gets its own base-3 body function.
@@ -17259,7 +17259,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemvBodyTQ20(
 // RETIRED monolithic direct emitter emitRepackGemmTQ20Q8K, refactored to take the
 // mapped ABI values + block-format facts as PARAMETERS (no monolith-op lookup, no
 // trailing unused-result token). Called ONLY from emitTypedRepackGemmLoopBody's
-// ternary branch, gated on the in-region tcrv_rvv.repack_gemm_ternary_core
+// ternary branch, gated on the in-region weft_rvv.repack_gemm_ternary_core
 // anti-bypass brick, so byte-exactness to the old direct emitter is by construction.
 mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -17679,7 +17679,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
 // mapped ABI values + block-format facts (including the base-3 qh SECOND weight-plane
 // offset the tq2_0 leaf lacks) as PARAMETERS (no monolith-op lookup, no trailing
 // unused-result token). Called ONLY from emitTypedRepackGemvLoopBody's ternary branch,
-// gated on the in-region tcrv_rvv.repack_gemv_ternary_core anti-bypass brick
+// gated on the in-region weft_rvv.repack_gemv_ternary_core anti-bypass brick
 // (decode_model "tq1_0"), so byte-exactness to the old direct emitter is by
 // construction (the SAME emit code).
 mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemvBodyTQ10(
@@ -18069,7 +18069,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemvBodyTQ10(
 // the mapped ABI values + block-format facts (including the base-3 qh SECOND
 // weight-plane offset) as PARAMETERS (no monolith-op lookup, no trailing unused-result
 // token). Called ONLY from emitTypedRepackGemmLoopBody's ternary branch, gated on the
-// in-region tcrv_rvv.repack_gemm_ternary_core anti-bypass brick (decode_model
+// in-region weft_rvv.repack_gemm_ternary_core anti-bypass brick (decode_model
 // "tq1_0"), so byte-exactness to the old direct emitter is by construction.
 mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -18581,7 +18581,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemvBodyIq4Nl(
     // The 16-entry non-linear int8 codebook is a STRUCTURAL fact off the typed
     // attr (I4 mirror). Emit it ONCE as a `static const int8_t[16]` decl; the
     // MEMORY codebook GATHER (vluxei16) indexes it by nibble byte offset.
-    llvm::StringLiteral tableName = "tcrv_iq4_nl_repack_kvalues";
+    llvm::StringLiteral tableName = "weft_iq4_nl_repack_kvalues";
     {
       std::string decl =
           ("static const int8_t " + tableName + "[16] = {").str();
@@ -18921,7 +18921,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Nl(
 
     mlir::Value vl8 = sizeLit(half);
 
-    llvm::StringLiteral tableName = "tcrv_iq4_nl_repack_kvalues";
+    llvm::StringLiteral tableName = "weft_iq4_nl_repack_kvalues";
     {
       std::string decl =
           ("static const int8_t " + tableName + "[16] = {").str();
@@ -19323,7 +19323,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemvBodyMxfp4(
     // The 16-entry doubled-E2M1 int8 fp4 codebook is a STRUCTURAL fact off the typed
     // attr (I4 mirror). Emit it ONCE as a `static const int8_t[16]` decl; the MEMORY
     // codebook GATHER (vluxei16) indexes it by nibble byte offset.
-    llvm::StringLiteral tableName = "tcrv_mxfp4_repack_kvalues";
+    llvm::StringLiteral tableName = "weft_mxfp4_repack_kvalues";
     {
       std::string decl =
           ("static const int8_t " + tableName + "[16] = {").str();
@@ -19738,7 +19738,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyMxfp4(
 
     mlir::Value vl8 = sizeLit(half);
 
-    llvm::StringLiteral tableName = "tcrv_mxfp4_repack_kvalues";
+    llvm::StringLiteral tableName = "weft_mxfp4_repack_kvalues";
     {
       std::string decl =
           ("static const int8_t " + tableName + "[16] = {").str();
@@ -20197,7 +20197,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemvBodyIq4Xs(
 
     mlir::Value vl8 = sizeLit(half);
 
-    llvm::StringLiteral tableName = "tcrv_iq4_xs_repack_kvalues";
+    llvm::StringLiteral tableName = "weft_iq4_xs_repack_kvalues";
     {
       std::string decl =
           ("static const int8_t " + tableName + "[16] = {").str();
@@ -20623,7 +20623,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Xs(
 
     mlir::Value vl8 = sizeLit(half);
 
-    llvm::StringLiteral tableName = "tcrv_iq4_xs_repack_kvalues";
+    llvm::StringLiteral tableName = "weft_iq4_xs_repack_kvalues";
     {
       std::string decl =
           ("static const int8_t " + tableName + "[16] = {").str();
@@ -21122,14 +21122,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemvBodyIq2Xxs(
     // emitted ONCE (the SHARED byte-exact anchors the block-dot iq2_xxs path uses).
     emitIQ2XXSCanonicalGridTableDecl(rewriter, loc);
     emitIQ2XXSCanonicalSigns64TableDecl(rewriter, loc);
-    // const int8_t *grid8 = (const int8_t *)tcrv_iq2xxs_grid;  (byte view for the
-    // per-lane grid GATHER). const int8_t *signs8 = tcrv_iq2xxs_signs64;
+    // const int8_t *grid8 = (const int8_t *)weft_iq2xxs_grid;  (byte view for the
+    // per-lane grid GATHER). const int8_t *signs8 = weft_iq2xxs_signs64;
     mlir::Value gridArrName = rewriter.create<emitc::LiteralOp>(
-        loc, i64PtrType, "tcrv_iq2xxs_grid");
+        loc, i64PtrType, "weft_iq2xxs_grid");
     mlir::Value gridI8Ptr =
         rewriter.create<emitc::CastOp>(loc, i8PtrType, gridArrName).getResult();
     mlir::Value signsI8Ptr = rewriter.create<emitc::LiteralOp>(
-        loc, i8PtrType, "tcrv_iq2xxs_signs64");
+        loc, i8PtrType, "weft_iq2xxs_signs64");
 
     step("block_count");
     mlir::Value nb =
@@ -21555,11 +21555,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
     emitIQ2XXSCanonicalGridTableDecl(rewriter, loc);
     emitIQ2XXSCanonicalSigns64TableDecl(rewriter, loc);
     mlir::Value gridArrName = rewriter.create<emitc::LiteralOp>(
-        loc, i64PtrType, "tcrv_iq2xxs_grid");
+        loc, i64PtrType, "weft_iq2xxs_grid");
     mlir::Value gridI8Ptr =
         rewriter.create<emitc::CastOp>(loc, i8PtrType, gridArrName).getResult();
     mlir::Value signsI8Ptr = rewriter.create<emitc::LiteralOp>(
-        loc, i8PtrType, "tcrv_iq2xxs_signs64");
+        loc, i8PtrType, "weft_iq2xxs_signs64");
 
     step("block_count");
     mlir::Value nb =
@@ -22041,13 +22041,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
     if (variant == Iq2DualGridVariant::Xs) {
       emitIQ2XSCanonicalGridTableDecl(rewriter, loc);
       emitIQ2XSCanonicalSigns64TableDecl(rewriter, loc);
-      gridArr = "tcrv_iq2xs_grid";
-      signsArr = "tcrv_iq2xs_signs64";
+      gridArr = "weft_iq2xs_grid";
+      signsArr = "weft_iq2xs_signs64";
     } else {
       emitIQ2SCanonicalGridTableDecl(rewriter, loc);
       emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
-      gridArr = "tcrv_iq2s_grid";
-      signsArr = "tcrv_iq2s_signs256";
+      gridArr = "weft_iq2s_grid";
+      signsArr = "weft_iq2s_signs256";
     }
     mlir::Value gridArrName =
         rewriter.create<emitc::LiteralOp>(loc, i64PtrType, gridArr);
@@ -22498,13 +22498,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     if (variant == Iq2DualGridVariant::Xs) {
       emitIQ2XSCanonicalGridTableDecl(rewriter, loc);
       emitIQ2XSCanonicalSigns64TableDecl(rewriter, loc);
-      gridArr = "tcrv_iq2xs_grid";
-      signsArr = "tcrv_iq2xs_signs64";
+      gridArr = "weft_iq2xs_grid";
+      signsArr = "weft_iq2xs_signs64";
     } else {
       emitIQ2SCanonicalGridTableDecl(rewriter, loc);
       emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
-      gridArr = "tcrv_iq2s_grid";
-      signsArr = "tcrv_iq2s_signs256";
+      gridArr = "weft_iq2s_grid";
+      signsArr = "weft_iq2s_signs256";
     }
     mlir::Value gridArrName =
         rewriter.create<emitc::LiteralOp>(loc, i64PtrType, gridArr);
@@ -22933,7 +22933,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
 
 // NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the four thin direct-emit
 // dispatch entry points emitRepackGem{v,m}Iq2{Xs,S}Q8K + their monolith ops
-// (tcrv_rvv.repack_gem{v,m}_iq2_{xs,s}_q8_K) + recognizers (isRepackGem{v,m}Iq2{Xs,S}Q8KBody)
+// (weft_rvv.repack_gem{v,m}_iq2_{xs,s}_q8_K) + recognizers (isRepackGem{v,m}Iq2{Xs,S}Q8KBody)
 // are RETIRED: the iq2_xs / iq2_s repack GEVM/GEMM now flow through the typed-region front
 // door (grid branch of emitTypedRepackGem{v,m}LoopBody -> emitRepackGem{v,m}Iq2DualScaleQ8K,
 // the SAME dual-ls body leaf now result-less + fact-parameterized). The iq2 grid family is
@@ -22942,4 +22942,4 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
-} // namespace tianchenrv
+} // namespace weft

@@ -1,12 +1,12 @@
 // [PERF-1] gate (2) -- the q4_K repack GEMM VLEN-flip {128,256} lit. The INPUT
-// tcrv_rvv.quant_contraction request (K-quant q4_K / prefill) is BYTE-IDENTICAL
+// weft_rvv.quant_contraction request (K-quant q4_K / prefill) is BYTE-IDENTICAL
 // across both RUN lines; the ONLY thing that varies is the selected -march (a
-// TARGET-CAPABILITY fact) handed to --tcrv-rvv-lower-quant-contraction. The pass
+// TARGET-CAPABILITY fact) handed to --weft-rvv-lower-quant-contraction. The pass
 // derives the guaranteed minimum VLEN from -march (deriveMinimumVLEN -- the SAME
 // plugin-local authority every capability-gated pass uses) and, on the
 // repack-SELECTED prefill request, feeds the resource-aware e16m1 strip width
 // deriveRepackHalfLanes(minVLEN) = min(VLEN/16, 16) into the constructed
-// tcrv_rvv.typed_repack_gemm_loop_body region:
+// weft_rvv.typed_repack_gemm_loop_body region:
 //   * VLEN128 (rv64gcv):        half_lanes 8  -> numHalves 2 -> the strip vl is 8
 //     (vsetvli semantics e32,m2 vl=8; two disjoint 8-lane strips per 16-block
 //     group; int16 product buffers are 32-wide).
@@ -21,33 +21,33 @@
 // the gate (2) STRUCTURAL codegen-flip proof, lit-emitted, NOT run.
 
 // --- VLEN128: the strip vl is 8 (two 8-lane halves; 32-wide int16 buffers). ---
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc \
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc \
 // RUN:   | FileCheck %s --check-prefix=V128 --implicit-check-not='!emitc.array<64x!emitc.opaque<"int16_t">>'
 
 // --- VLEN256: the strip vl is 16 (one 16-lane strip; 64-wide int16 buffers). ---
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc \
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc \
 // RUN:   | FileCheck %s --check-prefix=V256 --implicit-check-not='!emitc.array<32x!emitc.opaque<"int16_t">>'
 
 module {
-  tcrv.exec.kernel @ggml_repack_gemm_q4_K_q8_K_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @ggml_repack_gemm_q4_K_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_q4_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemm_q4_K_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q4_K", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", m_regime = "prefill", qk = 256 : i64, weight_layout = "plain", weight_block_stride = 144 : i64, activation_block_stride = 292 : i64, quant_byte_offset = 16 : i64, activation_high_byte_offset = 0 : i64, block_dot_compute_heavy = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
+  weft.exec.kernel @ggml_repack_gemm_q4_K_q8_K_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.variant @ggml_repack_gemm_q4_K_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_q4_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemm_q4_K_q8_K_kernel", status = "selected-lowering-boundary"} {
+        %dot = weft_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q4_K", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", m_regime = "prefill", qk = 256 : i64, weight_layout = "plain", weight_block_stride = 144 : i64, activation_block_stride = 292 : i64, quant_byte_offset = 16 : i64, activation_high_byte_offset = 0 : i64, block_dot_compute_heavy = true} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
     }
   }
 }
 
 // ===================== VLEN128 -> strip vl 8 (half_lanes 8) =====================
 // The constructed q4_K repack GEMM kernel; the abstract op is GONE.
-// V128: emitc.func @tcrv_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K(
+// V128: emitc.func @weft_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K(
 // The typed_repack_gemm_loop_body strip width materialized from the VLEN128
 // capability fact: deriveRepackHalfLanes(128) = min(128/16, 16) = 8.
 // V128: %[[VL8:[0-9]+]] = literal "8" : !emitc.opaque<"size_t">
@@ -61,7 +61,7 @@ module {
 
 // ===================== VLEN256 -> strip vl 16 (half_lanes 16) ===================
 // The SAME abstract request, SAME kernel, ONLY -march differs.
-// V256: emitc.func @tcrv_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K(
+// V256: emitc.func @weft_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K(
 // The strip width materialized from the VLEN256 capability fact:
 // deriveRepackHalfLanes(256) = min(256/16, 16) = 16.
 // V256: %[[VL16:[0-9]+]] = literal "16" : !emitc.opaque<"size_t">

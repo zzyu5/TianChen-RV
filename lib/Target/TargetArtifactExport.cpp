@@ -1,13 +1,13 @@
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "Weft/Target/TargetArtifactExport.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Plugin/ExtensionBundle.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/ArtifactMetadata.h"
-#include "TianChenRV/Support/CapabilityModel.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Support/ArtifactMetadata.h"
+#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Attributes.h"
@@ -30,17 +30,17 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::target {
+namespace weft::target {
 namespace {
 
-namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
+namespace execDiagnostic = weft::exec::diagnostic;
 
-using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchCaseOp;
-using tianchenrv::tcrv::exec::DispatchOp;
-using tianchenrv::tcrv::exec::FallbackOp;
-using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::VariantOp;
+using weft::exec::DiagnosticOp;
+using weft::exec::DispatchCaseOp;
+using weft::exec::DispatchOp;
+using weft::exec::FallbackOp;
+using weft::exec::KernelOp;
+using weft::exec::VariantOp;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
@@ -51,9 +51,9 @@ constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
-    "tcrv-export-target-artifact");
+    "weft-export-target-artifact");
 constexpr llvm::StringLiteral kTargetHeaderFrontDoor(
-    "tcrv-export-target-header-artifact");
+    "weft-export-target-header-artifact");
 constexpr llvm::StringLiteral kCompilerArtifactEvidenceRole(
     "compiler-artifact");
 constexpr llvm::StringLiteral kHeaderDeclarationEvidenceRole(
@@ -64,7 +64,7 @@ constexpr llvm::StringLiteral kBundleHeaderComponentRole("header");
 constexpr llvm::StringLiteral kBundleObjectComponentRole("object");
 constexpr llvm::StringLiteral kBundleArtifactComponentRole("artifact");
 constexpr llvm::StringLiteral kTargetArtifactBundleIndexFileName(
-    "tianchenrv-target-artifact-bundle.index");
+    "weft-target-artifact-bundle.index");
 
 enum class ArtifactSelectionMode {
   DefaultArtifact,
@@ -90,14 +90,14 @@ mlir::Operation *getPathVariantOperation(const SelectedPath &path) {
 
 llvm::Error makeRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV target artifact exporter registry failed: ") +
+      llvm::Twine("Weft-RV target artifact exporter registry failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
 llvm::Error makePluginTargetRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV plugin-owned target artifact exporter "
+      llvm::Twine("Weft-RV plugin-owned target artifact exporter "
                   "registry failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -106,7 +106,7 @@ llvm::Error makePluginTargetRegistryError(llvm::Twine message) {
 llvm::Error makeArtifactExportError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV target artifact export failed";
+  stream << "Weft-RV target artifact export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -119,14 +119,14 @@ llvm::Error makeArtifactExportError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleArtifactExportError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV target artifact export failed: ") +
+      llvm::Twine("Weft-RV target artifact export failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
 llvm::Error makeTargetArtifactBundleExportError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV target artifact bundle export failed: ") +
+      llvm::Twine("Weft-RV target artifact bundle export failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -135,7 +135,7 @@ llvm::Error makeTargetArtifactFrontDoorError(KernelOp kernel,
                                              llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV selected target artifact front-door coherence failed";
+  stream << "Weft-RV selected target artifact front-door coherence failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -150,7 +150,7 @@ llvm::Error makeSelectedEmitCArtifactError(llvm::StringRef routeDescription,
                                            llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV ";
+  stream << "Weft-RV ";
   if (routeDescription.trim().empty())
     stream << "selected EmitC artifact front door";
   else
@@ -431,11 +431,11 @@ llvm::Error resolveDirectVariant(
     return makeArtifactExportError(
         kernel, llvm::Twine(context) + " target @" + symbol +
                     " resolves to a direct sibling symbol that is not a "
-                    "tcrv.exec.variant");
+                    "weft.exec.variant");
 
   return makeArtifactExportError(
       kernel, llvm::Twine(context) + " target @" + symbol +
-                  " does not resolve to a direct sibling tcrv.exec.variant");
+                  " does not resolve to a direct sibling weft.exec.variant");
 }
 
 llvm::Error collectDispatchSelectedPaths(
@@ -536,7 +536,7 @@ llvm::Error collectSelectedPaths(
   if (dispatches.size() > 1)
     return makeArtifactExportError(
         kernel, "requires exactly one selected dispatch surface; found "
-                "multiple direct tcrv.exec.dispatch operations");
+                "multiple direct weft.exec.dispatch operations");
   if (!dispatches.empty() && !markers.empty())
     return makeArtifactExportError(
         kernel, "requires one selected path surface; found both dispatch and "
@@ -1069,10 +1069,10 @@ selectTargetArtifactCompositeExporter(
 }
 
 std::string makeSelectedEmitCArtifactFunctionName(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
+    weft::exec::KernelOp kernel, weft::exec::VariantOp variant) {
   std::string name;
   llvm::raw_string_ostream os(name);
-  os << "tcrv_emitc_";
+  os << "weft_emitc_";
   if (kernel)
     os << sanitizeIdentifierPart(kernel.getSymName());
   else
@@ -1126,13 +1126,13 @@ parseSelectedEmitCArtifactRole(llvm::StringRef role,
           "' is not supported by the common EmitC artifact front door");
 }
 
-tcrv::exec::VariantOp findDirectVariantBySymbol(tcrv::exec::KernelOp kernel,
+weft::exec::VariantOp findDirectVariantBySymbol(weft::exec::KernelOp kernel,
                                                 llvm::StringRef symbol) {
   if (!hasKernelBody(kernel))
     return {};
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(op);
     if (variant && variant.getSymName() == symbol)
       return variant;
   }
@@ -1197,7 +1197,7 @@ selectSelectedEmitCArtifactTargetImpl(
         routeDescription,
         llvm::Twine("selected emission-plan candidate target @") +
             target.candidate.selectedVariant +
-            " does not resolve to a direct sibling tcrv.exec.variant before "
+            " does not resolve to a direct sibling weft.exec.variant before "
             "EmitC artifact export");
 
   return target;
@@ -2091,7 +2091,7 @@ llvm::Error collectTargetArtifactCandidates(
             });
   if (kernels.empty())
     return makeModuleArtifactExportError(
-        "requires at least one tcrv.exec.kernel");
+        "requires at least one weft.exec.kernel");
 
   for (KernelOp kernel : kernels) {
     llvm::StringMap<VariantOp> directVariants;
@@ -2807,7 +2807,7 @@ llvm::SmallString<256> makeBundleOutputPath(llvm::StringRef outputDirectory,
 llvm::Error validateBundleOutputDirectory(llvm::StringRef outputDirectory) {
   if (outputDirectory.trim().empty())
     return makeTargetArtifactBundleExportError(
-        "requires --tcrv-target-artifact-bundle-output-dir=<directory>");
+        "requires --weft-target-artifact-bundle-output-dir=<directory>");
   if (!llvm::sys::fs::exists(outputDirectory))
     return makeTargetArtifactBundleExportError(
         "output directory must already exist");
@@ -2940,7 +2940,7 @@ void printTargetArtifactBundleIndex(
     llvm::raw_ostream &os,
     llvm::ArrayRef<TargetArtifactBundleRecord> records,
     llvm::ArrayRef<std::string> fileNames) {
-  os << "tianchenrv.target_artifact_bundle.version: 1\n";
+  os << "weft.target_artifact_bundle.version: 1\n";
   os << "bundle_status: \"complete\"\n";
   os << "artifact_count: " << records.size() << "\n";
 
@@ -3857,4 +3857,4 @@ llvm::Error exportTargetArtifactBundle(
   return llvm::Error::success();
 }
 
-} // namespace tianchenrv::target
+} // namespace weft::target

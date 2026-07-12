@@ -1,5 +1,5 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "Weft/InitWeftDialects.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Pass/Pass.h"
@@ -12,10 +12,10 @@
 #include <initializer_list>
 #include <string>
 
-using tianchenrv::plugin::ExtensionPlugin;
-using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::SourceFrontDoorPassRegistration;
+using weft::plugin::ExtensionPlugin;
+using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::PluginCapability;
+using weft::plugin::SourceFrontDoorPassRegistration;
 
 namespace {
 
@@ -98,7 +98,7 @@ int expectDuplicateNameError(llvm::Error error, llvm::StringRef pluginName) {
 
   std::string message = llvm::toString(std::move(error));
   std::string expected =
-      (llvm::Twine("duplicate TianChen-RV extension plugin '") + pluginName +
+      (llvm::Twine("duplicate Weft-RV extension plugin '") + pluginName +
        "'")
           .str();
   if (!llvm::StringRef(message).contains(expected))
@@ -174,7 +174,7 @@ int main() {
                           "enabled dialect registration calls enabled hooks"))
     return result;
 
-  tianchenrv::registerPluginDialects(registry, dialectRegistry);
+  weft::registerPluginDialects(registry, dialectRegistry);
   if (int result = expect(alpha.getDialectRegistrationCalls() == 2 &&
                               beta.getDialectRegistrationCalls() == 0 &&
                               gamma.getDialectRegistrationCalls() == 2,

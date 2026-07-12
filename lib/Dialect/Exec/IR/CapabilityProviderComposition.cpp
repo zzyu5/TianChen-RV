@@ -1,4 +1,4 @@
-#include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
+#include "Weft/Dialect/Exec/IR/CapabilityProviderComposition.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/SymbolTable.h"
@@ -7,19 +7,19 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace tianchenrv::tcrv::exec {
+namespace weft::exec {
 namespace {
 
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
 constexpr llvm::StringLiteral kIdAttrName("id");
-// Op-classification axis on tcrv.exec.target (profile / capability-provider),
-// disambiguated from the capability-fact kind on tcrv.exec.capability.
+// Op-classification axis on weft.exec.target (profile / capability-provider),
+// disambiguated from the capability-fact kind on weft.exec.capability.
 constexpr llvm::StringLiteral kTargetKindAttrName("target_kind");
 
 llvm::Error makeProviderCompositionError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV target capability provider composition failed: ") +
+      llvm::Twine("Weft-RV target capability provider composition failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -70,7 +70,7 @@ public:
   llvm::Error resolve(llvm::SmallVectorImpl<mlir::Operation *> &out) {
     if (!root)
       return makeProviderCompositionError(
-          "requires a tcrv.exec.target root");
+          "requires a weft.exec.target root");
 
     module = root->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -145,8 +145,8 @@ private:
       if (!isCapabilityProviderOperation(provider))
         return makeProviderCompositionError(
             llvm::Twine(formatProviderContext(target, symbolName)) +
-            " must resolve to a module-level tcrv.exec.capability or "
-            "capability-provider tcrv.exec.target");
+            " must resolve to a module-level weft.exec.capability or "
+            "capability-provider weft.exec.target");
 
       if (llvm::Error error = addProvider(target, provider, out))
         return error;
@@ -251,4 +251,4 @@ collectComposedModuleCapabilityProviders(TargetOp target) {
   return providers;
 }
 
-} // namespace tianchenrv::tcrv::exec
+} // namespace weft::exec

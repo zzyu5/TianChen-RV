@@ -3,17 +3,17 @@
 > Construction journal for the scalar extension family's first *real* owned
 > compute kernel. Records what landed and what stays open. Status/progress is
 > journal, not spec — the authority framing lives in
-> `docs/canon/TianChen-RV_执行总纲v2.md` §6 ([X-SCALAR] owned 内核落点).
+> `docs/canon/Weft-RV_执行总纲v2.md` §6 ([X-SCALAR] owned 内核落点).
 
 ## What landed
 
-The `tcrv.scalar` family's tracer-bullet trivial compute op
-(`tcrv_scalar.compute_skeleton`, which emitted a vacuous
+The `weft.scalar` family's tracer-bullet trivial compute op
+(`weft_scalar.compute_skeleton`, which emitted a vacuous
 `int32_t v = 7; call(v);`) is joined by a **real** ternary 2-bit vec_dot
 boundary that lowers to a pure-scalar C kernel:
 
-- **ODS op** `tcrv_scalar.tq2_0_q8_k_vec_dot`
-  (`include/TianChenRV/Dialect/Scalar/IR/ScalarOps.td`). Carries the tq2_0 x
+- **ODS op** `weft_scalar.tq2_0_q8_k_vec_dot`
+  (`include/Weft/Dialect/Scalar/IR/ScalarOps.td`). Carries the tq2_0 x
   q8_K block-format facts as typed attributes: `qk`, `weight_block_stride`,
   `activation_block_stride`, `weight_d_byte_offset`,
   `activation_d_byte_offset`, `activation_quant_byte_offset`, plus
@@ -22,7 +22,7 @@ boundary that lowers to a pure-scalar C kernel:
 
 - **Emitter** `ScalarTernaryQ2Q8BlockDotToEmitCFunc`
   (`lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp`) lowers the op to a
-  standalone EmitC function rendered by the shared `--tcrv-scalar-emitc-to-cpp`
+  standalone EmitC function rendered by the shared `--weft-scalar-emitc-to-cpp`
   translate route as the ggml `ggml_vec_dot_tq2_0_q8_K` contraction in plain C
   nested loops:
 

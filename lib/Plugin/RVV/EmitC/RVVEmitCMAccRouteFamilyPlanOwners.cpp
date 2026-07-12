@@ -1,7 +1,7 @@
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 
-#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
-#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
+#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
@@ -13,7 +13,7 @@
 #include <string>
 #include <utility>
 
-namespace tianchenrv::plugin::rvv {
+namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
@@ -403,14 +403,14 @@ llvm::Error verifyMAccPlanTypedConfigSnapshot(
   return llvm::Error::success();
 }
 
-llvm::Expected<tcrv::rvv::RuntimeABIValueOp> requirePreRealizedRuntimeABIValue(
+llvm::Expected<weft::rvv::RuntimeABIValueOp> requirePreRealizedRuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
-  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto binding = value.getDefiningOp<weft::rvv::RuntimeABIValueOp>();
   if (!binding)
     return makeRVVEmitCRouteProviderError(llvm::Twine(context) +
                                           " must be defined by explicit "
-                                          "tcrv_rvv.runtime_abi_value");
+                                          "weft_rvv.runtime_abi_value");
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -431,15 +431,15 @@ llvm::Expected<tcrv::rvv::RuntimeABIValueOp> requirePreRealizedRuntimeABIValue(
 
 llvm::Error validatePreRealizedRVVSelectedMAccBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedMAccPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedMAccPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV macc realization requires a pre-realized macc body op");
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected macc body must be a direct child of the "
-        "selected tcrv.exec.variant");
+        "selected weft.exec.variant");
 
   if (!(body.getOpKind() == "macc_add" ||
         body.getOpKind() == "scalar_broadcast_macc_add"))
@@ -482,16 +482,16 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
         "pre-realized RVV selected macc body currently supports only "
         "result_layout 'store-multiply-accumulate-result-to-output-buffer'");
   if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+          weft::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected macc body requires SEW32 LMUL m1");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected macc body requires tail agnostic, mask "
         "agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedRuntimeABIValue(
           body.getLhs(), "pre-realized RVV macc lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
@@ -500,24 +500,24 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
   support::RuntimeABIParameterRole rhsRole =
       scalarBroadcastMAcc ? support::RuntimeABIParameterRole::RHSScalarValue
                           : support::RuntimeABIParameterRole::RHSInputBuffer;
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedRuntimeABIValue(
           body.getRhs(), "pre-realized RVV macc rhs operand", rhsRole);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedRuntimeABIValue(
           body.getAcc(), "pre-realized RVV macc accumulator operand",
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(), "pre-realized RVV macc out operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(), "pre-realized RVV macc runtime n/AVL operand",
           support::RuntimeABIParameterRole::RuntimeElementCount);
@@ -526,10 +526,10 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
-                  tcrv::rvv::TypedMAccPreRealizedBodyOp>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp,
+                  weft::rvv::TypedMAccPreRealizedBodyOp>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -550,8 +550,8 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedComputedMaskMAccPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV computed-mask macc realization requires a "
@@ -559,7 +559,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask macc body must be a direct "
-        "child of the selected tcrv.exec.variant");
+        "child of the selected weft.exec.variant");
 
   if (body.getOpKind() != "computed_masked_macc_add")
     return makeRVVEmitCRouteProviderError(
@@ -601,56 +601,56 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
         "only result_layout "
         "'store-multiply-accumulate-result-to-output-buffer'");
   if (!(static_cast<std::int64_t>(body.getSew()) ==
-            tcrv::rvv::getRVVFirstSliceSEWBits() &&
-        (body.getLmul() == tcrv::rvv::getRVVLMULM1() ||
-         body.getLmul() == tcrv::rvv::getRVVLMULM2())))
+            weft::rvv::getRVVFirstSliceSEWBits() &&
+        (body.getLmul() == weft::rvv::getRVVLMULM1() ||
+         body.getLmul() == weft::rvv::getRVVLMULM2())))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask macc body requires SEW32 "
         "LMUL m1 or SEW32 LMUL m2");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask macc body requires tail "
         "agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> cmpLHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> cmpLHS =
       requirePreRealizedRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV computed-mask macc compare lhs operand",
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!cmpLHS)
     return cmpLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> cmpRHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> cmpRHS =
       requirePreRealizedRuntimeABIValue(
           body.getCompareRhs(),
           "pre-realized RVV computed-mask macc compare rhs operand",
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!cmpRHS)
     return cmpRHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedRuntimeABIValue(
           body.getLhs(), "pre-realized RVV computed-mask macc lhs payload",
           support::RuntimeABIParameterRole::DotLHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedRuntimeABIValue(
           body.getRhs(), "pre-realized RVV computed-mask macc rhs payload",
           support::RuntimeABIParameterRole::DotRHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedRuntimeABIValue(
           body.getAcc(), "pre-realized RVV computed-mask macc accumulator",
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(), "pre-realized RVV computed-mask macc out operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(), "pre-realized RVV computed-mask macc runtime n/AVL "
                        "operand",
@@ -660,10 +660,10 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
-                  tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op))
+    if (llvm::isa<weft::rvv::RuntimeABIValueOp,
+                  weft::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op))
       return;
     unexpectedRVVOp = op;
   });
@@ -685,8 +685,8 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
 llvm::Error
 validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp body) {
-  tcrv::exec::VariantOp variant = request.getVariant();
+    weft::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp body) {
+  weft::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
         "selected RVV runtime scalar computed-mask macc realization requires "
@@ -694,7 +694,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
   if (body->getParentOp() != variant.getOperation())
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask macc body "
-        "must be a direct child of the selected tcrv.exec.variant");
+        "must be a direct child of the selected weft.exec.variant");
 
   if (body.getOpKind() != "runtime_scalar_cmp_masked_macc_add")
     return makeRVVEmitCRouteProviderError(
@@ -742,18 +742,18 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
         "currently supports only result_layout "
         "'store-multiply-accumulate-result-to-output-buffer'");
   if (!(static_cast<std::int64_t>(body.getSew()) ==
-            tcrv::rvv::getRVVFirstSliceSEWBits() &&
-        (body.getLmul() == tcrv::rvv::getRVVLMULM1() ||
-         body.getLmul() == tcrv::rvv::getRVVLMULM2())))
+            weft::rvv::getRVVFirstSliceSEWBits() &&
+        (body.getLmul() == weft::rvv::getRVVLMULM1() ||
+         body.getLmul() == weft::rvv::getRVVLMULM2())))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask macc body "
         "requires SEW32 LMUL m1 or SEW32 LMUL m2");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+  if (!weft::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected runtime scalar computed-mask macc body "
         "requires tail agnostic, mask agnostic policy");
 
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> cmpLHS =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> cmpLHS =
       requirePreRealizedRuntimeABIValue(
           body.getCompareLhs(),
           "pre-realized RVV runtime scalar computed-mask macc compare lhs "
@@ -761,7 +761,7 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!cmpLHS)
     return cmpLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhsScalar =
       requirePreRealizedRuntimeABIValue(
           body.getRhsScalar(),
           "pre-realized RVV runtime scalar computed-mask macc rhs scalar "
@@ -769,35 +769,35 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
           support::RuntimeABIParameterRole::RHSScalarValue);
   if (!rhsScalar)
     return rhsScalar.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> lhs =
       requirePreRealizedRuntimeABIValue(
           body.getLhs(),
           "pre-realized RVV runtime scalar computed-mask macc lhs payload",
           support::RuntimeABIParameterRole::DotLHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedRuntimeABIValue(
           body.getRhs(),
           "pre-realized RVV runtime scalar computed-mask macc rhs payload",
           support::RuntimeABIParameterRole::DotRHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> acc =
       requirePreRealizedRuntimeABIValue(
           body.getAcc(),
           "pre-realized RVV runtime scalar computed-mask macc accumulator",
           support::RuntimeABIParameterRole::AccumulatorInputBuffer);
   if (!acc)
     return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
           body.getOut(),
           "pre-realized RVV runtime scalar computed-mask macc out operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+  llvm::Expected<weft::rvv::RuntimeABIValueOp> n =
       requirePreRealizedRuntimeABIValue(
           body.getN(),
           "pre-realized RVV runtime scalar computed-mask macc runtime n/AVL "
@@ -808,11 +808,11 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "weft_rvv")
       return;
     if (llvm::isa<
-            tcrv::rvv::RuntimeABIValueOp,
-            tcrv::rvv::
+            weft::rvv::RuntimeABIValueOp,
+            weft::rvv::
                 TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(op))
       return;
     unexpectedRVVOp = op;
@@ -881,32 +881,32 @@ llvm::StringRef getStandaloneReductionInactiveLaneRequirement(
 
 bool isRuntimeScalarComputedMaskStandaloneReductionConfig(std::int64_t sew,
                                                          llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
-    return lmul == tcrv::rvv::getRVVLMULM1() ||
-           lmul == tcrv::rvv::getRVVLMULM2();
-  return sew == tcrv::rvv::getRVVSEW64Bits() &&
-         lmul == tcrv::rvv::getRVVLMULM1();
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
+    return lmul == weft::rvv::getRVVLMULM1() ||
+           lmul == weft::rvv::getRVVLMULM2();
+  return sew == weft::rvv::getRVVSEW64Bits() &&
+         lmul == weft::rvv::getRVVLMULM1();
 }
 
 bool isStandaloneReductionScalarChannelConfig(std::int64_t sew,
                                               llvm::StringRef lmul) {
-  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         (lmul == tcrv::rvv::getRVVLMULM1() ||
-          lmul == tcrv::rvv::getRVVLMULM2());
+  return sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == weft::rvv::getRVVLMULM1() ||
+          lmul == weft::rvv::getRVVLMULM2());
 }
 
 bool isComputedMaskMAccConfig(std::int64_t sew, llvm::StringRef lmul) {
-  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         (lmul == tcrv::rvv::getRVVLMULM1() ||
-          lmul == tcrv::rvv::getRVVLMULM2());
+  return sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == weft::rvv::getRVVLMULM1() ||
+          lmul == weft::rvv::getRVVLMULM2());
 }
 
 bool isSupportedMAccVectorSuffixConfig(std::int64_t sew,
                                        llvm::StringRef lmul) {
-  return (sew == tcrv::rvv::getRVVFirstSliceSEWBits() ||
-          sew == tcrv::rvv::getRVVSEW64Bits()) &&
-         (lmul == tcrv::rvv::getRVVLMULM1() ||
-          lmul == tcrv::rvv::getRVVLMULM2());
+  return (sew == weft::rvv::getRVVFirstSliceSEWBits() ||
+          sew == weft::rvv::getRVVSEW64Bits()) &&
+         (lmul == weft::rvv::getRVVLMULM1() ||
+          lmul == weft::rvv::getRVVLMULM2());
 }
 
 std::optional<std::string>
@@ -924,17 +924,17 @@ deriveMAccMaskIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
     return std::nullopt;
 
   std::int64_t maskBits = 0;
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == weft::rvv::getRVVLMULM1())
     maskBits = 32;
-  else if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-           lmul == tcrv::rvv::getRVVLMULM2())
+  else if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+           lmul == weft::rvv::getRVVLMULM2())
     maskBits = 16;
-  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-           lmul == tcrv::rvv::getRVVLMULM1())
+  else if (sew == weft::rvv::getRVVSEW64Bits() &&
+           lmul == weft::rvv::getRVVLMULM1())
     maskBits = 64;
-  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-           lmul == tcrv::rvv::getRVVLMULM2())
+  else if (sew == weft::rvv::getRVVSEW64Bits() &&
+           lmul == weft::rvv::getRVVLMULM2())
     maskBits = 32;
   if (maskBits == 0)
     return std::nullopt;
@@ -943,7 +943,7 @@ deriveMAccMaskIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
 
 std::optional<std::string> deriveMAccIntrinsic(std::int64_t sew,
                                                llvm::StringRef lmul) {
-  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+  if (sew != weft::rvv::getRVVFirstSliceSEWBits())
     return std::nullopt;
   std::optional<std::string> suffix =
       deriveMAccVectorIntrinsicSuffix(sew, lmul);
@@ -1005,14 +1005,14 @@ std::optional<std::string> deriveMAccVectorStoreIntrinsic(std::int64_t sew,
 std::optional<std::string>
 deriveStandaloneReductionScalarResultStoreIntrinsic(std::int64_t sew,
                                                     llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      (lmul == tcrv::rvv::getRVVLMULM1() ||
-       lmul == tcrv::rvv::getRVVLMULM2()))
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == weft::rvv::getRVVLMULM1() ||
+       lmul == weft::rvv::getRVVLMULM2()))
     return (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
-            llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+            llvm::Twine(sew) + weft::rvv::getRVVLMULM1())
         .str();
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
+  if (sew == weft::rvv::getRVVSEW64Bits() &&
+      lmul == weft::rvv::getRVVLMULM1())
     return (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
             llvm::Twine(sew) + lmul)
         .str();
@@ -1111,8 +1111,8 @@ getRVVUnitStrideMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.operation = operation;
   facts.memoryForm = isPlain ? RVVSelectedBodyMemoryForm::VectorRHSLoad
                              : RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc;
-  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.sew = weft::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = weft::rvv::getRVVLMULM1();
   facts.tailPolicy = "agnostic";
   facts.maskPolicy = "agnostic";
   facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
@@ -1134,7 +1134,7 @@ getRVVUnitStrideMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.routeOperandBindingPlanID =
       isPlain ? kRVVMAccOperandBindingPlanID
               : kRVVScalarBroadcastMAccOperandBindingPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.macc";
+  facts.typedComputeOpName = "weft_rvv.macc";
   facts.routeFamilyPlanID =
       isPlain ? kRVVPlainMAccRouteFamilyPlanID
               : kRVVScalarBroadcastMAccRouteFamilyPlanID;
@@ -1189,8 +1189,8 @@ getRVVUnitStrideMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
 std::optional<RVVComputedMaskMAccRouteFacts>
 getRVVComputedMaskMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   return getRVVComputedMaskMAccRouteFacts(
-      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
-      tcrv::rvv::getRVVLMULM1());
+      operation, weft::rvv::getRVVFirstSliceSEWBits(),
+      weft::rvv::getRVVLMULM1());
 }
 
 std::optional<RVVComputedMaskMAccRouteFacts>
@@ -1217,7 +1217,7 @@ getRVVComputedMaskMAccRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.cTypeMappingSummary = kRVVComputedMaskedMAccCTypeMappingSummary;
   facts.routeOperandBindingPlanID =
       kRVVComputedMaskedMAccOperandBindingPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.masked_macc";
+  facts.typedComputeOpName = "weft_rvv.masked_macc";
   facts.arithmeticKind = "add";
   facts.comparePredicateKind = "slt";
   facts.compareLhsRole = "lhs-input-buffer";
@@ -1289,8 +1289,8 @@ std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
 getRVVRuntimeScalarComputedMaskMAccRouteFacts(
     RVVSelectedBodyOperationKind operation) {
   return getRVVRuntimeScalarComputedMaskMAccRouteFacts(
-      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
-      tcrv::rvv::getRVVLMULM1());
+      operation, weft::rvv::getRVVFirstSliceSEWBits(),
+      weft::rvv::getRVVLMULM1());
 }
 
 std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
@@ -1321,7 +1321,7 @@ getRVVRuntimeScalarComputedMaskMAccRouteFacts(
       kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary;
   facts.routeOperandBindingPlanID =
       kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.masked_macc";
+  facts.typedComputeOpName = "weft_rvv.masked_macc";
   facts.arithmeticKind = "add";
   facts.comparePredicateKind = "sle";
   facts.compareLhsRole = "lhs-input-buffer";
@@ -1531,8 +1531,8 @@ deriveRVVSelectedBodyPlainMAccRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "plain MAcc route-family plan requires explicit lhs load, rhs load, "
         "accumulator load, macc compute, and store body structure");
-  if (typedFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      typedFacts.lmul != tcrv::rvv::getRVVLMULM1())
+  if (typedFacts.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      typedFacts.lmul != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "plain MAcc route-family plan currently requires SEW32 LMUL m1 "
         "typed config");
@@ -1563,7 +1563,7 @@ deriveRVVSelectedBodyPlainMAccRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL, kRVVMAccRuntimeABIOrder,
           "plain MAcc route-family plan");
   if (!runtimeControlPlan)
@@ -1800,8 +1800,8 @@ deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
         "scalar-broadcast MAcc route-family plan requires explicit load, "
         "scalar splat, accumulator load, macc compute, and store body "
         "structure");
-  if (typedFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      typedFacts.lmul != tcrv::rvv::getRVVLMULM1())
+  if (typedFacts.sew != weft::rvv::getRVVFirstSliceSEWBits() ||
+      typedFacts.lmul != weft::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast MAcc route-family plan currently requires SEW32 "
         "LMUL m1 typed config");
@@ -1828,7 +1828,7 @@ deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL,
           kRVVScalarBroadcastMAccRuntimeABIOrder,
           "scalar-broadcast MAcc route-family plan");
@@ -2500,7 +2500,7 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  : llvm::StringRef("cmp_lhs,cmp_rhs,src,acc,out,n"));
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl->getParentOfType<weft::exec::VariantOp>(),
           analysis.slice.setvl, analysis.slice.withVL, runtimeABIOrder,
           "computed-mask accumulation route-family plan");
   if (!runtimeControlPlan)
@@ -3234,4 +3234,4 @@ bool isRVVSelectedBodyMAccRouteFamilyConsumer(
              operation);
 }
 
-} // namespace tianchenrv::plugin::rvv
+} // namespace weft::plugin::rvv

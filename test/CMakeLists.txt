@@ -3,34 +3,34 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
   MAIN_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   PATHS
-  TIANCHENRV_SOURCE_DIR
-  TIANCHENRV_BINARY_DIR
+  WEFT_SOURCE_DIR
+  WEFT_BINARY_DIR
   LLVM_RUNTIME_OUTPUT_INTDIR
   LLVM_TOOLS_BINARY_DIR
 )
 
-add_executable(tianchenrv-plugin-registry-test
+add_executable(weft-plugin-registry-test
   Plugin/PluginRegistryTest.cpp
 )
 
-target_link_libraries(tianchenrv-plugin-registry-test
+target_link_libraries(weft-plugin-registry-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
+  WeftInitAll
+  WeftPlugin
   MLIRIR
   MLIRSupport
 )
 
-add_executable(tianchenrv-plugin-variant-proposal-test
+add_executable(weft-plugin-variant-proposal-test
   Plugin/PluginVariantProposalTest.cpp
 )
 
-target_link_libraries(tianchenrv-plugin-variant-proposal-test
+target_link_libraries(weft-plugin-variant-proposal-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
+  WeftTransforms
   MLIRFuncDialect
   MLIRIR
   MLIRParser
@@ -38,216 +38,216 @@ target_link_libraries(tianchenrv-plugin-variant-proposal-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-plugin-variant-legality-test
+add_executable(weft-plugin-variant-legality-test
   Plugin/PluginVariantLegalityTest.cpp
 )
 
-target_link_libraries(tianchenrv-plugin-variant-legality-test
+target_link_libraries(weft-plugin-variant-legality-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-plugin-variant-cost-test
+add_executable(weft-plugin-variant-cost-test
   Plugin/PluginVariantCostTest.cpp
 )
 
-target_link_libraries(tianchenrv-plugin-variant-cost-test
+target_link_libraries(weft-plugin-variant-cost-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-plugin-emission-plan-test
+add_executable(weft-plugin-emission-plan-test
   Plugin/PluginEmissionPlanTest.cpp
 )
 
-target_link_libraries(tianchenrv-plugin-emission-plan-test
+target_link_libraries(weft-plugin-emission-plan-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-scalar-extension-plugin-test
+add_executable(weft-scalar-extension-plugin-test
   Plugin/ScalarExtensionPluginTest.cpp
 )
 
-target_link_libraries(tianchenrv-scalar-extension-plugin-test
+target_link_libraries(weft-scalar-extension-plugin-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVScalarPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftBuiltinPlugins
+  WeftPlugin
+  WeftScalarPlugin
+  WeftSupport
+  WeftTransforms
   MLIRFuncDialect
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-offload-extension-plugin-test
+add_executable(weft-offload-extension-plugin-test
   Plugin/OffloadExtensionPluginTest.cpp
 )
 
-target_link_libraries(tianchenrv-offload-extension-plugin-test
+target_link_libraries(weft-offload-extension-plugin-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVOffloadPlugin
-  TianChenRVScalarPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftBuiltinPlugins
+  WeftPlugin
+  WeftOffloadPlugin
+  WeftScalarPlugin
+  WeftSupport
+  WeftTransforms
   MLIRFuncDialect
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-toy-extension-plugin-test
+add_executable(weft-toy-extension-plugin-test
   Plugin/ToyExtensionPluginTest.cpp
 )
 
-target_link_libraries(tianchenrv-toy-extension-plugin-test
+target_link_libraries(weft-toy-extension-plugin-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVToyDialect
-  TianChenRVToyPlugin
-  TianChenRVTransforms
+  WeftInitAll
+  WeftBuiltinPlugins
+  WeftPlugin
+  WeftSupport
+  WeftToyDialect
+  WeftToyPlugin
+  WeftTransforms
   MLIRIR
   MLIRParser
   MLIRPass
   MLIRSupport
 )
 
-add_executable(tianchenrv-template-extension-plugin-test
+add_executable(weft-template-extension-plugin-test
   Plugin/TemplateExtensionPluginTest.cpp
 )
 
-target_link_libraries(tianchenrv-template-extension-plugin-test
+target_link_libraries(weft-template-extension-plugin-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTemplateDialect
-  TianChenRVTemplatePlugin
-  TianChenRVTransforms
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
+  WeftTemplateDialect
+  WeftTemplatePlugin
+  WeftTransforms
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-tensorext-lite-extension-plugin-test
+add_executable(weft-tensorext-lite-extension-plugin-test
   Plugin/TensorExtLiteExtensionPluginTest.cpp
 )
 
-target_link_libraries(tianchenrv-tensorext-lite-extension-plugin-test
+target_link_libraries(weft-tensorext-lite-extension-plugin-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTensorExtLiteDialect
-  TianChenRVTensorExtLitePlugin
-  TianChenRVTransforms
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
+  WeftTensorExtLiteDialect
+  WeftTensorExtLitePlugin
+  WeftTransforms
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-construction-protocol-common-test
+add_executable(weft-construction-protocol-common-test
   Plugin/ConstructionProtocolCommonTest.cpp
 )
 
-target_link_libraries(tianchenrv-construction-protocol-common-test
+target_link_libraries(weft-construction-protocol-common-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVConversionEmitC
-  TianChenRVPluginConstructionProtocol
-  TianChenRVRVVConstructionProtocol
-  TianChenRVRVVPlugin
-  TianChenRVTarget
-  TianChenRVTemplatePlugin
-  TianChenRVTensorExtLitePlugin
-  TianChenRVToyPlugin
+  WeftInitAll
+  WeftConversionEmitC
+  WeftPluginConstructionProtocol
+  WeftRVVConstructionProtocol
+  WeftRVVPlugin
+  WeftTarget
+  WeftTemplatePlugin
+  WeftTensorExtLitePlugin
+  WeftToyPlugin
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-dialect-test
+add_executable(weft-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )
 
-target_link_libraries(tianchenrv-rvv-dialect-test
+target_link_libraries(weft-rvv-dialect-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVRVVDialect
-  TianChenRVRVVPlugin
-  TianChenRVPlugin
+  WeftInitAll
+  WeftRVVDialect
+  WeftRVVPlugin
+  WeftPlugin
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-low-precision-lmul-selection-test
+add_executable(weft-rvv-low-precision-lmul-selection-test
   Plugin/RVVLowPrecisionLMULSelectionTest.cpp
 )
 
-target_link_libraries(tianchenrv-rvv-low-precision-lmul-selection-test
+target_link_libraries(weft-rvv-low-precision-lmul-selection-test
   PRIVATE
-  TianChenRVRVVPlugin
+  WeftRVVPlugin
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-q4-0-q8-0-shape-selection-test
+add_executable(weft-rvv-q4-0-q8-0-shape-selection-test
   Plugin/RVVQ40Q80ShapeSelectionTest.cpp
 )
 
-target_link_libraries(tianchenrv-rvv-q4-0-q8-0-shape-selection-test
+target_link_libraries(weft-rvv-q4-0-q8-0-shape-selection-test
   PRIVATE
-  TianChenRVRVVPlugin
+  WeftRVVPlugin
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-capability-profile-divergence-test
+add_executable(weft-rvv-capability-profile-divergence-test
   Plugin/RVVCapabilityProfileDivergenceTest.cpp
 )
 
-target_link_libraries(tianchenrv-rvv-capability-profile-divergence-test
+target_link_libraries(weft-rvv-capability-profile-divergence-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVRVVPlugin
-  TianChenRVSupport
+  WeftInitAll
+  WeftRVVPlugin
+  WeftSupport
   MLIRIR
   MLIRSupport
 )
 
-add_executable(tianchenrv-variant-materialization-test
+add_executable(weft-variant-materialization-test
   Transforms/VariantMaterialization/VariantMaterializationTest.cpp
 )
 
-target_link_libraries(tianchenrv-variant-materialization-test
+target_link_libraries(weft-variant-materialization-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftPlugin
+  WeftSupport
+  WeftTransforms
   MLIRFuncDialect
   MLIRIR
   MLIRParser
@@ -255,96 +255,96 @@ target_link_libraries(tianchenrv-variant-materialization-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-variant-dispatch-synthesis-test
+add_executable(weft-variant-dispatch-synthesis-test
   Transforms/DispatchSynthesis/VariantDispatchSynthesisTest.cpp
 )
 
-target_link_libraries(tianchenrv-variant-dispatch-synthesis-test
+target_link_libraries(weft-variant-dispatch-synthesis-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftSupport
+  WeftTransforms
   MLIRIR
   MLIRParser
   MLIRPass
   MLIRSupport
 )
 
-add_executable(tianchenrv-emission-readiness-test
+add_executable(weft-emission-readiness-test
   Transforms/EmissionReadiness/EmissionReadinessTest.cpp
 )
 
-target_link_libraries(tianchenrv-emission-readiness-test
+target_link_libraries(weft-emission-readiness-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftPlugin
+  WeftRVVPlugin
+  WeftSupport
+  WeftTransforms
   MLIRIR
   MLIRParser
   MLIRPass
   MLIRSupport
 )
 
-add_executable(tianchenrv-variant-selection-test
+add_executable(weft-variant-selection-test
   Transforms/VariantSelection/VariantSelectionTest.cpp
 )
 
-target_link_libraries(tianchenrv-variant-selection-test
+target_link_libraries(weft-variant-selection-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVScalarPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
+  WeftInitAll
+  WeftBuiltinPlugins
+  WeftPlugin
+  WeftRVVPlugin
+  WeftScalarPlugin
+  WeftSupport
+  WeftTransforms
   MLIRIR
   MLIRParser
   MLIRPass
   MLIRSupport
 )
 
-add_executable(tianchenrv-capability-model-test
+add_executable(weft-capability-model-test
   Support/CapabilityModelTest.cpp
 )
 
-target_link_libraries(tianchenrv-capability-model-test
+target_link_libraries(weft-capability-model-test
   PRIVATE
-  TianChenRVInitAll
-  TianChenRVSupport
+  WeftInitAll
+  WeftSupport
   MLIRIR
   MLIRParser
   MLIRSupport
 )
 
-add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
+add_lit_testsuite(check-weft "Running Weft-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
-  tcrv-opt
-  tcrv-translate
-  tianchenrv-capability-model-test
-  tianchenrv-construction-protocol-common-test
-  tianchenrv-plugin-emission-plan-test
-  tianchenrv-plugin-variant-cost-test
-  tianchenrv-plugin-registry-test
-  tianchenrv-plugin-variant-legality-test
-  tianchenrv-plugin-variant-proposal-test
-  tianchenrv-emission-readiness-test
-  tianchenrv-offload-extension-plugin-test
-  tianchenrv-rvv-dialect-test
-  tianchenrv-rvv-low-precision-lmul-selection-test
-  tianchenrv-rvv-q4-0-q8-0-shape-selection-test
-  tianchenrv-rvv-capability-profile-divergence-test
-  tianchenrv-scalar-extension-plugin-test
-  tianchenrv-template-extension-plugin-test
-  tianchenrv-toy-extension-plugin-test
-  tianchenrv-variant-dispatch-synthesis-test
-  tianchenrv-variant-materialization-test
-  tianchenrv-variant-selection-test
+  weft-opt
+  weft-translate
+  weft-capability-model-test
+  weft-construction-protocol-common-test
+  weft-plugin-emission-plan-test
+  weft-plugin-variant-cost-test
+  weft-plugin-registry-test
+  weft-plugin-variant-legality-test
+  weft-plugin-variant-proposal-test
+  weft-emission-readiness-test
+  weft-offload-extension-plugin-test
+  weft-rvv-dialect-test
+  weft-rvv-low-precision-lmul-selection-test
+  weft-rvv-q4-0-q8-0-shape-selection-test
+  weft-rvv-capability-profile-divergence-test
+  weft-scalar-extension-plugin-test
+  weft-template-extension-plugin-test
+  weft-toy-extension-plugin-test
+  weft-variant-dispatch-synthesis-test
+  weft-variant-materialization-test
+  weft-variant-selection-test
   ARGS
   -sv
 )
 
-set_target_properties(check-tianchenrv PROPERTIES FOLDER "Tests")
+set_target_properties(check-weft PROPERTIES FOLDER "Tests")

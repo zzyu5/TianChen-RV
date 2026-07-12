@@ -1,10 +1,10 @@
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
-#include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -18,13 +18,13 @@
 #include <memory>
 #include <string>
 
-namespace tianchenrv::plugin::tensorext_lite {
+namespace weft::plugin::tensorext_lite {
 namespace {
 
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
-    "tcrv_tensorext_lite.source_front_door");
+    "weft_tensorext_lite.source_front_door");
 constexpr llvm::StringLiteral kSourceKernelAttrName(
-    "tcrv_tensorext_lite.source_kernel");
+    "weft_tensorext_lite.source_kernel");
 constexpr llvm::StringLiteral kAcceptedSourceFrontDoorValue(
     "fragment_mma_template");
 constexpr llvm::StringLiteral kDefaultKernelName(
@@ -85,7 +85,7 @@ bool hasStaleTensorExtLiteLoweringSeedMetadata(mlir::ModuleOp module) {
   module.walk([&](mlir::Operation *op) {
     if (found)
       return;
-    found = op->hasAttr("tcrv_tensorext_lite.lowering_seed");
+    found = op->hasAttr("weft_tensorext_lite.lowering_seed");
   });
   return found;
 }
@@ -96,8 +96,8 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
     if (staleOp || op == module.getOperation())
       return;
     llvm::StringRef dialect = op->getName().getDialectNamespace();
-    if (dialect == "tcrv" || dialect == "tcrv_tensorext_lite" ||
-        dialect == "tcrv_rvv" || dialect == "tcrv_toy")
+    if (dialect == "weft" || dialect == "weft_tensorext_lite" ||
+        dialect == "weft_rvv" || dialect == "weft_toy")
       staleOp = op;
   });
   if (!staleOp)
@@ -106,7 +106,7 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
   return failMaterializer(
       staleOp,
       "source materializer requires TensorExtLite source-only MLIR input; "
-      "pre-existing tcrv.exec/tcrv_tensorext_lite/tcrv_rvv/tcrv_toy "
+      "pre-existing weft.exec/weft_tensorext_lite/weft_rvv/weft_toy "
       "selected-boundary or variant residue is not accepted");
 }
 
@@ -138,14 +138,14 @@ matchTensorExtLiteSourceFrontDoor(mlir::ModuleOp module) {
   if (marker.getValue().trim() != kAcceptedSourceFrontDoorValue) {
     (void)failMaterializer(
         module,
-        "tcrv_tensorext_lite.source_front_door must be "
+        "weft_tensorext_lite.source_front_door must be "
         "'fragment_mma_template'");
     return mlir::failure();
   }
   if (hasStaleTensorExtLiteLoweringSeedMetadata(module)) {
     (void)failMaterializer(
         module,
-        "stale tcrv_tensorext_lite.lowering_seed metadata is not accepted "
+        "stale weft_tensorext_lite.lowering_seed metadata is not accepted "
         "as TensorExtLite source-route authority");
     return mlir::failure();
   }
@@ -162,7 +162,7 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
 
 void createTensorExtLiteCapability(mlir::OpBuilder &builder,
                                    mlir::Location loc) {
-  mlir::OperationState state(loc, "tcrv.exec.capability");
+  mlir::OperationState state(loc, "weft.exec.capability");
   state.addAttribute(
       "sym_name",
       builder.getStringAttr(getTensorExtLiteFragmentPreferredCapabilitySymbol()));
@@ -185,7 +185,7 @@ void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
   const TensorExtLiteConstructionManifest &manifest =
       getTensorExtLiteConstructionManifest();
 
-  mlir::OperationState state(loc, "tcrv.exec.variant");
+  mlir::OperationState state(loc, "weft.exec.variant");
   state.addAttribute(
       "sym_name",
       builder.getStringAttr(getTensorExtLiteFragmentFirstSliceVariantName()));
@@ -198,24 +198,24 @@ void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(
       getTensorExtLiteHandoffKindAttrName(),
       builder.getStringAttr(getTensorExtLiteExpectedHandoffKind()));
-  state.addAttribute("tcrv_tensorext_lite.construction_protocol",
+  state.addAttribute("weft_tensorext_lite.construction_protocol",
                      builder.getStringAttr(manifest.protocolVersion));
-  state.addAttribute("tcrv_tensorext_lite.archetype",
+  state.addAttribute("weft_tensorext_lite.archetype",
                      builder.getStringAttr(manifest.archetype));
-  state.addAttribute("tcrv_tensorext_lite.semantic_role_graph",
+  state.addAttribute("weft_tensorext_lite.semantic_role_graph",
                      builder.getStringAttr(manifest.semanticRoleGraph));
   state.addAttribute(
-      "tcrv_tensorext_lite.common_interface_realization",
+      "weft_tensorext_lite.common_interface_realization",
       builder.getStringAttr(getTensorExtLiteConstructionInterfaceRealization()));
   state.addAttribute(
-      "tcrv_tensorext_lite.typed_role_realization",
+      "weft_tensorext_lite.typed_role_realization",
       builder.getStringAttr(getTensorExtLiteTypedRoleRealizationSummary()));
-  state.addAttribute("tcrv_tensorext_lite.emitc_route_mapping",
+  state.addAttribute("weft_tensorext_lite.emitc_route_mapping",
                      builder.getStringAttr(manifest.emitcRoute.routeID));
-  state.addAttribute("tcrv_tensorext_lite.evidence_profile",
+  state.addAttribute("weft_tensorext_lite.evidence_profile",
                      builder.getStringAttr(manifest.evidenceProfile));
   state.addRegion();
-  auto variant = llvm::cast<tcrv::exec::VariantOp>(builder.create(state));
+  auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();
 }
 
@@ -255,7 +255,7 @@ void createTensorExtLiteLoweringBoundary(mlir::OpBuilder &builder,
                                          mlir::Location loc,
                                          llvm::StringRef kernelName,
                                          mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, "tcrv_tensorext_lite.lowering_boundary");
+  mlir::OperationState state(loc, "weft_tensorext_lite.lowering_boundary");
   state.addAttribute(kSourceKernelBoundaryAttrName,
                      builder.getStringAttr(kernelName));
   state.addAttribute(
@@ -281,7 +281,7 @@ void createTensorExtLiteLoweringBoundary(mlir::OpBuilder &builder,
 
 void createSelectedTensorExtLiteDiagnostic(mlir::OpBuilder &builder,
                                            mlir::Location loc) {
-  mlir::OperationState state(loc, "tcrv.exec.diagnostic");
+  mlir::OperationState state(loc, "weft.exec.diagnostic");
   state.addAttribute("message",
                      builder.getStringAttr(kSelectedDiagnosticMessage));
   state.addAttribute("reason", builder.getStringAttr("variant-selected"));
@@ -298,11 +298,11 @@ void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
                                           llvm::StringRef kernelName) {
   mlir::Location loc = module.getLoc();
 
-  mlir::OperationState kernelState(loc, "tcrv.exec.kernel");
+  mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addRegion();
   auto kernel =
-      llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+      llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
@@ -313,7 +313,7 @@ void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
       {symbolRef(builder, getTensorExtLiteFragmentPreferredCapabilitySymbol())});
   createTensorExtLiteVariant(builder, loc, requires);
 
-  auto variant = llvm::cast<tcrv::exec::VariantOp>(
+  auto variant = llvm::cast<weft::exec::VariantOp>(
       kernel.getBody().front().back());
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&variant.getBody().front());
@@ -332,7 +332,7 @@ class MaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass final
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door";
+    return "weft-tensorext-lite-materialize-fragment-mma-source-front-door";
   }
 
   llvm::StringRef getDescription() const final {
@@ -341,8 +341,8 @@ public:
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<tcrv::exec::TCRVExecDialect,
-                    tcrv::tensorext_lite::TCRVTensorExtLiteDialect>();
+    registry.insert<weft::exec::WEFTExecDialect,
+                    weft::tensorext_lite::WEFTTensorExtLiteDialect>();
   }
 
   void runOnOperation() final {
@@ -379,4 +379,4 @@ createMaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass() {
       MaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass>();
 }
 
-} // namespace tianchenrv::plugin::tensorext_lite
+} // namespace weft::plugin::tensorext_lite

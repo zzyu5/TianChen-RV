@@ -2,7 +2,7 @@
 """Prove generated RVV object/header bundle ABI consumption on ``ssh rvv``.
 
 This is evidence tooling only. By default it starts from hand-authored explicit
-selected ``tcrv.exec`` / ``tcrv_rvv`` body fixtures, materializes selected
+selected ``weft.exec`` / ``weft_rvv`` body fixtures, materializes selected
 emission plans, exports the generated target artifact bundle, checks the
 bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
@@ -314,9 +314,9 @@ WIDENING_MACC_RESULT_LAYOUT = (
 )
 WIDENING_MACC_RELATION = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
 WIDENING_MACC_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
-WIDENING_MACC_SOURCE_VECTOR_TYPE = '!tcrv_rvv.vector<i16, "mf2">'
+WIDENING_MACC_SOURCE_VECTOR_TYPE = '!weft_rvv.vector<i16, "mf2">'
 WIDENING_MACC_SOURCE_VECTOR_C_TYPE = "vint16mf2_t"
-WIDENING_MACC_RESULT_VECTOR_TYPE = '!tcrv_rvv.vector<i32, "m1">'
+WIDENING_MACC_RESULT_VECTOR_TYPE = '!weft_rvv.vector<i32, "m1">'
 WIDENING_MACC_RESULT_VECTOR_C_TYPE = "vint32m1_t"
 WIDENING_MACC_SOURCE_LOAD_INTRINSIC = "__riscv_vle16_v_i16mf2"
 WIDENING_MACC_ACCUMULATOR_LOAD_INTRINSIC = "__riscv_vle32_v_i32m1"
@@ -620,13 +620,13 @@ WIDENING_PRODUCT_REDUCE_RELATION = (
     "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TYPED_COMPUTE_OP = (
-    "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-    "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
+    "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+    "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_TYPED_COMPUTE_OP = (
-    "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-    "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+"
-    "tcrv_rvv.compare+tcrv_rvv.select"
+    "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
+    "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+"
+    "weft_rvv.compare+weft_rvv.select"
 )
 WIDENING_PRODUCT_RELATION_I8_I16 = "signed-i8mf4xi8mf4-to-i16mf2"
 WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT = (
@@ -1696,8 +1696,8 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_CLAMP_RELATION = (
 DEQUANT_CLAMP_F32_EPILOGUE_MEMORY_FORM = (
     "unit-stride-dequant-clamp-f32-epilogue"
 )
-DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE = '!tcrv_rvv.vector<i32, "m1">'
-DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE = '!tcrv_rvv.vector<f32, "m1">'
+DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE = '!weft_rvv.vector<i32, "m1">'
+DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE = '!weft_rvv.vector<f32, "m1">'
 BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN = (
     "rvv-base-memory-movement-route-family-plan.v1"
 )
@@ -2246,7 +2246,7 @@ SEGMENT2_TUPLE_CREATE_INTRINSIC = "__riscv_vcreate_v_i32m1x2"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 I64_OUT_SENTINEL = "(int64_t)0x5a5a5a5a5a5a5a5aLL"
 
-INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
+INDEX_FILE_NAME = "weft-target-artifact-bundle.index"
 EXPECTED_SELECTED_ROLE = "dispatch case"
 EXPECTED_COMPONENT_GROUP = "rvv-generic-typed-body-materialized-emitc-bundle.v1"
 EXPECTED_RUNTIME_ABI_KIND = "plugin-owned-runtime-abi"
@@ -2469,7 +2469,7 @@ class OpExpectation:
 
     @property
     def rvv_vector_type(self) -> str:
-        return f'!tcrv_rvv.vector<{self.element_type}, "{self.lmul}">'
+        return f'!weft_rvv.vector<{self.element_type}, "{self.lmul}">'
 
     @property
     def setvl_intrinsic(self) -> str:
@@ -2522,7 +2522,7 @@ class OpExpectation:
 
     @property
     def rvv_mask_type(self) -> str:
-        return f'!tcrv_rvv.mask<{self.element_type}, "{self.lmul}">'
+        return f'!weft_rvv.mask<{self.element_type}, "{self.lmul}">'
 
     @property
     def compare_intrinsic(self) -> str:
@@ -2662,7 +2662,7 @@ class OpExpectation:
     @property
     def standalone_reduction_scalar_result_vector_type(self) -> str:
         return (
-            f'!tcrv_rvv.vector<{self.element_type}, '
+            f'!weft_rvv.vector<{self.element_type}, '
             f'"{self.standalone_reduction_scalar_result_lmul}">'
         )
 
@@ -3245,7 +3245,7 @@ class OpExpectation:
 
     @property
     def pass_marker(self) -> str:
-        return f"tcrv_rvv_generated_bundle_abi_{self.kind}_ok"
+        return f"weft_rvv_generated_bundle_abi_{self.kind}_ok"
 
     @property
     def is_pre_realized(self) -> bool:
@@ -3692,7 +3692,7 @@ class OpExpectation:
     @property
     def conversion_source_vector_type(self) -> str:
         return (
-            f'!tcrv_rvv.vector<{self.conversion_source_element_type}, '
+            f'!weft_rvv.vector<{self.conversion_source_element_type}, '
             f'"{self.conversion_source_lmul}">'
         )
 
@@ -3737,9 +3737,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_add",
         external_abi_name="rvv-generic-binary-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add",
+        function_name="weft_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add",
         emitc_route="rvv-generic-binary-add-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
         rhs_initializer="(int32_t)(1000 - (int32_t)(index * 5))",
@@ -3752,9 +3752,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_sub",
         external_abi_name="rvv-generic-binary-sub-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub",
+        function_name="weft_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub",
         emitc_route="rvv-generic-binary-sub-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
         rhs_initializer="(int32_t)(13 + (int32_t)(index * 5))",
@@ -3767,9 +3767,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_mul",
         external_abi_name="rvv-generic-binary-mul-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul",
+        function_name="weft_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul",
         emitc_route="rvv-generic-binary-mul-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
@@ -3785,11 +3785,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_widen_i32_to_i64",
         external_abi_name="rvv-generic-widen-i32-to-i64-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_selected_body_widen_i32_to_i64_kernel_"
+            "weft_emitc_explicit_selected_body_widen_i32_to_i64_kernel_"
             "explicit_selected_body_rvv_widen_i32_to_i64"
         ),
         emitc_route="rvv-generic-widen-i32-to-i64-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_convert",
+        typed_compute_op="weft_rvv.widening_convert",
         memory_form="unit-stride-conversion",
         lhs_initializer=(
             "((index % 2) == 0 "
@@ -3815,11 +3815,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_dequantize_i32_to_f32",
         external_abi_name="rvv-generic-dequantize-i32-to-f32-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_"
+            "weft_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_"
             "explicit_selected_body_rvv_dequantize_i32_to_f32"
         ),
         emitc_route="rvv-generic-dequantize-i32-to-f32-emitc-route",
-        typed_compute_op="tcrv_rvv.dequantize",
+        typed_compute_op="weft_rvv.dequantize",
         memory_form="unit-stride-dequantization",
         lhs_initializer=(
             "((index % 2) == 0 "
@@ -3837,9 +3837,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_cmp_select",
         external_abi_name="rvv-generic-cmp-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select",
+        function_name="weft_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select",
         emitc_route="rvv-generic-cmp-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
         rhs_initializer=(
@@ -3857,9 +3857,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_cmp_select_sle",
         external_abi_name="rvv-generic-cmp-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmp_select_sle_kernel_explicit_selected_body_rvv_i32_cmp_select_sle",
+        function_name="weft_emitc_explicit_selected_body_cmp_select_sle_kernel_explicit_selected_body_rvv_i32_cmp_select_sle",
         emitc_route="rvv-generic-cmp-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="vector-rhs-load",
         lhs_initializer=(
             "(int32_t)((index % 5) == 0 ? 10 : "
@@ -3883,9 +3883,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_computed_mask_select_sle",
         external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_computed_mask_select_sle_kernel_explicit_selected_body_rvv_computed_mask_select_sle",
+        function_name="weft_emitc_explicit_selected_body_computed_mask_select_sle_kernel_explicit_selected_body_rvv_computed_mask_select_sle",
         emitc_route="rvv-generic-computed-mask-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="computed-mask-vector-select",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? 10 : "
@@ -3913,9 +3913,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_runtime_scalar_cmp_select",
         external_abi_name="rvv-generic-runtime-scalar-cmp-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_runtime_scalar_cmp_select_kernel_explicit_selected_body_rvv_runtime_scalar_cmp_select",
+        function_name="weft_emitc_explicit_selected_body_runtime_scalar_cmp_select_kernel_explicit_selected_body_rvv_runtime_scalar_cmp_select",
         emitc_route="rvv-generic-runtime-scalar-cmp-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="runtime-scalar-compare-select",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -100 : "
@@ -3941,11 +3941,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_rvv_dual_cmp_mask_select",
         external_abi_name="rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_dual_cmp_mask_select_kernel_"
+            "weft_emitc_explicit_dual_cmp_mask_select_kernel_"
             "explicit_rvv_dual_cmp_mask_select"
         ),
         emitc_route="rvv-generic-runtime-scalar-dual-cmp-mask-and-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="runtime-scalar-dual-cmp-mask-and-select",
         lhs_initializer=(
             "(int32_t)(((index % 6) == 0) ? -100 : "
@@ -3971,9 +3971,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_body_rvv_runtime_scalar_cmp_masked_store",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_body_runtime_scalar_cmp_masked_store_kernel_explicit_body_rvv_runtime_scalar_cmp_masked_store",
+        function_name="weft_emitc_explicit_body_runtime_scalar_cmp_masked_store_kernel_explicit_body_rvv_runtime_scalar_cmp_masked_store",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_store",
+        typed_compute_op="weft_rvv.masked_store",
         memory_form="runtime-scalar-computed-mask-store",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -3995,9 +3995,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_body_rvv_runtime_scalar_cmp_masked_load_store",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-load-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_body_runtime_scalar_cmp_masked_load_store_kernel_explicit_body_rvv_runtime_scalar_cmp_masked_load_store",
+        function_name="weft_emitc_explicit_body_runtime_scalar_cmp_masked_load_store_kernel_explicit_body_rvv_runtime_scalar_cmp_masked_load_store",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-load-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_load",
+        typed_compute_op="weft_rvv.masked_load",
         memory_form="runtime-scalar-computed-mask-load-store",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -4018,9 +4018,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="rvv_cm_standalone_reduce",
         external_abi_name="rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_cm_standalone_reduce_kernel_rvv_cm_standalone_reduce",
+        function_name="weft_emitc_explicit_cm_standalone_reduce_kernel_rvv_cm_standalone_reduce",
         emitc_route="rvv-generic-computed-mask-standalone-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_standalone_reduce",
+        typed_compute_op="weft_rvv.masked_standalone_reduce",
         memory_form="computed-mask-unit-stride-standalone-reduction",
         lhs_initializer=(
             "(int32_t)((index % 5) == 0 ? 10 : "
@@ -4047,9 +4047,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="rvv_rt_scalar_cm_standalone_reduce",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_rt_scalar_cm_standalone_reduce_kernel_rvv_rt_scalar_cm_standalone_reduce",
+        function_name="weft_emitc_rt_scalar_cm_standalone_reduce_kernel_rvv_rt_scalar_cm_standalone_reduce",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_standalone_reduce",
+        typed_compute_op="weft_rvv.masked_standalone_reduce",
         memory_form="runtime-scalar-computed-mask-unit-stride-standalone-reduction",
         lhs_initializer=(
             "(int32_t)(((index % 6) == 0) ? -120 : "
@@ -4077,9 +4077,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="rvv_cm_standalone_reduce_min",
         external_abi_name="rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_cm_standalone_reduce_min_kernel_rvv_cm_standalone_reduce_min",
+        function_name="weft_emitc_explicit_cm_standalone_reduce_min_kernel_rvv_cm_standalone_reduce_min",
         emitc_route="rvv-generic-computed-mask-standalone-reduce-min-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_standalone_reduce",
+        typed_compute_op="weft_rvv.masked_standalone_reduce",
         memory_form="computed-mask-unit-stride-standalone-reduction",
         lhs_initializer=(
             "(int32_t)((index % 5) == 0 ? 10 : "
@@ -4106,9 +4106,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="rvv_cm_standalone_reduce_max",
         external_abi_name="rvv-generic-computed-mask-standalone-reduce-max-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_cm_standalone_reduce_max_kernel_rvv_cm_standalone_reduce_max",
+        function_name="weft_emitc_explicit_cm_standalone_reduce_max_kernel_rvv_cm_standalone_reduce_max",
         emitc_route="rvv-generic-computed-mask-standalone-reduce-max-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_standalone_reduce",
+        typed_compute_op="weft_rvv.masked_standalone_reduce",
         memory_form="computed-mask-unit-stride-standalone-reduction",
         lhs_initializer=(
             "(int32_t)((index % 5) == 0 ? 10 : "
@@ -4135,9 +4135,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_standalone_reduce_add",
         external_abi_name="rvv-generic-standalone-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add",
+        function_name="weft_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add",
         emitc_route="rvv-generic-standalone-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.standalone_reduce",
+        typed_compute_op="weft_rvv.standalone_reduce",
         memory_form="unit-stride-standalone-reduction",
         lhs_initializer="(int32_t)(((index % 5) < 2) ? -((int32_t)(index % 29) + 1) : ((int32_t)(index % 31) + 3))",
         rhs_initializer="unused",
@@ -4151,9 +4151,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_standalone_reduce_min",
         external_abi_name="rvv-generic-standalone-reduce-min-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_standalone_reduce_min_kernel_explicit_selected_body_rvv_standalone_reduce_min",
+        function_name="weft_emitc_explicit_selected_body_standalone_reduce_min_kernel_explicit_selected_body_rvv_standalone_reduce_min",
         emitc_route="rvv-generic-standalone-reduce-min-emitc-route",
-        typed_compute_op="tcrv_rvv.standalone_reduce",
+        typed_compute_op="weft_rvv.standalone_reduce",
         memory_form="unit-stride-standalone-reduction",
         lhs_initializer="(int32_t)(((index % 5) == 0) ? (int32_t)(index + 4) : ((index % 5) == 1) ? (int32_t)(-((int32_t)index + 13)) : ((index % 5) == 2) ? (int32_t)37 : ((index % 5) == 3) ? (int32_t)-5 : (int32_t)(index + 19))",
         rhs_initializer="unused",
@@ -4167,9 +4167,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_standalone_reduce_max",
         external_abi_name="rvv-generic-standalone-reduce-max-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_standalone_reduce_max_kernel_explicit_selected_body_rvv_standalone_reduce_max",
+        function_name="weft_emitc_explicit_selected_body_standalone_reduce_max_kernel_explicit_selected_body_rvv_standalone_reduce_max",
         emitc_route="rvv-generic-standalone-reduce-max-emitc-route",
-        typed_compute_op="tcrv_rvv.standalone_reduce",
+        typed_compute_op="weft_rvv.standalone_reduce",
         memory_form="unit-stride-standalone-reduction",
         lhs_initializer="(int32_t)(((index % 5) == 0) ? (int32_t)(-((int32_t)index + 4)) : ((index % 5) == 1) ? (int32_t)(index + 13) : ((index % 5) == 2) ? (int32_t)-37 : ((index % 5) == 3) ? (int32_t)5 : (int32_t)(-((int32_t)index + 19)))",
         rhs_initializer="unused",
@@ -4183,9 +4183,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_reduce_add",
         external_abi_name="rvv-generic-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_reduce_add_kernel_explicit_selected_body_rvv_reduce_add",
+        function_name="weft_emitc_explicit_selected_body_reduce_add_kernel_explicit_selected_body_rvv_reduce_add",
         emitc_route="rvv-generic-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.reduce",
+        typed_compute_op="weft_rvv.reduce",
         memory_form="vector-rhs-load",
         lhs_initializer=(
             "(int32_t)(((index % 4) < 2) ? -((int32_t)(index % 29) + 1) "
@@ -4204,9 +4204,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_masked_add",
         external_abi_name="rvv-generic-masked-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_masked_add_kernel_explicit_selected_body_rvv_i32_masked_add",
+        function_name="weft_emitc_explicit_selected_body_masked_add_kernel_explicit_selected_body_rvv_i32_masked_add",
         emitc_route="rvv-generic-masked-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_binary",
+        typed_compute_op="weft_rvv.masked_binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
@@ -4220,9 +4220,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_masked_sub",
         external_abi_name="rvv-generic-masked-sub-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_masked_sub_kernel_explicit_selected_body_rvv_i32_masked_sub",
+        function_name="weft_emitc_explicit_selected_body_masked_sub_kernel_explicit_selected_body_rvv_i32_masked_sub",
         emitc_route="rvv-generic-masked-sub-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_binary",
+        typed_compute_op="weft_rvv.masked_binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(200 + (int32_t)index) : (int32_t)(30 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(200 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
@@ -4236,9 +4236,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_masked_mul",
         external_abi_name="rvv-generic-masked-mul-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_masked_mul_kernel_explicit_selected_body_rvv_i32_masked_mul",
+        function_name="weft_emitc_explicit_selected_body_masked_mul_kernel_explicit_selected_body_rvv_i32_masked_mul",
         emitc_route="rvv-generic-masked-mul-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_binary",
+        typed_compute_op="weft_rvv.masked_binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(100 + (int32_t)index))",
@@ -4252,9 +4252,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_scalar_broadcast_add",
         external_abi_name="rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_scalar_broadcast_add_kernel_explicit_selected_body_rvv_scalar_broadcast_add",
+        function_name="weft_emitc_explicit_selected_body_scalar_broadcast_add_kernel_explicit_selected_body_rvv_scalar_broadcast_add",
         emitc_route="rvv-generic-scalar-broadcast-add-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="rhs-scalar-broadcast",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
         rhs_initializer="(int32_t)-37",
@@ -4267,9 +4267,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_scalar_broadcast_sub",
         external_abi_name="rvv-generic-scalar-broadcast-sub-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_scalar_broadcast_sub_kernel_explicit_selected_body_rvv_scalar_broadcast_sub",
+        function_name="weft_emitc_explicit_selected_body_scalar_broadcast_sub_kernel_explicit_selected_body_rvv_scalar_broadcast_sub",
         emitc_route="rvv-generic-scalar-broadcast-sub-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="rhs-scalar-broadcast",
         lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
         rhs_initializer="(int32_t)17",
@@ -4282,9 +4282,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_scalar_broadcast_mul",
         external_abi_name="rvv-generic-scalar-broadcast-mul-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_scalar_broadcast_mul_kernel_explicit_selected_body_rvv_scalar_broadcast_mul",
+        function_name="weft_emitc_explicit_selected_body_scalar_broadcast_mul_kernel_explicit_selected_body_rvv_scalar_broadcast_mul",
         emitc_route="rvv-generic-scalar-broadcast-mul-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="rhs-scalar-broadcast",
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)-3",
@@ -4297,9 +4297,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_runtime_scalar_splat_store",
         external_abi_name="rvv-generic-runtime-scalar-splat-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_runtime_scalar_splat_store_kernel_explicit_selected_body_rvv_runtime_scalar_splat_store",
+        function_name="weft_emitc_explicit_selected_body_runtime_scalar_splat_store_kernel_explicit_selected_body_rvv_runtime_scalar_splat_store",
         emitc_route="rvv-generic-runtime-scalar-splat-store-emitc-route",
-        typed_compute_op="tcrv_rvv.splat",
+        typed_compute_op="weft_rvv.splat",
         memory_form="runtime-scalar-splat-store",
         lhs_initializer="(int32_t)0",
         rhs_initializer="(int32_t)-37",
@@ -4312,9 +4312,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_macc_add",
         external_abi_name="rvv-generic-macc-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add",
+        function_name="weft_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add",
         emitc_route="rvv-generic-macc-add-emitc-route",
-        typed_compute_op="tcrv_rvv.macc",
+        typed_compute_op="weft_rvv.macc",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 1) : -((int32_t)(index % 7) + 1))",
         rhs_initializer="(int32_t)(((index % 3) == 0) ? -((int32_t)(index % 5) + 2) : ((int32_t)(index % 5) + 2))",
@@ -4331,11 +4331,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_scalar_broadcast_macc_add",
         external_abi_name="rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_selected_body_scalar_broadcast_macc_add_kernel_"
+            "weft_emitc_explicit_selected_body_scalar_broadcast_macc_add_kernel_"
             "explicit_selected_body_rvv_scalar_broadcast_macc_add"
         ),
         emitc_route="rvv-generic-scalar-broadcast-macc-add-emitc-route",
-        typed_compute_op="tcrv_rvv.macc",
+        typed_compute_op="weft_rvv.macc",
         memory_form="rhs-scalar-broadcast-macc",
         lhs_initializer="(int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 1) : -((int32_t)(index % 7) + 1))",
         rhs_initializer="(int32_t)-37",
@@ -4349,9 +4349,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_computed_masked_macc_add",
         external_abi_name="rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add",
+        function_name="weft_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add",
         emitc_route="rvv-generic-computed-masked-macc-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_macc",
+        typed_compute_op="weft_rvv.masked_macc",
         memory_form="computed-mask-unit-stride-macc",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4380,9 +4380,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="rvv_rt_scalar_masked_macc",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_rt_scalar_masked_macc_kernel_rvv_rt_scalar_masked_macc",
+        function_name="weft_emitc_rt_scalar_masked_macc_kernel_rvv_rt_scalar_masked_macc",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-macc-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_macc",
+        typed_compute_op="weft_rvv.masked_macc",
         memory_form="runtime-scalar-computed-mask-unit-stride-macc",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -4421,11 +4421,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_widening_macc_add",
         external_abi_name="rvv-generic-widening-macc-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_selected_body_widening_macc_add_kernel_"
+            "weft_emitc_explicit_selected_body_widening_macc_add_kernel_"
             "explicit_selected_body_rvv_widening_macc_add"
         ),
         emitc_route="rvv-generic-widening-macc-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_macc",
+        typed_compute_op="weft_rvv.widening_macc",
         memory_form="vector-rhs-load",
         lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
         rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
@@ -4447,11 +4447,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_widening_dot_reduce_add",
         external_abi_name="rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_"
+            "weft_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_"
             "explicit_selected_body_rvv_widening_dot_reduce_add"
         ),
         emitc_route="rvv-generic-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        typed_compute_op="weft_rvv.widening_dot_reduce",
         memory_form="vector-rhs-load",
         lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
         rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
@@ -4472,11 +4472,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_product_reduce",
         external_abi_name="rvv-generic-widening-product-reduce-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_selected_body_product_reduce_kernel_"
+            "weft_emitc_explicit_selected_body_product_reduce_kernel_"
             "explicit_selected_body_rvv_product_reduce"
         ),
         emitc_route="rvv-generic-widening-product-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce",
+        typed_compute_op="weft_rvv.widening_product+weft_rvv.standalone_reduce",
         memory_form="vector-rhs-load",
         lhs_initializer=(
             "(int8_t)(((index % 4) < 2) ? -((int)(index % 47) + 12) "
@@ -4510,7 +4510,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_explicit_selected_body_product_reduce_dequantize_kernel_"
+            "weft_emitc_explicit_selected_body_product_reduce_dequantize_kernel_"
             "explicit_selected_body_rvv_product_reduce_dequantize"
         ),
         emitc_route="rvv-generic-widening-product-reduce-dequantize-f32-emitc-route",
@@ -4547,7 +4547,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         external_abi_name=(
             "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1"
         ),
-        function_name="tcrv_emitc_explicit_wprdc_kernel_explicit_rvv_wprdc",
+        function_name="weft_emitc_explicit_wprdc_kernel_explicit_rvv_wprdc",
         emitc_route=(
             "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route"
         ),
@@ -4582,11 +4582,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="rvv_explicit_strided_input_dot",
         external_abi_name="rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_strided_dot_kernel_"
+            "weft_emitc_explicit_strided_dot_kernel_"
             "rvv_explicit_strided_input_dot"
         ),
         emitc_route="rvv-generic-strided-input-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        typed_compute_op="weft_rvv.widening_dot_reduce",
         memory_form="strided-input-widening-dot-reduce",
         lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 59) + 3) : ((int)(index % 59) + 6))",
         rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 43) + 4) : ((int)(index % 43) + 9))",
@@ -4610,11 +4610,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="rvv_explicit_masked_wdot",
         external_abi_name="rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_masked_wdot_kernel_"
+            "weft_emitc_explicit_masked_wdot_kernel_"
             "rvv_explicit_masked_wdot"
         ),
         emitc_route="rvv-generic-computed-masked-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_widening_dot_reduce",
+        typed_compute_op="weft_rvv.masked_widening_dot_reduce",
         memory_form="computed-mask-unit-stride-widening-dot-reduce",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4647,11 +4647,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="rvv_explicit_masked_strided_dot",
         external_abi_name="rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_explicit_masked_strided_dot_kernel_"
+            "weft_emitc_explicit_masked_strided_dot_kernel_"
             "rvv_explicit_masked_strided_dot"
         ),
         emitc_route="rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_widening_dot_reduce",
+        typed_compute_op="weft_rvv.masked_widening_dot_reduce",
         memory_form="computed-mask-strided-input-widening-dot-reduce",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4684,9 +4684,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_strided_add",
         external_abi_name="rvv-generic-strided-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_strided_add_kernel_explicit_selected_body_rvv_strided_add",
+        function_name="weft_emitc_explicit_selected_body_strided_add_kernel_explicit_selected_body_rvv_strided_add",
         emitc_route="rvv-generic-strided-add-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="strided-load-store",
         lhs_initializer="(int32_t)(11 + (int32_t)(index * 2))",
         rhs_initializer="(int32_t)(700 - (int32_t)(index * 3))",
@@ -4699,9 +4699,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_strided_load_unit_store",
         external_abi_name="rvv-generic-strided-load-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_strided_load_unit_store_kernel_explicit_selected_body_rvv_strided_load_unit_store",
+        function_name="weft_emitc_explicit_selected_body_strided_load_unit_store_kernel_explicit_selected_body_rvv_strided_load_unit_store",
         emitc_route="rvv-generic-strided-load-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.move",
+        typed_compute_op="weft_rvv.move",
         memory_form="strided-load-unit-store",
         lhs_initializer="(int32_t)(31 + (int32_t)(index * 7))",
         rhs_initializer="unused",
@@ -4717,9 +4717,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_unit_load_strided_store",
         external_abi_name="rvv-generic-unit-load-strided-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_unit_load_strided_store_kernel_explicit_selected_body_rvv_unit_load_strided_store",
+        function_name="weft_emitc_explicit_selected_body_unit_load_strided_store_kernel_explicit_selected_body_rvv_unit_load_strided_store",
         emitc_route="rvv-generic-unit-load-strided-store-emitc-route",
-        typed_compute_op="tcrv_rvv.move",
+        typed_compute_op="weft_rvv.move",
         memory_form="unit-load-strided-store",
         lhs_initializer="(int32_t)(131 + (int32_t)(index * 11))",
         rhs_initializer="unused",
@@ -4732,9 +4732,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_computed_masked_strided_load",
         external_abi_name="rvv-generic-computed-masked-strided-load-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_computed_masked_strided_load_kernel_explicit_selected_body_rvv_computed_masked_strided_load",
+        function_name="weft_emitc_explicit_selected_body_computed_masked_strided_load_kernel_explicit_selected_body_rvv_computed_masked_strided_load",
         emitc_route="rvv-generic-computed-masked-strided-load-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_strided_load",
+        typed_compute_op="weft_rvv.masked_strided_load",
         memory_form="computed-mask-strided-load-unit-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4759,9 +4759,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_cmidx_load",
         external_abi_name="rvv-generic-computed-masked-indexed-gather-load-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmidx_load_kernel_explicit_selected_body_rvv_cmidx_load",
+        function_name="weft_emitc_explicit_selected_body_cmidx_load_kernel_explicit_selected_body_rvv_cmidx_load",
         emitc_route="rvv-generic-computed-masked-indexed-gather-load-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_indexed_load",
+        typed_compute_op="weft_rvv.masked_indexed_load",
         memory_form="computed-mask-indexed-gather-load-unit-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4792,13 +4792,13 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_explicit_selected_body_rt_scalar_cmidx_load_kernel_"
+            "weft_emitc_explicit_selected_body_rt_scalar_cmidx_load_kernel_"
             "explicit_selected_body_rvv_rt_scalar_cmidx_load"
         ),
         emitc_route=(
             "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-emitc-route"
         ),
-        typed_compute_op="tcrv_rvv.masked_indexed_load",
+        typed_compute_op="weft_rvv.masked_indexed_load",
         memory_form="computed-mask-indexed-gather-load-unit-store",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -4821,9 +4821,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_cmidx_store",
         external_abi_name="rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmidx_store_kernel_explicit_selected_body_rvv_cmidx_store",
+        function_name="weft_emitc_explicit_selected_body_cmidx_store_kernel_explicit_selected_body_rvv_cmidx_store",
         emitc_route="rvv-generic-computed-masked-indexed-scatter-store-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_indexed_store",
+        typed_compute_op="weft_rvv.masked_indexed_store",
         memory_form="computed-mask-unit-load-indexed-scatter-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4854,13 +4854,13 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_explicit_selected_body_rt_scalar_cmidx_store_kernel_"
+            "weft_emitc_explicit_selected_body_rt_scalar_cmidx_store_kernel_"
             "explicit_selected_body_rvv_rt_scalar_cmidx_store"
         ),
         emitc_route=(
             "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-emitc-route"
         ),
-        typed_compute_op="tcrv_rvv.masked_indexed_store",
+        typed_compute_op="weft_rvv.masked_indexed_store",
         memory_form="computed-mask-unit-load-indexed-scatter-store",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -4888,15 +4888,15 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_explicit_composite_masked_indexed_gather_macc_scatter_"
+            "weft_emitc_explicit_composite_masked_indexed_gather_macc_scatter_"
             "kernel_rvv_explicit_composite"
         ),
         emitc_route=(
             "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-emitc-route"
         ),
         typed_compute_op=(
-            "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
-            "tcrv_rvv.masked_indexed_store"
+            "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+"
+            "weft_rvv.masked_indexed_store"
         ),
         memory_form="runtime-scalar-computed-mask-indexed-gather-macc-scatter",
         lhs_initializer=(
@@ -4936,9 +4936,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_cmseg_load",
         external_abi_name="rvv-generic-computed-masked-segment2-load-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmseg_load_kernel_explicit_selected_body_rvv_cmseg_load",
+        function_name="weft_emitc_explicit_selected_body_cmseg_load_kernel_explicit_selected_body_rvv_cmseg_load",
         emitc_route="rvv-generic-computed-masked-segment2-load-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_segment2_load",
+        typed_compute_op="weft_rvv.masked_segment2_load",
         memory_form="computed-mask-segment2-load-unit-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4969,13 +4969,13 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_"
+            "weft_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_"
             "explicit_selected_body_rvv_rt_scalar_cmseg_load"
         ),
         emitc_route=(
             "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-emitc-route"
         ),
-        typed_compute_op="tcrv_rvv.masked_segment2_load",
+        typed_compute_op="weft_rvv.masked_segment2_load",
         memory_form="computed-mask-segment2-load-unit-store",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -4998,9 +4998,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_cmseg_store",
         external_abi_name="rvv-generic-computed-masked-segment2-store-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmseg_store_kernel_explicit_selected_body_rvv_cmseg_store",
+        function_name="weft_emitc_explicit_selected_body_cmseg_store_kernel_explicit_selected_body_rvv_cmseg_store",
         emitc_route="rvv-generic-computed-masked-segment2-store-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_segment2_store",
+        typed_compute_op="weft_rvv.masked_segment2_store",
         memory_form="computed-mask-unit-load-segment2-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -5031,13 +5031,13 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_store_kernel_"
+            "weft_emitc_explicit_selected_body_rt_scalar_cmseg_store_kernel_"
             "explicit_selected_body_rvv_rt_scalar_cmseg_store"
         ),
         emitc_route=(
             "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-emitc-route"
         ),
-        typed_compute_op="tcrv_rvv.masked_segment2_store",
+        typed_compute_op="weft_rvv.masked_segment2_store",
         memory_form="computed-mask-unit-load-segment2-store",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? -120 : "
@@ -5060,9 +5060,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_cmseg_update",
         external_abi_name="rvv-generic-computed-masked-segment2-update-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_cmseg_update_kernel_explicit_selected_body_rvv_cmseg_update",
+        function_name="weft_emitc_explicit_selected_body_cmseg_update_kernel_explicit_selected_body_rvv_cmseg_update",
         emitc_route="rvv-generic-computed-masked-segment2-update-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="computed-mask-unit-load-segment2-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -5089,9 +5089,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_rvv_seg2_deinterleave",
         external_abi_name="rvv-generic-segment2-deinterleave-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_seg2_deinterleave_kernel_explicit_rvv_seg2_deinterleave",
+        function_name="weft_emitc_explicit_seg2_deinterleave_kernel_explicit_rvv_seg2_deinterleave",
         emitc_route="rvv-generic-segment2-deinterleave-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.move",
+        typed_compute_op="weft_rvv.move",
         memory_form="segment2-load-unit-store",
         lhs_initializer="unused",
         rhs_initializer="unused",
@@ -5105,9 +5105,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_rvv_seg2_interleave",
         external_abi_name="rvv-generic-segment2-interleave-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_seg2_interleave_kernel_explicit_rvv_seg2_interleave",
+        function_name="weft_emitc_explicit_seg2_interleave_kernel_explicit_rvv_seg2_interleave",
         emitc_route="rvv-generic-segment2-interleave-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.segment2_store",
+        typed_compute_op="weft_rvv.segment2_store",
         memory_form="unit-load-segment2-store",
         lhs_initializer="(int32_t)(1900 + (int32_t)(index * 29))",
         rhs_initializer="(int32_t)(-2300 - (int32_t)(index * 31))",
@@ -5120,9 +5120,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_indexed_gather_unit_store",
         external_abi_name="rvv-generic-indexed-gather-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store",
+        function_name="weft_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store",
         emitc_route="rvv-generic-indexed-gather-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.move",
+        typed_compute_op="weft_rvv.move",
         memory_form="indexed-load-unit-store",
         lhs_initializer="(int32_t)(101 + (int32_t)(index * 9))",
         rhs_initializer="unused",
@@ -5135,9 +5135,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_indexed_scatter_unit_load",
         external_abi_name="rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_indexed_scatter_unit_load_kernel_explicit_selected_body_rvv_indexed_scatter_unit_load",
+        function_name="weft_emitc_explicit_selected_body_indexed_scatter_unit_load_kernel_explicit_selected_body_rvv_indexed_scatter_unit_load",
         emitc_route="rvv-generic-indexed-scatter-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.move",
+        typed_compute_op="weft_rvv.move",
         memory_form="unit-load-indexed-store",
         lhs_initializer="(int32_t)(503 + (int32_t)(index * 11))",
         rhs_initializer="unused",
@@ -5150,9 +5150,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_masked_unit_load_store",
         external_abi_name="rvv-generic-masked-unit-load-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store",
+        function_name="weft_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store",
         emitc_route="rvv-generic-masked-unit-load-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_load",
+        typed_compute_op="weft_rvv.masked_load",
         memory_form="masked-unit-load-store",
         lhs_initializer="(int32_t)(900 + (int32_t)(index * 13))",
         rhs_initializer="(int32_t)(((index % 5) == 0 || (index % 5) == 2) ? 1 : 0)",
@@ -5169,7 +5169,7 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
         ),
         input_mode="vector-source-front-door",
         selected_variant="rvv_vector_add",
-        function_name="tcrv_emitc_rvv_vector_add_from_vector_source_rvv_vector_add",
+        function_name="weft_emitc_rvv_vector_add_from_vector_source_rvv_vector_add",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
         rhs_initializer="(int32_t)(1000 - (int32_t)(index * 5))",
         expected_expression="lhs[index] + rhs[index]",
@@ -5192,7 +5192,7 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
         ),
         input_mode="vector-source-front-door",
         selected_variant="rvv_vector_sub",
-        function_name="tcrv_emitc_rvv_vector_sub_from_vector_source_rvv_vector_sub",
+        function_name="weft_emitc_rvv_vector_sub_from_vector_source_rvv_vector_sub",
         lhs_initializer="(int32_t)(900 - (int32_t)(index * 7))",
         rhs_initializer="(int32_t)(11 + (int32_t)(index * 3))",
         expected_expression="lhs[index] - rhs[index]",
@@ -5215,7 +5215,7 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
         ),
         input_mode="vector-source-front-door",
         selected_variant="rvv_vector_mul",
-        function_name="tcrv_emitc_rvv_vector_mul_from_vector_source_rvv_vector_mul",
+        function_name="weft_emitc_rvv_vector_mul_from_vector_source_rvv_vector_mul",
         lhs_initializer="(int32_t)(3 + (int32_t)(index % 17))",
         rhs_initializer="(int32_t)(-5 + (int32_t)(index % 11))",
         expected_expression="lhs[index] * rhs[index]",
@@ -5239,7 +5239,7 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
         input_mode="vector-source-front-door",
         selected_variant="rvv_vector_cmp_select_eq",
         function_name=(
-            "tcrv_emitc_rvv_vector_cmp_select_eq_from_vector_source_"
+            "weft_emitc_rvv_vector_cmp_select_eq_from_vector_source_"
             "rvv_vector_cmp_select_eq"
         ),
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
@@ -5270,7 +5270,7 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
         input_mode="vector-source-front-door",
         selected_variant="rvv_vector_runtime_scalar_cmp_select_sle",
         function_name=(
-            "tcrv_emitc_rvv_vector_runtime_scalar_cmp_select_sle_from_"
+            "weft_emitc_rvv_vector_runtime_scalar_cmp_select_sle_from_"
             "vector_source_rvv_vector_runtime_scalar_cmp_select_sle"
         ),
         lhs_initializer=(
@@ -5308,7 +5308,7 @@ RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-broadcast-add.mlir"),
         input_mode="rhs-broadcast-selected-body",
         selected_variant="explicit_selected_body_rvv_i32_broadcast_add",
-        function_name="tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add",
+        function_name="weft_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add",
         memory_form="rhs-broadcast-load",
         rhs_initializer="(int32_t)(17 - (int32_t)(index % 5))",
         expected_expression="lhs[index] + rhs[0]",
@@ -5318,7 +5318,7 @@ RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-broadcast-sub.mlir"),
         input_mode="rhs-broadcast-selected-body",
         selected_variant="explicit_selected_body_rvv_i32_broadcast_sub",
-        function_name="tcrv_emitc_explicit_selected_body_broadcast_sub_kernel_explicit_selected_body_rvv_i32_broadcast_sub",
+        function_name="weft_emitc_explicit_selected_body_broadcast_sub_kernel_explicit_selected_body_rvv_i32_broadcast_sub",
         memory_form="rhs-broadcast-load",
         rhs_initializer="(int32_t)(-11 + (int32_t)(index % 7))",
         expected_expression="lhs[index] - rhs[0]",
@@ -5328,7 +5328,7 @@ RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-broadcast-mul.mlir"),
         input_mode="rhs-broadcast-selected-body",
         selected_variant="explicit_selected_body_rvv_i32_broadcast_mul",
-        function_name="tcrv_emitc_explicit_selected_body_broadcast_mul_kernel_explicit_selected_body_rvv_i32_broadcast_mul",
+        function_name="weft_emitc_explicit_selected_body_broadcast_mul_kernel_explicit_selected_body_rvv_i32_broadcast_mul",
         memory_form="rhs-broadcast-load",
         rhs_initializer="(int32_t)(3 + (int32_t)(index % 3))",
         expected_expression="lhs[index] * rhs[0]",
@@ -5341,7 +5341,7 @@ LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-m2-add.mlir"),
         input_mode="lmul-m2-selected-body",
         selected_variant="explicit_selected_body_rvv_i32m2_add",
-        function_name="tcrv_emitc_explicit_selected_body_m2_add_kernel_explicit_selected_body_rvv_i32m2_add",
+        function_name="weft_emitc_explicit_selected_body_m2_add_kernel_explicit_selected_body_rvv_i32m2_add",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5351,7 +5351,7 @@ LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-m2-sub.mlir"),
         input_mode="lmul-m2-selected-body",
         selected_variant="explicit_selected_body_rvv_i32m2_sub",
-        function_name="tcrv_emitc_explicit_selected_body_m2_sub_kernel_explicit_selected_body_rvv_i32m2_sub",
+        function_name="weft_emitc_explicit_selected_body_m2_sub_kernel_explicit_selected_body_rvv_i32m2_sub",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5361,7 +5361,7 @@ LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-m2-mul.mlir"),
         input_mode="lmul-m2-selected-body",
         selected_variant="explicit_selected_body_rvv_i32m2_mul",
-        function_name="tcrv_emitc_explicit_selected_body_m2_mul_kernel_explicit_selected_body_rvv_i32m2_mul",
+        function_name="weft_emitc_explicit_selected_body_m2_mul_kernel_explicit_selected_body_rvv_i32m2_mul",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5374,35 +5374,35 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_i32_add",
-        function_name="tcrv_emitc_pre_realized_body_add_kernel_pre_realized_body_rvv_i32_add",
+        function_name="weft_emitc_pre_realized_body_add_kernel_pre_realized_body_rvv_i32_add",
     ),
     "sub": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-sub.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_i32_sub",
-        function_name="tcrv_emitc_pre_realized_body_sub_kernel_pre_realized_body_rvv_i32_sub",
+        function_name="weft_emitc_pre_realized_body_sub_kernel_pre_realized_body_rvv_i32_sub",
     ),
     "mul": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-mul.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_i32_mul",
-        function_name="tcrv_emitc_pre_realized_body_mul_kernel_pre_realized_body_rvv_i32_mul",
+        function_name="weft_emitc_pre_realized_body_mul_kernel_pre_realized_body_rvv_i32_mul",
     ),
     "cmp_select": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-cmp-select.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmp_select",
-        function_name="tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select",
+        function_name="weft_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select",
     ),
     "cmp_select_sle": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select_sle"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-sle.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmp_select_sle",
-        function_name="tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle",
+        function_name="weft_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle",
     ),
     "cmp_select_i64": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
@@ -5413,7 +5413,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmp_select_i64",
         function_name=(
-            "tcrv_emitc_pre_realized_body_cmp_select_i64_kernel_"
+            "weft_emitc_pre_realized_body_cmp_select_i64_kernel_"
             "pre_realized_body_rvv_cmp_select_i64"
         ),
         lhs_initializer=(
@@ -5441,7 +5441,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmp_select_lmul_m2",
         function_name=(
-            "tcrv_emitc_pre_realized_body_cmp_select_lmul_m2_kernel_"
+            "weft_emitc_pre_realized_body_cmp_select_lmul_m2_kernel_"
             "pre_realized_body_rvv_cmp_select_lmul_m2"
         ),
         lmul="m2",
@@ -5455,9 +5455,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_mask_select",
         external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_computed_mask_select_kernel_pre_realized_body_rvv_computed_mask_select",
+        function_name="weft_emitc_pre_realized_body_computed_mask_select_kernel_pre_realized_body_rvv_computed_mask_select",
         emitc_route="rvv-generic-computed-mask-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="computed-mask-vector-select",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -5483,9 +5483,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_mask_select_sle",
         external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle",
+        function_name="weft_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle",
         emitc_route="rvv-generic-computed-mask-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="computed-mask-vector-select",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? 10 : "
@@ -5516,11 +5516,11 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_computed_mask_select_i64",
         external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_pre_realized_body_computed_mask_select_i64_kernel_"
+            "weft_emitc_pre_realized_body_computed_mask_select_i64_kernel_"
             "pre_realized_body_rvv_computed_mask_select_i64"
         ),
         emitc_route="rvv-generic-computed-mask-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="computed-mask-vector-select",
         lhs_initializer=(
             "(int64_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -5558,11 +5558,11 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_computed_mask_select_lmul_m2",
         external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
         function_name=(
-            "tcrv_emitc_pre_realized_body_computed_mask_select_lmul_m2_kernel_"
+            "weft_emitc_pre_realized_body_computed_mask_select_lmul_m2_kernel_"
             "pre_realized_body_rvv_computed_mask_select_lmul_m2"
         ),
         emitc_route="rvv-generic-computed-mask-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="computed-mask-vector-select",
         lhs_initializer=(
             "(int32_t)(((index % 5) == 0) ? 10 : "
@@ -5591,7 +5591,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-select.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_runtime_scalar_cmp_select",
-        function_name="tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select",
+        function_name="weft_emitc_pre_realized_body_runtime_scalar_cmp_select_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select",
     ),
     "runtime_scalar_cmp_select_i64": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_select"],
@@ -5602,7 +5602,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_runtime_scalar_cmp_select_i64",
         function_name=(
-            "tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_i64_kernel_"
+            "weft_emitc_pre_realized_body_runtime_scalar_cmp_select_i64_kernel_"
             "pre_realized_body_rvv_runtime_scalar_cmp_select_i64"
         ),
         lhs_initializer=(
@@ -5633,7 +5633,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_runtime_scalar_cmp_select_lmul_m2",
         function_name=(
-            "tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_lmul_m2_kernel_"
+            "weft_emitc_pre_realized_body_runtime_scalar_cmp_select_lmul_m2_kernel_"
             "pre_realized_body_rvv_runtime_scalar_cmp_select_lmul_m2"
         ),
         lmul="m2",
@@ -5650,7 +5650,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_rvv_dual_cmp_mask_select",
         function_name=(
-            "tcrv_emitc_pre_dual_cmp_mask_select_kernel_"
+            "weft_emitc_pre_dual_cmp_mask_select_kernel_"
             "pre_rvv_dual_cmp_mask_select"
         ),
     ),
@@ -5665,7 +5665,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_dual_cmp_sel_i64",
         function_name=(
-            "tcrv_emitc_pr_dual_cmp_sel_i64_kernel_pr_rvv_dual_cmp_sel_i64"
+            "weft_emitc_pr_dual_cmp_sel_i64_kernel_pr_rvv_dual_cmp_sel_i64"
         ),
         lhs_initializer=(
             "(int64_t)(((index % 6) == 0) ? (int64_t)-9000000000LL : "
@@ -5698,7 +5698,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_dual_cmp_sel_m2",
         function_name=(
-            "tcrv_emitc_pr_dual_cmp_sel_m2_kernel_pr_rvv_dual_cmp_sel_m2"
+            "weft_emitc_pr_dual_cmp_sel_m2_kernel_pr_rvv_dual_cmp_sel_m2"
         ),
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
@@ -5709,7 +5709,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_runtime_scalar_cmp_masked_store",
-        function_name="tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store",
+        function_name="weft_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store",
     ),
     "runtime_scalar_cmp_masked_store_i64": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_masked_store"],
@@ -5717,7 +5717,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-i64.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_cmp_mstore_i64",
-        function_name="tcrv_emitc_pr_rt_cmp_mstore_i64_kernel_pr_rvv_cmp_mstore_i64",
+        function_name="weft_emitc_pr_rt_cmp_mstore_i64_kernel_pr_rvv_cmp_mstore_i64",
         lhs_initializer=(
             "(int64_t)(((index % 5) == 0) ? (int64_t)-9000000000LL : "
             "((index % 5) == 1) ? (int64_t)-37LL : "
@@ -5740,7 +5740,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_cmp_mstore_m2",
-        function_name="tcrv_emitc_pr_rt_cmp_mstore_m2_kernel_pr_rvv_cmp_mstore_m2",
+        function_name="weft_emitc_pr_rt_cmp_mstore_m2_kernel_pr_rvv_cmp_mstore_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-undisturbed-mask-undisturbed.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5752,7 +5752,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_cmp_mload",
-        function_name="tcrv_emitc_pr_rt_cmp_mload_kernel_pr_rvv_cmp_mload",
+        function_name="weft_emitc_pr_rt_cmp_mload_kernel_pr_rvv_cmp_mload",
     ),
     "runtime_scalar_cmp_masked_load_store_i64": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -5762,7 +5762,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store-i64.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_cmp_mload_i64",
-        function_name="tcrv_emitc_pr_rt_cmp_mload_i64_kernel_pr_rvv_cmp_mload_i64",
+        function_name="weft_emitc_pr_rt_cmp_mload_i64_kernel_pr_rvv_cmp_mload_i64",
         lhs_initializer=(
             "(int64_t)(((index % 5) == 0) ? (int64_t)-9000000000LL : "
             "((index % 5) == 1) ? (int64_t)-37LL : "
@@ -5787,7 +5787,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_cmp_mload_m2",
-        function_name="tcrv_emitc_pr_rt_cmp_mload_m2_kernel_pr_rvv_cmp_mload_m2",
+        function_name="weft_emitc_pr_rt_cmp_mload_m2_kernel_pr_rvv_cmp_mload_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5797,21 +5797,21 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_add",
-        function_name="tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add",
+        function_name="weft_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add",
     ),
     "masked_sub": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_sub"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-sub.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_sub",
-        function_name="tcrv_emitc_pre_realized_body_masked_sub_kernel_pre_realized_body_rvv_masked_sub",
+        function_name="weft_emitc_pre_realized_body_masked_sub_kernel_pre_realized_body_rvv_masked_sub",
     ),
     "masked_mul": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_mul"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-mul.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_mul",
-        function_name="tcrv_emitc_pre_realized_body_masked_mul_kernel_pre_realized_body_rvv_masked_mul",
+        function_name="weft_emitc_pre_realized_body_masked_mul_kernel_pre_realized_body_rvv_masked_mul",
     ),
     "masked_i64_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_add"],
@@ -5819,7 +5819,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-i64-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_i64_add",
-        function_name="tcrv_emitc_pre_realized_body_masked_i64_add_kernel_pre_realized_body_rvv_masked_i64_add",
+        function_name="weft_emitc_pre_realized_body_masked_i64_add_kernel_pre_realized_body_rvv_masked_i64_add",
         lhs_initializer=(
             "(int64_t)(((index % 4) == 0) "
             "? (int64_t)(7000000000LL + (int64_t)index) "
@@ -5846,7 +5846,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-lmul-m2-sub.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_lmul_m2_sub",
-        function_name="tcrv_emitc_pre_realized_body_masked_lmul_m2_sub_kernel_pre_realized_body_rvv_masked_lmul_m2_sub",
+        function_name="weft_emitc_pre_realized_body_masked_lmul_m2_sub_kernel_pre_realized_body_rvv_masked_lmul_m2_sub",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5856,14 +5856,14 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-reduce-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_reduce_add",
-        function_name="tcrv_emitc_pre_realized_body_reduce_add_kernel_pre_realized_body_rvv_reduce_add",
+        function_name="weft_emitc_pre_realized_body_reduce_add_kernel_pre_realized_body_rvv_reduce_add",
     ),
     "macc_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["macc_add"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_macc_add",
-        function_name="tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add",
+        function_name="weft_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add",
     ),
     "scalar_broadcast_macc_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["scalar_broadcast_macc_add"],
@@ -5873,7 +5873,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_scalar_broadcast_macc_add",
         function_name=(
-            "tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_"
+            "weft_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_"
             "pre_realized_body_rvv_scalar_broadcast_macc_add"
         ),
     ),
@@ -5882,7 +5882,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-macc-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_macc_add",
-        function_name="tcrv_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add",
+        function_name="weft_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add",
     ),
     "computed_masked_macc_add_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_masked_macc_add"],
@@ -5890,7 +5890,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-macc-add-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_macc_add_m2",
-        function_name="tcrv_emitc_pre_realized_body_computed_masked_macc_add_m2_kernel_pre_realized_body_rvv_computed_masked_macc_add_m2",
+        function_name="weft_emitc_pre_realized_body_computed_masked_macc_add_m2_kernel_pre_realized_body_rvv_computed_masked_macc_add_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5902,7 +5902,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pr_rt_scalar_masked_macc",
-        function_name="tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc",
+        function_name="weft_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc",
     ),
     "runtime_scalar_cmp_masked_macc_add_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -5912,7 +5912,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pr_rt_scalar_masked_macc_m2",
-        function_name="tcrv_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2",
+        function_name="weft_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -5922,42 +5922,42 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-strided-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_strided_add",
-        function_name="tcrv_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add",
+        function_name="weft_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add",
     ),
     "strided_load_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_load_unit_store"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-strided-load-unit-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_strided_load_unit_store",
-        function_name="tcrv_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store",
+        function_name="weft_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store",
     ),
     "unit_load_strided_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["unit_load_strided_store"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-unit-load-strided-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_unit_load_strided_store",
-        function_name="tcrv_emitc_pre_realized_body_unit_load_strided_store_kernel_pre_realized_body_rvv_unit_load_strided_store",
+        function_name="weft_emitc_pre_realized_body_unit_load_strided_store_kernel_pre_realized_body_rvv_unit_load_strided_store",
     ),
     "indexed_gather_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["indexed_gather_unit_store"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-indexed-gather-unit-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_indexed_gather_unit_store",
-        function_name="tcrv_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store",
+        function_name="weft_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store",
     ),
     "indexed_scatter_unit_load": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["indexed_scatter_unit_load"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-indexed-scatter-unit-load.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_indexed_scatter_unit_load",
-        function_name="tcrv_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load",
+        function_name="weft_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load",
     ),
     "masked_unit_load_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_unit_load_store"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-load-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_unit_load_store",
-        function_name="tcrv_emitc_pre_realized_body_masked_unit_load_store_kernel_pre_realized_body_rvv_masked_unit_load_store",
+        function_name="weft_emitc_pre_realized_body_masked_unit_load_store_kernel_pre_realized_body_rvv_masked_unit_load_store",
     ),
     "masked_unit_store": OpExpectation(
         kind="masked_unit_store",
@@ -5966,9 +5966,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         source_seed=False,
         selected_variant="pre_realized_body_rvv_masked_unit_store",
         external_abi_name="rvv-generic-masked-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_masked_unit_store_kernel_pre_realized_body_rvv_masked_unit_store",
+        function_name="weft_emitc_pre_realized_body_masked_unit_store_kernel_pre_realized_body_rvv_masked_unit_store",
         emitc_route="rvv-generic-masked-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_store",
+        typed_compute_op="weft_rvv.masked_store",
         memory_form="masked-unit-store",
         lhs_initializer="(int32_t)(900 + (int32_t)(index * 13))",
         rhs_initializer="(int32_t)(((index % 5) == 0 || (index % 5) == 2) ? 1 : 0)",
@@ -5983,9 +5983,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_unit_load_store",
         external_abi_name="rvv-generic-computed-masked-unit-load-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store",
+        function_name="weft_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store",
         emitc_route="rvv-generic-computed-masked-unit-load-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_load",
+        typed_compute_op="weft_rvv.masked_load",
         memory_form="computed-mask-unit-load-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -6011,9 +6011,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_strided_store",
         external_abi_name="rvv-generic-computed-masked-strided-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store",
+        function_name="weft_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store",
         emitc_route="rvv-generic-computed-masked-strided-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_strided_store",
+        typed_compute_op="weft_rvv.masked_strided_store",
         memory_form="computed-mask-unit-load-strided-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -6039,7 +6039,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-load.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_strided_load",
-        function_name="tcrv_emitc_pre_realized_body_computed_masked_strided_load_kernel_pre_realized_body_rvv_computed_masked_strided_load",
+        function_name="weft_emitc_pre_realized_body_computed_masked_strided_load_kernel_pre_realized_body_rvv_computed_masked_strided_load",
     ),
     "computed_masked_indexed_gather_load_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6048,7 +6048,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-indexed-gather-load.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmidx_load",
-        function_name="tcrv_emitc_pre_realized_body_cmidx_load_kernel_pre_realized_body_rvv_cmidx_load",
+        function_name="weft_emitc_pre_realized_body_cmidx_load_kernel_pre_realized_body_rvv_cmidx_load",
     ),
     "runtime_scalar_cmp_masked_indexed_gather_load_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6060,7 +6060,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_rt_scalar_cmidx_load",
         function_name=(
-            "tcrv_emitc_pre_realized_body_rt_scalar_cmidx_load_kernel_"
+            "weft_emitc_pre_realized_body_rt_scalar_cmidx_load_kernel_"
             "pre_realized_body_rvv_rt_scalar_cmidx_load"
         ),
     ),
@@ -6071,7 +6071,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-indexed-scatter-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmidx_store",
-        function_name="tcrv_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store",
+        function_name="weft_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store",
     ),
     "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6083,7 +6083,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_rt_scalar_cmidx_store",
         function_name=(
-            "tcrv_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_"
+            "weft_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_"
             "pre_realized_body_rvv_rt_scalar_cmidx_store"
         ),
     ),
@@ -6097,7 +6097,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_composite",
         function_name=(
-            "tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_"
+            "weft_emitc_pre_realized_composite_masked_indexed_gather_macc_"
             "scatter_kernel_rvv_pre_composite"
         ),
         selected_dispatch_case_mirror=(
@@ -6120,7 +6120,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-load.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmseg_load",
-        function_name="tcrv_emitc_pre_realized_body_cmseg_load_kernel_pre_realized_body_rvv_cmseg_load",
+        function_name="weft_emitc_pre_realized_body_cmseg_load_kernel_pre_realized_body_rvv_cmseg_load",
     ),
     "runtime_scalar_cmp_masked_segment2_load_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6132,7 +6132,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_rt_scalar_cmseg_load",
         function_name=(
-            "tcrv_emitc_pre_realized_body_rt_scalar_cmseg_load_kernel_"
+            "weft_emitc_pre_realized_body_rt_scalar_cmseg_load_kernel_"
             "pre_realized_body_rvv_rt_scalar_cmseg_load"
         ),
     ),
@@ -6143,7 +6143,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmseg_store",
-        function_name="tcrv_emitc_pre_realized_body_cmseg_store_kernel_pre_realized_body_rvv_cmseg_store",
+        function_name="weft_emitc_pre_realized_body_cmseg_store_kernel_pre_realized_body_rvv_cmseg_store",
     ),
     "runtime_scalar_cmp_masked_segment2_store_unit_load": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6155,7 +6155,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_rt_scalar_cmseg_store",
         function_name=(
-            "tcrv_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_"
+            "weft_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_"
             "pre_realized_body_rvv_rt_scalar_cmseg_store"
         ),
     ),
@@ -6168,9 +6168,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmseg_update",
         external_abi_name="rvv-generic-computed-masked-segment2-update-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_cmseg_update_kernel_pre_realized_body_rvv_cmseg_update",
+        function_name="weft_emitc_pre_realized_body_cmseg_update_kernel_pre_realized_body_rvv_cmseg_update",
         emitc_route="rvv-generic-computed-masked-segment2-update-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         expected_expression=(
             "cmp_lhs[index] < cmp_rhs[index] ? "
             "(src0[index] + src1[index]) : old_dst[2 * index + field]"
@@ -6183,9 +6183,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_segment2_deinterleave_unit_store",
         external_abi_name="rvv-generic-segment2-deinterleave-unit-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store",
+        function_name="weft_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store",
         emitc_route="rvv-generic-segment2-deinterleave-unit-store-emitc-route",
-        typed_compute_op="tcrv_rvv.move",
+        typed_compute_op="weft_rvv.move",
         memory_form="segment2-load-unit-store",
         source_initializer="(int32_t)(1700 + (int32_t)(index * 23))",
         expected_expression="out0[index] == src[2 * index] && out1[index] == src[2 * index + 1]",
@@ -6197,9 +6197,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_segment2_interleave_unit_load",
         external_abi_name="rvv-generic-segment2-interleave-unit-load-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_segment2_interleave_unit_load_kernel_pre_realized_body_rvv_segment2_interleave_unit_load",
+        function_name="weft_emitc_pre_realized_body_segment2_interleave_unit_load_kernel_pre_realized_body_rvv_segment2_interleave_unit_load",
         emitc_route="rvv-generic-segment2-interleave-unit-load-emitc-route",
-        typed_compute_op="tcrv_rvv.segment2_store",
+        typed_compute_op="weft_rvv.segment2_store",
         memory_form="unit-load-segment2-store",
         lhs_initializer="(int32_t)(1900 + (int32_t)(index * 29))",
         rhs_initializer="(int32_t)(-2300 - (int32_t)(index * 31))",
@@ -6212,9 +6212,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_scalar_broadcast_add",
         external_abi_name="rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add",
+        function_name="weft_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add",
         emitc_route="rvv-generic-scalar-broadcast-add-emitc-route",
-        typed_compute_op="tcrv_rvv.binary",
+        typed_compute_op="weft_rvv.binary",
         memory_form="rhs-scalar-broadcast",
         rhs_initializer="(int32_t)-37",
         expected_expression="lhs[index] + rhs_scalar",
@@ -6224,21 +6224,21 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-sub.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_scalar_broadcast_sub",
-        function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_sub_kernel_pre_realized_body_rvv_scalar_broadcast_sub",
+        function_name="weft_emitc_pre_realized_body_scalar_broadcast_sub_kernel_pre_realized_body_rvv_scalar_broadcast_sub",
     ),
     "scalar_broadcast_mul": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["scalar_broadcast_mul"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-mul.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_scalar_broadcast_mul",
-        function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_mul_kernel_pre_realized_body_rvv_scalar_broadcast_mul",
+        function_name="weft_emitc_pre_realized_body_scalar_broadcast_mul_kernel_pre_realized_body_rvv_scalar_broadcast_mul",
     ),
     "runtime_scalar_splat_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_splat_store"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-splat-store.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_runtime_scalar_splat_store",
-        function_name="tcrv_emitc_pre_realized_body_runtime_scalar_splat_store_kernel_pre_realized_body_rvv_runtime_scalar_splat_store",
+        function_name="weft_emitc_pre_realized_body_runtime_scalar_splat_store_kernel_pre_realized_body_rvv_runtime_scalar_splat_store",
     ),
     "standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_add"],
@@ -6246,7 +6246,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_add",
-        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add",
+        function_name="weft_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add",
     ),
     "standalone_reduce_add_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_add"],
@@ -6254,7 +6254,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_add_lmul_m2",
-        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_add_lmul_m2",
+        function_name="weft_emitc_pre_realized_body_standalone_reduce_add_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_add_lmul_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6265,7 +6265,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-min.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_min",
-        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_min_kernel_pre_realized_body_rvv_standalone_reduce_min",
+        function_name="weft_emitc_pre_realized_body_standalone_reduce_min_kernel_pre_realized_body_rvv_standalone_reduce_min",
     ),
     "standalone_reduce_min_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_min"],
@@ -6273,7 +6273,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-min-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_min_lmul_m2",
-        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_min_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_min_lmul_m2",
+        function_name="weft_emitc_pre_realized_body_standalone_reduce_min_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_min_lmul_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6284,7 +6284,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-max.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_max",
-        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_max_kernel_pre_realized_body_rvv_standalone_reduce_max",
+        function_name="weft_emitc_pre_realized_body_standalone_reduce_max_kernel_pre_realized_body_rvv_standalone_reduce_max",
     ),
     "standalone_reduce_max_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_max"],
@@ -6292,7 +6292,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-max-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_max_lmul_m2",
-        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_max_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_max_lmul_m2",
+        function_name="weft_emitc_pre_realized_body_standalone_reduce_max_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_max_lmul_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6304,7 +6304,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce",
-        function_name="tcrv_emitc_pre_cm_standalone_reduce_kernel_rvv_pre_cm_standalone_reduce",
+        function_name="weft_emitc_pre_cm_standalone_reduce_kernel_rvv_pre_cm_standalone_reduce",
     ),
     "computed_mask_standalone_reduce_add_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6314,7 +6314,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce_add_lmul_m2",
-        function_name="tcrv_emitc_pre_cm_standalone_reduce_add_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_add_lmul_m2",
+        function_name="weft_emitc_pre_cm_standalone_reduce_add_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_add_lmul_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6326,7 +6326,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce",
     ),
     "runtime_scalar_cmp_masked_standalone_reduce_add_i64": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6336,7 +6336,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-i64.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_i64",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64",
         lhs_initializer=(
             "(int64_t)(((index % 6) == 0) ? -9000000000LL : "
             "((index % 6) == 1) ? -37LL : "
@@ -6367,7 +6367,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_m2",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6381,7 +6381,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_min",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-emitc-route",
         expected_expression=(
             "(int32_t)(min_i(acc[0], src[i] where cmp_lhs[i] <= rhs_scalar))"
@@ -6396,7 +6396,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_min_m2",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min_m2",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_min_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min_m2",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-emitc-route",
         expected_expression=(
             "(int32_t)(min_i(acc[0], src[i] where cmp_lhs[i] <= rhs_scalar))"
@@ -6414,7 +6414,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_max",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-emitc-route",
         expected_expression=(
             "(int32_t)(max_i(acc[0], src[i] where cmp_lhs[i] <= rhs_scalar))"
@@ -6429,7 +6429,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_max_m2",
         external_abi_name="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max_m2",
+        function_name="weft_emitc_pre_rt_scalar_cm_standalone_reduce_max_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max_m2",
         emitc_route="rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-emitc-route",
         expected_expression=(
             "(int32_t)(max_i(acc[0], src[i] where cmp_lhs[i] <= rhs_scalar))"
@@ -6445,7 +6445,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-min.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce_min",
-        function_name="tcrv_emitc_pre_cm_standalone_reduce_min_kernel_rvv_pre_cm_standalone_reduce_min",
+        function_name="weft_emitc_pre_cm_standalone_reduce_min_kernel_rvv_pre_cm_standalone_reduce_min",
     ),
     "computed_mask_standalone_reduce_min_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6455,7 +6455,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-min-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce_min_lmul_m2",
-        function_name="tcrv_emitc_pre_cm_standalone_reduce_min_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_min_lmul_m2",
+        function_name="weft_emitc_pre_cm_standalone_reduce_min_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_min_lmul_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6467,7 +6467,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-max.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce_max",
-        function_name="tcrv_emitc_pre_cm_standalone_reduce_max_kernel_rvv_pre_cm_standalone_reduce_max",
+        function_name="weft_emitc_pre_cm_standalone_reduce_max_kernel_rvv_pre_cm_standalone_reduce_max",
     ),
     "computed_mask_standalone_reduce_max_lmul_m2": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6477,7 +6477,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-max-lmul-m2.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce_max_lmul_m2",
-        function_name="tcrv_emitc_pre_cm_standalone_reduce_max_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_max_lmul_m2",
+        function_name="weft_emitc_pre_cm_standalone_reduce_max_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_max_lmul_m2",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6488,7 +6488,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-i64-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_i64_add",
-        function_name="tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add",
+        function_name="weft_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add",
         lhs_initializer="(int64_t)(7000000000LL + (int64_t)(index * 3000003LL))",
         rhs_initializer="(int64_t)(-2000000000LL + (int64_t)(index * 5000005LL))",
         expected_expression="lhs[index] + rhs[index]",
@@ -6504,7 +6504,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-lmul-m2-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_lmul_m2_add",
-        function_name="tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add",
+        function_name="weft_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add",
         lmul="m2",
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
@@ -6516,9 +6516,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_widen_i32_to_i64",
         external_abi_name="rvv-generic-widen-i32-to-i64-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64",
+        function_name="weft_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64",
         emitc_route="rvv-generic-widen-i32-to-i64-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_convert",
+        typed_compute_op="weft_rvv.widening_convert",
         memory_form="unit-stride-conversion",
         lhs_initializer=(
             "((index % 2) == 0 "
@@ -6541,9 +6541,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_widen_i16_to_i32",
         external_abi_name="rvv-generic-widen-i16-to-i32-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32",
+        function_name="weft_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32",
         emitc_route="rvv-generic-widen-i16-to-i32-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_convert",
+        typed_compute_op="weft_rvv.widening_convert",
         memory_form="unit-stride-conversion",
         lhs_initializer="(int16_t)(((index % 2) == 0) ? -((int)(index % 127) + 1) : ((int)(index % 127) + 1))",
         rhs_initializer="unused",
@@ -6562,9 +6562,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_widening_macc_add",
         external_abi_name="rvv-generic-widening-macc-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_widening_macc_add_kernel_pre_realized_body_rvv_widening_macc_add",
+        function_name="weft_emitc_pre_realized_body_widening_macc_add_kernel_pre_realized_body_rvv_widening_macc_add",
         emitc_route="rvv-generic-widening-macc-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_macc",
+        typed_compute_op="weft_rvv.widening_macc",
         memory_form="vector-rhs-load",
         lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
         rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
@@ -6584,9 +6584,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_widening_dot_reduce_add",
         external_abi_name="rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add",
+        function_name="weft_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add",
         emitc_route="rvv-generic-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        typed_compute_op="weft_rvv.widening_dot_reduce",
         memory_form="vector-rhs-load",
         lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
         rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
@@ -6606,7 +6606,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_product_reduce_dequantize",
-        function_name="tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize",
+        function_name="weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize",
     ),
     "widening_product_reduce_dequant_clamp_f32": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6622,7 +6622,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_"
+            "weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_"
             "pre_realized_body_rvv_product_reduce_dequant_clamp"
         ),
         emitc_route=(
@@ -6645,9 +6645,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_rvv_f32_clamp_select",
         external_abi_name="rvv-generic-f32-clamp-select-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_select",
+        function_name="weft_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_select",
         emitc_route="rvv-generic-f32-clamp-select-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form="runtime-scalar-f32-clamp-select",
         lhs_initializer=(
             "((index % 6) == 0 ? -4.5f : "
@@ -6678,11 +6678,11 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
             "rvv-generic-dequant-clamp-f32-epilogue-callable-c-abi.v1"
         ),
         function_name=(
-            "tcrv_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_"
+            "weft_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_"
             "pre_realized_rvv_dequant_clamp_f32_epilogue"
         ),
         emitc_route="rvv-generic-dequant-clamp-f32-epilogue-emitc-route",
-        typed_compute_op="tcrv_rvv.select",
+        typed_compute_op="weft_rvv.select",
         memory_form=DEQUANT_CLAMP_F32_EPILOGUE_MEMORY_FORM,
         lhs_initializer=(
             "(int32_t)(((index % 6) == 0) ? -24 : "
@@ -6708,9 +6708,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_strided_input_dot",
         external_abi_name="rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot",
+        function_name="weft_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot",
         emitc_route="rvv-generic-strided-input-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        typed_compute_op="weft_rvv.widening_dot_reduce",
         memory_form="strided-input-widening-dot-reduce",
         lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 59) + 3) : ((int)(index % 59) + 6))",
         rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 43) + 4) : ((int)(index % 43) + 9))",
@@ -6733,9 +6733,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_widening_dot_reduce_add",
         external_abi_name="rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_body_masked_widening_dot_reduce_add_kernel_pre_realized_body_rvv_masked_widening_dot_reduce_add",
+        function_name="weft_emitc_pre_realized_body_masked_widening_dot_reduce_add_kernel_pre_realized_body_rvv_masked_widening_dot_reduce_add",
         emitc_route="rvv-generic-computed-masked-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_widening_dot_reduce",
+        typed_compute_op="weft_rvv.masked_widening_dot_reduce",
         memory_form="computed-mask-unit-stride-widening-dot-reduce",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -6767,9 +6767,9 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_computed_mask_strided_input_dot",
         external_abi_name="rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_pre_realized_masked_strided_dot_kernel_rvv_computed_mask_strided_input_dot",
+        function_name="weft_emitc_pre_realized_masked_strided_dot_kernel_rvv_computed_mask_strided_input_dot",
         emitc_route="rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_widening_dot_reduce",
+        typed_compute_op="weft_rvv.masked_widening_dot_reduce",
         memory_form="computed-mask-strided-input-widening-dot-reduce",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -8085,713 +8085,713 @@ EXPECTED_COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_RUNTIME_PARAMETERS = (
     },
 )
 COMMON_EXPECTED_METADATA = {
-    "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
-    "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
-    "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
-    "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl",
-    "tcrv_rvv.runtime_abi_order": "lhs,rhs,out,n",
-    "tcrv_rvv.runtime_avl_abi_parameter": "n",
-    "tcrv_rvv.emitc_loop": "emitc.for",
-    "tcrv_rvv.loop_induction": "offset",
-    "tcrv_rvv.loop_step": "full_chunk_vl",
-    "tcrv_rvv.remaining_avl": "n-offset",
-    "tcrv_rvv.pointer_advance": "offset",
-    "tcrv_rvv.multi_vl": "supported",
+    "weft_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+    "weft_rvv.runtime_avl_source": "runtime_abi:n",
+    "weft_rvv.vl_def": "weft_rvv.setvl",
+    "weft_rvv.vl_scope": "weft_rvv.with_vl",
+    "weft_rvv.runtime_abi_order": "lhs,rhs,out,n",
+    "weft_rvv.runtime_avl_abi_parameter": "n",
+    "weft_rvv.emitc_loop": "emitc.for",
+    "weft_rvv.loop_induction": "offset",
+    "weft_rvv.loop_step": "full_chunk_vl",
+    "weft_rvv.remaining_avl": "n-offset",
+    "weft_rvv.pointer_advance": "offset",
+    "weft_rvv.multi_vl": "supported",
 }
 RUNTIME_AVL_VL_METADATA_KEYS = (
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.vl_def",
-    "tcrv_rvv.vl_scope",
-    "tcrv_rvv.vl_uses",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.runtime_avl_abi_parameter",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.emitc_loop",
-    "tcrv_rvv.loop_induction",
-    "tcrv_rvv.loop_step",
-    "tcrv_rvv.remaining_avl",
-    "tcrv_rvv.pointer_advance",
-    "tcrv_rvv.multi_vl",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.vl_def",
+    "weft_rvv.vl_scope",
+    "weft_rvv.vl_uses",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.runtime_avl_abi_parameter",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.emitc_loop",
+    "weft_rvv.loop_induction",
+    "weft_rvv.loop_step",
+    "weft_rvv.remaining_avl",
+    "weft_rvv.pointer_advance",
+    "weft_rvv.multi_vl",
 )
 SELECTED_DISPATCH_BUNDLE_METADATA_KEYS = (
-    "tcrv_rvv.selected_dispatch_case_mirror",
-    "tcrv_rvv.selected_dispatch_fallback_mirror",
-    "tcrv_rvv.exec_abi_bindings",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.provider_supported_mirror",
+    "weft_rvv.selected_dispatch_case_mirror",
+    "weft_rvv.selected_dispatch_fallback_mirror",
+    "weft_rvv.exec_abi_bindings",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.provider_supported_mirror",
 )
 MASK_TAIL_POLICY_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.mask_tail_policy_route_family_plan",
-    "tcrv_rvv.mask_tail_policy_owner",
-    "tcrv_rvv.computed_mask_memory_mask_producer_source",
-    "tcrv_rvv.base_memory_movement_route_family_plan",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.masked_memory_layout",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.inactive_lane_zeroing_requirement",
-    "tcrv_rvv.inactive_lane_contract",
-    "tcrv_rvv.masked_passthrough_layout",
-    "tcrv_rvv.indexed_memory_layout",
-    "tcrv_rvv.index_source",
-    "tcrv_rvv.index_eew",
-    "tcrv_rvv.offset_unit",
-    "tcrv_rvv.index_uniqueness",
-    "tcrv_rvv.indexed_data_memory_form",
-    "tcrv_rvv.indexed_destination_memory_form",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
+    "weft_rvv.config_contract",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.mask_tail_policy_route_family_plan",
+    "weft_rvv.mask_tail_policy_owner",
+    "weft_rvv.computed_mask_memory_mask_producer_source",
+    "weft_rvv.base_memory_movement_route_family_plan",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.masked_memory_layout",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.inactive_lane_zeroing_requirement",
+    "weft_rvv.inactive_lane_contract",
+    "weft_rvv.masked_passthrough_layout",
+    "weft_rvv.indexed_memory_layout",
+    "weft_rvv.index_source",
+    "weft_rvv.index_eew",
+    "weft_rvv.offset_unit",
+    "weft_rvv.index_uniqueness",
+    "weft_rvv.indexed_data_memory_form",
+    "weft_rvv.indexed_destination_memory_form",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
 )
 COMPUTED_MASK_MEMORY_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.computed_mask_memory_route_family_plan",
-    "tcrv_rvv.computed_mask_memory_mask_producer_source",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.masked_memory_layout",
-    "tcrv_rvv.compare_predicate_kind",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.inactive_lane_contract",
-    "tcrv_rvv.masked_passthrough_layout",
-    "tcrv_rvv.indexed_memory_layout",
-    "tcrv_rvv.index_source",
-    "tcrv_rvv.index_eew",
-    "tcrv_rvv.offset_unit",
-    "tcrv_rvv.index_uniqueness",
-    "tcrv_rvv.indexed_data_memory_form",
-    "tcrv_rvv.indexed_destination_memory_form",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.computed_mask_memory_route_family_plan",
+    "weft_rvv.computed_mask_memory_mask_producer_source",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.masked_memory_layout",
+    "weft_rvv.compare_predicate_kind",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.inactive_lane_contract",
+    "weft_rvv.masked_passthrough_layout",
+    "weft_rvv.indexed_memory_layout",
+    "weft_rvv.index_source",
+    "weft_rvv.index_eew",
+    "weft_rvv.offset_unit",
+    "weft_rvv.index_uniqueness",
+    "weft_rvv.indexed_data_memory_form",
+    "weft_rvv.indexed_destination_memory_form",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
 )
 BASE_MEMORY_MOVEMENT_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.base_memory_movement_route_family_plan",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.strided_memory_layout",
-    "tcrv_rvv.source_stride_source",
-    "tcrv_rvv.destination_stride_source",
-    "tcrv_rvv.indexed_memory_layout",
-    "tcrv_rvv.index_source",
-    "tcrv_rvv.index_eew",
-    "tcrv_rvv.offset_unit",
-    "tcrv_rvv.index_uniqueness",
-    "tcrv_rvv.indexed_data_memory_form",
-    "tcrv_rvv.indexed_destination_memory_form",
-    "tcrv_rvv.masked_memory_layout",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.inactive_lane_contract",
-    "tcrv_rvv.masked_passthrough_layout",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.base_memory_movement_route_family_plan",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.strided_memory_layout",
+    "weft_rvv.source_stride_source",
+    "weft_rvv.destination_stride_source",
+    "weft_rvv.indexed_memory_layout",
+    "weft_rvv.index_source",
+    "weft_rvv.index_eew",
+    "weft_rvv.offset_unit",
+    "weft_rvv.index_uniqueness",
+    "weft_rvv.indexed_data_memory_form",
+    "weft_rvv.indexed_destination_memory_form",
+    "weft_rvv.masked_memory_layout",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.inactive_lane_contract",
+    "weft_rvv.masked_passthrough_layout",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
 )
 COMPARE_SELECT_PREDICATE_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.compare_predicate_kind",
-    "tcrv_rvv.secondary_compare_predicate_kind",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.plain_compare_select_route_family_plan",
-    "tcrv_rvv.computed_mask_select_route_family_plan",
-    "tcrv_rvv.computed_mask_select_mask_producer_source",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.mask_composition",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
-    "tcrv_rvv.select_layout",
-    "tcrv_rvv.lower_bound_role",
-    "tcrv_rvv.upper_bound_role",
-    "tcrv_rvv.lower_bound_c_type",
-    "tcrv_rvv.upper_bound_c_type",
-    "tcrv_rvv.bound_order",
-    "tcrv_rvv.clamp_relation",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.compare_predicate_kind",
+    "weft_rvv.secondary_compare_predicate_kind",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.plain_compare_select_route_family_plan",
+    "weft_rvv.computed_mask_select_route_family_plan",
+    "weft_rvv.computed_mask_select_mask_producer_source",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.mask_composition",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
+    "weft_rvv.select_layout",
+    "weft_rvv.lower_bound_role",
+    "weft_rvv.upper_bound_role",
+    "weft_rvv.lower_bound_c_type",
+    "weft_rvv.upper_bound_c_type",
+    "weft_rvv.bound_order",
+    "weft_rvv.clamp_relation",
 )
 CONVERSION_SEW_POLICY_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.widening_conversion_route_family_plan",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.source_sew",
-    "tcrv_rvv.source_lmul",
-    "tcrv_rvv.dest_sew",
-    "tcrv_rvv.dest_lmul",
-    "tcrv_rvv.conversion_relation",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.widening_conversion_route_family_plan",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.source_sew",
+    "weft_rvv.source_lmul",
+    "weft_rvv.dest_sew",
+    "weft_rvv.dest_lmul",
+    "weft_rvv.conversion_relation",
 )
 DEQUANTIZATION_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.dequantization_route_family_plan",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.source_element_type",
-    "tcrv_rvv.result_element_type",
-    "tcrv_rvv.source_sew",
-    "tcrv_rvv.source_lmul",
-    "tcrv_rvv.dest_sew",
-    "tcrv_rvv.dest_lmul",
-    "tcrv_rvv.conversion_kind",
-    "tcrv_rvv.dequantization_relation",
-    "tcrv_rvv.dequantize_convert_intrinsic",
-    "tcrv_rvv.dequantize_scale_intrinsic",
-    "tcrv_rvv.dequant_scale_role",
-    "tcrv_rvv.dequant_scale_c_type",
-    "tcrv_rvv.dequant_scale_name",
-    "tcrv_rvv.gearbox.candidate_set",
-    "tcrv_rvv.gearbox.selected_candidate",
-    "tcrv_rvv.gearbox.selection_reason",
-    "tcrv_rvv.gearbox.legality_scope",
-    "tcrv_rvv.gearbox.schedule_id",
-    "tcrv_rvv.gearbox.selector",
-    "tcrv_rvv.gearbox.source",
-    "tcrv_rvv.gearbox.operation",
-    "tcrv_rvv.gearbox.unroll",
-    "tcrv_rvv.gearbox.vl_policy",
-    "tcrv_rvv.gearbox.source_sew",
-    "tcrv_rvv.gearbox.source_lmul",
-    "tcrv_rvv.gearbox.dest_sew",
-    "tcrv_rvv.gearbox.dest_lmul",
-    "tcrv_rvv.gearbox.runtime_avl_source",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.dequantization_route_family_plan",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.source_element_type",
+    "weft_rvv.result_element_type",
+    "weft_rvv.source_sew",
+    "weft_rvv.source_lmul",
+    "weft_rvv.dest_sew",
+    "weft_rvv.dest_lmul",
+    "weft_rvv.conversion_kind",
+    "weft_rvv.dequantization_relation",
+    "weft_rvv.dequantize_convert_intrinsic",
+    "weft_rvv.dequantize_scale_intrinsic",
+    "weft_rvv.dequant_scale_role",
+    "weft_rvv.dequant_scale_c_type",
+    "weft_rvv.dequant_scale_name",
+    "weft_rvv.gearbox.candidate_set",
+    "weft_rvv.gearbox.selected_candidate",
+    "weft_rvv.gearbox.selection_reason",
+    "weft_rvv.gearbox.legality_scope",
+    "weft_rvv.gearbox.schedule_id",
+    "weft_rvv.gearbox.selector",
+    "weft_rvv.gearbox.source",
+    "weft_rvv.gearbox.operation",
+    "weft_rvv.gearbox.unroll",
+    "weft_rvv.gearbox.vl_policy",
+    "weft_rvv.gearbox.source_sew",
+    "weft_rvv.gearbox.source_lmul",
+    "weft_rvv.gearbox.dest_sew",
+    "weft_rvv.gearbox.dest_lmul",
+    "weft_rvv.gearbox.runtime_avl_source",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
 )
 REDUCTION_ACCUMULATION_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.accumulation_route_family_plan",
-    "tcrv_rvv.accumulation_compute_suffix",
-    "tcrv_rvv.accumulation_mask_producer_source",
-    "tcrv_rvv.accumulation_accumulator_contract",
-    "tcrv_rvv.accumulation_result_contract",
-    "tcrv_rvv.accumulation_scalar_carry_contract",
-    "tcrv_rvv.standalone_reduction_route_family_plan",
-    "tcrv_rvv.standalone_reduction_source_vector_type",
-    "tcrv_rvv.standalone_reduction_source_vector_c_type",
-    "tcrv_rvv.standalone_reduction_scalar_result_vector_type",
-    "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
-    "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.inactive_lane_zeroing_requirement",
-    "tcrv_rvv.reduction_accumulator_layout",
-    "tcrv_rvv.reduction_result_layout",
-    "tcrv_rvv.reduction_store_vl",
-    "tcrv_rvv.vector_load_intrinsic",
-    "tcrv_rvv.scalar_seed_splat_intrinsic",
-    "tcrv_rvv.reduction_intrinsic",
-    "tcrv_rvv.scalar_result_store_intrinsic",
-    "tcrv_rvv.compare_intrinsic",
-    "tcrv_rvv.masked_merge_intrinsic",
-    "tcrv_rvv.rhs_broadcast_intrinsic",
-    "tcrv_rvv.runtime_abi_order",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.accumulation_route_family_plan",
+    "weft_rvv.accumulation_compute_suffix",
+    "weft_rvv.accumulation_mask_producer_source",
+    "weft_rvv.accumulation_accumulator_contract",
+    "weft_rvv.accumulation_result_contract",
+    "weft_rvv.accumulation_scalar_carry_contract",
+    "weft_rvv.standalone_reduction_route_family_plan",
+    "weft_rvv.standalone_reduction_source_vector_type",
+    "weft_rvv.standalone_reduction_source_vector_c_type",
+    "weft_rvv.standalone_reduction_scalar_result_vector_type",
+    "weft_rvv.standalone_reduction_scalar_result_vector_c_type",
+    "weft_rvv.standalone_reduction_scalar_result_runtime_boundary",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.inactive_lane_zeroing_requirement",
+    "weft_rvv.reduction_accumulator_layout",
+    "weft_rvv.reduction_result_layout",
+    "weft_rvv.reduction_store_vl",
+    "weft_rvv.vector_load_intrinsic",
+    "weft_rvv.scalar_seed_splat_intrinsic",
+    "weft_rvv.reduction_intrinsic",
+    "weft_rvv.scalar_result_store_intrinsic",
+    "weft_rvv.compare_intrinsic",
+    "weft_rvv.masked_merge_intrinsic",
+    "weft_rvv.rhs_broadcast_intrinsic",
+    "weft_rvv.runtime_abi_order",
 )
 VECTOR_REDUCTION_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.runtime_avl_abi_parameter",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.emitc_loop",
-    "tcrv_rvv.loop_induction",
-    "tcrv_rvv.loop_step",
-    "tcrv_rvv.remaining_avl",
-    "tcrv_rvv.pointer_advance",
-    "tcrv_rvv.multi_vl",
-    "tcrv_rvv.reduction_accumulator_layout",
-    "tcrv_rvv.reduction_result_layout",
-    "tcrv_rvv.reduction_store_vl",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.runtime_avl_abi_parameter",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.emitc_loop",
+    "weft_rvv.loop_induction",
+    "weft_rvv.loop_step",
+    "weft_rvv.remaining_avl",
+    "weft_rvv.pointer_advance",
+    "weft_rvv.multi_vl",
+    "weft_rvv.reduction_accumulator_layout",
+    "weft_rvv.reduction_result_layout",
+    "weft_rvv.reduction_store_vl",
 )
 WIDENING_MACC_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.runtime_avl_abi_parameter",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.contraction_route_family_plan",
-    "tcrv_rvv.emitc_loop",
-    "tcrv_rvv.loop_induction",
-    "tcrv_rvv.loop_step",
-    "tcrv_rvv.remaining_avl",
-    "tcrv_rvv.pointer_advance",
-    "tcrv_rvv.multi_vl",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.source_sew",
-    "tcrv_rvv.source_lmul",
-    "tcrv_rvv.accumulator_sew",
-    "tcrv_rvv.accumulator_lmul",
-    "tcrv_rvv.result_sew",
-    "tcrv_rvv.result_lmul",
-    "tcrv_rvv.widening_macc_accumulator_layout",
-    "tcrv_rvv.widening_macc_result_layout",
-    "tcrv_rvv.widening_macc_relation",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.runtime_avl_abi_parameter",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.contraction_route_family_plan",
+    "weft_rvv.emitc_loop",
+    "weft_rvv.loop_induction",
+    "weft_rvv.loop_step",
+    "weft_rvv.remaining_avl",
+    "weft_rvv.pointer_advance",
+    "weft_rvv.multi_vl",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.source_sew",
+    "weft_rvv.source_lmul",
+    "weft_rvv.accumulator_sew",
+    "weft_rvv.accumulator_lmul",
+    "weft_rvv.result_sew",
+    "weft_rvv.result_lmul",
+    "weft_rvv.widening_macc_accumulator_layout",
+    "weft_rvv.widening_macc_result_layout",
+    "weft_rvv.widening_macc_relation",
 )
 LOW_PRECISION_RESOURCE_METADATA_KEYS = (
-    "tcrv_rvv.low_precision_resource.candidate_set",
-    "tcrv_rvv.low_precision_resource.selected_candidate",
-    "tcrv_rvv.low_precision_resource.selection_reason",
-    "tcrv_rvv.low_precision_resource.legality_scope",
-    "tcrv_rvv.low_precision_resource.source_dtype",
-    "tcrv_rvv.low_precision_resource.source_sew",
-    "tcrv_rvv.low_precision_resource.source_lmul",
-    "tcrv_rvv.low_precision_resource.operand_form",
-    "tcrv_rvv.low_precision_resource.source_signedness",
-    "tcrv_rvv.low_precision_resource.storage_element_width",
-    "tcrv_rvv.low_precision_resource.effective_element_width",
-    "tcrv_rvv.low_precision_resource.packing_layout",
-    "tcrv_rvv.low_precision_resource.unpack_intent",
-    "tcrv_rvv.low_precision_resource.product_dtype",
-    "tcrv_rvv.low_precision_resource.product_sew",
-    "tcrv_rvv.low_precision_resource.product_lmul",
-    "tcrv_rvv.low_precision_resource.product_emul",
-    "tcrv_rvv.low_precision_resource.accumulator_dtype",
-    "tcrv_rvv.low_precision_resource.accumulator_sew",
-    "tcrv_rvv.low_precision_resource.accumulator_lmul",
-    "tcrv_rvv.low_precision_resource.accumulator_emul",
-    "tcrv_rvv.low_precision_resource.result_dtype",
-    "tcrv_rvv.low_precision_resource.result_sew",
-    "tcrv_rvv.low_precision_resource.result_lmul",
-    "tcrv_rvv.low_precision_resource.memory_form",
-    "tcrv_rvv.low_precision_resource.tail_policy",
-    "tcrv_rvv.low_precision_resource.mask_policy",
-    "tcrv_rvv.low_precision_resource.unroll_factor",
-    "tcrv_rvv.low_precision_resource.accumulator_count",
-    "tcrv_rvv.low_precision_resource.reduction_layout",
-    "tcrv_rvv.low_precision_resource.vsetvl_region_count",
-    "tcrv_rvv.low_precision_resource.peak_live_vector_groups",
-    "tcrv_rvv.low_precision_resource.vector_register_budget",
-    "tcrv_rvv.low_precision_resource.runtime_avl_source",
-    "tcrv_rvv.low_precision_resource.runtime_abi_order",
-    "tcrv_rvv.low_precision_resource.primitive_contract",
-    "tcrv_rvv.low_precision_resource.primitive_kind",
-    "tcrv_rvv.low_precision_resource.primitive_chain_contract",
-    "tcrv_rvv.low_precision_resource.primitive_chain_kind",
-    "tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles",
-    "tcrv_rvv.low_precision_resource.widening_product_extension_policy",
-    "tcrv_rvv.low_precision_resource.primitive_source_load",
-    "tcrv_rvv.low_precision_resource.primitive_source_extension",
-    "tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
-    "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
-    "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
-    "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
-    "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
-    "tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
-    "tcrv_rvv.low_precision_resource.primitive_result_layout",
-    "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl",
-    "tcrv_rvv.low_precision_resource.realization_producer",
-    "tcrv_rvv.low_precision_resource.realization_decision",
-    "tcrv_rvv.low_precision_resource.realized_unroll_factor",
-    "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count",
-    "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups",
-    "tcrv_rvv.low_precision_resource.product_region_index",
-    "tcrv_rvv.low_precision_resource.dequant_region_index",
-    "tcrv_rvv.low_precision_resource.product_phase",
-    "tcrv_rvv.low_precision_resource.dequant_phase",
-    "tcrv_rvv.low_precision_resource.performance_feedback",
-    "tcrv_rvv.low_precision_resource.performance_baseline",
-    "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
-    "tcrv_rvv.low_precision_resource.performance_action",
-    "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
-    "tcrv_rvv.low_precision_resource.remediation_diagnosis",
-    "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
-    "tcrv_rvv.low_precision_resource.remediation_decision",
-    "tcrv_rvv.low_precision_resource.remediation_action",
-    "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
-    "tcrv_rvv.low_precision_resource.remediation_blocker",
-    "tcrv_rvv.low_precision_resource.remediation_plan_contract",
-    "tcrv_rvv.low_precision_resource.remediation_plan",
-    "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
-    "tcrv_rvv.low_precision_resource.remediation_vector_budget",
-    "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
-    "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
-    "tcrv_rvv.low_precision_resource.remediation_product_plan",
-    "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
-    "tcrv_rvv.low_precision_resource.remediation_vl_plan",
-    "tcrv_rvv.low_precision_resource.schedule_decision_contract",
-    "tcrv_rvv.low_precision_resource.schedule_decision",
-    "tcrv_rvv.low_precision_resource.schedule_decision_reason",
-    "tcrv_rvv.low_precision_resource.resource_cost_contract",
-    "tcrv_rvv.low_precision_resource.resource_cost_model",
-    "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
-    "tcrv_rvv.low_precision_resource.resource_cost_blocker",
-    "tcrv_rvv.low_precision_resource.performance_admission_decision",
-    "tcrv_rvv.low_precision_resource.performance_admission_closure",
-    "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
-    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
-    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
-    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
-    "tcrv_rvv.low_precision_resource."
+    "weft_rvv.low_precision_resource.candidate_set",
+    "weft_rvv.low_precision_resource.selected_candidate",
+    "weft_rvv.low_precision_resource.selection_reason",
+    "weft_rvv.low_precision_resource.legality_scope",
+    "weft_rvv.low_precision_resource.source_dtype",
+    "weft_rvv.low_precision_resource.source_sew",
+    "weft_rvv.low_precision_resource.source_lmul",
+    "weft_rvv.low_precision_resource.operand_form",
+    "weft_rvv.low_precision_resource.source_signedness",
+    "weft_rvv.low_precision_resource.storage_element_width",
+    "weft_rvv.low_precision_resource.effective_element_width",
+    "weft_rvv.low_precision_resource.packing_layout",
+    "weft_rvv.low_precision_resource.unpack_intent",
+    "weft_rvv.low_precision_resource.product_dtype",
+    "weft_rvv.low_precision_resource.product_sew",
+    "weft_rvv.low_precision_resource.product_lmul",
+    "weft_rvv.low_precision_resource.product_emul",
+    "weft_rvv.low_precision_resource.accumulator_dtype",
+    "weft_rvv.low_precision_resource.accumulator_sew",
+    "weft_rvv.low_precision_resource.accumulator_lmul",
+    "weft_rvv.low_precision_resource.accumulator_emul",
+    "weft_rvv.low_precision_resource.result_dtype",
+    "weft_rvv.low_precision_resource.result_sew",
+    "weft_rvv.low_precision_resource.result_lmul",
+    "weft_rvv.low_precision_resource.memory_form",
+    "weft_rvv.low_precision_resource.tail_policy",
+    "weft_rvv.low_precision_resource.mask_policy",
+    "weft_rvv.low_precision_resource.unroll_factor",
+    "weft_rvv.low_precision_resource.accumulator_count",
+    "weft_rvv.low_precision_resource.reduction_layout",
+    "weft_rvv.low_precision_resource.vsetvl_region_count",
+    "weft_rvv.low_precision_resource.peak_live_vector_groups",
+    "weft_rvv.low_precision_resource.vector_register_budget",
+    "weft_rvv.low_precision_resource.runtime_avl_source",
+    "weft_rvv.low_precision_resource.runtime_abi_order",
+    "weft_rvv.low_precision_resource.primitive_contract",
+    "weft_rvv.low_precision_resource.primitive_kind",
+    "weft_rvv.low_precision_resource.primitive_chain_contract",
+    "weft_rvv.low_precision_resource.primitive_chain_kind",
+    "weft_rvv.low_precision_resource.widening_product_multiplicand_roles",
+    "weft_rvv.low_precision_resource.widening_product_extension_policy",
+    "weft_rvv.low_precision_resource.primitive_source_load",
+    "weft_rvv.low_precision_resource.primitive_source_extension",
+    "weft_rvv.low_precision_resource.primitive_widening_product_relation",
+    "weft_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
+    "weft_rvv.low_precision_resource.primitive_widening_product_intrinsic",
+    "weft_rvv.low_precision_resource.primitive_reduction_intrinsic",
+    "weft_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
+    "weft_rvv.low_precision_resource.primitive_accumulator_layout",
+    "weft_rvv.low_precision_resource.primitive_result_layout",
+    "weft_rvv.low_precision_resource.primitive_reduction_store_vl",
+    "weft_rvv.low_precision_resource.realization_producer",
+    "weft_rvv.low_precision_resource.realization_decision",
+    "weft_rvv.low_precision_resource.realized_unroll_factor",
+    "weft_rvv.low_precision_resource.realized_vsetvl_region_count",
+    "weft_rvv.low_precision_resource.realized_peak_live_vector_groups",
+    "weft_rvv.low_precision_resource.product_region_index",
+    "weft_rvv.low_precision_resource.dequant_region_index",
+    "weft_rvv.low_precision_resource.product_phase",
+    "weft_rvv.low_precision_resource.dequant_phase",
+    "weft_rvv.low_precision_resource.performance_feedback",
+    "weft_rvv.low_precision_resource.performance_baseline",
+    "weft_rvv.low_precision_resource.performance_best_speedup_range",
+    "weft_rvv.low_precision_resource.performance_action",
+    "weft_rvv.low_precision_resource.remediation_handoff_contract",
+    "weft_rvv.low_precision_resource.remediation_diagnosis",
+    "weft_rvv.low_precision_resource.remediation_measurement_evidence",
+    "weft_rvv.low_precision_resource.remediation_decision",
+    "weft_rvv.low_precision_resource.remediation_action",
+    "weft_rvv.low_precision_resource.remediation_dispatch_preference",
+    "weft_rvv.low_precision_resource.remediation_blocker",
+    "weft_rvv.low_precision_resource.remediation_plan_contract",
+    "weft_rvv.low_precision_resource.remediation_plan",
+    "weft_rvv.low_precision_resource.remediation_statement_strategy",
+    "weft_rvv.low_precision_resource.remediation_vector_budget",
+    "weft_rvv.low_precision_resource.remediation_schedule_contract",
+    "weft_rvv.low_precision_resource.remediation_unpack_plan",
+    "weft_rvv.low_precision_resource.remediation_product_plan",
+    "weft_rvv.low_precision_resource.remediation_reduction_plan",
+    "weft_rvv.low_precision_resource.remediation_vl_plan",
+    "weft_rvv.low_precision_resource.schedule_decision_contract",
+    "weft_rvv.low_precision_resource.schedule_decision",
+    "weft_rvv.low_precision_resource.schedule_decision_reason",
+    "weft_rvv.low_precision_resource.resource_cost_contract",
+    "weft_rvv.low_precision_resource.resource_cost_model",
+    "weft_rvv.low_precision_resource.resource_cost_loop_body_steps",
+    "weft_rvv.low_precision_resource.resource_cost_blocker",
+    "weft_rvv.low_precision_resource.performance_admission_decision",
+    "weft_rvv.low_precision_resource.performance_admission_closure",
+    "weft_rvv.low_precision_resource.performance_admission_reopen_requirement",
+    "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract",
+    "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision",
+    "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
+    "weft_rvv.low_precision_resource."
     "beyond_local_repair_admission_reopen_requirement",
-    "tcrv_rvv.low_precision_resource.realization_admission_contract",
-    "tcrv_rvv.low_precision_resource.realization_admission_decision",
-    "tcrv_rvv.low_precision_resource.realization_admission_evidence",
-    "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy",
-    "tcrv_rvv.low_precision_resource."
+    "weft_rvv.low_precision_resource.realization_admission_contract",
+    "weft_rvv.low_precision_resource.realization_admission_decision",
+    "weft_rvv.low_precision_resource.realization_admission_evidence",
+    "weft_rvv.low_precision_resource.realization_admission_dispatch_policy",
+    "weft_rvv.low_precision_resource."
     "realization_admission_schedule_decision_contract",
-    "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision",
-    "tcrv_rvv.low_precision_resource."
+    "weft_rvv.low_precision_resource.realization_admission_schedule_decision",
+    "weft_rvv.low_precision_resource."
     "realization_admission_schedule_decision_reason",
-    "tcrv_rvv.low_precision_resource.performance_maturity",
-    "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
-    "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
-    "tcrv_rvv.low_precision_resource.performance_selection_eligible",
-    "tcrv_rvv.low_precision_resource.dispatch_preference",
-    "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
-    "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
-    "tcrv_rvv.low_precision_resource.legality",
-    "tcrv_rvv.low_precision_resource.rejection_reason",
+    "weft_rvv.low_precision_resource.performance_maturity",
+    "weft_rvv.low_precision_resource.performance_maturity_evidence",
+    "weft_rvv.low_precision_resource.performance_maturity_outcome",
+    "weft_rvv.low_precision_resource.performance_selection_eligible",
+    "weft_rvv.low_precision_resource.dispatch_preference",
+    "weft_rvv.low_precision_resource.target_capability_provider_mirror",
+    "weft_rvv.low_precision_resource.target_capability_legality_mirror",
+    "weft_rvv.low_precision_resource.legality",
+    "weft_rvv.low_precision_resource.rejection_reason",
 )
 GEARBOX_SCOPE_METADATA_KEYS = (
-    "tcrv_rvv.gearbox.producer_scope",
-    "tcrv_rvv.gearbox.consumer_scope",
+    "weft_rvv.gearbox.producer_scope",
+    "weft_rvv.gearbox.consumer_scope",
 )
 COMPOSITE_RESOURCE_METADATA_KEYS = (
-    "tcrv_rvv.composite_resource.candidate_set",
-    "tcrv_rvv.composite_resource.selected_candidate",
-    "tcrv_rvv.composite_resource.selection_reason",
-    "tcrv_rvv.composite_resource.legality_scope",
-    "tcrv_rvv.composite_resource.operation",
-    "tcrv_rvv.composite_resource.memory_form",
-    "tcrv_rvv.composite_resource.sew",
-    "tcrv_rvv.composite_resource.lmul",
-    "tcrv_rvv.composite_resource.tail_policy",
-    "tcrv_rvv.composite_resource.mask_policy",
-    "tcrv_rvv.composite_resource.vl_policy",
-    "tcrv_rvv.composite_resource.accumulator_layout",
-    "tcrv_rvv.composite_resource.unroll_factor",
-    "tcrv_rvv.composite_resource.pipeline_intent",
-    "tcrv_rvv.composite_resource.prefetch_intent",
-    "tcrv_rvv.composite_resource.vsetvl_region_count",
-    "tcrv_rvv.composite_resource.peak_live_vector_groups",
-    "tcrv_rvv.composite_resource.vector_register_budget",
-    "tcrv_rvv.composite_resource.runtime_avl_source",
-    "tcrv_rvv.composite_resource.runtime_abi_order",
-    "tcrv_rvv.composite_resource.target_capability_provider_mirror",
-    "tcrv_rvv.composite_resource.target_capability_legality_mirror",
-    "tcrv_rvv.composite_resource.legality",
-    "tcrv_rvv.composite_resource.rejection_reason",
+    "weft_rvv.composite_resource.candidate_set",
+    "weft_rvv.composite_resource.selected_candidate",
+    "weft_rvv.composite_resource.selection_reason",
+    "weft_rvv.composite_resource.legality_scope",
+    "weft_rvv.composite_resource.operation",
+    "weft_rvv.composite_resource.memory_form",
+    "weft_rvv.composite_resource.sew",
+    "weft_rvv.composite_resource.lmul",
+    "weft_rvv.composite_resource.tail_policy",
+    "weft_rvv.composite_resource.mask_policy",
+    "weft_rvv.composite_resource.vl_policy",
+    "weft_rvv.composite_resource.accumulator_layout",
+    "weft_rvv.composite_resource.unroll_factor",
+    "weft_rvv.composite_resource.pipeline_intent",
+    "weft_rvv.composite_resource.prefetch_intent",
+    "weft_rvv.composite_resource.vsetvl_region_count",
+    "weft_rvv.composite_resource.peak_live_vector_groups",
+    "weft_rvv.composite_resource.vector_register_budget",
+    "weft_rvv.composite_resource.runtime_avl_source",
+    "weft_rvv.composite_resource.runtime_abi_order",
+    "weft_rvv.composite_resource.target_capability_provider_mirror",
+    "weft_rvv.composite_resource.target_capability_legality_mirror",
+    "weft_rvv.composite_resource.legality",
+    "weft_rvv.composite_resource.rejection_reason",
 )
 WIDENING_DOT_REDUCTION_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.runtime_avl_abi_parameter",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.contraction_route_family_plan",
-    "tcrv_rvv.emitc_loop",
-    "tcrv_rvv.loop_induction",
-    "tcrv_rvv.loop_step",
-    "tcrv_rvv.remaining_avl",
-    "tcrv_rvv.pointer_advance",
-    "tcrv_rvv.multi_vl",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.source_sew",
-    "tcrv_rvv.source_lmul",
-    "tcrv_rvv.accumulator_sew",
-    "tcrv_rvv.accumulator_lmul",
-    "tcrv_rvv.result_sew",
-    "tcrv_rvv.result_lmul",
-    "tcrv_rvv.strided_memory_layout",
-    "tcrv_rvv.lhs_stride_source",
-    "tcrv_rvv.rhs_stride_source",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
-    "tcrv_rvv.widening_dot_accumulator_layout",
-    "tcrv_rvv.widening_dot_result_layout",
-    "tcrv_rvv.widening_dot_relation",
-    "tcrv_rvv.widening_product_intrinsic",
-    "tcrv_rvv.strided_load_intrinsic",
-    "tcrv_rvv.widening_dot_reduction_store_vl",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.runtime_avl_abi_parameter",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.contraction_route_family_plan",
+    "weft_rvv.emitc_loop",
+    "weft_rvv.loop_induction",
+    "weft_rvv.loop_step",
+    "weft_rvv.remaining_avl",
+    "weft_rvv.pointer_advance",
+    "weft_rvv.multi_vl",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.source_sew",
+    "weft_rvv.source_lmul",
+    "weft_rvv.accumulator_sew",
+    "weft_rvv.accumulator_lmul",
+    "weft_rvv.result_sew",
+    "weft_rvv.result_lmul",
+    "weft_rvv.strided_memory_layout",
+    "weft_rvv.lhs_stride_source",
+    "weft_rvv.rhs_stride_source",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
+    "weft_rvv.widening_dot_accumulator_layout",
+    "weft_rvv.widening_dot_result_layout",
+    "weft_rvv.widening_dot_relation",
+    "weft_rvv.widening_product_intrinsic",
+    "weft_rvv.strided_load_intrinsic",
+    "weft_rvv.widening_dot_reduction_store_vl",
     *LOW_PRECISION_RESOURCE_METADATA_KEYS,
 )
 WIDENING_PRODUCT_REDUCTION_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.runtime_avl_abi_parameter",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.contraction_route_family_plan",
-    "tcrv_rvv.emitc_loop",
-    "tcrv_rvv.loop_induction",
-    "tcrv_rvv.loop_step",
-    "tcrv_rvv.remaining_avl",
-    "tcrv_rvv.pointer_advance",
-    "tcrv_rvv.multi_vl",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.source_sew",
-    "tcrv_rvv.source_lmul",
-    "tcrv_rvv.product_sew",
-    "tcrv_rvv.product_lmul",
-    "tcrv_rvv.product_vector_type",
-    "tcrv_rvv.product_vector_c_type",
-    "tcrv_rvv.accumulator_sew",
-    "tcrv_rvv.accumulator_lmul",
-    "tcrv_rvv.result_sew",
-    "tcrv_rvv.result_lmul",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
-    "tcrv_rvv.reduction_accumulator_layout",
-    "tcrv_rvv.reduction_result_layout",
-    "tcrv_rvv.widening_product_relation",
-    "tcrv_rvv.product_reduction_chain_relation",
-    "tcrv_rvv.widening_product_intrinsic",
-    "tcrv_rvv.widening_reduction_intrinsic",
-    "tcrv_rvv.scalar_seed_splat_intrinsic",
-    "tcrv_rvv.reduction_store_vl",
-    "tcrv_rvv.scalar_result_runtime_boundary",
-    "tcrv_rvv.dequantization_relation",
-    "tcrv_rvv.dequant_scale_role",
-    "tcrv_rvv.dequant_scale_c_type",
-    "tcrv_rvv.dequant_scale_name",
-    "tcrv_rvv.rhs_broadcast_intrinsic",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.runtime_avl_abi_parameter",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.contraction_route_family_plan",
+    "weft_rvv.emitc_loop",
+    "weft_rvv.loop_induction",
+    "weft_rvv.loop_step",
+    "weft_rvv.remaining_avl",
+    "weft_rvv.pointer_advance",
+    "weft_rvv.multi_vl",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.source_sew",
+    "weft_rvv.source_lmul",
+    "weft_rvv.product_sew",
+    "weft_rvv.product_lmul",
+    "weft_rvv.product_vector_type",
+    "weft_rvv.product_vector_c_type",
+    "weft_rvv.accumulator_sew",
+    "weft_rvv.accumulator_lmul",
+    "weft_rvv.result_sew",
+    "weft_rvv.result_lmul",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
+    "weft_rvv.reduction_accumulator_layout",
+    "weft_rvv.reduction_result_layout",
+    "weft_rvv.widening_product_relation",
+    "weft_rvv.product_reduction_chain_relation",
+    "weft_rvv.widening_product_intrinsic",
+    "weft_rvv.widening_reduction_intrinsic",
+    "weft_rvv.scalar_seed_splat_intrinsic",
+    "weft_rvv.reduction_store_vl",
+    "weft_rvv.scalar_result_runtime_boundary",
+    "weft_rvv.dequantization_relation",
+    "weft_rvv.dequant_scale_role",
+    "weft_rvv.dequant_scale_c_type",
+    "weft_rvv.dequant_scale_name",
+    "weft_rvv.rhs_broadcast_intrinsic",
     *LOW_PRECISION_RESOURCE_METADATA_KEYS,
     *GEARBOX_SCOPE_METADATA_KEYS,
 )
 MULTIPLY_ACCUMULATE_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.plain_macc_route_family_plan",
-    "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.macc_arithmetic_kind",
-    "tcrv_rvv.macc_accumulator_layout",
-    "tcrv_rvv.macc_result_layout",
-    "tcrv_rvv.runtime_abi_order",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.plain_macc_route_family_plan",
+    "weft_rvv.scalar_broadcast_macc_route_family_plan",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.macc_arithmetic_kind",
+    "weft_rvv.macc_accumulator_layout",
+    "weft_rvv.macc_result_layout",
+    "weft_rvv.runtime_abi_order",
 )
 COMPUTED_MASKED_MACC_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.compare_predicate_kind",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.accumulation_route_family_plan",
-    "tcrv_rvv.accumulation_compute_suffix",
-    "tcrv_rvv.accumulation_mask_producer_source",
-    "tcrv_rvv.accumulation_accumulator_contract",
-    "tcrv_rvv.accumulation_result_contract",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.inactive_lane_contract",
-    "tcrv_rvv.masked_passthrough_layout",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
-    "tcrv_rvv.indexed_memory_layout",
-    "tcrv_rvv.macc_accumulator_layout",
-    "tcrv_rvv.macc_result_layout",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.compare_predicate_kind",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.accumulation_route_family_plan",
+    "weft_rvv.accumulation_compute_suffix",
+    "weft_rvv.accumulation_mask_producer_source",
+    "weft_rvv.accumulation_accumulator_contract",
+    "weft_rvv.accumulation_result_contract",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.inactive_lane_contract",
+    "weft_rvv.masked_passthrough_layout",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
+    "weft_rvv.indexed_memory_layout",
+    "weft_rvv.macc_accumulator_layout",
+    "weft_rvv.macc_result_layout",
 )
 COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
-    "tcrv_rvv.config_contract",
-    "tcrv_rvv.element_type",
-    "tcrv_rvv.sew",
-    "tcrv_rvv.lmul",
-    "tcrv_rvv.tail_policy",
-    "tcrv_rvv.mask_policy",
-    "tcrv_rvv.runtime_control_plan",
-    "tcrv_rvv.compare_predicate_kind",
-    "tcrv_rvv.memory_form",
-    "tcrv_rvv.runtime_vl_contract",
-    "tcrv_rvv.runtime_avl_source",
-    "tcrv_rvv.runtime_abi_order",
-    "tcrv_rvv.route_operand_binding_plan",
-    "tcrv_rvv.route_operand_binding_operands",
-    "tcrv_rvv.contraction_route_family_plan",
-    "tcrv_rvv.target_leaf_profile",
-    "tcrv_rvv.provider_supported_mirror",
-    "tcrv_rvv.required_header_declarations",
-    "tcrv_rvv.c_type_mapping",
-    "tcrv_rvv.source_sew",
-    "tcrv_rvv.source_lmul",
-    "tcrv_rvv.accumulator_sew",
-    "tcrv_rvv.accumulator_lmul",
-    "tcrv_rvv.result_sew",
-    "tcrv_rvv.result_lmul",
-    "tcrv_rvv.strided_memory_layout",
-    "tcrv_rvv.lhs_stride_source",
-    "tcrv_rvv.rhs_stride_source",
-    "tcrv_rvv.source_memory_form",
-    "tcrv_rvv.destination_memory_form",
-    "tcrv_rvv.mask_role",
-    "tcrv_rvv.mask_source",
-    "tcrv_rvv.mask_memory_form",
-    "tcrv_rvv.inactive_lane_zeroing_requirement",
-    "tcrv_rvv.widening_dot_accumulator_layout",
-    "tcrv_rvv.widening_dot_result_layout",
-    "tcrv_rvv.widening_dot_relation",
-    "tcrv_rvv.widening_dot_source_accumulator_result_contract",
-    "tcrv_rvv.widening_product_intrinsic",
-    "tcrv_rvv.masked_widening_product_intrinsic",
-    "tcrv_rvv.strided_load_intrinsic",
-    "tcrv_rvv.widening_dot_reduction_store_vl",
+    "weft_rvv.config_contract",
+    "weft_rvv.element_type",
+    "weft_rvv.sew",
+    "weft_rvv.lmul",
+    "weft_rvv.tail_policy",
+    "weft_rvv.mask_policy",
+    "weft_rvv.runtime_control_plan",
+    "weft_rvv.compare_predicate_kind",
+    "weft_rvv.memory_form",
+    "weft_rvv.runtime_vl_contract",
+    "weft_rvv.runtime_avl_source",
+    "weft_rvv.runtime_abi_order",
+    "weft_rvv.route_operand_binding_plan",
+    "weft_rvv.route_operand_binding_operands",
+    "weft_rvv.contraction_route_family_plan",
+    "weft_rvv.target_leaf_profile",
+    "weft_rvv.provider_supported_mirror",
+    "weft_rvv.required_header_declarations",
+    "weft_rvv.c_type_mapping",
+    "weft_rvv.source_sew",
+    "weft_rvv.source_lmul",
+    "weft_rvv.accumulator_sew",
+    "weft_rvv.accumulator_lmul",
+    "weft_rvv.result_sew",
+    "weft_rvv.result_lmul",
+    "weft_rvv.strided_memory_layout",
+    "weft_rvv.lhs_stride_source",
+    "weft_rvv.rhs_stride_source",
+    "weft_rvv.source_memory_form",
+    "weft_rvv.destination_memory_form",
+    "weft_rvv.mask_role",
+    "weft_rvv.mask_source",
+    "weft_rvv.mask_memory_form",
+    "weft_rvv.inactive_lane_zeroing_requirement",
+    "weft_rvv.widening_dot_accumulator_layout",
+    "weft_rvv.widening_dot_result_layout",
+    "weft_rvv.widening_dot_relation",
+    "weft_rvv.widening_dot_source_accumulator_result_contract",
+    "weft_rvv.widening_product_intrinsic",
+    "weft_rvv.masked_widening_product_intrinsic",
+    "weft_rvv.strided_load_intrinsic",
+    "weft_rvv.widening_dot_reduction_store_vl",
     *LOW_PRECISION_RESOURCE_METADATA_KEYS,
 )
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
@@ -8877,8 +8877,8 @@ class SourceFrontDoorFamilyContract:
 
 VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
     family_name="bounded-vector-binary-source-front-door",
-    marker="tcrv_rvv.source_front_door=bounded_vector_source",
-    materializer="tcrv-rvv-materialize-vector-binary-source-front-door",
+    marker="weft_rvv.source_front_door=bounded_vector_source",
+    materializer="weft-rvv-materialize-vector-binary-source-front-door",
     selected_variant_prefix="rvv_vector_",
     runtime_purpose_prefix="rvv-vector-binary-source-front-door",
     dispatch_policy="rvv-vector-binary-source-front-door-case",
@@ -8890,8 +8890,8 @@ VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
 
 VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
     family_name="bounded-vector-compare-select-source-front-door",
-    marker="tcrv_rvv.source_front_door=bounded_vector_compare_select_source",
-    materializer="tcrv-rvv-materialize-vector-compare-select-source-front-door",
+    marker="weft_rvv.source_front_door=bounded_vector_compare_select_source",
+    materializer="weft-rvv-materialize-vector-compare-select-source-front-door",
     selected_variant_prefix="rvv_vector_cmp_select_",
     runtime_purpose_prefix="rvv-vector-compare-select-source-front-door",
     dispatch_policy="rvv-vector-compare-select-source-front-door-case",
@@ -8905,11 +8905,11 @@ VECTOR_RUNTIME_SCALAR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = (
     SourceFrontDoorFamilyContract(
         family_name="bounded-vector-runtime-scalar-cmp-select-source-front-door",
         marker=(
-            "tcrv_rvv.source_front_door="
+            "weft_rvv.source_front_door="
             "bounded_vector_runtime_scalar_cmp_select_source"
         ),
         materializer=(
-            "tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-"
+            "weft-rvv-materialize-vector-runtime-scalar-cmp-select-"
             "source-front-door"
         ),
         selected_variant_prefix="rvv_vector_runtime_scalar_cmp_select_",
@@ -8965,7 +8965,7 @@ def source_front_door_family_contract_for(
         )
 
     expected_function = (
-        f"tcrv_emitc_{expectation.selected_variant}_from_vector_source_"
+        f"weft_emitc_{expectation.selected_variant}_from_vector_source_"
         f"{expectation.selected_variant}"
     )
     if expectation.function_name != expected_function:
@@ -9032,8 +9032,8 @@ def source_front_door_family_contract_summary(
             contract.default_artifact_front_door_policy
         ),
         "route_authority": (
-            "selected typed tcrv_rvv body plus RVV provider-built "
-            "TCRVEmitCLowerableRoute"
+            "selected typed weft_rvv body plus RVV provider-built "
+            "WEFTEmitCLowerableRoute"
         ),
         "common_emitc_role": (
             "neutral materializer for provider payload; no RVV semantic "
@@ -9238,7 +9238,7 @@ def parse_index_block(block: str) -> dict[str, Any]:
 def parse_bundle_index(index_text: str) -> dict[str, Any]:
     root: dict[str, Any] = {"records": []}
     for line in index_text.splitlines():
-        if line.startswith("tianchenrv.target_artifact_bundle.version:"):
+        if line.startswith("weft.target_artifact_bundle.version:"):
             root["version"] = line.split(":", 1)[1].strip()
         elif line.startswith("bundle_status:"):
             root["bundle_status"] = parse_value(line.split(":", 1)[1])
@@ -9410,7 +9410,7 @@ def verify_common_record_fields(
 def product_dequant_uses_packed_i4_resource_metadata(
     metadata: dict[str, str], expectation: OpExpectation
 ) -> bool:
-    selected_candidate = metadata.get("tcrv_rvv.low_precision_resource.selected_candidate")
+    selected_candidate = metadata.get("weft_rvv.low_precision_resource.selected_candidate")
     if expectation.is_widening_product_reduce_dequantize_f32:
         return (
             selected_candidate
@@ -9438,7 +9438,7 @@ def product_dequant_uses_packed_i4_resource_text(
     else:
         return False
     return (
-        'tcrv_rvv.low_precision_resource.selected_candidate = "'
+        'weft_rvv.low_precision_resource.selected_candidate = "'
         f"{selected_candidate}"
         '"'
     ) in text
@@ -9987,7 +9987,7 @@ def expected_low_precision_resource_metadata(
             }
         )
     return {
-        f"tcrv_rvv.low_precision_resource.{suffix}": expected_value
+        f"weft_rvv.low_precision_resource.{suffix}": expected_value
         for suffix, expected_value in expected.items()
     }
 
@@ -10016,18 +10016,18 @@ def validate_low_precision_resource_metadata(
 # primitive source_lmul and override/skip accordingly. I5: every override mirrors
 # what the wide compiler actually emits (verified against the live PLAN/HEADER).
 DEFERRED_WIDE_METADATA_OVERRIDES = {
-    "tcrv_rvv.source_lmul": "m2",
-    "tcrv_rvv.product_lmul": "m4",
-    "tcrv_rvv.product_vector_type": '!tcrv_rvv.vector<i16, "m4">',
-    "tcrv_rvv.product_vector_c_type": "vint16m4_t",
-    "tcrv_rvv.widening_product_relation": "signed-i8m2xi8m2-to-i16m4",
-    "tcrv_rvv.product_reduction_chain_relation": (
+    "weft_rvv.source_lmul": "m2",
+    "weft_rvv.product_lmul": "m4",
+    "weft_rvv.product_vector_type": '!weft_rvv.vector<i16, "m4">',
+    "weft_rvv.product_vector_c_type": "vint16m4_t",
+    "weft_rvv.widening_product_relation": "signed-i8m2xi8m2-to-i16m4",
+    "weft_rvv.product_reduction_chain_relation": (
         "signed-i8m2xi8m2-to-i16m4-reduce-plus-i32-scalar-to-i32"
     ),
-    "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i16m4",
-    "tcrv_rvv.widening_reduction_intrinsic": "__riscv_vredsum_vs_i32m8_i32m1",
-    "tcrv_rvv.source_vector_load_intrinsic": "__riscv_vle8_v_i8m2",
-    "tcrv_rvv.route_operand_binding_operands": (
+    "weft_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i16m4",
+    "weft_rvv.widening_reduction_intrinsic": "__riscv_vredsum_vs_i32m8_i32m1",
+    "weft_rvv.source_vector_load_intrinsic": "__riscv_vle8_v_i8m2",
+    "weft_rvv.route_operand_binding_operands": (
         "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;"
         "lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8m2|hdr;"
         "rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8m2|hdr;"
@@ -10036,15 +10036,15 @@ DEFERRED_WIDE_METADATA_OVERRIDES = {
         "out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;"
         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
     ),
-    "tcrv_rvv.low_precision_primitive.source_lmul": "m2",
-    "tcrv_rvv.low_precision_primitive.product_lmul": "m4",
+    "weft_rvv.low_precision_primitive.source_lmul": "m2",
+    "weft_rvv.low_precision_primitive.product_lmul": "m4",
 }
 
 
 def object_metadata_is_deferred_wide(object_metadata: dict[str, str]) -> bool:
     """True when the recorded bundle metadata is the deferred-wide realization."""
     return (
-        object_metadata.get("tcrv_rvv.low_precision_primitive.source_lmul") == "m2"
+        object_metadata.get("weft_rvv.low_precision_primitive.source_lmul") == "m2"
     )
 
 
@@ -10065,50 +10065,50 @@ def deferred_wide_expected_metadata(
 
 def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     common_metadata = dict(COMMON_EXPECTED_METADATA)
-    common_metadata["tcrv_rvv.runtime_abi_order"] = expectation.runtime_abi_order
+    common_metadata["weft_rvv.runtime_abi_order"] = expectation.runtime_abi_order
     per_op_metadata = {
         "rvv_emitc_lowerable_route": expectation.emitc_route,
         "rvv_selected_body_operation": expectation.selected_body_operation,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
-        "tcrv_rvv.config_contract": expectation.config_contract,
-        "tcrv_rvv.element_type": expectation.element_type,
-        "tcrv_rvv.sew": expectation.sew,
-        "tcrv_rvv.lmul": expectation.lmul,
-        "tcrv_rvv.tail_policy": "agnostic",
-        "tcrv_rvv.mask_policy": "agnostic",
-        "tcrv_rvv.memory_form": expectation.memory_form,
-        "tcrv_rvv.bounded_slice": expectation.bounded_slice,
+        "weft_rvv.config_contract": expectation.config_contract,
+        "weft_rvv.element_type": expectation.element_type,
+        "weft_rvv.sew": expectation.sew,
+        "weft_rvv.lmul": expectation.lmul,
+        "weft_rvv.tail_policy": "agnostic",
+        "weft_rvv.mask_policy": "agnostic",
+        "weft_rvv.memory_form": expectation.memory_form,
+        "weft_rvv.bounded_slice": expectation.bounded_slice,
     }
     if expectation.selected_dispatch_case_mirror:
-        per_op_metadata["tcrv_rvv.selected_dispatch_case_mirror"] = (
+        per_op_metadata["weft_rvv.selected_dispatch_case_mirror"] = (
             expectation.selected_dispatch_case_mirror
         )
     if expectation.selected_dispatch_fallback_mirror:
-        per_op_metadata["tcrv_rvv.selected_dispatch_fallback_mirror"] = (
+        per_op_metadata["weft_rvv.selected_dispatch_fallback_mirror"] = (
             expectation.selected_dispatch_fallback_mirror
         )
     if expectation.is_masked_unit_store:
-        per_op_metadata["tcrv_rvv.tail_policy"] = "undisturbed"
-        per_op_metadata["tcrv_rvv.mask_policy"] = "undisturbed"
+        per_op_metadata["weft_rvv.tail_policy"] = "undisturbed"
+        per_op_metadata["weft_rvv.mask_policy"] = "undisturbed"
     if expectation.kind in BASE_MEMORY_TARGET_LEAF_PROFILE_BY_KIND:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.base_memory_movement_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.base_memory_movement_route_family_plan": (
                     BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     BASE_MEMORY_TARGET_LEAF_PROFILE_BY_KIND[expectation.kind]
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     BASE_MEMORY_PROVIDER_SUPPORTED_MIRROR_BY_KIND[
                         expectation.kind
                     ]
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     BASE_MEMORY_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     BASE_MEMORY_C_TYPE_MAPPING_BY_KIND[expectation.kind]
                 ),
             }
@@ -10116,13 +10116,13 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_reduce_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
-                "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+                "weft_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
+                "weft_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+                "weft_rvv.route_operand_binding_plan": (
                     REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     REDUCE_ADD_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10130,57 +10130,57 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_standalone_reduce:
         per_op_metadata.update(
             {
-                "tcrv_rvv.reduction_accumulator_layout": (
+                "weft_rvv.reduction_accumulator_layout": (
                     STANDALONE_REDUCE_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.reduction_result_layout": (
+                "weft_rvv.reduction_result_layout": (
                     STANDALONE_REDUCE_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
-                "tcrv_rvv.standalone_reduction_route_family_plan": (
+                "weft_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "weft_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.standalone_reduction_source_vector_type": (
+                "weft_rvv.standalone_reduction_source_vector_type": (
                     expectation.rvv_vector_type
                 ),
-                "tcrv_rvv.standalone_reduction_source_vector_c_type": (
+                "weft_rvv.standalone_reduction_source_vector_c_type": (
                     expectation.rvv_vector_c_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_vector_type": (
+                "weft_rvv.standalone_reduction_scalar_result_vector_type": (
                     expectation.standalone_reduction_scalar_result_vector_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": (
+                "weft_rvv.standalone_reduction_scalar_result_vector_c_type": (
                     expectation.standalone_reduction_scalar_result_vector_c_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
+                "weft_rvv.standalone_reduction_scalar_result_runtime_boundary": (
                     STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": STANDALONE_REDUCE_C_TYPE_MAPPING,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.c_type_mapping": STANDALONE_REDUCE_C_TYPE_MAPPING,
+                "weft_rvv.route_operand_binding_plan": (
                     standalone_reduce_route_operand_binding_plan(expectation.kind)
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     standalone_reduce_route_operand_binding_operands(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
-                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                "weft_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
+                "weft_rvv.scalar_seed_splat_intrinsic": (
                     expectation.standalone_reduction_scalar_seed_splat_intrinsic
                 ),
-                "tcrv_rvv.reduction_intrinsic": (
+                "weft_rvv.reduction_intrinsic": (
                     expectation.standalone_reduction_intrinsic
                 ),
-                "tcrv_rvv.scalar_result_store_intrinsic": (
+                "weft_rvv.scalar_result_store_intrinsic": (
                     expectation.standalone_reduction_scalar_result_store_intrinsic
                 ),
             }
@@ -10188,97 +10188,97 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_mask_standalone_reduce:
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_zeroing_requirement": (
                     computed_mask_standalone_reduce_inactive_contract(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.reduction_accumulator_layout": (
+                "weft_rvv.reduction_accumulator_layout": (
                     STANDALONE_REDUCE_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.reduction_result_layout": (
+                "weft_rvv.reduction_result_layout": (
                     STANDALONE_REDUCE_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
-                "tcrv_rvv.standalone_reduction_route_family_plan": (
+                "weft_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "weft_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.standalone_reduction_source_vector_type": (
+                "weft_rvv.standalone_reduction_source_vector_type": (
                     expectation.rvv_vector_type
                 ),
-                "tcrv_rvv.standalone_reduction_source_vector_c_type": (
+                "weft_rvv.standalone_reduction_source_vector_c_type": (
                     expectation.rvv_vector_c_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_vector_type": (
+                "weft_rvv.standalone_reduction_scalar_result_vector_type": (
                     expectation.standalone_reduction_scalar_result_vector_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": (
+                "weft_rvv.standalone_reduction_scalar_result_vector_c_type": (
                     expectation.standalone_reduction_scalar_result_vector_c_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
+                "weft_rvv.standalone_reduction_scalar_result_runtime_boundary": (
                     STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     computed_mask_standalone_reduce_route_operand_binding_plan(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     computed_mask_standalone_reduce_route_operand_binding_operands(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
-                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                "weft_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
+                "weft_rvv.scalar_seed_splat_intrinsic": (
                     expectation.standalone_reduction_scalar_seed_splat_intrinsic
                 ),
-                "tcrv_rvv.reduction_intrinsic": (
+                "weft_rvv.reduction_intrinsic": (
                     expectation.standalone_reduction_intrinsic
                 ),
-                "tcrv_rvv.scalar_result_store_intrinsic": (
+                "weft_rvv.scalar_result_store_intrinsic": (
                     expectation.standalone_reduction_scalar_result_store_intrinsic
                 ),
-                "tcrv_rvv.compare_intrinsic": expectation.compare_intrinsic,
-                "tcrv_rvv.masked_merge_intrinsic": expectation.select_intrinsic,
+                "weft_rvv.compare_intrinsic": expectation.compare_intrinsic,
+                "weft_rvv.masked_merge_intrinsic": expectation.select_intrinsic,
             }
         )
         if expectation.is_computed_mask_standalone_reduce:
             per_op_metadata.update(
                 {
-                    "tcrv_rvv.accumulation_route_family_plan": (
+                    "weft_rvv.accumulation_route_family_plan": (
                         COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
                     ),
-                    "tcrv_rvv.accumulation_compute_suffix": (
+                    "weft_rvv.accumulation_compute_suffix": (
                         COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX
                     ),
-                    "tcrv_rvv.accumulation_mask_producer_source": (
+                    "weft_rvv.accumulation_mask_producer_source": (
                         COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE
                     ),
-                    "tcrv_rvv.accumulation_accumulator_contract": (
+                    "weft_rvv.accumulation_accumulator_contract": (
                         COMPUTED_MASK_ACCUMULATION_STANDALONE_ACCUMULATOR_CONTRACT
                     ),
-                    "tcrv_rvv.accumulation_result_contract": (
+                    "weft_rvv.accumulation_result_contract": (
                         COMPUTED_MASK_ACCUMULATION_STANDALONE_RESULT_CONTRACT
                     ),
-                    "tcrv_rvv.accumulation_scalar_carry_contract": (
+                    "weft_rvv.accumulation_scalar_carry_contract": (
                         COMPUTED_MASK_ACCUMULATION_STANDALONE_SCALAR_CARRY_CONTRACT
                     ),
                 }
@@ -10286,93 +10286,93 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_zeroing_requirement": (
                     expectation.runtime_scalar_computed_mask_standalone_reduce_inactive_contract
                 ),
-                "tcrv_rvv.reduction_accumulator_layout": (
+                "weft_rvv.reduction_accumulator_layout": (
                     expectation.standalone_reduction_accumulator_layout
                 ),
-                "tcrv_rvv.reduction_result_layout": (
+                "weft_rvv.reduction_result_layout": (
                     STANDALONE_REDUCE_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
-                "tcrv_rvv.standalone_reduction_route_family_plan": (
+                "weft_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "weft_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.standalone_reduction_source_vector_type": (
+                "weft_rvv.standalone_reduction_source_vector_type": (
                     expectation.rvv_vector_type
                 ),
-                "tcrv_rvv.standalone_reduction_source_vector_c_type": (
+                "weft_rvv.standalone_reduction_source_vector_c_type": (
                     expectation.rvv_vector_c_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_vector_type": (
+                "weft_rvv.standalone_reduction_scalar_result_vector_type": (
                     expectation.standalone_reduction_scalar_result_vector_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": (
+                "weft_rvv.standalone_reduction_scalar_result_vector_c_type": (
                     expectation.standalone_reduction_scalar_result_vector_c_type
                 ),
-                "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
+                "weft_rvv.standalone_reduction_scalar_result_runtime_boundary": (
                     STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.accumulation_route_family_plan": (
+                "weft_rvv.accumulation_route_family_plan": (
                     COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.accumulation_compute_suffix": (
+                "weft_rvv.accumulation_compute_suffix": (
                     COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX
                 ),
-                "tcrv_rvv.accumulation_mask_producer_source": (
+                "weft_rvv.accumulation_mask_producer_source": (
                     COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.accumulation_accumulator_contract": (
+                "weft_rvv.accumulation_accumulator_contract": (
                     COMPUTED_MASK_ACCUMULATION_STANDALONE_ACCUMULATOR_CONTRACT
                 ),
-                "tcrv_rvv.accumulation_result_contract": (
+                "weft_rvv.accumulation_result_contract": (
                     COMPUTED_MASK_ACCUMULATION_STANDALONE_RESULT_CONTRACT
                 ),
-                "tcrv_rvv.accumulation_scalar_carry_contract": (
+                "weft_rvv.accumulation_scalar_carry_contract": (
                     COMPUTED_MASK_ACCUMULATION_STANDALONE_SCALAR_CARRY_CONTRACT
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     runtime_scalar_computed_mask_standalone_reduce_route_operand_binding_plan(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     runtime_scalar_computed_mask_standalone_reduce_route_operand_binding_operands(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
-                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                "weft_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
+                "weft_rvv.scalar_seed_splat_intrinsic": (
                     expectation.standalone_reduction_scalar_seed_splat_intrinsic
                 ),
-                "tcrv_rvv.reduction_intrinsic": (
+                "weft_rvv.reduction_intrinsic": (
                     expectation.standalone_reduction_intrinsic
                 ),
-                "tcrv_rvv.scalar_result_store_intrinsic": (
+                "weft_rvv.scalar_result_store_intrinsic": (
                     expectation.standalone_reduction_scalar_result_store_intrinsic
                 ),
-                "tcrv_rvv.compare_intrinsic": expectation.compare_intrinsic,
-                "tcrv_rvv.masked_merge_intrinsic": expectation.select_intrinsic,
-                "tcrv_rvv.rhs_broadcast_intrinsic": (
+                "weft_rvv.compare_intrinsic": expectation.compare_intrinsic,
+                "weft_rvv.masked_merge_intrinsic": expectation.select_intrinsic,
+                "weft_rvv.rhs_broadcast_intrinsic": (
                     expectation.scalar_splat_intrinsic
                 ),
             }
@@ -10380,13 +10380,13 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_scalar_broadcast_elementwise:
         per_op_metadata.update(
             {
-                "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan": (
+                "weft_rvv.scalar_broadcast_elementwise_route_family_plan": (
                     SCALAR_BROADCAST_ELEMENTWISE_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     scalar_broadcast_route_operand_binding_plan(expectation.kind)
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     scalar_broadcast_route_operand_binding_operands(
                         expectation.kind
                     )
@@ -10396,26 +10396,26 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_scalar_broadcast_macc_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.scalar_broadcast_macc_route_family_plan": (
+                "weft_rvv.scalar_broadcast_macc_route_family_plan": (
                     SCALAR_BROADCAST_MACC_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     SCALAR_BROADCAST_MACC_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     SCALAR_BROADCAST_MACC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     SCALAR_BROADCAST_MACC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": SCALAR_BROADCAST_MACC_C_TYPE_MAPPING,
-                "tcrv_rvv.macc_arithmetic_kind": "add",
-                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.c_type_mapping": SCALAR_BROADCAST_MACC_C_TYPE_MAPPING,
+                "weft_rvv.macc_arithmetic_kind": "add",
+                "weft_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "weft_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10423,25 +10423,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_splat_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_scalar_splat_store_route_family_plan": (
+                "weft_rvv.runtime_scalar_splat_store_route_family_plan": (
                     RUNTIME_SCALAR_SPLAT_STORE_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_SPLAT_STORE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_SPLAT_STORE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_SPLAT_STORE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_SPLAT_STORE_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10450,26 +10450,26 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         plan = f"rvv-route-operand-binding:{expectation.selected_body_operation}.v1"
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.elementwise_arithmetic_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.elementwise_arithmetic_route_family_plan": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.route_operand_binding_plan": plan,
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_plan": plan,
+                "weft_rvv.route_operand_binding_operands": (
                     BINARY_ROUTE_OPERAND_BINDING_OPERANDS.format(plan=plan)
                 ),
             }
@@ -10482,40 +10482,40 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         or expectation.is_computed_mask_standalone_reduce
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
     ):
-        per_op_metadata["tcrv_rvv.runtime_control_plan"] = (
+        per_op_metadata["weft_rvv.runtime_control_plan"] = (
             RUNTIME_AVL_VL_CONTROL_PLAN
         )
     if expectation.is_masked_elementwise:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.elementwise_arithmetic_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.elementwise_arithmetic_route_family_plan": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     MASKED_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     MASKED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     MASKED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.mask_role": MASKED_ADD_MASK_ROLE,
-                "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
-                "tcrv_rvv.inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
-                "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.mask_role": MASKED_ADD_MASK_ROLE,
+                "weft_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
+                "weft_rvv.inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
+                "weft_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     masked_elementwise_route_operand_binding_plan(
                         expectation.kind
                     )
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     masked_elementwise_route_operand_binding_operands(
                         expectation.kind
                     )
@@ -10525,39 +10525,39 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_cmp_select:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.select_layout": PLAIN_COMPARE_SELECT_LAYOUT,
-                "tcrv_rvv.plain_compare_select_route_family_plan": (
+                "weft_rvv.select_layout": PLAIN_COMPARE_SELECT_LAYOUT,
+                "weft_rvv.plain_compare_select_route_family_plan": (
                     PLAIN_COMPARE_SELECT_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     PLAIN_COMPARE_SELECT_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     PLAIN_COMPARE_SELECT_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     PLAIN_COMPARE_SELECT_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     PLAIN_COMPARE_SELECT_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10565,25 +10565,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_macc_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.plain_macc_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.plain_macc_route_family_plan": (
                     PLAIN_MACC_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": PLAIN_MACC_TARGET_LEAF_PROFILE,
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.target_leaf_profile": PLAIN_MACC_TARGET_LEAF_PROFILE,
+                "weft_rvv.provider_supported_mirror": (
                     PLAIN_MACC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": PLAIN_MACC_C_TYPE_MAPPING,
-                "tcrv_rvv.macc_arithmetic_kind": "add",
-                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.c_type_mapping": PLAIN_MACC_C_TYPE_MAPPING,
+                "weft_rvv.macc_arithmetic_kind": "add",
+                "weft_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "weft_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     MACC_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10591,58 +10591,58 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_macc_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASKED_MACC_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.accumulation_route_family_plan": (
+                "weft_rvv.accumulation_route_family_plan": (
                     COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.accumulation_compute_suffix": (
+                "weft_rvv.accumulation_compute_suffix": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX
                 ),
-                "tcrv_rvv.accumulation_mask_producer_source": (
+                "weft_rvv.accumulation_mask_producer_source": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.accumulation_accumulator_contract": (
+                "weft_rvv.accumulation_accumulator_contract": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_ACCUMULATOR_CONTRACT
                 ),
-                "tcrv_rvv.accumulation_result_contract": (
+                "weft_rvv.accumulation_result_contract": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_RESULT_CONTRACT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.indexed_memory_layout": (
+                "weft_rvv.indexed_memory_layout": (
                     COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "weft_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10650,59 +10650,59 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_computed_masked_macc_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.accumulation_route_family_plan": (
+                "weft_rvv.accumulation_route_family_plan": (
                     COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.accumulation_compute_suffix": (
+                "weft_rvv.accumulation_compute_suffix": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX
                 ),
-                "tcrv_rvv.accumulation_mask_producer_source": (
+                "weft_rvv.accumulation_mask_producer_source": (
                     COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.accumulation_accumulator_contract": (
+                "weft_rvv.accumulation_accumulator_contract": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_ACCUMULATOR_CONTRACT
                 ),
-                "tcrv_rvv.accumulation_result_contract": (
+                "weft_rvv.accumulation_result_contract": (
                     COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_RESULT_CONTRACT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.indexed_memory_layout": (
+                "weft_rvv.indexed_memory_layout": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "weft_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10710,32 +10710,32 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_strided_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.source_memory_form": "strided-load",
-                "tcrv_rvv.destination_memory_form": "strided-store",
-                "tcrv_rvv.elementwise_arithmetic_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.source_memory_form": "strided-load",
+                "weft_rvv.destination_memory_form": "strided-store",
+                "weft_rvv.elementwise_arithmetic_route_family_plan": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     STRIDED_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     STRIDED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     STRIDED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.strided_memory_layout": STRIDED_ADD_MEMORY_LAYOUT,
-                "tcrv_rvv.lhs_stride_source": STRIDED_ADD_LHS_STRIDE_SOURCE,
-                "tcrv_rvv.rhs_stride_source": STRIDED_ADD_RHS_STRIDE_SOURCE,
-                "tcrv_rvv.out_stride_source": STRIDED_ADD_OUT_STRIDE_SOURCE,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.strided_memory_layout": STRIDED_ADD_MEMORY_LAYOUT,
+                "weft_rvv.lhs_stride_source": STRIDED_ADD_LHS_STRIDE_SOURCE,
+                "weft_rvv.rhs_stride_source": STRIDED_ADD_RHS_STRIDE_SOURCE,
+                "weft_rvv.out_stride_source": STRIDED_ADD_OUT_STRIDE_SOURCE,
+                "weft_rvv.route_operand_binding_plan": (
                     STRIDED_ADD_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     STRIDED_ADD_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10743,22 +10743,22 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_strided_load_unit_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.strided_memory_layout": (
+                "weft_rvv.strided_memory_layout": (
                     STRIDED_LOAD_UNIT_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.source_stride_source": (
+                "weft_rvv.source_stride_source": (
                     STRIDED_LOAD_UNIT_STORE_SOURCE_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     STRIDED_LOAD_UNIT_STORE_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     STRIDED_LOAD_UNIT_STORE_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10766,22 +10766,22 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_unit_load_strided_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.strided_memory_layout": (
+                "weft_rvv.strided_memory_layout": (
                     UNIT_LOAD_STRIDED_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.destination_stride_source": (
+                "weft_rvv.destination_stride_source": (
                     UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     UNIT_LOAD_STRIDED_STORE_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10789,18 +10789,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_indexed_gather_unit_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.indexed_memory_layout": INDEXED_GATHER_MEMORY_LAYOUT,
-                "tcrv_rvv.index_source": INDEXED_GATHER_INDEX_SOURCE,
-                "tcrv_rvv.index_eew": INDEXED_GATHER_INDEX_EEW,
-                "tcrv_rvv.offset_unit": INDEXED_GATHER_OFFSET_UNIT,
-                "tcrv_rvv.indexed_data_memory_form": INDEXED_GATHER_DATA_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.indexed_memory_layout": INDEXED_GATHER_MEMORY_LAYOUT,
+                "weft_rvv.index_source": INDEXED_GATHER_INDEX_SOURCE,
+                "weft_rvv.index_eew": INDEXED_GATHER_INDEX_EEW,
+                "weft_rvv.offset_unit": INDEXED_GATHER_OFFSET_UNIT,
+                "weft_rvv.indexed_data_memory_form": INDEXED_GATHER_DATA_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     INDEXED_GATHER_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10808,24 +10808,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_indexed_scatter_unit_load:
         per_op_metadata.update(
             {
-                "tcrv_rvv.indexed_memory_layout": INDEXED_SCATTER_MEMORY_LAYOUT,
-                "tcrv_rvv.index_source": INDEXED_SCATTER_INDEX_SOURCE,
-                "tcrv_rvv.index_eew": INDEXED_SCATTER_INDEX_EEW,
-                "tcrv_rvv.offset_unit": INDEXED_SCATTER_OFFSET_UNIT,
-                "tcrv_rvv.index_uniqueness": INDEXED_SCATTER_INDEX_UNIQUENESS,
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.indexed_memory_layout": INDEXED_SCATTER_MEMORY_LAYOUT,
+                "weft_rvv.index_source": INDEXED_SCATTER_INDEX_SOURCE,
+                "weft_rvv.index_eew": INDEXED_SCATTER_INDEX_EEW,
+                "weft_rvv.offset_unit": INDEXED_SCATTER_OFFSET_UNIT,
+                "weft_rvv.index_uniqueness": INDEXED_SCATTER_INDEX_UNIQUENESS,
+                "weft_rvv.source_memory_form": (
                     INDEXED_SCATTER_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.indexed_destination_memory_form": (
+                "weft_rvv.indexed_destination_memory_form": (
                     INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     INDEXED_SCATTER_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10833,24 +10833,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_masked_unit_load_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.masked_memory_layout": MASKED_MEMORY_LAYOUT,
-                "tcrv_rvv.mask_role": MASKED_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": MASKED_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": MASKED_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.masked_memory_layout": MASKED_MEMORY_LAYOUT,
+                "weft_rvv.mask_role": MASKED_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": MASKED_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": MASKED_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_MEMORY_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10858,24 +10858,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_masked_unit_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.masked_memory_layout": MASKED_STORE_LAYOUT,
-                "tcrv_rvv.mask_role": MASKED_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": MASKED_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": MASKED_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.masked_memory_layout": MASKED_STORE_LAYOUT,
+                "weft_rvv.mask_role": MASKED_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": MASKED_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": MASKED_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_STORE_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_STORE_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     MASKED_STORE_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -10883,46 +10883,46 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_unit_load_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": COMPUTED_MASK_MEMORY_LAYOUT,
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.masked_memory_layout": COMPUTED_MASK_MEMORY_LAYOUT,
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_MEMORY_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_C_TYPE_MAPPING
                 ),
             }
@@ -10930,41 +10930,41 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_mask_select:
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                "weft_rvv.computed_mask_select_route_family_plan": (
                     COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                "weft_rvv.computed_mask_select_mask_producer_source": (
                     COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.mask_tail_policy_route_family_plan": (
+                "weft_rvv.mask_tail_policy_route_family_plan": (
                     COMPUTED_MASK_SELECT_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.mask_tail_policy_owner": (
+                "weft_rvv.mask_tail_policy_owner": (
                     COMPUTED_MASK_SELECT_MASK_TAIL_POLICY_OWNER
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASK_SELECT_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASK_SELECT_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     COMPUTED_MASK_SELECT_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASK_SELECT_C_TYPE_MAPPING
                 ),
             }
@@ -10972,41 +10972,41 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_compare_select:
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                "weft_rvv.computed_mask_select_route_family_plan": (
                     COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                "weft_rvv.computed_mask_select_mask_producer_source": (
                     COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_SELECT_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_SELECT_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_SELECT_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_SELECT_C_TYPE_MAPPING
                 ),
             }
@@ -11014,48 +11014,48 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_dual_compare_mask_and_select:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.secondary_compare_predicate_kind": (
+                "weft_rvv.secondary_compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": "predicate-mask-produced-by-mask-and",
-                "tcrv_rvv.mask_source": (
+                "weft_rvv.mask_role": "predicate-mask-produced-by-mask-and",
+                "weft_rvv.mask_source": (
                     "mask-and-of-two-runtime-scalar-compare-produced-masks"
                 ),
-                "tcrv_rvv.mask_memory_form": "composed-compare-produced-mask",
-                "tcrv_rvv.mask_composition": "and",
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.mask_memory_form": "composed-compare-produced-mask",
+                "weft_rvv.mask_composition": "and",
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                "weft_rvv.computed_mask_select_route_family_plan": (
                     COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                "weft_rvv.computed_mask_select_mask_producer_source": (
                     COMPUTED_MASK_SELECT_DUAL_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_C_TYPE_MAPPING
                 ),
             }
@@ -11063,52 +11063,52 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_computed_mask_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.tail_policy": "undisturbed",
-                "tcrv_rvv.mask_policy": "undisturbed",
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.tail_policy": "undisturbed",
+                "weft_rvv.mask_policy": "undisturbed",
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_STORE_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_STORE_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_C_TYPE_MAPPING
                 ),
             }
@@ -11116,48 +11116,48 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_computed_mask_load_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_MEMORY_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_C_TYPE_MAPPING
                 ),
             }
@@ -11165,54 +11165,54 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_strided_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     COMPUTED_MASK_STRIDED_STORE_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     COMPUTED_MASK_STRIDED_STORE_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_STRIDED_STORE_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.strided_memory_layout": (
+                "weft_rvv.strided_memory_layout": (
                     COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.destination_stride_source": (
+                "weft_rvv.destination_stride_source": (
                     COMPUTED_MASK_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASK_STRIDED_STORE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASK_STRIDED_STORE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     COMPUTED_MASK_STRIDED_STORE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASK_STRIDED_STORE_C_TYPE_MAPPING
                 ),
             }
@@ -11220,52 +11220,52 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_strided_load_unit_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     COMPUTED_MASK_STRIDED_LOAD_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_MEMORY_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_STRIDED_LOAD_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.strided_memory_layout": (
+                "weft_rvv.strided_memory_layout": (
                     COMPUTED_MASK_STRIDED_LOAD_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.source_stride_source": (
+                "weft_rvv.source_stride_source": (
                     COMPUTED_MASK_STRIDED_LOAD_SOURCE_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_STRIDED_LOAD_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_STRIDED_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASK_STRIDED_LOAD_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASK_STRIDED_LOAD_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     COMPUTED_MASK_STRIDED_LOAD_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASK_STRIDED_LOAD_C_TYPE_MAPPING
                 ),
             }
@@ -11279,78 +11279,78 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.indexed_memory_layout": (
+                "weft_rvv.indexed_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_MEMORY_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.index_source": (
+                "weft_rvv.index_source": (
                     COMPUTED_MASK_INDEXED_GATHER_INDEX_SOURCE
                 ),
-                "tcrv_rvv.index_eew": COMPUTED_MASK_INDEXED_GATHER_INDEX_EEW,
-                "tcrv_rvv.offset_unit": (
+                "weft_rvv.index_eew": COMPUTED_MASK_INDEXED_GATHER_INDEX_EEW,
+                "weft_rvv.offset_unit": (
                     COMPUTED_MASK_INDEXED_GATHER_OFFSET_UNIT
                 ),
-                "tcrv_rvv.indexed_data_memory_form": (
+                "weft_rvv.indexed_data_memory_form": (
                     COMPUTED_MASK_INDEXED_GATHER_DATA_MEMORY_FORM
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_INDEXED_GATHER_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                     if is_runtime_scalar
                     else COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_TARGET_LEAF_PROFILE
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_PROVIDER_SUPPORTED_MIRROR
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_REQUIRED_HEADER_DECLARATIONS
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_C_TYPE_MAPPING
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_GATHER_C_TYPE_MAPPING
@@ -11366,81 +11366,81 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.indexed_memory_layout": (
+                "weft_rvv.indexed_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     COMPUTED_MASK_INDEXED_SCATTER_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     COMPUTED_MASK_INDEXED_SCATTER_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.index_source": (
+                "weft_rvv.index_source": (
                     COMPUTED_MASK_INDEXED_SCATTER_INDEX_SOURCE
                 ),
-                "tcrv_rvv.index_eew": COMPUTED_MASK_INDEXED_SCATTER_INDEX_EEW,
-                "tcrv_rvv.offset_unit": (
+                "weft_rvv.index_eew": COMPUTED_MASK_INDEXED_SCATTER_INDEX_EEW,
+                "weft_rvv.offset_unit": (
                     COMPUTED_MASK_INDEXED_SCATTER_OFFSET_UNIT
                 ),
-                "tcrv_rvv.index_uniqueness": (
+                "weft_rvv.index_uniqueness": (
                     COMPUTED_MASK_INDEXED_SCATTER_INDEX_UNIQUENESS
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_INDEXED_SCATTER_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_INDEXED_SCATTER_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.indexed_destination_memory_form": (
+                "weft_rvv.indexed_destination_memory_form": (
                     COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                     if is_runtime_scalar
                     else COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_TARGET_LEAF_PROFILE
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_C_TYPE_MAPPING
                     if is_runtime_scalar
                     else COMPUTED_MASK_INDEXED_SCATTER_C_TYPE_MAPPING
@@ -11450,134 +11450,134 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_cmp_masked_indexed_gather_macc_scatter:
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.indexed_memory_layout": (
+                "weft_rvv.indexed_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     COMPUTED_MASK_INDEXED_SCATTER_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.index_source": (
+                "weft_rvv.index_source": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEX_SOURCE
                 ),
-                "tcrv_rvv.index_eew": (
+                "weft_rvv.index_eew": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEX_EEW
                 ),
-                "tcrv_rvv.offset_unit": (
+                "weft_rvv.offset_unit": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_OFFSET_UNIT
                 ),
-                "tcrv_rvv.index_uniqueness": (
+                "weft_rvv.index_uniqueness": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEX_UNIQUENESS
                 ),
-                "tcrv_rvv.indexed_data_memory_form": (
+                "weft_rvv.indexed_data_memory_form": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEXED_DATA_MEMORY_FORM
                 ),
-                "tcrv_rvv.indexed_destination_memory_form": (
+                "weft_rvv.indexed_destination_memory_form": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.composite_resource.candidate_set": (
+                "weft_rvv.composite_resource.candidate_set": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_CANDIDATE_SET
                 ),
-                "tcrv_rvv.composite_resource.selected_candidate": (
+                "weft_rvv.composite_resource.selected_candidate": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE
                 ),
-                "tcrv_rvv.composite_resource.selection_reason": (
+                "weft_rvv.composite_resource.selection_reason": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTION_REASON
                 ),
-                "tcrv_rvv.composite_resource.legality_scope": (
+                "weft_rvv.composite_resource.legality_scope": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY_SCOPE
                 ),
-                "tcrv_rvv.composite_resource.operation": (
+                "weft_rvv.composite_resource.operation": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_OPERATION
                 ),
-                "tcrv_rvv.composite_resource.memory_form": (
+                "weft_rvv.composite_resource.memory_form": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.composite_resource.sew": "32",
-                "tcrv_rvv.composite_resource.lmul": "m1",
-                "tcrv_rvv.composite_resource.tail_policy": "agnostic",
-                "tcrv_rvv.composite_resource.mask_policy": "agnostic",
-                "tcrv_rvv.composite_resource.vl_policy": (
+                "weft_rvv.composite_resource.sew": "32",
+                "weft_rvv.composite_resource.lmul": "m1",
+                "weft_rvv.composite_resource.tail_policy": "agnostic",
+                "weft_rvv.composite_resource.mask_policy": "agnostic",
+                "weft_rvv.composite_resource.vl_policy": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY
                 ),
-                "tcrv_rvv.composite_resource.accumulator_layout": (
+                "weft_rvv.composite_resource.accumulator_layout": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.composite_resource.unroll_factor": (
+                "weft_rvv.composite_resource.unroll_factor": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_UNROLL_FACTOR
                 ),
-                "tcrv_rvv.composite_resource.pipeline_intent": (
+                "weft_rvv.composite_resource.pipeline_intent": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PIPELINE_INTENT
                 ),
-                "tcrv_rvv.composite_resource.prefetch_intent": (
+                "weft_rvv.composite_resource.prefetch_intent": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PREFETCH_INTENT
                 ),
-                "tcrv_rvv.composite_resource.vsetvl_region_count": (
+                "weft_rvv.composite_resource.vsetvl_region_count": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VSETVL_REGION_COUNT
                 ),
-                "tcrv_rvv.composite_resource.peak_live_vector_groups": (
+                "weft_rvv.composite_resource.peak_live_vector_groups": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PEAK_LIVE_VECTOR_GROUPS
                 ),
-                "tcrv_rvv.composite_resource.vector_register_budget": (
+                "weft_rvv.composite_resource.vector_register_budget": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET
                 ),
-                "tcrv_rvv.composite_resource.runtime_avl_source": (
+                "weft_rvv.composite_resource.runtime_avl_source": (
                     "runtime_abi:n"
                 ),
-                "tcrv_rvv.composite_resource.runtime_abi_order": (
+                "weft_rvv.composite_resource.runtime_abi_order": (
                     expectation.runtime_abi_order
                 ),
-                "tcrv_rvv.composite_resource.target_capability_provider_mirror": (
+                "weft_rvv.composite_resource.target_capability_provider_mirror": (
                     RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
                 ),
-                "tcrv_rvv.composite_resource.target_capability_legality_mirror": (
+                "weft_rvv.composite_resource.target_capability_legality_mirror": (
                     RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
                 ),
-                "tcrv_rvv.composite_resource.legality": (
+                "weft_rvv.composite_resource.legality": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY
                 ),
-                "tcrv_rvv.composite_resource.rejection_reason": (
+                "weft_rvv.composite_resource.rejection_reason": (
                     COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_REJECTION_REASON
                 ),
             }
@@ -11591,95 +11591,95 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_MEMORY_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_MEMORY_PASSTHROUGH_LAYOUT
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_SEGMENT2_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.segment_memory_layout": (
+                "weft_rvv.segment_memory_layout": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.segment_count": "2",
-                "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
-                "tcrv_rvv.segment_load_intrinsic": (
+                "weft_rvv.segment_count": "2",
+                "weft_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
+                "weft_rvv.segment_load_intrinsic": (
                     COMPUTED_MASK_SEGMENT2_LOAD_INTRINSIC
                 ),
-                "tcrv_rvv.segment_tuple_create_intrinsic": (
+                "weft_rvv.segment_tuple_create_intrinsic": (
                     COMPUTED_MASK_SEGMENT2_TUPLE_CREATE_INTRINSIC
                 ),
-                "tcrv_rvv.segment_field_extract_intrinsic": (
+                "weft_rvv.segment_field_extract_intrinsic": (
                     SEGMENT2_FIELD_EXTRACT_INTRINSIC
                 ),
-                "tcrv_rvv.field0_role": SEGMENT2_FIELD0_ROLE,
-                "tcrv_rvv.field1_role": SEGMENT2_FIELD1_ROLE,
-                "tcrv_rvv.field0_name": "masked_segment2_field0_vec",
-                "tcrv_rvv.field1_name": "masked_segment2_field1_vec",
-                "tcrv_rvv.field0_destination_memory_form": (
+                "weft_rvv.field0_role": SEGMENT2_FIELD0_ROLE,
+                "weft_rvv.field1_role": SEGMENT2_FIELD1_ROLE,
+                "weft_rvv.field0_name": "masked_segment2_field0_vec",
+                "weft_rvv.field1_name": "masked_segment2_field1_vec",
+                "weft_rvv.field0_destination_memory_form": (
                     COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.field1_destination_memory_form": (
+                "weft_rvv.field1_destination_memory_form": (
                     COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                     if is_runtime_scalar
                     else COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.mask_tail_policy_route_family_plan": (
+                "weft_rvv.mask_tail_policy_route_family_plan": (
                     COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.mask_tail_policy_owner": (
+                "weft_rvv.mask_tail_policy_owner": (
                     COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_TARGET_LEAF_PROFILE
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_PROVIDER_SUPPORTED_MIRROR
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_REQUIRED_HEADER_DECLARATIONS
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_C_TYPE_MAPPING
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_LOAD_C_TYPE_MAPPING
@@ -11697,120 +11697,120 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
         per_op_metadata.update(
             {
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.masked_memory_layout": (
+                "weft_rvv.masked_memory_layout": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_MEMORY_LAYOUT
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_contract": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_contract": (
                     MASKED_STORE_INACTIVE_LANE_CONTRACT
                 ),
-                "tcrv_rvv.masked_passthrough_layout": (
+                "weft_rvv.masked_passthrough_layout": (
                     MASKED_STORE_PASSTHROUGH_LAYOUT
                 ),
                 **(
                     {
-                        "tcrv_rvv.mask_tail_policy_route_family_plan": (
+                        "weft_rvv.mask_tail_policy_route_family_plan": (
                             COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
                         ),
-                        "tcrv_rvv.mask_tail_policy_owner": (
+                        "weft_rvv.mask_tail_policy_owner": (
                             COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
                         ),
                     }
                     if not is_update
                     else {}
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     COMPUTED_MASK_SEGMENT2_STORE_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     COMPUTED_MASK_SEGMENT2_STORE_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.segment_memory_layout": (
+                "weft_rvv.segment_memory_layout": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_MEMORY_LAYOUT
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_MEMORY_LAYOUT
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.segment_count": "2",
-                "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
-                "tcrv_rvv.segment_store_intrinsic": (
+                "weft_rvv.segment_count": "2",
+                "weft_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
+                "weft_rvv.segment_store_intrinsic": (
                     COMPUTED_MASK_SEGMENT2_STORE_INTRINSIC
                 ),
-                "tcrv_rvv.segment_tuple_create_intrinsic": (
+                "weft_rvv.segment_tuple_create_intrinsic": (
                     SEGMENT2_TUPLE_CREATE_INTRINSIC
                 ),
-                "tcrv_rvv.field0_role": SEGMENT2_FIELD0_INPUT_ROLE,
-                "tcrv_rvv.field1_role": SEGMENT2_FIELD1_INPUT_ROLE,
-                "tcrv_rvv.field0_name": (
+                "weft_rvv.field0_role": SEGMENT2_FIELD0_INPUT_ROLE,
+                "weft_rvv.field1_role": SEGMENT2_FIELD1_INPUT_ROLE,
+                "weft_rvv.field0_name": (
                     "masked_segment2_update_field0_vec"
                     if is_update
                     else "masked_segment2_store_field0_vec"
                 ),
-                "tcrv_rvv.field1_name": (
+                "weft_rvv.field1_name": (
                     "masked_segment2_update_field1_vec"
                     if is_update
                     else "masked_segment2_store_field1_vec"
                 ),
-                "tcrv_rvv.field0_source_memory_form": (
+                "weft_rvv.field0_source_memory_form": (
                     SEGMENT2_FIELD_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.field1_source_memory_form": (
+                "weft_rvv.field1_source_memory_form": (
                     SEGMENT2_FIELD_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_ROUTE_OPERAND_BINDING_PLAN
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_PLAN
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_ROUTE_OPERAND_BINDING_OPERANDS
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
-                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                "weft_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                "weft_rvv.computed_mask_memory_mask_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                     if is_runtime_scalar
                     else COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_TARGET_LEAF_PROFILE
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_TARGET_LEAF_PROFILE
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_PROVIDER_SUPPORTED_MIRROR
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_PROVIDER_SUPPORTED_MIRROR
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_REQUIRED_HEADER_DECLARATIONS
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_REQUIRED_HEADER_DECLARATIONS
                     if is_runtime_scalar
                     else COMPUTED_MASK_SEGMENT2_STORE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     COMPUTED_MASK_SEGMENT2_UPDATE_C_TYPE_MAPPING
                     if is_update
                     else RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_STORE_C_TYPE_MAPPING
@@ -11822,8 +11822,8 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         if is_update:
             per_op_metadata.update(
                 {
-                    "tcrv_rvv.segment2_update_arithmetic_kind": "add",
-                    "tcrv_rvv.segment2_update_arithmetic_intrinsic": (
+                    "weft_rvv.segment2_update_arithmetic_kind": "add",
+                    "weft_rvv.segment2_update_arithmetic_intrinsic": (
                         COMPUTED_MASK_SEGMENT2_UPDATE_ARITHMETIC_INTRINSIC
                     ),
                 }
@@ -11831,47 +11831,47 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_segment2_deinterleave_unit_store:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.segment2_memory_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.segment2_memory_route_family_plan": (
                     SEGMENT2_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     SEGMENT2_DEINTERLEAVE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     SEGMENT2_DEINTERLEAVE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     SEGMENT2_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     SEGMENT2_DEINTERLEAVE_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.segment_memory_layout": SEGMENT2_MEMORY_LAYOUT,
-                "tcrv_rvv.segment_count": "2",
-                "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
-                "tcrv_rvv.segment_load_intrinsic": SEGMENT2_LOAD_INTRINSIC,
-                "tcrv_rvv.segment_field_extract_intrinsic": (
+                "weft_rvv.segment_memory_layout": SEGMENT2_MEMORY_LAYOUT,
+                "weft_rvv.segment_count": "2",
+                "weft_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
+                "weft_rvv.segment_load_intrinsic": SEGMENT2_LOAD_INTRINSIC,
+                "weft_rvv.segment_field_extract_intrinsic": (
                     SEGMENT2_FIELD_EXTRACT_INTRINSIC
                 ),
-                "tcrv_rvv.source_memory_form": SEGMENT2_SOURCE_MEMORY_FORM,
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.source_memory_form": SEGMENT2_SOURCE_MEMORY_FORM,
+                "weft_rvv.destination_memory_form": (
                     SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.field0_role": SEGMENT2_FIELD0_ROLE,
-                "tcrv_rvv.field1_role": SEGMENT2_FIELD1_ROLE,
-                "tcrv_rvv.field0_name": "field0_vec",
-                "tcrv_rvv.field1_name": "field1_vec",
-                "tcrv_rvv.field0_destination_memory_form": (
+                "weft_rvv.field0_role": SEGMENT2_FIELD0_ROLE,
+                "weft_rvv.field1_role": SEGMENT2_FIELD1_ROLE,
+                "weft_rvv.field0_name": "field0_vec",
+                "weft_rvv.field1_name": "field1_vec",
+                "weft_rvv.field0_destination_memory_form": (
                     SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.field1_destination_memory_form": (
+                "weft_rvv.field1_destination_memory_form": (
                     SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -11879,51 +11879,51 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_segment2_interleave_unit_load:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.segment2_memory_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.segment2_memory_route_family_plan": (
                     SEGMENT2_MEMORY_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     SEGMENT2_INTERLEAVE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     SEGMENT2_INTERLEAVE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     SEGMENT2_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     SEGMENT2_INTERLEAVE_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.segment_memory_layout": (
+                "weft_rvv.segment_memory_layout": (
                     SEGMENT2_INTERLEAVE_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.segment_count": "2",
-                "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
-                "tcrv_rvv.segment_store_intrinsic": SEGMENT2_STORE_INTRINSIC,
-                "tcrv_rvv.segment_tuple_create_intrinsic": (
+                "weft_rvv.segment_count": "2",
+                "weft_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
+                "weft_rvv.segment_store_intrinsic": SEGMENT2_STORE_INTRINSIC,
+                "weft_rvv.segment_tuple_create_intrinsic": (
                     SEGMENT2_TUPLE_CREATE_INTRINSIC
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     SEGMENT2_FIELD_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     SEGMENT2_INTERLEAVED_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.field0_role": SEGMENT2_FIELD0_INPUT_ROLE,
-                "tcrv_rvv.field1_role": SEGMENT2_FIELD1_INPUT_ROLE,
-                "tcrv_rvv.field0_name": "field0_vec",
-                "tcrv_rvv.field1_name": "field1_vec",
-                "tcrv_rvv.field0_source_memory_form": (
+                "weft_rvv.field0_role": SEGMENT2_FIELD0_INPUT_ROLE,
+                "weft_rvv.field1_role": SEGMENT2_FIELD1_INPUT_ROLE,
+                "weft_rvv.field0_name": "field0_vec",
+                "weft_rvv.field1_name": "field1_vec",
+                "weft_rvv.field0_source_memory_form": (
                     SEGMENT2_FIELD_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.field1_source_memory_form": (
+                "weft_rvv.field1_source_memory_form": (
                     SEGMENT2_FIELD_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -11931,29 +11931,29 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widen_i32_to_i64:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.widening_conversion_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.widening_conversion_route_family_plan": (
                     WIDENING_CONVERSION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     WIDEN_I32_TO_I64_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     WIDEN_I32_TO_I64_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     WIDENING_CONVERSION_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": WIDEN_I32_TO_I64_C_TYPE_MAPPING,
-                "tcrv_rvv.source_sew": "32",
-                "tcrv_rvv.source_lmul": "m1",
-                "tcrv_rvv.dest_sew": "64",
-                "tcrv_rvv.dest_lmul": "m2",
-                "tcrv_rvv.conversion_relation": WIDENING_CONVERSION_RELATION,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.c_type_mapping": WIDEN_I32_TO_I64_C_TYPE_MAPPING,
+                "weft_rvv.source_sew": "32",
+                "weft_rvv.source_lmul": "m1",
+                "weft_rvv.dest_sew": "64",
+                "weft_rvv.dest_lmul": "m2",
+                "weft_rvv.conversion_relation": WIDENING_CONVERSION_RELATION,
+                "weft_rvv.route_operand_binding_plan": (
                     WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -11961,29 +11961,29 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widen_i16_to_i32:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.widening_conversion_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.widening_conversion_route_family_plan": (
                     WIDENING_CONVERSION_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     WIDEN_I16_TO_I32_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     WIDEN_I16_TO_I32_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     WIDENING_CONVERSION_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": WIDEN_I16_TO_I32_C_TYPE_MAPPING,
-                "tcrv_rvv.source_sew": "16",
-                "tcrv_rvv.source_lmul": "mf2",
-                "tcrv_rvv.dest_sew": "32",
-                "tcrv_rvv.dest_lmul": "m1",
-                "tcrv_rvv.conversion_relation": WIDEN_I16_TO_I32_CONVERSION_RELATION,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.c_type_mapping": WIDEN_I16_TO_I32_C_TYPE_MAPPING,
+                "weft_rvv.source_sew": "16",
+                "weft_rvv.source_lmul": "mf2",
+                "weft_rvv.dest_sew": "32",
+                "weft_rvv.dest_lmul": "m1",
+                "weft_rvv.conversion_relation": WIDEN_I16_TO_I32_CONVERSION_RELATION,
+                "weft_rvv.route_operand_binding_plan": (
                     WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -11991,92 +11991,92 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_dequantize_i32_to_f32:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.dequantization_route_family_plan": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.dequantization_route_family_plan": (
                     DEQUANTIZE_I32_TO_F32_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     DEQUANTIZE_I32_TO_F32_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     DEQUANTIZE_I32_TO_F32_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     DEQUANTIZE_I32_TO_F32_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     DEQUANTIZE_I32_TO_F32_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.source_element_type": "i32",
-                "tcrv_rvv.result_element_type": "f32",
-                "tcrv_rvv.source_sew": "32",
-                "tcrv_rvv.source_lmul": "m1",
-                "tcrv_rvv.dest_sew": "32",
-                "tcrv_rvv.dest_lmul": "m1",
-                "tcrv_rvv.conversion_kind": (
+                "weft_rvv.source_element_type": "i32",
+                "weft_rvv.result_element_type": "f32",
+                "weft_rvv.source_sew": "32",
+                "weft_rvv.source_lmul": "m1",
+                "weft_rvv.dest_sew": "32",
+                "weft_rvv.dest_lmul": "m1",
+                "weft_rvv.conversion_kind": (
                     DEQUANTIZE_I32_TO_F32_CONVERSION_KIND
                 ),
-                "tcrv_rvv.dequantization_relation": (
+                "weft_rvv.dequantization_relation": (
                     DEQUANTIZE_I32_TO_F32_RELATION
                 ),
-                "tcrv_rvv.dequantize_convert_intrinsic": (
+                "weft_rvv.dequantize_convert_intrinsic": (
                     DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
                 ),
-                "tcrv_rvv.dequantize_scale_intrinsic": (
+                "weft_rvv.dequantize_scale_intrinsic": (
                     DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
                 ),
-                "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
-                "tcrv_rvv.dequant_scale_c_type": "float",
-                "tcrv_rvv.dequant_scale_name": "scale",
-                "tcrv_rvv.gearbox.candidate_set": (
+                "weft_rvv.dequant_scale_role": "dequant-scale-value",
+                "weft_rvv.dequant_scale_c_type": "float",
+                "weft_rvv.dequant_scale_name": "scale",
+                "weft_rvv.gearbox.candidate_set": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
                 ),
-                "tcrv_rvv.gearbox.selected_candidate": (
+                "weft_rvv.gearbox.selected_candidate": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
                 ),
-                "tcrv_rvv.gearbox.selection_reason": (
+                "weft_rvv.gearbox.selection_reason": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTION_REASON
                 ),
-                "tcrv_rvv.gearbox.legality_scope": (
+                "weft_rvv.gearbox.legality_scope": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_LEGALITY_SCOPE
                 ),
-                "tcrv_rvv.gearbox.schedule_id": (
+                "weft_rvv.gearbox.schedule_id": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
                 ),
-                "tcrv_rvv.gearbox.selector": (
+                "weft_rvv.gearbox.selector": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTOR
                 ),
-                "tcrv_rvv.gearbox.source": DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE,
-                "tcrv_rvv.gearbox.operation": (
+                "weft_rvv.gearbox.source": DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE,
+                "weft_rvv.gearbox.operation": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_OPERATION
                 ),
-                "tcrv_rvv.gearbox.unroll": (
+                "weft_rvv.gearbox.unroll": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
                 ),
-                "tcrv_rvv.gearbox.vl_policy": (
+                "weft_rvv.gearbox.vl_policy": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY
                 ),
-                "tcrv_rvv.gearbox.source_sew": (
+                "weft_rvv.gearbox.source_sew": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_SEW
                 ),
-                "tcrv_rvv.gearbox.source_lmul": (
+                "weft_rvv.gearbox.source_lmul": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_LMUL
                 ),
-                "tcrv_rvv.gearbox.dest_sew": (
+                "weft_rvv.gearbox.dest_sew": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_SEW
                 ),
-                "tcrv_rvv.gearbox.dest_lmul": (
+                "weft_rvv.gearbox.dest_lmul": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_LMUL
                 ),
-                "tcrv_rvv.gearbox.runtime_avl_source": (
+                "weft_rvv.gearbox.runtime_avl_source": (
                     DEQUANTIZE_I32_TO_F32_GEARBOX_RUNTIME_AVL_SOURCE
                 ),
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.route_operand_binding_plan": (
                     DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12084,45 +12084,45 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_f32_clamp_select:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE
                 ),
-                "tcrv_rvv.secondary_compare_predicate_kind": (
+                "weft_rvv.secondary_compare_predicate_kind": (
                     F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
                 ),
-                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                "weft_rvv.computed_mask_select_route_family_plan": (
                     F32_CLAMP_SELECT_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                "weft_rvv.computed_mask_select_mask_producer_source": (
                     F32_CLAMP_SELECT_MASK_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     F32_CLAMP_SELECT_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     F32_CLAMP_SELECT_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     F32_CLAMP_SELECT_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": F32_CLAMP_SELECT_C_TYPE_MAPPING,
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.mask_role": F32_CLAMP_SELECT_MASK_ROLE,
-                "tcrv_rvv.mask_source": F32_CLAMP_SELECT_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": F32_CLAMP_SELECT_MASK_MEMORY_FORM,
-                "tcrv_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
-                "tcrv_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
-                "tcrv_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
-                "tcrv_rvv.lower_bound_c_type": "float",
-                "tcrv_rvv.upper_bound_c_type": "float",
-                "tcrv_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
-                "tcrv_rvv.clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.c_type_mapping": F32_CLAMP_SELECT_C_TYPE_MAPPING,
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.mask_role": F32_CLAMP_SELECT_MASK_ROLE,
+                "weft_rvv.mask_source": F32_CLAMP_SELECT_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": F32_CLAMP_SELECT_MASK_MEMORY_FORM,
+                "weft_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+                "weft_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                "weft_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                "weft_rvv.lower_bound_c_type": "float",
+                "weft_rvv.upper_bound_c_type": "float",
+                "weft_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "weft_rvv.clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
+                "weft_rvv.route_operand_binding_plan": (
                     F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12130,72 +12130,72 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_dequant_clamp_f32_epilogue:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE
                 ),
-                "tcrv_rvv.secondary_compare_predicate_kind": (
+                "weft_rvv.secondary_compare_predicate_kind": (
                     F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
                 ),
-                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                "weft_rvv.computed_mask_select_route_family_plan": (
                     DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_FAMILY_PLAN
                 ),
-                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                "weft_rvv.computed_mask_select_mask_producer_source": (
                     DEQUANT_CLAMP_F32_EPILOGUE_MASK_PRODUCER_SOURCE
                 ),
-                "tcrv_rvv.target_leaf_profile": (
+                "weft_rvv.target_leaf_profile": (
                     DEQUANT_CLAMP_F32_EPILOGUE_TARGET_LEAF_PROFILE
                 ),
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.provider_supported_mirror": (
                     DEQUANT_CLAMP_F32_EPILOGUE_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     DEQUANT_CLAMP_F32_EPILOGUE_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": (
+                "weft_rvv.c_type_mapping": (
                     DEQUANT_CLAMP_F32_EPILOGUE_C_TYPE_MAPPING
                 ),
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.mask_role": DEQUANT_CLAMP_F32_EPILOGUE_MASK_ROLE,
-                "tcrv_rvv.mask_source": DEQUANT_CLAMP_F32_EPILOGUE_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": (
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.mask_role": DEQUANT_CLAMP_F32_EPILOGUE_MASK_ROLE,
+                "weft_rvv.mask_source": DEQUANT_CLAMP_F32_EPILOGUE_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": (
                     DEQUANT_CLAMP_F32_EPILOGUE_MASK_MEMORY_FORM
                 ),
-                "tcrv_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
-                "tcrv_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
-                "tcrv_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
-                "tcrv_rvv.lower_bound_c_type": "float",
-                "tcrv_rvv.upper_bound_c_type": "float",
-                "tcrv_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
-                "tcrv_rvv.clamp_relation": (
+                "weft_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+                "weft_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                "weft_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                "weft_rvv.lower_bound_c_type": "float",
+                "weft_rvv.upper_bound_c_type": "float",
+                "weft_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "weft_rvv.clamp_relation": (
                     DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION
                 ),
-                "tcrv_rvv.source_vector_type": (
+                "weft_rvv.source_vector_type": (
                     DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE
                 ),
-                "tcrv_rvv.source_vector_c_type": (
+                "weft_rvv.source_vector_c_type": (
                     DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE
                 ),
-                "tcrv_rvv.source_vector_load_intrinsic": (
+                "weft_rvv.source_vector_load_intrinsic": (
                     DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC
                 ),
-                "tcrv_rvv.dequantization_relation": (
+                "weft_rvv.dequantization_relation": (
                     DEQUANTIZE_I32_TO_F32_RELATION
                 ),
-                "tcrv_rvv.dequantize_convert_intrinsic": (
+                "weft_rvv.dequantize_convert_intrinsic": (
                     DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
                 ),
-                "tcrv_rvv.dequantize_scale_intrinsic": (
+                "weft_rvv.dequantize_scale_intrinsic": (
                     DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
                 ),
-                "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
-                "tcrv_rvv.dequant_scale_c_type": "float",
-                "tcrv_rvv.dequant_scale_name": "scale",
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.dequant_scale_role": "dequant-scale-value",
+                "weft_rvv.dequant_scale_c_type": "float",
+                "weft_rvv.dequant_scale_name": "scale",
+                "weft_rvv.route_operand_binding_plan": (
                     DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12203,42 +12203,42 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widening_product_reduce_dequant_clamp_f32:
         per_op_metadata.update(
             {
-                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "weft_rvv.compare_predicate_kind": (
                     F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE
                 ),
-                "tcrv_rvv.secondary_compare_predicate_kind": (
+                "weft_rvv.secondary_compare_predicate_kind": (
                     F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
                 ),
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
-                "tcrv_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
-                "tcrv_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
-                "tcrv_rvv.lower_bound_c_type": "float",
-                "tcrv_rvv.upper_bound_c_type": "float",
-                "tcrv_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
-                "tcrv_rvv.clamp_relation": (
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+                "weft_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                "weft_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                "weft_rvv.lower_bound_c_type": "float",
+                "weft_rvv.upper_bound_c_type": "float",
+                "weft_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "weft_rvv.clamp_relation": (
                     WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_CLAMP_RELATION
                 ),
-                "tcrv_rvv.compare_intrinsic": (
+                "weft_rvv.compare_intrinsic": (
                     F32_CLAMP_SELECT_COMPARE_INTRINSIC
                 ),
-                "tcrv_rvv.secondary_compare_intrinsic": (
+                "weft_rvv.secondary_compare_intrinsic": (
                     F32_CLAMP_SELECT_COMPARE_INTRINSIC
                 ),
-                "tcrv_rvv.masked_merge_intrinsic": (
+                "weft_rvv.masked_merge_intrinsic": (
                     F32_CLAMP_SELECT_SELECT_INTRINSIC
                 ),
-                "tcrv_rvv.rhs_broadcast_intrinsic": (
+                "weft_rvv.rhs_broadcast_intrinsic": (
                     F32_CLAMP_SELECT_SPLAT_INTRINSIC
                 ),
-                "tcrv_rvv.dequantization_relation": (
+                "weft_rvv.dequantization_relation": (
                     DEQUANTIZE_I32_TO_F32_RELATION
                 ),
-                "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
-                "tcrv_rvv.dequant_scale_c_type": "float",
-                "tcrv_rvv.dequant_scale_name": "scale",
+                "weft_rvv.dequant_scale_role": "dequant-scale-value",
+                "weft_rvv.dequant_scale_c_type": "float",
+                "weft_rvv.dequant_scale_name": "scale",
             }
         )
     if (
@@ -12253,15 +12253,15 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     ):
         per_op_metadata.update(
             {
-                "tcrv_rvv.target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
-                "tcrv_rvv.provider_supported_mirror": (
+                "weft_rvv.target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
+                "weft_rvv.provider_supported_mirror": (
                     CONTRACTION_PROVIDER_SUPPORTED_MIRROR
                 ),
-                "tcrv_rvv.required_header_declarations": (
+                "weft_rvv.required_header_declarations": (
                     CONTRACTION_REQUIRED_HEADER_DECLARATIONS
                 ),
-                "tcrv_rvv.c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
-                "tcrv_rvv.contraction_route_family_plan": (
+                "weft_rvv.c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
+                "weft_rvv.contraction_route_family_plan": (
                     "rvv-contraction-route-family-plan.v1"
                 ),
             }
@@ -12269,23 +12269,23 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widening_macc_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.source_sew": "16",
-                "tcrv_rvv.source_lmul": "mf2",
-                "tcrv_rvv.accumulator_sew": "32",
-                "tcrv_rvv.accumulator_lmul": "m1",
-                "tcrv_rvv.result_sew": "32",
-                "tcrv_rvv.result_lmul": "m1",
-                "tcrv_rvv.widening_macc_accumulator_layout": (
+                "weft_rvv.source_sew": "16",
+                "weft_rvv.source_lmul": "mf2",
+                "weft_rvv.accumulator_sew": "32",
+                "weft_rvv.accumulator_lmul": "m1",
+                "weft_rvv.result_sew": "32",
+                "weft_rvv.result_lmul": "m1",
+                "weft_rvv.widening_macc_accumulator_layout": (
                     WIDENING_MACC_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.widening_macc_result_layout": (
+                "weft_rvv.widening_macc_result_layout": (
                     WIDENING_MACC_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.widening_macc_relation": WIDENING_MACC_RELATION,
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.widening_macc_relation": WIDENING_MACC_RELATION,
+                "weft_rvv.route_operand_binding_plan": (
                     WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12333,51 +12333,51 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
         per_op_metadata.update(
             {
-                "tcrv_rvv.target_leaf_profile": target_leaf_profile,
-                "tcrv_rvv.c_type_mapping": c_type_mapping,
-                "tcrv_rvv.source_sew": "8",
-                "tcrv_rvv.source_lmul": "mf4",
-                "tcrv_rvv.product_sew": "16",
-                "tcrv_rvv.product_lmul": "mf2",
-                "tcrv_rvv.product_vector_type": (
-                    '!tcrv_rvv.vector<i16, "mf2">'
+                "weft_rvv.target_leaf_profile": target_leaf_profile,
+                "weft_rvv.c_type_mapping": c_type_mapping,
+                "weft_rvv.source_sew": "8",
+                "weft_rvv.source_lmul": "mf4",
+                "weft_rvv.product_sew": "16",
+                "weft_rvv.product_lmul": "mf2",
+                "weft_rvv.product_vector_type": (
+                    '!weft_rvv.vector<i16, "mf2">'
                 ),
-                "tcrv_rvv.product_vector_c_type": "vint16mf2_t",
-                "tcrv_rvv.accumulator_sew": "32",
-                "tcrv_rvv.accumulator_lmul": "m1",
-                "tcrv_rvv.result_sew": "32",
-                "tcrv_rvv.result_lmul": "m1",
-                "tcrv_rvv.source_memory_form": "unit-stride-load",
-                "tcrv_rvv.destination_memory_form": "unit-stride-store",
-                "tcrv_rvv.reduction_accumulator_layout": (
+                "weft_rvv.product_vector_c_type": "vint16mf2_t",
+                "weft_rvv.accumulator_sew": "32",
+                "weft_rvv.accumulator_lmul": "m1",
+                "weft_rvv.result_sew": "32",
+                "weft_rvv.result_lmul": "m1",
+                "weft_rvv.source_memory_form": "unit-stride-load",
+                "weft_rvv.destination_memory_form": "unit-stride-store",
+                "weft_rvv.reduction_accumulator_layout": (
                     WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.reduction_result_layout": (
+                "weft_rvv.reduction_result_layout": (
                     WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.widening_product_relation": (
+                "weft_rvv.widening_product_relation": (
                     WIDENING_PRODUCT_RELATION_I8_I16
                 ),
-                "tcrv_rvv.product_reduction_chain_relation": (
+                "weft_rvv.product_reduction_chain_relation": (
                     WIDENING_PRODUCT_REDUCE_RELATION
                 ),
-                "tcrv_rvv.widening_product_intrinsic": (
+                "weft_rvv.widening_product_intrinsic": (
                     WIDENING_PRODUCT_REDUCE_INTRINSIC
                 ),
-                "tcrv_rvv.widening_reduction_intrinsic": (
+                "weft_rvv.widening_reduction_intrinsic": (
                     WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
                 ),
-                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                "weft_rvv.scalar_seed_splat_intrinsic": (
                     WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
                 ),
-                "tcrv_rvv.reduction_store_vl": (
+                "weft_rvv.reduction_store_vl": (
                     WIDENING_PRODUCT_REDUCE_STORE_VL
                 ),
-                "tcrv_rvv.scalar_result_runtime_boundary": (
+                "weft_rvv.scalar_result_runtime_boundary": (
                     scalar_result_boundary
                 ),
-                "tcrv_rvv.route_operand_binding_plan": route_operand_binding_plan,
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_plan": route_operand_binding_plan,
+                "weft_rvv.route_operand_binding_operands": (
                     route_operand_binding_operands
                 ),
             }
@@ -12388,13 +12388,13 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     ):
         per_op_metadata.update(
             {
-                "tcrv_rvv.dequantization_relation": (
+                "weft_rvv.dequantization_relation": (
                     DEQUANTIZE_I32_TO_F32_RELATION
                 ),
-                "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
-                "tcrv_rvv.dequant_scale_c_type": "float",
-                "tcrv_rvv.dequant_scale_name": "scale",
-                "tcrv_rvv.rhs_broadcast_intrinsic": (
+                "weft_rvv.dequant_scale_role": "dequant-scale-value",
+                "weft_rvv.dequant_scale_c_type": "float",
+                "weft_rvv.dequant_scale_name": "scale",
+                "weft_rvv.rhs_broadcast_intrinsic": (
                     F32_CLAMP_SELECT_SPLAT_INTRINSIC
                 ),
             }
@@ -12409,154 +12409,154 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
         per_op_metadata.update(
             {
-                "tcrv_rvv.low_precision_resource.candidate_set": (
+                "weft_rvv.low_precision_resource.candidate_set": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
                 ),
-                "tcrv_rvv.low_precision_resource.selected_candidate": (
+                "weft_rvv.low_precision_resource.selected_candidate": (
                     resource_profile["selected_candidate"]
                 ),
-                "tcrv_rvv.low_precision_resource.selection_reason": (
+                "weft_rvv.low_precision_resource.selection_reason": (
                     resource_profile["selection_reason"]
                 ),
-                "tcrv_rvv.low_precision_resource.legality_scope": (
+                "weft_rvv.low_precision_resource.legality_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
                 ),
-                "tcrv_rvv.low_precision_resource.source_dtype": "i8",
-                "tcrv_rvv.low_precision_resource.source_sew": "8",
-                "tcrv_rvv.low_precision_resource.source_lmul": "mf4",
-                "tcrv_rvv.low_precision_resource.operand_form": (
+                "weft_rvv.low_precision_resource.source_dtype": "i8",
+                "weft_rvv.low_precision_resource.source_sew": "8",
+                "weft_rvv.low_precision_resource.source_lmul": "mf4",
+                "weft_rvv.low_precision_resource.operand_form": (
                     resource_profile["operand_form"]
                 ),
-                "tcrv_rvv.low_precision_resource.source_signedness": (
+                "weft_rvv.low_precision_resource.source_signedness": (
                     resource_profile["source_signedness"]
                 ),
-                "tcrv_rvv.low_precision_resource.storage_element_width": (
+                "weft_rvv.low_precision_resource.storage_element_width": (
                     resource_profile["storage_element_width"]
                 ),
-                "tcrv_rvv.low_precision_resource.effective_element_width": (
+                "weft_rvv.low_precision_resource.effective_element_width": (
                     resource_profile["effective_element_width"]
                 ),
-                "tcrv_rvv.low_precision_resource.packing_layout": (
+                "weft_rvv.low_precision_resource.packing_layout": (
                     resource_profile["packing_layout"]
                 ),
-                "tcrv_rvv.low_precision_resource.unpack_intent": (
+                "weft_rvv.low_precision_resource.unpack_intent": (
                     resource_profile["unpack_intent"]
                 ),
-                "tcrv_rvv.low_precision_resource.product_dtype": "i16",
-                "tcrv_rvv.low_precision_resource.product_sew": "16",
-                "tcrv_rvv.low_precision_resource.product_lmul": "mf2",
-                "tcrv_rvv.low_precision_resource.product_emul": "mf2",
-                "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
-                "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
-                "tcrv_rvv.low_precision_resource.result_dtype": "f32",
-                "tcrv_rvv.low_precision_resource.result_sew": "32",
-                "tcrv_rvv.low_precision_resource.result_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.memory_form": (
+                "weft_rvv.low_precision_resource.product_dtype": "i16",
+                "weft_rvv.low_precision_resource.product_sew": "16",
+                "weft_rvv.low_precision_resource.product_lmul": "mf2",
+                "weft_rvv.low_precision_resource.product_emul": "mf2",
+                "weft_rvv.low_precision_resource.accumulator_dtype": "i32",
+                "weft_rvv.low_precision_resource.accumulator_sew": "32",
+                "weft_rvv.low_precision_resource.accumulator_lmul": "m1",
+                "weft_rvv.low_precision_resource.accumulator_emul": "m1",
+                "weft_rvv.low_precision_resource.result_dtype": "f32",
+                "weft_rvv.low_precision_resource.result_sew": "32",
+                "weft_rvv.low_precision_resource.result_lmul": "m1",
+                "weft_rvv.low_precision_resource.memory_form": (
                     resource_profile["memory_form"]
                 ),
-                "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.unroll_factor": (
+                "weft_rvv.low_precision_resource.tail_policy": "agnostic",
+                "weft_rvv.low_precision_resource.mask_policy": "agnostic",
+                "weft_rvv.low_precision_resource.unroll_factor": (
                     resource_profile["unroll_factor"]
                 ),
-                "tcrv_rvv.low_precision_resource.accumulator_count": (
+                "weft_rvv.low_precision_resource.accumulator_count": (
                     resource_profile["accumulator_count"]
                 ),
-                "tcrv_rvv.low_precision_resource.reduction_layout": (
+                "weft_rvv.low_precision_resource.reduction_layout": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
                 ),
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count": (
+                "weft_rvv.low_precision_resource.vsetvl_region_count": (
                     resource_profile["vsetvl_region_count"]
                 ),
-                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": (
+                "weft_rvv.low_precision_resource.peak_live_vector_groups": (
                     resource_profile["peak_live_vector_groups"]
                 ),
-                "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
-                "tcrv_rvv.low_precision_resource.runtime_avl_source": (
+                "weft_rvv.low_precision_resource.vector_register_budget": "32",
+                "weft_rvv.low_precision_resource.runtime_avl_source": (
                     "runtime_abi:n"
                 ),
-                "tcrv_rvv.low_precision_resource.runtime_abi_order": (
+                "weft_rvv.low_precision_resource.runtime_abi_order": (
                     expectation.runtime_abi_order
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_contract": (
+                "weft_rvv.low_precision_resource.primitive_contract": (
                     LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_kind": (
+                "weft_rvv.low_precision_resource.primitive_kind": (
                     LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
                     if expectation.is_widening_product_reduce_dequant_clamp_f32
                     else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_chain_contract": (
+                "weft_rvv.low_precision_resource.primitive_chain_contract": (
                     LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_chain_kind": (
+                "weft_rvv.low_precision_resource.primitive_chain_kind": (
                     LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_widening_product_relation": (
+                "weft_rvv.low_precision_resource.primitive_widening_product_relation": (
                     WIDENING_PRODUCT_RELATION_I8_I16
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation": (
+                "weft_rvv.low_precision_resource.primitive_product_reduction_chain_relation": (
                     WIDENING_PRODUCT_REDUCE_RELATION
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic": (
+                "weft_rvv.low_precision_resource.primitive_widening_product_intrinsic": (
                     WIDENING_PRODUCT_REDUCE_INTRINSIC
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic": (
+                "weft_rvv.low_precision_resource.primitive_reduction_intrinsic": (
                     WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic": (
+                "weft_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic": (
                     WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_accumulator_layout": (
+                "weft_rvv.low_precision_resource.primitive_accumulator_layout": (
                     WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_result_layout": (
+                "weft_rvv.low_precision_resource.primitive_result_layout": (
                     WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl": (
+                "weft_rvv.low_precision_resource.primitive_reduction_store_vl": (
                     WIDENING_PRODUCT_REDUCE_STORE_VL
                 ),
-                "tcrv_rvv.low_precision_resource.realization_producer": (
+                "weft_rvv.low_precision_resource.realization_producer": (
                     resource_profile["realization_producer"]
                 ),
-                "tcrv_rvv.low_precision_resource.realization_decision": (
+                "weft_rvv.low_precision_resource.realization_decision": (
                     resource_profile["realization_decision"]
                 ),
-                "tcrv_rvv.low_precision_resource.realized_unroll_factor": (
+                "weft_rvv.low_precision_resource.realized_unroll_factor": (
                     resource_profile["realized_unroll_factor"]
                 ),
-                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count": (
+                "weft_rvv.low_precision_resource.realized_vsetvl_region_count": (
                     resource_profile["realized_vsetvl_region_count"]
                 ),
-                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups": (
+                "weft_rvv.low_precision_resource.realized_peak_live_vector_groups": (
                     resource_profile["realized_peak_live_vector_groups"]
                 ),
-                "tcrv_rvv.low_precision_resource.product_region_index": (
+                "weft_rvv.low_precision_resource.product_region_index": (
                     resource_profile["producer_region_index"]
                 ),
-                "tcrv_rvv.low_precision_resource.dequant_region_index": (
+                "weft_rvv.low_precision_resource.dequant_region_index": (
                     resource_profile["consumer_region_index"]
                 ),
-                "tcrv_rvv.low_precision_resource.product_phase": (
+                "weft_rvv.low_precision_resource.product_phase": (
                     resource_profile["producer_phase"]
                 ),
-                "tcrv_rvv.low_precision_resource.dequant_phase": (
+                "weft_rvv.low_precision_resource.dequant_phase": (
                     resource_profile["consumer_phase"]
                 ),
-                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
+                "weft_rvv.low_precision_resource.target_capability_provider_mirror": (
                     RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
                 ),
-                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": (
+                "weft_rvv.low_precision_resource.target_capability_legality_mirror": (
                     RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
                 ),
-                "tcrv_rvv.low_precision_resource.legality": "legal",
-                "tcrv_rvv.low_precision_resource.rejection_reason": "none",
-                "tcrv_rvv.gearbox.producer_scope": (
+                "weft_rvv.low_precision_resource.legality": "legal",
+                "weft_rvv.low_precision_resource.rejection_reason": "none",
+                "weft_rvv.gearbox.producer_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
                 ),
-                "tcrv_rvv.gearbox.consumer_scope": (
+                "weft_rvv.gearbox.consumer_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
                 ),
             }
@@ -12564,45 +12564,45 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         if packed_i4:
             per_op_metadata.update(
                 {
-                    "tcrv_rvv.low_precision_resource.resource_cost_contract": (
+                    "weft_rvv.low_precision_resource.resource_cost_contract": (
                         resource_profile["resource_cost_contract"]
                     ),
-                    "tcrv_rvv.low_precision_resource.resource_cost_model": (
+                    "weft_rvv.low_precision_resource.resource_cost_model": (
                         resource_profile["resource_cost_model"]
                     ),
-                    "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps": (
+                    "weft_rvv.low_precision_resource.resource_cost_loop_body_steps": (
                         resource_profile["resource_cost_loop_body_steps"]
                     ),
-                    "tcrv_rvv.low_precision_resource.resource_cost_blocker": (
+                    "weft_rvv.low_precision_resource.resource_cost_blocker": (
                         resource_profile["resource_cost_blocker"]
                     ),
-                    "tcrv_rvv.low_precision_resource.performance_admission_decision": (
+                    "weft_rvv.low_precision_resource.performance_admission_decision": (
                         resource_profile["performance_admission_decision"]
                     ),
-                    "tcrv_rvv.low_precision_resource.performance_admission_closure": (
+                    "weft_rvv.low_precision_resource.performance_admission_closure": (
                         resource_profile["performance_admission_closure"]
                     ),
-                    "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement": (
+                    "weft_rvv.low_precision_resource.performance_admission_reopen_requirement": (
                         resource_profile[
                             "performance_admission_reopen_requirement"
                         ]
                     ),
-                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract": (
+                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract": (
                         resource_profile[
                             "beyond_local_repair_admission_contract"
                         ]
                     ),
-                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision": (
+                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision": (
                         resource_profile[
                             "beyond_local_repair_admission_decision"
                         ]
                     ),
-                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker": (
+                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker": (
                         resource_profile[
                             "beyond_local_repair_admission_blocker"
                         ]
                     ),
-                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement": (
+                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement": (
                         resource_profile[
                             "beyond_local_repair_admission_reopen_requirement"
                         ]
@@ -12612,25 +12612,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widening_dot_reduce_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.source_sew": "16",
-                "tcrv_rvv.source_lmul": "mf2",
-                "tcrv_rvv.accumulator_sew": "32",
-                "tcrv_rvv.accumulator_lmul": "m1",
-                "tcrv_rvv.result_sew": "32",
-                "tcrv_rvv.result_lmul": "m1",
-                "tcrv_rvv.widening_dot_accumulator_layout": (
+                "weft_rvv.source_sew": "16",
+                "weft_rvv.source_lmul": "mf2",
+                "weft_rvv.accumulator_sew": "32",
+                "weft_rvv.accumulator_lmul": "m1",
+                "weft_rvv.result_sew": "32",
+                "weft_rvv.result_lmul": "m1",
+                "weft_rvv.widening_dot_accumulator_layout": (
                     WIDENING_DOT_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
-                "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
-                "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
-                "tcrv_rvv.widening_dot_reduction_store_vl": (
+                "weft_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
+                "weft_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "weft_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+                "weft_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12638,96 +12638,96 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_strided_input_widening_dot_reduce_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.source_sew": "16",
-                "tcrv_rvv.source_lmul": "mf2",
-                "tcrv_rvv.accumulator_sew": "32",
-                "tcrv_rvv.accumulator_lmul": "m1",
-                "tcrv_rvv.result_sew": "32",
-                "tcrv_rvv.result_lmul": "m1",
-                "tcrv_rvv.strided_memory_layout": (
+                "weft_rvv.source_sew": "16",
+                "weft_rvv.source_lmul": "mf2",
+                "weft_rvv.accumulator_sew": "32",
+                "weft_rvv.accumulator_lmul": "m1",
+                "weft_rvv.result_sew": "32",
+                "weft_rvv.result_lmul": "m1",
+                "weft_rvv.strided_memory_layout": (
                     STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.lhs_stride_source": (
+                "weft_rvv.lhs_stride_source": (
                     STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.rhs_stride_source": (
+                "weft_rvv.rhs_stride_source": (
                     STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.widening_dot_accumulator_layout": (
+                "weft_rvv.widening_dot_accumulator_layout": (
                     WIDENING_DOT_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
-                "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
-                "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
-                "tcrv_rvv.strided_load_intrinsic": (
+                "weft_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
+                "weft_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "weft_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+                "weft_rvv.strided_load_intrinsic": (
                     STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
                 ),
-                "tcrv_rvv.widening_dot_reduction_store_vl": (
+                "weft_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
-                "tcrv_rvv.low_precision_resource.candidate_set": (
+                "weft_rvv.low_precision_resource.candidate_set": (
                     STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
                 ),
-                "tcrv_rvv.low_precision_resource.selected_candidate": (
+                "weft_rvv.low_precision_resource.selected_candidate": (
                     STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
                 ),
-                "tcrv_rvv.low_precision_resource.selection_reason": (
+                "weft_rvv.low_precision_resource.selection_reason": (
                     STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
                 ),
-                "tcrv_rvv.low_precision_resource.legality_scope": (
+                "weft_rvv.low_precision_resource.legality_scope": (
                     STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
                 ),
-                "tcrv_rvv.low_precision_resource.source_dtype": "i16",
-                "tcrv_rvv.low_precision_resource.source_sew": "16",
-                "tcrv_rvv.low_precision_resource.source_lmul": "mf2",
-                "tcrv_rvv.low_precision_resource.product_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.product_sew": "32",
-                "tcrv_rvv.low_precision_resource.product_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.product_emul": "m1",
-                "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
-                "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
-                "tcrv_rvv.low_precision_resource.result_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.result_sew": "32",
-                "tcrv_rvv.low_precision_resource.result_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.memory_form": (
+                "weft_rvv.low_precision_resource.source_dtype": "i16",
+                "weft_rvv.low_precision_resource.source_sew": "16",
+                "weft_rvv.low_precision_resource.source_lmul": "mf2",
+                "weft_rvv.low_precision_resource.product_dtype": "i32",
+                "weft_rvv.low_precision_resource.product_sew": "32",
+                "weft_rvv.low_precision_resource.product_lmul": "m1",
+                "weft_rvv.low_precision_resource.product_emul": "m1",
+                "weft_rvv.low_precision_resource.accumulator_dtype": "i32",
+                "weft_rvv.low_precision_resource.accumulator_sew": "32",
+                "weft_rvv.low_precision_resource.accumulator_lmul": "m1",
+                "weft_rvv.low_precision_resource.accumulator_emul": "m1",
+                "weft_rvv.low_precision_resource.result_dtype": "i32",
+                "weft_rvv.low_precision_resource.result_sew": "32",
+                "weft_rvv.low_precision_resource.result_lmul": "m1",
+                "weft_rvv.low_precision_resource.memory_form": (
                     expectation.memory_form
                 ),
-                "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.unroll_factor": "1",
-                "tcrv_rvv.low_precision_resource.accumulator_count": "1",
-                "tcrv_rvv.low_precision_resource.reduction_layout": (
+                "weft_rvv.low_precision_resource.tail_policy": "agnostic",
+                "weft_rvv.low_precision_resource.mask_policy": "agnostic",
+                "weft_rvv.low_precision_resource.unroll_factor": "1",
+                "weft_rvv.low_precision_resource.accumulator_count": "1",
+                "weft_rvv.low_precision_resource.reduction_layout": (
                     WIDENING_DOT_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
-                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "4",
-                "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
-                "tcrv_rvv.low_precision_resource.runtime_avl_source": (
+                "weft_rvv.low_precision_resource.vsetvl_region_count": "2",
+                "weft_rvv.low_precision_resource.peak_live_vector_groups": "4",
+                "weft_rvv.low_precision_resource.vector_register_budget": "32",
+                "weft_rvv.low_precision_resource.runtime_avl_source": (
                     "runtime_abi:n"
                 ),
-                "tcrv_rvv.low_precision_resource.runtime_abi_order": (
+                "weft_rvv.low_precision_resource.runtime_abi_order": (
                     expectation.runtime_abi_order
                 ),
-                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
+                "weft_rvv.low_precision_resource.target_capability_provider_mirror": (
                     RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
                 ),
-                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": (
+                "weft_rvv.low_precision_resource.target_capability_legality_mirror": (
                     RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
                 ),
-                "tcrv_rvv.low_precision_resource.legality": "legal",
-                "tcrv_rvv.low_precision_resource.rejection_reason": "none",
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.low_precision_resource.legality": "legal",
+                "weft_rvv.low_precision_resource.rejection_reason": "none",
+                "weft_rvv.route_operand_binding_plan": (
                     STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12735,37 +12735,37 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_widening_dot_reduce_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.source_sew": "16",
-                "tcrv_rvv.source_lmul": "mf2",
-                "tcrv_rvv.accumulator_sew": "32",
-                "tcrv_rvv.accumulator_lmul": "m1",
-                "tcrv_rvv.result_sew": "32",
-                "tcrv_rvv.result_lmul": "m1",
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.source_sew": "16",
+                "weft_rvv.source_lmul": "mf2",
+                "weft_rvv.accumulator_sew": "32",
+                "weft_rvv.accumulator_lmul": "m1",
+                "weft_rvv.result_sew": "32",
+                "weft_rvv.result_lmul": "m1",
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_zeroing_requirement": (
                     CONTRACTION_MASKED_INACTIVE_LANE_ZEROING_REQUIREMENT
                 ),
-                "tcrv_rvv.widening_dot_accumulator_layout": (
+                "weft_rvv.widening_dot_accumulator_layout": (
                     WIDENING_DOT_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
-                "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
-                "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
-                "tcrv_rvv.masked_widening_product_intrinsic": (
+                "weft_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
+                "weft_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "weft_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+                "weft_rvv.masked_widening_product_intrinsic": (
                     "__riscv_vwmul_vv_i32m1_m"
                 ),
-                "tcrv_rvv.widening_dot_reduction_store_vl": (
+                "weft_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12773,111 +12773,111 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
         per_op_metadata.update(
             {
-                "tcrv_rvv.source_sew": "16",
-                "tcrv_rvv.source_lmul": "mf2",
-                "tcrv_rvv.accumulator_sew": "32",
-                "tcrv_rvv.accumulator_lmul": "m1",
-                "tcrv_rvv.result_sew": "32",
-                "tcrv_rvv.result_lmul": "m1",
-                "tcrv_rvv.compare_predicate_kind": (
+                "weft_rvv.source_sew": "16",
+                "weft_rvv.source_lmul": "mf2",
+                "weft_rvv.accumulator_sew": "32",
+                "weft_rvv.accumulator_lmul": "m1",
+                "weft_rvv.result_sew": "32",
+                "weft_rvv.result_lmul": "m1",
+                "weft_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
-                "tcrv_rvv.strided_memory_layout": (
+                "weft_rvv.strided_memory_layout": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
                 ),
-                "tcrv_rvv.lhs_stride_source": (
+                "weft_rvv.lhs_stride_source": (
                     STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.rhs_stride_source": (
+                "weft_rvv.rhs_stride_source": (
                     STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE
                 ),
-                "tcrv_rvv.source_memory_form": (
+                "weft_rvv.source_memory_form": (
                     STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
                 ),
-                "tcrv_rvv.destination_memory_form": (
+                "weft_rvv.destination_memory_form": (
                     STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
                 ),
-                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                "weft_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "weft_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "weft_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "weft_rvv.inactive_lane_zeroing_requirement": (
                     CONTRACTION_MASKED_INACTIVE_LANE_ZEROING_REQUIREMENT
                 ),
-                "tcrv_rvv.widening_dot_accumulator_layout": (
+                "weft_rvv.widening_dot_accumulator_layout": (
                     WIDENING_DOT_ACCUMULATOR_LAYOUT
                 ),
-                "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
-                "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
-                "tcrv_rvv.widening_dot_source_accumulator_result_contract": (
+                "weft_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
+                "weft_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "weft_rvv.widening_dot_source_accumulator_result_contract": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_SOURCE_ACCUMULATOR_RESULT_CONTRACT
                 ),
-                "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
-                "tcrv_rvv.masked_widening_product_intrinsic": (
+                "weft_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+                "weft_rvv.masked_widening_product_intrinsic": (
                     "__riscv_vwmul_vv_i32m1_m"
                 ),
-                "tcrv_rvv.strided_load_intrinsic": (
+                "weft_rvv.strided_load_intrinsic": (
                     STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
                 ),
-                "tcrv_rvv.widening_dot_reduction_store_vl": (
+                "weft_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
-                "tcrv_rvv.low_precision_resource.candidate_set": (
+                "weft_rvv.low_precision_resource.candidate_set": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
                 ),
-                "tcrv_rvv.low_precision_resource.selected_candidate": (
+                "weft_rvv.low_precision_resource.selected_candidate": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
                 ),
-                "tcrv_rvv.low_precision_resource.selection_reason": (
+                "weft_rvv.low_precision_resource.selection_reason": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
                 ),
-                "tcrv_rvv.low_precision_resource.legality_scope": (
+                "weft_rvv.low_precision_resource.legality_scope": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
                 ),
-                "tcrv_rvv.low_precision_resource.source_dtype": "i16",
-                "tcrv_rvv.low_precision_resource.source_sew": "16",
-                "tcrv_rvv.low_precision_resource.source_lmul": "mf2",
-                "tcrv_rvv.low_precision_resource.product_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.product_sew": "32",
-                "tcrv_rvv.low_precision_resource.product_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.product_emul": "m1",
-                "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
-                "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
-                "tcrv_rvv.low_precision_resource.result_dtype": "i32",
-                "tcrv_rvv.low_precision_resource.result_sew": "32",
-                "tcrv_rvv.low_precision_resource.result_lmul": "m1",
-                "tcrv_rvv.low_precision_resource.memory_form": (
+                "weft_rvv.low_precision_resource.source_dtype": "i16",
+                "weft_rvv.low_precision_resource.source_sew": "16",
+                "weft_rvv.low_precision_resource.source_lmul": "mf2",
+                "weft_rvv.low_precision_resource.product_dtype": "i32",
+                "weft_rvv.low_precision_resource.product_sew": "32",
+                "weft_rvv.low_precision_resource.product_lmul": "m1",
+                "weft_rvv.low_precision_resource.product_emul": "m1",
+                "weft_rvv.low_precision_resource.accumulator_dtype": "i32",
+                "weft_rvv.low_precision_resource.accumulator_sew": "32",
+                "weft_rvv.low_precision_resource.accumulator_lmul": "m1",
+                "weft_rvv.low_precision_resource.accumulator_emul": "m1",
+                "weft_rvv.low_precision_resource.result_dtype": "i32",
+                "weft_rvv.low_precision_resource.result_sew": "32",
+                "weft_rvv.low_precision_resource.result_lmul": "m1",
+                "weft_rvv.low_precision_resource.memory_form": (
                     expectation.memory_form
                 ),
-                "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.unroll_factor": "1",
-                "tcrv_rvv.low_precision_resource.accumulator_count": "1",
-                "tcrv_rvv.low_precision_resource.reduction_layout": (
+                "weft_rvv.low_precision_resource.tail_policy": "agnostic",
+                "weft_rvv.low_precision_resource.mask_policy": "agnostic",
+                "weft_rvv.low_precision_resource.unroll_factor": "1",
+                "weft_rvv.low_precision_resource.accumulator_count": "1",
+                "weft_rvv.low_precision_resource.reduction_layout": (
                     WIDENING_DOT_RESULT_LAYOUT
                 ),
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
-                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "4",
-                "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
-                "tcrv_rvv.low_precision_resource.runtime_avl_source": (
+                "weft_rvv.low_precision_resource.vsetvl_region_count": "2",
+                "weft_rvv.low_precision_resource.peak_live_vector_groups": "4",
+                "weft_rvv.low_precision_resource.vector_register_budget": "32",
+                "weft_rvv.low_precision_resource.runtime_avl_source": (
                     "runtime_abi:n"
                 ),
-                "tcrv_rvv.low_precision_resource.runtime_abi_order": (
+                "weft_rvv.low_precision_resource.runtime_abi_order": (
                     expectation.runtime_abi_order
                 ),
-                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
+                "weft_rvv.low_precision_resource.target_capability_provider_mirror": (
                     RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
                 ),
-                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": (
+                "weft_rvv.low_precision_resource.target_capability_legality_mirror": (
                     RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
                 ),
-                "tcrv_rvv.low_precision_resource.legality": "legal",
-                "tcrv_rvv.low_precision_resource.rejection_reason": "none",
-                "tcrv_rvv.route_operand_binding_plan": (
+                "weft_rvv.low_precision_resource.legality": "legal",
+                "weft_rvv.low_precision_resource.rejection_reason": "none",
+                "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
-                "tcrv_rvv.route_operand_binding_operands": (
+                "weft_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
@@ -12907,34 +12907,34 @@ def verify_record_metadata(
         # is gated by the ssh-rvv numerical run.
         if (
             key == "rvv_selected_body_typed_compute_op"
-            and "tcrv_rvv.gearbox_cross_region_handoff" in expected
+            and "weft_rvv.gearbox_cross_region_handoff" in expected
         ):
             actual_chain = metadata.get(key) or ""
             nibble_head = (
-                "tcrv_rvv.packed_i4_nibble_unpack_product" in actual_chain
+                "weft_rvv.packed_i4_nibble_unpack_product" in actual_chain
             )
             has_handoff = (
-                "tcrv_rvv.gearbox_cross_region_handoff" in actual_chain
+                "weft_rvv.gearbox_cross_region_handoff" in actual_chain
             )
-            # The deferred-wide (N3) realization inserts a tcrv_rvv.widening_accumulate
+            # The deferred-wide (N3) realization inserts a weft_rvv.widening_accumulate
             # between the widening_product head and the trailing standalone_reduce
             # (the i32m8 deferred accumulate). Detected from the recorded chain.
             has_deferred_wide_accumulate = (
-                "tcrv_rvv.widening_accumulate" in actual_chain
+                "weft_rvv.widening_accumulate" in actual_chain
             )
             head = (
-                "tcrv_rvv.packed_i4_nibble_unpack_product"
+                "weft_rvv.packed_i4_nibble_unpack_product"
                 if nibble_head
-                else "tcrv_rvv.widening_product"
+                else "weft_rvv.widening_product"
             )
-            tail = expected.split("+tcrv_rvv.dequantize", 1)[1]
+            tail = expected.split("+weft_rvv.dequantize", 1)[1]
             chain = head
             if has_deferred_wide_accumulate:
-                chain += "+tcrv_rvv.widening_accumulate"
-            chain += "+tcrv_rvv.standalone_reduce"
+                chain += "+weft_rvv.widening_accumulate"
+            chain += "+weft_rvv.standalone_reduce"
             if has_handoff:
-                chain += "+tcrv_rvv.gearbox_cross_region_handoff"
-            chain += "+tcrv_rvv.dequantize" + tail
+                chain += "+weft_rvv.gearbox_cross_region_handoff"
+            chain += "+weft_rvv.dequantize" + tail
             require_equal(actual_chain, chain, f"{context} metadata {key}")
             continue
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
@@ -12960,19 +12960,19 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
     require_contains(text, expectation.prototype, "generated header")
     expected_metadata = expected_metadata_for(expectation)
     for key in (
-        "tcrv_rvv.config_contract",
-        "tcrv_rvv.element_type",
-        "tcrv_rvv.sew",
-        "tcrv_rvv.lmul",
-        "tcrv_rvv.tail_policy",
-        "tcrv_rvv.mask_policy",
-        "tcrv_rvv.required_header_declarations",
-        "tcrv_rvv.c_type_mapping",
+        "weft_rvv.config_contract",
+        "weft_rvv.element_type",
+        "weft_rvv.sew",
+        "weft_rvv.lmul",
+        "weft_rvv.tail_policy",
+        "weft_rvv.mask_policy",
+        "weft_rvv.required_header_declarations",
+        "weft_rvv.c_type_mapping",
     ):
         expected_value = expected_metadata.get(key)
         if expected_value is None:
             continue
-        comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
+        comment_key = "weft.rvv." + key.removeprefix("weft_rvv.")
         require_contains(
             text,
             f"{comment_key}: {expected_value}",
@@ -12993,10 +12993,10 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "generated header public declaration is not wrapped by the "
             'C++ extern "C" guard required for the runtime-callable C ABI'
         )
-    require_contains(text, "tianchenrv.rvv.runtime_avl_source: runtime_abi:n", "generated header")
-    require_contains(text, "tianchenrv.rvv.multi_vl: supported", "generated header")
+    require_contains(text, "weft.rvv.runtime_avl_source: runtime_abi:n", "generated header")
+    require_contains(text, "weft.rvv.multi_vl: supported", "generated header")
     packed_i4_selected_candidate_comment = (
-        "tianchenrv.rvv.low_precision_resource.selected_candidate: "
+        "weft.rvv.low_precision_resource.selected_candidate: "
         f"{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE}"
     )
     if expectation.is_widening_product_reduce_dequantize_f32 and (
@@ -13006,57 +13006,57 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             expectation, packed_i4=True
         )
         direct_resource_keys = (
-            "tcrv_rvv.low_precision_resource.route_family_plan",
-            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
-            "tcrv_rvv.low_precision_resource.resource_cost_contract",
-            "tcrv_rvv.low_precision_resource.resource_cost_model",
-            "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
-            "tcrv_rvv.low_precision_resource.resource_cost_blocker",
+            "weft_rvv.low_precision_resource.route_family_plan",
+            "weft_rvv.low_precision_resource.provider_supported_mirror",
+            "weft_rvv.low_precision_resource.resource_cost_contract",
+            "weft_rvv.low_precision_resource.resource_cost_model",
+            "weft_rvv.low_precision_resource.resource_cost_loop_body_steps",
+            "weft_rvv.low_precision_resource.resource_cost_blocker",
         )
         measurement_disposition_keys = (
-            "tcrv_rvv.low_precision_resource.performance_feedback",
-            "tcrv_rvv.low_precision_resource.performance_baseline",
-            "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
-            "tcrv_rvv.low_precision_resource.performance_action",
-            "tcrv_rvv.low_precision_resource.performance_maturity",
-            "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
-            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
-            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
-            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
-            "tcrv_rvv.low_precision_resource.remediation_diagnosis",
-            "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
-            "tcrv_rvv.low_precision_resource.remediation_decision",
-            "tcrv_rvv.low_precision_resource.remediation_action",
-            "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
-            "tcrv_rvv.low_precision_resource.remediation_blocker",
-            "tcrv_rvv.low_precision_resource.remediation_plan_contract",
-            "tcrv_rvv.low_precision_resource.remediation_plan",
-            "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
-            "tcrv_rvv.low_precision_resource.remediation_vector_budget",
-            "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
-            "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
-            "tcrv_rvv.low_precision_resource.remediation_product_plan",
-            "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
-            "tcrv_rvv.low_precision_resource.remediation_vl_plan",
-            "tcrv_rvv.low_precision_resource.performance_admission_decision",
-            "tcrv_rvv.low_precision_resource.performance_admission_closure",
-            "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
-            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
-            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
-            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
-            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
+            "weft_rvv.low_precision_resource.performance_feedback",
+            "weft_rvv.low_precision_resource.performance_baseline",
+            "weft_rvv.low_precision_resource.performance_best_speedup_range",
+            "weft_rvv.low_precision_resource.performance_action",
+            "weft_rvv.low_precision_resource.performance_maturity",
+            "weft_rvv.low_precision_resource.performance_maturity_evidence",
+            "weft_rvv.low_precision_resource.performance_maturity_outcome",
+            "weft_rvv.low_precision_resource.performance_selection_eligible",
+            "weft_rvv.low_precision_resource.remediation_handoff_contract",
+            "weft_rvv.low_precision_resource.remediation_diagnosis",
+            "weft_rvv.low_precision_resource.remediation_measurement_evidence",
+            "weft_rvv.low_precision_resource.remediation_decision",
+            "weft_rvv.low_precision_resource.remediation_action",
+            "weft_rvv.low_precision_resource.remediation_dispatch_preference",
+            "weft_rvv.low_precision_resource.remediation_blocker",
+            "weft_rvv.low_precision_resource.remediation_plan_contract",
+            "weft_rvv.low_precision_resource.remediation_plan",
+            "weft_rvv.low_precision_resource.remediation_statement_strategy",
+            "weft_rvv.low_precision_resource.remediation_vector_budget",
+            "weft_rvv.low_precision_resource.remediation_schedule_contract",
+            "weft_rvv.low_precision_resource.remediation_unpack_plan",
+            "weft_rvv.low_precision_resource.remediation_product_plan",
+            "weft_rvv.low_precision_resource.remediation_reduction_plan",
+            "weft_rvv.low_precision_resource.remediation_vl_plan",
+            "weft_rvv.low_precision_resource.performance_admission_decision",
+            "weft_rvv.low_precision_resource.performance_admission_closure",
+            "weft_rvv.low_precision_resource.performance_admission_reopen_requirement",
+            "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract",
+            "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision",
+            "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
+            "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
         )
         for key in direct_resource_keys:
-            comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
+            comment_key = "weft.rvv." + key.removeprefix("weft_rvv.")
             require_contains(
                 text,
                 f"{comment_key}: {packed_feedback_metadata[key]}",
                 "generated header packed-i4 resource mirror",
             )
         for key in measurement_disposition_keys:
-            field = key.removeprefix("tcrv_rvv.low_precision_resource.")
+            field = key.removeprefix("weft_rvv.low_precision_resource.")
             comment_key = (
-                "tianchenrv.rvv.low_precision_resource."
+                "weft.rvv.low_precision_resource."
                 f"measurement_disposition_evidence_mirror.{field}"
             )
             require_contains(
@@ -13067,10 +13067,10 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         require_contains(
             text,
             (
-                "tianchenrv.rvv.low_precision_resource."
+                "weft.rvv.low_precision_resource."
                 "selected_dispatch_policy_output_mirror."
                 "selected_dispatch_preference: "
-                f"{packed_feedback_metadata['tcrv_rvv.low_precision_resource.dispatch_preference']}"
+                f"{packed_feedback_metadata['weft_rvv.low_precision_resource.dispatch_preference']}"
             ),
             "generated header packed-i4 dispatch policy mirror",
         )
@@ -13474,7 +13474,7 @@ def verify_emitted_rvv_cpp(
             extract_dequant_clamp_f32_epilogue_emitc_boundary(text, expectation)
         )
         dequantization_boundary = {
-            "typed_compute_op": "tcrv_rvv.dequantize",
+            "typed_compute_op": "weft_rvv.dequantize",
             "source_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE,
             "result_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
             "source_element_type": "i32",
@@ -13525,7 +13525,7 @@ def verify_emitted_rvv_cpp(
             text, expectation
         )
         vector_reduction_boundary = {
-            "typed_compute_op": "tcrv_rvv.reduce",
+            "typed_compute_op": "weft_rvv.reduce",
             "reduction_kind": "add",
             "vector_c_type": vector_c_type,
             "source_load_intrinsic": expectation.unit_load_intrinsic,
@@ -13615,10 +13615,10 @@ def verify_emitted_rvv_cpp(
         )
         mask_tail_policy_boundary = {
             "compare_mask": reduction_accumulation_boundary["compare_mask"],
-            "compare_producer": "tcrv_rvv.compare",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "runtime_scalar_operand": "rhs_scalar",
-            "runtime_scalar_realization_op": "tcrv_rvv.splat",
+            "runtime_scalar_realization_op": "weft_rvv.splat",
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -13745,7 +13745,7 @@ def verify_emitted_rvv_cpp(
             "store_uses_scalar_result_vl": True,
         }
         widening_dot_reduction_boundary = {
-            "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+            "typed_compute_op": "weft_rvv.widening_dot_reduce",
             "source_vector_c_type": "vint16mf2_t",
             "result_vector_c_type": vector_c_type,
             "source_load_intrinsic": source_load_intrinsic,
@@ -13769,7 +13769,7 @@ def verify_emitted_rvv_cpp(
         # select) -- NOT the legacy two-scope packed-i4 scalar fmaxf/fminf epilogue.
         single_scope_packed_i4 = (
             uses_packed_i4_resource
-            and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+            and "weft_rvv.gearbox_cross_region_handoff" not in text
         )
         # The deferred-wide (N3) realization emits the wide-LMUL intrinsic ladder:
         # vsetvl_e8m2 strip, vle8_v_i8m2 loads, vwmul_vv_i16m4 product, an i32m8
@@ -13839,13 +13839,13 @@ def verify_emitted_rvv_cpp(
             # still realized (has handoff) it keeps the scalar store.
             single_scope_packed_i4 = (
                 uses_packed_i4_resource
-                and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+                and "weft_rvv.gearbox_cross_region_handoff" not in text
             )
             if not uses_packed_i4_resource or single_scope_packed_i4:
                 intrinsics.append(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)
         single_scope_packed_i4_epilogue = (
             uses_packed_i4_resource
-            and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+            and "weft_rvv.gearbox_cross_region_handoff" not in text
         )
         # The deferred-wide (N3) realization emits the wide-LMUL ladder in C:
         # vint8m2_t source loads, vint16m4_t products, an i32m8 deferred vector
@@ -13908,7 +13908,7 @@ def verify_emitted_rvv_cpp(
             )
             require_contains(
                 text,
-                "tcrv_emitc.assign target=out[0]",
+                "weft_emitc.assign target=out[0]",
                 "emitted RVV C/C++ packed-i4 scalar epilogue store assignment",
             )
         for intrinsic in intrinsics:
@@ -13977,7 +13977,7 @@ def verify_emitted_rvv_cpp(
             "store_uses_scalar_result_vl": True,
         }
         widening_product_reduction_boundary = {
-            "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce",
+            "typed_compute_op": "weft_rvv.widening_product+weft_rvv.standalone_reduce",
             "source_vector_c_type": "vint8mf4_t",
             "product_vector_c_type": "vint16mf2_t",
             "result_vector_c_type": vector_c_type,
@@ -14132,10 +14132,10 @@ def verify_emitted_rvv_cpp(
         )
         mask_tail_policy_boundary = {
             "typed_compute_op": expectation.typed_compute_op,
-            "compare_producer": "tcrv_rvv.compare",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "runtime_scalar_operand": "rhs_scalar",
-            "runtime_scalar_realization_op": "tcrv_rvv.splat",
+            "runtime_scalar_realization_op": "weft_rvv.splat",
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -14245,8 +14245,8 @@ def verify_emitted_rvv_cpp(
                 "emitted RVV C/C++ computed-mask segment2 load intrinsic spelling",
             )
         mask_tail_policy_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_segment2_load",
-            "compare_producer": "tcrv_rvv.compare",
+            "typed_compute_op": "weft_rvv.masked_segment2_load",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -14589,8 +14589,8 @@ def _extract_deferred_wide_product_reduce_dequantize_emitc_boundary(
     # loop (NOT seeded from acc[0] -- acc[0] is added as a scalar post-reduce).
     carry = require_regex(
         text,
-        r"(?:(?://[^\n]*tcrv_emitc\.local_variable=dot_acc_vec[^\n]*\n\s*)|"
-        r"(?:/\*[^*]*tcrv_emitc\.local_variable=dot_acc_vec[^*]*\*/\s*))"
+        r"(?:(?://[^\n]*weft_emitc\.local_variable=dot_acc_vec[^\n]*\n\s*)|"
+        r"(?:/\*[^*]*weft_emitc\.local_variable=dot_acc_vec[^*]*\*/\s*))"
         r'vint32m8_t (?P<carry>v[0-9]+);',
         "emitted RVV C/C++ deferred-wide product-reduction i32m8 vector carry decl",
     ).group("carry")
@@ -14637,7 +14637,7 @@ def _extract_deferred_wide_product_reduce_dequantize_emitc_boundary(
         r"(?:[^\n]*\n\s*)*?"
         r"vint32m8_t (?P<accumulated>v[0-9]+) = "
         r"__riscv_vwadd_wv_i32m8\((?P=current_carry), (?P=product), (?P=loop_vl)\);\s*"
-        r"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+        r"(?://[^\n]*weft_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
         rf"{carry} = (?P=accumulated);",
         "emitted RVV C/C++ deferred-wide in-loop vwadd.wv vector accumulate",
     )
@@ -14799,8 +14799,8 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
     # Accept either declaration; the acc[0] seed + loop carry are asserted below.
     local_carry = require_regex(
         text,
-        r"(?:(?://[^\n]*tcrv_emitc\.local_variable=dot_acc_vec[^\n]*\n\s*)|"
-        r"(?:/\*[^*]*tcrv_emitc\.local_variable=dot_acc_vec[^*]*\*/\s*))"
+        r"(?:(?://[^\n]*weft_emitc\.local_variable=dot_acc_vec[^\n]*\n\s*)|"
+        r"(?:/\*[^*]*weft_emitc\.local_variable=dot_acc_vec[^*]*\*/\s*))"
         rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
         r"(?P<carry>v[0-9]+)"
         rf"(?: = {re.escape(WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC)}"
@@ -14821,7 +14821,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         rf"(?P<seed_vec>v[0-9]+) = "
         rf"{re.escape(WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC)}"
         rf"\((?P=seed_load), {WIDENING_PRODUCT_REDUCE_STORE_VL}\);\s*"
-        rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+        rf"(?://[^\n]*weft_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
         rf"{local_carry} = (?P=seed_vec);",
         "emitted RVV C/C++ product-reduction dequant acc[0] vector carry seed",
     )
@@ -14900,7 +14900,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
     # packed-i4 and the grouped candidate, unlike the legacy two-scope interleaved
     # splat/compare/select epilogue.
     single_scope_packed_i4_epilogue = (
-        "tcrv_rvv.gearbox_cross_region_handoff" not in text
+        "weft_rvv.gearbox_cross_region_handoff" not in text
     )
     packed_i4_statement_payload: dict[str, Any] = {}
     if uses_packed_i4_resource:
@@ -14959,7 +14959,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
             rf"\((?P=product_pair_sum), (?P=current_carry), (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
-            rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+            rf"(?://[^\n]*weft_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
             rf"{local_carry} = (?P=reduced);",
             "emitted RVV C/C++ packed-i4 high-nibble vwmacc single reduction",
         )
@@ -14994,7 +14994,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
             rf"\((?P=product), (?P=current_carry), (?P=loop_vl)\);\s*"
             rf".*?"
-            rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+            rf"(?://[^\n]*weft_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
             rf"{local_carry} = (?P=reduced);",
             "emitted RVV C/C++ product-reduction dequant vector carry reduction",
         )
@@ -15073,7 +15073,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 rf"float (?P<clamped>v[0-9]+) = "
                 rf"{re.escape(F32_CLAMP_SELECT_SCALAR_UPPER_INTRINSIC)}"
                 rf"\((?P=lower_clamped), {upper_bound}\);\s*"
-                rf"(?://[^\n]*tcrv_emitc\.assign target=out\[0\][^\n]*\n\s*)"
+                rf"(?://[^\n]*weft_emitc\.assign target=out\[0\][^\n]*\n\s*)"
                 rf"{signature.group('out')}\[0\] = (?P=clamped);",
                 "emitted RVV C/C++ packed-i4 scalar clamp epilogue",
             )
@@ -15108,7 +15108,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 rf"float (?P<cast>v[0-9]+) = \(float\) {extracted};\s*"
                 rf"float (?P<scaled>v[0-9]+) = (?P=cast) \* "
                 rf"{signature.group('scale')};\s*"
-                rf"(?://[^\n]*tcrv_emitc\.assign target=out\[0\][^\n]*\n\s*)"
+                rf"(?://[^\n]*weft_emitc\.assign target=out\[0\][^\n]*\n\s*)"
                 rf"{signature.group('out')}\[0\] = (?P=scaled);",
                 "emitted RVV C/C++ packed-i4 scalar dequant epilogue",
             )
@@ -15643,7 +15643,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
             expectation.runtime_scalar_computed_mask_standalone_reduction_kind
         ),
         "compare_predicate_kind": expectation.compare_predicate_kind,
-        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+        "runtime_scalar_realization_op": "weft_rvv.splat",
         "accumulator_layout": expectation.standalone_reduction_accumulator_layout,
         "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
         "store_vl": STANDALONE_REDUCE_STORE_VL,
@@ -17853,32 +17853,32 @@ def require_materialized_typed_compute_chain(
     expected = expectation.typed_compute_op
     # The low-precision dequant(/clamp) selected body is candidate-aware: the
     # packed-i4 candidate (Stage 3 single-scope flip) uses a
-    # tcrv_rvv.packed_i4_nibble_unpack_product head and has NO
+    # weft_rvv.packed_i4_nibble_unpack_product head and has NO
     # gearbox_cross_region_handoff; the unpacked/grouped candidate keeps the
     # legacy widening_product head + handoff. Derive the expected chain from the
     # materialized IR structure so the mirror matches the realized body instead of
     # asserting a phantom handoff or wrong head.
-    if "tcrv_rvv.gearbox_cross_region_handoff" in expected:
-        nibble_head = "tcrv_rvv.packed_i4_nibble_unpack_product" in text
-        has_handoff = "tcrv_rvv.gearbox_cross_region_handoff" in text
-        # The deferred-wide (N3) realization inserts a tcrv_rvv.widening_accumulate
+    if "weft_rvv.gearbox_cross_region_handoff" in expected:
+        nibble_head = "weft_rvv.packed_i4_nibble_unpack_product" in text
+        has_handoff = "weft_rvv.gearbox_cross_region_handoff" in text
+        # The deferred-wide (N3) realization inserts a weft_rvv.widening_accumulate
         # between the widening_product head and the trailing standalone_reduce (the
         # i32m8 deferred vector accumulate). Detected structurally from the
         # materialized IR (mirrors the compiler's chain derivation).
-        has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+        has_deferred_wide_accumulate = "weft_rvv.widening_accumulate" in text
         head = (
-            "tcrv_rvv.packed_i4_nibble_unpack_product"
+            "weft_rvv.packed_i4_nibble_unpack_product"
             if nibble_head
-            else "tcrv_rvv.widening_product"
+            else "weft_rvv.widening_product"
         )
-        tail = expected.split("+tcrv_rvv.dequantize", 1)[1]
+        tail = expected.split("+weft_rvv.dequantize", 1)[1]
         chain = head
         if has_deferred_wide_accumulate:
-            chain += "+tcrv_rvv.widening_accumulate"
-        chain += "+tcrv_rvv.standalone_reduce"
+            chain += "+weft_rvv.widening_accumulate"
+        chain += "+weft_rvv.standalone_reduce"
         if has_handoff:
-            chain += "+tcrv_rvv.gearbox_cross_region_handoff"
-        chain += "+tcrv_rvv.dequantize" + tail
+            chain += "+weft_rvv.gearbox_cross_region_handoff"
+        chain += "+weft_rvv.dequantize" + tail
         expected = chain
     require_contains(
         text,
@@ -17910,16 +17910,16 @@ def verify_materialized_selected_body(
     )
     require_contains(
         text,
-        "tcrv_rvv.with_vl",
+        "weft_rvv.with_vl",
         "materialized selected-body MLIR lowering boundary",
     )
     require_materialized_typed_compute_chain(text, expectation)
     # The deferred-wide (N3) realization runs its setvl/with_vl loop at the i8m2
     # STRIP config (sew8/m2), not the i32m1/f32m1 RESULT config the route/header
-    # carry. When the materialized body has a tcrv_rvv.widening_accumulate (the
+    # carry. When the materialized body has a weft_rvv.widening_accumulate (the
     # i32m8 deferred accumulate), the body-level config check expects the strip
     # config; the route/header checks keep the result config (expectation.lmul/sew).
-    body_has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+    body_has_deferred_wide_accumulate = "weft_rvv.widening_accumulate" in text
     materialized_lmul = "m2" if body_has_deferred_wide_accumulate else expectation.lmul
     materialized_sew = 8 if body_has_deferred_wide_accumulate else expectation.sew
     require_contains(
@@ -18002,28 +18002,28 @@ def verify_materialized_selected_body(
     if expectation.is_widen_i32_to_i64:
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR widening conversion source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i64, "m2">',
+            '!weft_rvv.vector<i64, "m2">',
             "materialized selected-body MLIR widening conversion result vector type",
         )
         require_contains(
             text,
-            "tcrv_rvv.widening_convert",
+            "weft_rvv.widening_convert",
             "materialized selected-body MLIR widening conversion compute op",
         )
     if expectation.is_widen_i16_to_i32:
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR i16mf2 widening conversion source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR i32m1 widening conversion result vector type",
         )
         require_contains(
@@ -18044,12 +18044,12 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR dequant source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<f32, "m1">',
+            '!weft_rvv.vector<f32, "m1">',
             "materialized selected-body MLIR dequant result vector type",
         )
         require_contains(
@@ -18063,9 +18063,9 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR dequant kind",
         )
         dequantization_boundary = {
-            "typed_compute_op": "tcrv_rvv.dequantize",
-            "source_vector_type": '!tcrv_rvv.vector<i32, "m1">',
-            "result_vector_type": '!tcrv_rvv.vector<f32, "m1">',
+            "typed_compute_op": "weft_rvv.dequantize",
+            "source_vector_type": '!weft_rvv.vector<i32, "m1">',
+            "result_vector_type": '!weft_rvv.vector<f32, "m1">',
             "source_element_type": "i32",
             "result_element_type": "f32",
             "source_sew": "32",
@@ -18095,17 +18095,17 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR widening macc source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR widening macc accumulator/result vector type",
         )
         require_contains(
             text,
-            "tcrv_rvv.widening_macc",
+            "weft_rvv.widening_macc",
             "materialized selected-body MLIR widening macc compute op",
         )
         require_contains(
@@ -18143,15 +18143,15 @@ def verify_materialized_selected_body(
         # vredsum into i32m1. The narrow realization runs i8mf4 -> i16mf2 -> i32m1
         # widening vwredsum. Derive the expected body structure from the realized
         # ops (the widening_accumulate marker), so the mirror tracks the authority.
-        body_has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+        body_has_deferred_wide_accumulate = "weft_rvv.widening_accumulate" in text
         if body_has_deferred_wide_accumulate:
-            body_source_vec = '!tcrv_rvv.vector<i8, "m2">'
-            body_product_vec = '!tcrv_rvv.vector<i16, "m4">'
+            body_source_vec = '!weft_rvv.vector<i8, "m2">'
+            body_product_vec = '!weft_rvv.vector<i16, "m4">'
             body_product_relation = "signed-i8m2xi8m2-to-i16m4"
             body_reduction_kind = 'kind = "add"'
         else:
-            body_source_vec = '!tcrv_rvv.vector<i8, "mf4">'
-            body_product_vec = '!tcrv_rvv.vector<i16, "mf2">'
+            body_source_vec = '!weft_rvv.vector<i8, "mf4">'
+            body_product_vec = '!weft_rvv.vector<i16, "mf2">'
             body_product_relation = WIDENING_PRODUCT_RELATION_I8_I16
             body_reduction_kind = 'kind = "signed_widening_reduce_add"'
         require_contains(
@@ -18166,18 +18166,18 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR product-reduction result vector type",
         )
         if body_has_deferred_wide_accumulate:
             require_contains(
                 text,
-                '!tcrv_rvv.vector<i32, "m8">',
+                '!weft_rvv.vector<i32, "m8">',
                 "materialized selected-body MLIR deferred-wide accumulate vector type",
             )
             require_contains(
                 text,
-                "tcrv_rvv.widening_accumulate",
+                "weft_rvv.widening_accumulate",
                 "materialized selected-body MLIR deferred-wide accumulate op",
             )
             require_contains(
@@ -18187,12 +18187,12 @@ def verify_materialized_selected_body(
             )
         require_contains(
             text,
-            "tcrv_rvv.widening_product",
+            "weft_rvv.widening_product",
             "materialized selected-body MLIR product-reduction product op",
         )
         require_contains(
             text,
-            "tcrv_rvv.standalone_reduce",
+            "weft_rvv.standalone_reduce",
             "materialized selected-body MLIR product-reduction reduction op",
         )
         require_contains(
@@ -18222,11 +18222,11 @@ def verify_materialized_selected_body(
                     expectation.is_widening_product_reduce_dequantize_f32
                     or expectation.is_widening_product_reduce_dequant_clamp_f32
                 )
-                else "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce"
+                else "weft_rvv.widening_product+weft_rvv.standalone_reduce"
             ),
             "source_vector_type": body_source_vec,
             "product_vector_type": body_product_vec,
-            "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
+            "result_vector_type": '!weft_rvv.vector<i32, "m1">',
             "source_element_type": "i8",
             "source_sew": "8",
             "source_lmul": "m2" if body_has_deferred_wide_accumulate else "mf4",
@@ -18262,19 +18262,19 @@ def verify_materialized_selected_body(
                 expectation, packed_i4=uses_packed_i4_resource
             )
             # The packed-i4 candidate realizes as a single-scope typed body (Stage 3
-            # flip): no tcrv_rvv.gearbox_cross_region_handoff carrier, no
+            # flip): no weft_rvv.gearbox_cross_region_handoff carrier, no
             # producer/consumer scope split, no vsetvl_region_marker placeholders.
             # The grouped/unpacked candidate keeps the legacy two-scope structure.
             # Gate the handoff/marker/scope-structure assertions on the realized
             # form; the low_precision_resource.* facts below survive on with_vl and
             # are asserted in both forms.
             body_has_handoff = (
-                "tcrv_rvv.gearbox_cross_region_handoff" in text
+                "weft_rvv.gearbox_cross_region_handoff" in text
             )
             if body_has_handoff:
                 require_contains(
                     text,
-                    "tcrv_rvv.gearbox_cross_region_handoff",
+                    "weft_rvv.gearbox_cross_region_handoff",
                     "materialized selected-body MLIR Gearbox cross-region handoff op",
                 )
                 require_contains(
@@ -18374,18 +18374,18 @@ def verify_materialized_selected_body(
                 # the ONE typed slice twice + adds the scalar tail loop).
                 require_not_contains(
                     text,
-                    "tcrv_rvv.gearbox_cross_region_handoff",
+                    "weft_rvv.gearbox_cross_region_handoff",
                     "single-scope body has no Gearbox handoff carrier",
                 )
                 require_not_contains(
                     text,
-                    "tcrv_rvv.vsetvl_region_marker",
+                    "weft_rvv.vsetvl_region_marker",
                     "single-scope body has no vsetvl region markers",
                 )
                 if uses_packed_i4_resource:
                     require_contains(
                         text,
-                        "tcrv_rvv.packed_i4_nibble_unpack_product",
+                        "weft_rvv.packed_i4_nibble_unpack_product",
                         "single-scope packed-i4 body typed nibble-unpack product head",
                     )
                     require_contains(
@@ -18400,17 +18400,17 @@ def verify_materialized_selected_body(
                     # the i32m8 accumulator across iterations, no slice duplication).
                     require_contains(
                         text,
-                        "tcrv_rvv.widening_product",
+                        "weft_rvv.widening_product",
                         "single-scope deferred-wide body typed widening product head",
                     )
                     require_contains(
                         text,
-                        "tcrv_rvv.widening_accumulate",
+                        "weft_rvv.widening_accumulate",
                         "single-scope deferred-wide body deferred accumulate op",
                     )
                     require_not_contains(
                         text,
-                        "tcrv_rvv.packed_i4_nibble_unpack_product",
+                        "weft_rvv.packed_i4_nibble_unpack_product",
                         "single-scope deferred-wide body has no packed-i4 nibble head",
                     )
                     require_contains(
@@ -18421,12 +18421,12 @@ def verify_materialized_selected_body(
                 else:
                     require_contains(
                         text,
-                        "tcrv_rvv.widening_product",
+                        "weft_rvv.widening_product",
                         "single-scope grouped body typed widening product head",
                     )
                     require_not_contains(
                         text,
-                        "tcrv_rvv.packed_i4_nibble_unpack_product",
+                        "weft_rvv.packed_i4_nibble_unpack_product",
                         "single-scope grouped body has no packed-i4 nibble head",
                     )
                     require_contains(
@@ -18443,140 +18443,140 @@ def verify_materialized_selected_body(
             if not body_has_deferred_wide_accumulate:
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',
+                    f'weft_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',
                     "materialized selected-body MLIR low-precision resource candidate set",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.selected_candidate = "{resource_profile["selected_candidate"]}"',
+                    f'weft_rvv.low_precision_resource.selected_candidate = "{resource_profile["selected_candidate"]}"',
                     "materialized selected-body MLIR low-precision selected candidate",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.selection_reason = "{resource_profile["selection_reason"]}"',
+                    f'weft_rvv.low_precision_resource.selection_reason = "{resource_profile["selection_reason"]}"',
                     "materialized selected-body MLIR low-precision selection reason",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.legality_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE}"',
+                    f'weft_rvv.low_precision_resource.legality_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE}"',
                     "materialized selected-body MLIR low-precision legality scope",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.memory_form = "{resource_profile["memory_form"]}"',
+                    f'weft_rvv.low_precision_resource.memory_form = "{resource_profile["memory_form"]}"',
                     "materialized selected-body MLIR low-precision memory form",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.operand_form = "{resource_profile["operand_form"]}"',
+                    f'weft_rvv.low_precision_resource.operand_form = "{resource_profile["operand_form"]}"',
                     "materialized selected-body MLIR low-precision operand form",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.source_signedness = "{resource_profile["source_signedness"]}"',
+                    f'weft_rvv.low_precision_resource.source_signedness = "{resource_profile["source_signedness"]}"',
                     "materialized selected-body MLIR low-precision source signedness",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.storage_element_width = {resource_profile["storage_element_width"]} : i64',
+                    f'weft_rvv.low_precision_resource.storage_element_width = {resource_profile["storage_element_width"]} : i64',
                     "materialized selected-body MLIR low-precision storage element width",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.effective_element_width = {resource_profile["effective_element_width"]} : i64',
+                    f'weft_rvv.low_precision_resource.effective_element_width = {resource_profile["effective_element_width"]} : i64',
                     "materialized selected-body MLIR low-precision effective element width",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.packing_layout = "{resource_profile["packing_layout"]}"',
+                    f'weft_rvv.low_precision_resource.packing_layout = "{resource_profile["packing_layout"]}"',
                     "materialized selected-body MLIR low-precision packing layout",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.unpack_intent = "{resource_profile["unpack_intent"]}"',
+                    f'weft_rvv.low_precision_resource.unpack_intent = "{resource_profile["unpack_intent"]}"',
                     "materialized selected-body MLIR low-precision unpack intent",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.unroll_factor = {resource_profile["unroll_factor"]} : i64',
+                    f'weft_rvv.low_precision_resource.unroll_factor = {resource_profile["unroll_factor"]} : i64',
                     "materialized selected-body MLIR low-precision unroll factor",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.accumulator_count = {resource_profile["accumulator_count"]} : i64',
+                    f'weft_rvv.low_precision_resource.accumulator_count = {resource_profile["accumulator_count"]} : i64',
                     "materialized selected-body MLIR low-precision accumulator count",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = {resource_profile["vsetvl_region_count"]} : i64',
+                    f'weft_rvv.low_precision_resource.realized_vsetvl_region_count = {resource_profile["vsetvl_region_count"]} : i64',
                     "materialized selected-body MLIR realized Gearbox vsetvl region count",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = {resource_profile["peak_live_vector_groups"]} : i64',
+                    f'weft_rvv.low_precision_resource.realized_peak_live_vector_groups = {resource_profile["peak_live_vector_groups"]} : i64',
                     "materialized selected-body MLIR realized Gearbox resource budget",
                 )
                 if uses_packed_i4_resource:
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.resource_cost_contract = "{resource_profile["resource_cost_contract"]}"',
+                        f'weft_rvv.low_precision_resource.resource_cost_contract = "{resource_profile["resource_cost_contract"]}"',
                         "materialized selected-body MLIR packed-i4 resource cost contract",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.resource_cost_model = "{resource_profile["resource_cost_model"]}"',
+                        f'weft_rvv.low_precision_resource.resource_cost_model = "{resource_profile["resource_cost_model"]}"',
                         "materialized selected-body MLIR packed-i4 resource cost model",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = {resource_profile["resource_cost_loop_body_steps"]} : i64',
+                        f'weft_rvv.low_precision_resource.resource_cost_loop_body_steps = {resource_profile["resource_cost_loop_body_steps"]} : i64',
                         "materialized selected-body MLIR packed-i4 resource cost loop-body steps",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.resource_cost_blocker = "{resource_profile["resource_cost_blocker"]}"',
+                        f'weft_rvv.low_precision_resource.resource_cost_blocker = "{resource_profile["resource_cost_blocker"]}"',
                         "materialized selected-body MLIR packed-i4 resource cost blocker",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.performance_admission_decision = "{resource_profile["performance_admission_decision"]}"',
+                        f'weft_rvv.low_precision_resource.performance_admission_decision = "{resource_profile["performance_admission_decision"]}"',
                         "materialized selected-body MLIR packed-i4 performance admission decision",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.performance_admission_closure = "{resource_profile["performance_admission_closure"]}"',
+                        f'weft_rvv.low_precision_resource.performance_admission_closure = "{resource_profile["performance_admission_closure"]}"',
                         "materialized selected-body MLIR packed-i4 performance admission closure",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
+                        f'weft_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
                         "materialized selected-body MLIR packed-i4 performance admission reopen requirement",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract = "{resource_profile["beyond_local_repair_admission_contract"]}"',
+                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_contract = "{resource_profile["beyond_local_repair_admission_contract"]}"',
                         "materialized selected-body MLIR packed-i4 beyond-local repair admission contract",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision = "{resource_profile["beyond_local_repair_admission_decision"]}"',
+                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_decision = "{resource_profile["beyond_local_repair_admission_decision"]}"',
                         "materialized selected-body MLIR packed-i4 beyond-local repair admission decision",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "{resource_profile["beyond_local_repair_admission_blocker"]}"',
+                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "{resource_profile["beyond_local_repair_admission_blocker"]}"',
                         "materialized selected-body MLIR packed-i4 beyond-local repair admission blocker",
                     )
                     require_contains(
                         text,
-                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "{resource_profile["beyond_local_repair_admission_reopen_requirement"]}"',
+                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "{resource_profile["beyond_local_repair_admission_reopen_requirement"]}"',
                         "materialized selected-body MLIR packed-i4 beyond-local repair admission reopen requirement",
                     )
                 widening_product_reduction_boundary["selected_source_abi"][
                     "scale"
                 ] = "dequant-scale-value"
                 widening_product_reduction_boundary["gearbox_cross_region_handoff"] = {
-                    "op": "tcrv_rvv.gearbox_cross_region_handoff",
+                    "op": "weft_rvv.gearbox_cross_region_handoff",
                     "contract": (
                         WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
                     ),
@@ -18688,17 +18688,17 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR widening dot source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR widening dot result vector type",
         )
         require_contains(
             text,
-            "tcrv_rvv.widening_dot_reduce",
+            "weft_rvv.widening_dot_reduce",
             "materialized selected-body MLIR widening dot compute op",
         )
         require_contains(
@@ -18724,17 +18724,17 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR strided dot source vector type",
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR strided dot source loads",
         )
         require_contains(
             text,
-            "tcrv_rvv.widening_dot_reduce",
+            "weft_rvv.widening_dot_reduce",
             "materialized selected-body MLIR strided dot compute op",
         )
         require_contains(
@@ -18747,9 +18747,9 @@ def verify_materialized_selected_body(
         or expectation.is_strided_input_widening_dot_reduce_add
     ):
         widening_dot_reduction_boundary = {
-            "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
-            "source_vector_type": '!tcrv_rvv.vector<i16, "mf2">',
-            "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
+            "typed_compute_op": "weft_rvv.widening_dot_reduce",
+            "source_vector_type": '!weft_rvv.vector<i16, "mf2">',
+            "result_vector_type": '!weft_rvv.vector<i32, "m1">',
             "source_element_type": "i16",
             "source_sew": "16",
             "source_lmul": "mf2",
@@ -18807,27 +18807,27 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR masked widening dot compare producer",
         )
         require_contains(
             text,
-            '!tcrv_rvv.mask<i32, "m1">',
+            '!weft_rvv.mask<i32, "m1">',
             "materialized selected-body MLIR masked widening dot mask type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR masked widening dot source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR masked widening dot result vector type",
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_widening_dot_reduce",
+            "weft_rvv.masked_widening_dot_reduce",
             "materialized selected-body MLIR masked widening dot compute op",
         )
         require_contains(
@@ -18873,27 +18873,27 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR masked strided dot compare producer",
         )
         require_contains(
             text,
-            '!tcrv_rvv.mask<i32, "m1">',
+            '!weft_rvv.mask<i32, "m1">',
             "materialized selected-body MLIR masked strided dot mask type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR masked strided dot source vector type",
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR masked strided dot source loads",
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_widening_dot_reduce",
+            "weft_rvv.masked_widening_dot_reduce",
             "materialized selected-body MLIR masked strided dot compute op",
         )
         require_contains(
@@ -18914,13 +18914,13 @@ def verify_materialized_selected_body(
     if expectation.is_rhs_broadcast:
         require_contains(
             text,
-            "tcrv_rvv.broadcast_load",
+            "weft_rvv.broadcast_load",
             "materialized selected-body MLIR RHS broadcast load",
         )
     if expectation.is_scalar_broadcast_elementwise:
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR RHS scalar splat",
         )
         require_contains(
@@ -18931,12 +18931,12 @@ def verify_materialized_selected_body(
     if expectation.is_runtime_scalar_splat_store:
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR runtime scalar splat",
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR runtime scalar splat store",
         )
         require_contains(
@@ -18946,18 +18946,18 @@ def verify_materialized_selected_body(
         )
         require_not_contains(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR runtime scalar splat-store",
         )
     if expectation.is_strided_add:
         require_contains(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR strided load",
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_store",
+            "weft_rvv.strided_store",
             "materialized selected-body MLIR strided store",
         )
         for role in (
@@ -18978,17 +18978,17 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR source strided load",
         )
         require_contains(
             text,
-            "tcrv_rvv.move",
+            "weft_rvv.move",
             "materialized selected-body MLIR strided load movement op",
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR unit-stride store",
         )
         require_contains(
@@ -18998,28 +18998,28 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_store",
+            "weft_rvv.strided_store",
             "materialized selected-body MLIR strided load unit store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR strided load unit store",
         )
     if expectation.is_unit_load_strided_store:
         require_contains(
             text,
-            "tcrv_rvv.load",
+            "weft_rvv.load",
             "materialized selected-body MLIR unit-stride source load",
         )
         require_contains(
             text,
-            "tcrv_rvv.move",
+            "weft_rvv.move",
             "materialized selected-body MLIR unit load movement op",
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_store",
+            "weft_rvv.strided_store",
             "materialized selected-body MLIR destination strided store",
         )
         require_contains(
@@ -19029,33 +19029,33 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR unit load strided store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR unit load strided store",
         )
     if expectation.is_indexed_gather_unit_store:
         require_contains(
             text,
-            "tcrv_rvv.index_load",
+            "weft_rvv.index_load",
             "materialized selected-body MLIR index vector load",
         )
         require_contains(
             text,
-            "tcrv_rvv.indexed_load",
+            "weft_rvv.indexed_load",
             "materialized selected-body MLIR indexed data load",
         )
         require_contains(
             text,
-            "tcrv_rvv.move",
+            "weft_rvv.move",
             "materialized selected-body MLIR indexed gather movement op",
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR unit-stride store",
         )
         require_contains(
@@ -19070,28 +19070,28 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR indexed gather unit store",
         )
     if expectation.is_indexed_scatter_unit_load:
         require_contains(
             text,
-            "tcrv_rvv.load",
+            "weft_rvv.load",
             "materialized selected-body MLIR unit-stride source load",
         )
         require_contains(
             text,
-            "tcrv_rvv.index_load",
+            "weft_rvv.index_load",
             "materialized selected-body MLIR index vector load",
         )
         require_contains(
             text,
-            "tcrv_rvv.move",
+            "weft_rvv.move",
             "materialized selected-body MLIR indexed scatter movement op",
         )
         require_contains(
             text,
-            "tcrv_rvv.indexed_store",
+            "weft_rvv.indexed_store",
             "materialized selected-body MLIR indexed destination store",
         )
         require_contains(
@@ -19111,23 +19111,23 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_load",
+            "weft_rvv.indexed_load",
             "materialized selected-body MLIR indexed scatter unit load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR indexed scatter unit load",
         )
     if expectation.is_masked_unit_load_store:
         require_contains(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR mask load",
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR masked load op",
         )
         require_contains(
@@ -19157,23 +19157,23 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR unit-stride store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR masked memory movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR masked memory movement",
         )
     if expectation.is_masked_unit_store:
         require_contains(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR masked-store mask load",
         )
         require_contains(
@@ -19193,7 +19193,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR masked-store op",
         )
         require_contains(
@@ -19208,23 +19208,23 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR masked-store route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR masked-store route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR masked-store route",
         )
     if expectation.is_computed_masked_unit_load_store:
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR computed mask compare",
         )
         require_contains(
@@ -19234,7 +19234,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR computed mask masked load op",
         )
         require_contains(
@@ -19254,38 +19254,38 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR computed mask unit-stride store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed mask memory movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed mask memory movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed mask memory movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_store",
+            "weft_rvv.indexed_store",
             "materialized selected-body MLIR computed mask memory movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_store",
+            "weft_rvv.indexed_store",
             "materialized selected-body MLIR masked memory movement",
         )
     if expectation.is_computed_mask_select:
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR computed-mask select compare",
         )
         require_contains(
@@ -19295,7 +19295,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR computed-mask select op",
         )
         require_contains(
@@ -19310,23 +19310,23 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR computed-mask select store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask select",
         )
     if expectation.is_runtime_scalar_compare_select:
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR runtime scalar threshold splat",
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR runtime scalar compare",
         )
         require_contains(
@@ -19336,7 +19336,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR runtime scalar select op",
         )
         require_contains(
@@ -19356,27 +19356,27 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR runtime scalar compare/select store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR runtime scalar compare/select",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR runtime scalar compare/select",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask select",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask select",
         )
     if expectation.is_runtime_scalar_dual_compare_mask_and_select:
@@ -19392,17 +19392,17 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR dual runtime scalar threshold splats",
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR dual runtime scalar compare producers",
         )
         require_contains(
             text,
-            "tcrv_rvv.mask_and",
+            "weft_rvv.mask_and",
             "materialized selected-body MLIR composed mask-and op",
         )
         require_contains(
@@ -19412,7 +19412,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR mask-and select op",
         )
         require_contains(
@@ -19427,38 +19427,38 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR dual compare select store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR dual compare mask composition",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR dual compare mask composition",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR dual compare mask composition",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_macc",
+            "weft_rvv.masked_macc",
             "materialized selected-body MLIR dual compare mask composition",
         )
     if expectation.is_runtime_scalar_computed_mask_store:
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR runtime scalar masked-store splat",
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR runtime scalar masked-store compare",
         )
         require_contains(
@@ -19468,7 +19468,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR runtime scalar computed-mask store op",
         )
         require_contains(
@@ -19498,33 +19498,33 @@ def verify_materialized_selected_body(
         )
         require_not_contains(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR runtime scalar computed-mask store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR runtime scalar computed-mask store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR runtime scalar computed-mask store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR runtime scalar computed-mask store",
         )
     if expectation.is_runtime_scalar_computed_mask_load_store:
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR runtime scalar masked-load splat",
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR runtime scalar masked-load compare",
         )
         require_contains(
@@ -19534,7 +19534,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR runtime scalar computed-mask load op",
         )
         require_contains(
@@ -19564,28 +19564,28 @@ def verify_materialized_selected_body(
         )
         require_not_contains(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR runtime scalar computed-mask load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR runtime scalar computed-mask load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR runtime scalar computed-mask load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR runtime scalar computed-mask load",
         )
     if expectation.is_computed_mask_standalone_reduce:
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR computed-mask standalone reduction compare",
         )
         require_contains(
@@ -19595,7 +19595,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_standalone_reduce",
+            "weft_rvv.masked_standalone_reduce",
             "materialized selected-body MLIR masked standalone reduction op",
         )
         require_contains(
@@ -19645,22 +19645,22 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR computed-mask standalone store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask standalone reduction",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.standalone_reduce",
+            "weft_rvv.standalone_reduce",
             "materialized selected-body MLIR computed-mask standalone reduction",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask standalone reduction",
         )
     if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
@@ -19671,12 +19671,12 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR runtime scalar standalone reduction threshold splat",
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR runtime scalar standalone reduction compare",
         )
         require_contains(
@@ -19686,7 +19686,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_standalone_reduce",
+            "weft_rvv.masked_standalone_reduce",
             "materialized selected-body MLIR runtime scalar masked standalone reduction op",
         )
         require_contains(
@@ -19721,35 +19721,35 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.standalone_reduce",
+            "weft_rvv.standalone_reduce",
             "materialized selected-body MLIR runtime scalar standalone reduction",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR runtime scalar standalone reduction",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR runtime scalar standalone reduction",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_macc",
+            "weft_rvv.masked_macc",
             "materialized selected-body MLIR runtime scalar standalone reduction",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR runtime scalar standalone reduction",
         )
         mask_tail_policy_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_standalone_reduce",
-            "compare_producer": "tcrv_rvv.compare",
+            "typed_compute_op": "weft_rvv.masked_standalone_reduce",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "runtime_scalar_operand": "rhs_scalar",
-            "runtime_scalar_realization_op": "tcrv_rvv.splat",
+            "runtime_scalar_realization_op": "weft_rvv.splat",
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -19762,11 +19762,11 @@ def verify_materialized_selected_body(
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
         reduction_accumulation_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_standalone_reduce",
+            "typed_compute_op": "weft_rvv.masked_standalone_reduce",
             "reduction_kind": (
                 expectation.runtime_scalar_computed_mask_standalone_reduction_kind
             ),
-            "compare_producer": "tcrv_rvv.compare",
+            "compare_producer": "weft_rvv.compare",
             "runtime_scalar_operand": "rhs_scalar",
             "source_vector_type": expectation.rvv_vector_type,
             "source_element_type": expectation.element_type,
@@ -19787,7 +19787,7 @@ def verify_materialized_selected_body(
     if expectation.is_computed_masked_strided_store:
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR computed-mask strided-store compare",
         )
         require_contains(
@@ -19797,7 +19797,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_strided_store",
+            "weft_rvv.masked_strided_store",
             "materialized selected-body MLIR computed-mask masked strided-store op",
         )
         require_contains(
@@ -19817,33 +19817,33 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask strided-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR computed-mask strided-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_store",
+            "weft_rvv.strided_store",
             "materialized selected-body MLIR computed-mask strided-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask strided-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask strided-store",
         )
     if expectation.is_computed_masked_strided_load_unit_store:
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR computed-mask strided-load compare",
         )
         require_contains(
@@ -19853,7 +19853,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_strided_load",
+            "weft_rvv.masked_strided_load",
             "materialized selected-body MLIR computed-mask masked strided-load op",
         )
         require_contains(
@@ -19873,27 +19873,27 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask strided-load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR computed-mask strided-load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_store",
+            "weft_rvv.strided_store",
             "materialized selected-body MLIR computed-mask strided-load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask strided-load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask strided-load",
         )
     if (
@@ -19907,7 +19907,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             f"{indexed_gather_context} compare",
         )
         require_contains(
@@ -19918,7 +19918,7 @@ def verify_materialized_selected_body(
         if expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store:
             require_contains(
                 text,
-                "tcrv_rvv.splat",
+                "weft_rvv.splat",
                 f"{indexed_gather_context} rhs scalar splat",
             )
             require_contains(
@@ -19928,7 +19928,7 @@ def verify_materialized_selected_body(
             )
         require_contains(
             text,
-            "tcrv_rvv.index_load",
+            "weft_rvv.index_load",
             f"{indexed_gather_context} index load",
         )
         require_contains(
@@ -19938,7 +19938,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_indexed_load",
+            "weft_rvv.masked_indexed_load",
             f"{indexed_gather_context} masked indexed-load op",
         )
         require_contains(
@@ -19963,32 +19963,32 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             f"{indexed_gather_context} unit-stride store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_load",
+            "weft_rvv.indexed_load",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
     if (
@@ -20002,7 +20002,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             f"{indexed_scatter_context} compare",
         )
         require_contains(
@@ -20013,7 +20013,7 @@ def verify_materialized_selected_body(
         if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
             require_contains(
                 text,
-                "tcrv_rvv.splat",
+                "weft_rvv.splat",
                 f"{indexed_scatter_context} rhs scalar splat",
             )
             require_contains(
@@ -20023,7 +20023,7 @@ def verify_materialized_selected_body(
             )
         require_contains(
             text,
-            "tcrv_rvv.index_load",
+            "weft_rvv.index_load",
             f"{indexed_scatter_context} index load",
         )
         require_contains(
@@ -20033,7 +20033,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_indexed_store",
+            "weft_rvv.masked_indexed_store",
             f"{indexed_scatter_context} masked indexed-store op",
         )
         require_contains(
@@ -20063,37 +20063,37 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.load",
+            "weft_rvv.load",
             "materialized selected-body MLIR computed-mask indexed scatter unit source load",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_indexed_load",
+            "weft_rvv.masked_indexed_load",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_store",
+            "weft_rvv.indexed_store",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_store",
+            "weft_rvv.strided_store",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
     if expectation.is_runtime_scalar_cmp_masked_indexed_gather_macc_scatter:
@@ -20102,12 +20102,12 @@ def verify_materialized_selected_body(
             "indexed gather-MAcc-scatter"
         )
         for token, context in (
-            ("tcrv_rvv.compare", "compare"),
-            ("tcrv_rvv.splat", "rhs scalar splat"),
-            ("tcrv_rvv.index_load", "index load"),
-            ("tcrv_rvv.masked_indexed_load", "masked indexed gather"),
-            ("tcrv_rvv.masked_macc", "masked MAcc"),
-            ("tcrv_rvv.masked_indexed_store", "masked indexed scatter"),
+            ("weft_rvv.compare", "compare"),
+            ("weft_rvv.splat", "rhs scalar splat"),
+            ("weft_rvv.index_load", "index load"),
+            ("weft_rvv.masked_indexed_load", "masked indexed gather"),
+            ("weft_rvv.masked_macc", "masked MAcc"),
+            ("weft_rvv.masked_indexed_store", "masked indexed scatter"),
         ):
             require_contains(text, token, f"{composite_context} {context}")
         for token, context in (
@@ -20151,9 +20151,9 @@ def verify_materialized_selected_body(
         ):
             require_contains(text, token, f"{composite_context} {context}")
         for forbidden in (
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_gather_pre_realized_body",
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body",
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_computed_mask_indexed_gather_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_pre_realized_body",
         ):
             require_not_contains(
                 text,
@@ -20162,10 +20162,10 @@ def verify_materialized_selected_body(
             )
         mask_tail_policy_boundary = {
             "typed_compute_op": expectation.typed_compute_op,
-            "compare_producer": "tcrv_rvv.compare",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "runtime_scalar_operand": "rhs_scalar",
-            "runtime_scalar_realization_op": "tcrv_rvv.splat",
+            "runtime_scalar_realization_op": "weft_rvv.splat",
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -20207,7 +20207,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             f"{segment2_load_context} compare",
         )
         require_contains(
@@ -20218,7 +20218,7 @@ def verify_materialized_selected_body(
         if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
             require_contains(
                 text,
-                "tcrv_rvv.splat",
+                "weft_rvv.splat",
                 f"{segment2_load_context} rhs scalar splat",
             )
             require_contains(
@@ -20228,7 +20228,7 @@ def verify_materialized_selected_body(
             )
         require_contains(
             text,
-            "tcrv_rvv.masked_segment2_load",
+            "weft_rvv.masked_segment2_load",
             f"{segment2_load_context} masked segment2 load op",
         )
         require_contains(
@@ -20263,37 +20263,37 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.segment2_load",
+            "weft_rvv.segment2_load",
             "materialized selected-body MLIR computed-mask segment2",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask segment2",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask segment2",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR computed-mask segment2",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_indexed_load",
+            "weft_rvv.masked_indexed_load",
             "materialized selected-body MLIR computed-mask segment2",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask segment2",
         )
         mask_tail_policy_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_segment2_load",
-            "compare_producer": "tcrv_rvv.compare",
+            "typed_compute_op": "weft_rvv.masked_segment2_load",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -20318,7 +20318,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             f"{segment2_store_context} compare",
         )
         require_contains(
@@ -20329,7 +20329,7 @@ def verify_materialized_selected_body(
         if expectation.is_runtime_scalar_cmp_masked_segment2_store_unit_load:
             require_contains(
                 text,
-                "tcrv_rvv.splat",
+                "weft_rvv.splat",
                 f"{segment2_store_context} rhs scalar splat",
             )
             require_contains(
@@ -20340,7 +20340,7 @@ def verify_materialized_selected_body(
         if expectation.is_computed_masked_segment2_update_unit_load:
             require_contains(
                 text,
-                "tcrv_rvv.binary",
+                "weft_rvv.binary",
                 "materialized selected-body MLIR computed-mask segment2-update arithmetic",
             )
             require_contains(
@@ -20350,7 +20350,7 @@ def verify_materialized_selected_body(
             )
         require_contains(
             text,
-            "tcrv_rvv.masked_segment2_store",
+            "weft_rvv.masked_segment2_store",
             "materialized selected-body MLIR computed-mask masked segment2 store op",
         )
         require_contains(
@@ -20380,27 +20380,27 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.segment2_store",
+            "weft_rvv.segment2_store",
             "materialized selected-body MLIR computed-mask segment2-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.mask_load",
+            "weft_rvv.mask_load",
             "materialized selected-body MLIR computed-mask segment2-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask segment2-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.strided_load",
+            "weft_rvv.strided_load",
             "materialized selected-body MLIR computed-mask segment2-store",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_indexed_store",
+            "weft_rvv.masked_indexed_store",
             "materialized selected-body MLIR computed-mask segment2-store",
         )
         if (
@@ -20409,13 +20409,13 @@ def verify_materialized_selected_body(
         ):
             require_no_op_invocation(
                 text,
-                "tcrv_rvv.binary",
+                "weft_rvv.binary",
                 "materialized selected-body MLIR computed-mask segment2-store",
             )
     if expectation.is_segment2_deinterleave_unit_store:
         require_contains(
             text,
-            "tcrv_rvv.segment2_load",
+            "weft_rvv.segment2_load",
             "materialized selected-body MLIR segment2 load",
         )
         require_contains(
@@ -20450,18 +20450,18 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR segment2 memory movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_store",
+            "weft_rvv.indexed_store",
             "materialized selected-body MLIR segment2 memory movement",
         )
     if expectation.is_segment2_interleave_unit_load:
         require_contains(
             text,
-            "tcrv_rvv.segment2_store",
+            "weft_rvv.segment2_store",
             "materialized selected-body MLIR segment2 store",
         )
         require_contains(
@@ -20501,23 +20501,23 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.segment2_load",
+            "weft_rvv.segment2_load",
             "materialized selected-body MLIR segment2 interleave movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR segment2 interleave movement",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.indexed_store",
+            "weft_rvv.indexed_store",
             "materialized selected-body MLIR segment2 interleave movement",
         )
     if expectation.is_cmp_select:
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR compare mask producer",
         )
     if expectation.is_reduce_add:
@@ -20532,7 +20532,7 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR reduce result layout",
         )
         vector_reduction_boundary = {
-            "typed_compute_op": "tcrv_rvv.reduce",
+            "typed_compute_op": "weft_rvv.reduce",
             "reduction_kind": "add",
             "source_vector_type": expectation.rvv_vector_type,
             "seed_accumulator_vector_type": expectation.rvv_vector_type,
@@ -20554,7 +20554,7 @@ def verify_materialized_selected_body(
     if expectation.is_standalone_reduce:
         require_contains(
             text,
-            "tcrv_rvv.standalone_reduce",
+            "weft_rvv.standalone_reduce",
             "materialized selected-body MLIR standalone reduction op",
         )
         require_contains(
@@ -20588,7 +20588,7 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR standalone reduction",
         )
         reduction_accumulation_boundary = {
-            "typed_compute_op": "tcrv_rvv.standalone_reduce",
+            "typed_compute_op": "weft_rvv.standalone_reduce",
             "reduction_kind": expectation.standalone_reduction_kind,
             "source_vector_type": expectation.rvv_vector_type,
             "accumulator_element_type": expectation.element_type,
@@ -20604,7 +20604,7 @@ def verify_materialized_selected_body(
         if expectation.is_scalar_broadcast_macc_add:
             require_contains(
                 text,
-                "tcrv_rvv.splat",
+                "weft_rvv.splat",
                 "materialized selected-body MLIR scalar-broadcast macc RHS splat",
             )
             require_contains(
@@ -20638,7 +20638,7 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR macc vector type",
         )
         multiply_accumulate_boundary = {
-            "typed_compute_op": "tcrv_rvv.macc",
+            "typed_compute_op": "weft_rvv.macc",
             "macc_kind": "add",
             "source_vector_type": expectation.rvv_vector_type,
             "lhs_element_type": expectation.element_type,
@@ -20679,7 +20679,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR computed-mask macc compare producer",
         )
         require_contains(
@@ -20689,7 +20689,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_macc",
+            "weft_rvv.masked_macc",
             "materialized selected-body MLIR computed-mask macc op",
         )
         require_contains(
@@ -20714,22 +20714,22 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.macc",
+            "weft_rvv.macc",
             "materialized selected-body MLIR computed-mask macc route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR computed-mask macc route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_move",
+            "weft_rvv.masked_move",
             "materialized selected-body MLIR computed-mask macc route",
         )
         computed_masked_macc_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_macc",
-            "compare_producer": "tcrv_rvv.compare",
+            "typed_compute_op": "weft_rvv.masked_macc",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -20760,7 +20760,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.splat",
+            "weft_rvv.splat",
             "materialized selected-body MLIR runtime scalar macc threshold splat",
         )
         require_contains(
@@ -20780,7 +20780,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR runtime scalar macc compare producer",
         )
         require_contains(
@@ -20790,7 +20790,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_macc",
+            "weft_rvv.masked_macc",
             "materialized selected-body MLIR runtime scalar macc op",
         )
         require_contains(
@@ -20815,33 +20815,33 @@ def verify_materialized_selected_body(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.macc",
+            "weft_rvv.macc",
             "materialized selected-body MLIR runtime scalar macc route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.binary",
+            "weft_rvv.binary",
             "materialized selected-body MLIR runtime scalar macc route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.select",
+            "weft_rvv.select",
             "materialized selected-body MLIR runtime scalar macc route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR runtime scalar macc route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR runtime scalar macc route",
         )
         computed_masked_macc_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_macc",
-            "compare_producer": "tcrv_rvv.compare",
-            "rhs_scalar_realization_op": "tcrv_rvv.splat",
+            "typed_compute_op": "weft_rvv.masked_macc",
+            "compare_producer": "weft_rvv.compare",
+            "rhs_scalar_realization_op": "weft_rvv.splat",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -20863,7 +20863,7 @@ def verify_materialized_selected_body(
                 "n": "runtime-element-count",
             },
             "rhs_scalar_compare_source": (
-                "rhs-scalar-value -> tcrv_rvv.splat -> compare RHS"
+                "rhs-scalar-value -> weft_rvv.splat -> compare RHS"
             ),
             "inactive_lane_contract": (
                 COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT
@@ -20901,7 +20901,7 @@ def verify_materialized_selected_body(
     ):
         require_contains(
             text,
-            "tcrv_rvv.compare",
+            "weft_rvv.compare",
             "materialized selected-body MLIR masked widening dot compare producer",
         )
         require_contains(
@@ -20911,22 +20911,22 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_widening_dot_reduce",
+            "weft_rvv.masked_widening_dot_reduce",
             "materialized selected-body MLIR masked widening dot op",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            '!weft_rvv.vector<i16, "mf2">',
             "materialized selected-body MLIR masked widening dot source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m1">',
+            '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR masked widening dot result vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.mask<i32, "m1">',
+            '!weft_rvv.mask<i32, "m1">',
             "materialized selected-body MLIR masked widening dot mask type",
         )
         require_contains(
@@ -20960,15 +20960,15 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR masked widening dot result layout",
         )
         computed_masked_widening_dot_reduce_boundary = {
-            "typed_compute_op": "tcrv_rvv.masked_widening_dot_reduce",
-            "compare_producer": "tcrv_rvv.compare",
+            "typed_compute_op": "weft_rvv.masked_widening_dot_reduce",
+            "compare_producer": "weft_rvv.compare",
             "compare_predicate_kind": expectation.compare_predicate_kind,
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-            "source_vector_type": '!tcrv_rvv.vector<i16, "mf2">',
-            "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
-            "mask_type": '!tcrv_rvv.mask<i32, "m1">',
+            "source_vector_type": '!weft_rvv.vector<i16, "mf2">',
+            "result_vector_type": '!weft_rvv.vector<i32, "m1">',
+            "mask_type": '!weft_rvv.mask<i32, "m1">',
             "source_element_type": "i16",
             "source_sew": "16",
             "source_lmul": "mf2",
@@ -20992,9 +20992,9 @@ def verify_materialized_selected_body(
                 expectation.is_computed_masked_strided_input_widening_dot_reduce_add
             ),
             "source_load_op": (
-                "tcrv_rvv.strided_load"
+                "weft_rvv.strided_load"
                 if expectation.is_computed_masked_strided_input_widening_dot_reduce_add
-                else "tcrv_rvv.load"
+                else "weft_rvv.load"
             ),
             "source_memory_form": (
                 STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
@@ -21050,147 +21050,147 @@ def verify_materialized_selected_body(
     if expectation.is_pre_realized:
         require_not_contains(
             text,
-            "tcrv_rvv.typed_binary_pre_realized_body",
+            "weft_rvv.typed_binary_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_masked_binary_pre_realized_body",
+            "weft_rvv.typed_masked_binary_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_compare_select_pre_realized_body",
+            "weft_rvv.typed_compare_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_select_pre_realized_body",
+            "weft_rvv.typed_computed_mask_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_compare_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_reduce_pre_realized_body",
+            "weft_rvv.typed_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_standalone_reduce_pre_realized_body",
+            "weft_rvv.typed_standalone_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_standalone_reduce_pre_realized_body",
+            "weft_rvv.typed_computed_mask_standalone_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body",
+            "weft_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_macc_pre_realized_body",
+            "weft_rvv.typed_macc_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_macc_pre_realized_body",
+            "weft_rvv.typed_computed_mask_macc_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_widening_conversion_pre_realized_body",
+            "weft_rvv.typed_widening_conversion_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_widening_macc_pre_realized_body",
+            "weft_rvv.typed_widening_macc_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body",
+            "weft_rvv.typed_widening_dot_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body",
+            "weft_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_pre_realized_body",
+            "weft_rvv.typed_computed_mask_strided_input_widening_dot_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_strided_memory_pre_realized_body",
+            "weft_rvv.typed_strided_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_indexed_gather_memory_pre_realized_body",
+            "weft_rvv.typed_indexed_gather_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body",
+            "weft_rvv.typed_indexed_scatter_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_masked_memory_pre_realized_body",
+            "weft_rvv.typed_masked_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_memory_pre_realized_body",
+            "weft_rvv.typed_computed_mask_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
+            "weft_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
+            "weft_rvv.typed_segment2_interleave_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body",
+            "weft_rvv.typed_computed_mask_segment2_load_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body",
+            "weft_rvv.typed_computed_mask_segment2_store_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
             text,
-            "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+            "weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
     if (
@@ -21199,7 +21199,7 @@ def verify_materialized_selected_body(
     ):
         require_not_contains(
             text,
-            "tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_body",
+            "weft_rvv.typed_widening_product_reduce_dequant_clamp_f32_body",
             "materialized explicit selected-body MLIR",
         )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
@@ -21253,12 +21253,12 @@ def extract_widening_conversion_materialized_boundary(
     )
     require_contains(
         text,
-        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR widening conversion result vector type",
     )
     require_contains(
         text,
-        "tcrv_rvv.widening_convert",
+        "weft_rvv.widening_convert",
         "materialized selected-body MLIR widening conversion op",
     )
     require_contains(
@@ -21269,17 +21269,17 @@ def extract_widening_conversion_materialized_boundary(
     return {
         "source_vector_type": expectation.conversion_source_vector_type,
         "result_vector_type": (
-            f'!tcrv_rvv.vector<{expectation.element_type}, '
+            f'!weft_rvv.vector<{expectation.element_type}, '
             f'"{expectation.lmul}">'
         ),
-        "conversion_op": "tcrv_rvv.widening_convert",
+        "conversion_op": "weft_rvv.widening_convert",
         "conversion_kind": expectation.conversion_kind,
         "conversion_relation": expectation.conversion_relation,
         "source_sew": expectation.conversion_source_sew,
         "source_lmul": expectation.conversion_source_lmul,
         "dest_sew": expectation.sew,
         "dest_lmul": expectation.lmul,
-        "runtime_vl": "tcrv_rvv.setvl -> tcrv_rvv.with_vl",
+        "runtime_vl": "weft_rvv.setvl -> weft_rvv.with_vl",
     }
 
 
@@ -21288,7 +21288,7 @@ def extract_plain_cmp_select_materialized_boundary(
 ) -> dict[str, Any]:
     require_contains(
         text,
-        "tcrv_rvv.compare",
+        "weft_rvv.compare",
         "materialized selected-body MLIR cmp_select compare op",
     )
     require_contains(
@@ -21298,17 +21298,17 @@ def extract_plain_cmp_select_materialized_boundary(
     )
     require_contains(
         text,
-        "tcrv_rvv.select",
+        "weft_rvv.select",
         "materialized selected-body MLIR cmp_select select op",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR cmp_select predicate mask type",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR cmp_select vector type",
     )
     require_contains(
@@ -21328,20 +21328,20 @@ def extract_plain_cmp_select_materialized_boundary(
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR cmp_select produced predicate route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR cmp_select route",
     )
     return {
-        "typed_body_source": "tcrv_rvv.typed_compare_select_pre_realized_body",
-        "realized_compare_op": "tcrv_rvv.compare",
+        "typed_body_source": "weft_rvv.typed_compare_select_pre_realized_body",
+        "realized_compare_op": "weft_rvv.compare",
         "realized_select_op": expectation.typed_compute_op,
         "compare_predicate_kind": expectation.compare_predicate_kind,
-        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_type": f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
         "select_layout": PLAIN_COMPARE_SELECT_LAYOUT,
         "select_true_operand_role": "lhs-input-buffer",
@@ -21357,7 +21357,7 @@ def extract_f32_clamp_select_materialized_boundary(
 ) -> dict[str, Any]:
     require_not_contains(
         text,
-        "tcrv_rvv.typed_f32_clamp_select_pre_realized_body",
+        "weft_rvv.typed_f32_clamp_select_pre_realized_body",
         "materialized selected-body MLIR f32 clamp/select",
     )
     for role in (
@@ -21374,20 +21374,20 @@ def extract_f32_clamp_select_materialized_boundary(
         )
     require_contains(
         text,
-        '!tcrv_rvv.vector<f32, "m1">',
+        '!weft_rvv.vector<f32, "m1">',
         "materialized selected-body MLIR f32 clamp/select vector type",
     )
     require_contains(
         text,
-        '!tcrv_rvv.mask<f32, "m1">',
+        '!weft_rvv.mask<f32, "m1">',
         "materialized selected-body MLIR f32 clamp/select mask type",
     )
     for token, context in (
-        ("tcrv_rvv.load", "input load"),
-        ("tcrv_rvv.splat", "runtime bound splat"),
-        ("tcrv_rvv.compare", "compare"),
-        ("tcrv_rvv.select", "select"),
-        ("tcrv_rvv.store", "store"),
+        ("weft_rvv.load", "input load"),
+        ("weft_rvv.splat", "runtime bound splat"),
+        ("weft_rvv.compare", "compare"),
+        ("weft_rvv.select", "select"),
+        ("weft_rvv.store", "store"),
     ):
         require_contains(
             text,
@@ -21401,28 +21401,28 @@ def extract_f32_clamp_select_materialized_boundary(
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR f32 clamp/select",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR f32 clamp/select",
     )
     return {
-        "typed_body_source": "tcrv_rvv.typed_f32_clamp_select_pre_realized_body",
+        "typed_body_source": "weft_rvv.typed_f32_clamp_select_pre_realized_body",
         "pre_realized_body_consumed": True,
-        "realized_load_op": "tcrv_rvv.load",
-        "realized_bound_splat_op": "tcrv_rvv.splat",
-        "realized_compare_op": "tcrv_rvv.compare",
-        "realized_select_op": "tcrv_rvv.select",
-        "realized_store_op": "tcrv_rvv.store",
+        "realized_load_op": "weft_rvv.load",
+        "realized_bound_splat_op": "weft_rvv.splat",
+        "realized_compare_op": "weft_rvv.compare",
+        "realized_select_op": "weft_rvv.select",
+        "realized_store_op": "weft_rvv.store",
         "compare_predicate_kind": F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE,
         "secondary_compare_predicate_kind": (
             F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
         ),
-        "predicate_type": '!tcrv_rvv.mask<f32, "m1">',
-        "vector_type": '!tcrv_rvv.vector<f32, "m1">',
+        "predicate_type": '!weft_rvv.mask<f32, "m1">',
+        "vector_type": '!weft_rvv.vector<f32, "m1">',
         "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
         "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
         "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
@@ -21437,7 +21437,7 @@ def extract_dequant_clamp_f32_epilogue_materialized_boundary(
 ) -> dict[str, Any]:
     require_not_contains(
         text,
-        "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+        "weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
         "materialized selected-body MLIR dequant-clamp epilogue",
     )
     for role in (
@@ -21462,13 +21462,13 @@ def extract_dequant_clamp_f32_epilogue_materialized_boundary(
             DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
             "f32 result vector type",
         ),
-        ('!tcrv_rvv.mask<f32, "m1">', "f32 compare mask type"),
-        ("tcrv_rvv.load", "i32 source load"),
-        ("tcrv_rvv.dequantize", "runtime-scale dequantize op"),
-        ("tcrv_rvv.splat", "runtime bound splat"),
-        ("tcrv_rvv.compare", "lower/upper compare"),
-        ("tcrv_rvv.select", "lower/upper select"),
-        ("tcrv_rvv.store", "f32 store"),
+        ('!weft_rvv.mask<f32, "m1">', "f32 compare mask type"),
+        ("weft_rvv.load", "i32 source load"),
+        ("weft_rvv.dequantize", "runtime-scale dequantize op"),
+        ("weft_rvv.splat", "runtime bound splat"),
+        ("weft_rvv.compare", "lower/upper compare"),
+        ("weft_rvv.select", "lower/upper select"),
+        ("weft_rvv.store", "f32 store"),
     ):
         require_contains(
             text,
@@ -21496,28 +21496,28 @@ def extract_dequant_clamp_f32_epilogue_materialized_boundary(
         )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR dequant-clamp",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR dequant-clamp",
     )
     return {
         "typed_body_source": (
-            "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
+            "weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
         ),
         "pre_realized_body_consumed": True,
-        "realized_load_op": "tcrv_rvv.load",
-        "realized_dequant_op": "tcrv_rvv.dequantize",
-        "realized_bound_splat_op": "tcrv_rvv.splat",
-        "realized_compare_op": "tcrv_rvv.compare",
-        "realized_select_op": "tcrv_rvv.select",
-        "realized_store_op": "tcrv_rvv.store",
+        "realized_load_op": "weft_rvv.load",
+        "realized_dequant_op": "weft_rvv.dequantize",
+        "realized_bound_splat_op": "weft_rvv.splat",
+        "realized_compare_op": "weft_rvv.compare",
+        "realized_select_op": "weft_rvv.select",
+        "realized_store_op": "weft_rvv.store",
         "source_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE,
         "result_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
-        "predicate_type": '!tcrv_rvv.mask<f32, "m1">',
+        "predicate_type": '!weft_rvv.mask<f32, "m1">',
         "dequantization_relation": DEQUANTIZE_I32_TO_F32_RELATION,
         "conversion_kind": DEQUANTIZE_I32_TO_F32_CONVERSION_KIND,
         "compare_predicate_kind": F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE,
@@ -21532,13 +21532,13 @@ def extract_dequant_clamp_f32_epilogue_materialized_boundary(
         "memory_form": expectation.memory_form,
         "compare_select_predicate_boundary": {
             "typed_body_source": (
-                "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
+                "weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
             ),
             "pre_realized_body_consumed": True,
             "input_vector": "dequantized-scaled-f32-vector",
-            "realized_compare_op": "tcrv_rvv.compare",
-            "realized_select_op": "tcrv_rvv.select",
-            "predicate_type": '!tcrv_rvv.mask<f32, "m1">',
+            "realized_compare_op": "weft_rvv.compare",
+            "realized_select_op": "weft_rvv.select",
+            "predicate_type": '!weft_rvv.mask<f32, "m1">',
             "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
             "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
             "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
@@ -21552,7 +21552,7 @@ def extract_computed_mask_select_materialized_boundary(
 ) -> dict[str, Any]:
     require_contains(
         text,
-        "tcrv_rvv.compare",
+        "weft_rvv.compare",
         "materialized selected-body MLIR computed_mask_select compare op",
     )
     require_contains(
@@ -21562,17 +21562,17 @@ def extract_computed_mask_select_materialized_boundary(
     )
     require_contains(
         text,
-        "tcrv_rvv.select",
+        "weft_rvv.select",
         "materialized selected-body MLIR computed_mask_select select op",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR computed_mask_select predicate mask type",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR computed_mask_select vector type",
     )
     for role in (
@@ -21589,22 +21589,22 @@ def extract_computed_mask_select_materialized_boundary(
         )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR computed_mask_select produced predicate route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR computed_mask_select route",
     )
     return {
         "typed_body_source": (
-            "tcrv_rvv.typed_computed_mask_select_pre_realized_body"
+            "weft_rvv.typed_computed_mask_select_pre_realized_body"
         ),
-        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_compare_op": "weft_rvv.compare",
         "realized_select_op": expectation.typed_compute_op,
         "compare_predicate_kind": expectation.compare_predicate_kind,
-        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_type": f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
         "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
         "select_true_operand_role": "true-value-input-buffer",
@@ -21622,12 +21622,12 @@ def extract_runtime_scalar_cmp_select_materialized_boundary(
 ) -> dict[str, Any]:
     require_contains(
         text,
-        "tcrv_rvv.splat",
+        "weft_rvv.splat",
         "materialized selected-body MLIR runtime_scalar_cmp_select RHS scalar splat",
     )
     require_contains(
         text,
-        "tcrv_rvv.compare",
+        "weft_rvv.compare",
         "materialized selected-body MLIR runtime_scalar_cmp_select compare op",
     )
     require_contains(
@@ -21637,17 +21637,17 @@ def extract_runtime_scalar_cmp_select_materialized_boundary(
     )
     require_contains(
         text,
-        "tcrv_rvv.select",
+        "weft_rvv.select",
         "materialized selected-body MLIR runtime_scalar_cmp_select select op",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR runtime_scalar_cmp_select predicate mask type",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR runtime_scalar_cmp_select vector type",
     )
     for role in (
@@ -21664,28 +21664,28 @@ def extract_runtime_scalar_cmp_select_materialized_boundary(
         )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR runtime_scalar_cmp_select produced predicate route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR runtime_scalar_cmp_select route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.masked_move",
+        "weft_rvv.masked_move",
         "materialized selected-body MLIR runtime_scalar_cmp_select route",
     )
     return {
         "typed_body_source": (
-            "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body"
+            "weft_rvv.typed_runtime_scalar_compare_select_pre_realized_body"
         ),
-        "realized_splat_op": "tcrv_rvv.splat",
-        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_splat_op": "weft_rvv.splat",
+        "realized_compare_op": "weft_rvv.compare",
         "realized_select_op": expectation.typed_compute_op,
         "compare_predicate_kind": expectation.compare_predicate_kind,
-        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_type": f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
         "compare_rhs_source": COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE,
         "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
@@ -21703,10 +21703,10 @@ def extract_runtime_scalar_dual_cmp_mask_and_select_materialized_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
     splat_count = len(
-        re.findall(r"^\s*%[^\n]*=\s*tcrv_rvv\.splat\b", text, re.MULTILINE)
+        re.findall(r"^\s*%[^\n]*=\s*weft_rvv\.splat\b", text, re.MULTILINE)
     )
     compare_count = len(
-        re.findall(r"^\s*%[^\n]*=\s*tcrv_rvv\.compare\b", text, re.MULTILINE)
+        re.findall(r"^\s*%[^\n]*=\s*weft_rvv\.compare\b", text, re.MULTILINE)
     )
     if splat_count < 2:
         raise EvidenceError(
@@ -21720,7 +21720,7 @@ def extract_runtime_scalar_dual_cmp_mask_and_select_materialized_boundary(
         )
     require_contains(
         text,
-        "tcrv_rvv.mask_and",
+        "weft_rvv.mask_and",
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select mask-and op",
     )
     require_contains(
@@ -21730,17 +21730,17 @@ def extract_runtime_scalar_dual_cmp_mask_and_select_materialized_boundary(
     )
     require_contains(
         text,
-        "tcrv_rvv.select",
+        "weft_rvv.select",
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select select op",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select predicate mask type",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select vector type",
     )
     for role in (
@@ -21759,32 +21759,32 @@ def extract_runtime_scalar_dual_cmp_mask_and_select_materialized_boundary(
         )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.masked_move",
+        "weft_rvv.masked_move",
         "materialized selected-body MLIR runtime_scalar_dual_cmp_mask_and_select route",
     )
     return {
         "typed_body_source": (
-            "tcrv_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body"
+            "weft_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body"
         ),
-        "realized_splat_op": "tcrv_rvv.splat",
+        "realized_splat_op": "weft_rvv.splat",
         "realized_splat_count": splat_count,
-        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_compare_op": "weft_rvv.compare",
         "realized_compare_count": compare_count,
-        "realized_mask_composition_op": "tcrv_rvv.mask_and",
+        "realized_mask_composition_op": "weft_rvv.mask_and",
         "realized_select_op": expectation.typed_compute_op,
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "secondary_compare_predicate_kind": expectation.compare_predicate_kind,
-        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_type": f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "predicate_source": "mask-and-of-two-runtime-scalar-compare-produced-masks",
         "mask_role": "predicate-mask-produced-by-mask-and",
         "mask_memory_form": "composed-compare-produced-mask",
@@ -21814,10 +21814,10 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
             f"{expectation.kind} has no runtime scalar computed-mask memory boundary"
         )
     splat_count = len(
-        re.findall(r"^\s*%[^\n]*=\s*tcrv_rvv\.splat\b", text, re.MULTILINE)
+        re.findall(r"^\s*%[^\n]*=\s*weft_rvv\.splat\b", text, re.MULTILINE)
     )
     compare_count = len(
-        re.findall(r"^\s*%[^\n]*=\s*tcrv_rvv\.compare\b", text, re.MULTILINE)
+        re.findall(r"^\s*%[^\n]*=\s*weft_rvv\.compare\b", text, re.MULTILINE)
     )
     if splat_count < 1:
         raise EvidenceError(
@@ -21829,12 +21829,12 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
         )
     require_contains(
         text,
-        "tcrv_rvv.splat",
+        "weft_rvv.splat",
         "materialized selected-body MLIR runtime scalar computed-mask memory splat",
     )
     require_contains(
         text,
-        "tcrv_rvv.compare",
+        "weft_rvv.compare",
         "materialized selected-body MLIR runtime scalar computed-mask memory compare",
     )
     require_contains(
@@ -21844,12 +21844,12 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
     )
     require_contains(
         text,
-        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR runtime scalar computed-mask memory mask type",
     )
     require_contains(
         text,
-        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        f'!weft_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
         "materialized selected-body MLIR runtime scalar computed-mask memory vector type",
     )
     for role in (
@@ -21866,7 +21866,7 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
     if expectation.is_runtime_scalar_computed_mask_store:
         require_contains(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR runtime scalar computed-mask store op",
         )
         require_contains(
@@ -21881,17 +21881,17 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR runtime scalar computed-mask store route",
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR runtime scalar computed-mask store route",
         )
-        realized_memory_ops = ["tcrv_rvv.masked_store"]
+        realized_memory_ops = ["weft_rvv.masked_store"]
         typed_body_source = (
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body"
+            "weft_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body"
         )
         inactive_lane_policy = "preserve-output-on-false-lanes"
         inactive_lane_contract = MASKED_STORE_INACTIVE_LANE_CONTRACT
@@ -21899,12 +21899,12 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
     else:
         require_contains(
             text,
-            "tcrv_rvv.masked_load",
+            "weft_rvv.masked_load",
             "materialized selected-body MLIR runtime scalar computed-mask load op",
         )
         require_contains(
             text,
-            "tcrv_rvv.store",
+            "weft_rvv.store",
             "materialized selected-body MLIR runtime scalar computed-mask load-store final store",
         )
         require_contains(
@@ -21919,40 +21919,40 @@ def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
         )
         require_no_op_invocation(
             text,
-            "tcrv_rvv.masked_store",
+            "weft_rvv.masked_store",
             "materialized selected-body MLIR runtime scalar computed-mask load-store route",
         )
-        realized_memory_ops = ["tcrv_rvv.masked_load", "tcrv_rvv.store"]
+        realized_memory_ops = ["weft_rvv.masked_load", "weft_rvv.store"]
         typed_body_source = (
-            "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body"
+            "weft_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body"
         )
         inactive_lane_policy = "preserve-passthrough-on-false-lanes"
         inactive_lane_contract = MASKED_MEMORY_INACTIVE_LANE_CONTRACT
         destination_memory_form = MASKED_MEMORY_DESTINATION_MEMORY_FORM
     require_no_op_invocation(
         text,
-        "tcrv_rvv.select",
+        "weft_rvv.select",
         "materialized selected-body MLIR runtime scalar computed-mask memory route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.binary",
+        "weft_rvv.binary",
         "materialized selected-body MLIR runtime scalar computed-mask memory route",
     )
     require_no_op_invocation(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR runtime scalar computed-mask memory route",
     )
     return {
         "typed_body_source": typed_body_source,
-        "realized_splat_op": "tcrv_rvv.splat",
+        "realized_splat_op": "weft_rvv.splat",
         "realized_splat_count": splat_count,
-        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_compare_op": "weft_rvv.compare",
         "realized_compare_count": compare_count,
         "realized_memory_ops": realized_memory_ops,
         "compare_predicate_kind": expectation.compare_predicate_kind,
-        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_type": f'!weft_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
         "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
         "compare_rhs_source": COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE,
         "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
@@ -21992,12 +21992,12 @@ def extract_masked_unit_store_materialized_boundary(
     )
     require_contains(
         text,
-        "policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>",
+        "policy = #weft_rvv.policy<tail = undisturbed, mask = undisturbed>",
         "materialized selected-body MLIR masked_unit_store undisturbed policy",
     )
     require_contains(
         text,
-        "tcrv_rvv.mask_load",
+        "weft_rvv.mask_load",
         "materialized selected-body MLIR masked_unit_store mask_load",
     )
     require_contains(
@@ -22012,7 +22012,7 @@ def extract_masked_unit_store_materialized_boundary(
     )
     require_contains(
         text,
-        "tcrv_rvv.masked_store",
+        "weft_rvv.masked_store",
         "materialized selected-body MLIR masked_unit_store masked_store",
     )
     require_contains(
@@ -22026,8 +22026,8 @@ def extract_masked_unit_store_materialized_boundary(
         "materialized selected-body MLIR masked_unit_store inactive lane policy",
     )
     return {
-        "typed_body_source": "tcrv_rvv.typed_masked_memory_pre_realized_body",
-        "realized_mask_op": "tcrv_rvv.mask_load",
+        "typed_body_source": "weft_rvv.typed_masked_memory_pre_realized_body",
+        "realized_mask_op": "weft_rvv.mask_load",
         "realized_store_op": expectation.typed_compute_op,
         "mask_abi_role": "mask-input-buffer",
         "mask_role": MASKED_MEMORY_MASK_ROLE,
@@ -22047,7 +22047,7 @@ def extract_runtime_avl_vl_materialized_boundary(
     runtime_count_bindings = list(
         re.finditer(
             r"(?P<value>%[-A-Za-z0-9_.$]+) = "
-            r"tcrv_rvv\.runtime_abi_value \{(?P<attrs>[^}]*)\} : index",
+            r"weft_rvv\.runtime_abi_value \{(?P<attrs>[^}]*)\} : index",
             text,
         )
     )
@@ -22066,22 +22066,22 @@ def extract_runtime_avl_vl_materialized_boundary(
     runtime_avl_value = runtime_count_bindings[0].group("value")
     setvl = require_regex(
         text,
-        rf"(?P<vl>%[-A-Za-z0-9_.$]+) = tcrv_rvv\.setvl "
+        rf"(?P<vl>%[-A-Za-z0-9_.$]+) = weft_rvv\.setvl "
         rf"{re.escape(runtime_avl_value)} \{{(?P<attrs>[^}}]*)\}} : "
-        r"index -> !tcrv_rvv\.vl",
+        r"index -> !weft_rvv\.vl",
         "materialized selected-body MLIR setvl consumes runtime n",
     )
     attrs = setvl.group("attrs")
     # The deferred-wide (N3) realization drives its setvl at the i8m2 STRIP config;
     # the route/header keep the i32m1/f32m1 result config. Derive the strip config
     # structurally when the body carries the i32m8 deferred accumulate.
-    body_has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+    body_has_deferred_wide_accumulate = "weft_rvv.widening_accumulate" in text
     setvl_lmul = "m2" if body_has_deferred_wide_accumulate else expectation.lmul
     setvl_sew = 8 if body_has_deferred_wide_accumulate else expectation.sew
     for token, context in (
         (f'lmul = "{setvl_lmul}"', "LMUL"),
         (f"sew = {setvl_sew} : i64", "SEW"),
-        ("policy = #tcrv_rvv.policy<", "policy"),
+        ("policy = #weft_rvv.policy<", "policy"),
     ):
         require_contains(
             attrs, token, f"materialized selected-body MLIR setvl {context}"
@@ -22089,7 +22089,7 @@ def extract_runtime_avl_vl_materialized_boundary(
     vl_value = setvl.group("vl")
     require_regex(
         text,
-        rf"tcrv_rvv\.with_vl {re.escape(vl_value)}\b",
+        rf"weft_rvv\.with_vl {re.escape(vl_value)}\b",
         "materialized selected-body MLIR with_vl consumes setvl result",
     )
     return {
@@ -22101,7 +22101,7 @@ def extract_runtime_avl_vl_materialized_boundary(
         "with_vl_consumes_setvl": True,
         "sew": expectation.sew,
         "lmul": expectation.lmul,
-        "policy": "explicit-tcrv-rvv-policy",
+        "policy": "explicit-weft-rvv-policy",
     }
 
 
@@ -30814,8 +30814,8 @@ int main(void) {{
 
 
 def generate_bundle(
-    tcrv_opt: str,
-    tcrv_translate: str,
+    weft_opt: str,
+    weft_translate: str,
     expectation: OpExpectation,
     bundle_dir: Path,
     timeout: int,
@@ -30827,42 +30827,42 @@ def generate_bundle(
             "before target bundle export"
         )
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
-    materialize_command = [tcrv_opt, str(expectation.input_path)]
+    materialize_command = [weft_opt, str(expectation.input_path)]
     if expectation.is_vector_source_front_door:
         if expectation.is_runtime_scalar_compare_select:
             materialize_command.append(
-                "--tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door"
+                "--weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door"
             )
         elif expectation.is_cmp_select:
             materialize_command.append(
-                "--tcrv-rvv-materialize-vector-compare-select-source-front-door"
+                "--weft-rvv-materialize-vector-compare-select-source-front-door"
             )
         else:
             materialize_command.append(
-                "--tcrv-rvv-materialize-vector-binary-source-front-door"
+                "--weft-rvv-materialize-vector-binary-source-front-door"
             )
     if (
         expectation.is_widening_product_reduce_dequantize_f32
         or expectation.is_widening_product_reduce_dequant_clamp_f32
     ):
-        materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
+        materialize_command.append("--weft-rvv-materialize-gearbox-schedules")
     if expectation.requires_selected_lowering_boundary_materialization:
-        materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
+        materialize_command.append("--weft-materialize-selected-lowering-boundaries")
     if expectation.is_dequantize_i32_to_f32:
-        materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
+        materialize_command.append("--weft-rvv-materialize-gearbox-schedules")
     materialize_command.extend(
-        ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]
+        ["--weft-materialize-emission-plans", "-o", str(materialized_path)]
     )
     materialize_record = run_command(materialize_command, timeout=timeout)
     require_command_success(
         materialize_record,
-        "tcrv-opt explicit selected-body emission-plan materialization",
+        "weft-opt explicit selected-body emission-plan materialization",
     )
 
     emitted_source_path = bundle_dir.parent / "materialized_rvv_emitc.cpp"
     emit_source_command = [
-        tcrv_translate,
-        "--tcrv-rvv-emitc-to-cpp",
+        weft_translate,
+        "--weft-rvv-emitc-to-cpp",
         str(materialized_path),
         "-o",
         str(emitted_source_path),
@@ -30870,26 +30870,26 @@ def generate_bundle(
     emit_source_record = run_command(emit_source_command, timeout=timeout)
     require_command_success(
         emit_source_record,
-        "tcrv-translate selected typed-body RVV EmitC C/C++ export",
+        "weft-translate selected typed-body RVV EmitC C/C++ export",
     )
 
     translate_command = [
-        tcrv_translate,
-        "--tcrv-export-target-artifact-bundle",
-        f"--tcrv-target-artifact-bundle-output-dir={bundle_dir}",
+        weft_translate,
+        "--weft-export-target-artifact-bundle",
+        f"--weft-target-artifact-bundle-output-dir={bundle_dir}",
         str(materialized_path),
     ]
     translate_record = run_command(translate_command, timeout=timeout)
     require_command_success(
         translate_record,
-        "tcrv-translate selected typed-body artifact bundle export",
+        "weft-translate selected typed-body artifact bundle export",
     )
     result = {
         "input_mode": expectation.input_mode,
-        "front_door": "explicit-selected-tcrv-exec-rvv-body",
+        "front_door": "explicit-selected-weft-exec-rvv-body",
         "materializer": "none-selected-body-already-explicit",
         "source_seed": expectation.source_seed,
-        "target_export": "tcrv-export-target-artifact-bundle",
+        "target_export": "weft-export-target-artifact-bundle",
         "materialized_selected_body": str(materialized_path),
         "emitted_rvv_cpp": str(emitted_source_path),
         "pipeline": (
@@ -30899,30 +30899,30 @@ def generate_bundle(
             + " && "
             + command_display(translate_command)
         ),
-        "tcrv_opt": materialize_record,
-        "tcrv_rvv_emitc_cpp": emit_source_record,
-        "tcrv_translate": translate_record,
+        "weft_opt": materialize_record,
+        "weft_rvv_emitc_cpp": emit_source_record,
+        "weft_translate": translate_record,
     }
     if expectation.is_pre_realized:
-        result["front_door"] = "pre-realized-selected-tcrv-exec-rvv-body"
-        result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
+        result["front_door"] = "pre-realized-selected-weft-exec-rvv-body"
+        result["materializer"] = "weft-materialize-selected-lowering-boundaries"
         result["route_entry_realization"] = False
         result["selected_body_realization_producer"] = (
             "rvv-plugin-local-selected-body-realization-owner-registry"
         )
         result["realization_boundary"] = (
             "public selected lowering-boundary materialization consumed the "
-            "pre-realized typed tcrv_rvv body before provider route construction"
+            "pre-realized typed weft_rvv body before provider route construction"
         )
     elif expectation.requires_selected_lowering_boundary_materialization:
-        result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
+        result["materializer"] = "weft-materialize-selected-lowering-boundaries"
         result["route_entry_realization"] = False
         result["selected_body_realization_producer"] = (
             "rvv-plugin-local-selected-body-realization-owner-registry"
         )
         result["realization_boundary"] = (
             "public selected lowering-boundary materialization consumed the "
-            "explicit compound typed tcrv_rvv body before provider route "
+            "explicit compound typed weft_rvv body before provider route "
             "construction"
         )
     elif expectation.is_vector_source_front_door:
@@ -30983,7 +30983,7 @@ def run_remote_evidence(
     harness_path: Path,
 ) -> dict[str, Any]:
     remote_dir = (
-        f"/tmp/tianchenrv_rvv_generated_bundle_abi_"
+        f"/tmp/weft_rvv_generated_bundle_abi_"
         f"{safe_run_id(run_id)}_{expectation.kind}"
     )
     remote_object = f"{remote_dir}/{object_path.name}"
@@ -31112,7 +31112,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         raise EvidenceError(
             "legacy RVV --source-seed evidence mode is unsupported during "
             "Stage1 residue hygiene; use explicit selected generic typed "
-            "tcrv_rvv body fixtures instead"
+            "weft_rvv body fixtures instead"
         )
     vector_source_front_door = bool(
         getattr(args, "vector_source_front_door", False)
@@ -31889,8 +31889,8 @@ def widening_product_reduction_metadata_from_bundle(
         or expectation.is_widening_product_reduce_dequant_clamp_f32
     ):
         for stale_key in (
-            "tcrv_rvv.dequantize_convert_intrinsic",
-            "tcrv_rvv.dequantize_scale_intrinsic",
+            "weft_rvv.dequantize_convert_intrinsic",
+            "weft_rvv.dequantize_scale_intrinsic",
         ):
             if object_metadata.get(stale_key) or header_metadata.get(stale_key):
                 raise EvidenceError(
@@ -31946,10 +31946,10 @@ def runtime_avl_vl_boundary_summary(
 ) -> dict[str, Any]:
     return {
         "source": (
-            "selected runtime ABI n -> tcrv_rvv.setvl -> "
+            "selected runtime ABI n -> weft_rvv.setvl -> "
             "RVV provider route facts -> emitted loop setvl -> artifact ABI"
         ),
-        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "authority": "provider-derived typed weft_rvv body/config/runtime facts",
         "evidence_role": (
             "mirror-only-after-provider-route-and-materialized-emitc"
         ),
@@ -31981,34 +31981,34 @@ def selected_dispatch_bundle_boundary_summary(
     )
     return {
         "source": (
-            "actual tcrv.exec.dispatch case/fallback facts -> RVV route "
+            "actual weft.exec.dispatch case/fallback facts -> RVV route "
             "planning -> target artifact validation -> generated bundle "
             "object/header metadata"
         ),
         "authority": (
-            "actual selected tcrv.exec dispatch/fallback envelope plus "
-            "selected typed or realized tcrv_rvv body and RVV provider route"
+            "actual selected weft.exec dispatch/fallback envelope plus "
+            "selected typed or realized weft_rvv body and RVV provider route"
         ),
         "artifact_metadata_role": (
             "mirror-only-after-provider-route-and-selected-dispatch-validation"
         ),
         "selected_variant": expectation.selected_variant,
         "selected_dispatch_case_mirror": route_metadata.get(
-            "tcrv_rvv.selected_dispatch_case_mirror"
+            "weft_rvv.selected_dispatch_case_mirror"
         ),
         "selected_dispatch_fallback_mirror": route_metadata.get(
-            "tcrv_rvv.selected_dispatch_fallback_mirror"
+            "weft_rvv.selected_dispatch_fallback_mirror"
         ),
-        "exec_abi_bindings": route_metadata.get("tcrv_rvv.exec_abi_bindings"),
-        "runtime_abi_order": route_metadata.get("tcrv_rvv.runtime_abi_order"),
+        "exec_abi_bindings": route_metadata.get("weft_rvv.exec_abi_bindings"),
+        "runtime_abi_order": route_metadata.get("weft_rvv.runtime_abi_order"),
         "route_operand_binding_plan": route_metadata.get(
-            "tcrv_rvv.route_operand_binding_plan"
+            "weft_rvv.route_operand_binding_plan"
         ),
         "route_operand_binding_operands": route_metadata.get(
-            "tcrv_rvv.route_operand_binding_operands"
+            "weft_rvv.route_operand_binding_operands"
         ),
         "provider_supported_mirror": route_metadata.get(
-            "tcrv_rvv.provider_supported_mirror"
+            "weft_rvv.provider_supported_mirror"
         ),
         "object_header_metadata_agree": True,
         "route_metadata": route_metadata,
@@ -32035,37 +32035,37 @@ def mask_tail_policy_boundary_summary(
         emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
         return {
             "source": (
-                "typed tcrv_rvv runtime-scalar computed-mask composite "
+                "typed weft_rvv runtime-scalar computed-mask composite "
                 "body/config -> runtime scalar splat compare mask -> RVV "
                 "provider indexed gather/MAcc/scatter facts -> masked indexed "
                 "gather -> MAcc -> masked indexed scatter"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv runtime-scalar composite "
+                "provider-derived typed weft_rvv runtime-scalar composite "
                 "body/config/runtime/index/payload/accumulator facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
                 "mask_type": expectation.rvv_mask_type,
                 "mask_c_type": expectation.rvv_mask_c_type,
                 "runtime_scalar_operand": "rhs_scalar",
-                "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                "runtime_scalar_realization_op": "weft_rvv.splat",
                 "runtime_scalar_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
             },
-            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
             "mask_tail_policy_route_family_plan": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_route_family_plan"
+                "weft_rvv.mask_tail_policy_route_family_plan"
             ),
             "mask_tail_policy_owner": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_owner"
+                "weft_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
                 "runtime scalar compare-true lanes gather gather_src[index[i]], "
@@ -32073,24 +32073,24 @@ def mask_tail_policy_boundary_summary(
                 "dst[index[i]]"
             ),
             "inactive_lane_contract": route_metadata.get(
-                "tcrv_rvv.inactive_lane_contract"
+                "weft_rvv.inactive_lane_contract"
             ),
             "masked_passthrough_layout": route_metadata.get(
-                "tcrv_rvv.masked_passthrough_layout"
+                "weft_rvv.masked_passthrough_layout"
             ),
             "indexed_memory": {
-                "layout": route_metadata.get("tcrv_rvv.indexed_memory_layout"),
-                "index_source": route_metadata.get("tcrv_rvv.index_source"),
-                "index_eew": route_metadata.get("tcrv_rvv.index_eew"),
-                "offset_unit": route_metadata.get("tcrv_rvv.offset_unit"),
+                "layout": route_metadata.get("weft_rvv.indexed_memory_layout"),
+                "index_source": route_metadata.get("weft_rvv.index_source"),
+                "index_eew": route_metadata.get("weft_rvv.index_eew"),
+                "offset_unit": route_metadata.get("weft_rvv.offset_unit"),
                 "index_uniqueness": route_metadata.get(
-                    "tcrv_rvv.index_uniqueness"
+                    "weft_rvv.index_uniqueness"
                 ),
                 "data_memory_form": route_metadata.get(
-                    "tcrv_rvv.indexed_data_memory_form"
+                    "weft_rvv.indexed_data_memory_form"
                 ),
                 "destination_memory_form": route_metadata.get(
-                    "tcrv_rvv.indexed_destination_memory_form"
+                    "weft_rvv.indexed_destination_memory_form"
                 ),
             },
             "composite_roles": {
@@ -32105,72 +32105,72 @@ def mask_tail_policy_boundary_summary(
             },
             "composite_resource_selection": {
                 "candidate_set": route_metadata.get(
-                    "tcrv_rvv.composite_resource.candidate_set"
+                    "weft_rvv.composite_resource.candidate_set"
                 ),
                 "selected_candidate": route_metadata.get(
-                    "tcrv_rvv.composite_resource.selected_candidate"
+                    "weft_rvv.composite_resource.selected_candidate"
                 ),
                 "selection_reason": route_metadata.get(
-                    "tcrv_rvv.composite_resource.selection_reason"
+                    "weft_rvv.composite_resource.selection_reason"
                 ),
                 "legality_scope": route_metadata.get(
-                    "tcrv_rvv.composite_resource.legality_scope"
+                    "weft_rvv.composite_resource.legality_scope"
                 ),
                 "operation": route_metadata.get(
-                    "tcrv_rvv.composite_resource.operation"
+                    "weft_rvv.composite_resource.operation"
                 ),
                 "memory_form": route_metadata.get(
-                    "tcrv_rvv.composite_resource.memory_form"
+                    "weft_rvv.composite_resource.memory_form"
                 ),
-                "sew": route_metadata.get("tcrv_rvv.composite_resource.sew"),
-                "lmul": route_metadata.get("tcrv_rvv.composite_resource.lmul"),
+                "sew": route_metadata.get("weft_rvv.composite_resource.sew"),
+                "lmul": route_metadata.get("weft_rvv.composite_resource.lmul"),
                 "tail_policy": route_metadata.get(
-                    "tcrv_rvv.composite_resource.tail_policy"
+                    "weft_rvv.composite_resource.tail_policy"
                 ),
                 "mask_policy": route_metadata.get(
-                    "tcrv_rvv.composite_resource.mask_policy"
+                    "weft_rvv.composite_resource.mask_policy"
                 ),
                 "vl_policy": route_metadata.get(
-                    "tcrv_rvv.composite_resource.vl_policy"
+                    "weft_rvv.composite_resource.vl_policy"
                 ),
                 "accumulator_layout": route_metadata.get(
-                    "tcrv_rvv.composite_resource.accumulator_layout"
+                    "weft_rvv.composite_resource.accumulator_layout"
                 ),
                 "unroll_factor": route_metadata.get(
-                    "tcrv_rvv.composite_resource.unroll_factor"
+                    "weft_rvv.composite_resource.unroll_factor"
                 ),
                 "pipeline_intent": route_metadata.get(
-                    "tcrv_rvv.composite_resource.pipeline_intent"
+                    "weft_rvv.composite_resource.pipeline_intent"
                 ),
                 "prefetch_intent": route_metadata.get(
-                    "tcrv_rvv.composite_resource.prefetch_intent"
+                    "weft_rvv.composite_resource.prefetch_intent"
                 ),
                 "vsetvl_region_count": route_metadata.get(
-                    "tcrv_rvv.composite_resource.vsetvl_region_count"
+                    "weft_rvv.composite_resource.vsetvl_region_count"
                 ),
                 "peak_live_vector_groups": route_metadata.get(
-                    "tcrv_rvv.composite_resource.peak_live_vector_groups"
+                    "weft_rvv.composite_resource.peak_live_vector_groups"
                 ),
                 "vector_register_budget": route_metadata.get(
-                    "tcrv_rvv.composite_resource.vector_register_budget"
+                    "weft_rvv.composite_resource.vector_register_budget"
                 ),
                 "runtime_avl_source": route_metadata.get(
-                    "tcrv_rvv.composite_resource.runtime_avl_source"
+                    "weft_rvv.composite_resource.runtime_avl_source"
                 ),
                 "runtime_abi_order": route_metadata.get(
-                    "tcrv_rvv.composite_resource.runtime_abi_order"
+                    "weft_rvv.composite_resource.runtime_abi_order"
                 ),
                 "target_capability_provider_mirror": route_metadata.get(
-                    "tcrv_rvv.composite_resource.target_capability_provider_mirror"
+                    "weft_rvv.composite_resource.target_capability_provider_mirror"
                 ),
                 "target_capability_legality_mirror": route_metadata.get(
-                    "tcrv_rvv.composite_resource.target_capability_legality_mirror"
+                    "weft_rvv.composite_resource.target_capability_legality_mirror"
                 ),
                 "legality": route_metadata.get(
-                    "tcrv_rvv.composite_resource.legality"
+                    "weft_rvv.composite_resource.legality"
                 ),
                 "rejection_reason": route_metadata.get(
-                    "tcrv_rvv.composite_resource.rejection_reason"
+                    "weft_rvv.composite_resource.rejection_reason"
                 ),
             },
             "materialized_body": {
@@ -32203,31 +32203,31 @@ def mask_tail_policy_boundary_summary(
         )
         return {
             "source": (
-                "typed tcrv_rvv computed-mask select body/config -> "
+                "typed weft_rvv computed-mask select body/config -> "
                 "compare-produced mask -> RVV route-family facts -> "
                 "mask/tail statement plan -> emitted compare/select/store"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv computed-mask select "
+                "provider-derived typed weft_rvv computed-mask select "
                 "mask/policy body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
                 "mask_type": expectation.rvv_mask_type,
                 "mask_c_type": expectation.rvv_mask_c_type,
             },
-            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
             "mask_tail_policy_route_family_plan": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_route_family_plan"
+                "weft_rvv.mask_tail_policy_route_family_plan"
             ),
             "mask_tail_policy_owner": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_owner"
+                "weft_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
                 "compare-true lanes select true_value and compare-false "
@@ -32319,27 +32319,27 @@ def mask_tail_policy_boundary_summary(
         emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
         return {
             "source": (
-                "typed tcrv_rvv runtime-scalar computed-mask indexed gather "
+                "typed weft_rvv runtime-scalar computed-mask indexed gather "
                 "body/config -> runtime scalar splat compare mask -> RVV "
                 "provider indexed memory facts -> masked indexed load with "
                 "old-destination passthrough -> unit store"
                 if is_runtime_scalar
-                else "typed tcrv_rvv computed-mask indexed gather "
+                else "typed weft_rvv computed-mask indexed gather "
                 "body/config -> compare-produced mask -> RVV provider "
                 "indexed memory facts -> masked indexed load with "
                 "old-destination passthrough -> unit store"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+                "provider-derived typed weft_rvv runtime-scalar computed-mask "
                 "indexed gather body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed tcrv_rvv computed-mask indexed "
+                else "provider-derived typed weft_rvv computed-mask indexed "
                 "gather body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -32348,7 +32348,7 @@ def mask_tail_policy_boundary_summary(
                 **(
                     {
                         "runtime_scalar_operand": "rhs_scalar",
-                        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                        "runtime_scalar_realization_op": "weft_rvv.splat",
                         "runtime_scalar_producer_source": (
                             COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                         ),
@@ -32357,13 +32357,13 @@ def mask_tail_policy_boundary_summary(
                     else {}
                 ),
             },
-            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
             "mask_tail_policy_route_family_plan": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_route_family_plan"
+                "weft_rvv.mask_tail_policy_route_family_plan"
             ),
             "mask_tail_policy_owner": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_owner"
+                "weft_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
                 "runtime scalar compare-true lanes gather source values from "
@@ -32373,18 +32373,18 @@ def mask_tail_policy_boundary_summary(
                 "index vector"
             ),
             "inactive_lane_contract": route_metadata.get(
-                "tcrv_rvv.inactive_lane_contract"
+                "weft_rvv.inactive_lane_contract"
             ),
             "masked_passthrough_layout": route_metadata.get(
-                "tcrv_rvv.masked_passthrough_layout"
+                "weft_rvv.masked_passthrough_layout"
             ),
             "indexed_memory": {
-                "layout": route_metadata.get("tcrv_rvv.indexed_memory_layout"),
-                "index_source": route_metadata.get("tcrv_rvv.index_source"),
-                "index_eew": route_metadata.get("tcrv_rvv.index_eew"),
-                "offset_unit": route_metadata.get("tcrv_rvv.offset_unit"),
+                "layout": route_metadata.get("weft_rvv.indexed_memory_layout"),
+                "index_source": route_metadata.get("weft_rvv.index_source"),
+                "index_eew": route_metadata.get("weft_rvv.index_eew"),
+                "offset_unit": route_metadata.get("weft_rvv.offset_unit"),
                 "data_memory_form": route_metadata.get(
-                    "tcrv_rvv.indexed_data_memory_form"
+                    "weft_rvv.indexed_data_memory_form"
                 ),
             },
             "materialized_body": {
@@ -32415,57 +32415,57 @@ def mask_tail_policy_boundary_summary(
         emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
         return {
             "source": (
-                "typed tcrv_rvv runtime-scalar computed-mask indexed scatter "
+                "typed weft_rvv runtime-scalar computed-mask indexed scatter "
                 "body/config -> runtime scalar splat compare mask -> RVV "
                 "provider indexed scatter facts -> masked indexed store"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+                "provider-derived typed weft_rvv runtime-scalar computed-mask "
                 "indexed scatter body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
                 "mask_type": expectation.rvv_mask_type,
                 "mask_c_type": expectation.rvv_mask_c_type,
                 "runtime_scalar_operand": "rhs_scalar",
-                "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                "runtime_scalar_realization_op": "weft_rvv.splat",
                 "runtime_scalar_producer_source": (
                     COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
             },
-            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
             "mask_tail_policy_route_family_plan": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_route_family_plan"
+                "weft_rvv.mask_tail_policy_route_family_plan"
             ),
             "mask_tail_policy_owner": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_owner"
+                "weft_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
                 "runtime scalar compare-true lanes store source[i] to "
                 "destination[index[i]]"
             ),
             "inactive_lane_contract": route_metadata.get(
-                "tcrv_rvv.inactive_lane_contract"
+                "weft_rvv.inactive_lane_contract"
             ),
             "masked_passthrough_layout": route_metadata.get(
-                "tcrv_rvv.masked_passthrough_layout"
+                "weft_rvv.masked_passthrough_layout"
             ),
             "indexed_memory": {
-                "layout": route_metadata.get("tcrv_rvv.indexed_memory_layout"),
-                "index_source": route_metadata.get("tcrv_rvv.index_source"),
-                "index_eew": route_metadata.get("tcrv_rvv.index_eew"),
-                "offset_unit": route_metadata.get("tcrv_rvv.offset_unit"),
+                "layout": route_metadata.get("weft_rvv.indexed_memory_layout"),
+                "index_source": route_metadata.get("weft_rvv.index_source"),
+                "index_eew": route_metadata.get("weft_rvv.index_eew"),
+                "offset_unit": route_metadata.get("weft_rvv.offset_unit"),
                 "index_uniqueness": route_metadata.get(
-                    "tcrv_rvv.index_uniqueness"
+                    "weft_rvv.index_uniqueness"
                 ),
                 "destination_memory_form": route_metadata.get(
-                    "tcrv_rvv.indexed_destination_memory_form"
+                    "weft_rvv.indexed_destination_memory_form"
                 ),
             },
             "materialized_body": {
@@ -32502,27 +32502,27 @@ def mask_tail_policy_boundary_summary(
         emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
         return {
             "source": (
-                "typed tcrv_rvv runtime-scalar computed-mask segment2 load "
+                "typed weft_rvv runtime-scalar computed-mask segment2 load "
                 "body/config -> runtime scalar splat compare mask -> RVV "
                 "provider segment2 memory facts -> masked segment2 load with "
                 "old-field passthrough tuple -> field stores"
                 if is_runtime_scalar
-                else "typed tcrv_rvv computed-mask segment2 load "
+                else "typed weft_rvv computed-mask segment2 load "
                 "body/config -> compare-produced mask -> RVV provider "
                 "segment2 memory facts -> masked segment2 load with "
                 "old-field passthrough tuple -> field stores"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+                "provider-derived typed weft_rvv runtime-scalar computed-mask "
                 "segment2 body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed tcrv_rvv computed-mask segment2 "
+                else "provider-derived typed weft_rvv computed-mask segment2 "
                 "body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -32531,7 +32531,7 @@ def mask_tail_policy_boundary_summary(
                 **(
                     {
                         "runtime_scalar_operand": "rhs_scalar",
-                        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                        "runtime_scalar_realization_op": "weft_rvv.splat",
                         "runtime_scalar_producer_source": (
                             COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                         ),
@@ -32540,13 +32540,13 @@ def mask_tail_policy_boundary_summary(
                     else {}
                 ),
             },
-            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
             "mask_tail_policy_route_family_plan": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_route_family_plan"
+                "weft_rvv.mask_tail_policy_route_family_plan"
             ),
             "mask_tail_policy_owner": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_owner"
+                "weft_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
                 "runtime-scalar compare-true lanes load field0/field1 from "
@@ -32556,20 +32556,20 @@ def mask_tail_policy_boundary_summary(
                 "segment2 source"
             ),
             "inactive_lane_contract": route_metadata.get(
-                "tcrv_rvv.inactive_lane_contract"
+                "weft_rvv.inactive_lane_contract"
             ),
             "masked_passthrough_layout": route_metadata.get(
-                "tcrv_rvv.masked_passthrough_layout"
+                "weft_rvv.masked_passthrough_layout"
             ),
             "segment_memory_layout": route_metadata.get(
-                "tcrv_rvv.segment_memory_layout"
+                "weft_rvv.segment_memory_layout"
             ),
             "segment_tuple_c_type": route_metadata.get(
-                "tcrv_rvv.segment_tuple_c_type"
+                "weft_rvv.segment_tuple_c_type"
             ),
             "field_roles": {
-                "field0": route_metadata.get("tcrv_rvv.field0_role"),
-                "field1": route_metadata.get("tcrv_rvv.field1_role"),
+                "field0": route_metadata.get("weft_rvv.field0_role"),
+                "field1": route_metadata.get("weft_rvv.field1_role"),
             },
             "materialized_body": {
                 "typed_compute_op": materialized_checks.get("typed_compute_op"),
@@ -32605,27 +32605,27 @@ def mask_tail_policy_boundary_summary(
         emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
         return {
             "source": (
-                "typed tcrv_rvv runtime-scalar computed-mask segment2 store "
+                "typed weft_rvv runtime-scalar computed-mask segment2 store "
                 "body/config -> runtime scalar splat compare mask -> RVV "
                 "provider segment2 memory facts -> field payload loads -> "
                 "tuple create -> masked segment2 store"
                 if is_runtime_scalar
-                else "typed tcrv_rvv computed-mask segment2 store body/config "
+                else "typed weft_rvv computed-mask segment2 store body/config "
                 "-> compare-produced mask -> RVV provider segment2 memory "
                 "facts -> field payload loads -> tuple create -> masked "
                 "segment2 store"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+                "provider-derived typed weft_rvv runtime-scalar computed-mask "
                 "segment2 store body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed tcrv_rvv computed-mask segment2 "
+                else "provider-derived typed weft_rvv computed-mask segment2 "
                 "store body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -32634,7 +32634,7 @@ def mask_tail_policy_boundary_summary(
                 **(
                     {
                         "runtime_scalar_operand": "rhs_scalar",
-                        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                        "runtime_scalar_realization_op": "weft_rvv.splat",
                         "runtime_scalar_producer_source": (
                             COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
                         ),
@@ -32643,13 +32643,13 @@ def mask_tail_policy_boundary_summary(
                     else {}
                 ),
             },
-            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
             "mask_tail_policy_route_family_plan": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_route_family_plan"
+                "weft_rvv.mask_tail_policy_route_family_plan"
             ),
             "mask_tail_policy_owner": route_metadata.get(
-                "tcrv_rvv.mask_tail_policy_owner"
+                "weft_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
                 "runtime scalar compare-true lanes store field0/field1 "
@@ -32659,20 +32659,20 @@ def mask_tail_policy_boundary_summary(
                 "even/odd interleaved destination slots"
             ),
             "inactive_lane_contract": route_metadata.get(
-                "tcrv_rvv.inactive_lane_contract"
+                "weft_rvv.inactive_lane_contract"
             ),
             "masked_passthrough_layout": route_metadata.get(
-                "tcrv_rvv.masked_passthrough_layout"
+                "weft_rvv.masked_passthrough_layout"
             ),
             "segment_memory_layout": route_metadata.get(
-                "tcrv_rvv.segment_memory_layout"
+                "weft_rvv.segment_memory_layout"
             ),
             "segment_tuple_c_type": route_metadata.get(
-                "tcrv_rvv.segment_tuple_c_type"
+                "weft_rvv.segment_tuple_c_type"
             ),
             "field_roles": {
-                "field0": route_metadata.get("tcrv_rvv.field0_role"),
-                "field1": route_metadata.get("tcrv_rvv.field1_role"),
+                "field0": route_metadata.get("weft_rvv.field0_role"),
+                "field1": route_metadata.get("weft_rvv.field1_role"),
             },
             "materialized_body": {
                 "typed_compute_op": materialized_checks.get("typed_compute_op"),
@@ -32708,7 +32708,7 @@ def mask_tail_policy_boundary_summary(
         )
         selected_mask_abi = {
             "external_mask": False,
-            "producer": "tcrv_rvv.compare",
+            "producer": "weft_rvv.compare",
             "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -32717,7 +32717,7 @@ def mask_tail_policy_boundary_summary(
             selected_mask_abi.update(
                 {
                     "runtime_scalar_operand": "rhs_scalar",
-                    "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                    "runtime_scalar_realization_op": "weft_rvv.splat",
                     "runtime_scalar_producer_source": (
                         COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
                     ),
@@ -32725,29 +32725,29 @@ def mask_tail_policy_boundary_summary(
             )
         return {
             "source": (
-                "typed tcrv_rvv runtime-scalar computed-mask standalone "
+                "typed weft_rvv runtime-scalar computed-mask standalone "
                 "reduction body/config -> runtime scalar splat compare mask "
                 "-> RVV route-family facts -> statement plan -> emitted "
                 "masked reduction input"
                 if is_runtime_scalar
-                else "typed tcrv_rvv computed-mask standalone reduction "
+                else "typed weft_rvv computed-mask standalone reduction "
                 "body/config -> compare-produced mask -> RVV route-family "
                 "facts -> statement plan -> emitted masked reduction input"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv runtime-scalar "
+                "provider-derived typed weft_rvv runtime-scalar "
                 "mask/reduction body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed tcrv_rvv mask/reduction "
+                else "provider-derived typed weft_rvv mask/reduction "
                 "body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": selected_mask_abi,
             "tail_policy": expected_metadata_for(expectation).get(
-                "tcrv_rvv.tail_policy"
+                "weft_rvv.tail_policy"
             ),
             "mask_policy": expected_metadata_for(expectation).get(
-                "tcrv_rvv.mask_policy"
+                "weft_rvv.mask_policy"
             ),
             "inactive_lane_contract": inactive_contract,
             "active_lane_contract": (
@@ -32782,19 +32782,19 @@ def mask_tail_policy_boundary_summary(
     if expectation.is_masked_elementwise:
         return {
             "source": (
-                "typed tcrv_rvv masked elementwise body/config -> "
+                "typed weft_rvv masked elementwise body/config -> "
                 "compare-produced mask -> RVV route-family facts -> "
                 "residual operand bindings -> statement plan -> emitted "
                 "masked elementwise arithmetic and passthrough merge"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv masked elementwise "
+                "provider-derived typed weft_rvv masked elementwise "
                 "body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "selected_mask_abi": {
                 "external_mask": False,
-                "producer": "tcrv_rvv.compare",
+                "producer": "weft_rvv.compare",
                 "role": MASKED_ADD_MASK_ROLE,
                 "source": MASKED_ADD_MASK_SOURCE,
                 "memory_form": "compare-produced-mask",
@@ -32809,10 +32809,10 @@ def mask_tail_policy_boundary_summary(
                 "vector_c_type": expectation.rvv_vector_c_type,
             },
             "tail_policy": expected_metadata_for(expectation).get(
-                "tcrv_rvv.tail_policy"
+                "weft_rvv.tail_policy"
             ),
             "mask_policy": expected_metadata_for(expectation).get(
-                "tcrv_rvv.mask_policy"
+                "weft_rvv.mask_policy"
             ),
             "active_lane_contract": (
                 "compare-true lanes compute lhs op rhs through the masked "
@@ -32852,10 +32852,10 @@ def mask_tail_policy_boundary_summary(
         return {}
     return {
         "source": (
-            "typed tcrv_rvv masked memory body/config -> RVV realization -> "
+            "typed weft_rvv masked memory body/config -> RVV realization -> "
             "route-family facts -> statement plan -> emitted masked store"
         ),
-        "authority": "provider-derived typed tcrv_rvv mask/policy body/config/runtime facts",
+        "authority": "provider-derived typed weft_rvv mask/policy body/config/runtime facts",
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "selected_mask_abi": {
             "c_name": "mask",
@@ -33028,12 +33028,12 @@ def base_memory_movement_boundary_summary(
         return {}
     return {
         "source": (
-            "typed tcrv_rvv memory body/config/runtime facts -> RVV "
+            "typed weft_rvv memory body/config/runtime facts -> RVV "
             "base-memory route-family facts -> memory operand-binding facts "
             "-> RVV-owned statement plan -> provider-built route"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv base memory body/config/runtime "
+            "provider-derived typed weft_rvv base memory body/config/runtime "
             "facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -33141,12 +33141,12 @@ def compare_select_predicate_boundary_summary(
         }
     summary = {
         "source": (
-            "typed tcrv_rvv compare/select body/config -> RVV realization -> "
+            "typed weft_rvv compare/select body/config -> RVV realization -> "
             "route-family facts -> operand-binding facts -> statement plan -> "
             "emitted compare/select intrinsics"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv compare/select body/config/"
+            "provider-derived typed weft_rvv compare/select body/config/"
             "runtime facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -33179,7 +33179,7 @@ def compare_select_predicate_boundary_summary(
                     COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
                 "runtime_scalar_operand": "rhs_scalar",
-                "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                "runtime_scalar_realization_op": "weft_rvv.splat",
                 "runtime_scalar_values_required_minimum": 2,
             }
         )
@@ -33193,14 +33193,14 @@ def compare_select_predicate_boundary_summary(
                     "rhs_scalar_a",
                     "rhs_scalar_b",
                 ],
-                "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                "runtime_scalar_realization_op": "weft_rvv.splat",
                 "runtime_scalar_values_required_minimum": 2,
                 "runtime_scalar_threshold_pairs_required_minimum": 2,
                 "secondary_compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
                 "mask_composition": "and",
-                "mask_composition_op": "tcrv_rvv.mask_and",
+                "mask_composition_op": "weft_rvv.mask_and",
             }
         )
     if expectation.is_computed_mask_select:
@@ -33217,14 +33217,14 @@ def compare_select_predicate_boundary_summary(
         summary.update(
             {
                 "source": (
-                    "selected tcrv.exec RVV variant -> typed f32 "
+                    "selected weft.exec RVV variant -> typed f32 "
                     "clamp/select body/config/runtime-bound facts -> RVV "
                     "plugin-local realization -> lower/upper compare-select "
                     "route-family facts -> operand-binding facts -> statement "
                     "plan -> emitted f32 clamp/select intrinsics"
                 ),
                 "authority": (
-                    "provider-derived typed tcrv_rvv f32 clamp/select "
+                    "provider-derived typed weft_rvv f32 clamp/select "
                     "body/config/runtime-bound facts"
                 ),
                 "runtime_bound_roles": {
@@ -33278,7 +33278,7 @@ def compare_select_predicate_boundary_summary(
                     "element_c_type": "float",
                     "sew": "32",
                     "lmul": "m1",
-                    "vector_type": '!tcrv_rvv.vector<f32, "m1">',
+                    "vector_type": '!weft_rvv.vector<f32, "m1">',
                     "vector_c_type": F32_CLAMP_SELECT_VECTOR_C_TYPE,
                     "mask_c_type": F32_CLAMP_SELECT_MASK_C_TYPE,
                 },
@@ -33362,18 +33362,18 @@ def runtime_scalar_computed_mask_memory_boundary_summary(
             "compare-true lanes load src through masked_load then store to dst"
         )
         inactive_lane_contract = MASKED_MEMORY_INACTIVE_LANE_CONTRACT
-        tail_policy = expected_metadata_for(expectation).get("tcrv_rvv.tail_policy")
-        mask_policy = expected_metadata_for(expectation).get("tcrv_rvv.mask_policy")
+        tail_policy = expected_metadata_for(expectation).get("weft_rvv.tail_policy")
+        mask_policy = expected_metadata_for(expectation).get("weft_rvv.mask_policy")
     return {
         "source": (
-            "selected tcrv.exec RVV variant -> typed runtime-scalar "
-            "computed-mask tcrv_rvv memory body/config/runtime facts -> "
+            "selected weft.exec RVV variant -> typed runtime-scalar "
+            "computed-mask weft_rvv memory body/config/runtime facts -> "
             "RVV plugin-local realization -> computed-mask memory route-family "
             "facts -> route-control provider plan -> statement plan -> "
             "emitted memory side effect"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+            "provider-derived typed weft_rvv runtime-scalar computed-mask "
             "memory body/config/runtime facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -33383,7 +33383,7 @@ def runtime_scalar_computed_mask_memory_boundary_summary(
             COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
         ),
         "runtime_scalar_operand": "rhs_scalar",
-        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+        "runtime_scalar_realization_op": "weft_rvv.splat",
         "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
         "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
         "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -33436,13 +33436,13 @@ def conversion_sew_policy_boundary_summary(
     )
     return {
         "source": (
-            "typed tcrv_rvv widening conversion body/config -> RVV "
+            "typed weft_rvv widening conversion body/config -> RVV "
             "realization -> route-family facts -> math operand-binding facts "
             "-> RVV-owned statement plan -> emitted widening conversion "
             "intrinsics"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv conversion body/config/runtime "
+            "provider-derived typed weft_rvv conversion body/config/runtime "
             "facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -33450,8 +33450,8 @@ def conversion_sew_policy_boundary_summary(
         "conversion_kind": expectation.conversion_kind,
         "conversion_relation": expectation.conversion_relation,
         "memory_form": expectation.memory_form,
-        "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
-        "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+        "tail_policy": route_metadata.get("weft_rvv.tail_policy"),
+        "mask_policy": route_metadata.get("weft_rvv.mask_policy"),
         "selected_source_abi": {
             "lhs": "lhs-input-buffer source-load convert-src",
             "out": "output-buffer result-store convert-result",
@@ -33493,24 +33493,24 @@ def conversion_sew_policy_boundary_summary(
         "provider_route_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": route_metadata.get(
-                "tcrv_rvv.route_operand_binding_plan"
+                "weft_rvv.route_operand_binding_plan"
             ),
             "route_operand_binding_operands": route_metadata.get(
-                "tcrv_rvv.route_operand_binding_operands"
+                "weft_rvv.route_operand_binding_operands"
             ),
             "runtime_control_plan": route_metadata.get(
-                "tcrv_rvv.runtime_control_plan"
+                "weft_rvv.runtime_control_plan"
             ),
             "source_load_intrinsic": expectation.conversion_source_load_intrinsic,
             "conversion_intrinsic": expectation.conversion_intrinsic,
             "store_intrinsic": expectation.unit_store_intrinsic,
             "target_leaf_profile": route_metadata.get(
-                "tcrv_rvv.target_leaf_profile"
+                "weft_rvv.target_leaf_profile"
             ),
             "provider_supported_mirror": route_metadata.get(
-                "tcrv_rvv.provider_supported_mirror"
+                "weft_rvv.provider_supported_mirror"
             ),
-            "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+            "c_type_mapping": route_metadata.get("weft_rvv.c_type_mapping"),
         },
         "route_metadata": route_metadata,
         "artifact_abi": {
@@ -33734,10 +33734,10 @@ def dequantization_boundary_summary(
         }
         if composed_dequant_clamp
         else {
-            "element_type": route_metadata.get("tcrv_rvv.source_element_type"),
+            "element_type": route_metadata.get("weft_rvv.source_element_type"),
             "element_c_type": "int32_t",
-            "sew": route_metadata.get("tcrv_rvv.source_sew"),
-            "lmul": route_metadata.get("tcrv_rvv.source_lmul"),
+            "sew": route_metadata.get("weft_rvv.source_sew"),
+            "lmul": route_metadata.get("weft_rvv.source_lmul"),
             "vector_c_type": DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
         }
     )
@@ -33760,16 +33760,16 @@ def dequantization_boundary_summary(
         }
         if composed_dequant_clamp
         else {
-            "element_type": route_metadata.get("tcrv_rvv.result_element_type"),
+            "element_type": route_metadata.get("weft_rvv.result_element_type"),
             "element_c_type": "float",
-            "sew": route_metadata.get("tcrv_rvv.dest_sew"),
-            "lmul": route_metadata.get("tcrv_rvv.dest_lmul"),
+            "sew": route_metadata.get("weft_rvv.dest_sew"),
+            "lmul": route_metadata.get("weft_rvv.dest_lmul"),
             "vector_c_type": DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
         }
     )
     return {
         "source": (
-            "selected tcrv.exec RVV variant -> typed tcrv_rvv product/"
+            "selected weft.exec RVV variant -> typed weft_rvv product/"
             "reduction/dequantize/clamp body/config/runtime-scale/"
             "runtime-bound facts -> RVV provider route facts -> statement "
             "plan -> emitted product, reduction, conversion, scale, "
@@ -33777,15 +33777,15 @@ def dequantization_boundary_summary(
             "runtime-callable artifact ABI"
             if composed_product_dequant_clamp
             else
-            "selected tcrv.exec RVV variant -> typed tcrv_rvv product/"
+            "selected weft.exec RVV variant -> typed weft_rvv product/"
             "reduction/dequantize body/config/runtime-scale facts -> RVV "
             "provider route facts -> statement plan -> emitted product, "
             "reduction, conversion, scale, and store intrinsics -> "
             "runtime-callable artifact ABI"
             if composed_product_dequant
             else (
-                "selected tcrv.exec RVV variant -> typed dequant-clamp "
-                "tcrv_rvv body/config/runtime-scale/runtime-bound facts -> "
+                "selected weft.exec RVV variant -> typed dequant-clamp "
+                "weft_rvv body/config/runtime-scale/runtime-bound facts -> "
                 "RVV plugin-local realization -> provider route facts -> "
                 "statement plan -> emitted conversion, scale, lower/upper "
                 "clamp/select, and store intrinsics -> runtime-callable "
@@ -33793,28 +33793,28 @@ def dequantization_boundary_summary(
             )
             if composed_dequant_clamp
             else (
-                "selected tcrv.exec RVV variant -> typed tcrv_rvv.dequantize "
+                "selected weft.exec RVV variant -> typed weft_rvv.dequantize "
                 "body/config/runtime-scale facts -> RVV provider dequantization "
                 "route facts -> statement plan -> emitted conversion, scale, "
                 "and store intrinsics -> runtime-callable artifact ABI"
             )
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv dequantization body/config/"
+            "provider-derived typed weft_rvv dequantization body/config/"
             "runtime scale facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
-        "typed_compute_op": "tcrv_rvv.dequantize",
+        "typed_compute_op": "weft_rvv.dequantize",
         "memory_form": expectation.memory_form,
         "dequantization_relation": route_metadata.get(
-            "tcrv_rvv.dequantization_relation"
+            "weft_rvv.dequantization_relation"
         ),
-        "conversion_kind": route_metadata.get("tcrv_rvv.conversion_kind"),
-        "runtime_scale_role": route_metadata.get("tcrv_rvv.dequant_scale_role"),
+        "conversion_kind": route_metadata.get("weft_rvv.conversion_kind"),
+        "runtime_scale_role": route_metadata.get("weft_rvv.dequant_scale_role"),
         "runtime_scale_c_type": route_metadata.get(
-            "tcrv_rvv.dequant_scale_c_type"
+            "weft_rvv.dequant_scale_c_type"
         ),
-        "runtime_scale_name": route_metadata.get("tcrv_rvv.dequant_scale_name"),
+        "runtime_scale_name": route_metadata.get("weft_rvv.dequant_scale_name"),
         "selected_source_abi": selected_source_abi,
         "statement_plan": statement_plan,
         "source_type_policy": source_type_policy,
@@ -33826,53 +33826,53 @@ def dequantization_boundary_summary(
         "provider_route_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": route_metadata.get(
-                "tcrv_rvv.route_operand_binding_plan"
+                "weft_rvv.route_operand_binding_plan"
             ),
             "route_operand_binding_operands": route_metadata.get(
-                "tcrv_rvv.route_operand_binding_operands"
+                "weft_rvv.route_operand_binding_operands"
             ),
             "runtime_control_plan": route_metadata.get(
-                "tcrv_rvv.runtime_control_plan"
+                "weft_rvv.runtime_control_plan"
             ),
             "source_load_intrinsic": DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
             "convert_intrinsic": DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
             "scale_intrinsic": DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
             "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
             "target_leaf_profile": route_metadata.get(
-                "tcrv_rvv.target_leaf_profile"
+                "weft_rvv.target_leaf_profile"
             ),
             "provider_supported_mirror": route_metadata.get(
-                "tcrv_rvv.provider_supported_mirror"
+                "weft_rvv.provider_supported_mirror"
             ),
-            "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+            "c_type_mapping": route_metadata.get("weft_rvv.c_type_mapping"),
             "gearbox_candidate_set": route_metadata.get(
-                "tcrv_rvv.gearbox.candidate_set"
+                "weft_rvv.gearbox.candidate_set"
             ),
             "gearbox_selected_candidate": route_metadata.get(
-                "tcrv_rvv.gearbox.selected_candidate"
+                "weft_rvv.gearbox.selected_candidate"
             ),
             "gearbox_schedule_id": route_metadata.get(
-                "tcrv_rvv.gearbox.schedule_id"
+                "weft_rvv.gearbox.schedule_id"
             ),
             "gearbox_selection_reason": route_metadata.get(
-                "tcrv_rvv.gearbox.selection_reason"
+                "weft_rvv.gearbox.selection_reason"
             ),
             "gearbox_legality_scope": route_metadata.get(
-                "tcrv_rvv.gearbox.legality_scope"
+                "weft_rvv.gearbox.legality_scope"
             ),
-            "gearbox_unroll": route_metadata.get("tcrv_rvv.gearbox.unroll"),
+            "gearbox_unroll": route_metadata.get("weft_rvv.gearbox.unroll"),
             "gearbox_vl_policy": route_metadata.get(
-                "tcrv_rvv.gearbox.vl_policy"
+                "weft_rvv.gearbox.vl_policy"
             ),
         },
         "gearbox_preflight": {
-            "candidate_set": route_metadata.get("tcrv_rvv.gearbox.candidate_set"),
+            "candidate_set": route_metadata.get("weft_rvv.gearbox.candidate_set"),
             "selected_candidate": route_metadata.get(
-                "tcrv_rvv.gearbox.selected_candidate"
+                "weft_rvv.gearbox.selected_candidate"
             ),
-            "schedule_id": route_metadata.get("tcrv_rvv.gearbox.schedule_id"),
-            "unroll": route_metadata.get("tcrv_rvv.gearbox.unroll"),
-            "vl_policy": route_metadata.get("tcrv_rvv.gearbox.vl_policy"),
+            "schedule_id": route_metadata.get("weft_rvv.gearbox.schedule_id"),
+            "unroll": route_metadata.get("weft_rvv.gearbox.unroll"),
+            "vl_policy": route_metadata.get("weft_rvv.gearbox.vl_policy"),
             "emitted_cpp_loop_step": emitted_cpp_checks.get(
                 "dequantization_boundary", {}
             )
@@ -33926,30 +33926,30 @@ def dequant_clamp_epilogue_boundary_summary(
     )
     return {
         "source": (
-            "selected tcrv.exec RVV variant -> typed pre-realized "
-            "dequant-clamp tcrv_rvv body -> RVV plugin-local realization -> "
+            "selected weft.exec RVV variant -> typed pre-realized "
+            "dequant-clamp weft_rvv body -> RVV plugin-local realization -> "
             "provider-derived dequant plus lower/upper clamp route facts -> "
             "common EmitC materialization -> generated object/header bundle -> "
             "external ABI harness"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv dequant-clamp body/config/"
+            "provider-derived typed weft_rvv dequant-clamp body/config/"
             "runtime scale/runtime bound facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "typed_body_source": (
-            "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
+            "weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
         ),
         "typed_compute_chain": [
-            "tcrv_rvv.load",
-            "tcrv_rvv.dequantize",
-            "tcrv_rvv.splat(lower_bound)",
-            "tcrv_rvv.splat(upper_bound)",
-            "tcrv_rvv.compare(lower)",
-            "tcrv_rvv.select(lower)",
-            "tcrv_rvv.compare(upper)",
-            "tcrv_rvv.select(upper)",
-            "tcrv_rvv.store",
+            "weft_rvv.load",
+            "weft_rvv.dequantize",
+            "weft_rvv.splat(lower_bound)",
+            "weft_rvv.splat(upper_bound)",
+            "weft_rvv.compare(lower)",
+            "weft_rvv.select(lower)",
+            "weft_rvv.compare(upper)",
+            "weft_rvv.select(upper)",
+            "weft_rvv.store",
         ],
         "selected_source_abi": {
             "lhs": "lhs-input-buffer",
@@ -34030,13 +34030,13 @@ def vector_reduction_boundary_summary(
         return {}
     return {
         "source": (
-            "selected tcrv.exec RVV variant -> typed tcrv_rvv.reduce "
+            "selected weft.exec RVV variant -> typed weft_rvv.reduce "
             "body/config/runtime facts -> RVV provider reduction route facts "
             "-> target-owned vector-reduction validator -> neutral EmitC "
             "materialization -> runtime-callable artifact ABI"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv vector-reduction "
+            "provider-derived typed weft_rvv vector-reduction "
             "body/config/runtime facts"
         ),
         "target_artifact_validator": (
@@ -34045,7 +34045,7 @@ def vector_reduction_boundary_summary(
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "direct_pre_realized_route_entry_supported": False,
         "reduction_kind": "add",
-        "typed_compute_op": "tcrv_rvv.reduce",
+        "typed_compute_op": "weft_rvv.reduce",
         "memory_form": "vector-rhs-load",
         "source_type_policy": {
             "element_type": expectation.element_type,
@@ -34164,15 +34164,15 @@ def widening_macc_boundary_summary(
         return {}
     return {
         "source": (
-            "selected tcrv.exec RVV variant -> typed "
-            "tcrv_rvv.widening_macc body/config/runtime facts -> "
+            "selected weft.exec RVV variant -> typed "
+            "weft_rvv.widening_macc body/config/runtime facts -> "
             "contraction route-family facts -> math operand-binding facts -> "
             "route-control provider plan -> direct contraction owner -> "
             "target-owned widening-macc-contraction validator -> neutral "
             "EmitC materialization -> runtime-callable artifact ABI"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv widening-MAcc "
+            "provider-derived typed weft_rvv widening-MAcc "
             "body/config/runtime facts"
         ),
         "target_artifact_validator": (
@@ -34181,7 +34181,7 @@ def widening_macc_boundary_summary(
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": "widening_macc_add",
-        "typed_compute_op": "tcrv_rvv.widening_macc",
+        "typed_compute_op": "weft_rvv.widening_macc",
         "memory_form": "vector-rhs-load",
         "source_type_policy": {
             "element_type": "i16",
@@ -34343,22 +34343,22 @@ def reduction_accumulation_boundary_summary(
             expectation.is_runtime_scalar_computed_mask_standalone_reduce
         )
         source = (
-            "typed tcrv_rvv runtime-scalar masked standalone reduction "
+            "typed weft_rvv runtime-scalar masked standalone reduction "
             "body/config/runtime facts -> runtime scalar splat compare mask "
             "-> standalone and computed-mask accumulation route-family facts "
             "-> math operand-binding facts -> RVV-owned statement plan -> "
             "emitted masked horizontal reduction intrinsics"
             if is_runtime_scalar
-            else "typed tcrv_rvv masked standalone reduction body/config -> "
+            else "typed weft_rvv masked standalone reduction body/config -> "
             "standalone and computed-mask accumulation route-family facts "
             "-> math operand-binding facts -> RVV-owned statement plan -> "
             "emitted masked horizontal reduction intrinsics"
         )
         authority = (
-            "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+            "provider-derived typed weft_rvv runtime-scalar computed-mask "
             "standalone reduction body/config/runtime facts"
             if is_runtime_scalar
-            else "provider-derived typed tcrv_rvv computed-mask standalone "
+            else "provider-derived typed weft_rvv computed-mask standalone "
             "reduction body/config/runtime facts"
         )
         selected_source_abi = {
@@ -34550,7 +34550,7 @@ def reduction_accumulation_boundary_summary(
                         COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
                     ),
                     "runtime_scalar_operand": "rhs_scalar",
-                    "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                    "runtime_scalar_realization_op": "weft_rvv.splat",
                 }
             )
         return summary
@@ -34558,13 +34558,13 @@ def reduction_accumulation_boundary_summary(
         return {}
     return {
         "source": (
-            "typed tcrv_rvv standalone reduction body/config -> RVV "
+            "typed weft_rvv standalone reduction body/config -> RVV "
             "realization -> standalone route-family facts -> math "
             "operand-binding facts -> RVV-owned statement plan -> emitted "
             "horizontal reduction intrinsics"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv reduction/accumulation "
+            "provider-derived typed weft_rvv reduction/accumulation "
             "body/config/runtime facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -34671,7 +34671,7 @@ def multiply_accumulate_boundary_summary(
         bundle_checks, expectation
     )
     rhs_source = (
-        "runtime scalar tcrv_rvv.splat"
+        "runtime scalar weft_rvv.splat"
         if expectation.is_scalar_broadcast_macc_add
         else "typed RHS vector load"
     )
@@ -34702,12 +34702,12 @@ def multiply_accumulate_boundary_summary(
     )
     return {
         "source": (
-            f"typed tcrv_rvv.macc body/config with {rhs_source} -> math "
+            f"typed weft_rvv.macc body/config with {rhs_source} -> math "
             f"operand-binding facts -> RVV-owned {statement_family} "
             "statement plan -> emitted vmacc operands"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv multiply-accumulate "
+            "provider-derived typed weft_rvv multiply-accumulate "
             "body/config/runtime facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -34756,31 +34756,31 @@ def multiply_accumulate_boundary_summary(
         "provider_route_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": route_metadata.get(
-                "tcrv_rvv.route_operand_binding_plan"
+                "weft_rvv.route_operand_binding_plan"
             ),
             "route_operand_binding_operands": route_metadata.get(
-                "tcrv_rvv.route_operand_binding_operands"
+                "weft_rvv.route_operand_binding_operands"
             ),
             "runtime_control_plan": route_metadata.get(
-                "tcrv_rvv.runtime_control_plan"
+                "weft_rvv.runtime_control_plan"
             ),
             "target_leaf_profile": route_metadata.get(
-                "tcrv_rvv.target_leaf_profile"
+                "weft_rvv.target_leaf_profile"
             ),
             "provider_supported_mirror": route_metadata.get(
-                "tcrv_rvv.provider_supported_mirror"
+                "weft_rvv.provider_supported_mirror"
             ),
             "required_header_declarations": route_metadata.get(
-                "tcrv_rvv.required_header_declarations"
+                "weft_rvv.required_header_declarations"
             ),
-            "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+            "c_type_mapping": route_metadata.get("weft_rvv.c_type_mapping"),
             "macc_arithmetic_kind": route_metadata.get(
-                "tcrv_rvv.macc_arithmetic_kind"
+                "weft_rvv.macc_arithmetic_kind"
             ),
             "accumulator_layout": route_metadata.get(
-                "tcrv_rvv.macc_accumulator_layout"
+                "weft_rvv.macc_accumulator_layout"
             ),
-            "result_layout": route_metadata.get("tcrv_rvv.macc_result_layout"),
+            "result_layout": route_metadata.get("weft_rvv.macc_result_layout"),
         },
         "route_metadata": route_metadata,
         "artifact_abi": {
@@ -34808,13 +34808,13 @@ def computed_masked_macc_boundary_summary(
         f"__riscv_vmacc_vv_{expectation.element_type}{expectation.lmul}"
     )
     source = (
-        "typed tcrv_rvv.masked_macc body/config/runtime facts -> "
+        "typed weft_rvv.masked_macc body/config/runtime facts -> "
         "computed-mask accumulation family plan -> math operand-binding "
         "facts -> route-control provider plan -> RVV-owned statement plan "
         "-> emitted compare, active MAcc, merge, and store"
     )
     authority = (
-        "provider-derived typed tcrv_rvv computed-mask "
+        "provider-derived typed weft_rvv computed-mask "
         "multiply-accumulate body/config/runtime facts"
     )
     selected_source_abi = {
@@ -34844,14 +34844,14 @@ def computed_masked_macc_boundary_summary(
     route_operand_binding_operands = COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS
     if is_runtime_scalar:
         source = (
-            "typed tcrv_rvv.masked_macc body/config/runtime scalar facts -> "
+            "typed weft_rvv.masked_macc body/config/runtime scalar facts -> "
             "runtime-scalar splat compare RHS -> computed-mask accumulation "
             "family plan -> math operand-binding facts -> route-control "
             "provider plan -> RVV-owned statement plan -> emitted compare, "
             "active MAcc, merge, and store"
         )
         authority = (
-            "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+            "provider-derived typed weft_rvv runtime-scalar computed-mask "
             "multiply-accumulate body/config/runtime facts"
         )
         selected_source_abi = {
@@ -34866,7 +34866,7 @@ def computed_masked_macc_boundary_summary(
         runtime_scalar_compare_rhs = {
             "runtime_abi_parameter": "rhs_scalar",
             "runtime_abi_role": "rhs-scalar-value",
-            "realization_op": "tcrv_rvv.splat",
+            "realization_op": "weft_rvv.splat",
             "splat_intrinsic": expectation.scalar_splat_intrinsic,
             "compare_rhs_source": "runtime-scalar-splat-compare-rhs",
         }
@@ -35053,73 +35053,73 @@ def widening_dot_reduction_boundary_summary(
         ]
         provider_route_facts["low_precision_resource_selection"] = {
             "candidate_set": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.candidate_set"
+                "weft_rvv.low_precision_resource.candidate_set"
             ),
             "selected_candidate": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.selected_candidate"
+                "weft_rvv.low_precision_resource.selected_candidate"
             ),
             "selection_reason": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.selection_reason"
+                "weft_rvv.low_precision_resource.selection_reason"
             ),
             "legality_scope": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.legality_scope"
+                "weft_rvv.low_precision_resource.legality_scope"
             ),
             "source_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.source_dtype"
+                "weft_rvv.low_precision_resource.source_dtype"
             ),
             "product_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.product_dtype"
+                "weft_rvv.low_precision_resource.product_dtype"
             ),
             "product_emul": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.product_emul"
+                "weft_rvv.low_precision_resource.product_emul"
             ),
             "accumulator_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.accumulator_dtype"
+                "weft_rvv.low_precision_resource.accumulator_dtype"
             ),
             "accumulator_emul": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.accumulator_emul"
+                "weft_rvv.low_precision_resource.accumulator_emul"
             ),
             "result_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.result_dtype"
+                "weft_rvv.low_precision_resource.result_dtype"
             ),
             "memory_form": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.memory_form"
+                "weft_rvv.low_precision_resource.memory_form"
             ),
             "reduction_layout": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.reduction_layout"
+                "weft_rvv.low_precision_resource.reduction_layout"
             ),
             "runtime_avl_source": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.runtime_avl_source"
+                "weft_rvv.low_precision_resource.runtime_avl_source"
             ),
             "runtime_abi_order": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.runtime_abi_order"
+                "weft_rvv.low_precision_resource.runtime_abi_order"
             ),
             "vector_register_budget": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.vector_register_budget"
+                "weft_rvv.low_precision_resource.vector_register_budget"
             ),
             "target_capability_provider_mirror": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
+                "weft_rvv.low_precision_resource.target_capability_provider_mirror"
             ),
             "target_capability_legality_mirror": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
+                "weft_rvv.low_precision_resource.target_capability_legality_mirror"
             ),
             "legality": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.legality"
+                "weft_rvv.low_precision_resource.legality"
             ),
             "rejection_reason": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.rejection_reason"
+                "weft_rvv.low_precision_resource.rejection_reason"
             ),
         }
     else:
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
         "source": (
-            "typed tcrv_rvv.widening_dot_reduce body/config/runtime facts -> "
+            "typed weft_rvv.widening_dot_reduce body/config/runtime facts -> "
             "contraction route-family plan -> target-owned dot-reduction "
             "validator -> neutral EmitC materializer -> generated RVV C artifact"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv widening dot-reduction "
+            "provider-derived typed weft_rvv widening dot-reduction "
             "body/config/runtime facts"
         ),
         "target_artifact_validator": (
@@ -35129,14 +35129,14 @@ def widening_dot_reduction_boundary_summary(
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
-        "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+        "typed_compute_op": "weft_rvv.widening_dot_reduce",
         "memory_form": expectation.memory_form,
         "source_type_policy": {
             "element_type": "i16",
             "element_c_type": "int16_t",
             "sew": "16",
             "lmul": "mf2",
-            "vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "vector_type": '!weft_rvv.vector<i16, "mf2">',
             "vector_c_type": "vint16mf2_t",
         },
         "accumulator_type_policy": {
@@ -35332,411 +35332,411 @@ def widening_product_reduction_boundary_summary(
     )
     if is_dequant or is_dequant_clamp:
         provider_route_facts["gearbox_cross_region_handoff"] = {
-            "op": "tcrv_rvv.gearbox_cross_region_handoff",
+            "op": "weft_rvv.gearbox_cross_region_handoff",
             "contract": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
             ),
             "producer_scope": route_metadata.get(
-                "tcrv_rvv.gearbox.producer_scope"
+                "weft_rvv.gearbox.producer_scope"
             ),
             "consumer_scope": route_metadata.get(
-                "tcrv_rvv.gearbox.consumer_scope"
+                "weft_rvv.gearbox.consumer_scope"
             ),
             "from_phase": resource_profile["producer_phase"],
             "to_phase": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
             ),
             "runtime_avl_source": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.runtime_avl_source"
+                "weft_rvv.low_precision_resource.runtime_avl_source"
             ),
             "resource_decision": (
                 resource_profile["resource_decision"]
             ),
             "region_count": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count"
+                "weft_rvv.low_precision_resource.vsetvl_region_count"
             ),
         }
         provider_route_facts["low_precision_resource"] = {
             "candidate_set": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.candidate_set"
+                "weft_rvv.low_precision_resource.candidate_set"
             ),
             "selected_candidate": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.selected_candidate"
+                "weft_rvv.low_precision_resource.selected_candidate"
             ),
             "expected_selected_candidate": resource_profile["selected_candidate"],
             "candidate_count": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.candidate_count"
+                "weft_rvv.low_precision_resource.candidate_count"
             ),
             "expected_candidate_count": resource_profile["candidate_count"],
             "legal_candidate_count": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.legal_candidate_count"
+                "weft_rvv.low_precision_resource.legal_candidate_count"
             ),
             "expected_legal_candidate_count": resource_profile[
                 "legal_candidate_count"
             ],
             "selected_candidate_index": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.selected_candidate_index"
+                "weft_rvv.low_precision_resource.selected_candidate_index"
             ),
             "expected_selected_candidate_index": resource_profile[
                 "selected_candidate_index"
             ],
             "selection_reason": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.selection_reason"
+                "weft_rvv.low_precision_resource.selection_reason"
             ),
             "expected_selection_reason": resource_profile["selection_reason"],
             "legality_scope": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.legality_scope"
+                "weft_rvv.low_precision_resource.legality_scope"
             ),
             "source_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.source_dtype"
+                "weft_rvv.low_precision_resource.source_dtype"
             ),
             "product_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.product_dtype"
+                "weft_rvv.low_precision_resource.product_dtype"
             ),
             "accumulator_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.accumulator_dtype"
+                "weft_rvv.low_precision_resource.accumulator_dtype"
             ),
             "result_dtype": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.result_dtype"
+                "weft_rvv.low_precision_resource.result_dtype"
             ),
             "memory_form": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.memory_form"
+                "weft_rvv.low_precision_resource.memory_form"
             ),
             "expected_memory_form": resource_profile["memory_form"],
             "operand_form": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.operand_form"
+                "weft_rvv.low_precision_resource.operand_form"
             ),
             "expected_operand_form": resource_profile["operand_form"],
             "source_signedness": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.source_signedness"
+                "weft_rvv.low_precision_resource.source_signedness"
             ),
             "storage_element_width": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.storage_element_width"
+                "weft_rvv.low_precision_resource.storage_element_width"
             ),
             "effective_element_width": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.effective_element_width"
+                "weft_rvv.low_precision_resource.effective_element_width"
             ),
             "packing_layout": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.packing_layout"
+                "weft_rvv.low_precision_resource.packing_layout"
             ),
             "unpack_intent": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.unpack_intent"
+                "weft_rvv.low_precision_resource.unpack_intent"
             ),
             "unroll_factor": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.unroll_factor"
+                "weft_rvv.low_precision_resource.unroll_factor"
             ),
             "accumulator_count": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.accumulator_count"
+                "weft_rvv.low_precision_resource.accumulator_count"
             ),
             "vsetvl_region_count": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count"
+                "weft_rvv.low_precision_resource.vsetvl_region_count"
             ),
             "peak_live_vector_groups": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.peak_live_vector_groups"
+                "weft_rvv.low_precision_resource.peak_live_vector_groups"
             ),
             "vector_register_budget": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.vector_register_budget"
+                "weft_rvv.low_precision_resource.vector_register_budget"
             ),
             "runtime_avl_source": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.runtime_avl_source"
+                "weft_rvv.low_precision_resource.runtime_avl_source"
             ),
             "runtime_abi_order": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.runtime_abi_order"
+                "weft_rvv.low_precision_resource.runtime_abi_order"
             ),
             "primitive_contract": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_contract"
+                "weft_rvv.low_precision_resource.primitive_contract"
             ),
             "expected_primitive_contract": resource_profile["primitive_contract"],
             "primitive_kind": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_kind"
+                "weft_rvv.low_precision_resource.primitive_kind"
             ),
             "expected_primitive_kind": resource_profile["primitive_kind"],
             "primitive_chain_contract": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_chain_contract"
+                "weft_rvv.low_precision_resource.primitive_chain_contract"
             ),
             "expected_primitive_chain_contract": resource_profile[
                 "primitive_chain_contract"
             ],
             "primitive_chain_kind": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_chain_kind"
+                "weft_rvv.low_precision_resource.primitive_chain_kind"
             ),
             "expected_primitive_chain_kind": resource_profile[
                 "primitive_chain_kind"
             ],
             "primitive_widening_product_relation": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_widening_product_relation"
+                "weft_rvv.low_precision_resource.primitive_widening_product_relation"
             ),
             "expected_primitive_widening_product_relation": resource_profile[
                 "primitive_widening_product_relation"
             ],
             "primitive_product_reduction_chain_relation": route_metadata.get(
-                "tcrv_rvv.low_precision_resource."
+                "weft_rvv.low_precision_resource."
                 "primitive_product_reduction_chain_relation"
             ),
             "expected_primitive_product_reduction_chain_relation": resource_profile[
                 "primitive_product_reduction_chain_relation"
             ],
             "primitive_widening_product_intrinsic": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic"
+                "weft_rvv.low_precision_resource.primitive_widening_product_intrinsic"
             ),
             "expected_primitive_widening_product_intrinsic": resource_profile[
                 "primitive_widening_product_intrinsic"
             ],
             "primitive_reduction_intrinsic": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic"
+                "weft_rvv.low_precision_resource.primitive_reduction_intrinsic"
             ),
             "expected_primitive_reduction_intrinsic": resource_profile[
                 "primitive_reduction_intrinsic"
             ],
             "primitive_scalar_seed_splat_intrinsic": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic"
+                "weft_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic"
             ),
             "expected_primitive_scalar_seed_splat_intrinsic": resource_profile[
                 "primitive_scalar_seed_splat_intrinsic"
             ],
             "primitive_accumulator_layout": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_accumulator_layout"
+                "weft_rvv.low_precision_resource.primitive_accumulator_layout"
             ),
             "expected_primitive_accumulator_layout": resource_profile[
                 "primitive_accumulator_layout"
             ],
             "primitive_result_layout": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_result_layout"
+                "weft_rvv.low_precision_resource.primitive_result_layout"
             ),
             "expected_primitive_result_layout": resource_profile[
                 "primitive_result_layout"
             ],
             "primitive_reduction_store_vl": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl"
+                "weft_rvv.low_precision_resource.primitive_reduction_store_vl"
             ),
             "expected_primitive_reduction_store_vl": resource_profile[
                 "primitive_reduction_store_vl"
             ],
             "realization_producer": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.realization_producer"
+                "weft_rvv.low_precision_resource.realization_producer"
             ),
             "realization_decision": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.realization_decision"
+                "weft_rvv.low_precision_resource.realization_decision"
             ),
             "realized_unroll_factor": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.realized_unroll_factor"
+                "weft_rvv.low_precision_resource.realized_unroll_factor"
             ),
             "realized_vsetvl_region_count": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
+                "weft_rvv.low_precision_resource.realized_vsetvl_region_count"
             ),
             "realized_peak_live_vector_groups": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
+                "weft_rvv.low_precision_resource.realized_peak_live_vector_groups"
             ),
             "product_region_index": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.product_region_index"
+                "weft_rvv.low_precision_resource.product_region_index"
             ),
             "dequant_region_index": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.dequant_region_index"
+                "weft_rvv.low_precision_resource.dequant_region_index"
             ),
             "product_phase": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.product_phase"
+                "weft_rvv.low_precision_resource.product_phase"
             ),
             "dequant_phase": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.dequant_phase"
+                "weft_rvv.low_precision_resource.dequant_phase"
             ),
             "target_capability_provider_mirror": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
+                "weft_rvv.low_precision_resource.target_capability_provider_mirror"
             ),
             "target_capability_legality_mirror": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
+                "weft_rvv.low_precision_resource.target_capability_legality_mirror"
             ),
             "legality": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.legality"
+                "weft_rvv.low_precision_resource.legality"
             ),
             "rejection_reason": route_metadata.get(
-                "tcrv_rvv.low_precision_resource.rejection_reason"
+                "weft_rvv.low_precision_resource.rejection_reason"
             ),
         }
         if uses_packed_i4_resource:
             provider_route_facts["low_precision_resource"].update(
                 {
                     "performance_feedback": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_feedback"
+                        "weft_rvv.low_precision_resource.performance_feedback"
                     ),
                     "expected_performance_feedback": resource_profile[
                         "performance_feedback"
                     ],
                     "performance_baseline": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_baseline"
+                        "weft_rvv.low_precision_resource.performance_baseline"
                     ),
                     "expected_performance_baseline": resource_profile[
                         "performance_baseline"
                     ],
                     "performance_best_speedup_range": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_best_speedup_range"
+                        "weft_rvv.low_precision_resource.performance_best_speedup_range"
                     ),
                     "expected_performance_best_speedup_range": resource_profile[
                         "performance_best_speedup_range"
                     ],
                     "performance_action": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_action"
+                        "weft_rvv.low_precision_resource.performance_action"
                     ),
                     "expected_performance_action": resource_profile[
                         "performance_action"
                     ],
                     "performance_maturity": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_maturity"
+                        "weft_rvv.low_precision_resource.performance_maturity"
                     ),
                     "expected_performance_maturity": resource_profile[
                         "performance_maturity"
                     ],
                     "performance_maturity_evidence": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
+                        "weft_rvv.low_precision_resource.performance_maturity_evidence"
                     ),
                     "expected_performance_maturity_evidence": resource_profile[
                         "performance_maturity_evidence"
                     ],
                     "performance_maturity_outcome": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
+                        "weft_rvv.low_precision_resource.performance_maturity_outcome"
                     ),
                     "expected_performance_maturity_outcome": resource_profile[
                         "performance_maturity_outcome"
                     ],
                     "performance_selection_eligible": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_selection_eligible"
+                        "weft_rvv.low_precision_resource.performance_selection_eligible"
                     ),
                     "expected_performance_selection_eligible": resource_profile[
                         "performance_selection_eligible"
                     ],
                     "dispatch_preference": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.dispatch_preference"
+                        "weft_rvv.low_precision_resource.dispatch_preference"
                     ),
                     "expected_dispatch_preference": resource_profile[
                         "dispatch_preference"
                     ],
                     "resource_cost_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_contract"
+                        "weft_rvv.low_precision_resource.resource_cost_contract"
                     ),
                     "expected_resource_cost_contract": resource_profile[
                         "resource_cost_contract"
                     ],
                     "resource_cost_model": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_model"
+                        "weft_rvv.low_precision_resource.resource_cost_model"
                     ),
                     "expected_resource_cost_model": resource_profile[
                         "resource_cost_model"
                     ],
                     "resource_cost_loop_body_steps": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps"
+                        "weft_rvv.low_precision_resource.resource_cost_loop_body_steps"
                     ),
                     "expected_resource_cost_loop_body_steps": resource_profile[
                         "resource_cost_loop_body_steps"
                     ],
                     "resource_cost_blocker": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_blocker"
+                        "weft_rvv.low_precision_resource.resource_cost_blocker"
                     ),
                     "expected_resource_cost_blocker": resource_profile[
                         "resource_cost_blocker"
                     ],
                     "performance_admission_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_admission_decision"
+                        "weft_rvv.low_precision_resource.performance_admission_decision"
                     ),
                     "expected_performance_admission_decision": resource_profile[
                         "performance_admission_decision"
                     ],
                     "performance_admission_closure": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_admission_closure"
+                        "weft_rvv.low_precision_resource.performance_admission_closure"
                     ),
                     "expected_performance_admission_closure": resource_profile[
                         "performance_admission_closure"
                     ],
                     "performance_admission_reopen_requirement": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
+                        "weft_rvv.low_precision_resource.performance_admission_reopen_requirement"
                     ),
                     "expected_performance_admission_reopen_requirement": resource_profile[
                         "performance_admission_reopen_requirement"
                     ],
                     "beyond_local_repair_admission_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract"
                     ),
                     "expected_beyond_local_repair_admission_contract": resource_profile[
                         "beyond_local_repair_admission_contract"
                     ],
                     "beyond_local_repair_admission_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision"
                     ),
                     "expected_beyond_local_repair_admission_decision": resource_profile[
                         "beyond_local_repair_admission_decision"
                     ],
                     "beyond_local_repair_admission_blocker": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
                     ),
                     "expected_beyond_local_repair_admission_blocker": resource_profile[
                         "beyond_local_repair_admission_blocker"
                     ],
                     "beyond_local_repair_admission_reopen_requirement": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
                     ),
                     "expected_beyond_local_repair_admission_reopen_requirement": resource_profile[
                         "beyond_local_repair_admission_reopen_requirement"
                     ],
                     "remediation_handoff_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
+                        "weft_rvv.low_precision_resource.remediation_handoff_contract"
                     ),
                     "expected_remediation_handoff_contract": resource_profile[
                         "remediation_handoff_contract"
                     ],
                     "remediation_diagnosis": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_diagnosis"
+                        "weft_rvv.low_precision_resource.remediation_diagnosis"
                     ),
                     "expected_remediation_diagnosis": resource_profile[
                         "remediation_diagnosis"
                     ],
                     "remediation_measurement_evidence": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_measurement_evidence"
+                        "weft_rvv.low_precision_resource.remediation_measurement_evidence"
                     ),
                     "expected_remediation_measurement_evidence": (
                         resource_profile["remediation_measurement_evidence"]
                     ),
                     "remediation_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_decision"
+                        "weft_rvv.low_precision_resource.remediation_decision"
                     ),
                     "expected_remediation_decision": resource_profile[
                         "remediation_decision"
                     ],
                     "remediation_action": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_action"
+                        "weft_rvv.low_precision_resource.remediation_action"
                     ),
                     "expected_remediation_action": resource_profile[
                         "remediation_action"
                     ],
                     "remediation_dispatch_preference": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_dispatch_preference"
+                        "weft_rvv.low_precision_resource.remediation_dispatch_preference"
                     ),
                     "expected_remediation_dispatch_preference": resource_profile[
                         "remediation_dispatch_preference"
                     ],
                     "remediation_blocker": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_blocker"
+                        "weft_rvv.low_precision_resource.remediation_blocker"
                     ),
                     "expected_remediation_blocker": resource_profile[
                         "remediation_blocker"
                     ],
                     "remediation_plan_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_plan_contract"
+                        "weft_rvv.low_precision_resource.remediation_plan_contract"
                     ),
                     "expected_remediation_plan_contract": resource_profile[
                         "remediation_plan_contract"
                     ],
                     "remediation_plan": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_plan"
+                        "weft_rvv.low_precision_resource.remediation_plan"
                     ),
                     "expected_remediation_plan": resource_profile[
                         "remediation_plan"
                     ],
                     "remediation_statement_strategy": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
+                        "weft_rvv.low_precision_resource.remediation_statement_strategy"
                     ),
                     "expected_remediation_statement_strategy": resource_profile[
                         "remediation_statement_strategy"
                     ],
                     "remediation_vector_budget": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_vector_budget"
+                        "weft_rvv.low_precision_resource.remediation_vector_budget"
                     ),
                     "expected_remediation_vector_budget": resource_profile[
                         "remediation_vector_budget"
@@ -35998,125 +35998,125 @@ def widening_product_reduction_boundary_summary(
             "object_header_agreement_checked": True,
             "fields": {
                 "candidate_set": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.candidate_set"
+                    "weft_rvv.low_precision_resource.candidate_set"
                 ),
                 "selected_candidate": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.selected_candidate"
+                    "weft_rvv.low_precision_resource.selected_candidate"
                 ),
                 "candidate_count": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.candidate_count"
+                    "weft_rvv.low_precision_resource.candidate_count"
                 ),
                 "legal_candidate_count": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.legal_candidate_count"
+                    "weft_rvv.low_precision_resource.legal_candidate_count"
                 ),
                 "selected_candidate_index": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.selected_candidate_index"
+                    "weft_rvv.low_precision_resource.selected_candidate_index"
                 ),
                 "selection_reason": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.selection_reason"
+                    "weft_rvv.low_precision_resource.selection_reason"
                 ),
                 "resource_decision_mirror": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.realization_decision"
+                    "weft_rvv.low_precision_resource.realization_decision"
                 ),
                 "operand_form": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.operand_form"
+                    "weft_rvv.low_precision_resource.operand_form"
                 ),
                 "source_signedness": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.source_signedness"
+                    "weft_rvv.low_precision_resource.source_signedness"
                 ),
                 "storage_element_width": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.storage_element_width"
+                    "weft_rvv.low_precision_resource.storage_element_width"
                 ),
                 "effective_element_width": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.effective_element_width"
+                    "weft_rvv.low_precision_resource.effective_element_width"
                 ),
                 "packing_layout": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.packing_layout"
+                    "weft_rvv.low_precision_resource.packing_layout"
                 ),
                 "unpack_intent": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.unpack_intent"
+                    "weft_rvv.low_precision_resource.unpack_intent"
                 ),
                 "vsetvl_region_count": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.vsetvl_region_count"
+                    "weft_rvv.low_precision_resource.vsetvl_region_count"
                 ),
                 "peak_live_vector_groups": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.peak_live_vector_groups"
+                    "weft_rvv.low_precision_resource.peak_live_vector_groups"
                 ),
                 "vector_register_budget": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.vector_register_budget"
+                    "weft_rvv.low_precision_resource.vector_register_budget"
                 ),
                 "runtime_avl_source": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.runtime_avl_source"
+                    "weft_rvv.low_precision_resource.runtime_avl_source"
                 ),
                 "realization_producer": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.realization_producer"
+                    "weft_rvv.low_precision_resource.realization_producer"
                 ),
                 "realization_decision": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.realization_decision"
+                    "weft_rvv.low_precision_resource.realization_decision"
                 ),
                 "realized_unroll_factor": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.realized_unroll_factor"
+                    "weft_rvv.low_precision_resource.realized_unroll_factor"
                 ),
                 "realized_vsetvl_region_count": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
+                    "weft_rvv.low_precision_resource.realized_vsetvl_region_count"
                 ),
                 "realized_peak_live_vector_groups": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
+                    "weft_rvv.low_precision_resource.realized_peak_live_vector_groups"
                 ),
                 "product_region_index": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.product_region_index"
+                    "weft_rvv.low_precision_resource.product_region_index"
                 ),
                 "dequant_region_index": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.dequant_region_index"
+                    "weft_rvv.low_precision_resource.dequant_region_index"
                 ),
                 "product_phase": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.product_phase"
+                    "weft_rvv.low_precision_resource.product_phase"
                 ),
                 "dequant_phase": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.dequant_phase"
+                    "weft_rvv.low_precision_resource.dequant_phase"
                 ),
                 "runtime_abi_order": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.runtime_abi_order"
+                    "weft_rvv.low_precision_resource.runtime_abi_order"
                 ),
                 "target_capability_provider_mirror": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
+                    "weft_rvv.low_precision_resource.target_capability_provider_mirror"
                 ),
                 "target_capability_legality_mirror": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
+                    "weft_rvv.low_precision_resource.target_capability_legality_mirror"
                 ),
                 "primitive_chain_contract": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.primitive_chain_contract"
+                    "weft_rvv.low_precision_resource.primitive_chain_contract"
                 ),
                 "primitive_chain_kind": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.primitive_chain_kind"
+                    "weft_rvv.low_precision_resource.primitive_chain_kind"
                 ),
                 "primitive_widening_product_relation": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource."
+                    "weft_rvv.low_precision_resource."
                     "primitive_widening_product_relation"
                 ),
                 "primitive_product_reduction_chain_relation": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource."
+                    "weft_rvv.low_precision_resource."
                     "primitive_product_reduction_chain_relation"
                 ),
                 "primitive_widening_product_intrinsic": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource."
+                    "weft_rvv.low_precision_resource."
                     "primitive_widening_product_intrinsic"
                 ),
                 "primitive_reduction_intrinsic": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic"
+                    "weft_rvv.low_precision_resource.primitive_reduction_intrinsic"
                 ),
                 "primitive_scalar_seed_splat_intrinsic": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource."
+                    "weft_rvv.low_precision_resource."
                     "primitive_scalar_seed_splat_intrinsic"
                 ),
                 "primitive_accumulator_layout": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.primitive_accumulator_layout"
+                    "weft_rvv.low_precision_resource.primitive_accumulator_layout"
                 ),
                 "primitive_result_layout": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.primitive_result_layout"
+                    "weft_rvv.low_precision_resource.primitive_result_layout"
                 ),
                 "primitive_reduction_store_vl": route_metadata.get(
-                    "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl"
+                    "weft_rvv.low_precision_resource.primitive_reduction_store_vl"
                 ),
             },
             "expected_fields": {
@@ -36247,100 +36247,100 @@ def widening_product_reduction_boundary_summary(
                 ),
                 "fields": {
                     "performance_feedback": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_feedback"
+                        "weft_rvv.low_precision_resource.performance_feedback"
                     ),
                     "performance_action": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_action"
+                        "weft_rvv.low_precision_resource.performance_action"
                     ),
                     "remediation_handoff_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
+                        "weft_rvv.low_precision_resource.remediation_handoff_contract"
                     ),
                     "remediation_diagnosis": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_diagnosis"
+                        "weft_rvv.low_precision_resource.remediation_diagnosis"
                     ),
                     "remediation_measurement_evidence": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_measurement_evidence"
+                        "weft_rvv.low_precision_resource.remediation_measurement_evidence"
                     ),
                     "remediation_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_decision"
+                        "weft_rvv.low_precision_resource.remediation_decision"
                     ),
                     "remediation_action": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_action"
+                        "weft_rvv.low_precision_resource.remediation_action"
                     ),
                     "remediation_dispatch_preference": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_dispatch_preference"
+                        "weft_rvv.low_precision_resource.remediation_dispatch_preference"
                     ),
                     "remediation_blocker": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_blocker"
+                        "weft_rvv.low_precision_resource.remediation_blocker"
                     ),
                     "remediation_plan_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_plan_contract"
+                        "weft_rvv.low_precision_resource.remediation_plan_contract"
                     ),
                     "remediation_plan": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_plan"
+                        "weft_rvv.low_precision_resource.remediation_plan"
                     ),
                     "remediation_statement_strategy": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
+                        "weft_rvv.low_precision_resource.remediation_statement_strategy"
                     ),
                     "remediation_vector_budget": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_vector_budget"
+                        "weft_rvv.low_precision_resource.remediation_vector_budget"
                     ),
                     "remediation_schedule_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_schedule_contract"
+                        "weft_rvv.low_precision_resource.remediation_schedule_contract"
                     ),
                     "remediation_unpack_plan": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_unpack_plan"
+                        "weft_rvv.low_precision_resource.remediation_unpack_plan"
                     ),
                     "remediation_product_plan": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_product_plan"
+                        "weft_rvv.low_precision_resource.remediation_product_plan"
                     ),
                     "remediation_reduction_plan": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_reduction_plan"
+                        "weft_rvv.low_precision_resource.remediation_reduction_plan"
                     ),
                     "remediation_vl_plan": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.remediation_vl_plan"
+                        "weft_rvv.low_precision_resource.remediation_vl_plan"
                     ),
                     "schedule_decision_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.schedule_decision_contract"
+                        "weft_rvv.low_precision_resource.schedule_decision_contract"
                     ),
                     "schedule_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.schedule_decision"
+                        "weft_rvv.low_precision_resource.schedule_decision"
                     ),
                     "schedule_decision_reason": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.schedule_decision_reason"
+                        "weft_rvv.low_precision_resource.schedule_decision_reason"
                     ),
                     "resource_cost_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_contract"
+                        "weft_rvv.low_precision_resource.resource_cost_contract"
                     ),
                     "resource_cost_model": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_model"
+                        "weft_rvv.low_precision_resource.resource_cost_model"
                     ),
                     "resource_cost_loop_body_steps": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps"
+                        "weft_rvv.low_precision_resource.resource_cost_loop_body_steps"
                     ),
                     "resource_cost_blocker": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.resource_cost_blocker"
+                        "weft_rvv.low_precision_resource.resource_cost_blocker"
                     ),
                     "performance_admission_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_admission_decision"
+                        "weft_rvv.low_precision_resource.performance_admission_decision"
                     ),
                     "performance_admission_closure": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_admission_closure"
+                        "weft_rvv.low_precision_resource.performance_admission_closure"
                     ),
                     "performance_admission_reopen_requirement": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
+                        "weft_rvv.low_precision_resource.performance_admission_reopen_requirement"
                     ),
                     "beyond_local_repair_admission_contract": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract"
                     ),
                     "beyond_local_repair_admission_decision": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision"
                     ),
                     "beyond_local_repair_admission_blocker": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
                     ),
                     "beyond_local_repair_admission_reopen_requirement": route_metadata.get(
-                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
+                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
                     ),
                 },
                 "expected_fields": {
@@ -36440,7 +36440,7 @@ def widening_product_reduction_boundary_summary(
             }
     return {
         "source": (
-            "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "
+            "typed weft_rvv.widening_product + standalone_reduce + Gearbox "
             "cross-region handoff + dequantize + compare/select body/config/"
             "runtime-scale/runtime-bound facts -> contraction, dequantization, "
             "resource, multi-with_vl handoff, and clamp route-family plans -> "
@@ -36448,7 +36448,7 @@ def widening_product_reduction_boundary_summary(
             "EmitC materializer -> generated RVV C artifact"
             if is_dequant_clamp
             else
-            "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "
+            "typed weft_rvv.widening_product + standalone_reduce + Gearbox "
             "cross-region handoff + dequantize body/config/runtime-scale "
             "facts -> contraction, dequantization, resource, and multi-with_vl "
             "handoff route-family plans -> target-owned product-reduction/"
@@ -36456,14 +36456,14 @@ def widening_product_reduction_boundary_summary(
             "RVV C artifact"
             if is_dequant
             else (
-                "typed tcrv_rvv.widening_product + standalone_reduce body/config/"
+                "typed weft_rvv.widening_product + standalone_reduce body/config/"
                 "runtime facts -> contraction route-family plan -> target-owned "
                 "product-reduction validator -> neutral EmitC materializer -> "
                 "generated RVV C artifact"
             )
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv low-precision product-reduction "
+            "provider-derived typed weft_rvv low-precision product-reduction "
             "body/config/runtime facts"
         ),
         "target_artifact_validator": (
@@ -36483,7 +36483,7 @@ def widening_product_reduction_boundary_summary(
             "element_c_type": "int8_t",
             "sew": "8",
             "lmul": "mf4",
-            "vector_type": '!tcrv_rvv.vector<i8, "mf4">',
+            "vector_type": '!weft_rvv.vector<i8, "mf4">',
             "vector_c_type": "vint8mf4_t",
         },
         "product_type_policy": {
@@ -36491,7 +36491,7 @@ def widening_product_reduction_boundary_summary(
             "element_c_type": "int16_t",
             "sew": "16",
             "lmul": "mf2",
-            "vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "vector_type": '!weft_rvv.vector<i16, "mf2">',
             "vector_c_type": "vint16mf2_t",
         },
         "accumulator_type_policy": accumulator_type_policy,
@@ -36672,14 +36672,14 @@ def computed_masked_widening_dot_reduce_boundary_summary(
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
         "source": (
-            "typed tcrv_rvv.masked_widening_dot_reduce body/config/runtime "
+            "typed weft_rvv.masked_widening_dot_reduce body/config/runtime "
             "facts -> contraction route-family plan -> math operand-binding "
             "facts -> route-control provider plan -> direct contraction owner "
             "-> emitted compare, masked widening product, zero merge, scalar "
             "reduction, and scalar store"
         ),
         "authority": (
-            "provider-derived typed tcrv_rvv computed-mask widening "
+            "provider-derived typed weft_rvv computed-mask widening "
             "dot-reduce body/config/runtime facts"
         ),
         "target_artifact_validator": (
@@ -36689,7 +36689,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
-        "typed_compute_op": "tcrv_rvv.masked_widening_dot_reduce",
+        "typed_compute_op": "weft_rvv.masked_widening_dot_reduce",
         "memory_form": expectation.memory_form,
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
@@ -36707,7 +36707,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "element_c_type": "int16_t",
             "sew": "16",
             "lmul": "mf2",
-            "vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "vector_type": '!weft_rvv.vector<i16, "mf2">',
             "vector_c_type": "vint16mf2_t",
             "compare_vector_c_type": "vint32m1_t",
             "mask_c_type": expectation.rvv_mask_c_type,
@@ -36809,8 +36809,8 @@ def run_one_op_e2e(
     run_id: str,
     artifact_dir: Path,
     expectation: OpExpectation,
-    tcrv_opt: str,
-    tcrv_translate: str,
+    weft_opt: str,
+    weft_translate: str,
     readobj: str | None,
     runtime_counts: list[int],
     rhs_scalar_values: list[int],
@@ -36914,8 +36914,8 @@ def run_one_op_e2e(
         }
 
         local = generate_bundle(
-            tcrv_opt,
-            tcrv_translate,
+            weft_opt,
+            weft_translate,
             expectation,
             bundle_dir,
             args.timeout,
@@ -36933,7 +36933,7 @@ def run_one_op_e2e(
         bundle_checks = verify_bundle(bundle_dir, readobj, expectation)
         evidence["bundle_checks"] = bundle_checks
         evidence["typed_config_artifact_closure"] = {
-            "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+            "source": "provider-derived typed weft_rvv body/config/runtime facts",
             "element_type": expectation.element_type,
             "sew": expectation.sew,
             "lmul": expectation.lmul,
@@ -37263,29 +37263,29 @@ def run_one_op_e2e(
                     ),
                     "selected_candidate": (
                         widening_product_metadata_for_harness.get(
-                            "tcrv_rvv.low_precision_resource.selected_candidate"
+                            "weft_rvv.low_precision_resource.selected_candidate"
                         )
                     ),
                     "expected_selected_candidate": packed_i4_profile[
                         "selected_candidate"
                     ],
                     "operand_form": widening_product_metadata_for_harness.get(
-                        "tcrv_rvv.low_precision_resource.operand_form"
+                        "weft_rvv.low_precision_resource.operand_form"
                     ),
                     "expected_operand_form": packed_i4_profile["operand_form"],
                     "packing_layout": widening_product_metadata_for_harness.get(
-                        "tcrv_rvv.low_precision_resource.packing_layout"
+                        "weft_rvv.low_precision_resource.packing_layout"
                     ),
                     "expected_packing_layout": packed_i4_profile[
                         "packing_layout"
                     ],
                     "unpack_intent": widening_product_metadata_for_harness.get(
-                        "tcrv_rvv.low_precision_resource.unpack_intent"
+                        "weft_rvv.low_precision_resource.unpack_intent"
                     ),
                     "expected_unpack_intent": packed_i4_profile["unpack_intent"],
                     "remediation_statement_strategy": (
                         widening_product_metadata_for_harness.get(
-                            "tcrv_rvv.low_precision_resource."
+                            "weft_rvv.low_precision_resource."
                             "remediation_statement_strategy"
                         )
                     ),
@@ -38320,8 +38320,8 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "bound_pairs_are_runtime_cases_not_bound_authority": True,
             }
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
-        tcrv_opt = ensure_tool(args.tcrv_opt)
-        tcrv_translate = ensure_tool(args.tcrv_translate)
+        weft_opt = ensure_tool(args.weft_opt)
+        weft_translate = ensure_tool(args.weft_translate)
         readobj = ensure_tool(args.llvm_readobj) if args.llvm_readobj else None
 
         for expectation in expectations:
@@ -38330,8 +38330,8 @@ def run_e2e(args: argparse.Namespace) -> int:
                 run_id=run_id,
                 artifact_dir=artifact_dir,
                 expectation=expectation,
-                tcrv_opt=tcrv_opt,
-                tcrv_translate=tcrv_translate,
+                weft_opt=weft_opt,
+                weft_translate=weft_translate,
                 readobj=readobj,
                 runtime_counts=runtime_counts,
                 rhs_scalar_values=rhs_scalar_values,
@@ -38401,34 +38401,34 @@ def make_fake_bundle(
             )
         )
     header_required_metadata_keys = {
-        "tcrv_rvv.config_contract",
-        "tcrv_rvv.element_type",
-        "tcrv_rvv.sew",
-        "tcrv_rvv.lmul",
-        "tcrv_rvv.tail_policy",
-        "tcrv_rvv.mask_policy",
-        "tcrv_rvv.required_header_declarations",
-        "tcrv_rvv.c_type_mapping",
-        "tcrv_rvv.runtime_avl_source",
-        "tcrv_rvv.multi_vl",
+        "weft_rvv.config_contract",
+        "weft_rvv.element_type",
+        "weft_rvv.sew",
+        "weft_rvv.lmul",
+        "weft_rvv.tail_policy",
+        "weft_rvv.mask_policy",
+        "weft_rvv.required_header_declarations",
+        "weft_rvv.c_type_mapping",
+        "weft_rvv.runtime_avl_source",
+        "weft_rvv.multi_vl",
     }
     if uses_packed_i4_resource:
         header_required_metadata_keys.update(LOW_PRECISION_RESOURCE_METADATA_KEYS)
     header_metadata_comments = "\n".join(
-        f"/* tianchenrv.rvv.{key.removeprefix('tcrv_rvv.')}: {value} */"
+        f"/* weft.rvv.{key.removeprefix('weft_rvv.')}: {value} */"
         for key, value in expected_metadata.items()
         if key in header_required_metadata_keys
     )
     (bundle_dir / object_name).write_bytes(b"\x7fELFfake-riscv-object")
     (bundle_dir / header_name).write_text(
         f"""
-#ifndef TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H
-#define TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H
+#ifndef WEFT_RVV_MATERIALIZED_EMITC_HEADER_H
+#define WEFT_RVV_MATERIALIZED_EMITC_HEADER_H
 #include <stddef.h>
 #include <stdint.h>
 {header_metadata_comments}
-/* tianchenrv.rvv.runtime_avl_source: runtime_abi:n */
-/* tianchenrv.rvv.multi_vl: supported */
+/* weft.rvv.runtime_avl_source: runtime_abi:n */
+/* weft.rvv.multi_vl: supported */
 #ifdef __cplusplus
 extern "C" {{
 #endif
@@ -38456,7 +38456,7 @@ extern "C" {{
     )
     runtime_parameter_count = len(expectation.runtime_parameters)
     index_text = f"""
-tianchenrv.target_artifact_bundle.version: 1
+weft.target_artifact_bundle.version: 1
 bundle_status: "complete"
 artifact_count: 2
 artifact[0]:
@@ -38523,7 +38523,7 @@ def require_self_test_sanitized(name: str, raw: str, forbidden: str) -> None:
 
 
 def run_self_test() -> int:
-    with tempfile.TemporaryDirectory(prefix="tcrv-rvv-generated-bundle-self-test-") as tmp_raw:
+    with tempfile.TemporaryDirectory(prefix="weft-rvv-generated-bundle-self-test-") as tmp_raw:
         tmp = Path(tmp_raw)
         validate_runtime_counts([7, 16, 23])
         expect_self_test_failure(
@@ -39022,11 +39022,11 @@ def run_self_test() -> int:
                 )
                 if (
                     vector_reduction_metadata.get(
-                        "tcrv_rvv.reduction_store_vl"
+                        "weft_rvv.reduction_store_vl"
                     )
                     != REDUCE_ADD_STORE_VL
                     or vector_reduction_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN
                 ):
@@ -39060,14 +39060,14 @@ def run_self_test() -> int:
                 )
                 statement_plan = conversion_boundary.get("statement_plan", {})
                 if (
-                    conversion_metadata.get("tcrv_rvv.conversion_relation")
+                    conversion_metadata.get("weft_rvv.conversion_relation")
                     != expectation.conversion_relation
                     or conversion_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != expected_binding_plan
                     or conversion_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != expected_binding_operands
                     or provider_facts.get("source_load_intrinsic")
@@ -39107,16 +39107,16 @@ def run_self_test() -> int:
                     "selected_source_abi", {}
                 )
                 if (
-                    dequant_metadata.get("tcrv_rvv.dequantization_relation")
+                    dequant_metadata.get("weft_rvv.dequantization_relation")
                     != DEQUANTIZE_I32_TO_F32_RELATION
-                    or dequant_metadata.get("tcrv_rvv.conversion_kind")
+                    or dequant_metadata.get("weft_rvv.conversion_kind")
                     != DEQUANTIZE_I32_TO_F32_CONVERSION_KIND
                     or dequant_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_PLAN
                     or dequant_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_OPERANDS
                     or selected_source_abi.get("scale")
@@ -39182,23 +39182,23 @@ def run_self_test() -> int:
                     "runtime_bound_roles", {}
                 )
                 if (
-                    f32_clamp_metadata.get("tcrv_rvv.lower_bound_role")
+                    f32_clamp_metadata.get("weft_rvv.lower_bound_role")
                     != F32_CLAMP_SELECT_LOWER_BOUND_ROLE
-                    or f32_clamp_metadata.get("tcrv_rvv.upper_bound_role")
+                    or f32_clamp_metadata.get("weft_rvv.upper_bound_role")
                     != F32_CLAMP_SELECT_UPPER_BOUND_ROLE
-                    or f32_clamp_metadata.get("tcrv_rvv.bound_order")
+                    or f32_clamp_metadata.get("weft_rvv.bound_order")
                     != F32_CLAMP_SELECT_BOUND_ORDER
-                    or f32_clamp_metadata.get("tcrv_rvv.clamp_relation")
+                    or f32_clamp_metadata.get("weft_rvv.clamp_relation")
                     != F32_CLAMP_SELECT_CLAMP_RELATION
                     or f32_clamp_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
                     or f32_clamp_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
-                    or f32_clamp_metadata.get("tcrv_rvv.target_leaf_profile")
+                    or f32_clamp_metadata.get("weft_rvv.target_leaf_profile")
                     != F32_CLAMP_SELECT_TARGET_LEAF_PROFILE
                     or runtime_bound_roles.get("lower_bound")
                     != F32_CLAMP_SELECT_LOWER_BOUND_ROLE
@@ -39251,13 +39251,13 @@ def run_self_test() -> int:
                 provider_facts = macc_boundary.get("provider_route_facts", {})
                 statement_plan = macc_boundary.get("statement_plan", {})
                 if (
-                    macc_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    macc_metadata.get("weft_rvv.route_operand_binding_plan")
                     != MACC_ROUTE_OPERAND_BINDING_PLAN
                     or macc_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != MACC_ROUTE_OPERAND_BINDING_OPERANDS
-                    or macc_metadata.get("tcrv_rvv.provider_supported_mirror")
+                    or macc_metadata.get("weft_rvv.provider_supported_mirror")
                     != PLAIN_MACC_PROVIDER_SUPPORTED_MIRROR
                     or selected_source_abi.get("lhs") != "lhs-input-buffer"
                     or selected_source_abi.get("rhs") != "rhs-input-buffer"
@@ -39309,15 +39309,15 @@ def run_self_test() -> int:
                 )
                 if (
                     widening_macc_metadata.get(
-                        "tcrv_rvv.widening_macc_relation"
+                        "weft_rvv.widening_macc_relation"
                     )
                     != WIDENING_MACC_RELATION
                     or widening_macc_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN
                     or widening_macc_metadata.get(
-                        "tcrv_rvv.provider_supported_mirror"
+                        "weft_rvv.provider_supported_mirror"
                     )
                     != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
                     or selected_source_abi.get("lhs")
@@ -39404,18 +39404,18 @@ def run_self_test() -> int:
                 )
                 statement_plan = widening_dot_boundary.get("statement_plan", {})
                 if (
-                    widening_dot_metadata.get("tcrv_rvv.widening_dot_relation")
+                    widening_dot_metadata.get("weft_rvv.widening_dot_relation")
                     != WIDENING_DOT_RELATION
                     or widening_dot_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != expected_binding_plan
                     or widening_dot_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != expected_binding_operands
                     or widening_dot_metadata.get(
-                        "tcrv_rvv.provider_supported_mirror"
+                        "weft_rvv.provider_supported_mirror"
                     )
                     != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
                     or selected_source_abi.get("lhs") != "lhs-input-buffer"
@@ -39456,7 +39456,7 @@ def run_self_test() -> int:
                         expectation.is_strided_input_widening_dot_reduce_add
                         and (
                             widening_dot_metadata.get(
-                                "tcrv_rvv.low_precision_resource.selected_candidate"
+                                "weft_rvv.low_precision_resource.selected_candidate"
                             )
                             != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
                             or low_precision_resource.get("candidate_set")
@@ -39622,15 +39622,15 @@ def run_self_test() -> int:
                 )
                 gearbox_boundary_lost = (
                     product_dequant_metadata.get(
-                        "tcrv_rvv.low_precision_resource.selected_candidate"
+                        "weft_rvv.low_precision_resource.selected_candidate"
                     )
                     != expected_resource_selected_candidate
                     or product_dequant_metadata.get(
-                        "tcrv_rvv.gearbox.producer_scope"
+                        "weft_rvv.gearbox.producer_scope"
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
                     or product_dequant_metadata.get(
-                        "tcrv_rvv.gearbox.consumer_scope"
+                        "weft_rvv.gearbox.consumer_scope"
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
                     or low_precision_resource.get("candidate_set")
@@ -39705,24 +39705,24 @@ def run_self_test() -> int:
                 )
                 if (
                     product_dequant_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != expected_binding_plan
                     or product_dequant_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != expected_binding_operands
                     or product_dequant_metadata.get(
-                        "tcrv_rvv.scalar_result_runtime_boundary"
+                        "weft_rvv.scalar_result_runtime_boundary"
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
                     or gearbox_boundary_lost
                     or product_dequant_metadata.get(
-                        "tcrv_rvv.dequantization_relation"
+                        "weft_rvv.dequantization_relation"
                     )
                     != DEQUANTIZE_I32_TO_F32_RELATION
                     or product_dequant_metadata.get(
-                        "tcrv_rvv.rhs_broadcast_intrinsic"
+                        "weft_rvv.rhs_broadcast_intrinsic"
                     )
                     != F32_CLAMP_SELECT_SPLAT_INTRINSIC
                     or product_dequant_facts.get("scalar_dequant_expression")
@@ -39804,23 +39804,23 @@ def run_self_test() -> int:
                 )
                 if (
                     computed_masked_widening_dot_metadata.get(
-                        "tcrv_rvv.widening_dot_relation"
+                        "weft_rvv.widening_dot_relation"
                     )
                     != WIDENING_DOT_RELATION
                     or computed_masked_widening_dot_metadata.get(
-                        "tcrv_rvv.route_operand_binding_plan"
+                        "weft_rvv.route_operand_binding_plan"
                     )
                     != expected_binding_plan
                     or computed_masked_widening_dot_metadata.get(
-                        "tcrv_rvv.compare_predicate_kind"
+                        "weft_rvv.compare_predicate_kind"
                     )
                     != "slt"
                     or computed_masked_widening_dot_metadata.get(
-                        "tcrv_rvv.masked_widening_product_intrinsic"
+                        "weft_rvv.masked_widening_product_intrinsic"
                     )
                     != "__riscv_vwmul_vv_i32m1_m"
                     or computed_masked_widening_dot_metadata.get(
-                        "tcrv_rvv.provider_supported_mirror"
+                        "weft_rvv.provider_supported_mirror"
                     )
                     != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
                 ):
@@ -39865,19 +39865,19 @@ def run_self_test() -> int:
                     )
                     if (
                         computed_masked_widening_dot_metadata.get(
-                            "tcrv_rvv.source_memory_form"
+                            "weft_rvv.source_memory_form"
                         )
                         != STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
                         or computed_masked_widening_dot_metadata.get(
-                            "tcrv_rvv.strided_memory_layout"
+                            "weft_rvv.strided_memory_layout"
                         )
                         != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
                         or computed_masked_widening_dot_metadata.get(
-                            "tcrv_rvv.widening_dot_source_accumulator_result_contract"
+                            "weft_rvv.widening_dot_source_accumulator_result_contract"
                         )
                         != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_SOURCE_ACCUMULATOR_RESULT_CONTRACT
                         or computed_masked_widening_dot_metadata.get(
-                            "tcrv_rvv.low_precision_resource.selected_candidate"
+                            "weft_rvv.low_precision_resource.selected_candidate"
                         )
                         != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
                         or low_precision_resource.get("candidate_set")
@@ -39923,35 +39923,35 @@ def run_self_test() -> int:
                 )
                 if (
                     reduction_metadata.get(
-                        "tcrv_rvv.standalone_reduction_route_family_plan"
+                        "weft_rvv.standalone_reduction_route_family_plan"
                     )
                     != STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                     or reduction_metadata.get(
-                        "tcrv_rvv.standalone_reduction_source_vector_type"
+                        "weft_rvv.standalone_reduction_source_vector_type"
                     )
                     != expectation.rvv_vector_type
                     or reduction_metadata.get(
-                        "tcrv_rvv.standalone_reduction_source_vector_c_type"
+                        "weft_rvv.standalone_reduction_source_vector_c_type"
                     )
                     != expectation.rvv_vector_c_type
                     or reduction_metadata.get(
-                        "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
+                        "weft_rvv.standalone_reduction_scalar_result_vector_type"
                     )
                     != expectation.standalone_reduction_scalar_result_vector_type
                     or reduction_metadata.get(
-                        "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+                        "weft_rvv.standalone_reduction_scalar_result_vector_c_type"
                     )
                     != expectation.standalone_reduction_scalar_result_vector_c_type
-                    or reduction_metadata.get("tcrv_rvv.vector_load_intrinsic")
+                    or reduction_metadata.get("weft_rvv.vector_load_intrinsic")
                     != expectation.unit_load_intrinsic
                     or reduction_metadata.get(
-                        "tcrv_rvv.scalar_seed_splat_intrinsic"
+                        "weft_rvv.scalar_seed_splat_intrinsic"
                     )
                     != expectation.standalone_reduction_scalar_seed_splat_intrinsic
-                    or reduction_metadata.get("tcrv_rvv.reduction_intrinsic")
+                    or reduction_metadata.get("weft_rvv.reduction_intrinsic")
                     != expectation.standalone_reduction_intrinsic
                     or reduction_metadata.get(
-                        "tcrv_rvv.scalar_result_store_intrinsic"
+                        "weft_rvv.scalar_result_store_intrinsic"
                     )
                     != expectation.standalone_reduction_scalar_result_store_intrinsic
                 ):
@@ -39965,16 +39965,16 @@ def run_self_test() -> int:
                 ):
                     if (
                         reduction_metadata.get(
-                            "tcrv_rvv.accumulation_route_family_plan"
+                            "weft_rvv.accumulation_route_family_plan"
                         )
                         != COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
-                        or reduction_metadata.get("tcrv_rvv.compare_intrinsic")
+                        or reduction_metadata.get("weft_rvv.compare_intrinsic")
                         != expectation.compare_intrinsic
                         or reduction_metadata.get(
-                            "tcrv_rvv.masked_merge_intrinsic"
+                            "weft_rvv.masked_merge_intrinsic"
                         )
                         != expectation.select_intrinsic
-                        or reduction_metadata.get("tcrv_rvv.mask_role")
+                        or reduction_metadata.get("weft_rvv.mask_role")
                         != COMPUTED_MASK_MEMORY_MASK_ROLE
                     ):
                         raise AssertionError(
@@ -39985,7 +39985,7 @@ def run_self_test() -> int:
                 if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
                     if (
                         reduction_metadata.get(
-                            "tcrv_rvv.rhs_broadcast_intrinsic"
+                            "weft_rvv.rhs_broadcast_intrinsic"
                         )
                         != expectation.scalar_splat_intrinsic
                     ):
@@ -40242,10 +40242,10 @@ def run_self_test() -> int:
                 statement_plan = boundary.get("statement_plan", {})
                 selected_source_abi = statement_plan.get("selected_source_abi", {})
                 if (
-                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    route_metadata.get("weft_rvv.route_operand_binding_plan")
                     != INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
                     or route_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
                     or selected_source_abi.get("data") != "lhs-input-buffer"
@@ -40285,10 +40285,10 @@ def run_self_test() -> int:
                 statement_plan = boundary.get("statement_plan", {})
                 selected_source_abi = statement_plan.get("selected_source_abi", {})
                 if (
-                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    route_metadata.get("weft_rvv.route_operand_binding_plan")
                     != INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                     or route_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                     or selected_source_abi.get("src") != "lhs-input-buffer"
@@ -40374,17 +40374,17 @@ def run_self_test() -> int:
                 )
                 route_metadata = boundary.get("route_metadata", {})
                 if (
-                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    route_metadata.get("weft_rvv.route_operand_binding_plan")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
                     or route_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
                     or route_metadata.get(
-                        "tcrv_rvv.computed_mask_memory_mask_producer_source"
+                        "weft_rvv.computed_mask_memory_mask_producer_source"
                     )
                     != COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
-                    or route_metadata.get("tcrv_rvv.provider_supported_mirror")
+                    or route_metadata.get("weft_rvv.provider_supported_mirror")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_PROVIDER_SUPPORTED_MIRROR
                 ):
                     raise AssertionError(
@@ -40438,17 +40438,17 @@ def run_self_test() -> int:
                 )
                 route_metadata = boundary.get("route_metadata", {})
                 if (
-                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    route_metadata.get("weft_rvv.route_operand_binding_plan")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                     or route_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                     or route_metadata.get(
-                        "tcrv_rvv.computed_mask_memory_mask_producer_source"
+                        "weft_rvv.computed_mask_memory_mask_producer_source"
                     )
                     != COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
-                    or route_metadata.get("tcrv_rvv.provider_supported_mirror")
+                    or route_metadata.get("weft_rvv.provider_supported_mirror")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
                     or boundary.get("indexed_memory", {}).get(
                         "destination_memory_form"
@@ -40501,17 +40501,17 @@ def run_self_test() -> int:
                     "composite_resource_selection", {}
                 )
                 if (
-                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    route_metadata.get("weft_rvv.route_operand_binding_plan")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                     or route_metadata.get(
-                        "tcrv_rvv.route_operand_binding_operands"
+                        "weft_rvv.route_operand_binding_operands"
                     )
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                     or route_metadata.get(
-                        "tcrv_rvv.computed_mask_memory_mask_producer_source"
+                        "weft_rvv.computed_mask_memory_mask_producer_source"
                     )
                     != COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
-                    or route_metadata.get("tcrv_rvv.provider_supported_mirror")
+                    or route_metadata.get("weft_rvv.provider_supported_mirror")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_PROVIDER_SUPPORTED_MIRROR
                     or indexed_memory.get("data_memory_form")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEXED_DATA_MEMORY_FORM
@@ -40595,10 +40595,10 @@ def run_self_test() -> int:
                 route_metadata = boundary.get("route_metadata", {})
                 if (
                     route_metadata.get(
-                        "tcrv_rvv.mask_tail_policy_route_family_plan"
+                        "weft_rvv.mask_tail_policy_route_family_plan"
                     )
                     != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
-                    or route_metadata.get("tcrv_rvv.mask_tail_policy_owner")
+                    or route_metadata.get("weft_rvv.mask_tail_policy_owner")
                     != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
                     or boundary.get("mask_tail_policy_route_family_plan")
                     != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
@@ -40662,10 +40662,10 @@ def run_self_test() -> int:
                 route_metadata = boundary.get("route_metadata", {})
                 if (
                     route_metadata.get(
-                        "tcrv_rvv.mask_tail_policy_route_family_plan"
+                        "weft_rvv.mask_tail_policy_route_family_plan"
                     )
                     != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
-                    or route_metadata.get("tcrv_rvv.mask_tail_policy_owner")
+                    or route_metadata.get("weft_rvv.mask_tail_policy_owner")
                     != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
                     or boundary.get("mask_tail_policy_route_family_plan")
                     != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
@@ -40887,8 +40887,8 @@ def run_self_test() -> int:
         index_path = missing_schedule_metadata / INDEX_FILE_NAME
         text = index_path.read_text(encoding="utf-8")
         text = text.replace(
-            'key: "tcrv_rvv.low_precision_resource.realization_decision"',
-            'key: "tcrv_rvv.low_precision_resource.realization_decision_missing"',
+            'key: "weft_rvv.low_precision_resource.realization_decision"',
+            'key: "weft_rvv.low_precision_resource.realization_decision_missing"',
             1,
         )
         index_path.write_text(text, encoding="utf-8")
@@ -40925,8 +40925,8 @@ def run_self_test() -> int:
         index_path = missing_feedback_metadata / INDEX_FILE_NAME
         text = index_path.read_text(encoding="utf-8")
         text = text.replace(
-            'key: "tcrv_rvv.low_precision_resource.performance_feedback"',
-            'key: "tcrv_rvv.low_precision_resource.performance_feedback_missing"',
+            'key: "weft_rvv.low_precision_resource.performance_feedback"',
+            'key: "weft_rvv.low_precision_resource.performance_feedback_missing"',
             1,
         )
         index_path.write_text(text, encoding="utf-8")
@@ -40965,9 +40965,9 @@ def run_self_test() -> int:
         index_path = missing_remediation_plan_metadata / INDEX_FILE_NAME
         text = index_path.read_text(encoding="utf-8")
         text = text.replace(
-            'key: "tcrv_rvv.low_precision_resource.remediation_plan_contract"',
+            'key: "weft_rvv.low_precision_resource.remediation_plan_contract"',
             (
-                'key: "tcrv_rvv.low_precision_resource.'
+                'key: "weft_rvv.low_precision_resource.'
                 'remediation_plan_contract_missing"'
             ),
             1,
@@ -41246,7 +41246,7 @@ def run_self_test() -> int:
         )
         require_self_test_sanitized(
             "environment token",
-            "TCRV_API_TOKEN=raw-secret-token",
+            "WEFT_API_TOKEN=raw-secret-token",
             "raw-secret-token",
         )
         require_self_test_sanitized(
@@ -41337,7 +41337,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use explicit selected-body add/sub/mul fixtures where rhs is "
-            "produced by tcrv_rvv.broadcast_load; mutually exclusive with "
+            "produced by weft_rvv.broadcast_load; mutually exclusive with "
             "--pre-realized-selected-body and "
             "--lmul-m2-selected-body"
         ),
@@ -41347,7 +41347,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use explicit selected-body add/sub/mul fixtures with "
-            "generic !tcrv_rvv.vector<i32, \"m2\"> dataflow and lmul=m2 "
+            "generic !weft_rvv.vector<i32, \"m2\"> dataflow and lmul=m2 "
             "config; mutually exclusive "
             "with pre-realized and rhs-broadcast modes"
         ),
@@ -41372,8 +41372,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "modes"
         ),
     )
-    parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
-    parser.add_argument("--tcrv-translate", default="build/bin/tcrv-translate")
+    parser.add_argument("--weft-opt", default="build/bin/weft-opt")
+    parser.add_argument("--weft-translate", default="build/bin/weft-translate")
     parser.add_argument("--llvm-readobj", default=default_readobj())
     parser.add_argument("--ssh-target", default=DEFAULT_SSH_TARGET)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)

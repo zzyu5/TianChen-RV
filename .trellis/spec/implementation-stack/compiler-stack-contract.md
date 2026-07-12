@@ -2,7 +2,7 @@
 
 ## Primary Stack
 
-TianChen-RV MLIR is a real MLIR compiler project. The primary implementation stack is:
+Weft-RV MLIR is a real MLIR compiler project. The primary implementation stack is:
 
 ```text
 C++
@@ -16,8 +16,8 @@ lit / FileCheck
 This stack is mandatory for:
 
 - core IR and dialect implementation;
-- `tcrv.exec` operation definitions and verifiers;
-- TCRV extension families such as RVV, IME, TensorExt, Offload, and future vendor/custom families;
+- `weft.exec` operation definitions and verifiers;
+- WEFT extension families such as RVV, IME, TensorExt, Offload, and future vendor/custom families;
 - compiler passes;
 - plugin registry and interfaces;
 - capability model compiler objects;
@@ -63,7 +63,7 @@ typed extension-body generation
 Wrong:
 
 ```text
-Implement `tcrv.exec.variant` as a Python class and run legality with Python dictionaries.
+Implement `weft.exec.variant` as a Python class and run legality with Python dictionaries.
 Represent capabilities as JSON-only objects consumed by Python pass simulators.
 Use Python to lower pseudo-IR into strings and call that the compiler pipeline.
 ```
@@ -76,7 +76,7 @@ Implement verifiers, passes, registries, and lowering in C++ using MLIR/LLVM API
 Use Python only to run `mlir-opt`, launch `ssh rvv` probes, parse artifacts, or supervise runs.
 ```
 
-For RVV, Python must not generate the authoritative typed `tcrv_rvv` body,
+For RVV, Python must not generate the authoritative typed `weft_rvv` body,
 decide dtype/config/operation facts, realize selected bodies, map RVV
 intrinsics, construct route provider payloads, or implement capability
 relations. Python may prepare fixtures or probes only when the compiler-owned

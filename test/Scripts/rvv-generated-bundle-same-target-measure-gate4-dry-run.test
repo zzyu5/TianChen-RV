@@ -1,4 +1,4 @@
-# REQUIRES: tianchenrv-local-rvv-object-clang
+# REQUIRES: weft-local-rvv-object-clang
 #
 # P-B6 (the byte op-kind RESTORED; un-carved from P-B5). The BYTE (unpacked)
 # widening_product_reduce_dequantize_f32 kernel realizes the DEFERRED-WIDE winner
@@ -12,19 +12,19 @@
 # narrow bundle-export coverage stays byte-identical (clamp is clamp-gated,
 # packed-i4 is operand_form-gated, both realize narrow).
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.artifacts --run-id gate4-same-target-measure --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32 --measure-count 257 --measure-count 1024 --warmup-count 1 --repeat-count 2 --measure-iterations 3 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.artifacts --run-id gate4-same-target-measure --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32 --measure-count 257 --measure-count 1024 --warmup-count 1 --repeat-count 2 --measure-iterations 3 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/gate4-same-target-measure/evidence.json
 # RUN: FileCheck %s --check-prefix=WPRD < %t.artifacts/gate4-same-target-measure/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=WPRDC < %t.artifacts/gate4-same-target-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS-D --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.artifacts/gate4-same-target-measure/widening_product_reduce_dequantize_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequantize_f32.c
 # RUN: FileCheck %s --check-prefix=HARNESS-DC --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.artifacts/gate4-same-target-measure/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequant_clamp_f32.c
 # RUN: rm -rf %t.packed.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.artifacts --run-id gate4-packed-i4-scalar-epilogue-dequant-measure --overwrite --op-kind widening_product_reduce_dequantize_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.artifacts --run-id gate4-packed-i4-scalar-epilogue-dequant-measure --overwrite --op-kind widening_product_reduce_dequantize_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-STDOUT
 # RUN: FileCheck %s --check-prefix=PACKED-ROOT < %t.packed.artifacts/gate4-packed-i4-scalar-epilogue-dequant-measure/evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-WPRD < %t.packed.artifacts/gate4-packed-i4-scalar-epilogue-dequant-measure/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.artifacts/gate4-packed-i4-scalar-epilogue-dequant-measure/widening_product_reduce_dequantize_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequantize_f32.c
 # RUN: rm -rf %t.packed.clamp.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.clamp.artifacts --run-id gate4-packed-i4-scalar-epilogue-dequant-clamp-measure --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-CLAMP-STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.clamp.artifacts --run-id gate4-packed-i4-scalar-epilogue-dequant-clamp-measure --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-CLAMP-STDOUT
 # RUN: FileCheck %s --check-prefix=PACKED-CLAMP-ROOT < %t.packed.clamp.artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-measure/evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-CLAMP-WPRDC < %t.packed.clamp.artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-CLAMP-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.clamp.artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequant_clamp_f32.c
@@ -33,7 +33,7 @@
 # candidate feedback is the deferred-wide honest record (no resource-selection
 # block). The packed-i4 candidate (narrow, operand_form-gated) is exercised too.
 # RUN: rm -rf %t.candidate.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.candidate.artifacts --run-id gate4-candidate-feedback --overwrite --op-kind widening_product_reduce_dequantize_f32 --candidate-input grouped-u2=%S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir --candidate-input packed-i4=%S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --warmup-count 1 --repeat-count 2 --measure-iterations 3 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=CAND-STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.candidate.artifacts --run-id gate4-candidate-feedback --overwrite --op-kind widening_product_reduce_dequantize_f32 --candidate-input grouped-u2=%S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir --candidate-input packed-i4=%S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --warmup-count 1 --repeat-count 2 --measure-iterations 3 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=CAND-STDOUT
 # RUN: FileCheck %s --check-prefix=CAND-ROOT < %t.candidate.artifacts/gate4-candidate-feedback/evidence.json
 # RUN: FileCheck %s --check-prefix=CAND-GROUPED < %t.candidate.artifacts/gate4-candidate-feedback/grouped-u2/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=CAND-PACKED < %t.candidate.artifacts/gate4-candidate-feedback/packed-i4/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
@@ -73,7 +73,7 @@
 # WPRD-DAG: "classification": "not-measured"
 # WPRD-DAG: "timing_method": "clock_gettime(CLOCK_MONOTONIC_RAW)"
 # WPRD-DAG: "correctness_before_timing": true
-# WPRD-DAG: "generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize"
+# WPRD-DAG: "generated_function": "weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize"
 # WPRD-DAG: "pre_realized_body_consumed": true
 # WPRD-DAG: "selected_variant": "pre_realized_body_rvv_product_reduce_dequantize"
 # WPRD-DAG: "object_sha256":
@@ -204,7 +204,7 @@
 # PACKED-WPRD-DAG: "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1"
 # PACKED-WPRD-DAG: "source_selected_variant": "pre_realized_body_rvv_product_reduce_dequantize"
 # PACKED-WPRD-DAG: "source_selected_input":
-# PACKED-WPRD-DAG: "source_generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize"
+# PACKED-WPRD-DAG: "source_generated_function": "weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize"
 # PACKED-WPRD-DAG: "generated_artifact_identity_contract": "generated-object-header-sha256-after-target-artifact-validation.v1"
 # PACKED-WPRD-DAG: "generated_artifact_object_path":
 # PACKED-WPRD-DAG: "generated_artifact_object_sha256":
@@ -307,7 +307,7 @@
 # PACKED-CLAMP-WPRDC-DAG: "provider_beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 # PACKED-CLAMP-WPRDC-DAG: "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1"
 # PACKED-CLAMP-WPRDC-DAG: "source_selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
-# PACKED-CLAMP-WPRDC-DAG: "source_generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"
+# PACKED-CLAMP-WPRDC-DAG: "source_generated_function": "weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"
 # PACKED-CLAMP-WPRDC-DAG: "generated_artifact_identity_contract": "generated-object-header-sha256-after-target-artifact-validation.v1"
 # PACKED-CLAMP-WPRDC-DAG: "measurement_runtime_count_set": "257,4096,65536"
 # PACKED-CLAMP-WPRDC-DAG: "pressure_profile_label": "low-precision-quantized-contraction-production-pressure"
@@ -325,7 +325,7 @@
 # WPRDC-DAG: "classification": "not-measured"
 # WPRDC-DAG: "timing_method": "clock_gettime(CLOCK_MONOTONIC_RAW)"
 # WPRDC-DAG: "correctness_before_timing": true
-# WPRDC-DAG: "generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"
+# WPRDC-DAG: "generated_function": "weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"
 # WPRDC-DAG: "pre_realized_body_consumed": true
 # WPRDC-DAG: "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
 # WPRDC-DAG: "object_sha256":
@@ -335,7 +335,7 @@
 # PACKED-HARNESS-DAG: sign_extend_i4
 # PACKED-HARNESS-DAG: pack_signed_i4_pair
 # PACKED-HARNESS-DAG: low_product + high_product
-# PACKED-HARNESS-DAG: tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize
+# PACKED-HARNESS-DAG: weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize
 # PACKED-HARNESS-DAG: CORRECTNESS_GUARD_BEFORE_TIMING op=widening_product_reduce_dequantize_f32
 # PACKED-HARNESS-DAG: MEASURE_CONFIG op=widening_product_reduce_dequantize_f32
 # PACKED-HARNESS-DAG: baseline=scalar-c-reference/product-reduction-dequant-packed-i4-v1
@@ -353,7 +353,7 @@
 # PACKED-CLAMP-HARNESS-DAG: pack_signed_i4_pair
 # PACKED-CLAMP-HARNESS-DAG: low_product + high_product
 # PACKED-CLAMP-HARNESS-DAG: struct BoundPair
-# PACKED-CLAMP-HARNESS-DAG: tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp
+# PACKED-CLAMP-HARNESS-DAG: weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp
 # PACKED-CLAMP-HARNESS-DAG: CORRECTNESS_GUARD_BEFORE_TIMING op=widening_product_reduce_dequant_clamp_f32
 # PACKED-CLAMP-HARNESS-DAG: MEASURE_CONFIG op=widening_product_reduce_dequant_clamp_f32
 # PACKED-CLAMP-HARNESS-DAG: baseline=scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
@@ -372,7 +372,7 @@
 # internal config; the runtime ABI + numeric oracle are unchanged).
 # HARNESS-D-DAG: baseline_product_reduction_dequant_v1
 # HARNESS-D-DAG: clock_gettime(CLOCK_MONOTONIC_RAW
-# HARNESS-D-DAG: tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize
+# HARNESS-D-DAG: weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize
 # HARNESS-D-DAG: CORRECTNESS_GUARD_BEFORE_TIMING op=widening_product_reduce_dequantize_f32
 # HARNESS-D-DAG: MEASURE_CONFIG op=widening_product_reduce_dequantize_f32
 # HARNESS-D-DAG: baseline=scalar-c-reference/product-reduction-dequant-v1
@@ -388,7 +388,7 @@
 # HARNESS-DC-DAG: baseline_product_reduction_dequant_clamp_v1
 # HARNESS-DC-DAG: struct BoundPair
 # HARNESS-DC-DAG: clock_gettime(CLOCK_MONOTONIC_RAW
-# HARNESS-DC-DAG: tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp
+# HARNESS-DC-DAG: weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp
 # HARNESS-DC-DAG: CORRECTNESS_GUARD_BEFORE_TIMING op=widening_product_reduce_dequant_clamp_f32
 # HARNESS-DC-DAG: MEASURE_CONFIG op=widening_product_reduce_dequant_clamp_f32
 # HARNESS-DC-DAG: baseline=scalar-c-reference/product-reduction-dequant-clamp-v1

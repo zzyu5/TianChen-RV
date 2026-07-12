@@ -8,22 +8,22 @@
 // attribute-name constants as inline constexpr) so the per-category files can
 // call them with external linkage. Behavior-preserving relocation: the bodies
 // are unchanged, only the namespace/linkage of the shared helpers was lifted
-// from the anonymous namespace into tianchenrv::tcrv::rvv.
+// from the anonymous namespace into weft::rvv.
 //
 // The declaration set is mechanically generated from RVVDialect.cpp's shared
 // helper region; do not hand-edit individual entries.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TIANCHENRV_LIB_DIALECT_RVV_IR_RVVDIALECTINTERNAL_H
-#define TIANCHENRV_LIB_DIALECT_RVV_IR_RVVDIALECTINTERNAL_H
+#ifndef WEFT_LIB_DIALECT_RVV_IR_RVVDIALECTINTERNAL_H
+#define WEFT_LIB_DIALECT_RVV_IR_RVVDIALECTINTERNAL_H
 
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
-#include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABI.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
@@ -35,8 +35,7 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv {
-namespace tcrv {
+namespace weft {
 namespace rvv {
 
 // --- shared attribute-name constants (inline constexpr; single definition) ---
@@ -261,11 +260,11 @@ inline constexpr llvm::StringLiteral kDestinationMemoryFormAttrName(
 inline constexpr llvm::StringLiteral kVLenAttrName("vlen");
 inline constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 inline constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
-    "tcrv_rvv.required_march");
+    "weft_rvv.required_march");
 inline constexpr llvm::StringLiteral kRVVRequiredCapabilitiesAttrName(
-    "tcrv_rvv.required_capabilities");
-inline constexpr llvm::StringLiteral kRVVVLenAttrName("tcrv_rvv.vlen");
-inline constexpr llvm::StringLiteral kRVVVLenBAttrName("tcrv_rvv.vlenb");
+    "weft_rvv.required_capabilities");
+inline constexpr llvm::StringLiteral kRVVVLenAttrName("weft_rvv.vlen");
+inline constexpr llvm::StringLiteral kRVVVLenBAttrName("weft_rvv.vlenb");
 inline constexpr llvm::StringLiteral kArchitectureAttrName("architecture");
 inline constexpr llvm::StringLiteral kISAVectorHintsAttrName("isa_vector_hints");
 inline constexpr llvm::StringLiteral kHartCountAttrName("hart_count");
@@ -1156,34 +1155,34 @@ bool isForbiddenPreRealizedBodyAuthorityAttr(llvm::StringRef name);
 bool isSafeCIdentifier(llvm::StringRef value);
 
 bool isSupportedBoundedRuntimeABIValueCType(
-    tianchenrv::support::RuntimeABIParameterRole role, llvm::StringRef cType);
+    weft::support::RuntimeABIParameterRole role, llvm::StringRef cType);
 
 llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
-    tianchenrv::support::RuntimeABIParameterRole role);
+    weft::support::RuntimeABIParameterRole role);
 
 bool isBoundedInputBufferRole(
-    tianchenrv::support::RuntimeABIParameterRole role);
+    weft::support::RuntimeABIParameterRole role);
 
-bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role);
+bool isBoundedScalarRole(weft::support::RuntimeABIParameterRole role);
 
 bool isBoundedIntegerScalarRole(
-    tianchenrv::support::RuntimeABIParameterRole role);
+    weft::support::RuntimeABIParameterRole role);
 
-bool isBoundedF32ScalarRole(tianchenrv::support::RuntimeABIParameterRole role);
+bool isBoundedF32ScalarRole(weft::support::RuntimeABIParameterRole role);
 
 bool isBoundedRuntimeABITokenScalarRole(
-    tianchenrv::support::RuntimeABIParameterRole role);
+    weft::support::RuntimeABIParameterRole role);
 
-bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role);
+bool isBoundedBufferRole(weft::support::RuntimeABIParameterRole role);
 
 bool isBoundedRuntimeIndexRole(
-    tianchenrv::support::RuntimeABIParameterRole role);
+    weft::support::RuntimeABIParameterRole role);
 
 bool isRuntimeABIExecBindingWriteWindowRole(
-    tianchenrv::support::RuntimeABIParameterRole role);
+    weft::support::RuntimeABIParameterRole role);
 
 mlir::Operation *
-lookupDirectExecKernelSymbol(tianchenrv::tcrv::exec::KernelOp kernel,
+lookupDirectExecKernelSymbol(weft::exec::KernelOp kernel,
                              llvm::StringRef symbolName);
 
 llvm::StringRef getStringAttrValue(mlir::Operation *op,
@@ -1197,7 +1196,7 @@ requireExecBindingStringAttr(RuntimeABIValueOp binding, mlir::Operation *target,
 
 mlir::LogicalResult verifyRuntimeABIValueExecBinding(
     RuntimeABIValueOp binding,
-    tianchenrv::support::RuntimeABIParameterRole parsedRole);
+    weft::support::RuntimeABIParameterRole parsedRole);
 
 mlir::FailureOr<RuntimeABIValueOp>
 verifyRuntimeABIValueOperand(mlir::Operation *op, mlir::Value value,
@@ -1205,29 +1204,29 @@ verifyRuntimeABIValueOperand(mlir::Operation *op, mlir::Value value,
 
 mlir::LogicalResult verifyRuntimeABIValueOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles);
 
 mlir::LogicalResult verifyRuntimeABIIndexOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles);
 
 mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
     llvm::ArrayRef<std::int64_t> acceptedScalarWidths,
     llvm::StringRef acceptedScalarTypesMessage,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles);
 
 mlir::LogicalResult verifyRuntimeABIF32ScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles);
 
 mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+    llvm::ArrayRef<weft::support::RuntimeABIParameterRole>
         expectedRoles);
 
 mlir::LogicalResult verifyRuntimeElementCountOperand(mlir::Operation *op,
@@ -1270,7 +1269,7 @@ bool isGenericRVVVectorSignedI16MF2(mlir::Type type);
 // Deferred-wide low-precision contraction (the N3 resource-aware max-legal-LMUL
 // schedule, the measured ssh-rvv winner var_v_m2_a1.c): a PARALLEL i8m2 ->
 // i16m4 -> i32m8 deferred-accumulate chain. These predicates are used ONLY by
-// the deferred-wide verifier branches (tcrv_rvv.widening_accumulate and the
+// the deferred-wide verifier branches (weft_rvv.widening_accumulate and the
 // deferred-mode standalone_reduce); the narrow i8mf4 -> i16mf2 -> i32m1 path is
 // untouched (no byte-identity regression).
 bool isGenericRVVVectorSignedI8M2(mlir::Type type);
@@ -1385,7 +1384,6 @@ mlir::LogicalResult verifyNoDataflowAttrs(mlir::Operation *op,
                                           bool (*isAllowed)(llvm::StringRef));
 
 } // namespace rvv
-} // namespace tcrv
-} // namespace tianchenrv
+} // namespace weft
 
-#endif // TIANCHENRV_LIB_DIALECT_RVV_IR_RVVDIALECTINTERNAL_H
+#endif // WEFT_LIB_DIALECT_RVV_IR_RVVDIALECTINTERNAL_H

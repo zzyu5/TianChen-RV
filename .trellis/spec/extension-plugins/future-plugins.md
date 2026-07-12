@@ -19,7 +19,7 @@ not current source-front-door authority.
 
 Do not force future extensions into existing RVV, IME, or Offload families
 unless their semantics genuinely match. A new extension still contributes a
-family to the unified TCRV system, not an independent backend.
+family to the unified WEFT system, not an independent backend.
 
 Correct:
 
@@ -32,7 +32,7 @@ new runtime accelerator path -> runtime-offload plugin or new runtime plugin
 Wrong:
 
 ```text
-reuse tcrv.ime for all future matrix/custom extensions
+reuse weft.ime for all future matrix/custom extensions
 call all vendor accelerator paths custom ISA
 make AME a current primary target without hardware evidence
 ```
@@ -43,7 +43,7 @@ Before adding a future plugin, define:
 
 - capability kind and fields;
 - extension family name and concrete MLIR namespace;
-- required TCRV common interfaces;
+- required WEFT common interfaces;
 - types and ops;
 - required toolchain/runtime;
 - supported high-level op classes as evidence/coverage planning only, not

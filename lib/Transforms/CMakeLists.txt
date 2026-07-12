@@ -1,4 +1,4 @@
-add_mlir_library(TianChenRVTransforms
+add_mlir_library(WeftTransforms
   CheckCapabilityRequires.cpp
   DispatchRuntimeGuard.cpp
   EmitCLowerableMaterialization.cpp
@@ -13,15 +13,15 @@ add_mlir_library(TianChenRVTransforms
   VariantSelection.cpp
 
   DEPENDS
-  TianChenRVPassesIncGen
+  WeftPassesIncGen
 
   LINK_LIBS PUBLIC
-  TianChenRVConversionEmitC
-  TianChenRVConversionEmitCBuiltin
-  TianChenRVExecDialect
-  TianChenRVPlugin
-  TianChenRVSupport
-  TianChenRVTarget
+  WeftConversionEmitC
+  WeftConversionEmitCBuiltin
+  WeftExecDialect
+  WeftPlugin
+  WeftSupport
+  WeftTarget
   MLIRIR
   MLIRPass
   MLIRSupport

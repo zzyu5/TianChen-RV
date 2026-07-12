@@ -1,2 +1,0 @@
-add_mlir_interface(TCRVEmitCLowerableOpInterface)
-add_mlir_interface(TunableScheduleOpInterface)
