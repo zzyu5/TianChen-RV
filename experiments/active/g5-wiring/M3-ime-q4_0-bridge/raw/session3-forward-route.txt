@@ -1,0 +1,45 @@
+baseline ime.cpp=40962c7e7c732bf472ae88cef89ced8d  so=71cc4d295dac29382a0a7d4d5bd0c425
+vmadot_in_baseline_so=32
+## OFF (build-off stock RVV) greedy:
+off_exit_ok bytes=75
+## VEN (build-ime vendor IME, env unset) greedy:
+ven_exit_ok bytes=71
+## PATCH + rebuild ggml-cpu
+patched OK; markers=2; trait=1; selection=1
+rebuild ok
+vmadot_in_patched_so=33 (baseline 32; >baseline = tcrv kernel present)
+## ON (build-ime + TCRV_IME_Q40_BRIDGE=1) greedy [our tcrv IME bridge]:
+on_exit_ok bytes=71
+banner_fires=1
+[TCRV-IME-Q40-BRIDGE] routed real q4_0 PREFILL mul_mat through tcrv IME kernel: M=15 N=2048 K=2048 (real vmadot 0xe210312b)
+banner_when_ven=0
+0  (expect 0)
+=== A==B continuation compare ===
+ON_vs_OFF: DIFFER
+ON_vs_VEN: IDENTICAL
+VEN_vs_OFF: DIFFER
+----- OFF.out -----
+ explore the world around him. He had a curious mind and a sharp sense of
+
+
+----- VEN.out -----
+ explore the world around him. He had a curious mind and a sharp wit,
+
+
+----- ON.out  -----
+ explore the world around him. He had a curious mind and a sharp wit,
+
+
+----- diff OFF vs ON -----
+1c1
+<  explore the world around him. He had a curious mind and a sharp sense of
+---
+>  explore the world around him. He had a curious mind and a sharp wit,
+=== RESTORE (trap) ===
+restore-rebuild ok
+restored ime.cpp=40962c7e7c732bf472ae88cef89ced8d  so=71cc4d295dac29382a0a7d4d5bd0c425
+RESTORE md5 ZERO-CHANGE OK
+src_route_left=0
+0 so_route_left=0
+0
+litter_left=0

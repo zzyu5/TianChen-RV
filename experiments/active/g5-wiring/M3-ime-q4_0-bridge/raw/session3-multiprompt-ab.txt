@@ -1,0 +1,26 @@
+baseline ime.cpp=40962c7e7c732bf472ae88cef89ced8d  so=71cc4d295dac29382a0a7d4d5bd0c425
+patched OK; markers=2; trait=1; selection=1
+rebuild ok
+vmadot baseline=32 patched=33 (patched>baseline = tcrv IME kernel in shipped .so)
+PROMPT1: ON==VEN=IDENTICAL  ON==OFF=DIFFER  banner=1  on_bytes=105  shared_prefix_char_vs_off=ALL
+   OFF:  explore the world around him. He had a curious mind and a sharp sense of curiosity, and he loved to learn new  
+   ON :  explore the world around him. He had a curious mind and a sharp wit, and he loved to learn new things.  
+PROMPT2: ON==VEN=IDENTICAL  ON==OFF=IDENTICAL  banner=1  on_bytes=63  shared_prefix_char_vs_off=ALL
+   OFF:  dog.  2. "The Red Hen" by Langston Hughes:  The Red Hen is a  
+   ON :  dog.  2. "The Red Hen" by Langston Hughes:  The Red Hen is a  
+PROMPT3: ON==VEN=IDENTICAL  ON==OFF=IDENTICAL  banner=1  on_bytes=110  shared_prefix_char_vs_off=ALL
+   OFF:  a ubiquitous part of our lives. The world was a vastly different place, with machines doing everything from  
+   ON :  a ubiquitous part of our lives. The world was a vastly different place, with machines doing everything from  
+PROMPT4: ON==VEN=DIFFER  ON==OFF=DIFFER  banner=1  on_bytes=73  shared_prefix_char_vs_off=ALL
+   OFF: :  1. Write what you know.  2. Write what you don't know.    
+   ON : :  1. Read widely and deeply.  2. Write regularly.  3. Edit frequently.  
+PROMPT5: ON==VEN=IDENTICAL  ON==OFF=IDENTICAL  banner=1  on_bytes=118  shared_prefix_char_vs_off=ALL
+   OFF:  the ancient civilization had a secret society that was responsible for the creation of the pyramids. She was amazed  
+   ON :  the ancient civilization had a secret society that was responsible for the creation of the pyramids. She was amazed  
+BANNER_TOTAL=5 (expect >=1 per ON run = 5)
+=== RESTORE (trap) ===
+restore-rebuild ok
+RESTORE md5 ZERO-CHANGE OK (ime=40962c7e7c732bf472ae88cef89ced8d so=71cc4d295dac29382a0a7d4d5bd0c425)
+src_route_left=0
+0
+litter_left=0

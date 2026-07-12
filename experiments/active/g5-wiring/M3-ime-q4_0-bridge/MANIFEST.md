@@ -52,3 +52,24 @@
 ## board vendor（read-only 对照 + #5 probe 目标·测后 restored·md5 零改动·stock 不留改动）
 - `/home/bianbu/tcrv-k1-llama/ggml/src/ggml-cpu/spacemit/ime.cpp` — restored md5 `40962c7e7c732bf472ae88cef89ced8d`（==pre-session baseline·probe 残留=0）
 - `/home/bianbu/tcrv-k1-llama/build-ime/bin/libggml-cpu.so.0.15.1` — restored md5 `71cc4d295dac29382a0a7d4d5bd0c425`（==pre-session baseline·probe strings=0·vmadot=32 intact）
+
+---
+
+# MANIFEST append — session 3（forward traffic routing 收口·forward-wired F→T）
+
+> session 3 交付 = **真 q4_0 prefill 流量路由经我方 fragment-major scale-fold vmadot IME 核**（env-gated parallel tcrv `tensor_traits`·passthrough repack + prefill mul_mat 拦截·5/5 banner·shipped .so vmadot 32→33）+ 真-llama e2e greedy A==B（ON vs vendor IME 4/5 逐字同 / vs stock RVV 3/5·分歧=near-tie argmax flip·vendor IME 自身亦偏离 stock·MIRAGE 决定性 de-risk·生成全连贯 in-family）· **board restored md5 双证零 stock 改动（EXIT-trap 强制）** · **forward-wired=T**（跨范式 family#2 forward 最后一里）· correctness 硬锚仍 session-2 单 tensor bit-exact seal
+> **无 git**（主会话 commit）· HEAD 未变 · session-1/2 evidence.md/session2_forward-integration.md 主体禁改（未动）
+
+## board harness（session 3·我独占 tools/e2e-harness/board/g5-m3-ime-q4_0/）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/forward-route-patch.py` — md5 `3b183d8ac09193ce81047aa8a79a009c` · **reversible** env-gated（`TCRV_IME_Q40_BRIDGE`）parallel tcrv `tensor_traits` 注册 patcher：插入 `tcrv_q4_0_tensor_traits`（passthrough native repack + prefill mul_mat 拦截跑 EMITTER-VERBATIM #4/#3/scale-fold vmadot 核）+ `get_optimal_repack_type` Q4_0 env-gated 选择（env OFF=vendor 字节不变）·post-write self-verify（markers=2/trait=1/selection=1）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/run-forward-route.sh` — md5 `469899e960d3f73517a6140ea8fcd862` · 单 prompt 三方 greedy A==B（OFF build-off / VEN build-ime env-off / ON build-ime env-on·`llama-completion`）+ objdump vmadot + banner·**EXIT-trap 强制 restore**（clean source→clean .o→ORIG .so binary→md5 双证零改动·清 .ORIG）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/run-forward-route-multi.sh` — md5 `77a993c14134f1d96d8922ca7221bb8f` · 多 prompt（5）A==B seal·逐 prompt ON==VEN / ON==OFF / banner·**EXIT-trap restore**
+
+## casefile（session 3）
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/session3_forward-wired.md` — md5 `f2b39b0918de3414d3ccdbc878d92ab6` · verdict + 路由方案（env-gated parallel tcrv tensor_traits·passthrough correctness-safe）+ forward-wired=T 证据（banner+vmadot）+ e2e A==B（ON vs vendor IME 4/5 / stock RVV 3/5·near-tie flip 分析·MIRAGE de-risk）+ board-restored md5 双证 + 诚实边界 + next-step
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/raw/session3-forward-route.txt` — md5 `52465c400cc6ea06c2774bfddb24caa8` · 单 prompt 原始（banner M=15 N=2048 K=2048·vmadot 32→33·ON==VEN IDENTICAL·ON==OFF DIFFER near-tie·RESTORE md5 ZERO-CHANGE·litter 0）
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/raw/session3-multiprompt-ab.txt` — md5 `ab9baf16a022aebe09d4a3265375da60` · 5 prompt A==B 原始（ON==VEN 4/5·ON==OFF 3/5·BANNER_TOTAL=5·逐 prompt OFF/ON 生成·RESTORE md5 双证零改动）
+
+## board vendor（read-only 对照 + session-3 routing patch 目标·测后 restored·md5 零改动·stock 不留改动）
+- `/home/bianbu/tcrv-k1-llama/ggml/src/ggml-cpu/spacemit/ime.cpp` — restored md5 `40962c7e7c732bf472ae88cef89ced8d`（==pre-session baseline·route-marker 残留=0）
+- `/home/bianbu/tcrv-k1-llama/build-ime/bin/libggml-cpu.so.0.15.1` — restored md5 `71cc4d295dac29382a0a7d4d5bd0c425`（==pre-session baseline·route strings=0·vmadot 回 32 intact）
