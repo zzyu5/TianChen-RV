@@ -1,6 +1,6 @@
 # cell MANIFEST — workitem-k1-kquant-e2e
 
-- **campaign**: 测量总攻 / Line C reopen — **[WORK-ITEM-K1-KQUANT-E2E]** (k1-clang q4_K e2e: gcc-death vs
+- **campaign**: 测量总攻 / Line C reopen — **[WORK-ITEM-K1-KQUANT-E2E]** (k1-clang q4_K e2e: gcc-codegen 候选因素[冠名待二.2 出口A·裁二.1 锁定] vs
   weight-reconstruction-bound). Reopen trigger of `experiments/active/line-c-k1-strike/q5_K_X0_amdahl_verdict.md`.
 - **status**: DELIVERED. Board = `ssh k1` (SpacemiT X60 / VLEN256 / 8 harts / stock clang-18 / DVFS perf-gov 1.6GHz).
 - **role**: decisive thesis measurement — q4_K **repack (stock as-shipped)** vs **vec_dot (forced fallback)** e2e on

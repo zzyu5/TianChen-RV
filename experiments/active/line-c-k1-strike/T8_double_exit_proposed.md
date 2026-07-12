@@ -45,6 +45,6 @@ key: q5_K-k1-e2e-DECLARED-EXCEPTION
 verdict: 声明例外 (weight-reconstruction-bound; deployed-domain e2e upper bound <= parity by sibling q4_K 0.42×;
          Amdahl proxy-input not deployed-domain-valid). kernel-axis micro 1.916× compiler-symmetric-VALID (k1) but
          micro↛e2e (K-quant instance of kernel-wins-dont-transplant-to-e2e). perf-covered unchanged 6/84.
-reopen: [WORK-ITEM-K1-KQUANT-E2E] (measure q4_K e2e on k1-clang to resolve gcc-death vs intrinsic-recon-overhead).
+reopen: [WORK-ITEM-K1-KQUANT-E2E] (measure q4_K e2e on k1-clang to resolve gcc-codegen 候选因素[冠名待二.2 出口A·裁二.1 锁定] vs intrinsic-recon-overhead).
 evidence: q5_K_X0_amdahl_verdict.md
 ```

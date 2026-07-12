@@ -50,10 +50,10 @@ unchanged (6/84)** — no k1 new green (口径: FLAT-复刻/K-quant-yellow do no
 ## ★honest uncertainty / bounded work-item (do NOT overclaim the exception)
 The sibling q4_K e2e LOSS was measured on **rvv-GCC** (deploy compiler gcc-15, root-caused to gcc 742-spill-death,
 T-PERF1b). **On k1 the deploy compiler is clang-18** (which produced the GOOD micro codegen). So there is a
-**GENUINE, UNMEASURED** possibility that k1-clang K-quant e2e avoids the gcc-death and transduces closer to the
+**GENUINE, UNMEASURED** possibility that k1-clang K-quant e2e avoids the gcc-codegen 候选因素[冠名待二.2 出口A·裁二.1 锁定] and transduces closer to the
 kernel-axis. This does NOT rescue a q5_K WIN claim this session (unmeasured; heavy provisioning), but it IS the
 sharp bounded work-item:
-- **[WORK-ITEM-K1-KQUANT-E2E]**: measure a K-quant e2e on **k1-clang** to resolve **gcc-death vs
+- **[WORK-ITEM-K1-KQUANT-E2E]**: measure a K-quant e2e on **k1-clang** to resolve **gcc-codegen 候选因素[冠名待二.2 出口A·裁二.1 锁定] vs
   intrinsic-reconstruction-overhead**. Cheapest probe = **q4_K** (model `/data/tinyllama-1.1b-Q4_K_M.gguf` EXISTS;
   wiring recipe exists `g5-wiring/M2-q4_K`). If q4_K prefill ≥ parity on k1-clang ⇒ q5_K becomes worth full
   provisioning (re-open [X-0]); if q4_K < parity on k1-clang too ⇒ 声明例外 is confirmed with real k1 evidence

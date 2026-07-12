@@ -17,7 +17,7 @@
 | **M1 证据线（E0–E8）** | falsifier 组进 CI · schema.def v1 · 归因 JSONL · 分母定稿 · 编译期门自足 | **✅ 完成**（"基建/造尺"——按燃减纪律不计"进展"，但工件全落） | E0/E1/E2a/E4/E6/E7/E5 全 done（PRD 台账）· **F-1..F-6 六门全进 CI**（460790d7）· schema.def + coverage_metrics.py + family_ledger.py |
 | **M2 引擎线（G1–G6）** | C_construct 强义 ≥40% · 泛型发射权威 · zvfh+闭包 · 统一注册表 | **✅ 实质完成**（远超 40% 门） | C_construct 强义燃减 0/24 → M-FLAT 家族 → **certified 84/91=92.31%** · G2 泛型层 · G3 SEL-1-T5 先验（2942f603）· G5 zvfh f16 DONE（abf57268） |
 | **M3 硬件/性能（P1–P4）** | 资源感知 cost · hwprobe 运行期链 · 两板实测 · 首 beat 过八门 | **⚠ 部分**：sealed Win-K1-VLEN RATIFIED + 两板实测厚（T3/T8）；但 **P1 资源感知 cost 未建**（见 Q2-①）· hwprobe 运行期链未见 | Win-K1-VLEN（SEALED-WIN-REGISTRY）· T3 板 126 行 · `RVVExtensionPlugin::estimateVariantCost` 仍是**能力先验**（单一 base cost·"no runtime performance claim"）非资源公式 |
-| **M4 收口** | X3 外部接入实录 · C_construct ≥90% ·（条件）X2 IME GEMM | **⚠ 2/3**：C_construct ≥90% ✅（92.31%）· X2 IME GEMM ✅（G4 家族#2 forward-wired silicon-sealed）· **X3 外部接入实录 ❌ 未产出** | 全仓 grep `接入实录/onboarding record/kit` **零命中实录 deliverable**（协议只有 spec `extension-plugin-integration.md`，缺"非核心作者独立接一个家族"的实录/kit） |
+| **M4 收口** | [P-4] 外部接入实录 · C_construct ≥90% ·（条件）X2 IME GEMM | **⚠ 2/3**：C_construct ≥90% ✅（92.31%）· X2 IME GEMM ✅（G4 家族#2 forward-wired silicon-sealed）· **[P-4] 外部接入实录 ❌ 未产出** | 全仓 grep `接入实录/onboarding record/kit` **零命中实录 deliverable**（协议只有 spec `extension-plugin-integration.md`，缺"非核心作者独立接一个家族"的实录/kit） |
 
 **子任务 triage（防重复做已完成/已死的活）**——`07-07-*` 多为**旧 planning 空壳**，已被 M4 收口 / G4-IME / G5-wiring 后续战役 overtaken：
 
@@ -70,7 +70,7 @@
 
 | 贡献 | 闭合度 | 已闭合 | 欠缺 |
 |---|---|---|---|
-| **C1（头牌·模板协议本体）** | **结构最强·差一环** | 合取机检（T1）· F-1..F-6 全进 CI · schema.def 逐 PR 审计 · **跨范式**（RVV 向量→IME 矩阵 MAC forward-wired）· **跨独立家族**（X-SCALAR 向量缺席） | **★X3 外部接入实录（M4·[C1-4]/[P-4]）未产出**——"文档足以让非核心作者独立接一个家族"的实录/kit 缺失 = C1 证据阶梯**最后一格** |
+| **C1（头牌·模板协议本体）** | **结构最强·差一环** | 合取机检（T1）· F-1..F-6 全进 CI · schema.def 逐 PR 审计 · **跨范式**（RVV 向量→IME 矩阵 MAC forward-wired）· **跨独立家族**（X-SCALAR 向量缺席） | **★[P-4] 外部接入实录（M4·[C1-4]/[P-4]）未产出**——"文档足以让非核心作者独立接一个家族"的实录/kit 缺失 = C1 证据阶梯**最后一格** |
 | **C2（模板经济学·边际成本）** | **最薄** | ledger 自动+可复算（T2 15 行·IME anchor 2484 + flat/super-block/2nd-谱 flip + Scalar 1501） | **曲线现缺**：仅 1–2 独立家族点（IME + Scalar）vs 需 ≥3；zvfh 可作第 3（子扩展）· **<300 口径 vs Scalar 1501 = 开放 canon 必问** |
 | **C3′（模板产出质量·能力键控模式库）** | **强-部分** | 注册表作数据（PAT-1..3）· 归因 JSONL（E4）· [XFER-1] 7/7 迁移命中 · T3p/T4b 消融 · LAW-FIRST 4 例 · perf 证词（q4_0 5.9× / Win-K1-VLEN 1.085× / IME 2.09× / q5_K 1.641× / FLAT 全绿） | perf-covered 低（7/83）· 多数 kernel 赢不传导 e2e（micro↛e2e）· vs-框架同-ISA beat 仅少数格 |
 | **论文 [远期]** | 被动维护·非驱动 | 素材挂指针（主证可扩展性 + 证词 perf + 双账本方法学 + 案例卷宗×2） | headline stage 未定案·**禁以"论文需要"立项** |
@@ -83,18 +83,21 @@
 
 | # | 候选战役 | /goal 分句 | 权限归类 | overtaken? | 价值 | 成本 | Amdahl/rationale |
 |---|---|---|---|---|---|---|---|
-| **1** | **★X3 外部接入实录（M4 capstone）**：产出"非核心作者独立接一个家族"的接入 kit + 一次 dry-run（如玩具子扩展/第 4 家族），机检其零核心改动 + falsifier 全绿 | full refactor + 科研（C1 头牌） | **必问倾向**（PRD 既定 pillar，但 X3 未在 live ROADMAP 队列区·且"什么算 external"可能触 canon 框定→建议先请裁 scoping） | **否** | **★最高**：C1 头牌证据阶梯**最后一格** + M4 最后 deliverable。整个项目已 reframe 为"可复制扩展接入协议（C1 头牌）"，外部接入实录 = 该协议的终极证明 | 中 | 非 perf（结构/方法学）——价值=闭 headline 贡献最后一环，不受 micro↛e2e 约束 |
+| **1** | **★[P-4] 外部接入实录（M4 capstone）**：产出"非核心作者独立接一个家族"的接入 kit + 一次 dry-run（如玩具子扩展/第 4 家族），机检其零核心改动 + falsifier 全绿 | full refactor + 科研（C1 头牌） | **必问倾向**（PRD 既定 pillar，但 [P-4] 未在 live ROADMAP 队列区·且"什么算 external"可能触 canon 框定→建议先请裁 scoping） | **否** | **★最高**：C1 头牌证据阶梯**最后一格** + M4 最后 deliverable。整个项目已 reframe 为"可复制扩展接入协议（C1 头牌）"，外部接入实录 = 该协议的终极证明 | 中 | 非 perf（结构/方法学）——价值=闭 headline 贡献最后一环，不受 micro↛e2e 约束 |
 | **2** | **★C2 第三家族点成曲线 + zvfh 收尾 + <300 口径裁**：XS-M4 LED-2 登记 + zvfh 作第 3 点 + 解决 Scalar 1501 vs <300 口径 canon | 科研（C2）+ novelty | **混合**：zvfh/X-SCALAR 收尾=既定自决（ROADMAP 队列 #3/#7·已 70-80% landed）；**<300 口径修正=必问 canon**（措辞宪法级） | **部分**（zvfh f16 已 DONE·剩曲线/口径） | **高**：C2 是最薄证据链；把"1 点"变"曲线"是模板经济学 headline 证据的最便宜路径 | 低-中 | 非 perf——"第三家族小"正是主张本身（边际递减），成本本身即证据 |
 | **3** | **K-quant S6 tiling 成熟度**（`07-08-G3-L1-maturity`）：全展开 regfile spill → 能力键控 tiling 原语 | 成熟度 + C3′ | 自决（测量总攻队列内·**但仅机制/方法学名义**） | **否**（真 LIVE gap） | 中：C3′ 机制 + 可能 1-2 新绿（q3_K/q6_K@k1） | **高**（多会话·regfile spill 难） | **★须 objdump-first Amdahl 预估**：memory 判 q3_K/q6_K@k1 即便修好未必传导（clang 亦不传导）→ 若 <噪声地板**禁 perf 名义**、只能机制名义立项 |
 | **4** | **G5-wiring 续（IME session-2 + 剩余未接线格）**：真 ggml 数据路径 #3/#4 + forward hook #5 + e2e A==B · q8_0/q4_K@ime forward-wiring | 实验 + C1 跨范式 | **自决**（G5 既定队列·预注册免回门） | **部分**（易得绿尽·剩黄格带账） | 低-中：零未定义格 completion + C1 跨范式广度；**新绿 payoff 低**（memory：perf 近 ceiling） | 低-中 | 内核轴 ~2× 仍受 micro↛e2e 约束·不预设转绿·产黄格带账（仍是合规交付） |
 
 **三分类明示**：
 - **① 既定可自决直行**：候选 3（S6 tiling·机制名义）· 候选 4（G5 续·预注册免回门）· 候选 2 的 zvfh/X-SCALAR 收尾部分。
-- **② 必问用户的新战役**：**候选 1（X3 外部接入实录）**——建议请裁 scoping（"external"边界 + 是否需真第 4 家族 dry-run）· 候选 2 的 **<300 口径 canon 修正**。
+- **② 必问用户的新战役**：**候选 1（[P-4] 外部接入实录）**——建议请裁 scoping（"external"边界 + 是否需真第 4 家族 dry-run）· 候选 2 的 **<300 口径 canon 修正**。
 - **③ 已 overtaken 不必做**：`retire-q1_0-monolith`（已 certified）· `G3-frontdoor` 旁路清零（已完成）· `line-A/C/D`（框架旧被测量总攻取代）· `construct-gemm-tile-m1`（被 G4 IME 取代）。
 
 **推荐 top-2（按 /goal 推进价值 × 成本）**：
-1. **X3 外部接入实录**（必问倾向·scoping 请裁）——C1 头牌 + M4 最后一格，单项最高推进价值。
+1. **[P-4] 外部接入实录**（必问倾向·scoping 请裁）——C1 头牌 + M4 最后一格，单项最高推进价值。
 2. **C2 第三家族点 + zvfh 收尾 + <300 口径裁**（收尾自决 / 口径必问）——最薄证据链的最便宜加固。
 
-> **战略基调**：结构轴已收口（M4 真 100%），perf 轴易得绿尽——下一步的最大 `/goal` 杠杆**不在**继续磨 perf-covered（撞接线 gap + micro↛e2e），而在**闭合 C1 头牌最后一环（X3）+ 加固最薄的 C2 曲线**。C3′/perf 与成熟度（cost-model/emitter）为**方法学名义**的长尾，不宜以 perf 名义抢先。
+> **战略基调**：结构轴已收口（M4 真 100%），perf 轴易得绿尽——下一步的最大 `/goal` 杠杆**不在**继续磨 perf-covered（撞接线 gap + micro↛e2e），而在**闭合 C1 头牌最后一环（[P-4]）+ 加固最薄的 C2 曲线**。C3′/perf 与成熟度（cost-model/emitter）为**方法学名义**的长尾，不宜以 perf 名义抢先。
+
+
+> ★[裁三.1 2026-07-12] 本报告 codename 'X3' 废止→ canon **[P-4] 外部接入演练 / T1c**（[GOV-9] 自造名没收·撞 [X-*] 命名空间）。[GAP-X3-*]→[GAP-P4-*]。
