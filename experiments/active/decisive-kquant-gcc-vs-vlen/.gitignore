@@ -1,0 +1,8 @@
+# on-device build artifacts / large binaries (regenerable via scripts) — data, not source
+*.so
+*.so.*
+*.o
+*.inc
+raw/*.dis
+raw/libggml-cpu*
+# keep raw/*.json (small decisive llama-bench perf samples) + raw/objdump_spill_compare.txt
