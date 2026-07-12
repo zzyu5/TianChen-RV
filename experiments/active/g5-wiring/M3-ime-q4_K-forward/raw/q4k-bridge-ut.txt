@@ -1,0 +1,20 @@
+# toolchain: gcc (Bianbu 13.2.0-23ubuntu4bb3) 13.2.0
+## objdump vmadot engage (expect 0xe210312b count>0):
+vmadot_count=1
+## q4_K bridge UT (random matrices, real ggml native oracle), pinned harts 0-3:
+G5-M3 IME q4_K forward-bridge INTEGRATION UT (real ggml native q4_K/q8_K; real vmadot super-block leaf)
+[bridge #4 weight repack: native q4_K -> (nj,sb,nl) block-gather]
+  #4 weight-repack N=8 K=256: dequant 2048/2048 exact vs ggml native (mism=0 max_abs=0.000e+00)
+  #4 weight-repack N=16 K=512: dequant 8192/8192 exact vs ggml native (mism=0 max_abs=0.000e+00)
+  #4 weight-repack N=32 K=768: dequant 24576/24576 exact vs ggml native (mism=0 max_abs=0.000e+00)
+[bridge #3 activation quant+pack: f32 -> q8_K -> fragment-major Apack+dA]
+  #3 act-quant+pack M=8 K=256: int8 2048/2048 exact (mism=0) | scale 8/8 exact (mism=0)
+  #3 act-quant+pack M=12 K=512: int8 6144/6144 exact (mism=0) | scale 24/24 exact (mism=0)
+  #3 act-quant+pack M=8 K=768: int8 6144/6144 exact (mism=0) | scale 24/24 exact (mism=0)
+[FULL single-tensor mul_mat A==B: our bridge (real vmadot) vs ZERO-MODEL q4_K x q8_K + real ggml_vec_dot_q4_K_q8_K]
+  A==B  M=8 N=8 K=256: normwise=9.917e-08 (max_abs=1.325e-06 |C|max=13.356) vs_real_ggml_normwise=7.140e-08 (ggml_vs_zeromodel=8.937e-07) OK
+  A==B  M=4 N=8 K=256: normwise=8.939e-08 (max_abs=1.009e-06 |C|max=11.293) vs_real_ggml_normwise=8.445e-08 (ggml_vs_zeromodel=1.527e-06) OK
+  A==B  M=12 N=16 K=512: normwise=1.435e-07 (max_abs=3.242e-06 |C|max=22.589) vs_real_ggml_normwise=8.444e-08 (ggml_vs_zeromodel=3.351e-06) OK
+  A==B  M=8 N=32 K=512: normwise=1.172e-07 (max_abs=2.732e-06 |C|max=23.319) vs_real_ggml_normwise=8.179e-08 (ggml_vs_zeromodel=2.480e-06) OK
+  A==B  M=16 N=64 K=768: normwise=1.432e-07 (max_abs=4.456e-06 |C|max=31.116) vs_real_ggml_normwise=1.226e-07 (ggml_vs_zeromodel=3.567e-06) OK
+Q4K-BRIDGE-UT PASS: #4 repack + #3 quant/pack exact vs ggml native; full single-tensor mul_mat A==B within f32 tol (real vmadot on K1)
