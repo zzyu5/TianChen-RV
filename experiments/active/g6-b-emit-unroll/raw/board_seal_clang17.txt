@@ -1,0 +1,40 @@
+# G6-B [GAP-EMIT-UNROLL] q2_K repack GEMM rolled-vs-unrolled — board seal
+# board: rvv (openEuler, riscv64, VLEN128, 64c) · compiler: clang-17.0.6 (native)
+# march: rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -ffp-contract=on -O2
+# date: 2026-07-13 · both sides = OUR emit (compiler-SYMMETRIC A/B, no opponent)
+
+=== [1] OBJDUMP seal (q2_K GEMM leaf .o) ===
+  UNROLLED   vsetvli=86  vsetivli=1  spill=7   reload=12  maxVreg=v30  vwmacc=2304  textB=26968
+  ROLLED     vsetvli=82  vsetivli=1  spill=63  reload=73  maxVreg=v31  vwmacc=384   textB=12522
+  # UNROLLED reproduces the shipped S6-tiled form EXACTLY (l1-t3-q2k seal: vwmacc 2304,
+  #   spill 7, v30, text 26968 @ clang-17 -O2) — provenance-clean baseline.
+  # DELTA: textB -53.6% (26968->12522) · vwmacc -83.3% (2304->384) — the code-volume win.
+  #        spill 7->63 · reload 12->73 · maxVreg v30->v31 — register-residence TRADED for
+  #        compactness (the stack-panel i16 partials spill; the deliberate schedule cost).
+
+=== [2] SILICON verify vs INDEPENDENT scalar oracle (ZERO-MODEL, taskset -c 4, seed 0xC0FFEE) ===
+  UNROLLED  VERDICT q2_K: INT_mismatch_total=0  NORM worst_ulp=3402 worst_norm=6.618e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+  ROLLED    VERDICT q2_K: INT_mismatch_total=0  NORM worst_ulp=3402 worst_norm=6.618e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+  # ROLLED is byte-exact-integer to the independent scalar q2_K dequant-matmul oracle
+  # (8 shapes: GEVM nr=1 + GEMM nr in {4,8,16}), NORM identical to UNROLLED to the digit.
+
+=== [3] DIRECT A/B IDENTITY (rolled output == unrolled output, byte-for-byte) ===
+  == INT (unit d/dmin) ==
+    GEMM nr=4  nc=32   n=512   bytes=512     mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+    GEMM nr=8  nc=64   n=256   bytes=2048    mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+    GEMM nr=16 nc=256  n=256   bytes=16384   mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+    GEMM nr=4  nc=160  n=2560  bytes=2560    mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+  == NORM (random fp16 d/dmin — full fp16 scale/min fold path) ==
+    GEMM nr=4  nc=32   n=512   bytes=512     mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+    GEMM nr=8  nc=64   n=256   bytes=2048    mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+    GEMM nr=16 nc=256  n=256   bytes=16384   mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+    GEMM nr=4  nc=160  n=2560  bytes=2560    mism_bytes=0  mism_floats=0  BYTE-IDENTICAL
+  VERDICT G6-B q2_K A/B: total_bytes=43008  mism_bytes=0  mism_floats=0  => ROLLED == UNROLLED (BYTE-EXACT)
+
+=== gcc deployment-compiler seal: DEFERRED to Phase 2 ===
+  # board gcc = 12.3.1 (openEuler) — lacks riscv_vector.h RVV intrinsics; shipped ggml
+  # uses gcc-15 ([CASE-COMPILER-ASYMMETRY] rvv=gcc-15). The gcc-15 form seal + e2e is the
+  # Phase-2 concern (deployment opponent). [CASE-KQUANT-GCC-CODEGEN] a-priori: gcc explodes
+  # on the mixed-SEW full-unroll core (820 vsetvli/742 spill per q6_K report) — rolling
+  # BOUNDS the code the gcc regalloc juggles, so rolled is HYPOTHESIZED to help MORE under
+  # gcc than clang. NOT measured here (Phase 2).

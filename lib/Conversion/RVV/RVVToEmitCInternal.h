@@ -1678,7 +1678,7 @@ private:
       int64_t activationQuantOffset, int64_t weightDminOffset,
       int64_t weightScalesOffset, int64_t activationBsumsOffset,
       int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-      int64_t half) const;
+      int64_t half, bool rolledMainTerm) const;
 
   /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter

@@ -2989,6 +2989,52 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 // sumi(result c) + acc(region arg 2+c) dataflow tie, and on the yield naming the
 // folds' acc_next; the within-block weight/activation quant byte offsets driving the
 // integer core are SOURCED from the CORE brick (the anti-bypass surface).
+
+// [GAP-EMIT-UNROLL] capability-keyed schedule selection for the repack GEMM main
+// term. Returns whether to emit the compact ROLLED runtime-loop form (true) vs the
+// register-resident UNROLLED full static unroll (false).
+//
+// Key hierarchy (the *how*, never the *what*):
+//   1. explicit emit_loop_schedule stamp ("rolled"|"unrolled") -- the A/B forcing
+//      override + a capability policy pin;
+//   2. else the CAPABILITY-DERIVED default keyed on the CODE-VOLUME fact: the static
+//      instruction volume the full unroll would materialize for the main term
+//      (numHalves strips * nSuperHalves * mHalves(2) * mGroup(16) * columnsPerPass *
+//      lanes(4) vwmacc16) measured against an I-cache instruction budget. When the
+//      unrolled volume exceeds the budget the compact rolled loop is selected.
+//
+// The register-budget axis is NOT binding for the S6-tiled body (peak-live is already
+// <=32 vreg by construction), so the DISCRIMINANT capability fact is code volume vs
+// I-cache budget, not register pressure. Byte-exact across both schedules by
+// construction (identical integer accumulation order -- only the loop is materialized
+// instead of unrolled).
+static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
+                                        llvm::StringRef coreLmul, int64_t qk,
+                                        int64_t weightInterleave,
+                                        int64_t activationInterleave,
+                                        int64_t half) {
+  if (stamp.has_value()) {
+    if (*stamp == "rolled")
+      return true;
+    if (*stamp == "unrolled")
+      return false;
+    // Any other spelling is verifier-rejected upstream; fall through defensively.
+  }
+  // Capability-derived default keyed on the unrolled main-term code volume.
+  int64_t numHalves = (half > 0) ? (weightInterleave / half) : 1;
+  int64_t nSuperHalves = (qk > 0) ? (qk / 128) : 1;
+  int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
+  int64_t unrolledMainTermVwmacc = numHalves * nSuperHalves * /*mHalves*/ 2 *
+                                   /*mGroup*/ 16 * columnsPerPass * /*lanes*/ 4;
+  // Phase-1 default: FROZEN to unrolled (no shipped-behavior change) until the Phase-2
+  // on-board rolled-vs-unrolled e2e tradeoff calibrates the real I-cache budget. The
+  // volume is computed above (the code-volume capability key is WIRED); this sentinel
+  // keeps every current K-quant format (q2_K main term ~2048) below threshold. Phase 2
+  // replaces the sentinel with the measured I-cache instruction budget.
+  constexpr int64_t kMainTermUnrollInstrBudgetPhase1FrozenSentinel = 1LL << 30;
+  return unrolledMainTermVwmacc > kMainTermUnrollInstrBudgetPhase1FrozenSentinel;
+}
+
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -3393,7 +3439,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getActivationInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()));
     }
-    if (coreBrick.getDecodeModel() == "q2_K")
+    if (coreBrick.getDecodeModel() == "q2_K") {
+      // [GAP-EMIT-UNROLL] schedule axis resolution (the *how*, never the *what*):
+      // PREFER the explicit front-door emit_loop_schedule stamp ("unrolled"|"rolled"),
+      // else fall back to the CAPABILITY-DERIVED default keyed on the code-volume-vs-
+      // budget fact (resolveRepackMainTermRolled). The stamp is the A/B forcing
+      // override + a capability policy pin; the derivation is the shipped default.
+      // BYTE-EXACT across both by construction (identical integer accumulation order).
+      bool rolledMainTerm = resolveRepackMainTermRolled(
+          loopBody.getEmitLoopSchedule(), coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getActivationInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
       return emitRepackKQuantGemmBodyQ2K(
           rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
           outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3406,7 +3464,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
+    }
     // q4_K: the min-fold family default arm (the s6_tiled PURE REALIZE was gated for
     // the WHOLE min-fold family above). RE-EMITs the byte-exact S6-tiled q4_K GEMM body.
     // [M1c] Resolve the loop-order schedule axis: PREFER the front-door SEL-1 stamp
@@ -10785,7 +10844,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
     int64_t activationQuantOffset, int64_t weightDminOffset,
     int64_t weightScalesOffset, int64_t activationBsumsOffset,
     int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half) const {
+    int64_t half, bool rolledMainTerm) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*), the SAME
@@ -11264,6 +11323,93 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
             // column reading its own interleaved q8_Kx4 quant qs[16 + (k*128+j*32+m)*4
             // + c]. NO 2x16 k-chunk split (16*127*3 < 32767). -----
             for (int64_t mh = 0; mh < 2; ++mh) {
+              // Slot (c,j) of THIS strip's per-column-per-shift i16 partial family.
+              auto partIdx = [&](int64_t c, int64_t j) -> int64_t {
+                return ((c - cLo) * 4 + j) * half;
+              };
+              if (rolledMainTerm) {
+                // ---- ROLLED main term ([GAP-EMIT-UNROLL] maturity lever) --------
+                // The per-16-weight-group inner loop is emitted as ONE runtime
+                // emitc.for (compact code volume) INSTEAD of the register-resident
+                // full static unroll; the per-column-per-shift i16 partials are staged
+                // to a PER-mh stack panel, load-accumulate-store per iteration. This
+                // trades register residence for code compactness (the capability-keyed
+                // schedule tradeoff). BYTE-EXACT to the unrolled emit by construction:
+                // the vwmacc16 integer accumulation order (mm ascending, then j, then
+                // c) is IDENTICAL -- only the loop is materialized instead of unrolled,
+                // and integer add is order-exact regardless. The end-of-block f32 fold
+                // (below) is UNCHANGED.
+                mlir::Type sPartialPanelTy = emitc::ArrayType::get(
+                    {columnsPerPass * 4 * half}, i16ElemTy);
+                mlir::TypedValue<emitc::ArrayType> sPartialPanel =
+                    mkPanel(sPartialPanelTy);
+                for (int64_t c = cLo; c < cHi; ++c)
+                  for (int64_t j = 0; j < 4; ++j)
+                    storeI16Panel(sPartialPanel, partIdx(c, j), seedI16());
+
+                auto mmLoop = rewriter.create<emitc::ForOp>(
+                    loc, sizeLit(0), sizeLit(16), sizeLit(1),
+                    /*bodyBuilder=*/nullptr);
+                {
+                  mlir::OpBuilder::InsertionGuard mg(rewriter);
+                  rewriter.setInsertionPointToStart(mmLoop.getBody());
+                  mlir::Value mmv = mmLoop.getInductionVar();
+                  // SHARED weight 2-bit decode per m (THIS strip): 4 lanes reused over
+                  // columns. Runtime weight byte offset = C0w + mm*16.
+                  step("weight_2bit_addr");
+                  int64_t c0w =
+                      weightQuantOffset + (k * 32 + mh * 16) * 16 + h * half;
+                  mlir::Value mmv16 =
+                      rewriter.create<emitc::MulOp>(loc, sizeType, mmv,
+                                                    sizeLit(16));
+                  mlir::Value wOff = rewriter.create<emitc::AddOp>(
+                      loc, sizeType, sizeLit(c0w), mmv16);
+                  mlir::Value packed = loadU8Strip(bl, wOff);
+                  llvm::SmallVector<mlir::Value> wLane;
+                  for (int64_t j = 0; j < 4; ++j) {
+                    mlir::Value shifted = packed;
+                    if (j != 0)
+                      shifted = u8Imm(vsrlCallee, packed, std::to_string(2 * j));
+                    wLane.push_back(
+                        reinterpretToI8(u8Imm(vandCallee, shifted, "0x03")));
+                  }
+                  // Runtime activation byte offset per (j,c) = C1 + mm*4.
+                  mlir::Value mmv4 = rewriter.create<emitc::MulOp>(
+                      loc, sizeType, mmv, sizeLit(4));
+                  for (int64_t c = cLo; c < cHi; ++c) {
+                    for (int64_t j = 0; j < 4; ++j) {
+                      step("act_quant_addr");
+                      int64_t c1 = activationQuantOffset +
+                                   (k * 128 + j * 32 + mh * 16) * 4 + c;
+                      mlir::Value aOff = rewriter.create<emitc::AddOp>(
+                          loc, sizeType, sizeLit(c1), mmv4);
+                      mlir::Value aq = i8Read(al, aOff);
+                      mlir::Value cur = loadI16Panel(sPartialPanel, partIdx(c, j));
+                      storeI16Panel(sPartialPanel, partIdx(c, j),
+                                    vwmacc16(cur, aq, wLane[j]));
+                    }
+                  }
+                }
+                // sumi_c += scale_{2j+mh} * partial_{c,j} -- the partials are read from
+                // the panel (final accumulated i16), the fold order (j ascending, c) is
+                // unchanged => byte-exact.
+                step("scale_subblock_fold");
+                for (int64_t j = 0; j < 4; ++j) {
+                  mlir::Value scStrip =
+                      loadI16Panel(scalePanel, (2 * j + mh) * half);
+                  for (int64_t c = cLo; c < cHi; ++c) {
+                    mlir::Value part = loadI16Panel(sPartialPanel, partIdx(c, j));
+                    mlir::Value cur =
+                        rewriter
+                            .create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                            .getResult();
+                    rewriter.create<emitc::AssignOp>(
+                        loc, sumiVar[c], vwmaccVV32(cur, scStrip, part));
+                  }
+                }
+                continue; // next m-half
+              }
+              // ---- UNROLLED main term (default, register-resident full unroll) ----
               // Per-column i16 partials, one per shift-j (THIS strip).
               llvm::SmallVector<llvm::SmallVector<mlir::Value>> sPartial(
                   activationInterleave);

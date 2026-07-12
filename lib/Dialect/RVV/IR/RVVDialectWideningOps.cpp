@@ -13519,6 +13519,22 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
               "\"dual-fp16-per-block-d_x.d_y-plus-min\" / "
               "\"dual-fp16-per-block-d_x.d_y-plus-min-4col\" min scale models";
 
+  // Bounded emission-SCHEDULE knob (the *how*, never the *what*): the inner
+  // contraction-block main-term emission shape. "unrolled" = the register-resident
+  // full static unroll (the default S6-tiled shipped form); "rolled" = the compact
+  // runtime-loop form ([GAP-EMIT-UNROLL] maturity lever). Byte-exact across both by
+  // construction (identical integer accumulation order). ABSENT => the emitter's
+  // capability-derived default. Any other spelling is rejected fail-closed (I7).
+  if (getEmitLoopSchedule().has_value()) {
+    llvm::StringRef sched = *getEmitLoopSchedule();
+    if (sched != "unrolled" && sched != "rolled")
+      return emitOpError()
+             << "only accepts emit_loop_schedule \"unrolled\" (the register-resident "
+                "full static unroll) or \"rolled\" (the compact runtime-loop main "
+                "term); got \""
+             << sched << "\"";
+  }
+
   // The OPTIONAL SECOND weight-plane (qh) byte offset (I7): the ternary tq1_0 base-3
   // qh plane, the q6_K high-2-bit / q3_K hmask high-bit no-min qh plane, OR the q5_K
   // 5th-bit qh plane on the MIN fold. Valid under the ternary fold OR EITHER K-quant

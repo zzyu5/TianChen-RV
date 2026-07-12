@@ -11717,7 +11717,24 @@ def TypedRepackGemmLoopBodyOp
     // +64) OR-ed with this HIGH 2-bit region (+32) then biased -32 (NO min); ABSENT for
     // the flat codebook fold and the q4_0 / ternary / K-quant folds. A pure I4 shape
     // mirror, never a route/dtype WHAT.
-    OptionalAttr<I64Attr>:$weight_scales_high_byte_offset
+    OptionalAttr<I64Attr>:$weight_scales_high_byte_offset,
+    // OPTIONAL emission-SCHEDULE knob (the *how*, never the *what*): selects the
+    // inner contraction-block main-term emission shape between the register-resident
+    // "unrolled" full static unroll (the default S6-tiled shipped form: the whole
+    // per-super-half / per-m-half / per-16-weight-group main term is statically
+    // unrolled, trading code volume for zero loop overhead + register-resident
+    // partials) and a compact "rolled" form (the dominant per-16-weight-group inner
+    // loop is emitted as ONE runtime emitc.for with stack-panel-carried i16 partials,
+    // trading register residence for code compactness). This is the [GAP-EMIT-UNROLL]
+    // maturity lever: it is CAPABILITY-KEYED (the emitter derives the default from a
+    // code-volume-vs-budget fact when this attr is ABSENT; this attr is the explicit
+    // forcing override for A/B byte-exact measurement and for a capability policy that
+    // pins the schedule). BYTE-EXACT across both values by construction: the integer
+    // vwmacc accumulation order is preserved (rolled == unrolled arithmetic, only the
+    // loop is materialized instead of unrolled). Bounded to {"unrolled","rolled"};
+    // ABSENT => capability-derived default. A pure I4/schedule mirror, never a
+    // route/dtype WHAT.
+    OptionalAttr<StrAttr>:$emit_loop_schedule
   );
   let regions = (region SizedRegion<1>:$body);
 
