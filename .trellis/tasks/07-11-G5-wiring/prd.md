@@ -38,3 +38,22 @@
   1. **K-quant** — q6_K 净新接线曳光弹（测 net-new scaffold 是否延伸 K-quant）·task `07-12-G5-K-quant-q6_K-tracer`·wf/agent `ac896a2e`。
   2. **F-3** — family-manifest 机检·task `07-12-F-3-family-manifest`·agent `a3a1173b`。
   3. **RENAME** — 变更表准备（独占会话铺路）·task `07-12-RENAME-schema-changetable`·agent `a921c8f4`。
+
+## 2026-07-12（续）· 裁决全消费执行成果 + 后续裁决落地
+
+**用户 2026-07-12 第2/3 裁决（分类纠偏 + q6_K 定案加固 + K1 精准打击立项）全面消费落地**（详 `docs/ROADMAP.md` 头 + `docs/reports/2026-07-12-perf-covered-*.md` + T8 ledger + memory）：
+
+**裁决消费清单（committed）**：
+- **一 单位统一 recon**（`2c53e581`）：`perf_covered_metrics.py` 机算 perf-covered = **6/83**（fold q4_0-gemm regime·any-board·三处同源·anti-gate·CI job `perf-covered-recon`·禁手填）·M4 84/91 不动·备选 7/84 flagged 待用户复核。
+- **一.2 IME 重分类**（黄-传导稀释→黄-未接线·bridge 未建）· **一.3 六类冻结**· **三 声明例外台账过审**（27 格五字段 + anti-gate + 物理墙 12 roofline）。
+- **〇.1 [C1-4] 落位** · **〇.2 q6_K T8+T3p-X** · **二.1 q6_K L-7 反汇编钉死→转正**（`8f80df11`·first-emission 非部署病·fallback 三链排除·黄-对手更强 final）· **二.2 L-11 同域标注**。
+- **四 K1 精准打击**（`17c193eb`）：opponent_map（q8_0-k1 硬对拼格 + 碎片化2nd证据）· **k1 编译器对称订正**（k1 stock=clang-18→kernel-axis VALID·[CASE-COMPILER-ASYMMETRY]-k1-refinement）· q5_K [X-0] 声明例外。
+
+**★里程碑：perf-covered 6/83 → 7/83**：
+- **[WORK-ITEM-K1-KQUANT-E2E] RESOLVED-POSITIVE**（`b12afd57`）：q4_K repack e2e 在 k1-clang 传导 2.644×·**rvv K-quant e2e LOSS=gcc-742-spill-death 非 weight-recon wall**·C3′ 绿路径确认·q6_K 收口 framing 精化 weight-recon→compiler-codegen。
+- **★q5_K@k1 NEW GREEN**（`47e29b35`）：首个 our-kernel K-quant e2e 传导（prefill 1.641×·净新 dispatch·裁四.2 k1 唯一新绿点兑现·第2 K-quant transduction with our kernel）→ perf-covered **7/83**。
+- iq4_nl correctness-carrier GREEN→firm yellow-对手更强（`d0bf1ff8`·codebook 家族首·[GAP-VLEN128] 碎片化第3族）。
+
+**IME bridge（裁三·跨范式名义·family#2 forward）**：session-1（`13c1c74a`·scale-fold+shape driver）· session-2（`3b6ff278`·数据路径 correctness on REAL ggml + 单tensor A==B bit-identical + hook reachability）· **session-3 在飞**（forward traffic routing → forward-wired·family#2 forward 完成硬门）。
+
+**RENAME+schema**：变更表已备（`64a60ae5`）·独占会话待用户命名（B 方言前缀 / C 项目名）·排 K-quant 收口后（已收）。
