@@ -40,3 +40,15 @@
 ## durable files (this cell)
 - `T3p-X_xfer1_prediction_k1.md` — this analysis (count summary + evidence tiers + falsification caveats).
 - `T3p-X_xfer1_prediction_k1.csv` — the 19-format × 3-lever prediction grid (main-session may promote to result-tables + add `_measured_` col).
+
+---
+
+## 附录 · q6_K XFER-1 预测命中确认（2026-07-12 用户裁〇.2·主会话补·跨轴交叉验证）
+
+**q6_K row（本表 #5）的 XFER-1 预测 = `S6 NULL·weight-reconstruction-bound`**（rvv spill 913→949 ROSE·never ≤32·dual-plane 6-bit ql/qh recon dominates·col-outer/vl16 pred-NULL）。
+
+**★预测命中（曳光弹交叉验证·rvv 净新 scaffold e2e 轴）**：G5-M2 q6_K 曳光弹（`23642f18`·`docs/reports/2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md`）从**净新 scaffold e2e 轴**独立证实该预测——q6_K 净新 riscv repack scaffold correctness GREEN 但 **prefill 0.07× LOSS**（emitted vl=8 repack 2995 vsetivli+6065 e8mf2 全展开·weight-reconstruction-bound·6-bit 双平面比 q4_K 0.42× 更狠）= **weight-reconstruction-bound 预测在两条独立轴（kernel-axis S6-NULL 预测 + net-new-scaffold e2e 实测）同向命中**。
+
+**入 T8 案例卷宗**（裁〇.2）：q6_K provisional 行已入 `T8_winloss_gap_ledger.csv`（B1/loss·[GAP-KQUANT-GCC-CODEGEN]+weight-reconstruction-bound+XFER-1-hit·pending 二.1 L-7+二.2 L-11 两查转正）。
+
+**k1 measured 仍 open**：本表 measured_k1 列的 q6_K = open（q6_K 未在 k1 板测 S6/vl16 lever·仅 rvv-M 预测 + rvv 净新 scaffold 曳光弹）。若未来 k1 q4_K e2e [WORK-ITEM] 传导（C3′ 绿路径确认），q6_K@k1 lever 重估触发钩子。
