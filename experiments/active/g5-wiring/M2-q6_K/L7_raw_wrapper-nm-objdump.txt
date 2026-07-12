@@ -1,0 +1,105 @@
+================================================================================
+G5-M2 q6_K  L-7 RAW  (二.1 反汇编钉死 · fallback-exclusion + 0.07× 指令构成)
+board = ssh rvv openEuler VLEN128 gcc-15.2.0 · 2026-07-12
+ON .so md5 = cff0585c72b58570a2167a9efc1e8d21 (2 emitted T syms)
+OFF .so md5 = 05a62e6a82857cdf247ba1933c695849 (0 q6_K tcrv syms)
+A-tree sources at baseline: repack.cpp=deb61a29 repack.h=57851439 arch/riscv/repack.cpp=99131cf7
+live .so after all analysis = 05a62e6a (OFF-pristine · 0 q6_K syms) RESTORED
+================================================================================
+
+======== [1] nm : q6_K tcrv symbols  ON vs OFF ========
+-- ON (all T = defined text) --
+000000000003e414 T ggml_gemv_q6_K_16x1_q8_K_generic          <- scalar fallback (present, but unreachable on VLEN128, see [3])
+000000000003e6d4 T ggml_gemm_q6_K_16x1_q8_K_generic          <- scalar fallback
+0000000000096512 T tcrv_emitc_ggml_repack_gemm_q6_K_q8_K_kernel_ggml_repack_gemm_q6_K_q8_K   <- EMITTED GEMM (vl=8)
+00000000000ded46 T tcrv_emitc_ggml_repack_gemv_q6_K_q8_K_kernel_ggml_repack_gemv_q6_K_q8_K   <- EMITTED GEVM (vl=8)
+00000000000f2230 T ggml_gemv_q6_K_16x1_q8_K                  <- WRAPPER (dispatcher only)
+00000000000f22b6 T ggml_gemm_q6_K_16x1_q8_K                  <- WRAPPER (dispatcher only)
+00000000001a05cc b ggml_gemv_q6_K_16x1_q8_K::announced_egevm_q6k   <- banner-once flag
+00000000001a05d0 b ggml_gemm_q6_K_16x1_q8_K::announced_egemm_q6k
+-- OFF (grep -c q6_K tcrv symbols) = 0 --   [reverse control: our scaffold absent => symbols gone => stock block-dot]
+
+======== [2] live routing probe (ON deployed · real llama-completion forward) ========
+deploy ON: live md5 = cff0585c (2 emitted syms)
+probe#1 (short prompt "The capital of France is" -n4): exit=0, coherent text, banner fires:
+  TCRV G5-M2 EMITTED GEVM(q6_K_16x1 VLEN128 compiler-emitted vl=8) ENGAGED n=4096 nc=128 nb=16   (x4)
+probe#2 (long prompt ~50 tok prefill -n1): exit=0, banner fires:
+  TCRV G5-M2 EMITTED GEVM(q6_K_16x1 VLEN128 compiler-emitted vl=8) ENGAGED n=4096 nc=128 nb=16   (x8)
+  (single-prompt llama-completion routes prefill through GEVM chunks on this build;
+   batched-prefill GEMM banners = 16 documented in evidence.md §六 via llama-bench pp128.)
+restore OFF: live md5 = 05a62e6a, q6_K syms = 0.
+No logit NaN/Inf (the " inf " grep hit = "0.00 ms => inf tokens/s" perf-print line, benign).
+
+======== [3] WRAPPER objdump — FALLBACK-EXCLUSION CRUX ========
+Both wrappers are pure dispatchers (51 / 50 insns, ZERO compute). Structure identical:
+  read VLENB -> VLEN = VLENB*8 -> compare ==128 -> [taken] banner+emitted ; [not-taken] generic.
+On this board VLEN=128 => beq TAKEN => generic branch is the not-taken fall-through => UNREACHABLE.
+Banner sits INSIDE the ==128 branch, both exits tail-jump to the EMITTED kernel.
+=> banner-fire  <=>  emitted kernel is the callee   (generic scalar EXCLUDED by construction).
+
+---- ggml_gemm_q6_K_16x1_q8_K (WRAPPER, 51 insns) ----
+   f22b6: csrr  a7,vlenb
+   f22ba: sll   a7,a7,0x3          ; a7 = VLENB*8 = VLEN(bits)
+   f22bc: li    t1,128
+   f22c0: beq   a7,t1,f22c8        ; VLEN==128 -> emitted path (TAKEN on this board)
+   f22c4: j     <ggml_gemm_q6_K_16x1_q8_K_generic@plt>   ; NOT-TAKEN fall-through (scalar fallback) => UNREACHABLE @VLEN128
+   f22c8: ...marshal args...
+   f22d8: beqz  a4,f22e6           ; announced==0 ? -> print banner
+   f22e2: j     <tcrv_emitc_...gemm_q6_K...@plt>          ; already-announced: tail-call EMITTED
+   f22e6: ...
+   f2318: jal   <fprintf@plt>      ; print "TCRV G5-M2 EMITTED GEMM(... vl=8) ENGAGED"
+   f2336: j     <tcrv_emitc_...gemm_q6_K...@plt>          ; tail-call EMITTED
+
+---- ggml_gemv_q6_K_16x1_q8_K (WRAPPER, 50 insns) ----
+   f2230: csrr  a7,vlenb
+   f2234: sll   a7,a7,0x3
+   f2236: li    t1,128
+   f223a: beq   a7,t1,f2242        ; VLEN==128 -> emitted path (TAKEN)
+   f223e: j     <ggml_gemv_q6_K_16x1_q8_K_generic@plt>   ; NOT-TAKEN (scalar fallback) => UNREACHABLE @VLEN128
+   f2250: beqz  a4,f225c           ; announced==0 ? -> banner
+   f2258: j     <tcrv_emitc_...gemv_q6_K...@plt>          ; tail-call EMITTED
+   f2296: jal   <fprintf@plt>      ; print "TCRV G5-M2 EMITTED GEVM(... vl=8) ENGAGED"
+   f22b2: j     <tcrv_emitc_...gemv_q6_K...@plt>          ; tail-call EMITTED
+
+======== [4] EMITTED kernel objdump — 0.07× INSTRUCTION CONSTITUTION ========
+(from build-seal objdump of the two emitted symbols in ON .so cff0585c)
+
+-- GEMM (prefill carrier) tcrv_emitc_...gemm_q6_K... --
+  total insn lines           : 83,858   (ONE function, fully unrolled)
+  branches total / backward  : 12 / 5    => essentially NO loop, straight-line unroll
+  vsetivli(imm=8) / vsetvli  : 2,995 / 3,283   (imm=16 = 0, imm=64 = 0)  => 6,278 vconfig re-issues
+  SEW,LMUL forms             : 6,065 e8,mf2  (VL=8 @VLEN128) · 211 e16,m1 · 2 e32,m2
+  dot-product (widening MAC) : vwmacc.vx 2,048 + vwmacc.vv 256
+  6-bit double-plane decode  : vand.vi 768 (0xF/0x3 masks) · vsrl.vi 640 · vsll.vi 512 · vor.vv 512 · vsub.vx 512 (-32 bias)  [ALL VECTOR]
+  vector loads / stores      : vle8.v 2,871 · vse8.v 1,894
+  ** REGFILE-SPILL SIGNATURE**: vs1r.v 1,980 + vl1re16.v 2,027 + vs2r.v 254 + vl2re32.v 254
+                               (whole-vector-register store/reload to stack — >32 arch vregs live in unrolled body)
+
+-- GEVM (decode carrier) tcrv_emitc_...gevm_q6_K... --
+  total insn lines           : 19,332
+  branches total / backward  : 9 / 3    => no loop
+  vsetivli(imm=8) / vsetvli  : 1,175 / 1,286  (imm=16 = 0, imm=64 = 0)
+  SEW,LMUL forms             : 2,368 e8,mf2 · 91 e16,m1 · 2 e32,m2
+  same vectorized 6-bit decode (vand.vi 768 · vsrl.vi 640 · vsll.vi 512 · vor.vv 512 · vsub.vx 512)
+  spill: vs1r.v 189 + vl1re16.v 241 + vs2r/vl2re32 30/31
+
+-- representative GEMM hot-body window (vectorized reconstruction + spill) --
+  96988: vsetivli zero,8,e8,mf2,ta,ma
+  96990: vand.vi v7,v5,3            ; qh 2-bit high plane & 0x3
+  96994: vand.vi v13,v26,15         ; ql low nibble & 0xF
+  969c8: vsll.vi v7,v7,4            ; qh << 4
+  969d4: vor.vv  v13,v13,v7         ; ql_low | (qh<<4)   (pre -32 bias)
+  969dc: vsrl.vi v12,v6,2           ; next sub-element qh >> 2
+  96838: vs1r.v  v1,(a2)            ; SPILL whole vreg -> stack
+  969ee: vs1r.v  v16,(a0)           ; SPILL whole vreg -> stack
+  (constant "vsetivli zero,8,e8,mf2" re-issued between nearly every op group.)
+
+=> 0.07× constitution = 全展开 VECTORIZED repack (vl=8, e8mf2): weight-reconstruction
+   (super-block signed-int8 scale unpack + double-plane 6-bit ql|qh decode + -32 bias) done in
+   vector form, but the body is fully unrolled to ~84k instructions with ~2,000 whole-vector-
+   register spills/reloads and ~6,300 vsetvli reconfigs, NO scheduling.  NOT scalar element-wise.
+   NOT table lookup.  = first-emission unscheduled regfile-spill body.
+
+================================================================================
+END L-7 RAW
+================================================================================

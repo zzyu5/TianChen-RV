@@ -335,8 +335,8 @@
         "engine": "rvv"
       },
       "category": "黄-对手更强",
-      "provisional": true,
-      "provisional_note": "provisional·L-7 反汇编 + L-11 同域标注后转正（曳光弹已 e2e board 实测锚 0.07×·成色 A·根因归 LAW 例1 pending 逐项复核）",
+      "provisional": false,
+      "provisional_note": "转正(2026-07-12·L-7+L-11 两查齐): L-7 反汇编钉死确认 forward-routes-to=REPACK(generic-fallback+stock-block-dot 双排除·三链)·0.07×=全展开 regfile spill first-emission 未成熟·非部署病·L-11 同域标注已标·可修性=低(S6 NULL on gcc+weight-recon floor)·黄-对手更强 final",
       "opponent_stronger": {
         "named_gap": "[GAP-KQUANT-GCC-CODEGEN]（6-bit 双平面 weight-reconstruction-bound·2995 vsetivli + 6065 e8mf2 无调度·S6 NULL）",
         "fixable": "低（gcc-codegen + weight-reconstruction floor 双阻·S6 NULL）",

@@ -11,6 +11,8 @@
 
 - `evidence.md` — recon + emit + net-new scaffold + silicon UT + build/seal + correctness + perf 分相 + A-tree restore 全数据
 - `correctness_GREEN_raw.txt` — greedy A==B 5/5 byte-identical · 43 engage banners · no NaN/Inf · CORRECTNESS_GATE GREEN
+- `L7_reverse-control_disasm.md` — 二.1 L-7 反汇编钉死（fallback-exclusion 三链 + 反向控制 + 0.07× 全展开-vectorized-repack 构成 + 部署五验 + 归因双层·判决=首发不成熟→provisional 转正 黄-对手更强 final）
+- `L7_raw_wrapper-nm-objdump.txt` — L-7 raw（nm ON/OFF + wrapper objdump[beq VLEN128·generic not-taken unreachable] + emitted 指令统计 + hot-body window）
 - `.gitignore` — gitignore 两大 emitted .inc（3MB·regenerable）
 
 > emitted `.inc` = **gitignored**（`tcrv_emitted_gemm_q6_K.inc` md5 9c49195c·1.8MB / `tcrv_emitted_gevm_q6_K.inc` md5 768a3892·1.1MB·regenerable via evidence.md §二 emit recipe·避 repo bloat）。
