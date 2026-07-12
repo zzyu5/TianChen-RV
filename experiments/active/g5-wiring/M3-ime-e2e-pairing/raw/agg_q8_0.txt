@@ -1,0 +1,12 @@
+side-freqs: {'on': ['1600000'], 'ven': ['1600000'], 'off': ['1600000']}
+banner-totals: {'on': 2, 'ven': 0, 'off': 0}  (on>0 routed; ven/off==0 expected)
+
+      test |              on med(iqr,n) |             ven med(iqr,n) |             off med(iqr,n)
+-------------------------------------------------------------------------------------------------
+      pp32 |    1.726 [  1.72,  1.73] n=10  |   10.313 [ 10.27, 10.39] n=10  |   10.398 [ 10.34, 10.46] n=10 
+      tg64 |    3.667 [  3.66,  3.67] n=10  |    4.186 [  4.13,  4.25] n=10  |    4.224 [  4.22,  4.24] n=10 
+
+=== RATIOS (throughput t/s; >1 = ON faster) ===
+      test |    phase |   ON/OFF(tcrvIME/stockRVV) |  ON/VEN(tcrvIME/vendorIME) |  VEN/OFF(vendorIME/stockRVV)
+      pp32 |  prefill |                     0.1660 |                     0.1674 |                       0.9919
+      tg64 |   decode |                     0.8681 |                     0.8760 |                       0.9910

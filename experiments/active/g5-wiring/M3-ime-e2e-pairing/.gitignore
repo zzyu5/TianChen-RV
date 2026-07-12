@@ -1,0 +1,4 @@
+# board-side scratch (bench .err, route_build.log) never committed (regen from harness)
+*.err
+route_build.log
+# keep: evidence.md, MANIFEST.md, raw/run_*.log, raw/agg_*.txt
