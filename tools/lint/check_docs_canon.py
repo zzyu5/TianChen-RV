@@ -57,6 +57,65 @@ def classify_report(basename):
     return False, "reports/ file lacks a YYYY-MM-DD- prefix (append-only violation)"
 
 
+# ── Framing-discipline WARN scan (裁四.2 · informational · NON-blocking) ──────────
+# The project 措辞纪律 (裁六·永久) retires victory-framing words as *project-status*
+# claims (法定表述 = 「结构轴收口 ∧ 测量轴欠账」). This is a WARN-only lens over docs/:
+# it NEVER changes the exit code or blocks CI — it only surfaces candidate 违令 phrasing
+# for human review. Memory (~/.claude/.../memory/) lives outside the repo tree, so the
+# repo-relative scan covers docs/ only (the "否则仅 docs/" fallback).
+FRAMING_BANNED = ("实质全收口", "实质胜利", "毛刺级", "大成", "publication-grade", "capstone")
+
+# A hit is BENIGN when the line also carries one of these markers — the banned word is
+# being *quoted as banned* (rule statement / stop-list), is an English technical term, or
+# is an explicit honesty caveat. Line-level: one marker exempts the whole line.
+FRAMING_EXEMPT_MARKERS = ("禁", "[NG-8]", "停用", "违反定调", "定调纠偏", "措辞纪律",
+                          "法定表述", "capstone matrix", "honesty")
+
+# "大成" is a bare substring that false-matches 放大成 / 扩大成 / 重大成就 … — skip those.
+_DACHENG_FP_PREFIX = "放扩重巨远光长做增天"
+
+
+def _framing_hit(line, word):
+    """True iff <word> occurs in <line> as a genuine (non-false-positive) hit."""
+    idx = line.find(word)
+    while idx != -1:
+        if word == "大成" and idx > 0 and line[idx - 1] in _DACHENG_FP_PREFIX:
+            idx = line.find(word, idx + 1)
+            continue
+        return True
+    return False
+
+
+def classify_framing_line(line):
+    """Banned framing words used non-benignly on <line>.
+    [] = clean OR benign (rule-statement / tech-term / honesty caveat)."""
+    if any(m in line for m in FRAMING_EXEMPT_MARKERS):
+        return []
+    return [w for w in FRAMING_BANNED if _framing_hit(line, w)]
+
+
+def scan_framing_warnings(root):
+    """WARN-only: surface victory-framing phrasing in docs/. Returns hit count; never blocks."""
+    warns = []
+    for rel in sorted(mc.durable_paths(root, "docs/")):
+        if not rel.endswith(".md"):
+            continue
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8") as fh:
+                for lineno, line in enumerate(fh, 1):
+                    for w in classify_framing_line(line):
+                        warns.append((rel, lineno, w, line.strip()))
+        except (OSError, UnicodeDecodeError):
+            continue
+    if warns:
+        print(f"\nWARN ({len(warns)} framing-discipline hit(s) · 裁四.2 · informational · "
+              "non-blocking · 法定表述=「结构轴收口 ∧ 测量轴欠账」):")
+        for rel, lineno, w, text in warns:
+            snippet = text if len(text) <= 100 else text[:97] + "…"
+            print(f"  ~ {rel}:{lineno}  [{w}]  {snippet}")
+    return len(warns)
+
+
 def self_test():
     ok_all = True
     print("-- (A) canon/ whitelist --")
@@ -93,6 +152,23 @@ def self_test():
         ok_all = ok_all and got == expect
         print(f"  [{mark}] {base} -> ok={got} (expect {expect}) : {reason}")
 
+    print("-- (C) framing-discipline WARN classifier (裁四.2) --")
+    framing_cases = [
+        ("★FLAT 家族全绿 · perf 冲刺 capstone", ["capstone"]),          # bare victory word -> WARN
+        ('★结构轴收口 ∧ 测量轴欠账（禁"实质胜利"）', []),                 # rule-statement (禁) -> benign
+        ("措辞纪律：论文级/publication-grade/capstone 停用", []),          # rule-statement (措辞纪律/停用) -> benign
+        ("capstone matrix): a compute-bound kernel win does NOT transplant", []),  # English tech term -> benign
+        ("同样的 ±1 主项差被相消放大成噪声", []),                          # 放大成 false positive -> clean
+        ('Named residual gaps (honesty — no "实质胜利")', []),           # honesty caveat -> benign
+        ("这是毛刺级的项目状态·novelty 轴大成", ["毛刺级", "大成"]),        # two genuine hits
+        ("干净的正常行没有违令词", []),                                    # clean
+    ]
+    for text, expect in framing_cases:
+        got = classify_framing_line(text)
+        mark = "PASS" if got == expect else "FAIL"
+        ok_all = ok_all and got == expect
+        print(f"  [{mark}] {text[:34]!r} -> {got} (expect {expect})")
+
     print("SELF-TEST:", "GREEN" if ok_all else "RED")
     return 0 if ok_all else 1
 
@@ -120,14 +196,19 @@ def main(argv):
 
     if not viol:
         print("OK: docs/canon/ is charter-only and docs/reports/ is append-only (date-stamped).")
-        return 0
+        rc = 0
+    else:
+        print(f"RED: docs/ policy violated ({len(viol)} file(s)):")
+        for rel, reason in viol:
+            print(f"  ! {rel}  <-  {reason}")
+        print("Fix: keep only 总纲/charter docs in docs/canon/ (move reports to docs/reports/ with a "
+              "YYYY-MM-DD- prefix); method/framework docs go to docs/method/.")
+        rc = 1
 
-    print(f"RED: docs/ policy violated ({len(viol)} file(s)):")
-    for rel, reason in viol:
-        print(f"  ! {rel}  <-  {reason}")
-    print("Fix: keep only 总纲/charter docs in docs/canon/ (move reports to docs/reports/ with a "
-          "YYYY-MM-DD- prefix); method/framework docs go to docs/method/.")
-    return 1
+    # 裁四.2: framing-discipline lens — WARN-only, appended after the verdict.
+    # Never influences `rc` (informational; the structural invariants alone gate exit code).
+    scan_framing_warnings(root)
+    return rc
 
 
 if __name__ == "__main__":

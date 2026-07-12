@@ -68,7 +68,7 @@
 |---|---|---|---|
 | **X1** | X-SCALAR 独立家族广度见证(owned 内核 = 三值 2-bit vec_dot 标量路;保底 = q4_0 dequant;Zbb 作能力门非主力;fp16 scale 走 zfh/软件不破独立性)→ C2 第二数据点 | [X-SCALAR]/[F-6]/[C2] | gated on owned-kernel 数学核查(已定);**回退:C1 轨1/C2 首点独立成立** |
 | **X2** | IME 自有机制构造 GEMM + 净范式 2×2×M 消融(轨2) | 实验总纲 §3 轨2 | **重活 ≥ block-dot 构造,gated on [K-2] 原语;默认回退 = 轨1(结构+硅上正确)+ T5d 方法学,P7=open** |
-| **X3** | 外部接入实录(M4) | [P-4]/[C1-4] | 文档足以让非核心作者独立接一个家族 |
+| **[P-4]** | 外部接入实录(M4) | [P-4]/[C1-4] | 文档足以让非核心作者独立接一个家族 |
 
 ---
 
@@ -77,7 +77,7 @@
 - **M1 = 证据线闭合**:E0–E8 绿(falsifier 组 + F-2′ + F-6 进 CI;C_attr^CT=100% + 装载期解析;schema.def v1 + 目录归拢;分母定稿 + 四指标脚本;C_dispatch(A 类)=100%、全局 ≥80%;编译期门自足)。→ **Reframe 档可动笔**。
 - **M2 = 引擎线主推进**:G1–G6(C_construct 强义 ≥40%;泛型发射权威;zvfh+闭包;统一注册表;全局 C_dispatch ≥90%)。→ **投 TACO**。
 - **M3**:P1–P4 + X1(家族#3 + ledger 第二点)+ ≥1 机制合成 prefill 赢 + 双板迁移常青;C_construct ≥70%。→ Mid 实证 / major revision。
-- **M4**:X3 外部接入实录;C_construct ≥90%;(条件)X2 若达成 + AME。→ Full 冲刺 / 第二篇。
+- **M4**:[P-4] 外部接入实录;C_construct ≥90%;(条件)X2 若达成 + AME。→ Full 冲刺 / 第二篇。
 
 ---
 
@@ -106,7 +106,7 @@
 | 证据 | E0 越界清理(quick commit) · E2a kind 改名 · E1 schema.def+F-2′ · E2b 目录归拢 · E3 falsifier CI · E4 归因 JSONL+D-2a · E5 provenance 六态 · E6 覆盖率+ledger 脚本 · E7 D-1 自足 · E8 T-N+对手探针 | **E2a→E1**(改名先于契约固化);E1→E5/E6;E2b 解锁 F-3;E8 独立 |
 | 引擎 | G1 body 模式库+注册表 · G2 K-3b 权威 · G3 SEL-1 先验层 · G4 K-2b 缺口环 · G5 zvfh+闭包 · G6 结构化参数+uarch | E5/E6 后;G3 先于 P7 |
 | 硬件 | P1 资源 cost · P2 hwprobe+运行期链 · P3 两板实测 · P4 首 beat | E8/G1 后 |
-| 理想 | X1 X-SCALAR owned 内核 · X2 IME 自有 GEMM(gated)· X3 外部接入 | G1 原语后;X 回退解耦 |
+| 理想 | X1 X-SCALAR owned 内核 · X2 IME 自有 GEMM(gated)· [P-4] 外部接入 | G1 原语后;X 回退解耦 |
 
 ## Decision(ADR-lite)—— 已由 `/goal` 放行(2026-07-02)
 

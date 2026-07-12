@@ -110,7 +110,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 ## 在飞（裁决执行批·2026-07-12·异域不相交·下 Line-A..E = 已收历史）
 > **★当前在飞**：logit-ULP 三格数值档（k1·`a5e88601`·[K-5]）· 二.2 决定性实验（rvv·`a86d9e8a`）· gcc-death 回溯+X3→[P-4]+〇 登记（docs·`adead0a0`）· [P-4] 8 缺口修复（spec·`a1a795d7`）。
-> **★★里程碑（committed）**：perf-covered **7/83**（q5_K@k1 新绿）· IME ratified triple 全 3/3 forward-wired（打回 provisional·裁一）· [WORK-ITEM] K-quant e2e clang 传导存在性证明（gcc 归因隔离 pending·二.2）· X3→[P-4] drill C1 头牌 followability 证据（8 缺口·在修）。
+> **★★里程碑（committed）**：perf-covered **7/83**（q5_K@k1 新绿）· IME ratified triple 全 3/3 forward-wired（打回 provisional·裁一）· [WORK-ITEM] K-quant e2e clang 传导存在性证明（gcc 归因隔离 pending·二.2）· [P-4] drill C1 头牌 followability 证据（8 缺口·在修）。
 > **★异板不相交**（rvv ∥ k1·以下 Line-A..E 为历史收口记录）：
 > **★★本轮里程碑（committed）**：**perf-covered 6/83→7/83**——**q5_K@k1 NEW GREEN**（`47e29b35`·首个 our-kernel K-quant e2e 传导·prefill 1.641×·裁四.2 k1 唯一新绿点兑现·第2 K-quant transduction with our kernel）· **[WORK-ITEM] RESOLVED-POSITIVE**（`b12afd57`·q4_K e2e k1-clang 2.644×·C3′ 绿路径确认·rvv LOSS=gcc-death 非 weight-recon wall）· q6_K **FINAL 转正**（`8f80df11`）· iq4_nl **correctness-carrier GREEN→firm yellow-对手更强**（`d0bf1ff8`·codebook 家族首·[GAP-VLEN128] 碎片化第3族）· Line-C k1 编译器对称订正（`17c193eb`）· IME bridge session-1（`13c1c74a`）· 裁决一/三 recon（`2c53e581`）。
 > **★下一线 = IME session-2**（k1·跨范式完整性名义·family#2 forward 完成·session-1 correctness 桥已闭·session-2 = 真 ggml 数据路径 #3/#4 + forward hook #5 + e2e A==B）。**q3_K/q6_K@k1 不追**（kernel S6-NULL 全展开-immature·即便 clang 不传导·区别 q5_K clean S6-hybrid-holds 1.916×）·**Phase-2 q4_K our-emit e2e**（deployed=proven 成色·recipe 在手·排 IME-2 后）。

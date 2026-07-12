@@ -206,14 +206,16 @@ Two things resolve the tension:
   `build_and_tooling`. A family PR touching either registration-table row (and, for
   own-backend families, the paired `BuiltinBackendEmitters` `CMakeLists` `LINK_LIBS`
   line) is a **declared, intended** exception, not a containment violation.
-  **⚠ FLAG (checker semantics — main-session / recon line; NOT fixed by this docs
-  pass):** the [F-3] checker `tools/lint/check_family_locality.py` does **not**
-  currently read `shared_allowances` in its CI `evaluate_diff` — it classifies any
-  unclaimed `lib/`/`include/Weft/` `.cpp/.h/.td` file touched by a family PR as
-  `CORE-EDIT` RED. So today both registration files are honored as *documented,
-  reviewer-waved* exceptions, not *machine-waved* ones. Teaching `evaluate_diff` to
-  consult `shared_allowances.{plugin_registration,backend_emitter_registration}` is
-  a checker-behavior change, out of this docs pass's scope.
+  **✅ RESOLVED (checker semantics — 必问-1 落地 2026-07-13 · `b7c60476` · 选项 a):**
+  the [F-3] checker `tools/lint/check_family_locality.py` `evaluate_diff` **now READS
+  `shared_allowances`** (via `registration_allowance_files`): it parses
+  `$meta.containment_scope.shared_allowances` and waves the **named exact-path**
+  registration files (`BuiltinExtensionPlugins.cpp` / `BuiltinBackendEmitters.cpp`;
+  skip note/globs; narrow by construction). So both registration files are now
+  **machine-waved**, not merely reviewer-waved — **reviewer-wave 废止**. Guards: named
+  pointers forbid wildcards, shrink-only ratchet holds, and reverse tests are in CI
+  (self-test 11→16; over-allowance / undeclared-file / real-core-dispatch-with-allowance
+  all still RED).
 
 ## [P-4] External Integrability
 

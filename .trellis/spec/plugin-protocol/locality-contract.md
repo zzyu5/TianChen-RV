@@ -91,8 +91,9 @@ registration         lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp — ONE kBui
                       lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp; family name as data in
                       for-iterated tables, no branch; 见 [GAP-P4-REGISTER]. Both are declared in
                       schema/family-manifest.v1.json shared_allowances as plugin_registration /
-                      backend_emitter_registration; ⚠ the [F-3] checker does not yet READ shared_allowances,
-                      so they are reviewer-waved, not machine-waved — main-session/recon)
+                      backend_emitter_registration; ✅ the [F-3] checker check_family_locality.py
+                      evaluate_diff now READS shared_allowances (registration_allowance_files·2026-07-13·
+                      b7c60476) → both registration files are machine-waved, reviewer-wave 废止)
 ```
 
 `plugins/<family>/` above is a generic stand-in; the code actually lives under
