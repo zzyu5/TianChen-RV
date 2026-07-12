@@ -1,0 +1,77 @@
+# Line C · k1 精准打击 — raw board probe evidence (read-only; board CLEAN, nothing written)
+# board = ssh k1 = SpacemiT X60 / VLEN256 (vlenb=32) / 8 harts / Bianbu 6.6.63 / gov perf 1.6GHz
+# probing method = objdump/nm/readelf/sed/find on /data/k1build-stock (STOCK opponent) + source read.
+# taskset not needed (all read-only, no timing). NO board mutation → restore trivially clean.
+
+========================================================================
+[P0] board fingerprint
+========================================================================
+isa = rv64imafdcv_zicbom_..._zvfh_zvfhmin_..._ime   (V present + IME extension)
+nproc = 8 ; loadavg ~2.0 (idle; only desktop pipewire/wireplumber daemons; Line B idle at probe time)
+
+========================================================================
+[P1] STOCK compiler identity — DECISIVE (kernel-axis symmetry)
+========================================================================
+/data/k1build-stock/CMakeCache.txt:
+    CMAKE_C_COMPILER:FILEPATH=/usr/bin/clang-18
+    CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++-18
+.comment section carries BOTH "Bianbu clang 18.1.8" + "GCC: 13.2.0" (Bianbu dual-toolchain aux TUs),
+  but the ggml quant kernels are compiled by the CMake C/CXX compiler = clang-18.
+=> k1 STOCK ggml opponent = clang-18.  OUR deploy = clang-18.  => kernel-axis is COMPILER-SYMMETRIC on k1
+   (UNLIKE rvv where stock = gcc-15 → the [CASE-COMPILER-ASYMMETRY] withdrawal). The t4a MANIFEST's
+   "asymmetry identical in kind to board A" assumption is CORRECTED here by CMakeCache proof.
+
+========================================================================
+[P2] SpacemiT / IME vendor path in STOCK ggml-cpu?  → ABSENT
+========================================================================
+nm -D /data/k1build-stock/bin/libggml-cpu.so.0 | grep -ic spacemit  = 0
+=> stock opponents are pure upstream ggml (riscv-16x1 repack OR generic block-dot vec_dot). No vendor IME
+   kernel in the shipped opponent. (SpacemiT source tree spacemit/repack.cpp exists but is NOT linked in stock.)
+
+========================================================================
+[P3] dispatch selector — ggml_repack_get_optimal_repack_type (repack.cpp:4528) @ riscv, VLEN256
+========================================================================
+riscv branch is guarded #if defined __riscv_zvfh ; switch(vlenb*8){ case256: if(ne1%16==0) return &X_16x1; }
+  Q4_0  : case256 → &q4_0_16x1_q8_0      (riscv-16x1 tuned repack)
+  Q4_K  : case256 → &q4_K_16x1_q8_K      (riscv-16x1 tuned repack)
+  Q2_K  : case256 → &q2_K_16x1_q8_K      (riscv-16x1 tuned repack)
+  IQ4_NL: case256 → &iq4_nl_16x1_q8_0    (riscv-16x1 tuned repack)
+  Q8_0  : case256 → &q8_0_16x1_q8_0      (riscv-16x1 tuned repack)   ← healthy@256 (see P4)
+  Q5_K  : only ggml_cpu_has_neon() branches (FALSE on riscv) → falls through → return nullptr → BLOCK-DOT
+  Q6_K  : only ggml_cpu_has_neon() branches (FALSE on riscv) → falls through → return nullptr → BLOCK-DOT
+  MXFP4 : only avx2/neon (FALSE on riscv) → nullptr → BLOCK-DOT
+  (Q3_K / q4_1 / q5_0 / q5_1 / all IQ except iq4_nl / ternary / q1_0 / nvfp4: no riscv repack branch → BLOCK-DOT)
+STOCK 16x1 symbols present (nm): gemv+gemm for {q4_0,q4_K,q2_K,iq4_nl,q8_0}. q5_K/q6_K present ONLY as 8x4/8x8
+  (generic arm/x86 interleave, NOT selected on riscv). => q5_K/q6_K opponent = block-dot vec_dot.
+
+========================================================================
+[P4] q8_0-k1 VLEN256 correctness DOUBLE-EXIT (task focus)
+========================================================================
+objdump ggml_gemm_q8_0_16x1_q8_0 (stock): head = `vsetivli zero,16,e32,m2,ta,ma`
+objdump ggml_gemv_q8_0_16x1_q8_0 (stock): head = `vsetivli zero,16,e32,m2,ta,ma` ; rvv_insns≈65 (well-vectorized)
+At VLEN256: VLMAX(e32,m2) = VLEN*LMUL/SEW = 256*2/32 = 16.  => hardcoded AVL=16 == VLMAX => runs FULL WIDTH = HEALTHY.
+Same 16x1-family head confirmed healthy for q4_K/q2_K/iq4_nl (all `vsetivli zero,16,e32,m2`).
+EXIT-1 (健康): q8_0-k1 = 硬对拼格 — opponent is a runnable, correct, vectorized tuned repack kernel; parity = good result.
+EXIT-2 (碎片化第二证据): the SAME hardcoded-AVL=16 body is VLEN-NON-PORTABLE — at VLEN128 VLMAX(e32,m2)=8, AVL=16
+  clamps to 8 → processes half the 16-interleave columns → garbage (PROVEN in G5-M1b: banner-only裸翻 = "olta"
+  garbage RED; our emitted vl=8 carrier = coherent GREEN). => [GAP-Q8_0-VLEN128-KERNEL] = 手写库 VLEN 不可移植
+  = C1 对手侧碎片化供弹.  BOTH exits are simultaneously TRUE (healthy@256 ∧ broken@128 = the same non-portable body).
+
+========================================================================
+[P5] block-dot vec_dot opponents (dispatched fallback) — vectorization
+========================================================================
+objdump --disassemble on stock libggml-cpu.so.0 (rvv_insns / vsetvli count):
+  ggml_vec_dot_q5_K_q8_K : rvv_insns=13 vsetvli=15   → VECTORIZED intrinsic block-dot (real tuned-ish opponent)
+  ggml_vec_dot_q6_K_q8_K : rvv_insns=0  vsetvli=0    → SCALAR (weak opponent; notable)
+  ggml_vec_dot_q3_K_q8_K : rvv_insns=6  vsetvli=14   → lightly vectorized
+=> q5_K opponent (the [X-0] target) = a VECTORIZED clang-18 block-dot vec_dot = a legitimate compiler-symmetric
+   opponent (matches t4a "factory block-dot" framing; kernel-axis 1.916× is a real symmetric ratio on k1).
+
+========================================================================
+[P6] provisioning feasibility (q5_K e2e)
+========================================================================
+models on k1: /data/tinyllama-1.1b-Q4_K_M.gguf , /data/tinyllama-q8_0.gguf , tinyllama-q4_0.gguf. NO q5_K gguf.
+llama-quantize: ABSENT on k1 (only llama-bench / llama-cli). NO base f16/f32 tinyllama for requant.
+=> q5_K e2e requires: (a) provision q5_K model (requantize off-board + scp + sha256), (b) net-new q5_K e2e wiring
+   (q5_K has ZERO riscv repack branch → net-new trait/route/arch-skeleton per G5-M2 "q5_0/q5_1 建法" recipe),
+   (c) a k1 ggml build tree distinct from Line B's /home/bianbu/tcrv-k1-llama. HEAVY.

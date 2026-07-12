@@ -1,0 +1,25 @@
+format,k1_dispatch_VLEN256,opponent_identity,opponent_compiler,as_shipped_vectorized,q8_0_style_health,opponent_tier,verdict_meaning,evidence
+q4_0,riscv-16x1-repack,ggml_gemm/gemv_q4_0_16x1_q8_0,clang-18,yes(vsetivli16=VLMAX@256),healthy@256/broken@128(non-portable),A-tuned-repack,硬对拼格 parity=good (also white-steal routing per q4-0-e2e-is-routing-not-kernel),P3+P4
+q4_K,riscv-16x1-repack,ggml_gemm/gemv_q4_K_16x1_q8_K,clang-18,yes(vsetivli16),healthy@256/broken@128([GAP-Q4K-VLEN128]),A-tuned-repack,硬对拼格 (kernel-axis 3.106× compiler-symmetric-VALID t4a; e2e yellow sibling),P3+P4+t4a
+q2_K,riscv-16x1-repack,ggml_gemm/gemv_q2_K_16x1_q8_K,clang-18,yes(vsetivli16),healthy@256,A-tuned-repack,硬对拼格,P3
+iq4_nl,riscv-16x1-repack,ggml_gemm/gemv_iq4_nl_16x1_q8_0,clang-18,yes(vsetivli16),healthy@256,A-tuned-repack,硬对拼格 (codebook; but repack path exists unlike other IQ),P3
+q8_0,riscv-16x1-repack,ggml_gemm/gemv_q8_0_16x1_q8_0,clang-18,yes(vsetivli16 + gemv~65 insns),HEALTHY@256/PROVEN-broken@128,A-tuned-repack,★DOUBLE-EXIT 健康=硬对拼格 ∧ [GAP-Q8_0-VLEN128-KERNEL] frag 2nd-evidence,P4+G5-M1b
+q5_K,block-dot-fallback(nullptr),ggml_vec_dot_q5_K_q8_K,clang-18,yes(13 rvv/15 vsetvli VECTORIZED),n/a,B-block-dot,[X-0] target; opponent=vectorized symmetric block-dot; kernel-axis 1.916× VALID / e2e 声明例外,P3+P5+t4a
+q6_K,block-dot-fallback(nullptr),ggml_vec_dot_q6_K_q8_K,clang-18,NO(0 rvv insns SCALAR),n/a,B-block-dot,weak scalar opponent; S6 NULL (weight-recon-bound),P3+P5
+q3_K,block-dot-fallback,ggml_vec_dot_q3_K_q8_K,clang-18,light(6 rvv/14 vsetvli),n/a,B-block-dot,S6 NULL (weight-recon-bound),P3+P5
+mxfp4,block-dot-fallback(nullptr avx2/neon only),ggml_vec_dot(fp4),clang-18,unprobed,n/a,B-block-dot,block-dot fallback,P3
+nvfp4,block-dot-fallback,block-dot,clang-18,unprobed,n/a,B-block-dot,block-dot fallback,P3
+q4_1,block-dot-fallback(no-riscv-branch),ggml_vec_dot_q4_1_q8_1,clang-18,unprobed,n/a,B-block-dot,net-new scaffold (FLAT; already perf-covered green via net-new vs weak stock),P3
+q5_0,block-dot-fallback(no-riscv-branch),ggml_vec_dot_q5_0_q8_0,clang-18,unprobed,n/a,B-block-dot,net-new scaffold (FLAT; perf-covered green),P3
+q5_1,block-dot-fallback(no-riscv-branch),ggml_vec_dot_q5_1_q8_1,clang-18,unprobed,n/a,B-block-dot,net-new scaffold (FLAT; perf-covered green),P3
+iq1_s,block-dot-fallback,ggml_vec_dot(grid-codebook),clang-18,gather-trap,n/a,B-block-dot,[GAP-CLANG-GATHER-TRAP] vluxei; LOSS class,P3
+iq1_m,block-dot-fallback,grid-codebook,clang-18,gather-trap,n/a,B-block-dot,gather-trap LOSS class,P3
+iq2_xxs,block-dot-fallback,grid-codebook,clang-18,gather-trap,n/a,B-block-dot,gather-trap LOSS class,P3
+iq2_xs,block-dot-fallback,grid-codebook,clang-18,gather-trap,n/a,B-block-dot,gather-trap LOSS class,P3
+iq2_s,block-dot-fallback,grid-codebook,clang-18,gather-trap,n/a,B-block-dot,gather-trap LOSS class,P3
+iq3_xxs,block-dot-fallback,grid-codebook,clang-18,gather-trap,n/a,B-block-dot,gather-trap LOSS class,P3
+iq3_s,block-dot-fallback,grid-codebook,clang-18,gather-trap,n/a,B-block-dot,gather-trap LOSS class,P3
+iq4_xs,block-dot-fallback,ggml_vec_dot_iq4_xs,clang-18,vluxei16-gather,n/a,B-block-dot,codebook-lean/gather; S6 NO-OP,P3
+tq1_0,block-dot-fallback,ggml_vec_dot(ternary),clang-18,unprobed,n/a,B-block-dot,block-dot fallback (ternary),P3
+tq2_0,block-dot-fallback,ggml_vec_dot(ternary),clang-18,unprobed,n/a,B-block-dot,block-dot fallback (ternary),P3
+q1_0,block-dot-fallback,ggml_vec_dot(binary),clang-18,unprobed,n/a,B-block-dot,block-dot fallback (binary),P3

@@ -1,0 +1,20 @@
+format,S6_pred,S6_tier,col_outer_pred,col_outer_tier,vl16_pred,vl16_tier,rationale,evidence_ptr,measured_k1
+q4_K,HOLDS,[k1-M],NULL,[k1-M],HOLDS,[k1-M],"S6 crosses <=32 cliff (k1 spill 81->4 v31; vwmacc 2240 VLEN-invariant); col-outer NULL on k1 (FU-1 stack 1.002x CI crosses 1.0 = rvv-cache-specific); vl16 recovers half-width 1.085x vs hand-brick byte-exact compiler-symmetric",t4a-gate3/5;Win-K1-VLEN/FU-1;T8-q4_K-tile-S6,open
+q5_K,HOLDS,[k1-M],NULL,(pred),HOLDS,(pred),"S6 crosses cliff despite qh plane (rvv 155->105 v30 XFER#2 pred-hit; k1 1.916x timed); col-outer pred-NULL (sibling of q4_K); vl16 pred-HOLDS (same mf2/e32m2 chain stays <=32 at vl16 board-independent)",t4a-gate5(1.916x);T8-q5_K-tile-T3-S6;vl16_static_account,open
+q2_K,HOLDS,[rvv-M],NULL,(pred),HOLDS,(pred),"S6 crosses cliff (rvv 619->7 v30 A/B 6.653x); same kquant dmin/bsums-min fold as q4_K -> transfers to k1; col-outer pred-NULL; vl16 pred-HOLDS (<=32 at vl16)",T8-q2_K-tile-S6-minfold;vl16_static_account,open
+q6_K,NULL,[rvv-M],NULL,(pred),NULL,(pred),"S6 no cliff weight-recon-bound (rvv spill 913->949 ROSE v31 never <=32); dual-plane 6-bit ql/qh recon dominates; col-outer/vl16 pred-NULL (lane-fill washed by ~900 spill; also opponent vec_dot=scalar)",T8-q6_K-tile-T3-NULL;P4-class2;opponent_map(q6_K scalar),open
+q3_K,NULL,[rvv-M],NULL,(pred),NULL,(pred),"S6 no cliff weight-bound (rvv 978->894 -8.6% v31 cliff never reached); col-outer/vl16 pred-NULL (spill-saturated lever orthogonal to bottleneck)",T8-q3_K-tile-T3-stackpanel-NULL;P4-class2,open
+iq4_nl,NO-OP,[rvv-M],NO-OP,(pred),NO-OP,(pred),"already-lean (spill 7 maxVreg<=32 no accumulator-fan cliff no idle bsums/min for min-fold); levers no-op (small LUT codebook). NOTE stock has riscv-16x1 repack so opponent=tuned not block-dot",T8-iq4_nl-frontdoor-tile-NOOP;P4-class3,open
+iq4_xs,NO-OP,[rvv-M],NO-OP,(pred),NO-OP,(pred),"already-lean (spill 73/v30 is vluxei16 memory-gather spill not accumulator fan S6 stages = structural no-op); levers no-op",T8-iq4_xs-frontdoor-tile-NOOP;P4-class3,open
+iq1_s,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),"[GAP-CLANG-GATHER-TRAP] grid-codebook->vluxei indexed-gather; no accumulator cliff (S6 no-op); not cache-tileable (col-outer no-op); wider vl16 gather worsens (~1 elem/cyc) -> matches Line A rvv IQ LOSS",GAP-CLANG-GATHER-TRAP;Line-A,open
+iq1_m,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),same gather-trap as iq1_s,GAP-CLANG-GATHER-TRAP,open
+iq2_xxs,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),same gather-trap,GAP-CLANG-GATHER-TRAP,open
+iq2_xs,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),same gather-trap,GAP-CLANG-GATHER-TRAP,open
+iq2_s,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),same gather-trap,GAP-CLANG-GATHER-TRAP,open
+iq3_xxs,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),same gather-trap,GAP-CLANG-GATHER-TRAP,open
+iq3_s,NO-OP,(pred),NO-OP,(pred),LOSS,(pred),same gather-trap,GAP-CLANG-GATHER-TRAP,open
+q4_0,NO-OP,(pred),NULL,(pred),NO-OP,(pred),"accumulator-lean flat (no super-block min/dmin idle family -> S6 no cliff); e2e=upstream-routing white-steal (our repack byte-identical) so deployed carrier=upstream 16x1 repack; vl16 no-op for our kernel",q4-0-e2e-is-routing-not-kernel;G5-deploy-readiness,open
+q4_1,NO-OP,(pred),NULL,(pred),NO-OP,(pred),same as q4_0 (upstream interleaved type lean flat white-steal routing),G5-M2-q4_1,open
+q5_0,NO-OP,(pred),NULL,(pred),HOLDS,(pred),"lean flat + NO upstream repack -> our emitted kernel is deployed path; if shipped half-wide vl=8 on k1 vl16 recovers width toward parity; S6 no-op (lean)",G5-deploy-readiness(q5_0);vl16_static_account,open
+q5_1,NO-OP,(pred),NULL,(pred),HOLDS,(pred),same as q5_0,G5-M2-q5_1;vl16_static_account,open
+q8_0,NO-OP,(pred),NULL,(pred),HOLDS,(pred),"lean flat; G5-M1b deployed our emitted vl=8 kernel on k1-class as correctness-carrier ([GAP-Q8_0-VLEN128-KERNEL] upstream AVL=16 broken@128) = confirmed half-wide -> vl16 recovers half-width toward parity; S6 no-op; col-outer null",G5-M1b;deploy-readiness,open
