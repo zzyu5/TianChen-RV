@@ -283,3 +283,38 @@ jobs:
       # dispatch path.
       - name: F-1 zero-core-branch gate (family-keyed branch in core == 0)
         run: python3 tools/lint/check_zero_core_family_branch.py
+
+  # [F-4] attribution-completeness gate (M1 evidence-line closure). Makes the COMPILE-TIME
+  # SELECTION attribution JSONL export ([D-4] stage (1)) CI-executable. The
+  # `--tcrv-select-variants=attribution-jsonl=<path>` sink writes ONE canonical-JSON object per
+  # planned kernel {candidates[], chosen, declared_instance_hash, kernel, keys_evaluated{}, reason,
+  # ts}. This gate runs tcrv-opt over the COMMITTED attribution lit corpus (attribution-jsonl.mlir +
+  # attribution-jsonl-instance-hash.mlir, pipeline parsed from each file's own `// RUN:` line) and
+  # validates -- WITHOUT touching the selection logic (serialization-output falsifier only) -- that:
+  # every record has the seven required keys + a hex declared_instance_hash (SHAPE); reason is null
+  # or one of {only_feasible, static_order, prior, measured} (ENUM); the reason is DERIVABLE from the
+  # candidate set (only_feasible <=> 1 feasible + chosen; static_order <=> >=2 feasible; null <=>
+  # nothing chosen) (CONSISTENCY); every kernel op yields exactly one record ([D-4] M1 hard gate =
+  # 100% -- no silently-dropped kernel); and the export EXERCISES both M1 tokens {only_feasible,
+  # static_order} across the corpus (查①②). It does NOT gate on prior/measured (reserved valid enum
+  # members) nor on static_order going to zero (a burn-down signal, not a gate). Changes NO
+  # selection judgement / NO reason-enum semantics. Stdlib-Python only.
+  f4-attribution-jsonl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the JSONL validator DISCRIMINATES (compliant corpus -> GREEN;
+      # each violation class -- missing key / bad reason token / reason-not-supported-by-candidates /
+      # non-hex hash / dropped kernel / an M1 branch never emitted -> RED) before it judges the real
+      # emitted JSONL. No compiler needed.
+      - name: F-4 attribution-JSONL gate self-test
+        run: python3 tools/lint/check_f4_attribution_jsonl.py --self-test
+
+      # Default-path gate on the COMMITTED lit corpus: runs tcrv-opt, parses the emitted JSONL, and
+      # asserts shape + reason enum + [D-4] M1 100% coverage. Build-free lane SKIPs (exit 0) when
+      # tcrv-opt is absent -- the self-test above still proves the validator fires; pass
+      # --require-binaries to make the absence itself RED.
+      - name: F-4 attribution-JSONL gate (compile-time selection attribution export == [D-4] (1))
+        run: python3 tools/lint/check_f4_attribution_jsonl.py
