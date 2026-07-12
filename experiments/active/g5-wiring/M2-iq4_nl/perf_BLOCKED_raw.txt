@@ -1,0 +1,130 @@
+== ENV: 6.12.66-0.0.0.0.riscv64 VLEN128 gcc-15.2.0 governor=performance freq=2600000 ==
+== model=/home/ubuntu/models/DeepSeek-R1-Distill-Llama-8B-IQ4_NL.gguf sha256=7b64a33e35b98c69 ==
+== iq4ON md5=71f346b516779528 syms=4 ==
+== iq4OFF md5=05a62e6a82857cdf syms=0 ==
+== ENGAGE PROBE (ON, banner) ==
+  emitted-kernel banner fires (ON p16 n4) = 1 (expect >0)
+== WARMUP (dropped) ==
+g5_m2_iq4_nl_perf_split2.sh: line 29: 2129590 Bus error               (core dumped) $PIN "$BIN/llama-bench" -m "$M" -p 8 -n 2 -t 8 -r 1 > /dev/null 2>&1
+###PHASE=PREFILL
+== PREFILL ABPASS 1 ==
+###AB pass=1 side=ours freq_khz=2600000
+g5_m2_iq4_nl_perf_split2.sh: line 32: 2129778 Bus error               (core dumped) $PIN "$BIN/llama-bench" -m "$M" -p 128 -n 0 -t 8 -r 10 -o json 2> /dev/null
+###END
+###AB pass=1 side=stock freq_khz=2600000
+g5_m2_iq4_nl_perf_split2.sh: line 32: 2130207 Bus error               (core dumped) $PIN "$BIN/llama-bench" -m "$M" -p 128 -n 0 -t 8 -r 10 -o json 2> /dev/null
+###END
+== PREFILL ABPASS 2 ==
+###AB pass=2 side=ours freq_khz=2600000
+g5_m2_iq4_nl_perf_split2.sh: line 32: 2130239 Bus error               (core dumped) $PIN "$BIN/llama-bench" -m "$M" -p 128 -n 0 -t 8 -r 10 -o json 2> /dev/null
+###END
+###AB pass=2 side=stock freq_khz=2600000
+g5_m2_iq4_nl_perf_split2.sh: line 32: 2130410 Bus error               (core dumped) $PIN "$BIN/llama-bench" -m "$M" -p 128 -n 0 -t 8 -r 10 -o json 2> /dev/null
+###END
+###PHASE=DECODE
+== DECODE ABPASS 1 (r4, slow emitted GEVM) ==
+###AB pass=1 side=ours freq_khz=2600000
+[
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/home/ubuntu/models/DeepSeek-R1-Distill-Llama-8B-IQ4_NL.gguf",
+    "model_type": "llama 8B IQ4_NL - 4.5 bpw",
+    "model_size": 4699513088,
+    "model_n_params": 8030261312,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 8,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-12T04:46:55Z",
+    "avg_ns": 33694158704,
+    "stddev_ns": 37738116,
+    "avg_ts": 0.949720,
+    "stddev_ts": 0.001064,
+    "samples_ns": [ 33707227246, 33652292368, 33739655797, 33677459406 ],
+    "samples_ts": [ 0.949351, 0.950901, 0.948439, 0.95019 ]
+  }
+]
+###END
+###AB pass=1 side=stock freq_khz=2600000
+[
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/home/ubuntu/models/DeepSeek-R1-Distill-Llama-8B-IQ4_NL.gguf",
+    "model_type": "llama 8B IQ4_NL - 4.5 bpw",
+    "model_size": 4699513088,
+    "model_n_params": 8030261312,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 8,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-12T04:49:16Z",
+    "avg_ns": 17238232720,
+    "stddev_ns": 23300047,
+    "avg_ts": 1.856341,
+    "stddev_ts": 0.002508,
+    "samples_ns": [ 17229053003, 17269552112, 17239779413, 17214546354 ],
+    "samples_ts": [ 1.85733, 1.85297, 1.85617, 1.85889 ]
+  }
+]
+
+=== RETRY (small-batch pp64/tg16, MAXTRY=8, under load 30) ===
+== retry perf: load=19.71 17.85 13.02 1/1783 2142442 freq=2600000 ==
+== WARMUP (best effort) ==
+== PASS 1 ==
+
+=== board env at measurement (load 22->30, other users) ===
+uptime load avg 24-30; users: root VLLM::EngineCor, paper3 llama-cli+python3.11, ai-test pts/0+pts/2, ubuntu llama-bench 775%CPU

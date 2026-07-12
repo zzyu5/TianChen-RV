@@ -1,0 +1,3 @@
+# Emitted vl=8 iq4_nl repack kernels (regenerable via evidence.md §2 emit recipe; md5 in MANIFEST.md)
+tcrv_emitted_gemm_iq4_nl.inc
+tcrv_emitted_gevm_iq4_nl.inc
