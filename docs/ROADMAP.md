@@ -97,11 +97,12 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=3 agent + 主会话·2026-07-12 度假期全自主·用户裁四立 Line C·四线并行）
-> **★四线异板/异域不相交**（触碰集 diff·K-quant 集成域已随 q6_K 收口释放·C 与 A 不相交）：
+## 在飞（★当前 N=2 board 在飞[Line-A IQ/rvv + Line-E q4_K@k1/WORK-ITEM]·Line-B/C 已落地·主会话裁决消费完成·2026-07-12 度假期全自主）
+> **★异板不相交**（触碰集 diff·K-quant 集成域已随 q6_K 收口释放·rvv[A] ∥ k1[E] 异板）：
 > - **Line-A（rvv·零未定义格 completion·在飞）= IQ 系接线到判读**：测 path-win 假设（净新 iq4_nl repack vs stock generic·锚 iq4_nl+iq2_xxs·测量-only 无 lib 写·`M2-iq*`/board `g5-m2-iq*`）→ 转绿 或 firm 黄格带账。
 > - **Line-B（k1·C1 跨范式名义·★session 1/≥3 落地 `13c1c74a`）= IME forward bridge**：曳光弹单 tensor q4_0@ime·**bridge #1 scale-fold epilogue + #2 shape driver DONE·真硅 int32-exact bit-exact 4 shapes + scale-fold vs ZERO-MODEL max_rel ~1e-5·lit 双绿**·forward-wired=F（诚实·#3/#4/#5 next-session）·perf 未测·= N2 family#2 forward 结构第一层。next-session：真 ggml 数据路径 #3/#4 + forward hook #5 + e2e A==B。
-> - **Line-C（k1·用户裁四·在飞·板时与 B 协调 harts 4-7/build-k1-linec）= K1 精准打击**：1a opponent_map(k1_fp·q8_0 VLEN256 正确性双出口入 T8) + 1b XFER-1 三分类落盘 T3p-X + 2 q5_K e2e 转换（k1 唯一新绿精准点·gated on [X-0]+Amdahl·预注册双出口）。
+> - **Line-C（k1·用户裁四·★落地 `17c193eb`）= K1 精准打击**：opponent_map（q8_0-k1 健康 硬对拼格 ∧ 碎片化 2nd 证据入 T8）+ **★k1 编译器对称订正**（k1 stock=clang-18→kernel-axis 编译器对称·订正 t4a·q4_K 3.106×/q5_K 1.916× RE-LABELED 编译器对称-VALID·双账本 k1 收敛·入 T8 [CASE-COMPILER-ASYMMETRY]-k1-refinement）+ XFER-1→T3p-X + q5_K [X-0]=声明例外停（rigorous·维持 6/83 无 k1 新绿）。
+> - **★Line-E（k1·[WORK-ITEM-K1-KQUANT-E2E]·在飞·裁四 K1 打击立项内自决 `aea1a2dc`）= q4_K e2e on k1-clang**：测 C3′ 绿路径 thesis（k1-clang 是否规避 rvv-gcc 742-spill-death 而 K-quant e2e 传导）·模型/recipe 已存·预注册双出口（绿=K-quant e2e 在 clang 传导·C3′ 绿路径确认·触发 q5_K/家族重估 / 黄=K-quant e2e 本质 weight-reconstruction-bound·物理墙定案）·两出口皆 thesis-resolving 高价值。
 > - **Line-D 主会话（docs·消费裁决·大部 committed）= 一.1 recon 单位统一（→canon agent `perf-covered-category` + `perf_covered_metrics.py`·6/83 fold·三处同源）+ 一.2 IME 重分类（传导稀释→未接线）+ 一.3 标签冻结 + 三 声明例外台账·〇 登记 + 二.2 L-11 已 committed（`0d0bab4d`）**。
 > **★q6_K = provisional**（黄-对手更强暂标·pending **二.1 L-7 反汇编钉死**[rvv·排 Line-A 后·排除 generic-fallback 路由 + 确认 0.07× 指令构成] + 二.2 L-11[已标]·两查后转正）。
 > **★分类行数字由 recon 脚本出·禁手填达成**（用户裁五·2026-07-12 `2c53e581`）——headline **6/83** + 分类行由 `perf_covered_metrics.py` 机算替换（`reconciliation_ok/three_source_consistent/anti_gate_ok=True`·CI job `perf-covered-recon`）·M4 84/91 不动·备选 7/84 flagged 待用户复核。
