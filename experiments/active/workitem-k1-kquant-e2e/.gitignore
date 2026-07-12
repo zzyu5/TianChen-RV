@@ -1,0 +1,5 @@
+# Large / board-resident artifacts (regenerable via harness). md5s recorded in evidence.md + MANIFEST.md.
+*.so
+*.so.*
+*.inc
+*.gguf

@@ -1,0 +1,8 @@
+=== per-variant per-test t/s (median [reliqr%] n) ===
+  REPACK   decode   median=   9.909 t/s  IQR= 0.453  relIQR= 4.57%  n=20
+  REPACK   prefill  median=  27.044 t/s  IQR= 0.665  relIQR= 2.46%  n=20
+  VECDOT   decode   median=   7.715 t/s  IQR= 0.209  relIQR= 2.71%  n=20
+  VECDOT   prefill  median=  10.227 t/s  IQR= 0.111  relIQR= 1.09%  n=20
+=== RATIO REPACK / VECDOT (>=1.0 => repack transduces on clang) ===
+  prefill : REPACK 27.044 / VECDOT 10.227 = 2.6442x
+  decode  : REPACK 9.909 / VECDOT 7.715 = 1.2843x

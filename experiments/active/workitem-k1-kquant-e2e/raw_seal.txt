@@ -1,0 +1,23 @@
+# [WORK-ITEM-K1-KQUANT-E2E] seal + restore (board k1, read-only after timing)
+model sha256 = 9fecc3b3cd76bba8...  (/data/tinyllama-1.1b-Q4_K_M.gguf, llama 1B Q4_K-Medium 636 MiB)
+
+== GATE4 objdump vl-seal (REPACK = stock as-shipped q4_K repack) ==
+ggml_gemm_q4_K_16x1_q8_K : vsetivli zero,16,e32,m2  (AVL=16 == VLMAX@VLEN256 => FULL WIDTH healthy) + e16,m1/e8,m2 stages
+ggml_gemv_q4_K_16x1_q8_K : vsetivli zero,16,e32,m2  (idem) ; s6-strided e8,m2
+=> the measured repack path is the VLEN256-native vl=16 tuned kernel (NOT the VLEN128-MIRAGE half-wide class).
+VECDOT path = ggml_vec_dot_q4_K_q8_K generic block-dot (different vsetvli, non-repack).
+
+== GATE2 nm (both libs) ==
+REPACK: 3 q4_K symbols (gemm/gemv repack + vec_dot)   VECDOT: 3 (same set)
+=> ADAPTED gate: both are stock code paths; the A/B difference is the DISPATCH (1-line config toggle in
+   ggml_repack_get_optimal_repack_type case256), NOT a symbol-add. Engage proven BEHAVIORALLY:
+   the .so swap yields 2.64x prefill divergence (a no-op swap would be identical); + llama-cli footer 24.5 vs 10.0 t/s.
+
+== lib md5 (config toggle, differ by exactly the q4_K dispatch line) ==
+REPACK 871169a0123139692177468b3c8578be (== live shipped stock)   VECDOT 532444e80e3686c43970c366972041d1
+
+== BOARD RESTORE (existing/shipped state pristine) ==
+shared source /home/bianbu/tcrv-k1-llama/.../repack.cpp md5 = 3cac40aa55aece1f69e3d08d4e7e9ae2  (BASELINE, NEVER EDITED)
+live SHIPPED stock lib /data/k1build-stock/.../libggml-cpu.so.0.15.1 md5 = 871169a0...  (UNTOUCHED)
+leftover llama procs = 0
+=> NO modification to any existing/shipped board file. Only isolated new scratch (build-k1-workitem, /data/wk).
