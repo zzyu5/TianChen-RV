@@ -25,6 +25,7 @@
 - **直接实证"能力键控须延伸到发射器成熟度/内存层级"**（性能收敛主论点）：四例都不是物理墙/算法败/编译器 artifact，是发射器成熟度题——与项目核心主张同路。
 - **反面清单守卫**：指令微质量非赛场；对手贴墙 parity=满分；micro↛e2e 铁律（例 2/4 都带此 caveat）。
 - **T8 交叉引用**：四例的 win/loss/gap 明细行在 `T8_winloss_gap_ledger.csv`；本律文是其上层归纳。
+- **★T8 相邻案例升格（2026-07-12 用户裁·〇.1·[C1-SHAPE] rename 体例的 T8 案例正名）：q8_0 MIRAGE 案 = 正确性门拦下假赢 + 上游 VLEN 碎片化的一手证据（论文素材双用）**。**非 first-emission 律**（那是发射器成熟度）·而是**两条独立 T8 教训**：① **correctness-gate-catches-mirage**（G5-M1 曳光弹 f8b8dabb：翻 gate「路由生效 + banner×12 + 数字漂亮 8.69×」但 output garbage「olta」——**correctness 门在 perf 入台账前拦下"假赢"**·= 测量协议 correctness-first 铁律的教科书正例·登记 `2026-07-12-perf-covered-q8_0-green-3of84.md` §4 MIRAGE SOP）；② **upstream-VLEN-fragmentation**（[GAP-Q8_0-VLEN128-KERNEL]：上游手写 kernel 硬编码 AVL=16 死宽度·VLEN128 上 garbage·**手写库 VLEN 不可移植 = "碎片化生态"论点的对手侧一手证据**·= 我方"能力驱动按 vlen 事实发射正确变体"的 C1 供弹·同报告 §3 立卷 T8/T5d）。**论文双用**：既是测量方法学教材（correctness-gate）·又是 C1 对手侧证据（VLEN 碎片化）。
 
 ## 用法
 - 测量总攻中每遇首次发射 LOSS，先问"是否 first-emission 不成熟律的又一例"——是则**具名 GAP + 黄格出口**（非声明例外、非物理 parity），关闭杠杆后重测变绿。
