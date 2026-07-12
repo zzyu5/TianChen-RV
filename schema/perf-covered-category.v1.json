@@ -506,7 +506,7 @@
       "provisional": false,
       "opponent_stronger": {
         "named_gap": "[uarch.gather_slow]+narrow-vl(vl=8=upstream vl=16 半宽·per-element vluxei16 kvalues[16] codebook gather 未跨 tile batch·prefill GEMM 暴露更狠 4.61× > decode GEVM 1.98×[memory-bound 部分遮])",
-        "fixable": "争议(gather-batching 较大 emit 重构·iq 少数部署·真赢潜伏低 confidence·新立项须问·与 sibling vec_dot LOSS iq4_xs 0.72×/iq2_s 0.48× 同族 uarch.gather_slow)",
+        "fixable": "争议(gather-batching 较大 emit 重构·iq 少数部署·真赢潜伏低 confidence·新立项须问·与 sibling vec_dot LOSS iq4_xs 0.72×/iq2_s 0.48× 同族 uarch.gather_slow) ｜ ★裁五.4: iq4_nl 判读不得静默外推同族——iq/tq gemm 兄弟(iq2_xxs/iq2_xs/iq2_s/iq4_xs/mxfp4/tq1_0/tq2_0)现居黄-未接线(22)·须逐格实测 或 逐格过 X-0+Amdahl 转声明例外(板批守卫①)·缺相应量化模型的格注明·模型按需自决下载。禁 iq4_nl anchor 静默覆盖同族。",
         "symmetric_account_pointer": "board rv64gcv shipped==gcc-15.2.0→kernel-axis==system-axis(symmetric·[CASE-COMPILER-ASYMMETRY] not triggered·LOSS 双框成立)·实测锚 experiments/active/g5-wiring/M2-iq4_nl/perf_rerun_quiet-board.md(prefill 0.217×/decode 0.505×·八门全过·clean window 0 Bus error)·成色:OFF stock 亦慢(path-位 like q4_1)·ON net-negative vs 未优化 stock block-dot 非 tuned-kernel·correctness-carrier GREEN 不变"
       }
     },
