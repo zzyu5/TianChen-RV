@@ -1,9 +1,9 @@
 {
-  "id": "G5-M2-q5x-tracers",
-  "name": "G5-M2-q5x-tracers",
-  "title": "q5_0/q5_1 复用 q4_K scaffold(gated on q4_K·→6/84)",
+  "id": "G5-K-quant-q6_K-tracer",
+  "name": "G5-K-quant-q6_K-tracer",
+  "title": "K-quant 净新接线 q6_K 曳光弹(测 net-new scaffold 是否延伸 K-quant)",
   "description": "",
-  "status": "completed",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "claude",
   "assignee": "claude",
   "createdAt": "2026-07-12",
-  "completedAt": "2026-07-12",
+  "completedAt": null,
   "branch": null,
   "base_branch": "refactor/full-refactor-m1",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-11-G5-wiring",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "wf/agent ac896a2e·板+集成域·per 用户 2026-07-12 裁五(三线并行)",
   "meta": {}
 }

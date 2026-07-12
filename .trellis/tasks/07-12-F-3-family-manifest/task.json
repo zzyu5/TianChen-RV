@@ -1,7 +1,7 @@
 {
-  "id": "G5-M2-q5x-tracers",
-  "name": "G5-M2-q5x-tracers",
-  "title": "q5_0/q5_1 复用 q4_K scaffold(gated on q4_K·→6/84)",
+  "id": "F-3-family-manifest",
+  "name": "F-3-family-manifest",
+  "title": "F-3 family-manifest 机检(用户裁:清单⊆检非跨根搬迁)",
   "description": "",
   "status": "completed",
   "dev_type": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-11-G5-wiring",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "agent a3a1173b·falsifier 域·per 用户 2026-07-12 裁五(三线并行)",
   "meta": {}
 }

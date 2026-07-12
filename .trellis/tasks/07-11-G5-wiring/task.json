@@ -24,7 +24,13 @@
     "07-12-G5-gap-assessment",
     "07-12-G5-M1b-q8_0-deploy",
     "07-12-G5-M2-q5x-tracers",
-    "07-12-G5-M3-wiring-doc"
+    "07-12-G5-M3-wiring-doc",
+    "07-12-G5-K-quant-q6_K-tracer",
+    "07-12-F-3-family-manifest",
+    "07-12-RENAME-schema-changetable",
+    "07-12-IME-forward-bridge",
+    "07-12-RENAME-schema-exclusive-session",
+    "07-12-perf-zero-undefined-cell-classify"
   ],
   "parent": "07-02-full-refactor",
   "relatedFiles": [],
