@@ -296,8 +296,10 @@
       "provisional": false,
       "opponent_stronger": {
         "named_gap": "[GAP-KQUANT-GCC-CODEGEN]（gcc-15 RVV mixed-SEW 全展开 regfile-spill·S6 first-emission·LAW-FIRST-EMISSION 例1）",
-        "fixable": "低（S6 tiling 只对 clang 有效·gcc 出货反效果；须 gcc-codegen-aware 再发射或 k1/VLEN256 部署）",
-        "symmetric_account_pointer": "l1-t3-q2k·对称-gcc 0.386×（micro 1.413× = clang-ours-vs-gcc-shipped artifact·[CASE-COMPILER-ASYMMETRY] CLOSED 撤回）·prefill 热路 Amdahl 高"
+        "fixable": "低（已测 k1/VLEN256 clang-domain 部署 = 仍负：我方 emitted 全展开 27KB S6-tiled 核 e2e 输给 k1 STOCK 手调 RVV q2_K 16x1 repack〈真出货 hand-brick·case256 fires·NOT block-dot〉 prefill 0.873×/decode 0.875×·clang-18 对称；clang-domain flip 对 q5_K〈弱 block-dot 对手〉有效但对 q2_K〈强 hand-brick 对手〉无效；须 emitted-kernel 质量再发射〈紧凑 rolled loop 对标 stock〉·新杠杆未具名）",
+        "symmetric_account_pointer": "① rvv/VLEN128: l1-t3-q2k 对称-gcc 0.386×〈对手=block-dot·micro 1.413× = clang-ours-vs-gcc-shipped artifact·[CASE-COMPILER-ASYMMETRY] CLOSED 撤回〉. ② ★k1/VLEN256 clang-18 对称〈G5 M2-q2_K-k1-e2e·2026-07-13〉: our-emit vs 真出货 STOCK hand-brick RVV repack e2e prefill 0.873×/decode 0.875× LOSS〈both <parity·n=12/side relIQR<0.6%·LOSS not env-induced〉; correctness GREEN@bounded-ULP〈silicon byte-exact-INTEGER + ppl Δ0.36%〉. q4_K Win-K1-VLEN 的 CONTRAST〈同对手 hand-brick·q4_K emitted 胜 1.085× / q2_K emitted 负 0.873×〉·prefill 热路 Amdahl 高但对手更强",
+        "k1_e2e_measured": "prefill 0.873× / decode 0.875× (our-emit vs stock hand-brick, clang-18 symmetric, k1/VLEN256, G5 2026-07-13)",
+        "ledger_pointer": "experiments/active/g5-wiring/M2-q2_K-k1-e2e/evidence.md"
       }
     },
     {
