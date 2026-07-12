@@ -63,6 +63,30 @@ metadata, or descriptors.
 
 ## Required Plugin Interfaces
 
+### Hook Signatures — where to find the compilable form [GAP-P4-HOOK-SIG]
+
+Per [P-1] the exact serializable signatures are declared once (schema.def ⑤) and
+the C++ interface is not re-copied prose-by-prose. But an author still needs to
+know **which header, which class, and which virtuals to override**. Authoritative
+source: `include/TianChenRV/Plugin/ExtensionPlugin.h`, class `ExtensionPlugin`
+(verify exact types there; the list below is a discovery index only, 2026-07-12).
+The overridable `virtual llvm::Error …` hooks a family plugin implements:
+
+```text
+getName / getVersion / getCapabilities / registerDialects   identity, fact instances, dialect registration
+supportsOperation / proposeVariants / collectVariantProposals  variant proposal
+verifyVariantLegality                                        ② legality predicate
+estimateVariantCost(VariantCostRequest&, VariantCostEstimate&)   selector cost hook ([SEL-1] cold-start prior)
+checkVariantEmissionReadiness / buildVariantEmissionPlan     emission planning
+materializeSelectedLoweringBoundary / validateSelectedLoweringBoundary  selected-body realization boundary
+configureTargetSupportExtensionBundle / registerTargetSupportTranslateRoutes  target-support wiring
+```
+
+The registration free function `register<Fam>ExtensionPlugin(ExtensionPluginRegistry&)`
+(an `ExtensionPluginRegistrationFn`, declared in the family header) is separate
+from these virtuals — it is what the built-in catalog calls (见 [GAP-P4-REGISTER]
+in [extension-plugin-integration.md](./extension-plugin-integration.md)).
+
 ### Capability And Proposal
 
 Plugins may expose capability matching and variant proposal hooks. Proposed

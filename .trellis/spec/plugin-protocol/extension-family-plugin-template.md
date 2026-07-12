@@ -10,6 +10,53 @@ RVV is the first and broadest real reference family; per-family build/maturity
 status lives in tasks/journal, not here
 (见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)).
 
+## Real Touch-Set (Reference Family = `Template/`) [GAP-P4-TOUCHSET]
+
+> **Accuracy note (2026-07-12, [GOV-8] code-verified).** The "Required Plugin
+> Sections" below are the *conceptual* pieces. Do **not** read them as "a family
+> = 5 files under one directory." The real, linking touch-set of the reference
+> `Template` family spans **6 source directory roots, 20 source files, 6
+> `CMakeLists.txt`, plus 1 shared registration file** — because the plugin library
+> transitively links a family `Dialect` library and a family `Target` library
+> (verified from `lib/Plugin/Template/CMakeLists.txt`: `TianChenRVTemplatePlugin`
+> `LINK_LIBS … TianChenRVTemplateDialect TianChenRVTemplateTarget`). Copying only
+> the 5 `lib/Plugin/<Fam>/` files and running `cmake --build` fails at link with
+> missing `TianChenRV<Fam>Dialect` / `TianChenRV<Fam>Target` targets.
+
+```text
+lib/Plugin/<Fam>/                      5 .cpp + CMakeLists  → 4 libs
+  <Fam>ExtensionPlugin.cpp               plugin entry: getCapabilities(), registerDialects(),
+                                         free fn register<Fam>ExtensionPlugin(registry)
+  <Fam>VariantLegality.cpp               legality predicate
+  <Fam>ConstructionProtocol.cpp          abstract op → in-compiler typed body (front-door family side)
+  <Fam>EmitCRouteProvider.cpp            selected variant → TCRVEmitCLowerableRoute
+  <Fam>BackendEmissionDriver.cpp         backend body emission
+include/TianChenRV/Plugin/<Fam>/       4 headers (mirror the 4 non-legality .cpp; legality is internal)
+lib/Dialect/<Fam>/                     CMakeLists (add_subdirectory IR)                     ← MANDATORY link dep
+lib/Dialect/<Fam>/IR/                  <Fam>Dialect.cpp + CMakeLists → lib TianChenRV<Fam>Dialect
+include/TianChenRV/Dialect/<Fam>/      CMakeLists
+include/TianChenRV/Dialect/<Fam>/IR/   <Fam>Dialect.h + <Fam>Ops.td + CMakeLists (ODS/TableGen)
+lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → lib TianChenRV<Fam>Target  ← MANDATORY link dep
+include/TianChenRV/Target/<Fam>/       <Fam>TargetSupportBundle.h
+lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 SHARED registration (见 [GAP-P4-REGISTER] in
+                                       [extension-plugin-integration.md](./extension-plugin-integration.md))
+```
+
+The 6 `CMakeLists.txt` are: `lib/Plugin/<Fam>/`, `lib/Dialect/<Fam>/`,
+`lib/Dialect/<Fam>/IR/`, `include/TianChenRV/Dialect/<Fam>/`,
+`include/TianChenRV/Dialect/<Fam>/IR/`, `lib/Target/<Fam>/`. The `Plugin/` and
+`Target/` include mirrors carry no `CMakeLists` (their headers are pulled by the
+`lib/` targets); only the `Dialect/` side has extra `CMakeLists` for ODS
+TableGen (`MLIR<Fam>OpsIncGen`).
+
+**Relation to [F-3] containment.** All 6 roots follow the `lib/{Dialect,Plugin,Target}/<Fam>/`
++ `include/` mirror shape that `schema/family-manifest.v1.json` already declares as
+one family's owned territory, so they are *family-local*, not core — the wide
+touch-set is not an [F-3] violation. The one genuinely shared file is the Builtin
+registration (see [GAP-P4-REGISTER]). [F-3]'s prose "`plugins/<family>/`" is a
+generic stand-in for this real 6-root shape (the code lives under
+`lib/{Dialect,Plugin,Target}/<Fam>/`, not a literal `plugins/` directory).
+
 ## Required Plugin Sections
 
 ### 1. Family Identity

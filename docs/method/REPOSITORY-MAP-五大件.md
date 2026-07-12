@@ -16,9 +16,16 @@
 - **模板五大件（本图主体，仓库级）**：模板在**仓库目录**上的六个结构组件 ——
   ①schema · ②插件五件套 · ③前门 · ④选择器 · ⑤falsifier 组 · ⑥测量库。习惯口语称「五大件」，
   实为 **6 件**（早期未把「测量库」单列）。**本图统一按 6 件编号 ①–⑥。**
-- **插件五件套（[P-2]，单家族级）**：②这一件**内部**的五个协议实现文件（见 §1.②）。
+- **插件五件套（单家族级）**：②这一件**内部**的五个协议实现文件（见 §1.②）。
   一个家族接入 = 落齐这五件。**「五件套」= 一个家族的五个文件；「五大件」= 整个仓库的六个组件。**
   参考范本 = `Template/` 家族（干净、无历史包袱，五件齐全）。
+  > ★**「五件套」有三个轴，别混（[GAP-P4-FIVEPIECE-COLLISION]）**：本 §1.②/§2 的
+  > 五文件是**文件轴** = 交付物落在哪些文件；权威的 **[P-2] = 交付轴**（① facts+relations
+  > ② legality ③ emission pattern ④ tests ⑤ ledger，"缺一不收"的验收定义，住
+  > [`.trellis/spec/plugin-protocol/extension-plugin-integration.md`](../../.trellis/spec/plugin-protocol/extension-plugin-integration.md) §[P-2]）。
+  > **本图的文件五件是交付轴 [P-2] 的 realization 视图，不是第二份 [P-2] 定义**（历史上本节曾标
+  > 「[P-2]」致碰撞，现撤该标注）。二者不一一对应（交付③ emission 跨 2 文件；交付⑤ ledger 是
+  > `docs/` 行、非 `BackendEmissionDriver`）。三轴互映表见 spec §[P-2] 的 cross-map。
 
 ---
 
@@ -27,7 +34,7 @@
 | # | 大件 | 主目录 | 代表文件（30 秒可辨） | 定位度 |
 |---|---|---|---|---|
 | **①** | **schema**（能力 / coverage / roster / pattern / cert / retire） | `schema/`（顶层单目录，清洁独立） | `capability.schema.v1.json` · `coverage-sixstate.v1.json`（84 certified 源）· `coverage-roster.v1.json`（93 格分母）· `pattern-registry.v1.json` · `cert-lineage.v1.json` · `retired-index.generated.json`（机生） | **HIGH** |
-| **②** | **插件五件套**（每家族） | `lib/Plugin/<家族>/` + `include/TianChenRV/Plugin/<家族>/` + `lib/Dialect/<家族>/IR/` | 参考范本 `Template/`：`TemplateExtensionPlugin` · `TemplateVariantLegality` · `TemplateConstructionProtocol` · `TemplateEmitCRouteProvider` · `TemplateBackendEmissionDriver`（= [P-2] 五件，见 §2） | **MEDIUM**（RVV 家族 ~36 文件爆炸；见 R2） |
+| **②** | **插件五件套**（每家族·**真实 6 目录根**，见 §2） | `lib/Plugin/<家族>/` + `include/TianChenRV/Plugin/<家族>/` + `lib/Dialect/<家族>/IR/`（+ include 镜像）+ `lib/Target/<家族>/`（+ include 镜像） | 参考范本 `Template/`：`TemplateExtensionPlugin` · `TemplateVariantLegality` · `TemplateConstructionProtocol` · `TemplateEmitCRouteProvider` · `TemplateBackendEmissionDriver`（文件五件，= 交付 [P-2] 的 realization；真触碰集 6 根/20 文件，见 §2 [GAP-P4-TOUCHSET]） | **MEDIUM**（RVV 家族 R2/R3 已分子目录；触碰集 6 根非 5 文件） |
 | **③** | **前门**（front-door 构造：抽象 contraction → in-compiler 构造 typed 区域） | 散在 `lib/Plugin/RVV/*SourceFrontDoor.cpp` + `lib/Plugin/RVV/RVVLowerQuantContraction.cpp` + `lib/Plugin/Construction/` + `lib/Dialect/RVV/IR/RVV*Construction.cpp` | `RVVMonolithicBlockDotSourceFrontDoor.cpp` · `RVVDequantDotSourceFrontDoor.cpp` · `RVVCodebookDotSourceFrontDoor.cpp` · `RVVLowerQuantContraction.cpp` · `Construction/ConstructionProtocol.cpp` | **LOW-MEDIUM**（无专属 `FrontDoor/` 目录，靠命名约定；见 R3） |
 | **④** | **选择器**（能力键控 cost-model / 先验） | 二层散：`lib/Transforms/VariantSelection.cpp` + 各插件 `estimateVariantCost` + `include/.../Plugin/RVV/RVVRepackTilingSelection.h` + `schema/tiling-measurements.v1.json`（先验/测量契约） | `lib/Transforms/VariantSelection.cpp`（通用能力键控 pass）· `include/TianChenRV/Plugin/ExtensionPlugin.h`（`estimateVariantCost` 接口声明） | **MEDIUM**（无单一 `selector/` 目录；四处二层，需 R5 co-locate 文档） |
 | **⑤** | **falsifier 组**（机检验收 [F-1..F-6]） | `tools/lint/` + `tools/fuzz/` + `.trellis/scripts/` + `.github/workflows/falsifier-gate.yml` + `test/` 语料 | **见 [FALSIFIER-INDEX.md](./FALSIFIER-INDEX.md)（R4：F-1..F-6 → 文件逐条映射）** | **MEDIUM-HIGH** |
@@ -39,22 +46,49 @@
 
 ---
 
-## 2. 插件五件套 [P-2]（一个家族接入落齐这五件）
+## 2. 插件五件套（文件轴 · = 交付轴 [P-2] 的 realization · 一个家族落齐这五件）
 
 参考范本 = `lib/Plugin/Template/`（+ `include/TianChenRV/Plugin/Template/` 头）：
 
-| 件 | Template 范本文件 | 职责 |
-|---|---|---|
-| 1. 能力 / 插件入口 | `TemplateExtensionPlugin.cpp/.h` | 声明家族能力事实 + `estimateVariantCost` override + 注册进 registry |
-| 2. 合法性 | `TemplateVariantLegality.cpp` | 变体合法性（能力谓词 → 可行变体集） |
-| 3. 构造协议 | `TemplateConstructionProtocol.cpp/.h` | 抽象 op → in-compiler 构造 typed 区域（前门③的家族侧实现） |
-| 4. 发射路由 | `TemplateEmitCRouteProvider.cpp/.h` | 选中变体 → EmitC 发射路由 |
-| 5. 后端发射驱动 | `TemplateBackendEmissionDriver.cpp/.h` | 具体 backend body 发射 |
+| 件（文件轴） | Template 范本文件 | 承载的交付 [P-2] | 职责 |
+|---|---|---|---|
+| 1. 能力 / 插件入口 | `TemplateExtensionPlugin.cpp/.h` | ① facts+relations（`getCapabilities()` 实例）+ ④/⑤ hook | 声明家族能力事实 + `estimateVariantCost` override + `register…ExtensionPlugin` |
+| 2. 合法性 | `TemplateVariantLegality.cpp` | ② legality 谓词 | 变体合法性（能力谓词 → 可行变体集） |
+| 3. 构造协议 | `TemplateConstructionProtocol.cpp/.h` | ③ emission pattern（一半） | 抽象 op → in-compiler 构造 typed 区域（前门③的家族侧实现） |
+| 4. 发射路由 | `TemplateEmitCRouteProvider.cpp/.h` | ③ emission pattern（一半） | 选中变体 → EmitC 发射路由 |
+| 5. 后端发射驱动 | `TemplateBackendEmissionDriver.cpp/.h` | ③ backend 侧 | 具体 backend body 发射 |
 
-**接入协议**：新家族 = 复制 `Template/` 五件 + 填能力事实 + 注册表行 + 文档；理想触碰集 =
-`plugins/<family>/` + 表行 + docs（[F-3] 变更收容；**目录归拢是 F-3 可判定的前置**，见 R2/R3）。
-其它家族对照：`IME/`（~4 文件，能力/构造内联进 ExtensionPlugin）· `Scalar/`（3，空桩待接 [X-SCALAR]）·
-`RVV/`（~36，历史爆炸展开，R2 待按件分子目录）· `Offload/` `Toy/` `TensorExtLite/`（参考/兜底）。
+> **交付 [P-2] 五件（权威验收轴）= ① facts+relations · ② legality · ③ emission pattern
+> · ④ tests · ⑤ ledger 行**（住 spec §[P-2]）。上表文件不与交付一一对应（③跨 2-3 文件，
+> ④ tests 落 `test/**`、⑤ ledger 落 `docs/method/C2_marginal_cost_ledger.md`——都不在这 5 文件内）。
+
+### ★真实触碰集 ≠ 「5 文件」（[GAP-P4-TOUCHSET]，2026-07-12 [GOV-8] 核）
+
+「复制 5 个 `lib/Plugin/<Fam>/` 文件」只是**名义**起点。参考范本 `Template/` 家族的**真实
+可链接触碰集 = 6 个目录根 / 20 个源文件 / 6 个 `CMakeLists` + 1 个共享注册文件**——因为
+插件库经 CMake **传递依赖**一个家族 `Dialect` 库和一个家族 `Target` 库（`lib/Plugin/Template/CMakeLists.txt`：
+`TianChenRVTemplatePlugin LINK_LIBS … TianChenRVTemplateDialect TianChenRVTemplateTarget`）。只复制
+5 个 plugin 文件跑 `cmake --build` **会在链接期撞** 缺失的 `TianChenRV<Fam>Dialect` /
+`TianChenRV<Fam>Target` target：
+
+```
+lib/Plugin/<Fam>/                      5 .cpp + CMakeLists  → 4 库（Plugin/ConstructionProtocol/EmitCRouteProvider/BackendEmitter）
+include/TianChenRV/Plugin/<Fam>/       4 头
+lib/Dialect/<Fam>/ + IR/               <Fam>Dialect.cpp + 2 CMakeLists → 库 TianChenRV<Fam>Dialect   ← 五件套未列·MANDATORY
+include/TianChenRV/Dialect/<Fam>/ + IR/  <Fam>Dialect.h + <Fam>Ops.td + 2 CMakeLists（ODS/TableGen）
+lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → 库 TianChenRV<Fam>Target  ← 五件套未列·MANDATORY
+include/TianChenRV/Target/<Fam>/       <Fam>TargetSupportBundle.h
+lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 共享注册（[GAP-P4-REGISTER]）              ← 五件套+[F-3] 均未列
+```
+
+**接入协议**：新家族 = 复制 `Template/` **6 根**（不止 `lib/Plugin/<Fam>/` 五件）+ 填能力事实
++ 注册表行 + 注册进 `BuiltinExtensionPlugins.cpp`（[GAP-P4-REGISTER]）+ 文档。[F-3] 触碰集 =
+`lib/{Dialect,Plugin,Target}/<Fam>/` + `include/` 镜像 + 表行 + docs + 那**一行**共享注册表行
+（**目录归拢是 F-3 可判定的前置**，见 R2/R3；`schema/family-manifest.v1.json` 已把这 6 根形状声明为
+一家族 owned territory，故宽触碰集**非** [F-3] 违规——唯一真共享点 = 注册文件，和解见 spec §[GAP-P4-REGISTER]）。
+其它家族对照：`IME/`（~3 文件，能力/构造内联进 ExtensionPlugin，复用共享 EmitC/RVV lowering）·
+`Scalar/`（3，空桩待接 [X-SCALAR]）· `RVV/`（R2/R3 已按件分 `BodyRealization/FrontDoor/EmitC/Schedule/Selection/Construction` 子目录）·
+`Offload/` `Toy/` `TensorExtLite/`（参考/兜底）。
 
 ---
 
@@ -140,9 +174,9 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 
 ## 4. 外来者 30 分钟定位路径（推荐阅读序）
 
-1. `README.md` 「Repository layout」→ 顶层 include/lib/tools/test/scripts/.trellis 泛目录。
+1. `README.md` 「**Extending the stack: add a family**」段（外部入口，直链本图 + 协议 spec + `Template/` 范本；[GAP-P4-DISCOVERY] 已补）→ 再看「Repository layout」泛目录。
 2. **本图 §1** → 五大件（六组件）各指到具体目录 + 代表文件。
-3. 想**接一个新家族** → §2 插件五件套（照 `Template/` 五件复制）+ [F-3] 触碰集纪律。
+3. 想**接一个新家族** → §2 插件五件套（照 `Template/` **6 根**复制，非仅 5 文件；[GAP-P4-TOUCHSET]）+ 注册步骤（[GAP-P4-REGISTER]）+ [F-3] 触碰集纪律；写 up 用 [`P4-family-integration-doc-TEMPLATE.md`](./P4-family-integration-doc-TEMPLATE.md)。
 4. 想懂**机检验收** → [FALSIFIER-INDEX.md](./FALSIFIER-INDEX.md)（F-1..F-6 → 脚本/lit/gtest）。
 5. 想懂**证据在哪** → `experiments/INDEX.md`（机生 registry）+ 逐 cell MANIFEST。
 6. 想懂**命名** → §3 P 碰撞 codify（避开三个 P1 / P4 双所指的坑）。

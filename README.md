@@ -54,6 +54,33 @@ scripts/              Python tooling: probes, runners, ssh-hardware evidence har
 .trellis/             project spec, tasks, and developer workspace
 ```
 
+## Extending the stack: add a family
+
+The headline claim is *extensibility* — that a new capability family (a new ISA
+extension, matrix engine, or offload target) can be admitted through one
+branch-free core. If you are integrating a new family, start here (this is the
+external entry point; the protocol docs are otherwise not discoverable from the
+layout above):
+
+- **30-minute orientation map** — [`docs/method/REPOSITORY-MAP-五大件.md`](docs/method/REPOSITORY-MAP-五大件.md):
+  the template's components → concrete directories, the per-family touch-set
+  (**6 directory roots, not 5 files** — [GAP-P4-TOUCHSET]), and the reference
+  family `lib/Plugin/Template/`.
+- **Integration contract** — [`.trellis/spec/plugin-protocol/extension-plugin-integration.md`](.trellis/spec/plugin-protocol/extension-plugin-integration.md):
+  the Standard Flow, the [P-2] five-piece acceptance set, the shared registration
+  step ([GAP-P4-REGISTER]), and where each deliverable lands.
+- **Interfaces / registry** — [`.trellis/spec/plugin-protocol/interfaces-and-registry.md`](.trellis/spec/plugin-protocol/interfaces-and-registry.md)
+  (the `ExtensionPlugin` hooks) and [`locality-contract.md`](.trellis/spec/plugin-protocol/locality-contract.md)
+  ([F-3] change containment).
+- **Capability model** — [`.trellis/spec/capability-model/capability-contract.md`](.trellis/spec/capability-model/capability-contract.md)
+  (fact shape [S-1]/[S-2]; note the schema is partly aspirational — [GAP-P4-SCHEMA-DIVERGENCE]).
+- **Machine-checked acceptance** — [`docs/method/FALSIFIER-INDEX.md`](docs/method/FALSIFIER-INDEX.md)
+  ([F-1..F-6] gates → checker/lit/gtest/CI).
+- **Write-up template** — [`docs/method/P4-family-integration-doc-TEMPLATE.md`](docs/method/P4-family-integration-doc-TEMPLATE.md)
+  (the fill-in integration doc [P-4] requires).
+
+Reference family to copy: `lib/Plugin/Template/` (clean, no historical baggage).
+
 ## Build
 
 ```bash

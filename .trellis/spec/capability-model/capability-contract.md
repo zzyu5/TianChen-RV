@@ -1,5 +1,18 @@
 # Capability Contract
 
+> ⚠⚠ **读前必读 — 本契约的 [S-1] 事实 shape 是 TARGET schema、当前代码尚未全部消费（[GAP-P4-SCHEMA-DIVERGENCE]）。**
+> `schema/capability.schema.v1.json` 的 `$meta.note` 明文（2026-07-12 核）：
+> `provenance` / `trust` / `subclass` 字段、`kind` **闭合枚举**、命名空间化 `params`、
+> 统一 operand 角色、可序列化插件签名 —— 这些**"grep=0 in code today; code and schema.def
+> are intentionally divergent"**。分叉是被追踪的 conformance gap（E4/E5/G6/P2 roadmap 收），**不是 v1 缺陷**。
+> **对接入适配者的意义**：照 [S-1] 写出的能力事实，其**结构键**（`id` / `kind` / `implies` / `conflicts`
+> / `params`）**当前代码实际消费**（`CapabilityDescriptor` + `TargetCapabilitySet` 查询，见下 §Relations/[S-2]、
+> profiles.md）；但 [S-1] 声明的**元字段**（`provenance` / `trust` / `subclass` 及闭合 `kind` 的**枚举校验**）
+> 属**目标态、代码今日不读**。落地一个家族时先按 §Relations 的**实际查询 API**（`lookupProviderByID` /
+> `isCapabilityAvailableBySymbolName` / `--tcrv-check-capability-requires`）核对哪条键真被消费，
+> **别按整份 [S-1] shape 当既成契约白写元字段**。能力事实的**实例**落 `lib/Plugin/<Fam>/<Fam>ExtensionPlugin.cpp`
+> 的 `getCapabilities()`（C++，非 schema JSON；见 [plugin-protocol/extension-plugin-integration.md](../plugin-protocol/extension-plugin-integration.md) §Landing points）。
+
 Capability 是系统第一对象（见 [core-invariants](../architecture/core-invariants.md) I1）。本文件定义它的来源、形态、关系和验证职责——这是 N1（RISC-V 扩展异构性作为 first-class capability IR）的契约。
 
 > ⚠ **N1 是 substrate，不是独立卖点**（见 [index](../index.md) 的 Novelty 段）。把能力建成可查询对象**本身** ≈ DLTI / IREE `#hal.executable.target` / TVM Target / LLVM `SubtargetFeature`+TTI / FODA `requires`/`excludes` 已做的工程。N1 的**唯一新意在合取 = C1**：它是**跨 family 复用的同一 fact-set**，由 N2 的第二 family 证（→ C1）、由 N3 兑现（→ C3′）；抽掉跨 family 复用，N1 就塌回纯工程。N1↔C1/C2/C3′ 的权威 bridge 只在 [index](../index.md) 声明一次，本文件引用不重述。本契约定义 capability 的形态与职责，但**不**因此把"建模能力对象"本身当贡献。可迁移的表述是 *mechanism* 而非 *discovery*：同一 relation-bearing schema 统一 compile-time variant generation 与 runtime dispatch guard、并跨 compute-paradigm 边界不改地复用（不是"扩展会 layer"这个 `SubtargetFeature.Implies` 已建模的观察）。
@@ -16,6 +29,11 @@ capability 对象必须能被 C++ MLIR pass 和插件查询，并影响：启用
 - **Toolchain**：march/mabi 事实、LLVM RVV 可伸缩向量支持、intrinsic 支持、builtin 支持、inline asm 许可、vendor header、patched compiler、runtime lib 可链接性。
 
 ## [S-1] 结构化事实模型
+
+> **消费 vs aspirational 分层（[GAP-P4-SCHEMA-DIVERGENCE]，见顶部 banner）**：下列字段中
+> `id` / `kind`（作为字符串键）/ `implies` / `conflicts` / `params` 的**结构与查询**当前代码消费；
+> `provenance` / `trust` / `subclass` 与 `kind` 的**闭合枚举校验**是 schema.def 声明的目标态、
+> **代码今日 grep=0**。适配者写事实时前者按契约、后者知其为 aspirational。
 
 capability 由**结构化事实条目**承载，不是自由字符串。每条事实的稳定形态：
 

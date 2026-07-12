@@ -76,16 +76,27 @@ generic `origin` lookup and plugin interfaces.
 ## [F-3] Change Containment
 
 When family code is consolidated under one directory, a family integration PR is
-**contained to `plugins/<family>/` + table rows + docs**:
+**contained to the family territory + table rows + docs + one shared registration row**:
 
 ```text
-plugins/<family>/    family ops/types/attrs, legality, realization, route provider, emission patterns, tests
-tables               capability fact rows + relation rows + ledger row
+lib/{Dialect,Plugin,Target}/<Fam>/   family ops/types/attrs, legality, realization, route provider, emission patterns
+  + include/TianChenRV/{Dialect,Plugin,Target}/<Fam>/  header mirrors
+                     (this is the real 6-directory-root shape — NOT a literal `plugins/<family>/`;
+                      the plugin lib transitively links the family Dialect + Target libs, 见 [GAP-P4-TOUCHSET])
+tables               capability fact rows + relation rows (schema/**) + ledger row (docs/method/C2_marginal_cost_ledger.md)
+tests                test/**  ([P-2] piece ④)
 docs                 integration doc ([P-4])
+registration         lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp — ONE kBuiltinExtensionBundles[] row
+                     (family name as data in a for-iterated table, no branch; 见 [GAP-P4-REGISTER].
+                      ⚠ proposed shared_allowances addition to schema/family-manifest.v1.json — main-session/recon)
 ```
 
-This is the containment form of [P-1] (no core-file edits) and the spatial
-counterpart to the five-piece set ([P-2], 见
+`plugins/<family>/` above is a generic stand-in; the code actually lives under
+`lib/{Dialect,Plugin,Target}/<Fam>/` + `include/` mirrors (the shape
+`schema/family-manifest.v1.json` `source_ranges` already declares as one family's
+owned territory). This is the containment form of [P-1] (no core dispatch/selection/
+lowering edits — the registration-table row is the sole intended shared touch) and
+the spatial counterpart to the five-piece set ([P-2], 见
 [extension-plugin-integration.md](./extension-plugin-integration.md)). It is
 conditional on the structural premise that family code is actually gathered under
 `plugins/<family>/`; where a family's code is still scattered, consolidating it is
