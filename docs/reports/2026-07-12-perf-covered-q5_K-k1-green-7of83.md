@@ -16,7 +16,7 @@
 
 ## 1. 为何是 our-kernel 新绿（区别 [WORK-ITEM]·关键）
 
-- **[WORK-ITEM-K1-KQUANT-E2E]（`b12afd57`）测的是 stock repack**（k1 ship q4_K case256·winner=stock·非我方 kernel·perf-covered 不加绿）——它 resolve 了 C3′ 绿路径 thesis（K-quant e2e 在 clang 传导·gcc-death=rvv-only），但不是我方交付。
+- **[WORK-ITEM-K1-KQUANT-E2E]（`b12afd57`）测的是 stock repack**（k1 ship q4_K case256·winner=stock·非我方 kernel·perf-covered 不加绿）——它给出 C3′ 绿路径 thesis 的**传导存在性证明**（K-quant e2e 可传导·k1；rvv LOSS 非普遍物理墙；候选因素={gcc codegen（[CASE-COMPILER-ASYMMETRY] spill 3→742 历史直证）| VLEN128 重建摊销 | uarch}·隔离 pending 二.2 决定性实验；⚠「gcc-death」冠名权待二.2 出口 A 兑现方可用·裁二.1 锁定），但不是我方交付。
 - **本格测我方 compiler-emitted q5_K repack**：**k1 ships ZERO q5_K repack**（dispatch 仅 NEON sub-branch→riscv nullptr→block-dot·objdump-confirmed）→ 我方 emitted q5_K VLA kernel（GEMM `ba30ba54`/GEVM `c445b89e`·VLEN256 valid）经**净新 dispatch wiring**（block_q5_Kx16 struct + make_block_q5_Kx16 + repack/gemv/gemm 模板 + `q5_K_16x1_q8_K` trait + riscv case256 分支 + arch bodies）接入 k1 forward → **e2e prefill 1.641× vs stock block-dot** = **our-kernel 净新交付**（非 white-label）。
 - ⇒ **q5_K = 第 2 个 K-quant e2e transduction（我方 kernel）**（第 1 = q4_K kernel-axis Win-K1-VLEN 1.085×；本格是**首个我方 kernel 的 K-quant e2e prefill 传导**）·**C3′ 绿路径家族扩展 with our kernel**（不止 stock repack 传导·我方 emitted 亦传导）。
 
