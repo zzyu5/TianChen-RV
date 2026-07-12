@@ -1,0 +1,7 @@
+set(LLVM_TARGET_DEFINITIONS DemoOps.td)
+mlir_tablegen(DemoOpsDialect.h.inc -gen-dialect-decls -dialect=weft_demo)
+mlir_tablegen(DemoOpsDialect.cpp.inc -gen-dialect-defs -dialect=weft_demo)
+mlir_tablegen(DemoOps.h.inc -gen-op-decls)
+mlir_tablegen(DemoOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRDemoOpsIncGen)
+add_dependencies(MLIRDemoOpsIncGen MLIRWEFTEmitCLowerableOpInterfaceIncGen)

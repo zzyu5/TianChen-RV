@@ -39,3 +39,4 @@ scratch/
 
 # touch-set active-line marker — per-worktree, not shared (see .touch-set/README.md)
 .touch-set/ACTIVE
+build-demo/

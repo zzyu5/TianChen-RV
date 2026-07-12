@@ -128,3 +128,34 @@ K-quant 谱证了 super-block 算术 decode 谱系内的构造边际成本律。
 test 1401);`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` seq 14;
 排期报告 `docs/reports/2026-07-11-X-SCALAR-AUDIT后续-排期报告.md` 甲.5(hand-est ~1131);
 `schema/family-dirs.v1.json` Scalar 条目。快照 HEAD=2d2d8a1b。*
+
+---
+
+### ★[P-2] 五件之⑤ · Demo 家族 ledger row（Tier-2 clean-room 演练 · 2026-07-12 · **drill 数据点·非 C2 曲线点**）
+
+> **诚实前置([NG-8]·禁"实质胜利")**:**Demo 家族 = Template 参考家族的 clone-adapt**(protected-rename
+> 复制 + 手写 CMake/manifest/test/doc),其 LOC = **拷贝-改造成本、非净新设计成本**。**故它【不是】一个真的
+> C2 边际成本曲线点**(不并入上表 IME 2484 / X-SCALAR 1501 的家族接入曲线),只作为 **[P-4] 外部接入实录
+> Tier-2 的触碰-成本快照 + 五件套完备性证据**登记。也**未**入 `schema/family-dirs.v1.json`(该表专列真 C2 曲线点)。
+
+| 项 | 值 | 备注 |
+|---|---|---|
+| 家族 | **Demo**(`weft_demo` 方言 + `DemoExtensionPlugin`) | 最小 toy 家族·capability-gate 类·kind=`future-extension-demo` |
+| family-local source LOC | **2787**(lib+include·12 源文件·6 根) | clone-adapt(非净新)·CMake 82 行(build wiring·不计 code) |
+| new caps | **1**(`demo.extension`) | + relation:无 implies/conflicts(独立 leaf 能力事实) |
+| new ops | **2**(`weft_demo.lowering_boundary` / `weft_demo.compute_skeleton`) | ODS·各带 verifier |
+| **core LOC modified** | **2** | 唯一 core 触点 = `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp`(+`#include` +1 `kBuiltinExtensionBundles[]` 表行)= [GAP-P4-REGISTER] blessed·shared_allowance·**零 core dispatch/selection/lowering 分支** |
+| build wiring | 5 CMakeLists(4×`add_subdirectory(Demo)` + 1×`WeftDemoPlugin` LINK) | build_and_tooling 允许项 |
+| tables/docs | `schema/family-manifest.v1.json`(Demo entry + ratchet 40→46)· 本 row · T1c 报告 | schema/docs shared_allowance |
+| falsifier | **[F-1..F-6] 六门全 GREEN**(real binary·build-demo/) + 相邻门全 GREEN | 见 T1c 报告 §六门证 |
+| **[F-3] 触碰集** | **符合**:diff ⊆ Demo 家族 territory + shared_allowances(schema 表行/docs/tests/CMake/plugin_registration) | 无未授权 core 编辑 |
+
+**★C2 刻画意义(诚实)**:Demo 的 **core-modified = 2 行**(仅注册表行)兑现了 [F-3]/C2 的"接入 = 家族本地 +
+一行共享注册"结构主张——**边际 core 成本 ≈ 常数(1 表行),与家族体积无关**。但 family-local 2787 LOC 是
+**clone 拷贝值、非设计值**,故**不**作为 C2 marginal-cost 曲线的第 3 点(那需真净新家族)。**唯一真发现 = 一个
+未被 [GAP-P4-REGISTER]/[F-3] shared_allowances 覆盖的第二共享注册点**(backend-emitter 表
+`lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp`)——本演练据此**声明 ③ emission = reuse-existing、
+不注册独立 backend emitter**、以维持 [F-3] 触碰集清洁;该 gap 详见 T1c 报告。
+
+*证据/复算:`find lib/{Plugin,Dialect,Target}/Demo include/Weft/{Plugin,Dialect,Target}/Demo -name '*.cpp' -o -name '*.h' -o -name '*.td' | xargs wc -l`(2787);
+falsifier 复算见 T1c 报告 `docs/reports/2026-07-12-P4-Tier-2-cleanroom-接入演练-T1c.md`。build dir = `build-demo/`(fresh clean·0 error)。*

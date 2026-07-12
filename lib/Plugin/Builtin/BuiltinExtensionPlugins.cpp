@@ -1,5 +1,6 @@
 #include "Weft/Plugin/BuiltinExtensionPlugins.h"
 
+#include "Weft/Plugin/Demo/DemoExtensionPlugin.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/IME/IMEExtensionPlugin.h"
@@ -36,6 +37,7 @@ constexpr BuiltinExtensionBundleSpec kBuiltinExtensionBundles[] = {
     {"offload-extension-bundle", registerOffloadExtensionPlugin},
     {"toy-extension-bundle", registerToyExtensionPlugin},
     {"template-extension-bundle", registerTemplateExtensionPlugin},
+    {"demo-extension-bundle", registerDemoExtensionPlugin},
     {"tensorext-lite-extension-bundle", registerTensorExtLiteExtensionPlugin},
     {"ime-extension-bundle", registerIMEExtensionPlugin},
     {"scalar-extension-bundle", registerScalarExtensionPlugin},

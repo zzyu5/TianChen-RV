@@ -1,4 +1,5 @@
 add_subdirectory(Exec)
+add_subdirectory(Demo)
 add_subdirectory(IME)
 add_subdirectory(Offload)
 add_subdirectory(RVV)

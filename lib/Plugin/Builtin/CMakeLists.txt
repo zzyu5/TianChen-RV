@@ -3,6 +3,7 @@ add_mlir_library(WeftBuiltinPlugins
 
   LINK_LIBS PUBLIC
   WeftPlugin
+  WeftDemoPlugin
   WeftIMEPlugin
   WeftOffloadPlugin
   WeftRVVPlugin
