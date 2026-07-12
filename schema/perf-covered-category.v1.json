@@ -581,11 +581,11 @@
         "format": "q8_0",
         "engine": "ime"
       },
-      "category": "黄-未接线",
+      "category": "黄-传导稀释",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IME（IQ 后·跨范式完整性名义非 perf·裁 2026-07-12 ⑤）",
-        "transduction_estimate_note": "q8_0 flat IME tile·bridge 未建·e2e 未测·【传导稀释是实测后判读非预测标签】·kernel-axis compute-account ~2.09×（对手 SELF·[GAP-IME-LEAF-PIPELINE] 闭环后·silicon-sealed int32 0-diff vmadot 0xe210312b）+ Amdahl 预估：厂商 IME 天花板证内存墙 1B decode 无 cleanly-isolated e2e win → decode e2e 上限 < 噪声·M=1 不传导·bridge 落地实测后按证据转（memory m4-closure-three-classification / measurement-offensive-perf-covered）"
+      "transduction_dilution": {
+        "compute_account_ratio": "~2.09×(T5b kernel-axis·int8-direct 无 nibble·[GAP-IME-LEAF-PIPELINE]·对手 SELF·硅证 vmadot int32 0-diff)",
+        "amdahl_pointer": "forward-wired DONE(q8_0@ime int8-direct·完成 ratified IME triple 全 3/3)·perf 跨范式名义未测·micro↛e2e(vendor ceiling·decode native fallback)·带 Amdahl 账·correctness 最强(单tensor A==B max_abs=0.000e+00 全网格·int8-direct 零 dequant reassoc·真-llama ON==OFF 3/5 VEN==OFF 5/5 三格最贴参照)·C1 跨范式结构成就非 perf 绿"
       }
     },
     {
