@@ -6,6 +6,7 @@ __pycache__/
 
 build/
 build/*/
+build-ime-bridge/
 cmake-build-*/
 dist/
 *.egg-info/

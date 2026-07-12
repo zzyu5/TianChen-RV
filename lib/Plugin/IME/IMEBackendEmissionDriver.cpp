@@ -394,6 +394,16 @@ constexpr llvm::StringLiteral kQ40DequantHelperName(
     "tcrv_ime_q4_0_dequant_fragment");
 constexpr llvm::StringLiteral kQ40MatmulHelperName(
     "tcrv_ime_q4_0_vmadot_matmul");
+// G5-M3: the q4_0 forward-bridge SCALE-FOLD epilogue kernel. This is the
+// deferred per-block fp16 scale fold that turns the int32-EXACT MAC core into the
+// ggml q4_0 x q8_0 f32 mul_mat result the forward path consumes. It REUSES the
+// int32-EXACT decode + batched vmadot MAC verbatim (the M1b K1-sealed core); the
+// ONLY new arithmetic is the per-32-block d_a*d_w*partial float fold (this
+// introduces fp16 rounding, so it is the forward-facing epilogue, NOT the
+// int32-exact seal object). Host + K1-silicon validated against a canonical
+// q4_0 x q8_0 ZERO-MODEL reference (test/Target/IME/q4-0-matmul-tile-scalefold-*.c).
+constexpr llvm::StringLiteral kQ40ScaleFoldMatmulHelperName(
+    "tcrv_ime_q4_0_vmadot_matmul_f32");
 
 /// The q4_0 offset-binary nibble DECODE helper (structured C, no asm). Decodes
 /// one 18-byte ggml q4_0 block ([fp16 d][16 nibble bytes]) into a 32-int8 4x8 MAC
@@ -454,6 +464,58 @@ std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName) {
   os << "      for (long r = 0; r < 4; ++r)\n";
   os << "        for (long c = 0; c < 4; ++c)\n";
   os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];\n";
+  os << "    }\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+/// The q4_0 forward-bridge SCALE-FOLD f32 GEMM helper (G5-M3). Per 4x4 output tile
+/// it walks the K/32 contraction blocks; per 32-block it decodes the block's 4
+/// fragment-major q4_0 weight blocks, runs ONE register-resident batched vmadot MAC
+/// over the 4 fragments -> the int32-EXACT partial Sum(qa*qw) for that block (the
+/// M1b-sealed core, decode + MAC REUSED verbatim), then folds d_a*d_w*partial into
+/// the f32 accumulator Cf. The weight nibble pack (Bnib) is the SAME fragment-major
+/// 18-byte-block layout the int32 seal uses; the per-(column,block) fp16 weight
+/// scale is carried in the parallel dW array, the per-(row,block) activation scale
+/// in dA. M/N/K are RUNTIME parameters (the fixed micro-tile generalized to the
+/// tensor's real shape). This is the forward-facing epilogue (introduces fp16
+/// rounding), distinct from the int32-exact tcrv_ime_q4_0_vmadot_matmul seal object.
+/// `macKloopHelperName` is the FOUNDATION batched MAC helper this reuses.
+std::string q40ScaleFoldMatmulHelperBody(llvm::StringRef macKloopHelperName) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.scale_fold_epilogue=" << kQ40ScaleFoldMatmulHelperName
+     << " tiled_q4_0_matmul_f32 fold_model=per_block_da_dw weight_format=q4_0 "
+        "int32_core_exact=1 fp16_scale_fold=deferred "
+        "register_resident_accumulate=1\n";
+  os << "static void " << kQ40ScaleFoldMatmulHelperName
+     << "(const int8_t *Apack, const float *dA, const uint8_t *Bnib,\n";
+  os << "    const float *dW, float *Cf, long M, long N, long K) {\n";
+  os << "  const long mt = M / 4, nt = N / 4, nb = K / 32;\n";
+  os << "  const long q40_block_bytes = 18;\n";
+  os << "  const long frags_per_block = 4;\n";
+  os << "  const long kt = K / 8;\n";
+  os << "  for (long mi = 0; mi < mt; ++mi) {\n";
+  os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
+  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
+  os << "      const uint8_t *Bcol = Bnib + (long)nj * kt * q40_block_bytes;\n";
+  os << "      for (long b = 0; b < nb; ++b) {\n";
+  os << "        int8_t Bdec[128];\n";
+  os << "        for (long f = 0; f < frags_per_block; ++f)\n";
+  os << "          " << kQ40DequantHelperName
+     << "(Bcol + (b * frags_per_block + f) * q40_block_bytes, Bdec + f * 32);\n";
+  os << "        int32_t frag[16];\n";
+  os << "        " << macKloopHelperName
+     << "(Arow + b * frags_per_block * 32, Bdec, frags_per_block, frag);\n";
+  os << "        for (long r = 0; r < 4; ++r)\n";
+  os << "          for (long c = 0; c < 4; ++c) {\n";
+  os << "            long m = mi * 4 + r, n = nj * 4 + c;\n";
+  os << "            Cf[m * N + n] += dA[m * nb + b] * dW[n * nb + b] * "
+        "(float)frag[r * 4 + c];\n";
+  os << "          }\n";
+  os << "      }\n";
   os << "    }\n";
   os << "  }\n";
   os << "}";
@@ -1220,6 +1282,53 @@ public:
                                          kQ40MatmulHelperName, callOperands);
 
     rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    // G5-M3: a SECOND exported wrapper for the forward-bridge scale-fold epilogue.
+    // extern "C" void <name>_f32(const int8_t* Apack, const float* dA,
+    //   const uint8_t* Bnib, const float* dW, float* Cf) -> the ggml q4_0 x q8_0
+    // f32 mul_mat result (M/N/K baked problem-dim facts). This is what the ggml
+    // forward hook calls; the int32 wrapper above stays the seal object.
+    {
+      mlir::OpBuilder::InsertionGuard f32Guard(rewriter);
+      rewriter.setInsertionPointToEnd(module.getBody());
+      // Emit the f32 scale-fold helper here (after the int32 wrapper, before the
+      // f32 wrapper that uses it): declared-before-use, and a deterministic
+      // module order (int32 kernel + wrapper, then f32 kernel + wrapper).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, q40ScaleFoldMatmulHelperBody(macKloopHelperName));
+      auto cf32PtrType = emitc::PointerType::get(
+          context, emitc::OpaqueType::get(context, "const float"));
+      auto f32PtrType = emitc::PointerType::get(
+          context, emitc::OpaqueType::get(context, "float"));
+      llvm::SmallVector<mlir::Type, 5> f32ParamTypes{
+          i8PtrType, cf32PtrType, u8PtrType, cf32PtrType, f32PtrType};
+      mlir::FunctionType f32FnType =
+          rewriter.getFunctionType(f32ParamTypes, /*results=*/{});
+      llvm::SmallVector<mlir::NamedAttribute, 1> f32FuncAttrs;
+      f32FuncAttrs.push_back(rewriter.getNamedAttr(
+          "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
+      auto f32Func = rewriter.create<emitc::FuncOp>(loc, functionName + "_f32",
+                                                    f32FnType, f32FuncAttrs);
+      mlir::Block *f32Entry = f32Func.addEntryBlock();
+      rewriter.setInsertionPointToStart(f32Entry);
+      rewriter.create<emitc::VerbatimOp>(loc,
+                                         routeSourceComment(sourceOpName, sourceRole));
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(sourceOpName, sourceRole,
+                           kQ40ScaleFoldMatmulHelperName));
+      llvm::SmallVector<mlir::Value, 8> f32Operands;
+      for (mlir::BlockArgument arg : f32Entry->getArguments())
+        f32Operands.push_back(arg);
+      for (int64_t dim : {matM, matN, matK}) {
+        auto dimAttr = emitc::OpaqueAttr::get(context, std::to_string(dim));
+        auto constOp =
+            rewriter.create<emitc::ConstantOp>(loc, longType, dimAttr);
+        f32Operands.push_back(constOp.getResult());
+      }
+      rewriter.create<emitc::CallOpaqueOp>(
+          loc, mlir::TypeRange{}, kQ40ScaleFoldMatmulHelperName, f32Operands);
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+    }
 
     rewriter.eraseOp(tile);
     return mlir::success();

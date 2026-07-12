@@ -71,3 +71,17 @@ module {
 // EMITC: emitc.func @tcrv_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice
 // EMITC: tcrv_emitc.route_source_op=tcrv_ime.q4_0_matmul_tile role=compute
 // EMITC: call_opaque "tcrv_ime_q4_0_vmadot_matmul"
+// G5-M3 forward bridge: the deferred per-block d_a*d_w SCALE-FOLD epilogue kernel
+// (f32) is emitted AFTER the int32 kernel + wrapper (declared-before-use), then a
+// SECOND extern "C" wrapper (<name>_f32) the ggml forward hook calls. The int32
+// core stays the seal object; the fold introduces fp16 rounding and is
+// board-validated against a canonical q4_0xq8_0 ZERO-MODEL reference
+// (test/Target/IME/q4-0-matmul-tile-scalefold-{oracle,k1seal}.c).
+// EMITC: emitc.verbatim
+// EMITC-SAME: scale_fold_epilogue=tcrv_ime_q4_0_vmadot_matmul_f32
+// EMITC-SAME: fold_model=per_block_da_dw
+// EMITC-SAME: static void tcrv_ime_q4_0_vmadot_matmul_f32
+// EMITC-SAME: Cf[m * N + n] += dA[m * nb + b] * dW[n * nb + b] * (float)frag[r * 4 + c]
+// EMITC: emitc.func @tcrv_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice_f32
+// EMITC: tcrv_emitc.route_source_op=tcrv_ime.q4_0_matmul_tile role=compute
+// EMITC: call_opaque "tcrv_ime_q4_0_vmadot_matmul_f32"

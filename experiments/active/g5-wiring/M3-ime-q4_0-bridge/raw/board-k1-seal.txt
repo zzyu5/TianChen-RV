@@ -1,0 +1,13 @@
+# board k1: gcc-13 -march=rv64gcv_xsmtvdotii1p0 (gcc (Bianbu 13.2.0-23ubuntu4bb3) 13.2.0)
+## objdump vmadot:
+vmadot_count=2
+   1103e:	e210312b          	vmadot	v2,v0,v1
+   111d6:	e210312b          	vmadot	v2,v0,v1
+## run taskset -c 0-3:
+G5-M3 q4_0@ime scale-fold epilogue K1 SEAL (real vmadot; bridge #1 fold + #2 runtime shape)
+  shape M=8 N=8 K=64 nb=2: int32-core 128/128 exact (mism=0) | scalefold max_abs=2.338e-07 max_rel=2.427e-06 (|C|max=5.685)
+  shape M=4 N=8 K=96 nb=3: int32-core 96/96 exact (mism=0) | scalefold max_abs=4.438e-07 max_rel=2.667e-07 (|C|max=8.929)
+  shape M=12 N=16 K=128 nb=4: int32-core 768/768 exact (mism=0) | scalefold max_abs=1.044e-06 max_rel=5.287e-06 (|C|max=12.054)
+  shape M=8 N=32 K=256 nb=8: int32-core 2048/2048 exact (mism=0) | scalefold max_abs=2.295e-06 max_rel=1.083e-05 (|C|max=24.929)
+SEAL PASS: q4_0 scale-fold f32 == canonical q4_0xq8_0 reference on K1 (real-vmadot int32 core exact, fold within f32 tol) across all shapes
+exit=0

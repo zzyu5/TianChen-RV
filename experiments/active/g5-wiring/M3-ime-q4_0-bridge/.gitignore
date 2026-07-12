@@ -1,0 +1,6 @@
+# no large .inc emitted in this casefile; raw evidence + extracted helpers are tracked.
+# host/board scratch binaries live outside the tree ($CLAUDE_JOB_DIR/tmp, /tmp/g5m3 on k1).
+*.o
+*.bin
+q40sf
+q40sfseal
