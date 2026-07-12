@@ -1,0 +1,1229 @@
+{
+  "$meta": {
+    "label_version": "v1",
+    "spec": "[COV-1]-style per-cell perf-covered category labels; 版本化工件, one label per FOLDED certified format-cell.",
+    "denominator_key": "(op, format, engine)  -- regime FOLDED (gemm_tile/q4_0/rvv decode+prefill -> single format-cell)",
+    "fold_policy": "perf-covered 层 fold regime（按 format 计·裁一.1/一.2·2026-07-12）; 结构 roster coverage-roster.v1.json + M4 84/91 不动（regime 拆分对构造-identity 合法）; 本折叠仅 perf-covered 本层.",
+    "frozen_categories": [
+      "绿",
+      "黄-未接线",
+      "黄-传导稀释",
+      "黄-物理墙",
+      "黄-对手更强",
+      "声明例外"
+    ],
+    "category_note": "六类冻结集（裁一.3）; 自造标签（yellow-kernel-axis 等）停用·映射入六类; q6_K yellow-kernel-axis -> 黄-对手更强(provisional).",
+    "target_counts": {
+      "denominator": 83,
+      "绿": 6,
+      "黄-物理墙": 12,
+      "黄-传导稀释": 0,
+      "黄-对手更强": 12,
+      "黄-未接线": 26,
+      "声明例外": 27
+    },
+    "headline": "perf-covered = 6/83 (any-board·裁四.0); 备选单位 7/84（--no-fold·regime 保留·flagged 待用户复核）.",
+    "ime_reclassification": "裁一.2: IME q4_0@ime/q8_0@ime/q4_K@ime 从 黄-传导稀释 -> 黄-未接线（bridge 未建·e2e 未测·传导稀释是实测后判读非预测标签）; 传导稀释类因此为空(0).",
+    "sources": [
+      "docs/reports/2026-07-12-perf-covered-零未定义格分类.md",
+      "docs/reports/2026-07-12-三具名GAP修复评估.md",
+      "docs/reports/2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md",
+      "experiments/active/covering-batch3-stream-rvv/"
+    ],
+    "recon_tool": ".trellis/scripts/perf_covered_metrics.py",
+    "spec_boundary": "numbers live in the CI report / docs, never in .trellis/spec/"
+  },
+  "cells": [
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q4_0",
+        "engine": "rvv"
+      },
+      "category": "绿",
+      "provisional": false,
+      "green": {
+        "board": "rvv",
+        "account": "系统账绿-routing-win（kernel账非净绿=上游 repack 路径白嫖·correctness 白送）",
+        "ratio": "e2e prefill 5.92× / decode 1.91×",
+        "ledger_pointer": "2026-07-11-perf-covered-baseline.md §2.2 · memory q4-0-e2e-is-routing-not-kernel",
+        "quality_note": "routing 系统账·5/8 门（②③④ pending）·[NG-4] beat 措辞 LOCKED·fold decode+prefill 两 regime（结构 roster 保留两 cell·本层折叠为 1）"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q4_1",
+        "engine": "rvv"
+      },
+      "category": "绿",
+      "provisional": false,
+      "green": {
+        "board": "rvv",
+        "account": "系统账绿-path-win（vs 未优化 generic block-dot·stock q4_1 无 riscv repack·异常慢 ~2×）",
+        "ratio": "e2e prefill 3.68× / decode 1.67×",
+        "ledger_pointer": "2026-07-12-perf-covered-q4_1-green-6of84.md",
+        "quality_note": "八门全过·path-win（vs 未优化 generic·非比调优核快）·both-phase-win 反常留 scrutiny·verdict 立于 prefill≥parity"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q5_0",
+        "engine": "rvv"
+      },
+      "category": "绿",
+      "provisional": false,
+      "green": {
+        "board": "rvv",
+        "account": "kernel账净绿-prefill-axis（净新 scaffold·1.23× micro 确传导·非 wash）",
+        "ratio": "e2e prefill 1.21× WIN / decode 0.82× reg",
+        "ledger_pointer": "2026-07-12-perf-covered-q5_0-green-4of84.md",
+        "quality_note": "prefill-win/decode-loss split（如实披露·memory-bound GEVM）·C1 template extensibility 实证"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q5_1",
+        "engine": "rvv"
+      },
+      "category": "绿",
+      "provisional": false,
+      "green": {
+        "board": "rvv",
+        "account": "kernel账净绿-prefill-axis（q8_1-activation repack 家族首成员）",
+        "ratio": "e2e prefill 1.09× WIN / decode 0.78× reg",
+        "ledger_pointer": "2026-07-12-perf-covered-q5_1-green-5of84.md",
+        "quality_note": "净新 block_q8_1x4 + quantize_mat_t<Q8_1>·C1 extensibility 扩展·decode reg 披露"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q8_0",
+        "engine": "rvv"
+      },
+      "category": "绿",
+      "provisional": false,
+      "green": {
+        "board": "rvv",
+        "account": "kernel账净绿-correctness-carrier（deployed==proven·selector block_dot_memory_bound 能力键控自然路由·.inc 字节等于 M1b）",
+        "ratio": "e2e prefill 4.35× / decode 3.81×",
+        "ledger_pointer": "2026-07-12-perf-covered-q8_0-green-3of84.md",
+        "quality_note": "成色最强·无外援·能力事实→发射 vl=8→部署→真路由→修复上游 VLEN128 破损→e2e 兑现·CI 排除 parity"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q4_K",
+        "engine": "rvv"
+      },
+      "category": "绿",
+      "provisional": false,
+      "green": {
+        "board": "k1",
+        "account": "kernel账净绿-sealed-Win（Win-K1-VLEN RATIFIED·k1/VLEN256 vs 真出货 hand-brick·byte-exact·八门 ①②③④⑥⑦⑧ + ⑤ FU-2 RESOLVED）",
+        "ratio": "k1/VLEN256 e2e prefill 1.085×",
+        "ledger_pointer": "2026-07-11-perf-covered-baseline.md §2.1 · 2026-07-10-Win-K1-VLEN-加固报告.md · 2026-07-10-q4k-micro-vs-e2e-regression-mechanism.md",
+        "quality_note": "any-board 判绿（裁四.0）·绿立足 k1-half·rvv/VLEN128-half = e2e 0.334× LOSS [GAP-Q4K-VLEN128]+gcc-codegen（同 cell rvv-half 是 yellow）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q8_0",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "covering-batch3-stream-rvv/raw_board_results.txt·mem-bound scalar 3.7 GB/s roofline·byte-exact maxrel0（deploy 0.98× / kernel 0.86×）",
+        "evidence": "实测"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q4_0",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "flat 族·q8_0 实测锚 3.7 GB/s roofline·同 flat/scalar 律·parity 类推（分类报告 §1.3）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q4_1",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "flat 族·q8_0 实测锚 3.7 GB/s roofline·同 flat/scalar 律·parity 类推（分类报告 §1.3）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q5_0",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "flat 族·q8_0 实测锚 3.7 GB/s roofline·同 flat/scalar 律·parity 类推（分类报告 §1.3）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q5_1",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "flat 族·q8_0 实测锚 3.7 GB/s roofline·同 flat/scalar 律·parity 类推（分类报告 §1.3）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "quantize_row",
+        "format": "q8_0",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "covering-batch3·mem-bound 2.8 GB/s·byte-exact diff0（deploy 0.99× / kernel 1.00×·激活量化）",
+        "evidence": "实测"
+      }
+    },
+    {
+      "key": {
+        "op": "quantize_row",
+        "format": "q8_K",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "covering-batch3·mem-bound 2.5 GB/s·byte-exact（1.08× / 0.98×）",
+        "evidence": "实测"
+      }
+    },
+    {
+      "key": {
+        "op": "quantize_row",
+        "format": "q8_1",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "q8-family scale+int8 store·at-wall parity 预期·correctness-essential（wired 进绿 q5_1/q4_1 激活路·分类报告 §1.4）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "gelu",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "covering-batch3·compute-bound tanhf 0.11 GB/s·maxrel 1.3e-6·LUT-deploy caveat 记录（0.99× / 1.00×）",
+        "evidence": "实测"
+      }
+    },
+    {
+      "key": {
+        "op": "scale",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "trivial memory-bound map·at-wall·parity 类推（分类报告 §1.6）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "cpy",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "trivial map·at-wall·parity 类推（分类报告 §1.6）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "silu",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "黄-物理墙",
+      "provisional": false,
+      "physical_wall": {
+        "roofline_pointer": "gelu scalar-transcendental 类·at-wall·parity 类推（分类报告 §1.6）",
+        "evidence": "morphology-declared"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q2_K",
+        "engine": "rvv"
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "[GAP-KQUANT-GCC-CODEGEN]（gcc-15 RVV mixed-SEW 全展开 regfile-spill·S6 first-emission·LAW-FIRST-EMISSION 例1）",
+        "fixable": "低（S6 tiling 只对 clang 有效·gcc 出货反效果；须 gcc-codegen-aware 再发射或 k1/VLEN256 部署）",
+        "symmetric_account_pointer": "l1-t3-q2k·对称-gcc 0.386×（micro 1.413× = clang-ours-vs-gcc-shipped artifact·[CASE-COMPILER-ASYMMETRY] CLOSED 撤回）·prefill 热路 Amdahl 高"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q3_K",
+        "engine": "rvv"
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "[GAP-KQUANT-GCC-CODEGEN] + weight-materialization floor（dual-plane weight-bound·S6 tiling NULL·未过 cliff v31）",
+        "fixable": "低（结构 weight-bound + gcc-codegen 双阻）",
+        "symmetric_account_pointer": "l1-t3-q3k·对称 ~0.18–0.20×·prefill 热路 Amdahl 高"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q5_K",
+        "engine": "rvv"
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "[GAP-KQUANT-GCC-CODEGEN]（qh-plane 105-spill 残留·族内最浅·S6 hybrid-holds v31→v30）",
+        "fixable": "中-低（tiling lever 过 cliff·但 gcc-codegen 残留·最接近 parity 的 K-quant·次优 k1/VLEN256 候选）",
+        "symmetric_account_pointer": "l1-t3-q5k·对称 0.775×（+41.7% vs UNTUNED 但对称 gcc/gcc <1）·prefill 热路 Amdahl 高"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q6_K",
+        "engine": "rvv"
+      },
+      "category": "黄-对手更强",
+      "provisional": true,
+      "provisional_note": "provisional·L-7 反汇编 + L-11 同域标注后转正（曳光弹已 e2e board 实测锚 0.07×·成色 A·根因归 LAW 例1 pending 逐项复核）",
+      "opponent_stronger": {
+        "named_gap": "[GAP-KQUANT-GCC-CODEGEN]（6-bit 双平面 weight-reconstruction-bound·2995 vsetivli + 6065 e8mf2 无调度·S6 NULL）",
+        "fixable": "低（gcc-codegen + weight-reconstruction floor 双阻·S6 NULL）",
+        "symmetric_account_pointer": "l1-t3-q6k·对称 ~0.18–0.20×·净新 scaffold e2e board 0.07× 实测锚（2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md·一.3 yellow-kernel-axis→黄-对手更强 映射）·prefill 热路 Amdahl 高"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq2_xxs",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称-gcc measured-fair 0.78× LOSS·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq2_xs",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称-gcc measured-fair LOSS·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq2_s",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称-gcc measured-fair LOSS·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq3_xxs",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称 0.16× LOSS（ours 6.3× 慢）·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq3_s",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称 0.28× LOSS·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq4_xs",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称 0.72× LOSS（OUTPUT-DIVERGENT 曾记）·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "tq1_0",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称 LOSS（OUTPUT-DIVERGENT·ternary 少数部署）·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "tq2_0",
+        "engine": ""
+      },
+      "category": "黄-对手更强",
+      "provisional": false,
+      "opponent_stronger": {
+        "named_gap": "per-subblock gather/redsum 未 batch（uarch.gather_slow·GAP triage ①）",
+        "fixable": "争议（gather-batching 较大 emit 重构·iq/ternary 少数部署·真赢潜伏低 confidence·新立项须问）",
+        "symmetric_account_pointer": "batch2c 对称 LOSS（ternary 少数部署）·decode matmul 热路"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "iq2_xxs",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ（K-quant 后）",
+        "transduction_estimate_note": "constructed repack-GEMM·无 gemm-轴公平对位（batch2c 是 vec_dot 非 gemm）·sibling vec_dot 0.78× LOSS → wiring 预判 likely 对手更强"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "iq2_xs",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS·wiring 预判对手更强"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "iq2_s",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS·wiring 预判对手更强"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "iq4_nl",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "constructed·gemm PLAIN/UNTILED 结构-NULL（≤32-vreg 悬崖·无 tiling 杠杆·parity-ish 预期）·无 gemm 对位"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "iq4_xs",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "constructed·同 iq4_nl 结构-NULL·sibling vec_dot 0.72× LOSS·无 gemm 对位"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "mxfp4",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "constructed·gemm PLAIN/UNTILED 结构-NULL·tiny-codebook 无杠杆·无 gemm 对位"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "tq1_0",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ（低优先·ternary 少数部署）",
+        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS+OUTPUT-DIVERGENT"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "tq2_0",
+        "engine": "rvv"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ（低优先·ternary 少数部署）",
+        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q4_0",
+        "engine": "ime"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IME（IQ 后·跨范式完整性名义非 perf·裁 2026-07-12 ⑤）",
+        "transduction_estimate_note": "q4_0 flat IME tile·bridge 未建·e2e 未测·【传导稀释是实测后判读非预测标签】·kernel-axis compute-account ~2.09×（对手 SELF·[GAP-IME-LEAF-PIPELINE] 闭环后·silicon-sealed int32 0-diff vmadot 0xe210312b）+ Amdahl 预估：厂商 IME 天花板证内存墙 1B decode 无 cleanly-isolated e2e win → decode e2e 上限 < 噪声·M=1 不传导·bridge 落地实测后按证据转（memory m4-closure-three-classification / measurement-offensive-perf-covered）"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q8_0",
+        "engine": "ime"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IME（IQ 后·跨范式完整性名义非 perf·裁 2026-07-12 ⑤）",
+        "transduction_estimate_note": "q8_0 flat IME tile·bridge 未建·e2e 未测·【传导稀释是实测后判读非预测标签】·kernel-axis compute-account ~2.09×（对手 SELF·[GAP-IME-LEAF-PIPELINE] 闭环后·silicon-sealed int32 0-diff vmadot 0xe210312b）+ Amdahl 预估：厂商 IME 天花板证内存墙 1B decode 无 cleanly-isolated e2e win → decode e2e 上限 < 噪声·M=1 不传导·bridge 落地实测后按证据转（memory m4-closure-three-classification / measurement-offensive-perf-covered）"
+      }
+    },
+    {
+      "key": {
+        "op": "gemm_tile",
+        "format": "q4_K",
+        "engine": "ime"
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IME（IQ 后·跨范式完整性名义非 perf·裁 2026-07-12 ⑤）",
+        "transduction_estimate_note": "q4_K super-block IME（P7 ime∧shape format-agnostic MMAOp 统一接管三格）·bridge 未建·e2e 未测·【传导稀释是实测后判读非预测标签】·kernel-axis compute-account ~2.09×（对手 SELF·[GAP-IME-LEAF-PIPELINE] 闭环后·silicon-sealed int32 0-diff vmadot 0xe210312b）+ Amdahl 预估：厂商 IME 天花板证内存墙 1B decode 无 cleanly-isolated e2e win → decode e2e 上限 < 噪声·M=1 不传导·bridge 落地实测后按证据转（memory m4-closure-three-classification / measurement-offensive-perf-covered）"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q4_0",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "FLAT-decode（低优先·绿已由 gemm 覆盖）",
+        "transduction_estimate_note": "block-dot vec_dot（decode matmul 备选路）·parity-by-adoption（采 ggml 自身指令）·无公平 e2e/八门·绿路走 repack GEVM（gemm cell）非本 cell"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q4_1",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "FLAT-decode",
+        "transduction_estimate_note": "block-dot·parity-by-adoption·未测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q5_0",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "FLAT-decode",
+        "transduction_estimate_note": "block-dot·parity-by-adoption·未测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q5_1",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "FLAT-decode",
+        "transduction_estimate_note": "block-dot·parity-by-adoption·未测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q8_0",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "FLAT-decode",
+        "transduction_estimate_note": "block-dot·micro-only VLEN256 1.04×/VLEN128 parity（非 e2e·非八门·board+clang-bound·stale）·未过公平协议"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q1_0",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ/尾",
+        "transduction_estimate_note": "block-dot·binary·未测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q2_K",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "K-quant-decode",
+        "transduction_estimate_note": "K-quant block-dot（decode matmul）·未直接测（K-quant 测量在 gemm/repack 轴）"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q3_K",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "K-quant-decode",
+        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q4_K",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "K-quant-decode",
+        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q5_K",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "K-quant-decode",
+        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "q6_K",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "K-quant-decode",
+        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq1_s",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "1.5-bit 2048-grid block-dot·未在 batch2c·grid-decode-bound 疑似 LOSS 族（未测）"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq1_m",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "iq1_s sibling·未测"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "iq4_nl",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "codebook block-dot·未在 batch2c（vec_dot 轴·区别于 dequant 轴 gather-trap 冷叶）"
+      }
+    },
+    {
+      "key": {
+        "op": "vec_dot",
+        "format": "nvfp4",
+        "engine": ""
+      },
+      "category": "黄-未接线",
+      "provisional": false,
+      "unwired": {
+        "wiring_queue_position": "IQ",
+        "transduction_estimate_note": "fp4 codebook block-dot·未测"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q4_K",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "super-block 族 dequant·off 热 matmul 路（服务 get_rows/embedding/conversion·q4_K matmul 走 block-dot/repack GEMM 非 row-dequant）·可修黄格但修完 e2e-inert（诚实反例·LAW 第5例）",
+        "amdahl_ceiling": "<0.15%",
+        "ceiling_source": "[GAP-DEQ-KQUANT-UNPACK] 三具名GAP §2·q4_K 实测锚 kernel 0.636×/deploy 0.879×·mem-bound scale-unpack 3.0 GB/s·<1% × (1−1/1.2)",
+        "reestimate_condition": "dequantize_row 进入 matmul 热路（get_rows fraction 上升过噪声地板 ~1%）",
+        "reestimate_hook": "T6 e2e phase-split 实测 dequant fraction·或 K-quant 流式族 byte-exact 成熟度整批推进复用向量化-解码 helper"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q2_K",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "super-block 族 dequant·off 热 matmul 路（服务 get_rows/embedding/conversion·q4_K matmul 走 block-dot/repack GEMM 非 row-dequant）·可修黄格但修完 e2e-inert（诚实反例·LAW 第5例）",
+        "amdahl_ceiling": "<0.15%",
+        "ceiling_source": "[GAP-DEQ-KQUANT-UNPACK] 族级·q4_K 实测锚 morphology-declared·dispatch-definitional off-hot-path",
+        "reestimate_condition": "dequantize_row 进入 matmul 热路（get_rows fraction 上升过噪声地板 ~1%）",
+        "reestimate_hook": "T6 e2e phase-split 实测 dequant fraction·或 K-quant 流式族 byte-exact 成熟度整批推进复用向量化-解码 helper"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q3_K",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "super-block 族 dequant·off 热 matmul 路（服务 get_rows/embedding/conversion·q4_K matmul 走 block-dot/repack GEMM 非 row-dequant）·可修黄格但修完 e2e-inert（诚实反例·LAW 第5例）",
+        "amdahl_ceiling": "<0.15%",
+        "ceiling_source": "[GAP-DEQ-KQUANT-UNPACK] 族级·morphology-declared·off-hot-path",
+        "reestimate_condition": "dequantize_row 进入 matmul 热路（get_rows fraction 上升过噪声地板 ~1%）",
+        "reestimate_hook": "T6 e2e phase-split 实测 dequant fraction·或 K-quant 流式族 byte-exact 成熟度整批推进复用向量化-解码 helper"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q5_K",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "super-block 族 dequant·off 热 matmul 路（服务 get_rows/embedding/conversion·q4_K matmul 走 block-dot/repack GEMM 非 row-dequant）·可修黄格但修完 e2e-inert（诚实反例·LAW 第5例）",
+        "amdahl_ceiling": "<0.15%",
+        "ceiling_source": "[GAP-DEQ-KQUANT-UNPACK] 族级（q4_K sibling·共享向量化-解码族级杠杆）·morphology-declared",
+        "reestimate_condition": "dequantize_row 进入 matmul 热路（get_rows fraction 上升过噪声地板 ~1%）",
+        "reestimate_hook": "T6 e2e phase-split 实测 dequant fraction·或 K-quant 流式族 byte-exact 成熟度整批推进复用向量化-解码 helper"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q6_K",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "super-block 族 dequant·off 热 matmul 路（服务 get_rows/embedding/conversion·q4_K matmul 走 block-dot/repack GEMM 非 row-dequant）·可修黄格但修完 e2e-inert（诚实反例·LAW 第5例）",
+        "amdahl_ceiling": "<0.15%",
+        "ceiling_source": "[GAP-DEQ-KQUANT-UNPACK] 族级·morphology-declared·off-hot-path",
+        "reestimate_condition": "dequantize_row 进入 matmul 热路（get_rows fraction 上升过噪声地板 ~1%）",
+        "reestimate_hook": "T6 e2e phase-split 实测 dequant fraction·或 K-quant 流式族 byte-exact 成熟度整批推进复用向量化-解码 helper"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq1_s",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq1_m",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq2_xxs",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq2_xs",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq2_s",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq3_xxs",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq3_s",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq4_nl",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 deploy 0.94×/kernel 4.83× latent[GAP-CLANG-GATHER-TRAP]·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "iq4_xs",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "mxfp4",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "nvfp4",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "codebook/grid/fp4 族 dequant·off 热 matmul 路·真赢潜伏在【分离热 vec_dot iq 族】（非本冷叶·gather-trap 冷叶 e2e-null·LAW 第6例·新第5根因类）",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "[GAP-CLANG-GATHER-TRAP] 三具名GAP §1·iq4_nl 实测锚 morphology-declared·★同域纪律用 clang-deploy 喂 Amdahl·<0.5% × (1−1/5)≈0.4%",
+        "reestimate_condition": "gather-batching 落地且外推到热 vec_dot iq 族·或 iq 模型成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "tq1_0",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "ternary 族 dequant·off 热路·morphology-declared·ternary 少数部署",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "codebook/grid 律 morphology-declared·dispatch-definitional off-hot-path（分类报告 §1.3）",
+        "reestimate_condition": "ternary 成主流部署且 dequant 进入热路",
+        "reestimate_hook": "ternary dequant/vec_dot 板测"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "tq2_0",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "ternary 族 dequant·off 热路·morphology-declared·ternary 少数部署",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "codebook/grid 律 morphology-declared·dispatch-definitional off-hot-path（分类报告 §1.3）",
+        "reestimate_condition": "ternary 成主流部署且 dequant 进入热路",
+        "reestimate_hook": "ternary dequant/vec_dot 板测"
+      }
+    },
+    {
+      "key": {
+        "op": "dequantize_row",
+        "format": "q1_0",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "binary 族 dequant·off 热路·morphology-declared",
+        "amdahl_ceiling": "<0.4%",
+        "ceiling_source": "codebook/grid 律 morphology-declared·off-hot-path（分类报告 §1.3）·q1_0 dequant 实跑 byte-exact 460800 元素 0-mismatch",
+        "reestimate_condition": "binary 成主流部署且 dequant 进入热路",
+        "reestimate_hook": "q1_0 dequant/vec_dot 板测"
+      }
+    },
+    {
+      "key": {
+        "op": "product_reduce",
+        "format": "q4_0_nibble",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "内部子原语（喂 dequant/vec_dot 复合）·无框架-kernel 公平对手（ggml 无 standalone product_reduce·vs-scalar 10.8× 是 sanity 层非 framework）·perf 由复合格捕获",
+        "amdahl_ceiling": "N/A（无独立 e2e·无公平探针·结构无对手）",
+        "ceiling_source": "[L-6] vs-naive ≠ vs-framework·分类报告 §1.5·结构无框架对手",
+        "reestimate_condition": "ggml 建 standalone product_reduce 参考层（框架对手出现）",
+        "reestimate_hook": "复合格（dequant/vec_dot）测量捕获·或框架对手出现则独立测"
+      }
+    },
+    {
+      "key": {
+        "op": "product_reduce",
+        "format": "offset_binary_n3",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "内部子原语（喂 dequant/vec_dot 复合）·无框架-kernel 公平对手（ggml 无 standalone product_reduce·vs-scalar 10.8× 是 sanity 层非 framework）·perf 由复合格捕获",
+        "amdahl_ceiling": "N/A（无独立 e2e·无公平探针·结构无对手）",
+        "ceiling_source": "[L-6] vs-naive ≠ vs-framework·分类报告 §1.5·结构无框架对手",
+        "reestimate_condition": "ggml 建 standalone product_reduce 参考层（框架对手出现）",
+        "reestimate_hook": "复合格（dequant/vec_dot）测量捕获·或框架对手出现则独立测"
+      }
+    },
+    {
+      "key": {
+        "op": "product_reduce",
+        "format": "codebook_n3",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "内部子原语（喂 dequant/vec_dot 复合）·无框架-kernel 公平对手（ggml 无 standalone product_reduce·vs-scalar 10.8× 是 sanity 层非 framework）·perf 由复合格捕获",
+        "amdahl_ceiling": "N/A（无独立 e2e·无公平探针·结构无对手）",
+        "ceiling_source": "[L-6] vs-naive ≠ vs-framework·分类报告 §1.5·结构无框架对手",
+        "reestimate_condition": "ggml 建 standalone product_reduce 参考层（框架对手出现）",
+        "reestimate_hook": "复合格（dequant/vec_dot）测量捕获·或框架对手出现则独立测"
+      }
+    },
+    {
+      "key": {
+        "op": "add",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "逐元素 residual·off 热 matmul 路·near-wall memory-bound·未接 e2e·机制未证（无 objdump·违宪章规则1·提交前阻塞·第二 micro↛e2e 教材）",
+        "amdahl_ceiling": "<0.6%",
+        "ceiling_source": "[GAP-FWD-M8-VSETVL] 三具名GAP §3·deploy 0.83×/kernel 0.81× near-wall 7.3 GB/s·0.01–0.03 × (1−1/1.25)",
+        "reestimate_condition": "objdump-first 认真瓶颈（LMUL vs vsetvl vs memory-scheduling）+ 接 e2e",
+        "reestimate_hook": "add/mul objdump 两 .o + e2e wiring（提交前 objdump-first gate）"
+      }
+    },
+    {
+      "key": {
+        "op": "mul",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "逐元素 gating·off 热 matmul 路·near-wall memory-bound·未接 e2e·机制未证（无 objdump·违宪章规则1·提交前阻塞·第二 micro↛e2e 教材）",
+        "amdahl_ceiling": "<0.6%",
+        "ceiling_source": "[GAP-FWD-M8-VSETVL] 三具名GAP §3·deploy 0.76×/kernel 0.76× near-wall 6.4 GB/s·双账本收敛 LOSS·无 compiler-artifact",
+        "reestimate_condition": "objdump-first 认真瓶颈（LMUL vs vsetvl vs memory-scheduling）+ 接 e2e",
+        "reestimate_hook": "add/mul objdump 两 .o + e2e wiring（提交前 objdump-first gate）"
+      }
+    },
+    {
+      "key": {
+        "op": "rms_norm",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "norm off 热路·reduction·铺面③ 未覆盖·结构判",
+        "amdahl_ceiling": "<<0.05%",
+        "ceiling_source": "G2 fusion e2e null 实证·norm 占 decode 0.05% × 融合改善 → +0.05% < 噪声地板",
+        "reestimate_condition": "norm fraction 上升过噪声地板",
+        "reestimate_hook": "T6 e2e phase-split norm fraction 实测"
+      }
+    },
+    {
+      "key": {
+        "op": "softmax",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "off 热路·cheap reduction·铺面③ 声明 separate shape out-of-map class·未测·结构判",
+        "amdahl_ceiling": "<噪声（结构判·精确 fraction 未测）",
+        "ceiling_source": "dispatch-definitional off-hot-path·铺面③ morphology 外提（分类报告 §1.6）",
+        "reestimate_condition": "softmax fraction 上升过噪声地板（长 context attention 主导）",
+        "reestimate_hook": "T6 e2e phase-split softmax fraction 实测"
+      }
+    },
+    {
+      "key": {
+        "op": "rope",
+        "format": "f32",
+        "engine": ""
+      },
+      "category": "声明例外",
+      "provisional": false,
+      "declared_exception": {
+        "reason": "off 热路·cheap rotate·同 softmax·未测·结构判",
+        "amdahl_ceiling": "<噪声（结构判·精确 fraction 未测）",
+        "ceiling_source": "dispatch-definitional off-hot-path（分类报告 §1.6）",
+        "reestimate_condition": "rope fraction 上升过噪声地板",
+        "reestimate_hook": "T6 e2e phase-split rope fraction 实测"
+      }
+    }
+  ]
+}

@@ -352,3 +352,62 @@ jobs:
       # source file outside its manifest range, widens a range into core, or breaks the ratchet.
       - name: F-3 family-locality gate (every family source file contained, no orphan/pollution)
         run: python3 tools/lint/check_family_locality.py
+
+  # [裁三/五 2026-07-12] perf-covered reconciliation gate. Makes the perf-covered
+  # classification (schema/perf-covered-category.v1.json) CI-executable. The recon tool
+  # (.trellis/scripts/perf_covered_metrics.py) derives the CERTIFIED cells from the structural
+  # roster + six-state (reusing coverage_metrics.py so the M4 84/91 denominator stays the SINGLE
+  # source), FOLDS the m_regime axis (gemm_tile/q4_0/rvv decode+prefill -> one format-cell -> 83),
+  # joins the six-frozen-category labels, and closes a reconciliation. This gate fails closed
+  # unless: (1) Σ classification == denominator with ZERO undefined cells; (2) every category's
+  # required detail fields are complete (声明例外 5 fields / 物理墙 roofline_pointer / 绿 board+
+  # account --缺 = RED); (3) THREE-SOURCE consistency (headline green == classification green ==
+  # ledger-cell count); and (4) the ANTI-GATE flag holds (declared-exception cells are numerator-
+  # independent -- green invariant to their in/out, all exceptions certified-off-hot-path). An
+  # undefined cell, a self-invented (non-frozen) category, an incomplete detail block, an orphan/
+  # duplicate label, a three-source mismatch, or an anti-gate breach fails the job closed. Changes
+  # NO kernel / NO numerics / NO structural roster -- perf-fold + CI only. Stdlib-Python only.
+  perf-covered-recon:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the reconciler DISCRIMINATES (fold arithmetic incl. regime
+      # collapse + expand; missing label -> undefined; incomplete/empty detail field -> RED;
+      # self-invented category -> bad_category; phantom exception over a non-certified cell ->
+      # orphan label; three-source break) before it judges the committed labels.
+      - name: perf-covered recon gate self-test
+        run: python3 .trellis/scripts/perf_covered_metrics.py --self-test
+
+      # Default-path gate on the COMMITTED labels + roster + six-state: `report` returns non-zero
+      # when reconciliation_ok is False; the assertion re-checks Σ==denom, zero undefined, complete
+      # fields, three-source consistency, and the anti-gate flag, and prints the headline. Fires on
+      # EVERY PR/push that adds a certified cell without a label, mislabels a category, leaves a
+      # detail block incomplete, or breaks the numerator-independence of declared exceptions.
+      - name: perf-covered recon gate (reconciliation_ok · Σ==denom · fields · three-source · anti-gate)
+        run: |
+          python3 .trellis/scripts/perf_covered_metrics.py report --out /tmp/perf_covered_report.json
+          python3 - <<'PY'
+          import json, sys
+          d = json.load(open("/tmp/perf_covered_report.json"))
+          r, ag = d["reconciliation"], d["anti_gate"]
+          fails = []
+          if not r["reconciliation_ok"]: fails.append("reconciliation_ok=False")
+          if not r["sum_equals_denominator"]: fails.append("Σ != denominator")
+          if r["undefined_cells"]: fails.append(f"undefined={r['undefined_cells']}")
+          if r["bad_category_cells"]: fails.append(f"bad_category={r['bad_category_cells']}")
+          if r["incomplete_field_cells"]: fails.append(f"incomplete={r['incomplete_field_cells']}")
+          if r["orphan_labels"]: fails.append(f"orphan_labels={r['orphan_labels']}")
+          if not r["three_source_consistent"]: fails.append(f"three_source={r['three_source']}")
+          if not ag["anti_gate_ok"]: fails.append("anti_gate_ok=False")
+          if d["classification_sum"] != d["headline"]["denominator"]:
+              fails.append("classification_sum != denominator")
+          if fails:
+              print("RED perf-covered recon:", "; ".join(fails)); sys.exit(1)
+          print(f"GREEN perf-covered = {d['headline']['perf_covered']} "
+                f"({d['headline']['pct']}%·any-board) · {d['classification']} · "
+                f"Σ={d['classification_sum']} · three-source={r['three_source']} · "
+                f"anti-gate green_with={ag['green_with_exception']}=="
+                f"green_without={ag['green_without_exception']}")
+          PY
