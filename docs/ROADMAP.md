@@ -17,6 +17,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 - **rvv 四格蒸发 = gcc 后端质量 + 历史赛制不对称清算，非 kernel 实力问题**。我方出货 = **clang .o 正门**（L3 定义），**永不立项"适配 gcc"**。
 - **但 rvv e2e 0.764× 内含真问题**：micro +88% → e2e −24% 的蒸发（clang 对称口径下仍在）**未归因**，定性为 **L2 布局/调度对内存层级的适配缺口**——在我方刀域内，立 [RVV-E2E] 攻坚（GAP-1 最大客户）。
 - **sealed Win 通道 = [K1-SEAL]**（k1 出货即 clang → kernel-轴幸存，是最可能兑现 e2e 传导的板）。
+- **★[WORK-ITEM-K1-KQUANT-E2E] RESOLVED-POSITIVE（2026-07-12·`b12afd57`·K1-SEAL 兑现 e2e 传导 CONFIRMED）**：**q4_K repack e2e 在 k1-clang 传导 prefill 2.644×/decode 1.284×**（方向翻转 vs rvv-gcc 0.42×/0.18×）→ **rvv K-quant e2e LOSS = gcc-742-spill-death（rvv-specific 编译器病理）·NOT weight-reconstruction 物理墙**·上条 doctrine 实证兑现（K-quant e2e 绿路径 = clang·gcc 是 rvv 问题）。**q6_K 收口「weight-reconstruction-bound」framing 精化 → 「compiler-codegen-bound」**（weight-recon 是 trigger·gcc-codegen 是 blocker·transduces on clang）。**诚实 scope**：测 stock repack（非我方 kernel·perf-covered 6/83 不变）·价值 = thesis-resolution + q5_K/家族 e2e reopened。
 
 ## 性能收敛作战图（2026-07-10 置顶 · 回答"性能怎么达到" · sealed Win 最短路）
 **双板双缺口、各一把刀、同终点**——两缺口都是"发射器按板形状出核"的成熟度题（与项目核心主张同路、非物理墙、非算法败）。deployed g₄ vs block-dot **2.80×（micro 90% 保留不 wash）= kernel 本质健全铁证**。
@@ -97,8 +98,9 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前 N=2 board·iq4_nl-rerun/rvv ∥ Line-E q4_K@k1/k1·Line-A/B/C+q6_K-L7 已落地·主会话裁决消费完成·2026-07-12 度假全自主）
-> **★本轮已收（committed）**：q6_K **FINAL 转正**（`8f80df11`·L-7 反汇编钉死=first-emission 不成熟非部署病·fallback 三链排除·黄-对手更强 final·可修=低）· Line-A **iq4_nl correctness-carrier GREEN**（`1a9c065b`·codebook 家族首·[GAP-VLEN128] 碎片化第3族·perf env-blocked→rerun 中）· Line-C k1 编译器对称订正 + q8_0-k1 硬对拼格/碎片化2nd证据（`17c193eb`）· IME bridge session-1（`13c1c74a`）· 裁决一/三 recon 6/83（`2c53e581`）。
+## 在飞（★当前 N=2 board·iq4_nl-rerun/rvv ∥ q5_K@k1-e2e/k1·Line-E [WORK-ITEM] 已收·2026-07-12 度假全自主）
+> **★本轮已收（committed）**：**[WORK-ITEM-K1-KQUANT-E2E] RESOLVED-POSITIVE**（`b12afd57`·q4_K e2e k1-clang 传导 2.644×·C3′ 绿路径确认·rvv LOSS=gcc-death 非 weight-recon wall·q5_K/家族 reopened）· q6_K **FINAL 转正**（`8f80df11`·L-7=first-emission 非部署病）· Line-A **iq4_nl correctness-carrier GREEN**（`1a9c065b`·codebook 家族首·[GAP-VLEN128] 碎片化第3族·rerun 中）· Line-C k1 编译器对称订正 + q8_0-k1 硬对拼格（`17c193eb`）· IME bridge session-1（`13c1c74a`）· 裁决一/三 recon 6/83（`2c53e581`）。
+> **★q5_K@k1-e2e 在飞（`a0f3af15`·裁四.2 pre-registered pass 现 unblocked·⑦ 自决）= k1 唯一新绿精准点**：我方 q5_K repack（kernel-axis 1.916× 存）净新 dispatch wire 进 k1 forward + provision q5_K 模型 + e2e vs stock block-dot·绿→**perf-covered 6/83→7/83（our kernel·C3′ 绿路径家族扩展）** / 黄→带账。
 > **★异板不相交**（rvv ∥ k1）：
 > - **Line-A（rvv·零未定义格 completion·在飞）= IQ 系接线到判读**：测 path-win 假设（净新 iq4_nl repack vs stock generic·锚 iq4_nl+iq2_xxs·测量-only 无 lib 写·`M2-iq*`/board `g5-m2-iq*`）→ 转绿 或 firm 黄格带账。
 > - **Line-B（k1·C1 跨范式名义·★session 1/≥3 落地 `13c1c74a`）= IME forward bridge**：曳光弹单 tensor q4_0@ime·**bridge #1 scale-fold epilogue + #2 shape driver DONE·真硅 int32-exact bit-exact 4 shapes + scale-fold vs ZERO-MODEL max_rel ~1e-5·lit 双绿**·forward-wired=F（诚实·#3/#4/#5 next-session）·perf 未测·= N2 family#2 forward 结构第一层。next-session：真 ggml 数据路径 #3/#4 + forward hook #5 + e2e A==B。
