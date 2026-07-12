@@ -320,12 +320,14 @@
         "format": "q5_K",
         "engine": "rvv"
       },
-      "category": "黄-对手更强",
+      "category": "绿",
       "provisional": false,
-      "opponent_stronger": {
-        "named_gap": "[GAP-KQUANT-GCC-CODEGEN]（qh-plane 105-spill 残留·族内最浅·S6 hybrid-holds v31→v30）",
-        "fixable": "中-低（tiling lever 过 cliff·但 gcc-codegen 残留·最接近 parity 的 K-quant·次优 k1/VLEN256 候选）",
-        "symmetric_account_pointer": "l1-t3-q5k·对称 0.775×（+41.7% vs UNTUNED 但对称 gcc/gcc <1）·prefill 热路 Amdahl 高"
+      "green": {
+        "board": "k1 (单板·VLEN256)",
+        "account": "kernel账净绿-prefill-axis(clang-18 对称·kernel==system·our-emitted q5_K repack 净新 dispatch·非 stock white-label)",
+        "ratio": "e2e prefill 1.641× WIN / decode 0.729× roofline-loss",
+        "ledger_pointer": "2026-07-12-perf-covered-q5_K-k1-green-7of83.md",
+        "quality_note": "★2nd K-quant e2e transduction(our compiler-emitted repack·区别 [WORK-ITEM] q4_K stock repack)·裁四.2 k1 唯一新绿点兑现·prefill-win(+64% compute 传导)/decode-loss(block_q5_Kx16 stride-2816+qh 多带宽 for nr=1·roofline·如实披露·同 q5_0/q5_1 split)·correctness GREEN@bounded-ULP(3/4 byte-identical+1/4 coherent-flip·ppl Δ0.33% within±3.8·MIRAGE ruled out)·八门 mostly PASS(②⑤ PARTIAL=e2e single-board k1·非 sealed universal 8-gate)·net-new dispatch(k1 ships zero q5_K repack·objdump-confirmed)·C3′ 绿路径家族扩展 with our kernel·对手 stock q5_K block-dot"
       }
     },
     {

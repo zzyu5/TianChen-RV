@@ -1,0 +1,9 @@
+# board-ephemeral / large artifacts (md5/sha256 recorded in evidence.md + MANIFEST.md)
+*.so
+*.so.*
+*.gguf
+*.inc
+*.kernel.c
+# large objdumps kept for seal but heavy; keep gemm/gevm seals (needed evidence)
+!raw/objdump_gemm_q5_K.txt
+!raw/objdump_gevm_q5_K.txt

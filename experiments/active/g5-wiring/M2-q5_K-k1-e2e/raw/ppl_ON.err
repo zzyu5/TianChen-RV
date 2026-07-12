@@ -1,0 +1,11 @@
+0.00.017.582 I common_init_result: fitting params to device memory ...
+0.00.017.615 I common_init_result: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+0.00.419.855 I common_params_fit_impl: projected to use 303 MiB of host memory vs. 7849 MiB of total host memory
+0.05.739.245 W llama_context: n_ctx_seq (256) < n_ctx_train (2048) -- the full capacity of the model will not be utilized
+0.05.810.838 I 
+0.05.811.228 I system_info: n_threads = 8 (n_threads_batch = 8) / 8 | CPU : RISCV_V = 1 | RVV_VLEN = 32 | LLAMAFILE = 1 | REPACK = 1 | 
+0.05.811.277 I perplexity: tokenizing the input ..
+0.05.825.223 I perplexity: tokenization took 13.924 ms
+0.05.825.657 I perplexity: calculating perplexity over 2 chunks, n_ctx=256, batch_size=2048, n_seq=8
+TCRV G5-M2 EMITTED GEMM(q5_K_16x1 compiler-emitted VLA ba30ba54) ENGAGED n=2048 nr=512 nc=64 vlen=256
+1.09.338.337 I perplexity: 63.51 seconds per pass - ETA 1.09.396.902 I Final estimate: PPL = 17.9683 +/- 3.80886

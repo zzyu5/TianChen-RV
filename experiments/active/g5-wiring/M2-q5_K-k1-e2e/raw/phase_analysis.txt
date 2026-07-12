@@ -1,0 +1,13 @@
+== per-side sample counts ==
+  on: pp_n=12 tg_n=12
+  off: pp_n=12 tg_n=12
+== PREFILL(pp) ==
+  ours(q5kON/our-repack)  median=4.50458 t/s  relIQR=0.001928037686088344  n=12
+  stock(q5kOFF/block-dot) median=2.7453849999999997 t/s  relIQR=0.0008905854734399032  n=12
+  RATIO ours/stock = 1.6408x  (>=parity)
+== DECODE(tg) ==
+  ours(q5kON/our-repack)  median=1.767175 t/s  relIQR=0.0013213179226733052  n=12
+  stock(q5kOFF/block-dot) median=2.4244149999999998 t/s  relIQR=0.0017591872678564462  n=12
+  RATIO ours/stock = 0.7289x  (DILUTED/<parity)
+== JSON ==
+{"pp": {"ours_med": 4.50458, "stock_med": 2.7453849999999997, "ratio": 1.640782622473715, "ours_relIQR": 0.001928037686088344, "stock_relIQR": 0.0008905854734399032, "on": 12, "sn": 12}, "tg": {"ours_med": 1.767175, "stock_med": 2.4244149999999998, "ratio": 0.7289077983761032, "ours_relIQR": 0.0013213179226733052, "stock_relIQR": 0.0017591872678564462, "on": 12, "sn": 12}}
