@@ -79,7 +79,7 @@
         "account": "kernel账净绿-prefill-axis（净新 scaffold·1.23× micro 确传导·非 wash）",
         "ratio": "e2e prefill 1.21× WIN / decode 0.82× reg",
         "ledger_pointer": "2026-07-12-perf-covered-q5_0-green-4of84.md",
-        "quality_note": "prefill-win/decode-loss split（如实披露·memory-bound GEVM）·C1 template extensibility 实证"
+        "quality_note": "prefill-win/decode-loss split（如实披露·memory-bound GEVM）·C1 template extensibility 实证 | ★裁五.3 decode 统一: decode 回退如实披露·结构性权衡(repack 利 GEMM/prefill 损 GEVM/decode·memory-bound interleaved-layout 多带宽 for nr=1)·[GAP-REPACK-GEVM]·非物理墙(物理墙仅限 roofline 证双方同贴一墙≈parity·裁五.3)"
       }
     },
     {
@@ -95,7 +95,7 @@
         "account": "kernel账净绿-prefill-axis（q8_1-activation repack 家族首成员）",
         "ratio": "e2e prefill 1.09× WIN / decode 0.78× reg",
         "ledger_pointer": "2026-07-12-perf-covered-q5_1-green-5of84.md",
-        "quality_note": "净新 block_q8_1x4 + quantize_mat_t<Q8_1>·C1 extensibility 扩展·decode reg 披露"
+        "quality_note": "净新 block_q8_1x4 + quantize_mat_t<Q8_1>·C1 extensibility 扩展·decode reg 披露 | ★裁五.3 decode 统一: decode 回退如实披露·结构性权衡(repack 利 GEMM/prefill 损 GEVM/decode·memory-bound interleaved-layout 多带宽 for nr=1)·[GAP-REPACK-GEVM]·非物理墙(物理墙仅限 roofline 证双方同贴一墙≈parity·裁五.3)"
       }
     },
     {
@@ -327,7 +327,7 @@
         "account": "kernel账净绿-prefill-axis(clang-18 对称·kernel==system·our-emitted q5_K repack 净新 dispatch·非 stock white-label)",
         "ratio": "e2e prefill 1.641× WIN / decode 0.729× roofline-loss",
         "ledger_pointer": "2026-07-12-perf-covered-q5_K-k1-green-7of83.md",
-        "quality_note": "★2nd K-quant e2e transduction(our compiler-emitted repack·区别 [WORK-ITEM] q4_K stock repack)·裁四.2 k1 唯一新绿点兑现·prefill-win(+64% compute 传导)/decode-loss(block_q5_Kx16 stride-2816+qh 多带宽 for nr=1·roofline·如实披露·同 q5_0/q5_1 split)·correctness GREEN@bounded-ULP(3/4 byte-identical+1/4 coherent-flip·ppl Δ0.33% within±3.8·MIRAGE ruled out)·八门 mostly PASS(②⑤ PARTIAL=e2e single-board k1·非 sealed universal 8-gate)·net-new dispatch(k1 ships zero q5_K repack·objdump-confirmed)·C3′ 绿路径家族扩展 with our kernel·对手 stock q5_K block-dot"
+        "quality_note": "★2nd K-quant e2e transduction(our compiler-emitted repack·区别 [WORK-ITEM] q4_K stock repack)·裁四.2 k1 唯一新绿点兑现·prefill-win(+64% compute 传导)/decode-loss(block_q5_Kx16 stride-2816+qh 多带宽 for nr=1·[GAP-REPACK-GEVM] 结构性权衡·如实披露)·correctness GREEN@bounded-ULP(3/4 byte-identical+1/4 coherent-flip·ppl Δ0.33% within±3.8·MIRAGE ruled out)·八门 mostly PASS(②⑤ PARTIAL=e2e single-board k1·非 sealed universal 8-gate)·net-new dispatch(k1 ships zero q5_K repack·objdump-confirmed)·C3′ 绿路径家族扩展 with our kernel·对手 stock q5_K block-dot"
       }
     },
     {

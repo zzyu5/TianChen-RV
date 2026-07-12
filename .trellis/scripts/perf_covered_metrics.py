@@ -324,15 +324,16 @@ def build_report(fold=True):
         "sixstate_sha256": compute_hash(sixstate),
         "labels_sha256": compute_hash(labels_doc),
         "fold_regime": fold,
-        "alt_unit_note": ("默认 fold_regime=True -> 6/83; --no-fold -> 7/84 "
-                          "备选单位（regime 保留·flagged 待用户复核）"),
+        "alt_unit_note": ("[裁〇.1 2026-07-12] fold_regime=True (7/83·q4_0-gemm regime 折叠) "
+                          "= 唯一口径; 7/84 备选单位 (regime 保留) 正式退役 (--no-fold 翻转开关移除); "
+                          "T7/T9 附注留档。"),
         "spec_boundary": "numbers live in the CI report / docs, never in .trellis/spec/",
     }
     return result
 
 
 def cmd_report(args) -> int:
-    result = build_report(fold=not args.no_fold)
+    result = build_report(fold=True)  # [裁〇.1] fold=True 唯一口径; 7/84 备选退役
     text = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
@@ -507,8 +508,7 @@ def main(argv=None) -> int:
     p_report = sub.add_parser("report", help="[COV-2] perf-covered reconciliation")
     p_report.add_argument("--out", default=None,
                           help="write the JSON report to PATH (default: stdout)")
-    p_report.add_argument("--no-fold", action="store_true",
-                          help="do NOT fold regime -> 7/84 alt-unit (flagged)")
+    # [裁〇.1 2026-07-12] --no-fold 翻转开关移除: 7/83 fold=True 唯一口径, 7/84 备选退役。
     p_report.set_defaults(func=cmd_report)
 
     args = parser.parse_args(argv)
