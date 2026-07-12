@@ -1,0 +1,11 @@
+== QUICK SANITY (2 prompts, greedy A==B) load=2.15 2.41 5.53 1/1683 2157275 ==
+-- prompt[1]: The capital of France is
+   A(ON):  > The capital of France is<think>  </think>  The capital of France is > EOF by user   
+   B(OFF):  > The capital of France is<think>  </think>  The capital of France is > EOF by user   
+   VERDICT: BYTE-IDENTICAL
+-- prompt[2]: Q: What is 2 + 2? A:
+   A(ON):  > Q: What is 2 + 2? A:<think>  > EOF by user   
+   B(OFF):  > Q: What is 2 + 2? A:<think>  > EOF by user   
+   VERDICT: BYTE-IDENTICAL
+== SANITY: pass=2 fail=0 engage_banners=17 live_restored_md5=05a62e6a ==
+SANITY_GREEN

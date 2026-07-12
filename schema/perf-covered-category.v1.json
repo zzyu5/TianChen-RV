@@ -500,11 +500,12 @@
         "format": "iq4_nl",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "黄-对手更强",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "★correctness-wired(1a9c065b·codebook 家族首 correctness-carrier GREEN:greedy A==B 5/5 byte-identical+silicon UT 6 shapes 0-mismatch)·上游 riscv repack present 但 VLEN128-broken=[GAP-Q8_0-VLEN128-KERNEL] 第3 quant-family 实例(碎片化跨 flat/super-block/codebook)·perf BLOCKED-environmental(共享板 load 30·stock OFF 与 ON 同崩·非我方 kernel)·无 clean ratio→维持黄-未接线(非绿非 measured-loss)·harness ready quiet-board(load<~10) rerun=唯一上色步·rerun→green(path-win) 或 yellow-对手更强(vec_dot LOSS 0.16-0.78× uarch.gather_slow 邻接)"
+      "opponent_stronger": {
+        "named_gap": "[uarch.gather_slow]+narrow-vl(vl=8=upstream vl=16 半宽·per-element vluxei16 kvalues[16] codebook gather 未跨 tile batch·prefill GEMM 暴露更狠 4.61× > decode GEVM 1.98×[memory-bound 部分遮])",
+        "fixable": "争议(gather-batching 较大 emit 重构·iq 少数部署·真赢潜伏低 confidence·新立项须问·与 sibling vec_dot LOSS iq4_xs 0.72×/iq2_s 0.48× 同族 uarch.gather_slow)",
+        "symmetric_account_pointer": "board rv64gcv shipped==gcc-15.2.0→kernel-axis==system-axis(symmetric·[CASE-COMPILER-ASYMMETRY] not triggered·LOSS 双框成立)·实测锚 experiments/active/g5-wiring/M2-iq4_nl/perf_rerun_quiet-board.md(prefill 0.217×/decode 0.505×·八门全过·clean window 0 Bus error)·成色:OFF stock 亦慢(path-位 like q4_1)·ON net-negative vs 未优化 stock block-dot 非 tuned-kernel·correctness-carrier GREEN 不变"
       }
     },
     {

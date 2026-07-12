@@ -14,6 +14,7 @@
 - `correctness_GREEN_raw.txt` — greedy A==B 5/5 byte-identical · 38 engage banners · PPL(Bus-error non-fatal) · CORRECTNESS_GATE GREEN
 - `perf_BLOCKED_raw.txt` — perf env-block 证据（stock OFF `-p128` Bus-error 同崩 = 环境非 kernel · retry 0-OK · board load 22→30 他用户名单）
 - `.gitignore` — gitignore 两 emitted .inc（357KB·regenerable via evidence.md §二 emit recipe）
+- `perf_rerun_quiet-board.md` (+ `perf_rerun_quiet-board_raw.txt` / `perf_rerun_correctness_sanity_raw.txt`) — **quiet-board catch-window measured perf**（append-only 续页·不改 evidence.md §七 主体）：§七 `BLOCKED-environmental` **升为 measured-loss** = **yellow-对手更强**（prefill pp128 ON 0.7688 / OFF 3.544 = **0.217×·4.61× LOSS**·decode tg32 ON 0.9549 / OFF 1.892 = **0.505×·1.98× LOSS**·全 relIQR<0.3%·DVFS 锁 2.6GHz·八门全过·双账本对称·对手=stock iq4_nl block-dot 非 SELF·具名 GAP `uarch.gather_slow`+narrow-vl·可修=争议）·**perf-covered 维持 6/83**（非 green·非入台账 win）·correctness 2/2 A==B 再确认无回归·A-tree restore clean（源 baseline·live 05a62e6a·0 syms）。
 
 > emitted `.inc` = **gitignored**（`tcrv_emitted_gemm_iq4_nl.inc` md5 1e040596·243KB / `tcrv_emitted_gevm_iq4_nl.inc` md5 b7a5267e·114KB·regenerable·避 repo bloat）。
 > board harness 脚本住 `tools/e2e-harness/board/g5-m2-iq4_nl/`（deploy_patch_iq4_nl_emitted.py · ut_iq4_nl_verify.cpp · ut_iq4_nl_build_run.sh · g5_m2_iq4_nl_build_seal.sh · g5_m2_iq4_nl_correctness.sh · g5_m2_iq4_nl_phase_split.sh · g5_m2_iq4_nl_perf_split2.sh · g5_m2_iq4_nl_perf_retry.sh · analyze_phase_split.py · g5_m2_iq4_nl_driver.sh）。**perf 复跑仅需板 load<~10 安静窗口**（harness 完备·A-tree restore 干净）。
