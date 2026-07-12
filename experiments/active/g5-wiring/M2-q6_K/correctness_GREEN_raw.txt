@@ -1,0 +1,30 @@
+== MODEL=/home/ubuntu/models/DeepSeek-R1-Distill-Llama-8B-Q6_K.gguf sha256=84a1199008e7901b cores=8-15 threads=8 ntok=24 ==
+-- prompt[1]: 'The capital of France is'
+   A(ON emit):  > The capital of France is<think> Okay, so I need to figure out the capital of France. Hmm, > EOF by user   
+   B(OFF stk):  > The capital of France is<think> Okay, so I need to figure out the capital of France. Hmm, > EOF by user   
+   VERDICT: BYTE-IDENTICAL (A==B)
+-- prompt[2]: 'Once upon a time'
+   A(ON emit):  > Once upon a time<think> Okay, so I'm trying to figure out how to respond to the user's > EOF by user   
+   B(OFF stk):  > Once upon a time<think> Okay, so I'm trying to figure out how to respond to the user's > EOF by user   
+   VERDICT: BYTE-IDENTICAL (A==B)
+-- prompt[3]: 'Q: What is 2 + 2? A:'
+   A(ON emit):  > Q: What is 2 + 2? A:<think> I need to determine the sum of  > EOF by user   
+   B(OFF stk):  > Q: What is 2 + 2? A:<think> I need to determine the sum of  > EOF by user   
+   VERDICT: BYTE-IDENTICAL (A==B)
+-- prompt[4]: 'The quick brown fox'
+   A(ON emit):  > The quick brown fox<think>  </think>  The quick brown fox is a common phrase used in the field of typography > EOF by
+   B(OFF stk):  > The quick brown fox<think>  </think>  The quick brown fox is a common phrase used in the field of typography > EOF by
+   VERDICT: BYTE-IDENTICAL (A==B)
+-- prompt[5]: 'In the year 2050, humanity'
+   A(ON emit):  > In the year 2050, humanity<think> Okay, so I'm trying to figure out what the user > EOF by user   
+   B(OFF stk):  > In the year 2050, humanity<think> Okay, so I'm trying to figure out what the user > EOF by user   
+   VERDICT: BYTE-IDENTICAL (A==B)
+== ENGAGE: total emitted-kernel banner fires (ON runs) = 43 (expect >0) ==
+   LOGITS: OK no NaN/Inf
+== PPL SANITY (ON, short) ==
+Terminated
+   PPL(ON) = <see /tmp/g5_q6k_ppl.err>
+   PPL: could not parse (non-fatal; greedy A==B is primary gate)
+== CORRECTNESS SUMMARY: byte_identical=5 failed=0 engaged_banners=43 ppl_ok=1 ==
+CORRECTNESS_GATE: GREEN
+
