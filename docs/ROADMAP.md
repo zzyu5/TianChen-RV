@@ -28,7 +28,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-11 · 结构轴收口 ∧ 测量轴大面积欠账）
 > **头条指标（新·纠偏）**：**perf-covered = 已构造格中经公平协议（八门+双账本+对手探针）测得 ≥parity/赢 的格数 / 已构造格数**。
 > **★终态定义（2026-07-12 用户裁·一·与 M4 同构 = 零未定义格）**：每格 ∈ **{绿（e2e ≥parity·成色注记）| 黄-未接线 | 黄-传导稀释（带 Amdahl 账）| 黄-物理墙（roofline 证）| 黄-对手更强（具名 GAP + 是否可修）| 声明例外}**·**零未定义格**。目标态 = 每格有判读（非"存在若干 sealed 点"）。
-> **★禁两滑坡（用户裁·一）**：① **禁为拉数字硬啃低价值格**——每格开工前过 **[X-0] 三问 + Amdahl 上限预估**·上限低于噪声地板者**直接判「声明例外」不做**；② **禁因"可能不转绿"停止推进**——**不转绿也要接线到出判读·黄格带账（Amdahl/roofline/具名 GAP）同样是交付**。后续顺序按「预期收益 × 成本」：**K-quant 净新接线（验证中·续）→ IQ 系 → IME bridge（跨范式名义·见下）**。
+> **★禁两滑坡（用户裁·一）**：① **禁为拉数字硬啃低价值格**——每格开工前过 **[X-0] 三问 + Amdahl 上限预估**·上限低于噪声地板者**直接判「声明例外」不做**；② **禁因"可能不转绿"停止推进**——**不转绿也要接线到出判读·黄格带账（Amdahl/roofline/具名 GAP）同样是交付**。后续顺序按「预期收益 × 成本」：**K-quant 净新接线（★收口 2026-07-12·q6_K 曳光弹 firm `23642f18`·净新 scaffold perf 延伸性由负载算术强度决定→FLAT bandwidth-win 绿 / K-quant weight-reconstruction-bound 黄·C3′ thesis 立卷 `2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md`）→ IQ 系（在飞·测 path-win 假设：净新 iq repack vs stock generic 是否如 q4_1 path-win）→ IME bridge（在飞·跨范式名义·见下）**。
 
 | 维度 | 值 |
 |---|---|
@@ -97,8 +97,10 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=0 board·2026-07-12 度假期全自主·★FLAT 家族全绿 6/84·perf 冲刺 capstone·板 idle→可起 lib 成熟度/measurement）
-> **无 board 构造线在飞**（FLAT 易得格已尽）。下一步 = perf 硬格（K-quant/IME·低payoff）vs 成熟度轴（deletions/canon-schema[用户]/M3 SOP finalize）vs measurement 欠账（T 表）——见「剩余队列」。板 idle 故 lib 成熟度可 attended 起。
+## 在飞（★当前并行度 N=2 board·2026-07-12 度假期全自主·K-quant 净新接线收口后·零未定义格 completion 续）
+> **★N=2 异板不相交**（触碰集 diff：Line-A rvv 测量-only 无 lib 写 + `M2-iq*`/board `g5-m2-iq*` ‖ Line-B k1 IME emitter bridge `lib/` + `M3-ime`/board `g5-m3-ime`；lib/ 仅 Line-B 写·ODS/verifier 仅 Line-B 触·真不相交）：
+> - **Line-A（rvv·零未定义格 completion）= IQ 系接线到判读**：deploy + fair-protocol e2e 测已构造 iq gemm 格·**测 path-win 假设**（净新 iq repack GEMM vs stock generic block-dot·若 stock 无 riscv iq repack 路→可能如 q4_1 path-win 转绿·否则 firm 黄格带账）·锚 iq4_nl（codebook·素材最厚）+ iq2_xxs（super-block-iq）·morphology-declare 兄弟。
+> - **Line-B（k1·C1 跨范式名义·非 perf）= IME forward bridge 曳光弹**：最细线单 tensor **q4_0@ime** forward bridge（runtime-shape f32 GEMM → baked int32 MAC leaf·4 correctness-critical layout bridge）·correctness-first·GREEN=N2 family#2 forward 结构成就·perf near-zero（micro↛e2e·跨范式名义·不预设转绿·维持黄-传导稀释带账）。
 - ✅ **q4_1 曳光弹 complete（perf GREEN·1d818621·perf-covered 5/84→6/84·★FLAT 家族全绿）**：prefill 3.68×+decode 1.67× both-win·**★诚实 caveat**：stock q4_1 弱(无 stock repack·generic block-dot·异常慢 2×)→path-win(非比调优核快)·both-phase-win 反常(flag scrutiny)·verdict 立于 prefill≥parity·**C2 边际成本递减**(零改动复用 q5_1 q8_1 sub-scaffold)。
 - ✅ **q5_0/q5_1 净新-scaffold prefill green**（d92a706d/3744ebe0·1.21×/1.09×·C1 extensibility + C2 + perf 传导·「小 margin 必 wash」证伪）。
 - ✅ **q5_0 曳光弹 complete（perf GREEN·d92a706d·perf-covered 3/84→4/84）**：净新 12-piece scaffold BUILT + correctness GREEN（make_block_q5_0x16 interleaver 一次成功）+ **perf 重测 prefill 1.2097× WIN**（≥parity·**1.23× kernel-axis micro 确传导·「likely-yellow」预测证伪·非 wash**）+ decode 0.82× regression（memory-bound·披露）·八门全过 prefill 轴。**★C1 template extensibility 实证 + perf 传导**（净新 scaffold 首个 prefill e2e ≥parity·登记 `2026-07-12-perf-covered-q5_0-green-4of84.md`）。board restore clean（ad2dcc5a·.so 05a62e6a）。
