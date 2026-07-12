@@ -130,19 +130,15 @@ it does not redefine the rule):
   reaching into the schema.def — *even to add a field* — is the falsifier firing,
   never waved through as "additive". Onboarding must integrate through the existing
   frozen shape, adding only table-row data.
-- **⚠ FLAG (checker semantics — main-session / recon line; NOT changed by this docs
-  pass).** As currently coded, `SCHEMA_GATE_PREFIX` is the **whole `schema/`
-  prefix**, so [F-2'] fires on *any* `schema/` file — including the family
-  table-row files (`family-manifest.v1.json` etc.) that [F-3] *requires* an
-  onboarding PR to edit. So a single onboarding PR that both carries the trailer
-  **and** adds its `family-manifest` block would currently trip [F-2'] RED — a
-  direct collision with [F-3]. Reconciling this is a `check_schema_gate.py` behavior
-  decision (narrow `SCHEMA_GATE_PREFIX` to the schema *shape* — `capability.schema.v1.json`
-  + `VERSIONLOG.md` — and exempt the family table-row schemas; **or** require the
-  onboarding PR to split its `schema/**` table-row edits into a separate,
-  non-`Family-Onboarding:`-trailered commit). Until then, treat the table-row schema
-  edits as the [F-3] allowance and keep the trailer off the commit that carries
-  them.
+- **✅ RESOLVED ([裁 必问-2 2026-07-13 · 选项 a · 拒 c]).** `check_schema_gate.py` 已收窄：
+  `SCHEMA_GATE_PREFIX`（整-`schema/`）→ `SCHEMA_DEF_PATHS` = {`capability.schema.v1.json` +
+  `VERSIONLOG.md`} = 条文原意（[F-2'] = diff ∩ schema.def = ∅）。family table-row schemas
+  (`family-manifest.v1.json` 等) 是 [F-3] 工件——onboarding PR 改它是**义务非违规**，不再
+  false-trigger [F-2'] RED，F-3/F-2' 撞车解除。**修回原意非放松门**：真触 schema.def
+  (`capability.schema.v1.json` / `VERSIONLOG.md`) 的 PR 仍 RED（self-test 16→21 · redteam 8/8 ·
+  commit 73232dd4 before/after 证：老前缀 RED → 新 GREEN，schema.def 保护全 retained）。明确**拒**
+  (c) trailer 豁免（"PR 自我声明无害" = 未来绕门正门）。RFC 版本日志见 `schema/VERSIONLOG.md`
+  (extension-not-modification 体例)。
 
 ## When Core May Change
 

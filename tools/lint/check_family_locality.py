@@ -97,6 +97,37 @@ def root_subdir(rel):
     return None
 
 
+def registration_allowance_files(doc):
+    """Exact source-code file paths the manifest DECLARES as shared_allowances -- the
+    family-name-as-data registration tables an onboarding PR may touch WITHOUT it counting
+    as a core edit (plugin_registration -> kBuiltinExtensionBundles[], and, for own-EmitC-
+    backend families, backend_emitter_registration -> kBuiltinBackendEmitters[]). These are
+    documented intended exceptions (rulings e20bd0f8 / 73232dd4): for-iterated no-branch
+    function-pointer tables, NOT core dispatch branches.
+
+    Consumes $meta.containment_scope.shared_allowances: each value's leading whitespace-
+    delimited token is the declared path (the rest is prose). NARROW: only EXACT source-code
+    paths (is_source_code True, no glob) are returned -- the glob/non-source buckets
+    (schema/** , docs/** , test/** , **/CMakeLists.txt , tools/**) are handled by the plain
+    is_source_code skip in evaluate_diff and are NOT widened here. Returns a set (empty if the
+    manifest declares no source-code allowance)."""
+    sa = (((doc.get("$meta") or {}).get("containment_scope") or {})
+          .get("shared_allowances") or {})
+    files = set()
+    for key, val in sa.items():
+        if key == "note" or not isinstance(val, str):
+            continue
+        toks = val.split()
+        if not toks:
+            continue
+        token = toks[0]
+        if any(ch in token for ch in "*?["):
+            continue  # a glob bucket (schema/** , tools/** , ...) -- not an exact file
+        if is_source_code(token):
+            files.add(token)
+    return files
+
+
 # ---------------------------------------------------------------------------
 # Pure evaluators.
 # ---------------------------------------------------------------------------
@@ -193,19 +224,24 @@ def evaluate_default(family_root_files, core_files, families, core_subdirs, base
     return (len(errors) == 0), errors
 
 
-def evaluate_diff(changed_files, families):
+def evaluate_diff(changed_files, families, allowance_files=frozenset()):
     """CI verdict for a base..head diff (pure).
-      changed_files: [rel] paths touched by the PR.
-      families:      manifest families list.
+      changed_files:   [rel] paths touched by the PR.
+      families:        manifest families list.
+      allowance_files: set of EXACT source-code paths declared as shared_allowances
+                       (registration tables -- registration_allowance_files); touching one
+                       is NOT a core edit. Empty by default (old behavior when unconsumed).
     A family-integration PR must stay contained to ONE family's source territory; shared
-    allowances (non-source-code: schema / docs / tests / build) are freely touchable.
-    Returns (ok, errors)."""
+    allowances (non-source-code: schema / docs / tests / build, PLUS the declared
+    registration source files) are freely touchable. Returns (ok, errors)."""
     errors = []
     touched = {}          # family -> [files]
     core_src = []         # lib/include code files claimed by no family
     for rel in changed_files:
         if not is_source_code(rel):
             continue      # test / schema / docs / cmake / tooling = shared allowance
+        if rel in allowance_files:
+            continue      # declared registration table (plugin/backend) = shared allowance
         hits = matched_families(rel, families)
         if hits:
             for name in hits:
@@ -349,7 +385,8 @@ def run_ci(base, head, verbose):
               file=sys.stderr)
         return 2
 
-    ok, errors = evaluate_diff(changed, families)
+    allowance = registration_allowance_files(doc)
+    ok, errors = evaluate_diff(changed, families, allowance)
     if verbose or not ok:
         srcs = [c for c in changed if is_source_code(c)]
         print(f"[f3-family-locality] CI diff {base}..{head}: {len(changed)} files "
@@ -457,6 +494,45 @@ def run_self_test():
         ["schema/coverage-roster.v1.json", "docs/x.md", "test/Dialect/RVV/foo.mlir"],
         syn_families)
     check("CI: pure table/docs/tests PR -> GREEN (no source touched)", ok)
+
+    # ---- shared_allowances registration-table consumption ([F-3] GAP-A) ----
+    syn_allow = {"lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp",
+                 "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp"}
+    ok, _ = evaluate_diff(
+        ["lib/Plugin/RVV/RVVExtensionPlugin.cpp",
+         "lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp"],
+        syn_families, syn_allow)
+    check("CI: family PR + declared plugin-registration table -> GREEN (shared allowance)", ok)
+
+    ok, _ = evaluate_diff(
+        ["lib/Dialect/RVV/IR/RVVOps.td",
+         "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp"],
+        syn_families, syn_allow)
+    check("CI: family PR + declared backend-emitter-registration table -> GREEN (allowance)", ok)
+
+    # narrowness: the exemption is per-FILE, not per-subdir -- an UNdeclared file under the
+    # same Builtin core subdir is still a CORE-EDIT (genuine violation not let through).
+    ok, errs = evaluate_diff(
+        ["lib/Plugin/RVV/RVVExtensionPlugin.cpp",
+         "lib/Plugin/Builtin/SomeOtherCoreFile.cpp"],
+        syn_families, syn_allow)
+    check("CI: family PR + UNdeclared Builtin core file -> RED (CORE-EDIT; exemption is narrow)",
+          (not ok) and any("CORE-EDIT" in e for e in errs))
+
+    # genuine core edit is still caught even WITH an allowance set active
+    ok, errs = evaluate_diff(
+        ["lib/Plugin/RVV/RVVExtensionPlugin.cpp", "lib/Transforms/VariantSelection.cpp"],
+        syn_families, syn_allow)
+    check("CI: family PR + real core dispatch file (allowance active) -> RED (CORE-EDIT)",
+          (not ok) and any("CORE-EDIT" in e for e in errs))
+
+    # the parser extracts EXACTLY the declared registration files from the real manifest
+    if os.path.isfile(MANIFEST):
+        real_doc = json.load(open(MANIFEST, encoding="utf-8"))
+        allow = registration_allowance_files(real_doc)
+        check("manifest: shared_allowances -> exactly the 2 declared registration files",
+              allow == {"lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp",
+                        "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp"})
 
     if fails:
         print(f"[f3-family-locality --self-test] RED: {len(fails)} discrimination(s) failed")

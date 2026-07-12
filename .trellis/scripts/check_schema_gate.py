@@ -20,9 +20,11 @@ gate --base <ref> --head <ref> [--onboarding]
     (git diff --name-only base..head). IF the PR is a family-onboarding PR
     (marked by a `Family-Onboarding:` commit trailer in base..head, or forced
     with --onboarding), the gate FAILS (exit non-zero) when the change set
-    intersects the schema governance path. An onboarding PR reaching for even one
-    additive schema field IS the falsifier firing — it is never waved through as
-    "additive". A non-onboarding diff, or one that does not touch schema/, passes.
+    intersects the frozen schema.def contract (schema/capability.schema.v1.json +
+    schema/VERSIONLOG.md) — NOT the rest of schema/ (family manifests / facts / table
+    rows are [F-3] territory). An onboarding PR reaching for even one additive schema
+    field IS the falsifier firing — it is never waved through as "additive". A
+    non-onboarding diff, or one that does not touch schema.def, passes.
 
 --self-test
     Hermetic checks (no real git refs, no repo writes): report determinism,
@@ -46,9 +48,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_JSON = REPO_ROOT / "schema" / "capability.schema.v1.json"
 VERSIONLOG = REPO_ROOT / "schema" / "VERSIONLOG.md"
 
-# The gated governance path prefix. Gating the whole schema/ prefix covers both
-# the JSON artifact and its VERSIONLOG (both are shape-governance artifacts).
-SCHEMA_GATE_PREFIX = "schema/"
+# [F-2'] is `diff ∩ schema.def = ∅` -- schema.def is the [S-5] frozen SHAPE artifact
+# (schema/capability.schema.v1.json, the six-item hashed shape) + its VERSIONLOG, NOT the
+# whole schema/ directory. The other schema/ artifacts (family-manifest.v1.json,
+# family-regex.v1.json, coverage-*.json, emit-bypass-whitelist.v1.json, ...) are capability
+# FACTS / TABLE ROWS / family manifests -- explicitly OUT of the [S-5] shape ("具体事实行 /
+# 模式注册表条目 不入 shape") and governed by other gates ([F-1] regex, [F-3] containment,
+# [F-EMIT] whitelist). They are exactly the "+ 表行" allowance an onboarding PR MUST touch
+# (adding its family block + a baseline bump). Gating the whole schema/ prefix would
+# false-trigger [F-2'] on that mandatory family-manifest edit -- a direct collision with
+# [F-3] (spec locality-contract.md prescribes this narrowing). Gate the EXACT contract
+# files only. Derived from the single-source-of-truth SCHEMA_JSON / VERSIONLOG constants.
+SCHEMA_DEF_PATHS = (
+    SCHEMA_JSON.relative_to(REPO_ROOT).as_posix(),   # schema.def -- the [S-5] shape artifact
+    VERSIONLOG.relative_to(REPO_ROOT).as_posix(),    # its version log (report-gate companion)
+)
 
 # The commit-trailer that marks a family-onboarding PR (interim identifier until
 # E2b lands the plugins/<family>/ directory layout for [F-3] containment).
@@ -72,21 +86,26 @@ def load_schema(path: Path = SCHEMA_JSON):
 
 
 # --- [F-2'] operation gate (pure logic) ------------------------------------
-def schema_intersection(changed_files, gate_prefix: str = SCHEMA_GATE_PREFIX):
-    """Files in the change set that touch the schema governance path."""
-    return [f for f in changed_files if f.startswith(gate_prefix)]
+def schema_intersection(changed_files, gate_paths=SCHEMA_DEF_PATHS):
+    """Files in the change set that touch the frozen schema.def contract.
+
+    EXACT-path match against the [S-5] shape artifact + its VERSIONLOG only -- NOT the rest
+    of schema/ (facts / table rows / family manifests are [F-3] territory, not [F-2']).
+    """
+    gate = set(gate_paths)
+    return [f for f in changed_files if f in gate]
 
 
 def is_f2prime_violation(changed_files, is_onboarding: bool,
-                         gate_prefix: str = SCHEMA_GATE_PREFIX) -> bool:
-    """[F-2'] falsifier: an onboarding PR intersecting the schema path.
+                         gate_paths=SCHEMA_DEF_PATHS) -> bool:
+    """[F-2'] falsifier: an onboarding PR intersecting the frozen schema.def contract.
 
-    A non-onboarding PR touching schema/ is NOT a violation here (that is a
+    A non-onboarding PR touching schema.def is NOT a violation here (that is a
     core-author evolution PR, graded by classify_schema_change under RFC).
     """
     if not is_onboarding:
         return False
-    return len(schema_intersection(changed_files, gate_prefix)) > 0
+    return len(schema_intersection(changed_files, gate_paths)) > 0
 
 
 # --- additive-vs-breaking classifier (structural JSON diff) ----------------
@@ -265,7 +284,7 @@ def cmd_gate(args) -> int:
         return 1
 
     if offending and not is_onboarding:
-        print("[F-2'] OK: schema/ touched, but this is not an onboarding PR "
+        print("[F-2'] OK: schema.def touched, but this is not an onboarding PR "
               "(evolution PR — grade with classify_schema_change under RFC).")
     else:
         print("[F-2'] OK: no onboarding-PR intersection with the schema shape.")
@@ -302,6 +321,29 @@ def cmd_self_test(_args) -> int:
           is_f2prime_violation(evolution_touch, is_onboarding=False) is False)
     check("F-2': schema_intersection isolates the schema path",
           schema_intersection(onboarding_touch) ==
+          ["schema/capability.schema.v1.json"])
+
+    # (b') narrowing: schema.def = the frozen SHAPE contract only (capability.schema.v1.json
+    # + VERSIONLOG.md), NOT the whole schema/ dir. An onboarding PR MUST add its family block
+    # in family-manifest.v1.json (+ a baseline bump) and its dispatch keys / coverage rows --
+    # those are the [F-3] "+ 表行" allowance and must NOT false-trigger [F-2'] (collision).
+    onboarding_manifest = ["schema/family-manifest.v1.json", "plugins/foo/x.cpp"]
+    onboarding_tablerows = ["schema/family-regex.v1.json",
+                            "schema/coverage-sixstate.v1.json"]
+    onboarding_versionlog = ["schema/VERSIONLOG.md"]
+    check("F-2': onboarding PR touching family-manifest.v1.json -> pass ([F-3] table row, "
+          "not schema.def)",
+          is_f2prime_violation(onboarding_manifest, is_onboarding=True) is False)
+    check("F-2': onboarding PR touching family-regex + coverage rows -> pass (table rows)",
+          is_f2prime_violation(onboarding_tablerows, is_onboarding=True) is False)
+    check("F-2': onboarding PR touching schema.def (capability.schema) -> still violation",
+          is_f2prime_violation(onboarding_touch, is_onboarding=True) is True)
+    check("F-2': onboarding PR touching VERSIONLOG.md -> still violation (schema.def companion)",
+          is_f2prime_violation(onboarding_versionlog, is_onboarding=True) is True)
+    check("F-2': schema_intersection ignores non-contract schema/ files (only schema.def)",
+          schema_intersection(["schema/family-manifest.v1.json",
+                               "schema/family-regex.v1.json",
+                               "schema/capability.schema.v1.json"]) ==
           ["schema/capability.schema.v1.json"])
 
     # (c) additive-vs-breaking classifier -----------------------------------
