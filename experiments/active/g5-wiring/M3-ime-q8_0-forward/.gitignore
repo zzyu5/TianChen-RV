@@ -1,0 +1,6 @@
+# board-side big binaries / rebuilt objects are not committed (md5 recorded in MANIFEST)
+*.so
+*.so.*
+*.o
+*.gguf
+*.ORIG

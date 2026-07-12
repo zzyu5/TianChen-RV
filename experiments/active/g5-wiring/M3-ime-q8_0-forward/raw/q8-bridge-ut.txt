@@ -1,0 +1,20 @@
+# toolchain: gcc (Bianbu 13.2.0-23ubuntu4bb3) 13.2.0
+## objdump vmadot engage (expect 0xe210312b count>0):
+vmadot_count=1
+## q8_0 bridge UT (random matrices, real ggml native oracle), pinned harts 0-3:
+G5-M3 IME q8_0 forward-bridge INTEGRATION UT (real ggml native formats; real vmadot leaf; int8-DIRECT weight)
+[bridge #4 weight repack: native q8_0 -> fragment-major Bpack(int8)+dW]
+  #4 weight-repack N=8 K=64: dequant 512/512 exact vs ggml native (mism=0 max_abs=0.000e+00)
+  #4 weight-repack N=16 K=128: dequant 2048/2048 exact vs ggml native (mism=0 max_abs=0.000e+00)
+  #4 weight-repack N=32 K=256: dequant 8192/8192 exact vs ggml native (mism=0 max_abs=0.000e+00)
+[bridge #3 activation quant+pack: f32 -> q8_0 -> fragment-major Apack+dA]
+  #3 act-quant+pack M=8 K=64: int8 512/512 exact (mism=0) | scale 16/16 exact (mism=0)
+  #3 act-quant+pack M=12 K=128: int8 1536/1536 exact (mism=0) | scale 48/48 exact (mism=0)
+  #3 act-quant+pack M=8 K=256: int8 2048/2048 exact (mism=0) | scale 64/64 exact (mism=0)
+[FULL single-tensor mul_mat A==B: our bridge (real vmadot) vs stock q8_0xq8_0 block-dot]
+  A==B  M=8 N=8 K=64: normwise=7.482e-08 (max_abs=3.244e-07 |C|max=4.336) max_abs_vs_float_order=0.000e+00 per_cell_rel=4.245e-05 OK
+  A==B  M=4 N=8 K=96: normwise=6.915e-08 (max_abs=5.307e-07 |C|max=7.674) max_abs_vs_float_order=0.000e+00 per_cell_rel=2.543e-07 OK
+  A==B  M=12 N=16 K=128: normwise=6.407e-08 (max_abs=7.374e-07 |C|max=11.511) max_abs_vs_float_order=0.000e+00 per_cell_rel=1.434e-06 OK
+  A==B  M=8 N=32 K=256: normwise=8.580e-08 (max_abs=1.272e-06 |C|max=14.820) max_abs_vs_float_order=0.000e+00 per_cell_rel=4.264e-06 OK
+  A==B  M=64 N=64 K=512: normwise=1.165e-07 (max_abs=3.798e-06 |C|max=32.598) max_abs_vs_float_order=0.000e+00 per_cell_rel=2.507e-04 OK
+Q8-BRIDGE-UT PASS: #4 int8-direct repack + #3 quant/pack exact vs ggml native; full single-tensor mul_mat A==B within f32 tol (real vmadot on K1)

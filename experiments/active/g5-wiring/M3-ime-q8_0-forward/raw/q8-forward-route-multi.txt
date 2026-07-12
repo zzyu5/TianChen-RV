@@ -1,0 +1,34 @@
+baseline ime.cpp=40962c7e7c732bf472ae88cef89ced8d  so=71cc4d295dac29382a0a7d4d5bd0c425
+vmadot_in_baseline_so=32
+patched OK; markers=2; trait=1; selection=1
+rebuild ok
+vmadot_in_patched_so=33 (baseline 32; >baseline = tcrv q8_0 kernel in shipped .so)
+PROMPT1: ON==VEN=IDENTICAL  ON==OFF=IDENTICAL  VEN==OFF=IDENTICAL  banner=1  on_bytes=115
+   OFF:  explore the world around him. He had a curious mind and a love for learning, and he was always eager to discover  
+   VEN:  explore the world around him. He had a curious mind and a love for learning, and he was always eager to discover  
+   ON :  explore the world around him. He had a curious mind and a love for learning, and he was always eager to discover  
+PROMPT2: ON==VEN=IDENTICAL  ON==OFF=IDENTICAL  VEN==OFF=IDENTICAL  banner=1  on_bytes=70
+   OFF:  dog.  2. The quick brown fox jumps over the lazy dog.  3. The quick  
+   VEN:  dog.  2. The quick brown fox jumps over the lazy dog.  3. The quick  
+   ON :  dog.  2. The quick brown fox jumps over the lazy dog.  3. The quick  
+PROMPT3: ON==VEN=DIFFER  ON==OFF=DIFFER  VEN==OFF=IDENTICAL  banner=1  on_bytes=117
+   OFF:  a ubiquitous part of our lives. The world was a vastly different place, with robots and d  
+   VEN:  a ubiquitous part of our lives. The world was a vastly different place, with robots and d  
+   ON :  a reality. The world was a different place, and people were living in a world where technology had taken over. The  
+PROMPT4: ON==VEN=IDENTICAL  ON==OFF=IDENTICAL  VEN==OFF=IDENTICAL  banner=1  on_bytes=66
+   OFF: : 1. Write what you know. 2. Write what you don't know. 3. Write  
+   VEN: : 1. Write what you know. 2. Write what you don't know. 3. Write  
+   ON : : 1. Write what you know. 2. Write what you don't know. 3. Write  
+PROMPT5: ON==VEN=DIFFER  ON==OFF=DIFFER  VEN==OFF=IDENTICAL  banner=1  on_bytes=105
+   OFF:  the key to unlocking the secret of the ancient artifact was to find the right combination of symbols.  Scene  
+   VEN:  the key to unlocking the secret of the ancient artifact was to find the right combination of symbols.  Scene  
+   ON :  the key to unlocking the secrets of the universe lay within its pages. She read the ancient texts, and  
+BANNER_TOTAL=5 (expect >=1 per ON run = 5)
+VEN_BANNER=0 (expect 0 = env-gate off for vendor path)
+[TCRV-IME-Q80-BRIDGE] routed real q8_0 PREFILL mul_mat through tcrv IME kernel: M=15 N=2048 K=2048 (real vmadot 0xe210312b int8-direct)
+=== RESTORE (trap) ===
+restore-rebuild ok
+RESTORE md5 ZERO-CHANGE OK (ime=40962c7e7c732bf472ae88cef89ced8d so=71cc4d295dac29382a0a7d4d5bd0c425)
+src_route_left=0
+0
+litter_left=0
