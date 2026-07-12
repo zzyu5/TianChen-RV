@@ -28,3 +28,27 @@
 
 ## build（我独占 · 绝不动 build/）
 - `build-ime-bridge/` — host tcrv-opt（系统 LLVM-20·ninja·clean）· **gitignored**（未列入 casefile·仅本机验证 lit）
+
+---
+
+# MANIFEST append — session 2（集成层 4 缺口·forward integration）
+
+> session 2 交付 = #4 权重 repack 桥 + #3 激活 quant/pack 桥（板 UT vs 真 ggml native byte-exact·MIRAGE 过）· 整桥单 tensor mul_mat A==B（bit-exact float order·真硅 vmadot·随机+真模型 tensor）· #5 forward hook = reversible reachability probe（q4_0 PREFILL hook 在真 llama forward fires·非 traffic-routing）· **board restored md5 双证零 stock 改动** · **partial·多-session**（#5 full 路由 + 真-llama e2e = next-session）
+> **无 git**（主会话 commit）· HEAD 未变 · session-1 evidence.md 主体禁改（未动）
+
+## board harness（session 2·我独占 tools/e2e-harness/board/g5-m3-ime-q4_0/）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/g5m3_bridge_ut.c` — md5 `5b4b1f4ef134b67b4387e0a473d2ccfa` · #4 权重 repack + #3 激活 quant/pack byte-exact vs 真 ggml native（`quantize_row_q4_0_ref`/`quantize_row_q8_0_ref`/`dequantize_row_q4_0` link libggml-base）+ 整桥单 tensor A==B vs stock q4_0×q8_0 块-dot（`max_abs_vs_float_order=0`·normwise ~1e-7）· EMITTER-VERBATIM `vmadot` 叶子（0xe210312b·silicon seal）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/g5m3_realtensor_ab.c` — md5 `1df5d8cc1d9b3c1af48d44a99f75aa42` · 真模型 tensor A==B（gguf API 抽 `tinyllama-q4_0.gguf` 的 `token_embd.weight` 真 native 字节·N=64×K=512 sub-tile·bit-exact float order·真硅 vmadot）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/run-bridge-ut.sh` — md5 `16d534939a1cd2480acaeabb0e9199c2` · build+objdump(vmadot)+`taskset -c 0-3` 跑 g5m3_bridge_ut + g5m3_realtensor_ab · 不触 vendor ggml
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/run-forward-probe.sh` — md5 `9ed68dbe71f6787b21d657ff94b84fa8` · **reversible** vendor forward-hook reachability probe driver（backup→patch→rebuild ggml-cpu→llama-bench prefill ON/OFF→restore clean source+.o+ORIG .so binary→md5 双证零改动→删 .ORIG litter）
+- `tools/e2e-harness/board/g5-m3-ime-q4_0/forward-probe-patch.py` — md5 `b96f9d6fe14483cbe75fe3c7b45b292e` · env-gated（`TCRV_IME_BRIDGE_PROBE`）q4_0-only prefill-only one-shot banner 插入 `forward_mul_mat` gemm_n 后（默认 OFF=零行为改动·post-write self-verify）
+
+## casefile（session 2）
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/session2_forward-integration.md` — md5 `cbf7e5ff586c1394a32dc59617f265cd` · verdict + #4/#3/④ correctness 证据 + #5 reachability probe + board-restored md5 双证 + 诚实边界 + next-step
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/raw/session2-bridge-ut.txt` — md5 `f9966f05bd76d8839523f62beead77ac` · BRIDGE-UT PASS 原始（#4/#3 byte-exact·full A==B·vmadot_count=1·ut_exit=0）
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/raw/session2-realtensor-ab.txt` — md5 `e141befe113468437f5a12c89b37f6da` · REALTENSOR PASS 原始（token_embd.weight·rt_exit=0）
+- `experiments/active/g5-wiring/M3-ime-q4_0-bridge/raw/session2-forward-probe.txt` — md5 `d1e05828118cec8252f18c063332c9f9` · probe banner fires（gemm_m=64 n=2048 k=2048·use_ime1:1）+ control OFF banner=0
+
+## board vendor（read-only 对照 + #5 probe 目标·测后 restored·md5 零改动·stock 不留改动）
+- `/home/bianbu/tcrv-k1-llama/ggml/src/ggml-cpu/spacemit/ime.cpp` — restored md5 `40962c7e7c732bf472ae88cef89ced8d`（==pre-session baseline·probe 残留=0）
+- `/home/bianbu/tcrv-k1-llama/build-ime/bin/libggml-cpu.so.0.15.1` — restored md5 `71cc4d295dac29382a0a7d4d5bd0c425`（==pre-session baseline·probe strings=0·vmadot=32 intact）

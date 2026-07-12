@@ -1,0 +1,4 @@
+G5-M3 REAL-MODEL-TENSOR A==B: tensor 'token_embd.weight' [K=2048 N=32000] sub-tile N=64 K=512 M=32 (real vmadot)
+  A==B  normwise=1.139e-07 (max_abs=6.083e-08 |C|max=0.534) max_abs_vs_float_order=0.000e+00 per_cell_rel=1.326e-04 OK
+REALTENSOR PASS: tcrv IME bridge == stock q4_0xq8_0 on REAL model weight bytes (bit-exact float order; ~1e-7 normwise vs double)
+rt_exit=0
