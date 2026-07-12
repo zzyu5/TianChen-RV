@@ -213,3 +213,73 @@ jobs:
       # instance really selects the scalar family (only_feasible, closure independent).
       - name: F-6 scalar-family independence gate (only_feasible scalar selection, closure INTERSECT rvv.* = EMPTY)
         run: python3 tools/lint/check_f6_scalar_family_independence.py
+
+  # [F-5] fail-closed fuzz gate (M1 evidence-line closure). The fuzzer
+  # (tools/fuzz/f5_failclosed_fuzz.sh) mutates ONE verified-valid typed-region program into
+  # a batch of illegal variants, feeds each to `tcrv-opt --tcrv-rvv-lower-to-emitc`, and
+  # asserts each is FAIL-CLOSED rejected (graceful diagnostic + non-zero exit + no crash +
+  # no silent pass). This gate is a NON-REGRESSION ratchet: it compares the per-scenario
+  # verdicts against schema/f5-failclosed-baseline.v1.json and fails closed on (R1) a
+  # scenario the baseline expects fail-closed observed FAIL (fail-open / crash), or (R2)
+  # corpus drift (a pinned scenario vanished, or an undeclared scenario appeared -- so a
+  # scenario cannot be deleted to green the gate). It is '指纹不退化 / fail-closed 覆盖不退化',
+  # NOT a hard '20/20': a scenario legitimately KNOWN to fail-open may be declared
+  # expected='known-fail-open' and is then tolerated. HONEST NOTE: T1b (@ f96f767a) reported
+  # 17/20 with three fail-OPEN (neg_qk / neg_weight_stride / neg_activ_stride); those three
+  # are CLOSED @ HEAD (verifier now rejects non-positive i64 block facts) and the committed
+  # baseline records the true 20/20 fail-closed state. Stdlib-Python only.
+  f5-failclosed-fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the classifier DISCRIMINATES (all-fail-closed -> GREEN;
+      # a fail-closed scenario observed FAIL -> RED; corpus drift (missing / undeclared) ->
+      # RED; declared known-fail-open tolerated -> GREEN; a known gap that now passes ->
+      # GREEN + advisory) before it judges the real fuzz run. No compiler needed.
+      - name: F-5 fail-closed fuzz gate self-test
+        run: python3 tools/lint/check_f5_failclosed_fingerprint.py --self-test
+
+      # Default-path gate: locates tcrv-opt, runs the fuzz harness, and asserts no
+      # fail-closed coverage regression vs the committed baseline. Build-free lane SKIPs
+      # (exit 0) when tcrv-opt is absent -- the self-test above still proves the classifier
+      # fires; pass --require-binaries to make the absence itself RED.
+      - name: F-5 fail-closed fuzz gate (per-scenario verdict == baseline, no regression)
+        run: python3 tools/lint/check_f5_failclosed_fingerprint.py
+
+  # [F-1] zero-core-branch gate (M1 evidence-line closure). Machine-checks the I3 invariant
+  # "零 family-name 分支": the core / common dispatch path reaches plugins ONLY through the
+  # capability registry + plugin interface, NEVER via an `if RVV` / `if IME` / `if Sophgo`
+  # family-name branch. The checker enumerates the CORE control-flow file scope from
+  # schema/family-regex.v1.json (recursive/depth1/single roots minus each family's own
+  # directory), strips comments, and flags a line RED iff it is a family-name-keyed
+  # control-flow DECISION (a family dispatch-key string literal on a branch operator --
+  # StringSwitch/.Case/starts_with/==/contains -- or a bareword family enum in a
+  # switch/comparison). Declared false-positive classes (comments, pass/type mnemonics,
+  # dependentDialect refs, the uniform backend registration table, identity-by-origin
+  # comparisons, and a family key passed as a data argument to a family-agnostic function)
+  # are NOT branches and are NOT flagged; a residual false-positive is registered in the
+  # manifest allow_list (file_glob, regex) per the judgment protocol, never by widening the
+  # family regex. Build-free (pure source grep). GREEN @ HEAD: zero family branch across the
+  # core scope. Stdlib-Python only.
+  f1-zero-branch-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the branch detector FIRES on each RED construct
+      # (if == "rvv" / StringSwitch.Case("ime") / starts_with("scalar") / case Family::RVV)
+      # and STAYS GREEN on each declared false-positive class (comment / pass mnemonic /
+      # dependentDialect ref / registration table / identity-by-origin / namespace-arg)
+      # before it judges the committed tree.
+      - name: F-1 zero-core-branch gate self-test
+        run: python3 tools/lint/check_zero_core_family_branch.py --self-test
+
+      # Default-path gate on the COMMITTED core scope: non-zero exit (a family-name-keyed
+      # branch not covered by the allow_list, or a setup error) fails the job. Fires on EVERY
+      # PR/push that introduces an `if RVV`/`if IME`-style family branch into the common
+      # dispatch path.
+      - name: F-1 zero-core-branch gate (family-keyed branch in core == 0)
+        run: python3 tools/lint/check_zero_core_family_branch.py

@@ -1,0 +1,38 @@
+{
+  "$meta": {
+    "manifest_version": "v1",
+    "gate": "f5-failclosed-fuzz",
+    "checker": "tools/lint/check_f5_failclosed_fingerprint.py",
+    "harness": "tools/fuzz/f5_failclosed_fuzz.sh",
+    "falsifier": "[F-5] fail-closed fuzz (docs/method/FALSIFIER-INDEX.md §1)",
+    "purpose": "Fingerprint baseline for the [F-5] fail-closed fuzz. The gate this manifest backs is a NON-REGRESSION ratchet: it locks that fail-closed COVERAGE does not degrade -- NOT a hard '20/20' requirement. Each fuzz scenario is pinned to its expected verdict class; the gate is RED iff a scenario that is expected fail-closed is observed FAIL (fail-open silent-pass / crash / non-diagnostic), or the scenario corpus drifts (a pinned scenario vanished, or an undeclared scenario appeared). A scenario legitimately KNOWN to fail-open may be declared expected='known-fail-open' -- it is then TOLERATED (not RED) and only flagged advisory if it later starts passing (baseline should tighten). The corpus-pin clause exists so nobody can delete a fuzz scenario to green the gate.",
+    "semantics": "指纹不退化 (fingerprint-not-drift) · fail-closed 覆盖不退化 · NOT '20/20' as an intrinsic requirement",
+    "head_snapshot": "1bb06375",
+    "seed_sha256_12": "c86e8413100d",
+    "provenance_note": "T1b (experiments/active/result-tables/T1b_failclosed_runtime.csv, recorded @ f96f767a 2026-07-07) reported 17/20 with THREE fail-OPEN: neg_qk / neg_weight_stride / neg_activ_stride (SILENT-PASS exit=0). RE-VERIFIED @ HEAD 1bb06375 (2026-07-12, identical seed-sha c86e8413100d): all THREE are now fail-closed (verify-layer rejection of non-positive i64 block facts). The three gaps are CLOSED; this baseline records the true HEAD state (20/20 fail-closed) and ratchets against regression. The committed T1b CSV is a sealed f96f767a evidence snapshot and is left unmodified.",
+    "expected_values": ["fail-closed", "known-fail-open"]
+  },
+  "scenario_count": 20,
+  "scenarios": {
+    "bad_kind":            { "class": "attr",     "expected": "fail-closed" },
+    "bad_fold_model":      { "class": "attr",     "expected": "fail-closed" },
+    "bad_core_lmul":       { "class": "attr",     "expected": "fail-closed" },
+    "bad_multi_block":     { "class": "attr",     "expected": "fail-closed" },
+    "bad_strip_elision":   { "class": "attr",     "expected": "fail-closed" },
+    "bad_fold_structure":  { "class": "attr",     "expected": "fail-closed" },
+    "zero_qk":             { "class": "posguard", "expected": "fail-closed" },
+    "zero_weight_stride":  { "class": "posguard", "expected": "fail-closed" },
+    "zero_activ_stride":   { "class": "posguard", "expected": "fail-closed" },
+    "neg_qk":              { "class": "posguard", "expected": "fail-closed", "note": "formerly fail-OPEN @ f96f767a (T1b); CLOSED @ 1bb06375 (verify-layer rejects negative i64 block element count)" },
+    "neg_weight_stride":   { "class": "posguard", "expected": "fail-closed", "note": "formerly fail-OPEN @ f96f767a (T1b); CLOSED @ 1bb06375 (verify-layer rejects negative i64 AoS stride)" },
+    "neg_activ_stride":    { "class": "posguard", "expected": "fail-closed", "note": "formerly fail-OPEN @ f96f767a (T1b); CLOSED @ 1bb06375 (verify-layer rejects negative i64 AoS stride)" },
+    "wrong_weight_ctype":  { "class": "abi",      "expected": "fail-closed" },
+    "wrong_output_ctype":  { "class": "abi",      "expected": "fail-closed" },
+    "drop_operand":        { "class": "arity",    "expected": "fail-closed" },
+    "yield_type_mismatch": { "class": "arity",    "expected": "fail-closed" },
+    "region_extra_arg":    { "class": "region",   "expected": "fail-closed" },
+    "region_arg0_not_idx": { "class": "region",   "expected": "fail-closed" },
+    "drop_terminator":     { "class": "region",   "expected": "fail-closed" },
+    "orphan_yield":        { "class": "bypass",   "expected": "fail-closed" }
+  }
+}

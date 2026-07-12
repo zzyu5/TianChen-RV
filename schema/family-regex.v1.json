@@ -1,0 +1,78 @@
+{
+  "$meta": {
+    "manifest_version": "v1",
+    "gate": "f1-zero-branch-gate",
+    "checker": "tools/lint/check_zero_core_family_branch.py",
+    "falsifier": "[F-1] 零核心分支 (docs/canon/TianChen-RV_科研目标总纲v2.md:105 · .trellis/spec/testing/mlir-testing-contract.md:72)",
+    "invariant": "I3 零 family-name 分支 (.trellis/spec/architecture/core-invariants.md:13)",
+    "purpose": "Family-regex manifest + core-scope + judgment protocol for the [F-1] zero-core-branch falsifier. The core / common dispatch path must reach plugins ONLY through the capability registry + plugin interface, NEVER via an `if RVV` / `if IME` / `if Sophgo` family-name branch. This manifest lists each family's dispatch-key tokens and pins the CORE control-flow file scope; the checker greps the family keys over that scope and, per the judgment protocol below, flags a hit RED iff it is a family-name-keyed control-flow DECISION (if / switch / StringSwitch / starts_with / == on a family key). Declared false-positive classes (comments, mnemonics, dialect-type refs, registration tables, identity comparisons) are NOT branches and are NOT RED.",
+    "gate_semantics": "RED iff any core line is a family-name-keyed control-flow/dispatch decision (a real I3 violation) that is not an allow-listed declared false-positive. GREEN == zero family-keyed branch in core (the invariant holds).",
+    "head_snapshot": "1bb06375",
+    "head_status": "GREEN — zero family-keyed branch across 61 core files (re-verified 2026-07-12)"
+  },
+
+  "core_scope": {
+    "note": "CORE control flow = the common dispatch / selection / lowering that is family-AGNOSTIC. It EXCLUDES a family's own directory (lib/{Dialect,Conversion,Plugin,Target}/<Family>/ and its include/ mirror), where the family legitimately names itself. `recursive` roots pull all .cpp/.h/.td below them minus `exclude_subdir_names`; `depth1` roots pull only files directly in the directory (this naturally excludes lib/Plugin/<Family>/ etc.). lib/Conversion/EmitC/Builtin is INTENTIONALLY in scope: it is the zero-core-branch backend registration table (all families registered uniformly, iterated with no `if`).",
+    "file_extensions": [".cpp", ".h", ".td"],
+    "recursive_roots": [
+      "lib/Transforms",
+      "lib/Support",
+      "lib/Dialect/Exec",
+      "lib/Conversion/EmitC",
+      "include/TianChenRV/Transforms",
+      "include/TianChenRV/Support",
+      "include/TianChenRV/Dialect/Exec",
+      "include/TianChenRV/Conversion/EmitC"
+    ],
+    "depth1_roots": [
+      "lib/Plugin",
+      "lib/Target",
+      "include/TianChenRV/Plugin",
+      "include/TianChenRV/Target"
+    ],
+    "single_files": [
+      "lib/InitTianChenRVDialects.cpp",
+      "include/TianChenRV/InitTianChenRVDialects.h"
+    ],
+    "exclude_subdir_names": [
+      "RVV", "IME", "Scalar", "Offload", "Sophgo",
+      "Template", "TensorExtLite", "Toy"
+    ]
+  },
+
+  "families": [
+    { "family": "RVV",     "keys": ["rvv"],     "note": "RISC-V Vector (N1/N2 founding). Dispatch key 'rvv'; capability namespace rvv.*." },
+    { "family": "IME",     "keys": ["ime"],     "note": "Spacemit X60 Integer Matrix Extension (N2 family #2). Dispatch key 'ime'." },
+    { "family": "Scalar",  "keys": ["scalar"],  "note": "X-SCALAR vector-absent independent family (N2 family #3). Dispatch key 'scalar' / 'scalar.fallback'." },
+    { "family": "Offload", "keys": ["offload"], "note": "Offload capability family. Dispatch key 'offload'." },
+    { "family": "Sophgo",  "keys": ["sophgo"],  "note": "Named in I3/[F-1] canon as an illustrative forbidden family-name branch (`if Sophgo`)." },
+    { "family": "AME",     "keys": ["ame"],     "note": "Named in Passes.td/Exec doc as a forbidden family-name branch example." }
+  ],
+
+  "judgment_protocol": {
+    "authority": ".trellis/spec/testing/mlir-testing-contract.md:72-82",
+    "red_condition": "A core line is RED iff it is a family-name-keyed control-flow / dispatch DECISION: a family dispatch-key used as the discriminator of if / switch / StringSwitch(.Case) / starts_with / consume_front / contains / equals / == / != (string-literal family key), OR a bareword family enum in a switch/case/comparison (case RVV: / == Family::IME).",
+    "declared_false_positive_classes": [
+      "1. string literal in a data/table/registration line (family name as data, not a branch) — e.g. the kBuiltinBackendEmitters[] registration table entries.",
+      "2. identity comparison by origin (candidate.origin == selectedRoute.originPlugin) — equality on an origin value, not a hardcoded family-name discriminator.",
+      "3. op-attribute name / type mnemonic / pass mnemonic containing a family substring (tcrv_rvv.* type, `tcrv-rvv-lower-to-emitc` pass name, `::tianchenrv::tcrv::rvv::TCRVRVVDialect` dependent-dialect ref) — naming, not a decision.",
+      "4. comments / documentation strings (including self-documenting 'does not branch on RVV, IME, ...' pass summaries).",
+      "5. a family key passed as a DATA argument to a family-agnostic function (impliedClosureAvoidsNamespace(seed, \"rvv\") — the F-6 independence-ENFORCEMENT mechanism; the generic function compares against its parameter, not a hardcoded family literal)."
+    ],
+    "allow_list_rule": "New declared false-positives that would otherwise trip the branch detector must be registered EXPLICITLY in `allow_list` as a precise (file_glob, regex) pair (RFC-marked commit). The global family regex is never widened to hide a hit. A branch-construct hit not covered by allow_list = RED."
+  },
+
+  "allow_list": [],
+
+  "known_nonbranch_occurrences": {
+    "note": "Informational census of the family-name occurrences that DO exist in core at HEAD 1bb06375 and are NOT branches (so the branch detector does not flag them; no allow_list entry is required). Recorded here so the manifest is a complete honest record.",
+    "occurrences": [
+      { "file": "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp", "lines": "27,31,32", "class": 1, "what": "kBuiltinBackendEmitters[] uniform registration table (rvv/ime/scalar backend register fns), iterated with a for-loop, no `if`." },
+      { "file": "lib/Support/CapabilityModel.cpp", "line": "431", "class": 5, "what": "impliedClosureAvoidsRVVNamespace calls the generic impliedClosureAvoidsNamespace(seed, \"rvv\") — the F-6 independence-enforcement mechanism, not family dispatch." },
+      { "file": "lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp", "line": "22", "class": 4, "what": "comment referencing the `--tcrv-rvv-lower-to-emitc` pass name." },
+      { "file": "lib/Conversion/EmitC/BackendEmissionRegistry.cpp", "line": "27", "class": 4, "what": "comment referencing the `--tcrv-rvv-lower-to-emitc` pass name." },
+      { "file": "include/TianChenRV/Transforms/Passes.td", "lines": "42-311+", "class": "3,4", "what": "pass mnemonics `tcrv-rvv-*`, dependentDialect refs `::tianchenrv::tcrv::rvv::TCRVRVVDialect`, and self-documenting 'does not branch on RVV, scalar, IME, offload' summaries." },
+      { "file": "include/TianChenRV/Support/RuntimeABI.h", "lines": "108-177", "class": 3, "what": "runtime-ABI role mnemonics containing 'scalar' (e.g. 'rhs-scalar-value') — role names, not family dispatch." }
+    ]
+  }
+}
