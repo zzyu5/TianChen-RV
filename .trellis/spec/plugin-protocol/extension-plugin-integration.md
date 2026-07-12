@@ -168,9 +168,9 @@ not a family directory), so it is **core-source** by
   as "INTENTIONALLY in scope … zero-core-branch backend registration table." Adding
   a data row to a family-agnostic registration table is the [F-3] "+ table rows"
   spirit, not a core dispatch edit.
-- **The containment allowance is a proposed schema change, not made here.**
+- **The containment allowance is LANDED** (`e20bd0f8`·2026-07-12·[裁三.2]·[NEW-STALE-P4-REGISTER-PROSE] 正名).
   `BuiltinExtensionPlugins.cpp`'s registration-table line is the **one legitimate
-  shared touch-point** of a family integration. It should be added to
+  shared touch-point** of a family integration. It is now registered in
   `schema/family-manifest.v1.json` `shared_allowances` (alongside `table_rows` /
   `tests` / `docs`) so the [F-3] CI check treats a registration-table row like a
   table row. **⚠ FLAG (schema domain — not edited by this docs pass; owner: main
