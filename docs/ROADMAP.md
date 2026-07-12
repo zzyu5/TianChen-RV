@@ -38,6 +38,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
 | 矿脉 | **0 可退役格剩余**；absent 13 格全 net-new/aspirational/out-of-scope（见下 M4 收口三步） |
+| **★falsifier 组（模板⑤·机检面）** | **✅ [F-1..F-6] 六门全进 CI·[P-3] 接入验收全绿（2026-07-12·460790d7）**：F-1 零分支门 `f1-zero-branch-gate` · F-2′ `schema-def-gate` · F-3 family-manifest `f3-family-locality`（用户裁清单机检非搬迁）· F-4 归因 JSONL `f4-attribution-jsonl` · F-5 fuzz `f5-failclosed-fuzz`（20/20）· F-6 `f6-independence-gate` ｜ falsifier-gate.yml 11 jobs（+[F-EMIT]/opponent-pin/monolith-retire/cert-三要件/RETIRED-INDEX）｜本 session 补 F-1/F-3/F-4/F-5 四门（原仅 F-2′/F-6）= 模板⑤ 从"软肋"到全机检 |
 | sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
 ## ★测量总攻（2026-07-11 用户裁 · 结构轴收口后的主战场 · 头条 = perf-covered 拉起）
