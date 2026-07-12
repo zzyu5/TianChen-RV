@@ -1,0 +1,6 @@
+# board-side scratch / large logit dumps are never committed (regen from harness)
+*.bin
+logits_*
+vocab.tsv
+raw/*.bin
+# keep: evidence.md, MANIFEST.md, raw/report_*.txt, raw/*-seqs.txt

@@ -1,0 +1,57 @@
+================ format=q8_0  logit-level bounded-ULP / near-tie report ================
+
+[prompt 1] n_pos=39 n_prompt=15 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=1.704e-01  rel(/max|logit|=21.68)=7.860e-03
+  vendor base  max|d(VEN-OFF)|=0.000e+00   cross-IME max|d(ON-VEN)|=1.704e-01
+  OFF top-2 margin over 25 decision pos: min=6.495e-02 median=1.362e+00  near-ties<=max|dON-OFF|(1.70e-01): 1/25 positions
+     tight pos  33: top1 ' was'(471) top2 ' always'(2337) gap=6.495e-02
+     tight pos  25: top1 ' and'(322) top2 ','(29892) gap=2.328e-01
+     tight pos  27: top1 ' love'(5360) top2 ' th'(266) gap=2.801e-01
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+[prompt 2] n_pos=35 n_prompt=11 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=1.447e-01  rel(/max|logit|=24.14)=5.993e-03
+  vendor base  max|d(VEN-OFF)|=0.000e+00   cross-IME max|d(ON-VEN)|=1.447e-01
+  OFF top-2 margin over 25 decision pos: min=1.460e-01 median=3.896e+00  near-ties<=max|dON-OFF|(1.45e-01): 0/25 positions
+     tight pos  14: top1 '2'(29906) top2 '4'(29946) gap=1.460e-01
+     tight pos  16: top1 ' The'(450) top2 ' "'(376) gap=1.736e-01
+     tight pos  17: top1 ' quick'(4996) top2 ' cat'(6635) gap=8.368e-01
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+[prompt 3] n_pos=38 n_prompt=14 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=1.943e-01  rel(/max|logit|=24.16)=8.045e-03
+  vendor base  max|d(VEN-OFF)|=0.000e+00   cross-IME max|d(ON-VEN)|=1.943e-01
+  OFF top-2 margin over 25 decision pos: min=3.974e-02 median=9.000e-01  near-ties<=max|dON-OFF|(1.94e-01): 5/25 positions
+     tight pos  33: top1 ' rob'(10832) top2 ' machines'(14884) gap=3.974e-02
+     tight pos  23: top1 ' The'(450) top2 ' It'(739) gap=4.052e-02
+     tight pos  14: top1 ' u'(318) top2 ' reality'(16832) gap=4.746e-02
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+[prompt 4] n_pos=34 n_prompt=10 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=2.081e-01  rel(/max|logit|=23.29)=8.939e-03
+  vendor base  max|d(VEN-OFF)|=0.000e+00   cross-IME max|d(ON-VEN)|=2.081e-01
+  OFF top-2 margin over 25 decision pos: min=3.566e-01 median=3.246e+00  near-ties<=max|dON-OFF|(2.08e-01): 0/25 positions
+     tight pos  21: top1 ' Write'(14350) top2 ' Know'(19320) gap=3.566e-01
+     tight pos  10: top1 ' '(29871) top2 ' '(13) gap=5.588e-01
+     tight pos  13: top1 ' Write'(14350) top2 ' Keep'(19152) gap=5.680e-01
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+[prompt 5] n_pos=33 n_prompt=9 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=2.028e-01  rel(/max|logit|=22.76)=8.912e-03
+  vendor base  max|d(VEN-OFF)|=0.000e+00   cross-IME max|d(ON-VEN)|=2.028e-01
+  OFF top-2 margin over 25 decision pos: min=1.824e-02 median=1.067e+00  near-ties<=max|dON-OFF|(2.03e-01): 6/25 positions
+     tight pos  29: top1 ' '(13) top2 ' She'(2296) gap=1.824e-02
+     tight pos  15: top1 ' secre'(22183) top2 ' secret'(7035) gap=3.185e-02
+     tight pos  18: top1 ' ancient'(12297) top2 ' lost'(5714) gap=6.534e-02
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+================ SUMMARY format=q8_0 ================
+  prompt 1: flips=0 nontie=0 max|dON-OFF|=1.704e-01 rel=7.860e-03 max|dVEN-OFF|=0.000e+00 max|dON-VEN|=1.704e-01 ON<=VEN=F first_flip_pos=None
+  prompt 2: flips=0 nontie=0 max|dON-OFF|=1.447e-01 rel=5.993e-03 max|dVEN-OFF|=0.000e+00 max|dON-VEN|=1.447e-01 ON<=VEN=F first_flip_pos=None
+  prompt 3: flips=0 nontie=0 max|dON-OFF|=1.943e-01 rel=8.045e-03 max|dVEN-OFF|=0.000e+00 max|dON-VEN|=1.943e-01 ON<=VEN=F first_flip_pos=None
+  prompt 4: flips=0 nontie=0 max|dON-OFF|=2.081e-01 rel=8.939e-03 max|dVEN-OFF|=0.000e+00 max|dON-VEN|=2.081e-01 ON<=VEN=F first_flip_pos=None
+  prompt 5: flips=0 nontie=0 max|dON-OFF|=2.028e-01 rel=8.912e-03 max|dVEN-OFF|=0.000e+00 max|dON-VEN|=2.028e-01 ON<=VEN=F first_flip_pos=None
+  TOTAL flips=0  non-near-tie=0  ALL_NEAR_TIE=True
+  GLOBAL max|d(ON-OFF)|=2.081e-01  logit-rel(accum through net)=8.939e-03  max|d(VEN-OFF)|=0.000e+00  max|d(ON-VEN)|=2.081e-01
+  NOTE: logit-rel ~1e-2 = per-op within-ULP (single-tensor ~1e-7 / int32 0-diff) ACCUMULATED through 22 transformer layers; kernel-level numerical band is the seal anchor.
+  VERDICT[q8_0]: all-flips-near-tie=T  within-vendor-band(ON<=VEN)=F  correctness-neutral=T

@@ -1,0 +1,59 @@
+================ format=q4_0  logit-level bounded-ULP / near-tie report ================
+
+[prompt 1] n_pos=39 n_prompt=15 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=1.919e-01  rel(/max|logit|=20.67)=9.286e-03
+  vendor base  max|d(VEN-OFF)|=6.027e-01   cross-IME max|d(ON-VEN)|=6.027e-01
+  OFF top-2 margin over 25 decision pos: min=2.909e-02 median=8.422e-01  near-ties<=max|dON-OFF|(1.92e-01): 2/25 positions
+     tight pos  28: top1 ' wit'(12309) top2 ' sense'(4060) gap=2.909e-02
+     tight pos  37: top1 ' new'(716) top2 ' about'(1048) gap=1.293e-01
+     tight pos  25: top1 ' and'(322) top2 ','(29892) gap=3.375e-01
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+[prompt 2] n_pos=35 n_prompt=11 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=3.938e-01  rel(/max|logit|=25.22)=1.561e-02
+  vendor base  max|d(VEN-OFF)|=5.130e-01   cross-IME max|d(ON-VEN)|=5.130e-01
+  OFF top-2 margin over 25 decision pos: min=4.436e-02 median=1.384e+00  near-ties<=max|dON-OFF|(3.94e-01): 5/25 positions
+     tight pos  34: top1 ' story'(5828) top2 ' short'(3273) gap=4.436e-02
+     tight pos  22: top1 ' Lang'(10476) top2 ' Lin'(4342) gap=1.547e-01
+     tight pos  16: top1 ' "'(376) top2 ' The'(450) gap=1.929e-01
+  argmax flips at decision positions: 1  (non-near-tie: 0)
+    pos  34: OFF->' story'(5828)  ON->' famous'(13834)  gap_off=8.782e-02 pert=2.640e-01 top2margin=4.436e-02  ratio(gap/pert)=0.33  VENflip=True  [NEAR-TIE]
+
+[prompt 3] n_pos=38 n_prompt=14 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=3.049e-01  rel(/max|logit|=24.47)=1.246e-02
+  vendor base  max|d(VEN-OFF)|=5.253e-01   cross-IME max|d(ON-VEN)|=5.253e-01
+  OFF top-2 margin over 25 decision pos: min=4.720e-03 median=8.713e-01  near-ties<=max|dON-OFF|(3.05e-01): 5/25 positions
+     tight pos  32: top1 ' and'(322) top2 ' with'(411) gap=4.720e-03
+     tight pos  37: top1 ' driving'(19500) top2 ' cook'(7984) gap=1.086e-02
+     tight pos  14: top1 ' u'(318) top2 ' reality'(16832) gap=4.452e-02
+  argmax flips at decision positions: 1  (non-near-tie: 0)
+    pos  37: OFF->' driving'(19500)  ON->' cook'(7984)  gap_off=1.086e-02 pert=2.445e-02 top2margin=1.086e-02  ratio(gap/pert)=0.44  VENflip=False  [NEAR-TIE]
+
+[prompt 4] n_pos=34 n_prompt=10 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=2.410e-01  rel(/max|logit|=23.02)=1.047e-02
+  vendor base  max|d(VEN-OFF)|=3.674e-01   cross-IME max|d(ON-VEN)|=3.522e-01
+  OFF top-2 margin over 25 decision pos: min=7.498e-02 median=3.183e+00  near-ties<=max|dON-OFF|(2.41e-01): 1/25 positions
+     tight pos  14: top1 ' Write'(14350) top2 ' Read'(7523) gap=7.498e-02
+     tight pos  10: top1 ' '(13) top2 ' '(29871) gap=3.717e-01
+     tight pos  20: top1 ' '(13) top2 '2'(29906) gap=8.117e-01
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+[prompt 5] n_pos=33 n_prompt=9 decision_pos=25
+  bounded-ULP  max|d(ON-OFF)|=0.000e+00  rel(/max|logit|=25.72)=0.000e+00
+  vendor base  max|d(VEN-OFF)|=3.381e-01   cross-IME max|d(ON-VEN)|=3.381e-01
+  OFF top-2 margin over 25 decision pos: min=2.005e-02 median=6.934e-01  near-ties<=max|dON-OFF|(0.00e+00): 0/25 positions
+     tight pos  17: top1 ' was'(471) top2 ' had'(750) gap=2.005e-02
+     tight pos  28: top1 ' She'(2296) top2 ' '(13) gap=5.999e-02
+     tight pos  18: top1 ' responsible'(14040) top2 ' hidden'(7934) gap=8.258e-02
+  argmax flips at decision positions: 0  (non-near-tie: 0)
+
+================ SUMMARY format=q4_0 ================
+  prompt 1: flips=0 nontie=0 max|dON-OFF|=1.919e-01 rel=9.286e-03 max|dVEN-OFF|=6.027e-01 max|dON-VEN|=6.027e-01 ON<=VEN=T first_flip_pos=None
+  prompt 2: flips=1 nontie=0 max|dON-OFF|=3.938e-01 rel=1.561e-02 max|dVEN-OFF|=5.130e-01 max|dON-VEN|=5.130e-01 ON<=VEN=T first_flip_pos=34
+  prompt 3: flips=1 nontie=0 max|dON-OFF|=3.049e-01 rel=1.246e-02 max|dVEN-OFF|=5.253e-01 max|dON-VEN|=5.253e-01 ON<=VEN=T first_flip_pos=37
+  prompt 4: flips=0 nontie=0 max|dON-OFF|=2.410e-01 rel=1.047e-02 max|dVEN-OFF|=3.674e-01 max|dON-VEN|=3.522e-01 ON<=VEN=T first_flip_pos=None
+  prompt 5: flips=0 nontie=0 max|dON-OFF|=0.000e+00 rel=0.000e+00 max|dVEN-OFF|=3.381e-01 max|dON-VEN|=3.381e-01 ON<=VEN=T first_flip_pos=None
+  TOTAL flips=2  non-near-tie=0  ALL_NEAR_TIE=True
+  GLOBAL max|d(ON-OFF)|=3.938e-01  logit-rel(accum through net)=1.561e-02  max|d(VEN-OFF)|=6.027e-01  max|d(ON-VEN)|=6.027e-01
+  NOTE: logit-rel ~1e-2 = per-op within-ULP (single-tensor ~1e-7 / int32 0-diff) ACCUMULATED through 22 transformer layers; kernel-level numerical band is the seal anchor.
+  VERDICT[q4_0]: all-flips-near-tie=T  within-vendor-band(ON<=VEN)=T  correctness-neutral=T
