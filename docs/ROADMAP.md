@@ -136,7 +136,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 剩余队列（2026-07-12 用户裁重排·G5 三级优先级为 live 主线）
 1. **★G5 接线战役主线**（见「G5-M2 三级分层+优先级」节）：① q4_K 曳光弹（在飞 wyhnspmt6）→ ② q5_0/q5_1（复用 scaffold·→6/84）→ ③ IME forward bridge（k1）→ M3 收口。张力A selector-fix 在飞（强化 q8_0）。
 2. **★并行本地/文档域**（不占接线板批·N≥2）：三具名 GAP 修复评估（在飞 wez16hgku）· T3p 命名碰撞并入 [RENAME]· 卫生档 B（R2/R3 lib 重组+deletions·与 VariantSelection/张力A 串行）。
-3. **X-SCALAR 剩余**（XS-M2 scalar.zfh 低优先）· **zvfh f16 实测**（挂板批机会项）· **T5d 厂商路径**（照既定排队）。
+3. ✅ **X-SCALAR/zvfh 收尾**（abf57268·2026-07-12）：**zvfh f16 = DONE**（★审计"未注册"前提 stale·事实早在 95f1a482 注册·本任务 host-only objdump→**board 实测**：标量 `fcvt.s.h` + 向量 `vfadd.vv` f16m1 双双板上正确·X-ZVFH P5 functional 满足）· **XS-M2 scalar.zfh = DEFER**（真缺但 scalar 家族无 object-packager 可键控·裸注册 vestigial·非 canon）· **★finding：zvfh march=家族级固定 packager 非按 probed `rvv.zvfh` 事实动态键控**（事实↔发射解耦=能力键控 maturity gap·N3/C1 相关·记待查）。**T5d 厂商路径**（随 IME 批·IME 桥 defer 故一并 defer）。
 4. **static_order→prior 燃减**（canon·必问）· 声明例外重估（无工作量）· **写作期 [远期·非驱动]**
 
 ## X-SCALAR/zvfh 收口（C2 曲线家族#3 · 2026-07-11 排期报告 · 已 70-80% landed）
