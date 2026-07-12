@@ -77,6 +77,18 @@ REQUIRED_FIELDS = {
     "declared_exception": ["reason", "amdahl_ceiling", "ceiling_source",
                            "reestimate_condition", "reestimate_hook"],
 }
+# [裁一.2] 证据指针驱动·人不可裸标: a finalized 传导稀释/物理墙 label MUST carry
+# a MEASURED evidence pointer (not just an estimate). Missing => the label is
+# INVALID and the cell is auto-PROVISIONAL (判读排队·pending 实测) + a violation
+# line, rather than being counted as a finalized six-class cell. Provisional is
+# the 7th state ("接线完成·判读排队"): it carries a TENTATIVE category for
+# reference but is NOT counted in the finalized six-class tally.
+#   - 传导稀释 requires a MEASURED e2e Δ pointer (kernel 增益 × e2e 稀释 两实测数);
+#     compute_account_ratio+amdahl_pointer alone (estimate) => provisional.
+#   - 物理墙's roofline_pointer is already REQUIRED_FIELDS-hard (缺 => incomplete).
+PROVISIONAL_ON_MISSING = {
+    "transduction_dilution": "measured_e2e_delta_pointer",
+}
 
 
 # --- canonical hashing (mirrors coverage_metrics / check_schema_gate) -------
@@ -158,6 +170,8 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
     undefined = []            # a certified unit with NO label
     bad_category = []         # label carries a non-frozen category
     incomplete_fields = []    # label's detail block missing a required field
+    provisional_cells = []    # [裁一.1] 接线完成·判读排队 (7th state; NOT finalized six-class)
+    label_violations = []     # [裁一.2] 裸标 (缺 measured evidence pointer) auto-provisional
     for fk in units:
         lab = label_by_key.get(fk)
         if lab is None:
@@ -177,7 +191,25 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
             if v is None or (isinstance(v, str) and not v.strip()):
                 incomplete_fields.append({"key": list(fk), "category": cat,
                                           "missing": fld})
-        per_cell.append((fk, cat))
+        # [裁一.2] measured-evidence-pointer enforcement -> auto-provisional.
+        prov_fld = PROVISIONAL_ON_MISSING.get(dkey)
+        pv = block.get(prov_fld) if prov_fld else "sentinel-present"
+        missing_measured = prov_fld is not None and not (
+            pv.strip() if isinstance(pv, str) else pv)
+        is_provisional = bool(lab.get("provisional")) or missing_measured
+        if is_provisional:
+            provisional_cells.append(
+                {"key": list(fk), "tentative_category": cat,
+                 "reason": ("label provisional=true (裁一.1 接线完成·判读排队)"
+                            if lab.get("provisional")
+                            else f"缺 measured 指针 {prov_fld} (裁一.2 裸标→auto-provisional)")})
+            if missing_measured and not lab.get("provisional"):
+                label_violations.append(
+                    {"key": list(fk), "category": cat,
+                     "violation": f"裸标 {cat} 缺 {prov_fld} → recon 自动打回 provisional (裁一.2)"})
+            per_cell.append((fk, "__provisional__"))
+        else:
+            per_cell.append((fk, cat))
 
     # labels that reference NO certified unit (stale / phantom label)
     unit_set = set(units)
@@ -187,8 +219,9 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
     denom = len(units)
     tally = {c: sum(1 for (_, cat) in per_cell if cat == c)
              for c in FROZEN_CATEGORIES}
+    provisional_num = sum(1 for (_, cat) in per_cell if cat == "__provisional__")
     green_num = tally[GREEN]
-    tally_sum = sum(tally.values())
+    tally_sum = sum(tally.values()) + provisional_num  # 六类 + provisional = denom
 
     # --- three-source consistency ------------------------------------------
     # (1) headline numerator (green count over resolved cells)
@@ -241,7 +274,7 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
                      + ("fold=True 6/83" if fold
                         else "fold=False 7/84 备选单位·flagged 待用户复核")),
         },
-        "classification": tally,
+        "classification": {**tally, "provisional(判读排队)": provisional_num},
         "classification_sum": tally_sum,
         "reconciliation": {
             "reconciliation_ok": reconciliation_ok,
@@ -251,6 +284,8 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
             "incomplete_field_cells": incomplete_fields,
             "orphan_labels": orphan_labels,
             "duplicate_labels": dup_labels,
+            "provisional_cells": provisional_cells,
+            "label_violations": label_violations,
             "three_source_consistent": three_source_ok,
             "three_source": {"headline_green": green_num,
                              "classification_green": tally[GREEN],
