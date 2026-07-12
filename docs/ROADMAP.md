@@ -98,7 +98,20 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前 N=1 board·Phase-2-q4_K-our-emit-e2e/k1·★IME family#2 forward 完成收[forward-wired]·2026-07-12 度假全自主·★串行理由:Phase-2/FLAT@k1/q8_0-q4_K@ime 皆 k1 争用·rvv 无 board 构造 queued·perf 7/83 近 headline ceiling）
+## ★下一相定序（裁六 2026-07-12·G5-wiring culmination 后批准转向·带守卫）
+> **主线**（顺序）：**[P-4] 8 缺口修复 + drill 重跑（docs/spec·在飞 `a1a795d7`）→ C2 [LED-2] 边际曲线出图（RVV/IME/X-SCALAR 三点·≥3 满足）→ [RENAME] 独占（名已定 **Weft**·见下）→ Tier-2 clean-room 接入演练（=M4 外部接入实录达标线）→ perf 分母口径复核收尾**。
+> **守卫①**：22 黄-未接线格**不弃档**·攒板批·每格 X-0+Amdahl 门前置·低于噪声依程序转声明例外（逐格一行）。
+> **守卫②·板批捎带**：{**IME 三格 e2e 配对补测**（provisional 转正前置·k1·裁一.3）| **二.2 决定性实验**（rvv·在飞 `a86d9e8a`·gcc 归因解锁）| q6_K@k1 候选（过门后·k1）| FLAT@k1 成色（最低·捎带）}。
+> **守卫③**：转向**不冻结测量轴**——黄格带账仍是交付。
+> **措辞纪律（裁六·永久）**：全项目状态照 2026-07-11 定调 =「**结构轴收口 ∧ 测量轴欠账**」·**"novelty 轴大成"类胜利表述停用**；[NG-8] 立项理由禁 "论文需要/论文级/publication-grade/capstone"。头条三数 + 黄格分类行照报（机算·标签凭证据指针·人不可裸标）。禁停照旧。
+
+## ★[RENAME] 命名落定（裁四 2026-07-12·独占待在飞线收口后插入）
+> **新名**：项目 = **Weft**（RISC-V 实例 = **Weft-RV**）；方言前缀 = **weft**（`weft_rvv`/`weft_ime`/`weft_scalar`）；命名空间 `Weft`、`include/Weft/`、工具 `weft-opt`/`weft-translate`。碰撞则备选 `capx`→`strata`。A 段（pattern/registry）可先行；B/C 独占一次机械替换 → CI 绿 + byte-exact 零漂移 + MOVES；时点 = 在飞线收口后。
+
+## 在飞（裁决执行批·2026-07-12·异域不相交·下 Line-A..E = 已收历史）
+> **★当前在飞**：logit-ULP 三格数值档（k1·`a5e88601`·[K-5]）· 二.2 决定性实验（rvv·`a86d9e8a`）· gcc-death 回溯+X3→[P-4]+〇 登记（docs·`adead0a0`）· [P-4] 8 缺口修复（spec·`a1a795d7`）。
+> **★★里程碑（committed）**：perf-covered **7/83**（q5_K@k1 新绿）· IME ratified triple 全 3/3 forward-wired（打回 provisional·裁一）· [WORK-ITEM] K-quant e2e clang 传导存在性证明（gcc 归因隔离 pending·二.2）· X3→[P-4] drill C1 头牌 followability 证据（8 缺口·在修）。
+> **★异板不相交**（rvv ∥ k1·以下 Line-A..E 为历史收口记录）：
 > **★★本轮里程碑（committed）**：**perf-covered 6/83→7/83**——**q5_K@k1 NEW GREEN**（`47e29b35`·首个 our-kernel K-quant e2e 传导·prefill 1.641×·裁四.2 k1 唯一新绿点兑现·第2 K-quant transduction with our kernel）· **[WORK-ITEM] RESOLVED-POSITIVE**（`b12afd57`·q4_K e2e k1-clang 2.644×·C3′ 绿路径确认·rvv LOSS=gcc-death 非 weight-recon wall）· q6_K **FINAL 转正**（`8f80df11`）· iq4_nl **correctness-carrier GREEN→firm yellow-对手更强**（`d0bf1ff8`·codebook 家族首·[GAP-VLEN128] 碎片化第3族）· Line-C k1 编译器对称订正（`17c193eb`）· IME bridge session-1（`13c1c74a`）· 裁决一/三 recon（`2c53e581`）。
 > **★下一线 = IME session-2**（k1·跨范式完整性名义·family#2 forward 完成·session-1 correctness 桥已闭·session-2 = 真 ggml 数据路径 #3/#4 + forward hook #5 + e2e A==B）。**q3_K/q6_K@k1 不追**（kernel S6-NULL 全展开-immature·即便 clang 不传导·区别 q5_K clean S6-hybrid-holds 1.916×）·**Phase-2 q4_K our-emit e2e**（deployed=proven 成色·recipe 在手·排 IME-2 后）。
 > **★异板不相交**（rvv ∥ k1）：
