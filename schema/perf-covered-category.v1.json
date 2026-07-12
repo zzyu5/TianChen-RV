@@ -13,6 +13,7 @@
       "声明例外"
     ],
     "category_note": "六类冻结集（裁一.3）; 自造标签（yellow-kernel-axis 等）停用·映射入六类; q6_K yellow-kernel-axis -> 黄-对手更强(provisional).",
+    "green_quality_三维体例": "[裁五.2 2026-07-13] 绿格成色三维体例（成色注记·不改 category·仍绿）= {板覆盖: 单板 / 双板} × {账本: kernel净账 / 系统账(routing / path-win)} × {对手强度: 手调repack(hand-brick·强) / 通用路径(block-dot·弱)}。逐绿格 green.成色三维 字段标注。对手强度判别: 对手 = 手调 hand-brick（如 q4_K@k1·case256 真出货 repack·唯一强对手绿格） = 最强对手成色; 对手 = 通用 block-dot（如 q5_K@k1 / q4_0 / q4_1 / q5_0 / q5_1 / q8_0·stock 无对应 riscv repack → dispatch nullptr → 路由 block-dot·objdump-confirmed） = path-win 成色（系胜在路由到 repack 路径·非比调优核快）。★成色注记 ≠ headline/分类计数变更（recon 7/83 不动）。",
     "target_counts": {
       "denominator": 83,
       "绿": 6,
@@ -47,7 +48,8 @@
         "account": "系统账绿-routing-win（kernel账非净绿=上游 repack 路径白嫖·correctness 白送）",
         "ratio": "e2e prefill 5.92× / decode 1.91×",
         "ledger_pointer": "2026-07-11-perf-covered-baseline.md §2.2 · memory q4-0-e2e-is-routing-not-kernel",
-        "quality_note": "routing 系统账·5/8 门（②③④ pending）·[NG-4] beat 措辞 LOCKED·fold decode+prefill 两 regime（结构 roster 保留两 cell·本层折叠为 1）"
+        "quality_note": "routing 系统账·5/8 门（②③④ pending）·[NG-4] beat 措辞 LOCKED·fold decode+prefill 两 regime（结构 roster 保留两 cell·本层折叠为 1）",
+        "成色三维": "单板(rvv/VLEN128) × 系统账(routing-win·kernel账非净绿=上游 repack 路径白嫖) × 对手=通用路径(上游 ggml block-dot·routing 白嫖·非手调 repack)·[裁五.2]"
       }
     },
     {
@@ -63,7 +65,8 @@
         "account": "系统账绿-path-win（vs 未优化 generic block-dot·stock q4_1 无 riscv repack·异常慢 ~2×）",
         "ratio": "e2e prefill 3.68× / decode 1.67×",
         "ledger_pointer": "2026-07-12-perf-covered-q4_1-green-6of84.md",
-        "quality_note": "八门全过·path-win（vs 未优化 generic·非比调优核快）·both-phase-win 反常留 scrutiny·verdict 立于 prefill≥parity"
+        "quality_note": "八门全过·path-win（vs 未优化 generic·非比调优核快）·both-phase-win 反常留 scrutiny·verdict 立于 prefill≥parity",
+        "成色三维": "单板(rvv/VLEN128) × 系统账(path-win·vs 未优化 generic·非比调优核快) × 对手=通用路径(stock q4_1 无 riscv repack→generic block-dot·异常慢~2×·非手调 repack)·[裁五.2·本格为 path-win 体例锚]"
       }
     },
     {
@@ -79,7 +82,8 @@
         "account": "kernel账净绿-prefill-axis（净新 scaffold·1.23× micro 确传导·非 wash）",
         "ratio": "e2e prefill 1.21× WIN / decode 0.82× reg",
         "ledger_pointer": "2026-07-12-perf-covered-q5_0-green-4of84.md",
-        "quality_note": "prefill-win/decode-loss split（如实披露·memory-bound GEVM）·C1 template extensibility 实证 | ★裁五.3 decode 统一: decode 回退如实披露·结构性权衡(repack 利 GEMM/prefill 损 GEVM/decode·memory-bound interleaved-layout 多带宽 for nr=1)·[GAP-REPACK-GEVM]·非物理墙(物理墙仅限 roofline 证双方同贴一墙≈parity·裁五.3)"
+        "quality_note": "prefill-win/decode-loss split（如实披露·memory-bound GEVM）·C1 template extensibility 实证 | ★裁五.3 decode 统一: decode 回退如实披露·结构性权衡(repack 利 GEMM/prefill 损 GEVM/decode·memory-bound interleaved-layout 多带宽 for nr=1)·[GAP-REPACK-GEVM]·非物理墙(物理墙仅限 roofline 证双方同贴一墙≈parity·裁五.3)",
+        "成色三维": "单板(rvv/VLEN128) × kernel账净绿(kernel==system·gcc-15 出货对称·prefill 1.23× micro 确传导) × 对手=通用路径(stock ggml q5_0 block-dot·objdump 探针·非 SELF·非手调 repack)·[裁五.2]"
       }
     },
     {
@@ -95,7 +99,8 @@
         "account": "kernel账净绿-prefill-axis（q8_1-activation repack 家族首成员）",
         "ratio": "e2e prefill 1.09× WIN / decode 0.78× reg",
         "ledger_pointer": "2026-07-12-perf-covered-q5_1-green-5of84.md",
-        "quality_note": "净新 block_q8_1x4 + quantize_mat_t<Q8_1>·C1 extensibility 扩展·decode reg 披露 | ★裁五.3 decode 统一: decode 回退如实披露·结构性权衡(repack 利 GEMM/prefill 损 GEVM/decode·memory-bound interleaved-layout 多带宽 for nr=1)·[GAP-REPACK-GEVM]·非物理墙(物理墙仅限 roofline 证双方同贴一墙≈parity·裁五.3)"
+        "quality_note": "净新 block_q8_1x4 + quantize_mat_t<Q8_1>·C1 extensibility 扩展·decode reg 披露 | ★裁五.3 decode 统一: decode 回退如实披露·结构性权衡(repack 利 GEMM/prefill 损 GEVM/decode·memory-bound interleaved-layout 多带宽 for nr=1)·[GAP-REPACK-GEVM]·非物理墙(物理墙仅限 roofline 证双方同贴一墙≈parity·裁五.3)",
+        "成色三维": "单板(rvv/VLEN128) × kernel账净绿(kernel==system·gcc-15 出货对称·q8_1-activation repack 家族首成员) × 对手=通用路径(stock q5_1 block-dot·objdump vl=8 探针·非 SELF·非手调 repack)·[裁五.2]"
       }
     },
     {
@@ -111,7 +116,8 @@
         "account": "kernel账净绿-correctness-carrier（deployed==proven·selector block_dot_memory_bound 能力键控自然路由·.inc 字节等于 M1b）",
         "ratio": "e2e prefill 4.35× / decode 3.81×",
         "ledger_pointer": "2026-07-12-perf-covered-q8_0-green-3of84.md",
-        "quality_note": "成色最强·无外援·能力事实→发射 vl=8→部署→真路由→修复上游 VLEN128 破损→e2e 兑现·CI 排除 parity"
+        "quality_note": "成色最强·无外援·能力事实→发射 vl=8→部署→真路由→修复上游 VLEN128 破损→e2e 兑现·CI 排除 parity",
+        "成色三维": "单板(rvv/VLEN128) × kernel账净绿-correctness-carrier(kernel==system·gcc-15 出货对称·deployed==proven) × 对手=通用路径(stock 上游 block-dot/vec_dot·q8_0 无 block-dot decline 路·上游 VLEN128 破损→我方 kernel 承载·非手调 repack)·[裁五.2]"
       }
     },
     {
@@ -127,7 +133,8 @@
         "account": "kernel账净绿-sealed-Win（Win-K1-VLEN RATIFIED·k1/VLEN256 vs 真出货 hand-brick·byte-exact·八门 ①②③④⑥⑦⑧ + ⑤ FU-2 RESOLVED）",
         "ratio": "k1/VLEN256 e2e prefill 1.085×",
         "ledger_pointer": "2026-07-11-perf-covered-baseline.md §2.1 · 2026-07-10-Win-K1-VLEN-加固报告.md · 2026-07-10-q4k-micro-vs-e2e-regression-mechanism.md",
-        "quality_note": "any-board 判绿（裁四.0）·绿立足 k1-half·rvv/VLEN128-half = e2e 0.334× LOSS [GAP-Q4K-VLEN128]+gcc-codegen（同 cell rvv-half 是 yellow）"
+        "quality_note": "any-board 判绿（裁四.0）·绿立足 k1-half·rvv/VLEN128-half = e2e 0.334× LOSS [GAP-Q4K-VLEN128]+gcc-codegen（同 cell rvv-half 是 yellow）",
+        "成色三维": "单板(k1/VLEN256·any-board 判绿·绿立足 k1-half) × kernel账净绿-sealed-Win(Win-K1-VLEN RATIFIED·byte-exact) × ★对手=手调 hand-brick(真出货 stock RVV q4_K 16x1 repack·case256 fires·NOT block-dot·唯一强对手绿格)·[裁五.2·成色最硬对手·与 q5_K@k1/FLAT 通用路径 path-win 成色对照]"
       }
     },
     {
@@ -329,7 +336,9 @@
         "account": "kernel账净绿-prefill-axis(clang-18 对称·kernel==system·our-emitted q5_K repack 净新 dispatch·非 stock white-label)",
         "ratio": "e2e prefill 1.641× WIN / decode 0.729× roofline-loss",
         "ledger_pointer": "2026-07-12-perf-covered-q5_K-k1-green-7of83.md",
-        "quality_note": "★2nd K-quant e2e transduction(our compiler-emitted repack·区别 [WORK-ITEM] q4_K stock repack)·裁四.2 k1 唯一新绿点兑现·prefill-win(+64% compute 传导)/decode-loss(block_q5_Kx16 stride-2816+qh 多带宽 for nr=1·[GAP-REPACK-GEVM] 结构性权衡·如实披露)·correctness GREEN@bounded-ULP(3/4 byte-identical+1/4 coherent-flip·ppl Δ0.33% within±3.8·MIRAGE ruled out)·八门 mostly PASS(②⑤ PARTIAL=e2e single-board k1·非 sealed universal 8-gate)·net-new dispatch(k1 ships zero q5_K repack·objdump-confirmed)·C3′ 绿路径家族扩展 with our kernel·对手 stock q5_K block-dot"
+        "quality_note": "★2nd K-quant e2e transduction(our compiler-emitted repack·区别 [WORK-ITEM] q4_K stock repack)·裁四.2 k1 唯一新绿点兑现·prefill-win(+64% compute 传导)/decode-loss(block_q5_Kx16 stride-2816+qh 多带宽 for nr=1·[GAP-REPACK-GEVM] 结构性权衡·如实披露)·correctness GREEN@bounded-ULP(3/4 byte-identical+1/4 coherent-flip·ppl Δ0.33% within±3.8·MIRAGE ruled out)·八门 mostly PASS(②⑤ PARTIAL=e2e single-board k1·非 sealed universal 8-gate)·net-new dispatch(k1 ships zero q5_K repack·objdump-confirmed)·C3′ 绿路径家族扩展 with our kernel·对手 stock q5_K block-dot",
+        "对手成色": "[裁五.1] 对手 = stock 通用 block-dot 路径（k1 ships ZERO q5_K repack·dispatch 仅 NEON sub-branch[q5_K_8x8/8x4 under has_neon]→riscv nullptr at every VLEN→stock ggml_vec_dot_q5_K_q8_K block-dot·objdump-confirmed 唯一 q5_K mul_mat on riscv·非 SELF）·非手调 repack → 按 q4_1 体例标注 path-win 性质（对手为通用路径 block-dot·非手调 repack）·区别 q4_K@k1 与 q2_K@k1 的手调 hand-brick 对手（case256 真出货 repack）。对手探针工件(objdump nullptr/dispatch 证据) = experiments/active/g5-wiring/M2-q5_K-k1-e2e/evidence.md §opponent + raw/objdump_gemm_q5_K.txt + raw/objdump_gevm_q5_K.txt。",
+        "成色三维": "单板(k1/VLEN256) × kernel账净绿(kernel==system·clang-18 对称·net-new dispatch 我方 emitted repack)—path-win 性质具系统/routing 侧面(经 net-new dispatch 路由到我方 repack 取胜·对手通用路径) × 对手=通用路径(stock q5_K block-dot·非手调 repack)·[裁五.2·本裁焦点·path-win 通用路径成色·与 q4_K@k1 手调 hand-brick 成色对照]"
       }
     },
     {
@@ -575,7 +584,8 @@
       "transduction_dilution": {
         "compute_account_ratio": "~2.09×(T5b kernel-axis·vmadot-leaf·对手 SELF·硅证 int32 0-diff)——★但桥墙钟里可忽略(Amdahl 主导=单线程 ith==0[1/4 hart]+每 prefill 调用重 repack 未缓存)",
         "amdahl_pointer": "compute-account 2.09× × 桥 overhead → e2e 净退化(比 stock 慢 6-79×·非稀释到 parity)·micro↛e2e·实测 IME 三格 e2e 配对补测(裁一.3·出口=稀释)·M0-接线机制解剖 + M3-ime-bridge-recon deploy-readiness",
-        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q4_0.txt·prefill e2e ON/OFF=0.0128× (ON/VEN=0.0065×·VEN/OFF=1.98× vendor-ceiling 证 prefill 有头顶空间→稀释非物理墙)·decode 0.715×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)"
+        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q4_0.txt·prefill e2e ON/OFF=0.0128× (ON/VEN=0.0065×·VEN/OFF=1.98× vendor-ceiling 证 prefill 有头顶空间→稀释非物理墙)·decode 0.715×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)",
+        "note": "[裁三.1] 桥为 correctness-first 形态（单线程·ith==0[1/4 hart]·repack 未缓存·参考实现）；性能兑现 = 具名工程 GAP，非物理墙（厂商同 regime VEN/OFF=1.98× 证上限存在）。[裁三.3 叙事禁令] 禁在 [GAP-IME-BRIDGE-PERF] 收口前把三格稀释数字用于『IME 不行』或『IME 将转绿』叙事；现状 = 结构闭环成立 ∧ 性能兑现待工程。GAP 登记见 T8 [GAP-IME-BRIDGE-PERF] 行（具名·可修·现不立项·重估条件=C1/C2 毛刺收口后 或 新证据表明修复成本显著低于预期·以性能名义开工前置=Amdahl 预估+厂商路径占比核算+[X-0] 三问）。"
       }
     },
     {
@@ -589,7 +599,8 @@
       "transduction_dilution": {
         "compute_account_ratio": "~2.09×(T5b kernel-axis·vmadot-leaf·对手 SELF·硅证 int32 0-diff)——★但桥墙钟里可忽略(Amdahl 主导=单线程 ith==0[1/4 hart]+每 prefill 调用重 repack 未缓存)",
         "amdahl_pointer": "compute-account 2.09× × 桥 overhead → e2e 净退化(比 stock 慢 6-79×·非稀释到 parity)·micro↛e2e·实测 IME 三格 e2e 配对补测(裁一.3·出口=稀释)·M0-接线机制解剖 + M3-ime-bridge-recon deploy-readiness",
-        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q8_0.txt·prefill e2e ON/OFF=0.166× (VEN/OFF=0.99× q8_0 prefill 本身内存墙)·decode 0.868×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)"
+        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q8_0.txt·prefill e2e ON/OFF=0.166× (VEN/OFF=0.99× q8_0 prefill 本身内存墙)·decode 0.868×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)",
+        "note": "[裁三.1] 桥为 correctness-first 形态（单线程·ith==0[1/4 hart]·repack 未缓存·参考实现）；性能兑现 = 具名工程 GAP，非物理墙（厂商同 regime 1.98× 证上限存在·本格 q8_0 prefill VEN/OFF=0.99× 系 q8_0 prefill 本身内存墙非 IME 墙）。[裁三.3 叙事禁令] 禁在 [GAP-IME-BRIDGE-PERF] 收口前把三格稀释数字用于『IME 不行』或『IME 将转绿』叙事；现状 = 结构闭环成立 ∧ 性能兑现待工程。GAP 登记见 T8 [GAP-IME-BRIDGE-PERF] 行（具名·可修·现不立项·重估条件=C1/C2 毛刺收口后 或 新证据表明修复成本显著低于预期·以性能名义开工前置=Amdahl 预估+厂商路径占比核算+[X-0] 三问）。"
       }
     },
     {
@@ -603,7 +614,8 @@
       "transduction_dilution": {
         "compute_account_ratio": "~2.09×(T5b kernel-axis·vmadot-leaf·对手 SELF·硅证 int32 0-diff)——★但桥墙钟里可忽略(Amdahl 主导=单线程 ith==0[1/4 hart]+每 prefill 调用重 repack 未缓存)",
         "amdahl_pointer": "compute-account 2.09× × 桥 overhead → e2e 净退化(比 stock 慢 6-79×·非稀释到 parity)·micro↛e2e·实测 IME 三格 e2e 配对补测(裁一.3·出口=稀释)·M0-接线机制解剖 + M3-ime-bridge-recon deploy-readiness",
-        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q4_K.txt·prefill e2e ON/OFF=0.0617× (VEN/OFF=1.49× vendor-ceiling)·decode 0.618×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)"
+        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q4_K.txt·prefill e2e ON/OFF=0.0617× (VEN/OFF=1.49× vendor-ceiling)·decode 0.618×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)",
+        "note": "[裁三.1] 桥为 correctness-first 形态（单线程·ith==0[1/4 hart]·repack 未缓存·参考实现）；性能兑现 = 具名工程 GAP，非物理墙（厂商同 regime VEN/OFF=1.49× vendor-ceiling 证上限存在）。[裁三.3 叙事禁令] 禁在 [GAP-IME-BRIDGE-PERF] 收口前把三格稀释数字用于『IME 不行』或『IME 将转绿』叙事；现状 = 结构闭环成立 ∧ 性能兑现待工程。GAP 登记见 T8 [GAP-IME-BRIDGE-PERF] 行（具名·可修·现不立项·重估条件=C1/C2 毛刺收口后 或 新证据表明修复成本显著低于预期·以性能名义开工前置=Amdahl 预估+厂商路径占比核算+[X-0] 三问）。"
       }
     },
     {
