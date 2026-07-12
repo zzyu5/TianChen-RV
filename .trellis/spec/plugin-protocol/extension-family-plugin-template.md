@@ -38,24 +38,50 @@ include/Weft/Dialect/<Fam>/      CMakeLists
 include/Weft/Dialect/<Fam>/IR/   <Fam>Dialect.h + <Fam>Ops.td + CMakeLists (ODS/TableGen)
 lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → lib Weft<Fam>Target  ← MANDATORY link dep
 include/Weft/Target/<Fam>/       <Fam>TargetSupportBundle.h
-lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 SHARED registration (见 [GAP-P4-REGISTER] in
+lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 SHARED registration (见 [GAP-P4-REGISTER] step 2 in
                                        [extension-plugin-integration.md](./extension-plugin-integration.md))
+lib/{Dialect,Plugin,Target}/CMakeLists.txt       +1 `add_subdirectory(<Fam>)` line EACH             ← SHARED parent build-wiring edit
+  + include/Weft/Dialect/CMakeLists.txt          +1 `add_subdirectory(<Fam>)`   (4 parent files total)
+lib/Plugin/Builtin/CMakeLists.txt                +1 `LINK_LIBS Weft<Fam>Plugin`                     ← SHARED build-wiring edit (Builtin plugin catalog)
+lib/Conversion/EmitC/Builtin/{BuiltinBackendEmitters.cpp,CMakeLists.txt}  +1 `kBuiltinBackendEmitters[]` row + `LINK_LIBS Weft<Fam>BackendEmitter`  ← own-backend families ONLY (见 [GAP-P4-REGISTER] step 3)
 ```
 
-The 6 `CMakeLists.txt` are: `lib/Plugin/<Fam>/`, `lib/Dialect/<Fam>/`,
-`lib/Dialect/<Fam>/IR/`, `include/Weft/Dialect/<Fam>/`,
-`include/Weft/Dialect/<Fam>/IR/`, `lib/Target/<Fam>/`. The `Plugin/` and
-`Target/` include mirrors carry no `CMakeLists` (their headers are pulled by the
-`lib/` targets); only the `Dialect/` side has extra `CMakeLists` for ODS
-TableGen (`MLIR<Fam>OpsIncGen`).
+The 6 **family-local** `CMakeLists.txt` — all newly *created* under the family
+roots — are: `lib/Plugin/<Fam>/`, `lib/Dialect/<Fam>/`, `lib/Dialect/<Fam>/IR/`,
+`include/Weft/Dialect/<Fam>/`, `include/Weft/Dialect/<Fam>/IR/`,
+`lib/Target/<Fam>/`. The `Plugin/` and `Target/` include mirrors carry no
+`CMakeLists` (their headers are pulled by the `lib/` targets); only the `Dialect/`
+side has extra `CMakeLists` for ODS TableGen (`MLIR<Fam>OpsIncGen`).
+
+**Beyond those 6 family-local `CMakeLists`, a family also *edits* shared/parent
+`CMakeLists` (2026-07-12 [GAP-B T1c], code-verified — these were omitted from the
+"6" count above and understate the real onboarding work):** one
+`add_subdirectory(<Fam>)` line appended to **each of 4 parent files** —
+`lib/Dialect/CMakeLists.txt`, `lib/Plugin/CMakeLists.txt`,
+`lib/Target/CMakeLists.txt`, `include/Weft/Dialect/CMakeLists.txt` — plus one
+`LINK_LIBS Weft<Fam>Plugin` line in `lib/Plugin/Builtin/CMakeLists.txt` (the
+Builtin plugin catalog that links every family plugin). An **own-backend** family
+additionally adds one `LINK_LIBS Weft<Fam>BackendEmitter` line to
+`lib/Conversion/EmitC/Builtin/CMakeLists.txt`, paired with its
+`kBuiltinBackendEmitters[]` row (见 [GAP-P4-REGISTER] step 3). These parent/shared
+`CMakeLists` edits are **not [F-3] violations**: `*.cpp/*.h/*.td` under
+`lib/`/`include/Weft/` is the only containment-*enforced* source scope, and
+`**/CMakeLists.txt` is a `build_and_tooling` shared allowance in
+`schema/family-manifest.v1.json` (family-name-as-data `add_subdirectory`/`LINK_LIBS`
+lines, no branch).
 
 **Relation to [F-3] containment.** All 6 roots follow the `lib/{Dialect,Plugin,Target}/<Fam>/`
 + `include/` mirror shape that `schema/family-manifest.v1.json` already declares as
 one family's owned territory, so they are *family-local*, not core — the wide
-touch-set is not an [F-3] violation. The one genuinely shared file is the Builtin
-registration (see [GAP-P4-REGISTER]). [F-3]'s prose "`plugins/<family>/`" is a
-generic stand-in for this real 6-root shape (the code lives under
-`lib/{Dialect,Plugin,Target}/<Fam>/`, not a literal `plugins/` directory).
+touch-set is not an [F-3] violation. The genuinely shared touches are the Builtin
+registration file(s) — `BuiltinExtensionPlugins.cpp` always, plus
+`BuiltinBackendEmitters.cpp` for own-backend families (see [GAP-P4-REGISTER]) — and
+the parent/Builtin `CMakeLists` build-wiring edits enumerated above (all
+family-name-as-data `add_subdirectory`/`LINK_LIBS` lines, no branch; `CMakeLists`
+is a `build_and_tooling` allowance, not enforced source scope). [F-3]'s prose
+"`plugins/<family>/`" is a generic stand-in for this real 6-root shape (the code
+lives under `lib/{Dialect,Plugin,Target}/<Fam>/`, not a literal `plugins/`
+directory).
 
 ## Required Plugin Sections
 

@@ -135,6 +135,14 @@ per-family rows/facts land (2026-07-12, code-verified):
 | coverage cell | `schema/coverage-roster.v1.json` (denominator) + `schema/coverage-sixstate.v1.json` (certified source) | |
 | family territory + dispatch key | `schema/family-manifest.v1.json` (`source_ranges`) · `schema/family-regex.v1.json` (dispatch keys / core_scope) · `schema/family-dirs.v1.json` (C2-cost families) | the [F-1]/[F-3]/[F-6] falsifier rows |
 
+These `schema/**` edits are **table-row data** (the [F-3] "+ 表行" allowance), not
+edits to the frozen schema *shape*. The onboarding PR marks itself with a
+`Family-Onboarding:` commit trailer so the [F-2'] gate can freeze the schema.def
+against it — see the trailer/`[F-2']` convention (and the current whole-`schema/`-prefix
+collision flag) in
+[locality-contract.md](./locality-contract.md#family-onboarding-trailer--the-f-2-schema-shape-freeze);
+authoritative implementation: `.trellis/scripts/check_schema_gate.py`.
+
 ## Registration (the shared step) [GAP-P4-REGISTER]
 
 A family does not become discoverable until its `register<Fam>ExtensionPlugin`
@@ -151,34 +159,61 @@ pieces. Concretely (2026-07-12, code-verified against
    an `#include "Weft/Plugin/<Fam>/<Fam>ExtensionPlugin.h"`, and one row in
    the `kBuiltinExtensionBundles[]` table:
    `{"<fam>-extension-bundle", register<Fam>ExtensionPlugin},`.
+3. **(own-EmitC-backend families only) The SECOND shared registration point.**
+   If the family ships its **own** backend emission driver
+   (`<Fam>BackendEmissionDriver.cpp` exposing a
+   `register<Fam>BackendEmitter(BackendEmissionRegistry &)` free function — i.e.
+   [P-2] piece ③ is an *own* emission route, **not** a "reuse the shared EmitC
+   materializer" declaration), then it must **also** be entered into a *second*
+   built-in table, `lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp`: add
+   an `#include "Weft/.../\<Fam>BackendEmissionDriver.h"` plus one row in
+   `kBuiltinBackendEmitters[]`
+   (`::weft::plugin::<fam>::register<Fam>BackendEmitter,`), and the matching
+   `LINK_LIBS Weft<Fam>BackendEmitter` line in that directory's `CMakeLists.txt`.
+   A family that **reuses** the shared EmitC/RVV materializer and registers no own
+   driver (e.g. `Demo` — the T1c clean-room family — or `Offload`) does **not**
+   touch this file. (2026-07-12 [GAP-A T1c], code-verified against
+   `BuiltinBackendEmitters.cpp`: `rvv / toy / template / tensorext / ime / scalar`
+   are registered today; `demo / offload` are not.)
 
 ### Reconciliation with [F-3] no-core-edit
 
-`BuiltinExtensionPlugins.cpp` lives under `lib/Plugin/Builtin/` (a `core_subdir`,
-not a family directory), so it is **core-source** by
-`schema/family-manifest.v1.json`'s definition — and editing it in a family PR is
-*not* currently listed in that manifest's `shared_allowances`. So as written, the
-[F-3] containment gate would flag this edit. Two things resolve the tension:
+Both shared registration files live under a `Builtin` `core_subdir`, not a family
+directory, so both are **core-source** by `schema/family-manifest.v1.json`'s
+definition:
 
-- **It is not an I3/[F-1] zero-branch violation.** `kBuiltinExtensionBundles[]` is
-  a uniform registration *table* (family name as a string literal + a function
-  pointer, iterated with a `for` loop, **no `if`/`switch` on the family name**) —
-  structurally identical to `lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp`'s
-  `kBuiltinBackendEmitters[]`, which `schema/family-regex.v1.json` already blesses
-  as "INTENTIONALLY in scope … zero-core-branch backend registration table." Adding
-  a data row to a family-agnostic registration table is the [F-3] "+ table rows"
-  spirit, not a core dispatch edit.
-- **The containment allowance is LANDED** (`e20bd0f8`·2026-07-12·[裁三.2]·[NEW-STALE-P4-REGISTER-PROSE] 正名).
-  `BuiltinExtensionPlugins.cpp`'s registration-table line is the **one legitimate
-  shared touch-point** of a family integration. It is now registered in
-  `schema/family-manifest.v1.json` `shared_allowances` (alongside `table_rows` /
-  `tests` / `docs`) so the [F-3] CI check treats a registration-table row like a
-  table row. **⚠ FLAG (schema domain — not edited by this docs pass; owner: main
-  session / recon line):** add a `plugin_registration` allowance keyed to
-  `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp` (`kBuiltinExtensionBundles[]`
-  line only), mirroring the `kBuiltinBackendEmitters[]` precedent. Until then, a
-  family PR that touches this file is a *documented, intended* exception, not a
-  violation.
+- `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp` — the plugin-discovery catalog
+  (`kBuiltinExtensionBundles[]`, every family);
+- `lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp` — the backend-emitter
+  catalog (`kBuiltinBackendEmitters[]`, own-backend families only, step 3 above).
+
+Two things resolve the tension:
+
+- **Neither is an I3/[F-1] zero-branch violation.** `kBuiltinExtensionBundles[]`
+  and `kBuiltinBackendEmitters[]` are uniform registration *tables* (family name /
+  bundle-id as a string literal or a function pointer, iterated with a `for` loop,
+  **no `if`/`switch` on the family name**). `schema/family-regex.v1.json` `core_scope`
+  already blesses `BuiltinBackendEmitters.cpp` as "INTENTIONALLY in scope …
+  zero-core-branch backend registration table" (declared false-positive class 1),
+  and `BuiltinExtensionPlugins.cpp`'s table is structurally identical. Adding a data
+  row to a family-agnostic registration table is the [F-3] "+ table rows" spirit,
+  not a core dispatch edit.
+- **Both allowances are now DECLARED in the manifest.**
+  `schema/family-manifest.v1.json` `shared_allowances` carries
+  `plugin_registration` → `BuiltinExtensionPlugins.cpp` (landed `e20bd0f8`·2026-07-12·[裁三.2])
+  **and** `backend_emitter_registration` → `BuiltinBackendEmitters.cpp` (landed
+  2026-07-12·[GAP-A T1c]), alongside `table_rows` / `tests` / `docs` /
+  `build_and_tooling`. A family PR touching either registration-table row (and, for
+  own-backend families, the paired `BuiltinBackendEmitters` `CMakeLists` `LINK_LIBS`
+  line) is a **declared, intended** exception, not a containment violation.
+  **⚠ FLAG (checker semantics — main-session / recon line; NOT fixed by this docs
+  pass):** the [F-3] checker `tools/lint/check_family_locality.py` does **not**
+  currently read `shared_allowances` in its CI `evaluate_diff` — it classifies any
+  unclaimed `lib/`/`include/Weft/` `.cpp/.h/.td` file touched by a family PR as
+  `CORE-EDIT` RED. So today both registration files are honored as *documented,
+  reviewer-waved* exceptions, not *machine-waved* ones. Teaching `evaluate_diff` to
+  consult `shared_allowances.{plugin_registration,backend_emitter_registration}` is
+  a checker-behavior change, out of this docs pass's scope.
 
 ## [P-4] External Integrability
 
@@ -202,8 +237,9 @@ procedure, not reconstructable only by reading core source.
 - [ ] Are route ids and artifact kinds mirrors only?
 - [ ] Are tests attached to production compiler behavior?
 - [ ] Does the PR series carry all five pieces ([P-2]: facts+relations, legality predicate, emission pattern, tests, ledger)?
-- [ ] Is the register step done — `register<Fam>ExtensionPlugin` declared in the family header and added to `kBuiltinExtensionBundles[]` in `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp` ([GAP-P4-REGISTER])?
-- [ ] Does the integration stay within the real family touch-set — `lib/{Dialect,Plugin,Target}/<Fam>/` + `include/` mirrors + table rows + docs + the one shared registration-table row ([F-3]; 6 roots, 见 [GAP-P4-TOUCHSET])?
+- [ ] Is the register step done — `register<Fam>ExtensionPlugin` declared in the family header and added to `kBuiltinExtensionBundles[]` in `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp` ([GAP-P4-REGISTER] step 2)?
+- [ ] **(own-backend families only)** Is `register<Fam>BackendEmitter` added to `kBuiltinBackendEmitters[]` in `lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp` (+ that directory's `CMakeLists` `LINK_LIBS`)? Skip if the family reuses the shared EmitC materializer (e.g. `Demo`) ([GAP-P4-REGISTER] step 3 / [GAP-A T1c]).
+- [ ] Does the integration stay within the real family touch-set — `lib/{Dialect,Plugin,Target}/<Fam>/` + `include/` mirrors + table rows + docs + the shared registration-table row(s) + the shared/parent `CMakeLists` build-wiring edits ([F-3]; 6 family-local roots + shared build wiring, 见 [GAP-P4-TOUCHSET])?
 - [ ] Is the interface used as-is without editing core dispatch/selection/lowering files ([P-1]; the registration-table row is the sole intended shared edit)?
 - [ ] Is the integration doc followable by a non-core author ([P-4]; use the template in `docs/method/P4-family-integration-doc-TEMPLATE.md`)?
 

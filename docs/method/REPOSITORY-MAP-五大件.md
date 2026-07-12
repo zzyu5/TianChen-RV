@@ -78,14 +78,31 @@ lib/Dialect/<Fam>/ + IR/               <Fam>Dialect.cpp + 2 CMakeLists → 库 W
 include/Weft/Dialect/<Fam>/ + IR/  <Fam>Dialect.h + <Fam>Ops.td + 2 CMakeLists（ODS/TableGen）
 lib/Target/<Fam>/                      <Fam>TargetSupportBundle.cpp + CMakeLists → 库 Weft<Fam>Target  ← 五件套未列·MANDATORY
 include/Weft/Target/<Fam>/       <Fam>TargetSupportBundle.h
-lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 共享注册（[GAP-P4-REGISTER]）              ← 五件套+[F-3] 均未列
+lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   +1 共享注册（[GAP-P4-REGISTER] step 2）        ← 五件套+[F-3] 均未列
+lib/{Dialect,Plugin,Target}/CMakeLists.txt + include/Weft/Dialect/CMakeLists.txt   +1 add_subdirectory(<Fam>) 行/文件（4 parent）  ← 共享 parent build-wiring 编辑·五件套+「6 CMakeLists」均未列
+lib/Plugin/Builtin/CMakeLists.txt                +1 LINK_LIBS Weft<Fam>Plugin                  ← 共享 build-wiring 编辑（Builtin plugin catalog）
+lib/Conversion/EmitC/Builtin/{BuiltinBackendEmitters.cpp,CMakeLists.txt}  +1 kBuiltinBackendEmitters[] 行 + LINK_LIBS Weft<Fam>BackendEmitter  ← own-backend 家族限（[GAP-P4-REGISTER] step 3 / [GAP-A T1c]）
 ```
 
+**「6 CMakeLists」只数了新建的 family-local 件**（`lib/Plugin/<Fam>/` · `lib/Dialect/<Fam>/` ·
+`lib/Dialect/<Fam>/IR/` · `include/Weft/Dialect/<Fam>/` · `include/Weft/Dialect/<Fam>/IR/` ·
+`lib/Target/<Fam>/`）。**另有共享/parent `CMakeLists` *编辑*（2026-07-12 [GAP-B T1c] 核，早期漏计、
+低估真实接入工作量）**：4 个 parent 文件各 +1 `add_subdirectory(<Fam>)`
+（`lib/Dialect/CMakeLists.txt` · `lib/Plugin/CMakeLists.txt` · `lib/Target/CMakeLists.txt` ·
+`include/Weft/Dialect/CMakeLists.txt`）+ `lib/Plugin/Builtin/CMakeLists.txt` 的
+`LINK_LIBS Weft<Fam>Plugin`（+ own-backend 家族另加 `lib/Conversion/EmitC/Builtin/CMakeLists.txt`
+的 `LINK_LIBS Weft<Fam>BackendEmitter`）。这些 parent/共享 `CMakeLists` 编辑**非** [F-3] 违规：
+containment 只**强制** `lib/`/`include/Weft/` 下的 `*.cpp/*.h/*.td` 源，`**/CMakeLists.txt` 属
+`schema/family-manifest.v1.json` 的 `build_and_tooling` 声明例外（family-name-as-data
+`add_subdirectory`/`LINK_LIBS` 行、无分支）。
+
 **接入协议**：新家族 = 复制 `Template/` **6 根**（不止 `lib/Plugin/<Fam>/` 五件）+ 填能力事实
-+ 注册表行 + 注册进 `BuiltinExtensionPlugins.cpp`（[GAP-P4-REGISTER]）+ 文档。[F-3] 触碰集 =
-`lib/{Dialect,Plugin,Target}/<Fam>/` + `include/` 镜像 + 表行 + docs + 那**一行**共享注册表行
++ 注册表行 + 注册进 `BuiltinExtensionPlugins.cpp`（[GAP-P4-REGISTER] step 2；own-backend 家族另注册进
+`BuiltinBackendEmitters.cpp` step 3）+ 上述 parent/共享 `CMakeLists` build-wiring + 文档。[F-3] 触碰集 =
+`lib/{Dialect,Plugin,Target}/<Fam>/` + `include/` 镜像 + 表行 + docs + 共享注册表行 + build-wiring
 （**目录归拢是 F-3 可判定的前置**，见 R2/R3；`schema/family-manifest.v1.json` 已把这 6 根形状声明为
-一家族 owned territory，故宽触碰集**非** [F-3] 违规——唯一真共享点 = 注册文件，和解见 spec §[GAP-P4-REGISTER]）。
+一家族 owned territory，故宽触碰集**非** [F-3] 违规——真共享点 = 注册文件 + parent/Builtin CMakeLists，
+和解见 spec §[GAP-P4-REGISTER]）。
 其它家族对照：`IME/`（~3 文件，能力/构造内联进 ExtensionPlugin，复用共享 EmitC/RVV lowering）·
 `Scalar/`（3，空桩待接 [X-SCALAR]）· `RVV/`（R2/R3 已按件分 `BodyRealization/FrontDoor/EmitC/Schedule/Selection/Construction` 子目录）·
 `Offload/` `Toy/` `TensorExtLite/`（参考/兜底）。
