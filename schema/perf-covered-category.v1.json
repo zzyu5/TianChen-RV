@@ -594,11 +594,11 @@
         "format": "q4_K",
         "engine": "ime"
       },
-      "category": "黄-未接线",
+      "category": "黄-传导稀释",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IME（IQ 后·跨范式完整性名义非 perf·裁 2026-07-12 ⑤）",
-        "transduction_estimate_note": "q4_K super-block IME（P7 ime∧shape format-agnostic MMAOp 统一接管三格）·bridge 未建·e2e 未测·【传导稀释是实测后判读非预测标签】·kernel-axis compute-account ~2.09×（对手 SELF·[GAP-IME-LEAF-PIPELINE] 闭环后·silicon-sealed int32 0-diff vmadot 0xe210312b）+ Amdahl 预估：厂商 IME 天花板证内存墙 1B decode 无 cleanly-isolated e2e win → decode e2e 上限 < 噪声·M=1 不传导·bridge 落地实测后按证据转（memory m4-closure-three-classification / measurement-offensive-perf-covered）"
+      "transduction_dilution": {
+        "compute_account_ratio": "~2.09×(T5b kernel-axis·super-block 两级 fold q8_K·[GAP-IME-LEAF-PIPELINE]·对手 SELF·硅证 vmadot 0xe210312b int32 0-diff·P7 ime∧shape format-agnostic MMAOp)",
+        "amdahl_pointer": "★forward-wired DONE(session d73096da·真 q4_K super-block prefill traffic 路由我方 IME 核·5/5 banner·vmadot 32→33·IME family#2 forward 跨 flat→super-block 范式完整)·perf 跨范式名义未测·micro↛e2e(vendor ceiling·decode M=1 native fallback)·带 Amdahl 账·correctness 可辩护(单tensor A==B ~1e-7 vs 3 oracle 含 stock·VEN==OFF 0/5 我方桥更忠实 ggml·near-tie flip 非 bug)·= C1 跨范式结构成就(非 perf 绿·非headline)"
       }
     },
     {
