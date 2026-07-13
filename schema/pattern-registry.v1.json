@@ -139,7 +139,7 @@
     },
     {
       "pattern_id": "PAT-1-IME-vmadot-wide-output-tiling-array-utilization",
-      "milestone": "G6-A M7 (IME array-utilization — FIRST IME emitter optimization pattern; the emitter change that crossed q4_0@ime e2e parity, closing [GAP-IME-BRIDGE-PERF])",
+      "milestone": "G6-A M7 (IME array-utilization — FIRST IME emitter optimization pattern; the emitter change that crossed q4_0@ime e2e parity, closing [GAP-IME-BRIDGE-PERF]) · ★[K-7] 第六杠杆 = 首个 e2e-打穿杠杆(前五杠杆 kernel-axis/FORM·此为首个键控 tile 宽→e2e ≥parity 传导·族级三格·epilogue 重量为边界·L0.4 G6 追认 2026-07-13)",
       "brick": "emit-tile",
       "requires": ["ime.present", "rvv.v"],
       "discriminant_capability_fact": "RVV 32-vreg budget (VLEN256/vlenb=32; a 4x8 fragment = one m1 register) is the DISCRIMINANT capability fact selecting the WIDEST mechanized output-tile width njw that fits the register file. selectVmadotTilePattern keys on this budget → W2 (2-wide) is the shipped mechanized width; W4 is measured-negative (its 16-int32-accumulator f32 epilogue spills → full-matmul NULL 0.972x) so it is registered as a design-space boundary, not shipped. This is an emission-TILE knob (array utilization) on the already-mechanized IME vmadot leaf — it NEVER moves C_construct.",
