@@ -1,0 +1,9 @@
+# q4_1@k1 correctness — generated text A(ON)==B(OFF) byte-identical (spinner/perf-stats stripped)
+-- prompt[1]: text-identical (only loading-spinner + inline perf-stats line differ, see measure_raw)
+   The capital of France is |-\|/-\|/-\| Yes, the capital of France is Paris. [ 
+-- prompt[2]: text-identical (only loading-spinner + inline perf-stats line differ, see measure_raw)
+   Once upon a time |-\|/-\|/-\|/-\|/-\|/- Once upon a time, there was
+-- prompt[3]: text-identical (only loading-spinner + inline perf-stats line differ, see measure_raw)
+   Yes, 2 + 2 is equal to 4. [ Prompt: 23.3 t/s | Generation: 8.1 t/s ] Exiting... 
+-- prompt[4]: text-identical (only loading-spinner + inline perf-stats line differ, see measure_raw)
+   The quick brown fox jumps |-\|/-\|/- The quick brown fox jumps. [ Prompt: 24.8 
