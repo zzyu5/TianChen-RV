@@ -1585,7 +1585,7 @@ private:
       int64_t weightQuantOffset, int64_t activationQuantOffset,
       int64_t weightDminOffset, int64_t weightScalesOffset,
       int64_t activationBsumsOffset, int64_t weightQhOffset, int64_t nSubblocks,
-      int64_t weightInterleave, int64_t half) const;
+      int64_t weightInterleave, int64_t half, bool rolledMainTerm) const;
 
   /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM body
   /// from the FRONT DOOR + S6 TILED (byte-exact). The q5_K prefill sibling of

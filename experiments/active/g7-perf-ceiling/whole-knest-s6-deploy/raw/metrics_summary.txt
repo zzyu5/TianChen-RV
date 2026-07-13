@@ -1,0 +1,78 @@
+whole-K-nest S6 roll -- q5_K GEVM ROLLED envelope DEPLOYMENT (emitter-implanted)
+deployment compiler = SpacemiT riscv64-unknown-linux-gnu-g++ 15.2.0
+                      -march=rv64gcv_zvfh -mabi=lp64d -O3   (== rvv board e2e deploy)
+fixture = test/Conversion/RVV/rvv-to-emitc-repack-gemv-q5-K-q8-K{,-rolled}.mlir
+          (VLEN128 mf2 => numHalves=2 TWO 8-lane strips)
+counting: grep '^\s+v[a-z]'(v-insn) '^\s+vset'(vsetvli) 'vs[0-9]+r\.v'(tile-RT store)
+          'vl[0-9]+r\.v'(reload) 'vwmacc' 'vle8'
+
+================================================================================
+(A) DEPLOYED emitc .s -- BEFORE (unrolled, default) vs AFTER (rolled, capability-keyed)
+    Both from the REAL emitter (weft-opt --weft-rvv-lower-to-emitc | mlir-translate),
+    same q5_K GEVM front-door region; the AFTER carries emit_loop_schedule="rolled".
+--------------------------------------------------------------------------------
+metric                BEFORE(unrolled)   AFTER(rolled)          delta
+static v-insn                 8751             609            -93.0% (14.4x)
+vsetvli                       2943              80            -97.3% (36.8x)
+vs*r.v  (tile-RT store)        209               9            -95.7% (tile-RT hot-path GONE)
+vl*r.v  (reload)                 0               0            (both: not classic spill)
+vwmacc  (static)               560              80            (rolled loop -> dynamic preserved)
+vle8                          1378              57            -95.9%
+asm lines                    25121            1049            -95.8%
+
+(A1) HOT PATH (the 8 runtime ii-loops .L4-.L11, j x pair x k unrolled copies):
+  vs*r.v INSIDE every hot ii-loop body   = 0   (ALL 8 loops -- tile-roundtrip ELIMINATED)
+  vsetvli INSIDE every hot ii-loop body  = 0   (ALL 8 loops -- vsetvli tax hoisted/collapsed)
+  => the [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] per-element decode-tile round-trip is
+     FULLY ELIMINATED in the hot path. Sample .L4 body = 4 vle8 + 4 vwmacc.vx + decode
+     bit-dance (vand/vsrl/vsll/vor), accumulators v3/v6/v7/v8 (sLo/sHi x 2 strips) RESIDENT
+     across iterations, backward branch `bne .L4`. NO vs*r.v, NO vsetvli.
+
+(A2) The 9 residual vs2r.v (HONEST): ALL in COLD regions, NOT the hot decode nest --
+  lines 58/66/81/85 (prologue + block-loop-top accumulator-bank ZERO-SEED),
+  270/294/300 + 975/986 (block-boundary accumulator management / end-of-block flush).
+  These are the RESIDENT accumulator bank (sumi/bsums/sumf) at numHalves=2 (VLEN128 dual
+  strip: 6 x m2 = 12 vreg bank + 8 scale strips), of which gcc-15.2 spills a few at the
+  COLD block boundary. The G1 casefile got 0 at numHalves=1 (single strip = half the bank);
+  at numHalves=2 the bank doubles and 9 cold seeds/flushes remain. NOT a per-element decode
+  tile round-trip; NOT in any hot loop.
+
+================================================================================
+(B) BYTE-EXACT (hard gate)
+--------------------------------------------------------------------------------
+  (1) DEFAULT (unrolled) path byte-EXACT-neutral: the q5_K GEVM emitc with NO stamp is
+      BYTE-IDENTICAL before vs after the source change (diff q5k_gevm_BEFORE.emitc.c
+      vs q5k_gevm_AFTER_unrolled.emitc.c == IDENTICAL). The rolled path is a NEW
+      capability-keyed variant; the shipped default is untouched.
+  (2) DYNAMIC op-stream identity rolled-vs-unrolled (from the two emitc MLIR):
+        vwmacc_vx_i16m1 : unrolled 512 calls  |  rolled 32 static x 16 trips = 512  EQUAL
+        vwmacc_vv_i32m2 : 64 == 64  |  vwmacc_vx_i32m2 : 32 == 32
+        vfmacc_vv_f32m2 : 4 == 4    |  vfnmsac_vv_f32m2 : 4 == 4  |  vse32 : 4 == 4
+      => same integer accumulation order (ii ascending, then h), only the ii-loop is
+         materialized as a runtime emitc.for instead of unrolled. Byte-exact by construction.
+  (3) q5_K host decode oracle (be_q5k_host, exhaustive nibble x qh_bit, 32 cases):
+        stock == current == KNEST : 0/32 mismatch => BYTE-EXACT.
+  (4) numeric board A/B = DEFERRED (kernel-axis C1 line, no board): rests on (1)-(3) +
+      construction-identity + G6-B P3 board precedent (identical emitc.for-vs-unroll
+      transform on sibling q2_K GEMM: rolled==unrolled 43008/43008 bytes, 0 mismatch).
+
+================================================================================
+(C) LIT + ISOLATION (regression guardrail)
+--------------------------------------------------------------------------------
+  Conversion/RVV lit: 243/243 PASS (100%) -- was 242, +1 the new q5_K rolled fixture.
+  Zero regression: every OTHER format lit UNCHANGED (their CHECK lines unmodified + pass).
+  git diff: only 4 files (RVVOps.td +ODS attr, RVVToEmitCBlockQuantLinear.cpp, internal.h
+  +param, RVVDialectWideningOps.cpp +verifier). The .cpp hunks are CONFINED to (a) a fwd
+  decl, (b) the q5_K GEVM dispatch branch, (c) the emitRepackKQuantGemvBodyQ5K leaf.
+  ZERO diff lines touch: emitRepackKQuantGemvBodyQ2K/Q4K/Q6K/Q3K, emitRepackGemmQ4LaneWise
+  IntegerCore (sealed GEMM), emitRepackQ4LaneWiseIntegerCore (q5_0/q5_1 REDESIGN-B),
+  emitRepackKQuantGemmBodyQ5K/Q2K. capability-guard isolation: ONLY q5_K GEVM goes rolled,
+  and ONLY when emit_loop_schedule="rolled" is stamped (default = unrolled = unchanged).
+
+VERDICT: q5_K GEVM whole-K-nest rolled envelope IMPLANTED (capability-keyed, q5_K-only,
+byte-exact). Hot-path [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] CLOSED (0 vs*r.v / 0 vsetvli in
+all 8 hot ii-loops; -93% v-insn / -97% vsetvli overall). 9 cold residual vs2r.v = numHalves=2
+resident-bank seeds/flushes (expected dual-strip setup, not tile-roundtrip). KERNEL-AXIS C1
+emitter-maturity artifact -- ZERO perf green (rolled ~1.78x instruction density > 1.10x gate
++ [CASE-MICRO-E2E] decode memory-wall; the roll is an icache/code-volume/vsetvli lever, NOT
+an instruction-density lever).

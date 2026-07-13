@@ -10737,7 +10737,27 @@ def TypedRepackGemvLoopBodyOp
     // +64) OR-ed with this HIGH 2-bit region (+32) then biased -32 (NO min); ABSENT for
     // the flat codebook fold and the q4_0 / ternary / K-quant folds. A pure I4 shape
     // mirror, never a route/dtype WHAT.
-    OptionalAttr<I64Attr>:$weight_scales_high_byte_offset
+    OptionalAttr<I64Attr>:$weight_scales_high_byte_offset,
+    // OPTIONAL emission-SCHEDULE knob (the *how*, never the *what*): selects the
+    // K-quant super-block main-term GEVM decode-nest emission shape between the
+    // register-resident "unrolled" full static unroll (the default shipped form:
+    // the per-super-half / per-pair / per-k / per-16-element inner decode nest is
+    // statically unrolled, trading code volume for zero loop overhead) and a compact
+    // "rolled" form (the dominant per-16-element inner ii-loop is emitted as ONE
+    // runtime emitc.for with the per-strip i16 partials carried as RESIDENT SSA-
+    // register VariableOps -- a single wide accumulator, NEVER a materialized stack
+    // decode tile -- eliminating the [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-reg
+    // decode-tile round-trip + collapsing the vsetvli tax). This is the whole-K-nest
+    // S6 maturity lever: CAPABILITY-KEYED (the emitter derives the default from a
+    // code-volume-vs-budget fact when ABSENT; this attr is the explicit forcing
+    // override for A/B byte-exact measurement + a capability policy pin). BYTE-EXACT
+    // across both values by construction: the integer vwmacc accumulation order is
+    // preserved (rolled == unrolled arithmetic, only the loop is materialized instead
+    // of unrolled). ONLY the q5_K GEVM decode leaf carries a rolled variant today (the
+    // other K-quant GEVM leaves ignore this knob). Bounded to {"unrolled","rolled"};
+    // ABSENT => capability-derived default. A pure I4/schedule mirror, never a
+    // route/dtype WHAT.
+    OptionalAttr<StrAttr>:$emit_loop_schedule
   );
   let regions = (region SizedRegion<1>:$body);
 

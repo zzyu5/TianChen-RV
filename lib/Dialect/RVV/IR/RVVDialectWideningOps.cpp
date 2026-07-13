@@ -12981,6 +12981,23 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
              << qhAttr.getInt();
   }
 
+  // Bounded emission-SCHEDULE knob (the *how*, never the *what*): the K-quant
+  // super-block main-term GEVM decode-nest emission shape. "unrolled" = the
+  // register-resident full static unroll (the default shipped form); "rolled" = the
+  // compact runtime-loop form (the [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest
+  // maturity lever, ONLY the q5_K decode leaf carries it). Byte-exact across both by
+  // construction (identical integer accumulation order). ABSENT => the emitter's
+  // capability-derived default. Any other spelling is rejected fail-closed (I7).
+  if (getEmitLoopSchedule().has_value()) {
+    llvm::StringRef sched = *getEmitLoopSchedule();
+    if (sched != "unrolled" && sched != "rolled")
+      return emitOpError()
+             << "only accepts emit_loop_schedule \"unrolled\" (the register-resident "
+                "full static unroll) or \"rolled\" (the compact runtime-loop whole-"
+                "K-nest main term); got \""
+             << sched << "\"";
+  }
+
   // The OPTIONAL K-quant super-block decode facts (I7). The 6-bit/signed scales
   // region offset + the sub-block count ride on EITHER K-quant fold (q4_K or q6_K).
   // The per-column dmin strip offset + the activation int16 bsums offset are the

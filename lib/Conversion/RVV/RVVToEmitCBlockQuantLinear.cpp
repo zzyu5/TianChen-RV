@@ -2145,6 +2145,17 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
 // half / l8/l16/l32 / byte-offset facts, so the whole kernel body is byte-identical
 // to emitRepackGemvQ4_0Q8_0's by construction on every arm (the monolith's trailing
 // unused-result token is its only residue -- the loop-body op has no result).
+
+// Forward declaration ([GAP-EMIT-UNROLL] / [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP]
+// schedule resolver, defined below): PREFER the explicit emit_loop_schedule stamp,
+// else the capability-derived default (frozen to unrolled). Shared by the q2_K GEMM
+// main-term dispatch AND the q5_K GEVM whole-K-nest rolled envelope dispatch.
+static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
+                                        llvm::StringRef coreLmul, int64_t qk,
+                                        int64_t weightInterleave,
+                                        int64_t activationInterleave,
+                                        int64_t half);
+
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2501,6 +2512,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
         return rewriter.notifyMatchFailure(
             loopBody, "q5_K repack GEVM loop body requires the "
                       "weight_qh_byte_offset attr (the qh 5th-bit plane)");
+      // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*,
+      // never the *what*): PREFER the explicit emit_loop_schedule stamp, else the
+      // capability-derived default (frozen to unrolled -- the byte-exact-neutral
+      // shipped form; existing q5_K GEVM fixtures carry NO stamp => unchanged output).
+      // q5_K is the ONLY GEVM decode leaf that carries a rolled variant; the stamp is
+      // the A/B forcing override + a capability policy pin. BYTE-EXACT across both by
+      // construction (identical vwmacc accumulation order). GEVM is M=1 (no activation
+      // column interleave), so activationInterleave is 1 (only the stamp path matters).
+      bool rolledMainTerm = resolveRepackMainTermRolled(
+          loopBody.getEmitLoopSchedule(), coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          /*activationInterleave=*/1,
+          static_cast<int64_t>(loopBody.getHalfLanes()));
       return emitRepackKQuantGemvBodyQ5K(
           rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
           sizeType, opName, role, coreLmul,
@@ -2513,7 +2538,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*qhOff),
           static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
     }
     // The q2_K (2-bit) sibling shares the SAME leaf signature + facts as q4_K (4-bit);
     // the ONLY delta is the decode leaf (2-bit weight peel + 4-bit packed scale/min +
@@ -8523,7 +8548,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ5K(
     int64_t weightQuantOffset, int64_t activationQuantOffset,
     int64_t weightDminOffset, int64_t weightScalesOffset,
     int64_t activationBsumsOffset, int64_t weightQhOffset, int64_t nSubblocks,
-    int64_t weightInterleave, int64_t half) const {
+    int64_t weightInterleave, int64_t half, bool rolledMainTerm) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -8952,44 +8977,137 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ5K(
             // k-chunks; each chunk's i16 partial is promoted to i32 (vwmacc_vv,
             // scale-weighted) before the next chunk. Mirrors ggml's k-loop.
             for (int64_t k = 0; k < 2; ++k) {
+              // The per-strip i16 partials for THIS k-chunk (the 2x16 i16-overflow
+              // split); their FINAL accumulated value feeds the scale-weighted i32
+              // promote below (shared by both schedules). q5_K 5th-bit inject: qh[i]
+              // bit (j*4+sbLo) lifts the low nibble, bit (j*4+sbHi) the high nibble;
+              // each & 1, << 4, OR-ed onto the nibble -> a 5-bit value in [0,31]
+              // (K-quant scale+min, NO -16 offset-binary). sLoBit/sHiBit depend on
+              // (j, sbLo, sbHi), NOT on ii/h.
               llvm::SmallVector<mlir::Value> sLo(numHalves), sHi(numHalves);
-              for (int64_t h = 0; h < numHalves; ++h) {
-                sLo[h] = seedI16();
-                sHi[h] = seedI16();
-              }
-              for (int64_t ii = 0; ii < 16; ++ii) {
-                int64_t i = k * 16 + ii;
+              int64_t sLoBit = j * subPerSuper + sbLo;
+              int64_t sHiBit = j * subPerSuper + sbHi;
+              std::string sLoStr = std::to_string(sLoBit);
+              std::string sHiStr = std::to_string(sHiBit);
+              if (rolledMainTerm) {
+                // ---- ROLLED whole-K-nest main term ([GAP-EMIT-KQUANT-GEVM-TILE-
+                // ROUNDTRIP] maturity lever): the dominant per-16-element inner ii-loop
+                // is emitted as ONE runtime emitc.for; the per-strip i16 partials
+                // sLoVar/sHiVar are carried as RESIDENT SSA-register VariableOps (the
+                // single wide accumulator -- seeded ABOVE the loop, load-accumulate-store
+                // INSIDE it, the SAME resident-across-emitc.for pattern the sumf/sumi/
+                // bsums accumulators already use). The per-element decode tile (nibble +
+                // qh) is computed and CONSUMED within ONE iteration -- NEVER materialized
+                // to a stack scratch tile (the whole-reg vs*r.v round-trip the full unroll
+                // spills). BYTE-EXACT to the unrolled emit by construction: the vwmacc16
+                // integer accumulation order (ii ascending, then h) is IDENTICAL -- only
+                // the loop is materialized instead of unrolled.
+                llvm::SmallVector<mlir::Value> sLoVar(numHalves), sHiVar(numHalves);
                 for (int64_t h = 0; h < numHalves; ++h) {
-                  step("weight_nibble_addr");
-                  mlir::Value packed = loadU8Strip(
-                      bl, sizeLit(qsPairBase + i * 16 + h * half));
-                  mlir::Value loNib = u8Imm(vandCallee, packed, "0x0F");
-                  mlir::Value hiNib = u8Imm(vsrlCallee, packed, "4");
-                  // q5_K 5th-bit inject: qh[i] bit (j*4+sbLo) lifts the low
-                  // nibble, bit (j*4+sbHi) the high nibble; each & 1, << 4,
-                  // OR-ed onto the nibble -> a 5-bit value in [0,31] (K-quant
-                  // scale+min, NO -16 offset-binary). qh depends only on (i,h).
-                  int64_t sLoBit = j * subPerSuper + sbLo;
-                  int64_t sHiBit = j * subPerSuper + sbHi;
-                  std::string sLoStr = std::to_string(sLoBit);
-                  std::string sHiStr = std::to_string(sHiBit);
-                  mlir::Value qhStrip = loadU8Strip(
-                      bl, sizeLit(weightQhOffset + i * 16 + h * half));
-                  mlir::Value loSel =
-                      (sLoBit == 0) ? qhStrip
-                                    : u8Imm(vsrlCallee, qhStrip, sLoStr);
-                  mlir::Value loBit =
-                      u8Imm(vsllCallee, u8Imm(vandCallee, loSel, "0x01"), "4");
-                  mlir::Value hiSel = u8Imm(vsrlCallee, qhStrip, sHiStr);
-                  mlir::Value hiBit =
-                      u8Imm(vsllCallee, u8Imm(vandCallee, hiSel, "0x01"), "4");
-                  mlir::Value nLo = reinterpretToI8(u8Or(loNib, loBit));
-                  mlir::Value nHi = reinterpretToI8(u8Or(hiNib, hiBit));
-                  step("act_quant_addr");
-                  mlir::Value aLo = i8Read(al, sizeLit(aLoBase + i));
-                  mlir::Value aHi = i8Read(al, sizeLit(aHiBase + i));
-                  sLo[h] = vwmacc16(sLo[h], aLo, nLo);
-                  sHi[h] = vwmacc16(sHi[h], aHi, nHi);
+                  auto lv = rewriter.create<emitc::VariableOp>(
+                      loc, emitc::LValueType::get(i16m1Type),
+                      emitc::OpaqueAttr::get(ctx, ""));
+                  rewriter.create<emitc::AssignOp>(loc, lv, seedI16());
+                  sLoVar[h] = lv;
+                  auto hv = rewriter.create<emitc::VariableOp>(
+                      loc, emitc::LValueType::get(i16m1Type),
+                      emitc::OpaqueAttr::get(ctx, ""));
+                  rewriter.create<emitc::AssignOp>(loc, hv, seedI16());
+                  sHiVar[h] = hv;
+                }
+                auto iiLoop = rewriter.create<emitc::ForOp>(
+                    loc, sizeLit(0), sizeLit(16), sizeLit(1),
+                    /*bodyBuilder=*/nullptr);
+                {
+                  mlir::OpBuilder::InsertionGuard ig(rewriter);
+                  rewriter.setInsertionPointToStart(iiLoop.getBody());
+                  mlir::Value iiv = iiLoop.getInductionVar();
+                  // i = k*16 + ii; the runtime weight/qh byte offset = C + ii*16, the
+                  // runtime activation byte offset = C + ii (C = the k*16-shifted base).
+                  mlir::Value iiv16 = rewriter.create<emitc::MulOp>(
+                      loc, sizeType, iiv, sizeLit(16));
+                  for (int64_t h = 0; h < numHalves; ++h) {
+                    step("weight_nibble_addr");
+                    mlir::Value wOff = rewriter.create<emitc::AddOp>(
+                        loc, sizeType,
+                        sizeLit(qsPairBase + k * 256 + h * half), iiv16);
+                    mlir::Value packed = loadU8Strip(bl, wOff);
+                    mlir::Value loNib = u8Imm(vandCallee, packed, "0x0F");
+                    mlir::Value hiNib = u8Imm(vsrlCallee, packed, "4");
+                    mlir::Value qhOff = rewriter.create<emitc::AddOp>(
+                        loc, sizeType,
+                        sizeLit(weightQhOffset + k * 256 + h * half), iiv16);
+                    mlir::Value qhStrip = loadU8Strip(bl, qhOff);
+                    mlir::Value loSel =
+                        (sLoBit == 0) ? qhStrip
+                                      : u8Imm(vsrlCallee, qhStrip, sLoStr);
+                    mlir::Value loBit =
+                        u8Imm(vsllCallee, u8Imm(vandCallee, loSel, "0x01"), "4");
+                    mlir::Value hiSel = u8Imm(vsrlCallee, qhStrip, sHiStr);
+                    mlir::Value hiBit =
+                        u8Imm(vsllCallee, u8Imm(vandCallee, hiSel, "0x01"), "4");
+                    mlir::Value nLo = reinterpretToI8(u8Or(loNib, loBit));
+                    mlir::Value nHi = reinterpretToI8(u8Or(hiNib, hiBit));
+                    step("act_quant_addr");
+                    mlir::Value aLoOff = rewriter.create<emitc::AddOp>(
+                        loc, sizeType, sizeLit(aLoBase + k * 16), iiv);
+                    mlir::Value aHiOff = rewriter.create<emitc::AddOp>(
+                        loc, sizeType, sizeLit(aHiBase + k * 16), iiv);
+                    mlir::Value aLo = i8Read(al, aLoOff);
+                    mlir::Value aHi = i8Read(al, aHiOff);
+                    mlir::Value curLo =
+                        rewriter.create<emitc::LoadOp>(loc, i16m1Type, sLoVar[h])
+                            .getResult();
+                    rewriter.create<emitc::AssignOp>(
+                        loc, sLoVar[h], vwmacc16(curLo, aLo, nLo));
+                    mlir::Value curHi =
+                        rewriter.create<emitc::LoadOp>(loc, i16m1Type, sHiVar[h])
+                            .getResult();
+                    rewriter.create<emitc::AssignOp>(
+                        loc, sHiVar[h], vwmacc16(curHi, aHi, nHi));
+                  }
+                }
+                // Materialize the final per-strip i16 partials for the shared fold.
+                for (int64_t h = 0; h < numHalves; ++h) {
+                  sLo[h] =
+                      rewriter.create<emitc::LoadOp>(loc, i16m1Type, sLoVar[h])
+                          .getResult();
+                  sHi[h] =
+                      rewriter.create<emitc::LoadOp>(loc, i16m1Type, sHiVar[h])
+                          .getResult();
+                }
+              } else {
+                // ---- UNROLLED main term (default, register-resident full unroll) ----
+                for (int64_t h = 0; h < numHalves; ++h) {
+                  sLo[h] = seedI16();
+                  sHi[h] = seedI16();
+                }
+                for (int64_t ii = 0; ii < 16; ++ii) {
+                  int64_t i = k * 16 + ii;
+                  for (int64_t h = 0; h < numHalves; ++h) {
+                    step("weight_nibble_addr");
+                    mlir::Value packed = loadU8Strip(
+                        bl, sizeLit(qsPairBase + i * 16 + h * half));
+                    mlir::Value loNib = u8Imm(vandCallee, packed, "0x0F");
+                    mlir::Value hiNib = u8Imm(vsrlCallee, packed, "4");
+                    mlir::Value qhStrip = loadU8Strip(
+                        bl, sizeLit(weightQhOffset + i * 16 + h * half));
+                    mlir::Value loSel =
+                        (sLoBit == 0) ? qhStrip
+                                      : u8Imm(vsrlCallee, qhStrip, sLoStr);
+                    mlir::Value loBit =
+                        u8Imm(vsllCallee, u8Imm(vandCallee, loSel, "0x01"), "4");
+                    mlir::Value hiSel = u8Imm(vsrlCallee, qhStrip, sHiStr);
+                    mlir::Value hiBit =
+                        u8Imm(vsllCallee, u8Imm(vandCallee, hiSel, "0x01"), "4");
+                    mlir::Value nLo = reinterpretToI8(u8Or(loNib, loBit));
+                    mlir::Value nHi = reinterpretToI8(u8Or(hiNib, hiBit));
+                    step("act_quant_addr");
+                    mlir::Value aLo = i8Read(al, sizeLit(aLoBase + i));
+                    mlir::Value aHi = i8Read(al, sizeLit(aHiBase + i));
+                    sLo[h] = vwmacc16(sLo[h], aLo, nLo);
+                    sHi[h] = vwmacc16(sHi[h], aHi, nHi);
+                  }
                 }
               }
               // sumi += scale_sbLo * sLo + scale_sbHi * sHi (i16->i32 vwmacc_vv).
