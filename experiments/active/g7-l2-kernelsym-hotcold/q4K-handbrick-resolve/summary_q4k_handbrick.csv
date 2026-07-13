@@ -1,0 +1,15 @@
+metric,ours_recipe,seed,ours_gmacs,opp16x1_gmacs,ratio_ours_over_opp,ours_iqr_pct,opp_iqr_pct
+HOT,O3-oppmarch,0xC0FFEE,3.7211,5.9854,0.6217,0.15,0.14
+COLD,O3-oppmarch,0xC0FFEE,3.7103,5.9643,0.6221,0.17,0.14
+HOT,O3-oppmarch,0xBEEF01,3.7214,5.9868,0.6216,0.11,0.12
+COLD,O3-oppmarch,0xBEEF01,3.7100,5.9635,0.6221,0.08,0.25
+HOT,O3-oppmarch,0x51A7ED,3.7198,5.9847,0.6216,0.05,0.09
+COLD,O3-oppmarch,0x51A7ED,3.6510,5.8741,0.6215,1.71,0.72
+HOT,O2-canon,0xC0FFEE,3.7245,5.9850,0.6223,0.07,0.18
+COLD,O2-canon,0xC0FFEE,3.7159,5.9639,0.6231,0.10,0.26
+HOT,O2-canon,0xBEEF01,3.7250,5.9918,0.6217,0.14,0.06
+COLD,O2-canon,0xBEEF01,3.6540,5.8772,0.6217,1.43,1.57
+HOT,O2-canon,0x51A7ED,3.7260,5.9950,0.6215,0.08,0.10
+COLD,O2-canon,0x51A7ED,3.7149,5.9658,0.6227,0.06,0.17
+# aggregate: ours/16x1 = 0.622x (both HOT & COLD, both O2 & O3) => hand-brick 1.61x FASTER than ours => <PARITY
+# reference (t4a gate5): ours 3.72 vs block-dot 1.146 = 3.25x (~sealed 3.106x); 16x1 hand-brick 5.98 vs block-dot 1.146 = 5.22x
