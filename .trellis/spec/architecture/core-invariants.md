@@ -96,3 +96,20 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 ## [NG-4] — 未过 [PERF-1] 前 beat 措辞禁入
 
 在性能验收门 [PERF-1]（性能验收八门，科研目标总纲 §4.4）未全绿前，任何无限定的 beat/outperform 措辞**禁止**进入代码注释、文档、slides 与提交信息（[L-1] 的执法）。落败/对比结论在反汇编钉死前不得书面引用（[L-7]）。性能主张必须绑定相（prefill/decode）× 板 × 格式 × 基线 commit。
+
+## [K-10] — 结构级 / 参数级判据（canon·G7 全量令 2026-07-13 用户裁·[GOV-9] 提案+批准一体）
+
+**判据**：一个变体差异若改变 **{迭代空间拓扑 | 数据/布局消费契约 | 优化目标（算力吃满 vs 字节最少）}** 之**任一** → **结构级** = 独立 **Emission Plan**（[K-1]·独立 L2 typed region · 独立 provenance · 独立证书 · 独立 roster 行）。仅在**固定结构内**调宽窄（VLEN / LMUL / tile 尺寸 / 展开因子 / lane-width）→ **参数级** = 能力键（[SEL-1] 键控·不新增 plan）。
+
+**硬禁**：**结构级差异禁实现为 plan 内旋钮**。两条实证案例（追溯登记）：
+- **实证① GEMM 兼职 GEVM**：GEMM 家族 kernel 在 M=1 退化兼职做 GEVM（[GAP-REPACK-GEVM] 归因修正主因）= 结构级差异（迭代空间拓扑 M×N×K vs 1×N×K + 优化目标 算力 vs 字节 全变）被当成"同一 plan 的退化用法"→ decode 回退。修法 = 独立 GEMV plan（G7 [PAT-2]/P9）。
+- **实证② re-roll trap**（[GAP-P1]）：loop-schedule（unrolled/rolled）当 knob 拧 → 累加器落栈反噬 prefill 2.15×。本是 emission-schedule 参数级 knob 误用于试图改变结构级形态（compact∧register-resident 需整 K-nest 重构=结构级·[GAP-EMIT-KNEST]），knob 拧不出结构。
+- **实证③（补充令追加）[GAP-EMIT-KNEST] = 第二结构级误当旋钮实证**：K-quant 超块流式嵌套（compact∧register-resident tiling）是结构级 plan 缺席（与 GEMV plan 同类欠账并列挂号），非 schedule knob。
+
+**结构级判例**：**GEMM 与 GEMV 判定为结构级**（[K-10] 三问全变：迭代空间拓扑 M×N×K↔1×N×K · 数据消费契约 权重复用↔零复用 · 优化目标 算力吃满↔字节最少）。外部佐证 = 上游 linalg.matmul / linalg.matvec 分立 named op；内部佐证 = [COV-1] 分母 vec_dot 行与 GEMM tile 行分立。
+
+**选择层职责**：selector 在 **plan 集内**按 **{形状事实 ∧ 能力事实}** 选择（P7 范式接管的镜像）·归因日志照 [D-4]·**M\* 为实测标定事实写回 schema·禁 `if(M==1)` 硬编码**。
+
+**反向确认（禁翻案 sealed 杠杆）**：VLEN / LMUL / tile 宽 / 展开因子 / lane-width 经三问复核 = **参数级**（能力键·归类正确）。已 sealed 的参数级杠杆（[K-2b] 钳位/[PAT-1] wide-vmadot-tiling/mf2-fractional 等）**禁借 [K-10] 审计翻案**。
+
+术语精确化（补充令三.1）：**"发射器不成熟"表述禁模糊总称·必落到 {缺 plan（哪个）| 参数未键控（哪个键）} 二选一**。"发射器成熟度" = **plan 库覆盖度 + 参数键控落地度** 两个可数维度。
