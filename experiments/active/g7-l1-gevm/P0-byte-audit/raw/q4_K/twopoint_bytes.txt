@@ -1,0 +1,43 @@
+G7 P0 BYTE AUDIT — q4_K@rvv (ANCHOR, worst decode-loss 0.50x)
+board: ssh rvv openEuler VLEN128 64c · cores 8-15 disjoint-pin · DVFS perf-gov (cycles<->time)
+kernel口径 (VALIDATED): DRAM read bytes = cache-misses x 64B line
+  calibration: 4 GiB stream -> cache-misses 67,143,848 x64 = 4.00 GiB (+0.05%)  [raw/calib/]
+protocol: llama-bench -p 0 -n N -r 1 --no-warmup -t 8  (two-point N=16,64 cancels model-load fixed cost)
+model: DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf  size=4.58 GiB  params=8.03 B
+
+OURS = /tmp/dkgv/libggml-cpu.so.q4kON.clangrepack (md5 915e6733) — emitted repack GEMM+GEVM VLEN128 vl=8
+       ENGAGE CONFIRMED: "TCRV G5-M2 EMITTED GEVM(q4_K_16x1 VLEN128 compiler-emitted vl=8) ENGAGED n=4096 nc=128 nb=16"
+STOCK = live pristine 05a62e6a (gcc-15.2 as-shipped) — generic ggml_vec_dot_q4_K_q8_K block-dot
+       (stock RVV repack is VLEN256-only, broken @VLEN128 -> block-dot is the real as-shipped path)
+
+RAW cache-misses (u):
+  side   N=16            N=64(a)          N=64(b)
+  STOCK  1,190,817,231   4,742,082,213    4,741,607,411
+  OURS   1,243,734,909   4,779,506,297    4,779,869,896   (N64 a/b differ <0.01% each side = stable)
+
+RAW instructions / cycles (u), N=16 and N=64(a):
+  STOCK insn  86,629,957,301 / 334,025,410,424 ; cycles 165,222,590,207 / 639,335,136,421
+  OURS  insn 115,871,118,862 / 393,694,865,174 ; cycles 383,845,350,926 / 1,337,534,907,312
+
+PER-TOKEN (two-point (N64avg - N16)/48):
+                       OURS            STOCK          ours/stock
+  DRAM bytes/tok    4.391 GiB       4.409 GiB        0.996   <- SAME BYTES
+  cache-misses/tok  73.67 M         73.98 M          0.996
+  instructions/tok  5.788 G         5.154 G          1.12
+  cycles/tok        19.87 G         9.877 G          2.01   <- 2x slower
+  IPC               0.29            0.52             0.56   <- IPC COLLAPSE
+  decode t/s        1.03-1.05       2.09-2.10        0.50
+
+THEORY lower bound (decode M=1, zero weight reuse): all transformer+output weights read once/token
+  = quantized weight bytes of model ~= empirical stock roofline 4.41 GiB/tok
+  (model 4.58 GiB minus embd table read-1-row; stock reaches roofline = reads each weight ~once)
+  ours/theory = 4.391/4.41 = 0.996   stock/theory = 1.00
+
+VERDICT q4_K = H1 (GEVM structural immaturity), H2 (layout byte tax) REJECTED:
+  - ours reads 0.4% FEWER DRAM bytes than stock, both == theory roofline -> NO layout byte tax.
+  - yet ours 2.01x cycles at IPC 0.29 vs 0.52 -> same bytes, but kernel STALLS (no MLP/latency hiding
+    for M=1 shape; GEMM-tile accumulator/reconstruct overhead is L1-resident: +17% L1-loads, +12% insn,
+    all off-DRAM). The 2x slowdown is NOT bandwidth (same stream) = it is failure to convert available
+    bandwidth into throughput = [K-10] 实证① GEMM-family kernel moonlighting GEVM at M=1.
+  - agrees with [GAP-REPACK-GEVM] counter-evidence: stock repack-GEVM@k1 decode 1.284x (layout not a wall).
+board RESTORE: live md5 -> 05a62e6a (stock-pristine) CONFIRMED. NO git.

@@ -1,0 +1,28 @@
+G7 P0 — STOCK roofline sweep, flat formats (live = stock-pristine 05a62e6a, no deploy)
+口径: DRAM bytes = cache-misses x 64 (validated). two-point (N64-N16)/48. -p 0 -n N -r 1 --no-warmup -t 8.
+NOTE: loadavg climbed 6->10 during sweep (co-tenant). cache-misses is a PROCESS-PRIVATE counter =>
+      byte/token robust to other-core contention (model >> LLC, streams from DRAM regardless). Only
+      wall-time t/s is load-sensitive; t/s here is corroboration, byte-ratio is the P0 signal.
+
+RAW cache-misses(u) / instructions(u) / cycles(u):
+ q5_0  N16 cm=1,339,041,160 insn=129,543,686,729 cyc=219,443,003,426
+ q5_0  N64 cm=5,334,509,259 insn=474,165,067,133 cyc=788,892,863,117   tg64 t/s=1.70
+ q5_1  N16 cm=1,448,694,336 insn=137,201,332,811 cyc=219,999,533,919
+ q5_1  N64 cm=5,775,350,849 insn=527,794,515,511 cyc=873,183,324,646   tg16/64 t/s=1.59/1.53
+ q4_1  N16 cm=1,229,234,822 insn=126,986,312,950 cyc=320,073,088,693
+ q4_1  N64 cm=4,894,254,723 insn=495,536,259,764 cyc=1,262,827,262,377  tg t/s=1.06
+
+STOCK PER-TOKEN (two-point):
+ fmt   DRAMbytes/tok   insn/tok   cyc/tok   IPC    decode t/s   model
+ q5_0  4.961 GiB       7.18 G     11.86 G   0.61   1.70         5.21 GiB
+ q5_1  5.373 GiB       8.14 G     13.61 G   0.60   1.53         5.64 GiB
+ q4_1  4.551 GiB       7.68 G     19.64 G   0.39   1.06         4.77 GiB   <== stock q4_1 block-dot itself
+                                                                            pathological (IPC 0.39, ~2x cyc)
+
+FORMAT-SPEC THEORY (bits/weight x ~7.49e9 matmul weights read once/token):
+ q5_0 5.5b -> 4.79 GiB   (meas stock 4.96, +heavy small tensors) -> roofline confirmed
+ q5_1 6.0b -> 5.23 GiB   (meas 5.37) roofline
+ q4_1 5.0b -> 4.36 GiB   (meas 4.55) roofline
+ q4_K ~4.8b-> 4.18 GiB   (meas 4.41) roofline
+ => stock reaches theory roofline (reads each weight ~once) for ALL formats.
+    empirical stock roofline is the board-real theory realization used for ours/theory ratio.

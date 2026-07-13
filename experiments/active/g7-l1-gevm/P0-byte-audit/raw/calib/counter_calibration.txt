@@ -1,0 +1,14 @@
+G7 P0 — perf DRAM-traffic counter calibration (rvv, non-root uid1000, perf_event_paranoid=2)
+microbench /tmp/g7p0/memcalib: malloc(1024 MiB), memset warm, then stream-read 1 access/64B x R iters.
+buffer 1 GiB >> LLC -> every iteration re-streams from DRAM. expected DRAM read = 1024MiB x R.
+
+RUN: memcalib 1024 4  => expected 4 GiB = 4,294,967,296 B = 67,108,864 cachelines
+  cache-misses:u        67,143,848   x64 = 4,297,206,272 B = 4.0007 GiB   (+0.05% vs expected) <== USE THIS
+  L1-dcache-loads:u     67,155,030   (== #loads issued, one per cacheline) sanity OK
+  cache-references:u   189,310,935   (2.82x cachelines — inflated)
+  LLC-load-misses:u    189,310,935   (identical to cache-references = ALIASED/inflated on this PMU — NOT usable)
+  LLC-store-misses:u    15,325,342   (writeback of the memset)
+
+CONCLUSION: on this board `cache-misses x 64` == DRAM read bytes to within 0.05%.
+  LLC-load-misses is aliased to cache-references (inflated ~2.8x) -> DISCARD as byte proxy.
+  All P0 byte-traffic numbers use cache-misses x 64.  store traffic (decode output) negligible.
