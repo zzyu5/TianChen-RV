@@ -1,0 +1,34 @@
+# G6-B [GAP-EMIT-UNROLL] q2_K repack GEMM rolled-vs-unrolled — gcc-15 board seal (Phase-2 kernel-axis)
+# board: rvv (openEuler, riscv64, VLEN128=VLENB16, 64c) · compiler: gcc-15.2.0 (riscv64-unknown-linux-gnu, /opt/tcrv-toolchains)
+# march: rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -ffp-contract=on -O2 · date: 2026-07-13
+# opponent libggml-cpu.so = /home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin (build-gcc15-rv64gcv) => gcc-15 BOTH SIDES (compiler-SYMMETRIC, valid)
+
+=== [1] BYTE-EXACT HARD GATE (gcc-15) ===
+--- independent scalar oracle: ROLLED (seed 0xC0FFEE) ---
+
+VERDICT q2_K: INT_mismatch_total=0  NORM worst_ulp=3402 worst_norm=6.618e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+--- independent scalar oracle: UNROLLED (seed 0xC0FFEE) ---
+
+VERDICT q2_K: INT_mismatch_total=0  NORM worst_ulp=3402 worst_norm=6.618e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+--- direct A/B identity (4 seeds) ---
+VERDICT G6-B q2_K A/B: total_bytes=43008  mism_bytes=0  mism_floats=0  => ROLLED == UNROLLED (BYTE-EXACT)
+VERDICT G6-B q2_K A/B: total_bytes=43008  mism_bytes=0  mism_floats=0  => ROLLED == UNROLLED (BYTE-EXACT)
+VERDICT G6-B q2_K A/B: total_bytes=43008  mism_bytes=0  mism_floats=0  => ROLLED == UNROLLED (BYTE-EXACT)
+VERDICT G6-B q2_K A/B: total_bytes=43008  mism_bytes=0  mism_floats=0  => ROLLED == UNROLLED (BYTE-EXACT)
+
+=== [2] FORM SEAL objdump (uniform methodology; clang-17 provenance reproduced exactly) ===
+### G6-B q2_K GEMM leaf FORM seal — uniform methodology, both compilers ###
+--- clang-17 (Phase-1 provenance) ---
+clang UNROLLED     textB=26968   vsetvli=86   vsetivli=1   vwmacc=2304  spill=32   reload=32   maxVreg=v30
+clang ROLLED       textB=12522   vsetvli=82   vsetivli=1   vwmacc=384   spill=14   reload=13   maxVreg=v31
+--- gcc-15.2.0 (deployment compiler, THIS phase) ---
+gcc UNROLLED       textB=104656  vsetvli=929  vsetivli=504 vwmacc=2304  spill=15   reload=22   maxVreg=v31
+gcc ROLLED         textB=17880   vsetvli=101  vsetivli=1   vwmacc=384   spill=4    reload=4    maxVreg=v31
+
+=== [3] KERNEL-AXIS THROUGHPUT (gcc-15 symmetric; prefill K=2048 nr=64 nc=512; median of 15 rounds) ===
+loadavg: 2.43 2.66 7.67 2/1625 2253551
+KQGEMM fmt=q2_K VLEN=128 K=2048 nr=64 nc=512 reps=15 noisefloor_ns=40 | OURS best_ns=38058376 med_ns=38362357 best_gmacs=1.7633 | OPP best_ns=14727196 med_ns=14788376 best_gmacs=4.5568 | ratio_best=0.387 ratio_med=0.385 sink=15788530848.7
+KQGEMM fmt=q2_K VLEN=128 K=2048 nr=64 nc=512 reps=15 noisefloor_ns=120 | OURS best_ns=139868139 med_ns=139908779 best_gmacs=0.4798 | OPP best_ns=14749795 med_ns=14771496 best_gmacs=4.5498 | ratio_best=0.105 ratio_med=0.106 sink=15788530848.7
+# UNROLLED ratio_best~0.390x block-dot (reproduces S6 ~0.386x LOSS); ROLLED ~0.106x block-dot
+# rolled/unrolled throughput = 0.106/0.390 = 0.272x => rolled REGRESSES 3.68x on hot microbench
+# [CASE-MICRO-E2E]: code-volume lever (text -82.9%, vset -92.9% under gcc) pays only under e2e I-cache pressure, invisible on a hot microbench.
