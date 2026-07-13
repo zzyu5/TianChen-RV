@@ -118,7 +118,9 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 
 **register-budget-fit 统一律的执法门**（结构对齐【必要】·register-budget-fit【补充充分性】·**预算检查前置于构造**）。跳级上板 = 违例登记。
 
-- **G1 静态账（零板时·预算检查前置）**：编译产物**数指令 + 静态寄存器 live set**。**门 = 指令数 ≤ stock 同路径 1.1× ∧ live set ≤ vreg 预算**。不过 → 打回重设计·**不上板**。（前车 = GEVM TG=2 的 534 spill 本可在此关拦下·[GAP-P1] register-pressure trap；此门把 register-budget-fit 前置到构造前）。
+- **G1 静态账（零板时·预算检查前置）**：编译产物**数指令 + 静态寄存器 live set**。**门 = 指令数 ≤ stock 同路径 1.1×（★仅 compute/throughput-bound regime）∧ live set ≤ vreg 预算**。不过 → 打回重设计·**不上板**。（前车 = GEVM TG=2 的 534 spill 本可在此关拦下·[GAP-P1] register-pressure trap；此门把 register-budget-fit 前置到构造前）。
+  - **★G1 精化①（d0826caa·L2 实证·[CASE-COMPILER-ASYMMETRY] 扩展到静态 spill 轴）**：**绝对 spill / live-set 必须以【部署编译器】测**（同 OLD 核·板 clang-18=10 spill vs 本地 clang-20=527·~50× 膨胀）；本地异编译器仅可做**同编译器相对排序**。live-set 子门判据 = 部署编译器 objdump·非任意本地编译器。
+  - **★G1 精化②（d0826caa·L2 实证·instruction-count 子门是 regime-keyed）**：**指令数子门仅对 compute/throughput-bound regime 有效**；**对 memory-latency-bound decode（M=1·停顿型·IPC 崩非指令爆）instruction-count 是【错判别键】**——latency-hiding 杠杆（prefetch 软流水）**故意 +指令但助**·会被 instruction-count 子门误拒。该 regime 的正确 G1 门 = **register-budget-fit（live-set）单独 + 转 G2 IPC micro**（instruction-count 子门豁免·判别键换 IPC/cycles）。〔证据基础：q4_K M=1 损=停顿型·对症 latency-hiding·[[g7-gevm-plan-structural-campaign]] P0/P2〕。
 - **G2 同形状 cold micro（分钟级）**：**形状类必须与目标 regime 一致**（GEVM 变体测 **M=1 GEVM 形**·**禁用 cold-GEMM 冒充**——q5_K cold-GEMM 1.79× 误报 decode 预测=反面教材·[[g7-gevm-plan-structural-campaign]] cold-predictor 铁律）。冷态 = 工作集远超 cache 或逐迭代冲刷。对手 = stock 同形状路径·同会话 A/B·N≥10·T-N。**门 = ≥parity 方可获 e2e 资格**。
 - **G3 e2e（小时级）**：**仅对 G2 过关格开放**·按批量节奏（不逐格穿插）。判据 = parity 底线 · 分相披露 · 八门 [PERF-1]。
 
