@@ -1,0 +1,7 @@
+# rvv board /proc/cpuinfo isa (cached, t6-rvv-flat-q4k/results/q4_0_harness_stdout.log:24)
+isa=isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+
+# k1 board isa (cached)
+rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs + xsmtvdotii1p0 (IME)
+
+# BOTH boards: scalar zba/zbb/zbc/zbs present; VECTOR zvbb ABSENT
