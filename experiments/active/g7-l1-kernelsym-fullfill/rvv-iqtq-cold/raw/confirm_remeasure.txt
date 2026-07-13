@@ -1,0 +1,19 @@
+# Confirmatory re-measures (N=16/N=20, extra seeds) — tq2_0 HOT surprise + high-relIQR cold cells.
+# board rvv/VLEN128 core8 gcc-15 -O3 symmetric.
+
+## tq2_0 HOT surprise (L1-resident pool0) confirmed robust — 3 seeds, N=20:
+tq2_0 hot seed=0x1234 ours=61.875 fact=71.250 RATIO=1.1515x  ours_relIQR=1.01%
+tq2_0 hot seed=0xBEEF ours=62.500 fact=71.875 RATIO=1.1500x  ours_relIQR=1.00%
+tq2_0 hot seed=0x77   ours=61.875 fact=71.250 RATIO=1.1515x  ours_relIQR=1.01%
+# => tq2_0 vec_dot ours BEATS factory 1.15x when L1-hot (minimal vsetvli storm: OUR vsetvl=3).
+
+## tq2_0 COLD confirm (N=16): ours=534.701 fact=113.758 RATIO=0.2128x
+# => collapses to 0.21x LOSS cold. ours cold-penalty 61.9->534 ns = 8.6x; factory 71.9->114 ns = 1.6x.
+#    Extreme ours-side cold penalty (compute-hot -> DRAM-latency-bound). Cache-resident micro-win does NOT survive cold.
+
+## high-relIQR cold cells re-measured (N=16) — medians reproduce, ours-side relIQR tight:
+iq3_xxs cold ours=1911.299 fact=325.265 RATIO=0.1702x oursIQR=0.32% factIQR=10.10%
+iq4_xs  cold ours=283.264  fact=215.597 RATIO=0.7611x oursIQR=0.65% factIQR=8.49%
+iq2_s   cold ours=446.827  fact=220.812 RATIO=0.4942x oursIQR=0.87% factIQR=9.85%
+# => factory-side relIQR 8-10% = co-tenant jitter on the FAST side (short ~200ns runs); ours-side <1%;
+#    medians reproduce N=12 vs N=16 within noise. Verdict robust (LOSS margins huge, far from parity).

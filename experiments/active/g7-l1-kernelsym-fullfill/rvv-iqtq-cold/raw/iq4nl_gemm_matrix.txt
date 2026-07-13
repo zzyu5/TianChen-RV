@@ -1,0 +1,20 @@
+# iq4_nl repack GEMM hot/cold gcc-15 -O3 symmetric (ours) vs ggml_vec_dot_iq4_nl_q8_0 (.so, gcc-15, cross-op block-dot)
+# K=2048 nc=512 reps(N)=12; cold = 224MiB flush/rep (>3xL3=192MiB); hot = no-flush (weight tile cache-resident).
+# ratio = OURS_gmacs / OPP_gmacs (>1 = ours faster). OURS gather-bound flat ~0.667 gmacs (all shapes/states).
+# machine-judge opponent: nm -D libggml-cpu.so -> ggml_vec_dot_iq4_nl_q8_0 @0x937da DEFINED-T (real dispatched, not hand-filled).
+
+# --- gcc-15 -O3 ours: spill=41 vlux=64 vsetvl=407 size=15456B cleanfp ---
+nr=64 hot  seed=C0FFEE  OURS 0.6712 gmacs  OPP 2.9787  ratio_med=0.225
+nr=64 hot  seed=BEEF01  OURS 0.6713 gmacs  OPP 2.9980  ratio_med=0.224
+nr=64 cold seed=C0FFEE  OURS 0.6669 gmacs  OPP 2.9057  ratio_med=0.229
+nr=64 cold seed=BEEF01  OURS 0.6669 gmacs  OPP 2.9336  ratio_med=0.228
+nr=16 hot  seed=C0FFEE  OURS 0.6708 gmacs  OPP 3.3310  ratio_med=0.201
+nr=16 hot  seed=BEEF01  OURS 0.6717 gmacs  OPP 3.4619  ratio_med=0.194
+nr=16 cold seed=C0FFEE  OURS 0.6618 gmacs  OPP 3.2203  ratio_med=0.204
+nr=16 cold seed=BEEF01  OURS 0.6623 gmacs  OPP 3.2031  ratio_med=0.205
+
+# --- COMPILER-GAP confirm (the l1-m2-iq4 0.837x correction) ---
+# clang-18 -O3 ours: spill=7  vlux=64   (matches l1-m2-iq4 objdump spill=7, clang GMAC/s 2.44)
+# gcc-15  -O3 ours: spill=41 vlux=64   (gcc spills 6x more -> ours 0.667 gmacs = 3.7x slower than clang)
+# => l1-m2-iq4 "0.837x" was clang-ours-vs-gcc-shipped [CASE-COMPILER-ASYMMETRY] (clang flatters ours).
+# => gcc-SYMMETRIC verdict = 0.22-0.23x, which MATCHES g5-wiring e2e prefill 0.217x (both gcc-symmetric deploy domain).
