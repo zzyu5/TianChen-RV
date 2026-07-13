@@ -113,3 +113,15 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 **反向确认（禁翻案 sealed 杠杆）**：VLEN / LMUL / tile 宽 / 展开因子 / lane-width 经三问复核 = **参数级**（能力键·归类正确）。已 sealed 的参数级杠杆（[K-2b] 钳位/[PAT-1] wide-vmadot-tiling/mf2-fractional 等）**禁借 [K-10] 审计翻案**。
 
 术语精确化（补充令三.1）：**"发射器不成熟"表述禁模糊总称·必落到 {缺 plan（哪个）| 参数未键控（哪个键）} 二选一**。"发射器成熟度" = **plan 库覆盖度 + 参数键控落地度** 两个可数维度。
+
+## [VERIFY-LADDER] — 三级验证阶梯（canon·G7 重编成令 2026-07-13 用户裁·[GOV-9] 入 SOP·一切新 kernel/新 Plan 默认顺序·**禁跳级**）
+
+**register-budget-fit 统一律的执法门**（结构对齐【必要】·register-budget-fit【补充充分性】·**预算检查前置于构造**）。跳级上板 = 违例登记。
+
+- **G1 静态账（零板时·预算检查前置）**：编译产物**数指令 + 静态寄存器 live set**。**门 = 指令数 ≤ stock 同路径 1.1× ∧ live set ≤ vreg 预算**。不过 → 打回重设计·**不上板**。（前车 = GEVM TG=2 的 534 spill 本可在此关拦下·[GAP-P1] register-pressure trap；此门把 register-budget-fit 前置到构造前）。
+- **G2 同形状 cold micro（分钟级）**：**形状类必须与目标 regime 一致**（GEVM 变体测 **M=1 GEVM 形**·**禁用 cold-GEMM 冒充**——q5_K cold-GEMM 1.79× 误报 decode 预测=反面教材·[[g7-gevm-plan-structural-campaign]] cold-predictor 铁律）。冷态 = 工作集远超 cache 或逐迭代冲刷。对手 = stock 同形状路径·同会话 A/B·N≥10·T-N。**门 = ≥parity 方可获 e2e 资格**。
+- **G3 e2e（小时级）**：**仅对 G2 过关格开放**·按批量节奏（不逐格穿插）。判据 = parity 底线 · 分相披露 · 八门 [PERF-1]。
+
+**hot/cold 预测器规则收窄**（重编令五.5）：**同形状类 cold micro 方可预测对应 regime e2e**（cold-GEMM ↛ decode·仅 cold-GEVM∧memory-wall → decode）。
+
+**对手类机判**（重编令二.2·q4_K 稻草人事故制度化修复）：对手身份 = **探针解析的具体 kernel 符号**（对手类由**符号映射表机判**·禁手写 "hand-brick"/"block-dot" 类目——q4_K@k1 曾误标 hand-brick·实为 block-dot·b29c269c 证伪）。
