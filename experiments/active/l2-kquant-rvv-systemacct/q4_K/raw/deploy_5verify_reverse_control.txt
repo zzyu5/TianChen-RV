@@ -1,0 +1,37 @@
+========== DEPLOY 5-VERIFY + REVERSE CONTROL (l2-kquant-rvv-systemacct/q4_K) ==========
+board ssh rvv openEuler VLEN128 64c · cores 8-15 perf-gov 2.6GHz · load=2.12 at verify
+Systems account: ON = our clang-18 emitted q4_K repack .o front-door (== shipping form [L-10])
+                 OFF = stock as-shipped gcc-15 block-dot baseline
+Reused md5-sealed .so variants from decisive-kquant-gcc-vs-vlen /tmp/dkgv (no rebuild).
+
+>>> [A] OFF baseline (stock as-shipped gcc-15) <<<
+  v1 md5      = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  v2 tcrv_sym = 0  (expect 0)  PASS
+  v3 banner   = 0  (expect 0)  PASS
+  v4 emitted-kernel symbols present = 0 ; stock block-dot symbol ggml_vec_dot_q4_K_q8_K present = 4  PASS
+     => stock routes q4_K to generic block-dot (stock RVV repack is VLEN256-only, absent/unused @VLEN128)
+
+>>> [B] ON forward (our clang-18 emitted repack, front-door) <<<
+  v1 md5      = 915e673396db  (expect 915e673396db)  PASS
+  v2 tcrv_sym = 2  (expect 2)  PASS
+  v3 banner   = 1  (expect >=1)  PASS
+  v4 objdump spill  GEMM(prefill)=4  GEVM(decode)=8   vsetivli16(MUST0)=0/0  PASS
+       (gemm sym clang18 spill=4 ; gemv sym clang18 spill=8 ; both vsetivli16=0 => VLEN128-safe vl=8)
+  v5 runtime engage banner hits=9 (>0)  PASS
+       "TCRV G5-M2 EMITTED GEMM(q4_K_16x1 VLEN128 compiler-emitted vl=8) ENGAGED n=4096 nr=16 nc=128"
+
+>>> [C] REVERSE CONTROL: swap back to OFF, confirm kernel gone <<<
+  v1 md5      = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  v2 tcrv_sym = 0  (expect 0)  PASS
+  v3 banner   = 0  (expect 0)  PASS
+  v5 runtime engage banner (OFF) = 0 (expect 0)  PASS  => kernel truly disengaged
+
+VERDICT: DEPLOY-5VERIFY + REVERSE-CONTROL = GREEN (all checks PASS both directions).
+live restored to 05a62e6a8285 after verify.
+
+--- spill provenance (EXACT deployed kernels, 3-compiler objdump, from decisive raw) ---
+kernel        gcc-15.2.0 -O3     clang-18.1.8 -O3
+GEMM (prefill) 742 spill/820 vsetvli   4 spill/70 vsetvli
+GEVM (decode)  217 spill/1387 vsetvli  8 spill/57 vsetvli
+=> gcc-15 spills ~185x(GEMM)/27x(GEVM) more integer-vector regs than clang-18 on the EXACT
+   deployed kernel = codegen-asymmetry root cause (gcc-death).

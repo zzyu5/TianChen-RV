@@ -1,0 +1,12 @@
+  pass 1: load_start=5.19 freq=2600000 vllm%cpu=0.8/0.8 ours=2342B stock=2338B
+  pass 2: load_start=9.94 freq=2600000 vllm%cpu=0.8/0.8 ours=2343B stock=2338B
+  pass 3: load_start=9.47 freq=2600000 vllm%cpu=0.8/0.7 ours=2341B stock=2340B
+  pass 4: load_start=9.89 freq=2600000 vllm%cpu=0.7/0.7 ours=2342B stock=2338B
+  pass 5: load_start=9.91 freq=2600000 vllm%cpu=0.7/0.7 ours=2342B stock=2338B
+  pass 6: load_start=9.48 freq=2600000 vllm%cpu=0.7/0.7 ours=2342B stock=2340B
+  pass 7: load_start=9.40 freq=2600000 vllm%cpu=0.7/0.7 ours=2344B stock=2339B
+  pass 8: load_start=9.41 freq=2600000 vllm%cpu=0.7/0.6 ours=2343B stock=2338B
+  pass 9: load_start=10.37 freq=2600000 vllm%cpu=0.6/0.6 ours=2342B stock=2339B
+  pass 10: load_start=10.01 freq=2600000 vllm%cpu=/ ours=2342B stock=2340B
+  pass 11: load_start=11.68 freq=2600000 vllm%cpu=/ ours=2343B stock=2340B
+  pass 12: load_start=11.48 freq=2600000 vllm%cpu=/ ours=2343B stock=2337B

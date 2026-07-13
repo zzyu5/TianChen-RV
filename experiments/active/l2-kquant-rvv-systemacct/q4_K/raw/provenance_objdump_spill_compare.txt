@@ -1,0 +1,40 @@
+
+==========================================================
+[gcc15] /opt/tcrv-toolchains/gcc-15.2.0/bin/g++ -O3 -march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause -mabi=lp64d
+ [gemm] objsz=58960B md5(o)=465b55db2620
+  insns=14903 vsetvli=820 vec_whole_reg_spill=742
+ [gevm] objsz=41480B md5(o)=bd371f8c7535
+  insns=0 vsetvli=0 vec_whole_reg_spill=0
+==========================================================
+[clang17] /usr/bin/clang++-17 -O3 -march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbop_zihintpause -mabi=lp64d
+ [gemm] COMPILE FAIL:
+/tmp/dkgv/objdump_spill_compare.sh: line 39: /usr/bin/clang++-17: No such file or directory
+ [gevm] COMPILE FAIL:
+/tmp/dkgv/objdump_spill_compare.sh: line 39: /usr/bin/clang++-17: No such file or directory
+==========================================================
+[clang18] /opt/tcrv-toolchains/llvm-18.1.8/bin/clang++ -O3 -march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbop_zihintpause -mabi=lp64d
+ [gemm] objsz=27672B md5(o)=9db47b001a71
+  insns=6410 vsetvli=70 vec_whole_reg_spill=4
+ [gevm] objsz=11360B md5(o)=41ae865dbe47
+  insns=0 vsetvli=0 vec_whole_reg_spill=0
+==========================================================
+DONE
+
+=== clang-17 (/usr/bin/clang++) GEMM+GEMV ===
+ [gemm] FAIL
+clang++: error: invalid arch name 'rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbop_zihintpause', unsupported standard user-level extension 'zvfhmin'
+ [gemv] FAIL
+clang++: error: invalid arch name 'rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbop_zihintpause', unsupported standard user-level extension 'zvfhmin'
+=== GEMV symbol under gcc15 + clang18 (fix gemv symbol) ===
+ [gcc15 gemv] objsz=41488B
+    insns=10824 vsetvli=1387 vec_whole_reg_spill=217
+ [clang18 gemv] objsz=11368B
+    insns=2328 vsetvli=57 vec_whole_reg_spill=8
+
+=== clang-17 reduced-march GEMM + GEMV + LINK test ===
+ [gemm] objsz=27616B OK
+    insns=6423 vsetvli=71 vec_whole_reg_spill=3
+ [gemv] objsz=11296B OK
+    insns=2345 vsetvli=57 vec_whole_reg_spill=9
+=== clang-17 can LINK a shared lib? ===
+LINK-SHARED-OK

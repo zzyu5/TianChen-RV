@@ -1,0 +1,26 @@
+SYSTEMS ACCOUNT q4_K@rvv: ON=ours(clang-18 emitted repack) vs OFF=stock(gcc-15 block-dot)
+DeepSeek-8B-Q4_K_M · taskset -c 8-15 -t 8 · pp128/tg16 · REPS=2 · 12 passes interleaved · DVFS 2.6GHz locked
+NOTE: vLLM qwen3-32b burst on cores 0,1 during passes 10-12 (loadavg->11.68); my cores 8-15 disjoint (ps psr confirmed)
+
+pass |  ours_pf  stock_pf  pf_ratio |  ours_dc  stock_dc  dc_ratio
+   1 |    6.965    5.182   1.344  |   1.036   2.108   0.491
+   2 |    6.993    5.174   1.352  |   1.037   2.088   0.497
+   3 |    6.968    5.183   1.344  |   1.044   2.099   0.498
+   4 |    6.988    5.189   1.347  |   1.050   2.037   0.516
+   5 |    6.970    5.191   1.343  |   1.043   2.090   0.499
+   6 |    7.026    5.172   1.358  |   1.049   2.091   0.501
+   7 |    7.005    5.190   1.350  |   1.043   2.097   0.497
+   8 |    6.972    5.197   1.342  |   1.049   2.103   0.499
+   9 |    6.970    5.206   1.339  |   1.048   2.086   0.502
+  10 |    6.932    5.180   1.338  |   1.050   2.079   0.505
+  11 |    6.820    5.178   1.317  |   1.047   2.091   0.501
+  12 |    6.877    5.181   1.327  |   1.035   2.086   0.496
+
+Aggregate:
+  ours_prefill : median=6.9699 mean=6.9571 min=6.8199 max=7.0264 n=12 relIQR=0.74% cv=0.79%
+  stock_prefill: median=5.1825 mean=5.1853 min=5.1723 max=5.2059 n=12 relIQR=0.24% cv=0.18%
+  ours_decode  : median=1.0458 mean=1.0442 min=1.0346 max=1.0505 n=12 relIQR=0.97% cv=0.52%
+  stock_decode : median=2.0907 mean=2.0880 min=2.0372 max=2.1082 n=12 relIQR=0.60% cv=0.82%
+
+MEDIAN RATIOS: prefill ours/stock = 1.3449x [WIN>=parity]  decode = 0.5002x [LOSS]
+Worst-case prefill pass ratio = 1.3170x (still WIN). relIQR 0.74% << contamination floor => disjoint-pin CLEAN.

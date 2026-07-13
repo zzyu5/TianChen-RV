@@ -1,0 +1,12 @@
+
+== CORRECTNESS A=q4kON.clangrepack B=q4kOFF.gcc model=DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf ntok=24 ==
+-- [1] 'The capital of France is'
+   A(repack):  > The capital of France is<think> Okay, so I need to figure out the capital of France. Hm
+   B(blkdot):  > The capital of France is<think> Okay, so I need to figure out the capital of France. Hm
+   A==B byte-identical
+-- [2] 'Q: What is 2 + 2? A:'
+   A(repack):  > Q: What is 2 + 2? A:<think> I need to determine the sum of  > EOF by user   
+   B(blkdot):  > Q: What is 2 + 2? A:<think> I need to determine the sum of  > EOF by user   
+   A==B byte-identical
+== engage=17(>0) nan=0(0) pass=2 fail=0 ==
+CORRECTNESS_GATE: GREEN
