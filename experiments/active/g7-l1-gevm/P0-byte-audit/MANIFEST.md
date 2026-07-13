@@ -27,7 +27,7 @@
 - raw/ours_flat.txt — q5_0/q5_1/q4_1 ours (部署 sealed ON·两点·engage banner·ours/stock 比).
 
 ## 结论 (一句)
-**4/4 measured rvv 格 → H1** (字节 0.995–0.998× stock ≈ 理论 roofline·H2 布局税逐格 REJECTED)；decode win↔loss 判别键**全在结构轴** (insn/IPC/cycles)、从不在字节轴。**GEVM plan 攻结构不攻布局**；[PAT-2] P9 目标"字节最少化"精化为"M=1 带宽→吞吐结构效率"；P1 首格 = q4_K (审计浪费最大·0.50×·IPC 0.29)。q5_K@k1 pending (H1-implied by k1 stock-repack-GEVM 1.284× 反证)。
+**5/5 格 → H1** (q4_K/q5_0/q5_1/q4_1 @rvv 字节 0.995–0.998× ≈ 理论 roofline + **q5_K@k1 补格** 解析 footprint 恒等我方/stock=1.000·H2 布局税逐格 REJECTED)；decode win↔loss 判别键**全在结构轴** (insn/IPC/cycles)、从不在字节轴 (q5_K@k1 直证 1.99× 指令/token→0.729×)。**GEVM plan 攻结构不攻布局·跨板成立 (rvv/VLEN128 + k1/VLEN256 同机制)**；[PAT-2] P9 目标"字节最少化"精化为"M=1 带宽→吞吐结构效率"；P1 首格 = q4_K (审计浪费最大·0.50×·IPC 0.29)。q5_K@k1 补格 = `q5K-k1-补格/` (X60 PMU 无字节计数器→退化解析+结构轴·H1-implied 升 H1-measured)。
 
 ## reversibility
 - 板改动仅 swap LIVE libggml-cpu.so.0.15.1 (测中 ON·测后 restore stock)。source 全程 pristine·无 rebuild·NO git。

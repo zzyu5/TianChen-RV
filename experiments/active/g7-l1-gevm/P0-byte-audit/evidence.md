@@ -21,9 +21,9 @@
 | **q5_0@rvv** (0.82×) | **4.939 GiB** | 4.961 GiB | 4.96 GiB (spec 4.79) | **0.995** | 0.995 | 1.24 / 0.82× LOSS | **H1** |
 | **q5_1@rvv** (0.78×) | **5.353 GiB** | 5.373 GiB | 5.37 GiB (spec 5.23) | **0.996** | 0.996 | 1.13 / 0.78× LOSS | **H1** |
 | **q4_1@rvv** (对照·decode WIN) | **4.542 GiB** | 4.551 GiB | 4.55 GiB (spec 4.36) | **0.998** | 0.998 | 1.61 / 1.67× **WIN** | **H1** |
-| q5_K@k1 (0.73×) | **PENDING** (k1 被 L3 占·延后) | — | ~5.4 GiB (spec 5.5b/w) | — | — | 0.73× LOSS | **H1-implied**¹ |
+| **q5_K@k1** (0.73×·**补格 DONE**) | =floor¹ | =floor¹ | **702 MiB/tok** (TinyLlama-1.1B·gguf 解析) | **1.000**¹ | 1.00 | 1.78 / **0.729× LOSS** | **H1-measured**¹ |
 
-¹ q5_K@k1 直接字节审计延后 (k1 释放后)。但 [GAP-REPACK-GEVM] canon 反证已在案: **stock repack-GEVM@k1 decode 1.284× 胜原生 vec_dot** (同 interleaved-repack 布局·stock kernel·b12afd57) → k1 上布局非墙 → q5_K@k1 loss 结构性 (H1)，与 rvv 同。
+¹ **q5_K@k1 补格已测** (`q5K-k1-补格/`·2026-07-13·swap-only·restore 14b6add6 双证)。**k1/X60 PMU 无 cache-miss 事件** (perf_event_open 探针实证·HW_CACHE_MISSES=0·非权限) → DRAM 字节口径退化, 改【解析 footprint 恒等 + 实测结构轴】。**H2 板无关 REJECTED**: `block_q5_Kx16` stride 2816 = 16×`block_q5_K` 176B = permutation 非 duplication → 我方/stock footprint 恒等 = 理论 floor (我方/stock=1.000)。**H1 结构轴直证**: 同字节下我方 decode **1.99× 指令/token** (qh 平面+超块重建 M=1 不摊销) → 1.372× cycles → 0.729× (独立复现 g5-M2 sealed decode)。原 [GAP-REPACK-GEVM] 反证 (stock repack-GEVM@k1 1.284×) 与本解析同向。**P0 达 5/5 全 H1** (q5_K@k1 从 H1-implied 升 H1-measured)。
 
 ## 2. 结构轴伴随证据 (为何字节同却快慢不同 = 结构不成熟的指纹)
 
@@ -40,9 +40,9 @@
 
 ## 3. 逐格 H1/H2 判读 + 聚合结论
 
-- **逐格**: q4_K/q5_0/q5_1/q4_1 **全部 H1**。**H2 (布局字节税) 逐格 REJECTED** — 无一格 我方 >> stock 或 >> 理论×1.5；实测字节比全在 **0.995–0.998×** (我方甚至**略少** stock，全部 ≤ 1.0 ≈ roofline)。
-- **聚合 (4/4 measured rvv → H1; q5_K@k1 H1-implied)**:
-  1. **布局非墙 · 布局契约无需重议**: resident repack 布局字节已触底 roofline (permutation 非 duplication，footprint 不增)。[GAP-REPACK-GEVM] 的"布局之罪"假设 **证伪** (与 stock-repack-GEVM@k1 1.284× 反证同向)。
+- **逐格**: q4_K/q5_0/q5_1/q4_1 @rvv + **q5_K@k1 (补格)** = **全部 H1**。**H2 (布局字节税) 逐格 REJECTED** — 无一格 我方 >> stock 或 >> 理论×1.5；rvv 实测字节比全在 **0.995–0.998×** (略少 stock·≤roofline)；q5_K@k1 因 X60 PMU 无字节计数器改**解析 footprint 恒等** (2816=16×176·permutation) → 我方/stock=1.000 (§q5K-k1-补格)。
+- **聚合 (5/5 → H1: 4/4 measured rvv byte + q5_K@k1 measured 结构轴+解析 footprint)**:
+  1. **布局非墙 · 布局契约无需重议**: resident repack 布局字节已触底 roofline (permutation 非 duplication，footprint 不增·k1 解析恒等亦证)。[GAP-REPACK-GEVM] 的"布局之罪"假设 **证伪** (rvv 实测 0.996× + k1 解析恒等 + stock-repack-GEVM@k1 1.284× 反证 三向同证)。
   2. **decode-loss 主因 = GEVM 结构不成熟 ([K-10] 实证① GEMM 兼职 GEVM 坐实)**: 同 DRAM 字节流下，win↔loss 的判别键**全在结构轴** (insn / IPC / cycles)，**从不在字节轴**。
   3. **★[PAT-2] P9 目标标签需精化**: registry 现写"权重零复用→**字节最少化**"。P0 实测: **字节已最少 (roofline)**，不是可动的杠杆。GEVM plan 的真实优化目标 = **把 roofline 带宽转成吞吐** = 在 M=1 抬 IPC / 削 per-element 重建指令 / 藏权重条带装载延迟 (即 [PAT-2] TRANSFORM 已写的 流式K归约×列组·累加器常驻·预取进结构)。**"字节最少化"应改述为"M=1 带宽→吞吐的结构效率"**。
 
