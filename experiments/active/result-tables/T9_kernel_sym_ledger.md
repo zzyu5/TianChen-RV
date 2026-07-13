@@ -93,7 +93,7 @@
 
 | 桶 | 格数 | 说明 |
 |---|---:|---|
-| **★第二常驻计数「kernel-sym ≥parity 格数」** | **9** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c） |
+| **★第二常驻计数「kernel-sym ≥parity 格数」** | **9** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c）· **★成色分布（L0.3③·计数旁标）= 1 hand-brick（q4_K@k1·成色最硬）+ 2 better-vec block-dot（q5_0/q5_1@rvv·成色中）+ 6 block-dot/light（q5_K@k1/q4_0@k1/q8_0@k1/q4_0/q4_1/q8_0@rvv·弱对手·成色低）** |
 | ~~≥parity 待板批补测（FLAT 5 gemm@rvv）~~ | ✅ DONE | 2026-07-13 f8da2f5c·5 格全 ≥parity·4→9 上限达成 |
 | <parity candidate（对称 LOSS·不计 ≥parity） | 9 | §1.2·+ q2_K@rvv 系统账 fresh 0.857×(14f4631a·同向) |
 | 对手类单列（SELF/internal-A/B/CASE-COMPILER-ASYMMETRY） | 3 + N | §2·不入计数（含 IME 三格 SELF·但注：IME q4_0/q8_0@ime 已在 perf-covered 转绿=不同赛道·此处 SELF-account 仍单列） |
