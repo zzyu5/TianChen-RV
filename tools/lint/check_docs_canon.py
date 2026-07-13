@@ -116,6 +116,84 @@ def scan_framing_warnings(root):
     return len(warns)
 
 
+# ── Bare-slogan novelty WARN scan (裁六.1 · informational · NON-blocking) ──────────
+# The C1 head-line novelty is the CONJUNCTION of five elements — it is NEVER the bare
+# slogan 「把性能决策显式化为能力事实的函数」 / 「能力键控即 novelty」 standing alone.
+# The five elements (any one nearby -> the slogan is bound -> benign):
+#   单一 schema 同驱编译期生成 + fail-closed 运行期 · 跨范式 · 跨独立家族 · 零分支机检 · 外部可复制
+# This is a WARN-only lens over docs/ (same 体例 as the framing scan): a bare-slogan novelty
+# assertion NOT bound to the conjunction is surfaced for human review. It NEVER changes the
+# exit code — the structural invariants (A)/(B) alone gate CI.
+SLOGAN_PATTERNS = (
+    (re.compile(r"性能决策.{0,8}能力事实"), "性能决策=能力事实"),        # 性能决策(显式化为|=)能力事实
+    (re.compile(r"能力事实的函数"), "能力事实的函数"),                    # 「…就是能力事实的函数」尾句
+    (re.compile(r"能力键控.{0,6}(?:即|就是|[=＝])\s*novelty", re.IGNORECASE),
+     "能力键控即novelty"),                                              # 能力键控即/就是/= novelty
+)
+
+# 五要素任一关键词（同段/邻近行）= 口号已绑合取 -> benign。附带规则陈述标记（禁/裸口号/…），
+# 使本 lint 自身的规则条文与措辞门 doc 不自触发。
+SLOGAN_BENIGN_MARKERS = (
+    "合取", "五要素",
+    "schema同驱", "schema 同驱", "同驱",   # 单一 schema 同驱编译期生成
+    "fail-closed", "运行期守卫",           # fail-closed 运行期
+    "跨范式",                              # 跨范式（向量→矩阵 MAC）
+    "跨独立家族", "独立家族",              # 跨独立家族原封复用
+    "零分支机检", "零分支",                # 零分支机检（[F-1..F-6]）
+    "外部可复制", "外部可复", "接入协议",  # 外部可复制接入协议
+    # 规则陈述 / 措辞门自述 -> benign（口号被【引用为禁】而非被主张）
+    "禁", "裸口号", "措辞纪律", "停用",
+)
+
+# 邻近行窗口（± 行）近似「同段/邻近行」的 benign 检查。
+SLOGAN_WINDOW = 3
+
+
+def classify_slogan_line(line, context=""):
+    """Bare-slogan novelty hits on <line> not bound to the five-element conjunction.
+    [] = clean (no slogan) OR benign (bound / rule-statement). <context> is the
+    nearby-line window ('邻近行')；context 中任一 benign 标记也豁免。"""
+    hits = [label for pat, label in SLOGAN_PATTERNS if pat.search(line)]
+    if not hits:
+        return []
+    haystack = line + "\n" + context
+    if any(m in haystack for m in SLOGAN_BENIGN_MARKERS):
+        return []
+    seen = []
+    for h in hits:
+        if h not in seen:
+            seen.append(h)
+    return seen
+
+
+def scan_slogan_warnings(root):
+    """WARN-only: surface bare-slogan novelty phrasing (裁六.1) not bound to the
+    five-element conjunction. Returns hit count; never blocks."""
+    warns = []
+    for rel in sorted(mc.durable_paths(root, "docs/")):
+        if not rel.endswith(".md"):
+            continue
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8") as fh:
+                lines = fh.readlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for i, line in enumerate(lines):
+            lo = max(0, i - SLOGAN_WINDOW)
+            hi = min(len(lines), i + SLOGAN_WINDOW + 1)
+            context = "".join(lines[lo:i] + lines[i + 1:hi])
+            for label in classify_slogan_line(line, context):
+                warns.append((rel, i + 1, label, line.strip()))
+    if warns:
+        print(f"\nWARN ({len(warns)} bare-slogan novelty hit(s) · 裁六.1 · informational · "
+              "non-blocking · C1 novelty=合取五要素{单一 schema 同驱编译期生成+fail-closed 运行期·"
+              "跨范式·跨独立家族·零分支机检·外部可复制}·裸口号未绑=WARN):")
+        for rel, lineno, label, text in warns:
+            snippet = text if len(text) <= 100 else text[:97] + "…"
+            print(f"  ~ {rel}:{lineno}  [{label}]  {snippet}")
+    return len(warns)
+
+
 def self_test():
     ok_all = True
     print("-- (A) canon/ whitelist --")
@@ -169,6 +247,28 @@ def self_test():
         ok_all = ok_all and got == expect
         print(f"  [{mark}] {text[:34]!r} -> {got} (expect {expect})")
 
+    print("-- (D) bare-slogan novelty WARN classifier (裁六.1) --")
+    slogan_cases = [
+        # 正例：裸口号单独作 novelty，未绑五要素 -> WARN
+        ("novelty = 把性能决策显式化为能力事实的函数", ["性能决策=能力事实", "能力事实的函数"]),
+        ("我们的核心贡献就是能力事实的函数", ["能力事实的函数"]),
+        ("一句话：能力键控即 novelty", ["能力键控即novelty"]),
+        # 反例：绑五要素（同行含关键词）-> benign
+        ("性能决策=能力事实的函数——但 novelty 是合取五要素（跨范式·跨独立家族·零分支机检）", []),
+        ("把性能决策显式化为能力事实的函数，由单一 schema 同驱、fail-closed 运行期守卫", []),
+        ("能力键控即 novelty，落在外部可复制接入协议 + 零分支机检之上", []),
+        # 规则陈述 / 措辞门自述 -> benign（口号被引用为禁）
+        ('禁裸口号「能力事实的函数」单独作 novelty 表述', []),
+        # clean（无口号）
+        ("能力键控优化模式库 P1–P8 由机制选出", []),
+        ("普通一行不含口号也不含 novelty 主张", []),
+    ]
+    for text, expect in slogan_cases:
+        got = classify_slogan_line(text)
+        mark = "PASS" if got == expect else "FAIL"
+        ok_all = ok_all and got == expect
+        print(f"  [{mark}] {text[:34]!r} -> {got} (expect {expect})")
+
     print("SELF-TEST:", "GREEN" if ok_all else "RED")
     return 0 if ok_all else 1
 
@@ -208,6 +308,8 @@ def main(argv):
     # 裁四.2: framing-discipline lens — WARN-only, appended after the verdict.
     # Never influences `rc` (informational; the structural invariants alone gate exit code).
     scan_framing_warnings(root)
+    # 裁六.1: bare-slogan novelty lens — WARN-only, likewise never influences `rc`.
+    scan_slogan_warnings(root)
     return rc
 
 
