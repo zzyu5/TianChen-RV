@@ -10753,7 +10753,8 @@ def TypedRepackGemvLoopBodyOp
 def TypedRepackGemvLoopYieldOp
     : WEFTRVV_Op<"typed_repack_gemv_loop_yield",
     [Terminator,
-     HasParent<"::weft::rvv::TypedRepackGemvLoopBodyOp">]> {
+     ParentOneOf<["::weft::rvv::TypedRepackGemvLoopBodyOp",
+                  "::weft::rvv::TypedRepackGemvColgroupTiledLoopBodyOp"]>]> {
   let summary =
       "terminator naming the carried-out per-strip f32 VECTOR accumulators of the "
       "repacked GEVM block loop op";
@@ -10775,6 +10776,93 @@ def TypedRepackGemvLoopYieldOp
   let arguments = (ins Variadic<AnyType>:$acc_next);
 
   let assemblyFormat = "$acc_next attr-dict `:` type($acc_next)";
+  let hasVerifier = 1;
+}
+
+def TypedRepackGemvColgroupTiledLoopBodyOp
+    : WEFTRVV_Op<"typed_repack_gemv_colgroup_tiled_loop_body",
+    [SingleBlock, WEFTEmitCLowerableOpInterface]> {
+  let summary =
+      "INDEPENDENT q4_K K-quant GEVM Emission Plan ([K-10] structural-level): the "
+      "COLUMN-GROUP-TILED, block-STREAMING, register-resident-accumulator-bank decode "
+      "structure ([PAT-2] P9 GEVM regime-plan)";
+  let description = [{
+    The NEW, INDEPENDENT q4_K@rvv GEVM Emission Plan (G7 L1 · [K-10] structural-level ·
+    [PAT-2] P9 GEMV-regime-plan-streaming). It is a DISTINCT plan op — NOT a knob on
+    weft_rvv.typed_repack_gemv_loop_body — because the iteration-space topology and the
+    data-consumption contract are STRUCTURALLY different ([K-10] 硬禁: 结构级差异禁实现
+    为 plan 内旋钮). Where the existing GEVM loop op is column-group-OUTER / block-INNER
+    (the q8_K activation block is re-addressed once per column-group), THIS plan:
+
+      * TILES the weight-column-group loop by `column_group_tile` (TG groups per tile),
+      * makes the contraction-BLOCK loop the SHARED MIDDLE loop (ONE q8_K activation
+        block base `a + l*activation_block_stride` is computed once per block and REUSED
+        across all TG column-groups of the tile — the [PAT-2] "交织组多列共享输入向量加载"),
+      * keeps a REGISTER-RESIDENT f32 accumulator BANK (TG * numHalves per-strip vector
+        accumulators) live across the whole block stream (P0-diagnosed fix for the
+        GEMM-tile-moonlighting L1-resident accumulator stall, IPC 0.52->0.29), and
+      * carries a weight-strip PREFETCH cadence in the structure (the resident repack
+        layout is prefetched one block ahead — a pure hint, never a value).
+
+    The per-block DECODE + FOLD leaf is UNCHANGED and byte-exact to the GEMM-plan-M=1 /
+    existing-GEVM q4_K body (the 8-sub-block 6-bit scale/min LANE-WISE unpack + the
+    split-32 main dot + the bsums-min correction + the dual d/dmin fp16 fold); the plan
+    only re-orchestrates the ENVELOPE over INDEPENDENT output columns, so byte-exactness
+    is BY CONSTRUCTION (a fixed output column's per-block reduction order is untouched;
+    reordering + tiling independent column reductions cannot change a column's value —
+    mechanized by the host ZERO-MODEL oracle
+    test/Target/RVV/q4-K-q8-K-repack-gevm-colgroup-tiled-oracle.c, mismatch=0).
+
+    It consumes the SAME resident repack layout (block_q4_Kx16 weight, block_q8_K
+    activation) + the SAME five runtime ABI operands as the existing GEVM plan, and owns
+    one single-block region carrying the block_index-tied (region arg 0) K-quant
+    integer-core BRICK weft_rvv.repack_gemv_kquant_core (decode_model "q4_K", anti-bypass)
+    plus the per-strip accumulator pass-through terminator
+    weft_rvv.typed_repack_gemv_loop_yield. The bounded surface kind is limited to
+    "typed_repack_gemv_colgroup_tiled_loop_body", fold_model to "kquant_dmin_bsums_min",
+    and `column_group_tile` >= 1 must divide the runtime column-group count. This is the
+    FIRST cell (q4_K@rvv) of the plan; the shared 6-bit scale/min facts ride on the
+    OPTIONAL K-quant attrs exactly as the sibling GEVM/GEMM plans carry them.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$half_lanes,
+    StrAttr:$fold_model,
+    // The DISTINGUISHING structural fact of this independent plan ([K-10] iteration-
+    // space topology): the number of weight-column-groups per tile (TG). TG per-strip
+    // f32 accumulator banks are held register-resident across the shared block stream.
+    I64Attr:$column_group_tile,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    // OPTIONAL K-QUANT (q4_K super-block) decode facts (mirror the sibling GEVM plan):
+    // the per-column fp16 dmin strip byte offset (+32), the custom 6-bit per-sub-block
+    // scales/mins region byte offset (+64), the activation int16 bsums byte offset
+    // (block_q8_K +260), and the sub-block count (8).
+    OptionalAttr<I64Attr>:$weight_dmin_byte_offset,
+    OptionalAttr<I64Attr>:$weight_scales_byte_offset,
+    OptionalAttr<I64Attr>:$activation_bsums_byte_offset,
+    OptionalAttr<I64Attr>:$n_subblocks
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $weight_base `,` $activation_base `,` $output `,` $element_count `,`
+    $column_count attr-dict-with-keyword $body `:`
+    type($weight_base) `,` type($activation_base) `,` type($output) `,`
+    type($element_count) `,` type($column_count)
+  }];
   let hasVerifier = 1;
 }
 

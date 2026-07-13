@@ -13168,6 +13168,54 @@ mlir::LogicalResult TypedRepackGemvLoopYieldOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult TypedRepackGemvColgroupTiledLoopBodyOp::verify() {
+  // Bounded surface (I7 fail-closed): the INDEPENDENT q4_K colgroup-tiled GEVM
+  // Emission Plan ([K-10] structural-level). First cell = q4_K@rvv; the bounded
+  // fold is the K-quant q4_K dual d/dmin + bsums-min fold.
+  if (getKind() != "typed_repack_gemv_colgroup_tiled_loop_body")
+    return emitOpError() << "currently supports only kind "
+                            "\"typed_repack_gemv_colgroup_tiled_loop_body\"";
+  if (getFoldModel() != "kquant_dmin_bsums_min")
+    return emitOpError()
+           << "currently supports only fold_model \"kquant_dmin_bsums_min\" (the "
+              "q4_K dual d/dmin + bsums-min fold; the first cell of this plan)";
+  // The DISTINGUISHING structural fact: column_group_tile (TG) >= 1.
+  if (getColumnGroupTile() < 1)
+    return emitOpError() << "requires column_group_tile >= 1 (the number of "
+                            "weight-column-groups per tile); got "
+                         << getColumnGroupTile();
+  // The q4_K super-block MIN structure requires ALL four K-quant decode facts
+  // (fail-closed, I7): dmin strip / 6-bit scales region / activation bsums / n_sub.
+  if (!getWeightDminByteOffset() || !getWeightScalesByteOffset() ||
+      !getActivationBsumsByteOffset() || !getNSubblocks())
+    return emitOpError()
+           << "the q4_K colgroup-tiled GEVM plan requires the super-block decode "
+              "attrs weight_dmin_byte_offset / weight_scales_byte_offset / "
+              "activation_bsums_byte_offset / n_subblocks";
+  // Anti-bypass: the region MUST carry the K-quant integer-core brick
+  // (decode_model "q4_K"), block_index-tied to region arg 0, named off this op's
+  // own weight/activation ABI bases — the SAME structural contract as the sibling
+  // GEVM plan (byte-exact-by-construction is gated on this brick's identity).
+  RepackGemvKQuantCoreOp coreBrick;
+  getBody().walk([&](RepackGemvKQuantCoreOp o) { coreBrick = o; });
+  if (!coreBrick)
+    return emitOpError()
+           << "region requires the weft_rvv.repack_gemv_kquant_core integer-core "
+              "brick (the anti-bypass tie of the byte-exact q4_K decode)";
+  if (coreBrick.getDecodeModel() != "q4_K")
+    return emitOpError() << "the colgroup-tiled GEVM plan's core brick must carry "
+                            "decode_model \"q4_K\" (the first cell)";
+  if (coreBrick.getBlockIndex() != getBody().front().getArgument(0))
+    return emitOpError() << "the K-quant core brick's block_index must be the loop "
+                            "induction variable (region arg 0)";
+  if (coreBrick.getWeightBase() != getWeightBase() ||
+      coreBrick.getActivationBase() != getActivationBase())
+    return emitOpError()
+           << "the K-quant core brick's weight/activation bases must be the loop "
+              "op's own repacked-weight / q8_K-activation ABI buffers";
+  return mlir::success();
+}
+
 mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
   mlir::Operation *op = getOperation();
 

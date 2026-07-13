@@ -445,6 +445,11 @@ private:
   /// emitRepackGemvQ4_0Q8_0.
   static bool isTypedRepackGemvLoopBody(weftrvv::WithVLOp scope);
 
+  /// The INDEPENDENT q4_K colgroup-tiled GEVM Emission Plan recognizer ([K-10]
+  /// structural-level): a with_vl scope whose ONLY op is a single
+  /// weft_rvv.typed_repack_gemv_colgroup_tiled_loop_body.
+  static bool isTypedRepackGemvColgroupTiledLoopBody(weftrvv::WithVLOp scope);
+
   /// The M-FLAT q4_0 16x1-REPACKED GEMM loop-scaffold recognizer: a with_vl scope
   /// whose ONLY op is a single weft_rvv.typed_repack_gemm_loop_body (the
   /// region-carrying nb contraction-block loop with the per-column per-strip
@@ -1537,6 +1542,27 @@ private:
       int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
       int64_t half) const;
 
+  /// The INDEPENDENT q4_K colgroup-tiled GEVM Emission Plan BODY emitter ([K-10]
+  /// structural-level). SAME per-block q4_K super-block leaf as
+  /// emitRepackKQuantGemvBodyQ4K (byte-exact), but the ENVELOPE is
+  /// COLUMN-GROUP-TILED: the outer loop steps `columnGroupTile` (TG) column-groups
+  /// per tile, the contraction-BLOCK loop is the shared MIDDLE loop (ONE q8_K
+  /// activation block base per block, REUSED across the TG groups), the TG*numHalves
+  /// per-strip f32 accumulators are a REGISTER-RESIDENT bank live across the block
+  /// stream, and the next block's weight strips are PREFETCHED one block ahead. A
+  /// fixed output column's per-block reduction order is UNTOUCHED, so byte-exactness
+  /// to the sibling per-column GEVM plan is BY CONSTRUCTION.
+  mlir::LogicalResult emitRepackKQuantGemvColgroupTiledBodyQ4K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQuantOffset, int64_t activationQuantOffset,
+      int64_t weightDminOffset, int64_t weightScalesOffset,
+      int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
+      int64_t half, int64_t columnGroupTile) const;
+
   /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
   /// emitRepackGemvQ5KQ8K, refactored to take the mapped ABI values + block-format facts
@@ -2154,6 +2180,19 @@ private:
   /// monolithic emitRepackGemvQ4_0Q8_0 by construction (shared leaves + same
   /// numHalves/half/l8/l16/l32/byte-offset facts) on every arm.
   mlir::LogicalResult emitTypedRepackGemvLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The INDEPENDENT q4_K colgroup-tiled GEVM Emission Plan emitter ([K-10]
+  /// structural-level · [PAT-2] P9): lower the region-carrying
+  /// weft_rvv.typed_repack_gemv_colgroup_tiled_loop_body by gating on its
+  /// in-region weft_rvv.repack_gemv_kquant_core (decode_model "q4_K") anti-bypass
+  /// brick, then re-emitting the byte-exact q4_K super-block decode through the
+  /// COLUMN-GROUP-TILED / block-STREAMING / register-resident-bank envelope
+  /// (emitRepackKQuantGemvColgroupTiledBodyQ4K). Byte-exact to the sibling GEVM
+  /// plan by construction (same per-block leaf; only the envelope differs).
+  mlir::LogicalResult emitTypedRepackGemvColgroupTiledLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

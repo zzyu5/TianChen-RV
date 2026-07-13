@@ -618,6 +618,15 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody},
         {&isTypedRepackGemvLoopBody,
          &VariantToEmitCFunc::emitTypedRepackGemvLoopBody},
+        // The INDEPENDENT q4_K colgroup-tiled GEVM Emission Plan ([K-10]
+        // structural-level · [PAT-2] P9): a distinct plan op (NOT a knob on the
+        // GEVM loop body), lowered by isTypedRepackGemvColgroupTiledLoopBody ->
+        // emitTypedRepackGemvColgroupTiledLoopBody ->
+        // emitRepackKQuantGemvColgroupTiledBodyQ4K (byte-exact to the sibling GEVM
+        // plan's q4_K body; only the column-group-tiled / block-streaming /
+        // register-resident-bank ENVELOPE differs).
+        {&isTypedRepackGemvColgroupTiledLoopBody,
+         &VariantToEmitCFunc::emitTypedRepackGemvColgroupTiledLoopBody},
         {&isTypedRepackGemmLoopBody,
          &VariantToEmitCFunc::emitTypedRepackGemmLoopBody},
         // NOTE: the monolith iq4_xs kernel {isIQ4XSQ8KBlockDotBody,
@@ -1680,6 +1689,21 @@ bool VariantToEmitCFunc::isTypedRepackGemvLoopBody(weftrvv::WithVLOp scope) {
     bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<weftrvv::TypedRepackGemvLoopBodyOp>(op)) {
+        if (sawLoopBody)
+          return false;
+        sawLoopBody = true;
+      } else {
+        return false;
+      }
+    }
+    return sawLoopBody;
+  }
+
+bool VariantToEmitCFunc::isTypedRepackGemvColgroupTiledLoopBody(
+    weftrvv::WithVLOp scope) {
+    bool sawLoopBody = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<weftrvv::TypedRepackGemvColgroupTiledLoopBodyOp>(op)) {
         if (sawLoopBody)
           return false;
         sawLoopBody = true;
