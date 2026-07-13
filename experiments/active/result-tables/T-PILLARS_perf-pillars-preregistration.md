@@ -48,7 +48,7 @@
 - **结构级**：结构对齐 plan【必要非充分】·还须 register-budget-fit（**GEVM P2 board-falsified**·67d49316·TG=2 bank 加宽 M=1 spill 53×→IPC 崩）。
 ⟹ **柱一精化**：`结构对齐 → 赢` 改判为 `结构对齐【必要非充分】∧ register-budget-fit → 赢`。GEVM P2 **非柱一全证伪**——P1 byte-exact mechanized 证明 **plan 库 extensibility（柱一本体·C1）DEMONSTRATED**·P2 证伪的是"首版结构假设（TG=2 bank 加宽提 IPC）"·柱一 thesis（结构对齐是赢的必要条件）仍立·仅补 register-budget-fit 充分条件。
 
-**柱一「无折中→parity」精化**（`b29c269c`）：前提 = **我方 HAVE 匹配结构 plan**。反例：q4_K@k1 vs 真 hand-brick 0.622× LOSS（对手无折中[VLEN256 满宽专调]·我方缺匹配结构[全展开 25KB VLEN-invariant]→LOSS）。⟹ `对手无折中 ∧ 我方有匹配结构 → parity~小赢`（缺任一则可 LOSS）。
+**柱一「无折中→parity」精化**（`b29c269c`·★27658b8a 双核分立 caveat）：前提 = **我方 HAVE 匹配结构 plan**。反例：q4_K@k1 **vl=8 核** vs 真 hand-brick 0.622× LOSS（对手无折中[VLEN256 满宽专调]·我方 **vl=8 半宽**核缺匹配→LOSS）。⟹ `对手无折中 ∧ 我方有匹配结构 → parity~小赢`（缺任一则可 LOSS）。★**caveat（测错核之戒）**：此 0.622× 是 **vl=8 核**；**同格 sealed vl=16 满宽核 e2e 翻正 1.085× 赢同一 hand-brick**（27658b8a）——**宜作 pillar-2（lane-width 参数键控）救 pillar-1（结构对齐）的例证**：vl=8→vl=16 满宽（参数级 lane-width）把 pillar-1 的"缺匹配结构"补齐 → 印证 register-budget-fit 三级律（参数级 lane-width 是充分性补充）。
 
 **柱二边界补注**：M7 W2 单调正向命中；边界三处 =（① W4 越 32-vreg 预算反噬 ② q5_K per-board register-cliff ③ IME format-keyed e2e 传导[q8_0 传导/q4_K 稀释]）。re-roll trap 正确排除（结构级误当参数级·[K-10] 实证②·非柱二反例）。
 
