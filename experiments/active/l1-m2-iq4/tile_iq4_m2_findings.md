@@ -67,6 +67,7 @@ precondition on this family," not as a measured ratio.
 Clean anchor nr=64 (K=2048, nc=512, cold paired, N=12; noisefloor 40 ns ≪ 27–36 ms region):
 - **iq4_nl:** OURS 2.455 / OPP 2.934 → **0.837×** (seed C0FFEE); 2.458 / 2.907 → **0.846×** (seed BEEF01).
   nr=16 (N=10): OURS 2.440 / OPP 3.413 → **0.715×**.
+  > **★校正（2026-07-14·a8ed3a09·[CASE-COMPILER-ASYMMETRY]）**：此 0.837×/0.846×/0.715× = **clang-ours -O2 vs gcc-shipped generic** 非对称编译 artifact（机判铁证：同 kernel.c·clang spill=7 / gcc spill=41 → gcc-ours 慢 3.7×）。**部署域（gcc-15.2 双侧对称）cold = 0.228×(nr64)/0.205×(nr16)**，匹配 g5 e2e prefill 0.217×（同域）。→ iq4_nl 部署域 verdict = **~0.22-0.23× LOSS**（本 0.837× 数**不可作部署主张**·仅存档为 asymmetry 病例）。
 - **iq4_xs:** OURS 1.874 / OPP 2.874 → **0.652×** (nr=64); OURS 1.775 / OPP 2.870 → **0.618×** (nr=16).
 
 Our GMAC/s is **flat across shapes** (iq4_nl 2.44–2.46; iq4_xs 1.72–1.87), the signature of a

@@ -47,6 +47,8 @@
 
 ### 1.2 <parity 已测（candidate·对称重测 LOSS·**不计** ≥parity · 12·+q2_K/q3_K/q6_K@k1）
 
+> **★cold 双态 robustness 收口（2026-07-14·a8ed3a09·rvv §1.2 IQ/TQ 9/9 全测·同形状 hot/cold·gcc-15.2 对称·N≥12·`29d48dd7`）**：8 vec_dot + iq4_nl gemm **全 <parity·cold≈hot·verdict 不翻**（compute-latency/gather-bound·ours cold GB/s 0.18–1.5 ≪ DRAM 墙·cache 态二阶·同 FLAT-5/k1-L2 型）→ §1.2 LOSS 判定 cold 稳健。**★headline①（不入 ≥parity 计数）**：**tq2_0 hot 1.15× ≥parity 惊喜**（L1-resident·ours vsetvl=3 近零 vsetvli storm BEATS factory·rock-solid N=20 relIQR~1%）→ **cold 0.21× 蒸发**（ours-penalty 8.6× vs factory 1.6×·cache-resident-only micro-win 不存活 DRAM streaming·thesis-coherent·**部署域 LOSS**）。**★headline②**：iq4_nl 部署域校正见下行（0.837× 存档数 = [CASE-COMPILER-ASYMMETRY]·gcc-sym 0.23×）。cold 逐格数据在 `experiments/active/g7-l1-kernelsym-fullfill/rvv-iqtq-cold/evidence.md §6`。
+
 | 格·板 | emitted kernel 指针 | 对手 kernel 身份 | 对称编译 | 已有 micro A/B（T8） |
 |---|---|---|---|---|
 | q5_K @rvv/VLEN128 | 前门 KQuant repack GEMM | factory generic block-dot（untuned·real·as-shipped） | ✓ gcc-15.2 双侧对称 | **0.120× LOSS**（~12.9× reversal·[CASE-COMPILER-ASYMMETRY] Stage1 蒸发·symmetric-gcc） |
@@ -163,4 +165,4 @@
 
 **★发现**：① cold-penalty 键控 memory-exposure（nr↓→penalty↑·低 weight-reuse 赢家更 memory-exposed·最严 q5_1 nr4 1.124× 仍 ≥parity）② q8_0 反常 cold>hot（对手 block-dot 权重足迹 34B/blk 最大·cold 退化>ours）③ q5_0/q5_1 win↗nr。**★T4b oracle**：VLEN128 repack codegen 候选集 = **{mf2} 单一合法**（half_lanes=8→mf2·columnsPerPass=4 auto-forced·m1 是 RVV0.7-only 非 same-board 候选·[repack-winA-always-mf2]）→ **selector 平凡最优**·变体穷举净信息 = nr-shape 轴（mf2-repack 跨 nr 全 ≥parity·[L-4] 合规）。双账本稳健（clang nr16 10/10 cold ≥parity）。
 
-**进度分数（货架A 全量·§六.1 分数化）**：**rvv-半 §1.1 = 5/5 filled**（cold 双态+nr 穷举+双账本）· **rvv-半 §1.2 = 在飞**（K-quant/IQ/TQ cold 双态·`a8ed3a09`·regime T8 已确认 LOSS·cold≈hot 不翻·补完整性）· **★k1-半 §1.1 = 7/7 filled**（q4_0/q8_0@k1 存量 + ★FLAT@k1 kernel-axis q4_1/q5_0/q5_1 cold 双态 `abb26043` 2026-07-14·全 ≥parity·nr4/16/64 穷举·nbad=0）· **k1-半 §1.2 = q2_K/q3_K/q6_K@k1 已测 <parity**。★**kernel-sym ≥parity 计数不因 cold 变**（cold=hot robustness·非新格·NOT e2e·禁混算 perf-covered 9/83）。
+**进度分数（货架A 全量·§六.1 分数化）**：**rvv-半 §1.1 = 5/5 filled**（cold 双态+nr 穷举+双账本）· **rvv-半 §1.2 = IQ/TQ 9/9 filled**（`a8ed3a09` 2026-07-14·8 vec_dot + iq4_nl gemm cold 双态·全 <parity·cold≈hot·verdict 不翻·tq2_0 hot-only 惊喜蒸发·iq4_nl 部署域校正）· **余 4 = q5_K/q2_K/q3_K/q6_K@rvv gemm（K-quant·另 batch·regime T8 确认 LOSS）**· **★k1-半 §1.1 = 7/7 filled**（q4_0/q8_0@k1 存量 + ★FLAT@k1 kernel-axis q4_1/q5_0/q5_1 cold 双态 `abb26043` 2026-07-14·全 ≥parity·nr4/16/64 穷举·nbad=0）· **k1-半 §1.2 = q2_K/q3_K/q6_K@k1 已测 <parity**。★**kernel-sym ≥parity 计数不因 cold 变**（cold=hot robustness·非新格·NOT e2e·禁混算 perf-covered 9/83）。
