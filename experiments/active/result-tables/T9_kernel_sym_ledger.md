@@ -7,7 +7,7 @@
 
 ## 0. 台账定义头
 
-- **性质**：**第二赛道** kernel 内核轴覆盖面台账（C3′ 证据·T3 派生）。**与 perf-covered 系统账（`schema/perf-covered-category.v1.json` · 7/83）永不混算**。
+- **性质**：**第二赛道** kernel 内核轴覆盖面台账（C3′ 证据·T3 派生）。**与 perf-covered 系统账（`schema/perf-covered-category.v1.json` · **9/83**·recon 权威）永不混算**。★**2026-07-13 警示**：kernel-sym ≥parity 现 = **9**·perf-covered 现 = **9/83**——**两个 9 是巧合·完全不同赛道**（kernel-sym=kernel-axis 对称 micro 覆盖面 / perf-covered=系统账 e2e ≥parity 格）·**报告时必分开标·禁合并禁互推**。
 - **第二常驻计数**：**「kernel-sym ≥parity 格数」**（当前硬值见 §1.1）。
 - **candidate 判据**：`{我方 emitted kernel 在 ∧ 对手 kernel 真实存在(非 absent) ∧ 对称编译可行(同编译器/flags/march)}`。三者缺一 → 非 candidate（列 §3 opponent-absent 或 §2 对手类单列）。
 - **测量协议**：micro A/B·同编译器/flags/march·N≥10·T-N（noise floor）·对手类必标。
@@ -26,7 +26,7 @@
 
 字段：`{emitted kernel 指针 · 对手 kernel 身份 · 对称编译可行否 · 已有 micro A/B 数据(引 T8)}`
 
-### 1.1 ≥parity 已测 — 计入第二常驻计数 ★ **kernel-sym ≥parity 格数 = 4**
+### 1.1 ≥parity 已测 — 计入第二常驻计数 ★ **kernel-sym ≥parity 格数 = 9**（★2026-07-13 kernel-sym 首轮 FLAT 5 @rvv 补测·commit `f8da2f5c`·4→9 上限达成）
 
 | 格·板 | emitted kernel 指针 | 对手 kernel 身份（成色） | 对称编译 | 已有 micro A/B（T8） |
 |---|---|---|---|---|
@@ -34,8 +34,13 @@
 | **q5_K @k1/VLEN256** | 前门 KQuant（qh 5th-bit leaf·min-fold·S6 HOLDS·XFER-1 #2） | factory block-dot（generic·k1 ships zero q5_K repack·**通用路径·弱对手**） | ✓ clang-18 对称 | ✓ **1.916× ≥parity**（T8·ALL 12 rounds>1·NOT-e2e） |
 | **q4_0 @k1/VLEN256 (gemm prefill)** | repack GEMM（mf2 fractional·columnsPerPass 4） | e2e-factory block-dot（VLEN-flip prefill control·**parity-control**） | ✓ freq-locked paired 同源 | ✓ **prefill 1.0022× PARITY**（T8 row `q4_0-gevm-k1-vlen256...` 伴随行·CI[1.0014,1.0030]·compute-bound·parity=result） |
 | **q8_0 @k1/VLEN256** | repack GEVM wide-hl16 mf2 one-strip·item4 fcvt-reschedule | factory-block-dot（**弱对手·memory-bound**） | ✓ clang-18 对称·preflight 4/4 dual-board | ✓ **+4.37%（item4）** / mf2-wide vs m1 +11%（T8 `q8_0-gevm-k1-vlen256-mf2-vs-m1...` do-not-widen VINDICATED） |
+| **q4_0 @rvv/VLEN128 (gemm)** | repack GEMM（XOR-0x88 signed-nibble） | factory block-dot as-shipped（**light-vec 弱·10 rvv-insn**） | ✓ **gcc-15.2 双侧对称**（rvv 出货=gcc-15·kernel-axis==system-axis·objdump✓） | ✓ **6.707× ≥parity**（N=12·relIQR 0.51%·kernel-sym-flat5-rvv-micro·f8da2f5c） |
+| **q4_1 @rvv/VLEN128 (gemm)** | repack GEMM（q8_1 家族·d+m） | factory block-dot as-shipped（**light-vec 弱·8 rvv-insn**） | ✓ gcc-15.2 双侧对称 | ✓ **6.829× ≥parity**（N=12·relIQR 0.84%） |
+| **q5_0 @rvv/VLEN128 (gemm)** | repack GEMM（make_block_q5_0x16·transposed-qh） | factory block-dot as-shipped（**better-vec 较强·26 rvv-insn**） | ✓ gcc-15.2 双侧对称 | ✓ **1.221× ≥parity**（N=12·min 1.206×·opp-side 方差 relIQR 5.35%·我方 kernel 侧 <1%） |
+| **q5_1 @rvv/VLEN128 (gemm)** | repack GEMM（block_q8_1x4·transposed-qh） | factory block-dot as-shipped（**better-vec 较强·24 rvv-insn**） | ✓ gcc-15.2 双侧对称 | ✓ **1.407× ≥parity**（N=12·min 1.350×·opp-side 方差 relIQR 4.06%·我方侧 <1%） |
+| **q8_0 @rvv/VLEN128 (gevm)** | repack GEVM（.inc=M1b·i8@32） | factory block-dot as-shipped（**light-vec 弱·7 rvv-insn**） | ✓ gcc-15.2 双侧对称（clang-O3 deploy 3.47× 亦 ≥parity·三账本稳健） | ✓ **4.077× ≥parity**（N=12·relIQR 0.52%） |
 
-> 成色分层：**q4_K@k1 = 唯一 强对手（hand-brick）≥parity**；其余 3 格对手皆 block-dot / parity-control / memory-bound（弱对手）。
+> ★成色分层（9 格·令六 lint·成色须标）：**q4_K@k1 = 唯一 强对手（hand-brick·case256 真出货 repack）≥parity·成色最硬**；其余 8 格对手皆 **factory block-dot / parity-control / memory-bound（非 hand-brick·弱—中对手）**。其中 FLAT @rvv 5 格再分：q4_0/q4_1/q8_0 = light-vec 弱对手（big win 4-6.8×·成色低）· **q5_0/q5_1 = better-vec 较强对手（modest win 1.22-1.41×·成色相对硬·打败 better-vectorized block-dot）**。**计数 9 是覆盖面（第二赛道·C3′ 证据）·非成色等价**——9 格里只有 q4_K@k1 是赢 hand-brick。correctness 全 ZERO-MODEL PASS。
 
 ### 1.2 <parity 已测（candidate·对称重测 LOSS·**不计** ≥parity · 9）
 
@@ -53,7 +58,7 @@
 
 > 注：§1.2 末行是 5 格合并展示（vec_dot 同族·gcc-15.2 batch2c 对称），逐格数据在 T8。计入 candidate 池但 **不计** ≥parity 常驻计数。
 
-### 1.3 ≥parity 待板批对称 micro 补测（FLAT 5 gemm@rvv · 主会话缝隙·潜在 +5）
+### 1.3 ≥parity 待板批对称 micro 补测 — ✅ **DONE（2026-07-13·f8da2f5c·5 格全 ≥parity 已移入 §1.1·计数 4→9 达成）**
 
 | 格·板 | emitted kernel 指针 | 对手 kernel 身份 | 对称编译 | micro A/B 状态 |
 |---|---|---|---|---|
@@ -88,12 +93,12 @@
 
 | 桶 | 格数 | 说明 |
 |---|---:|---|
-| **★第二常驻计数「kernel-sym ≥parity 格数」** | **4** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill-parity · q8_0@k1 |
-| ≥parity 待板批补测（FLAT 5 gemm@rvv） | ~5 | 补测后潜在 +5 → 上限 9 |
-| <parity candidate（对称 LOSS·不计 ≥parity） | 9 | §1.2 |
-| 对手类单列（SELF/internal-A/B/CASE-COMPILER-ASYMMETRY） | 3 + N | §2·不入计数 |
+| **★第二常驻计数「kernel-sym ≥parity 格数」** | **9** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c） |
+| ~~≥parity 待板批补测（FLAT 5 gemm@rvv）~~ | ✅ DONE | 2026-07-13 f8da2f5c·5 格全 ≥parity·4→9 上限达成 |
+| <parity candidate（对称 LOSS·不计 ≥parity） | 9 | §1.2·+ q2_K@rvv 系统账 fresh 0.857×(14f4631a·同向) |
+| 对手类单列（SELF/internal-A/B/CASE-COMPILER-ASYMMETRY） | 3 + N | §2·不入计数（含 IME 三格 SELF·但注：IME q4_0/q8_0@ime 已在 perf-covered 转绿=不同赛道·此处 SELF-account 仍单列） |
 | opponent-absent（非 candidate） | ~9 | gemm iq/tq 7 + q1_0/nvfp4·§3 |
 
-**板批缝隙补测队列（主会话·非本台账执行）**：FLAT 5 gemm@rvv 逐格对称 kernel-axis micro（N≥10·T-N·gcc-15 双侧·对手=as-shipped block-dot）→ 补齐 §1.3 待测 5 格。
+**★成色警示（令六 lint·计数 9 ≠ 成色 9）**：9 格覆盖面里 **仅 q4_K@k1 赢 hand-brick（强对手·成色最硬）**；FLAT@rvv 5 格中 q5_0/q5_1 赢 better-vec block-dot（成色相对硬）·q4_0/q4_1/q8_0 赢 light-vec block-dot（弱对手·成色低）。**第二赛道计数=kernel-axis 对称覆盖面（C3′ 证据）·非 e2e·非 perf-covered·禁互推**。系统账 FLAT 仍 [GAP-FLAT-E2E] 黄（micro∧e2e + selector-routing 两门未过·T6 whole-model 后续）。
 
 **需主会核**：① cross-op 口径（gemm-iq/tq vs block-dot）是否纳入 kernel-sym 台账（须明标 cross-op）；② IME「对手 SELF」是否未来升 candidate（需独立 vendor-kernel 对位）。
