@@ -1,0 +1,18 @@
+dir=/tmp/dkgv/sysacct_q2k
+  == prefill(pp128) ==
+    stock(q4kOFF blockdot gcc15) median=5.0300 min=5.0264 max=5.0320 n=4 relIQR=0.10%
+    clang(q2kON repack clang18)  median=4.3098 min=4.3017 max=4.3203 n=4 relIQR=0.33%
+    gcc  (q2kON repack gcc15)    median=2.5017 min=2.4977 max=2.5029 n=4 relIQR=0.17%
+    SYSTEMS  clang/stock = 0.8568x  [LOSS]
+    SYMMETRIC gcc/stock  = 0.4974x  [LOSS]
+  == decode(tg16) ==
+    stock(q4kOFF blockdot gcc15) median=3.2854 min=3.1984 max=3.2931 n=4 relIQR=2.27%
+    clang(q2kON repack clang18)  median=1.6936 min=1.6866 max=1.6990 n=4 relIQR=0.57%
+    gcc  (q2kON repack gcc15)    median=0.4919 min=0.4916 max=0.4925 n=4 relIQR=0.14%
+    SYSTEMS  clang/stock = 0.5155x  [LOSS]
+    SYMMETRIC gcc/stock  = 0.1497x  [LOSS]
+=====PASSLOG=====
+  pass 1: load 8.48->11.97 freq=2600000 vllm%cpu=0.0/0.0 clang=2333B stock=2334B gcc=2341B
+  pass 2: load 11.97->12.13 freq=2600000 vllm%cpu=0.0/0.0 clang=2334B stock=2334B gcc=2341B
+  pass 3: load 12.13->11.71 freq=2600000 vllm%cpu=0.0/0.0 clang=2337B stock=2334B gcc=2342B
+  pass 4: load 11.71->11.82 freq=2600000 vllm%cpu=0.0/0.0 clang=2337B stock=2332B gcc=2340B

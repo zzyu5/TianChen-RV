@@ -1,0 +1,35 @@
+[q2k-mixed] load=4.73 5.81 6.25 3/1418 2302113
+=== [0] baseline verify + backup ===
+=== [1] pristine gcc rebuild -> confirm OFF baseline (block-dot) ===
+  live(pristine)=05a62e6a8285 (expect 05a62e6a8285) q4kOFF=05a62e6a8285
+=== [2] copy emitted .inc + apply q2_K rvv patch ===
+PATCH OK (L2 q2_K@rvv: gate128 flip + straight make_block + emitted-call intercept)
+GEN  md5: 0ba8b09ef8c98f0f06599bc0366f5226
+ARCH md5: a83a9c17a0def167b70eeab79174e1e2
+GEN gate128 flipped: True
+GEN straight make: True
+ARCH gemm include: True  gevm include: True
+ARCH gemm call: True  gevm call: True
+ARCH gemm banner: True  gevm banner: True
+=== [2b] gcc-15 build patched source -> q2kON.gcc (SYMMETRIC-GCC account: our algo, gcc) ===
+  q2kON.gcc md5=b27bd6860d72
+=== [3] clang-18 recompile the 2 repack TUs (patched source) ===
+  arch.o OK
+  gen.o OK
+=== [4] relink (g++ -shared) -> q2kON.clangrepack ===
+  relink OK
+  q2kON.clangrepack md5=0b01c53a753c
+=== [5] SEAL: nm + banner + objdump spill (gcc-death: q2kON.gcc vs q2kON.clangrepack) ===
+  [q2kON.gcc] nm weft q2_K syms=2(expect2) banner_gemm=1
+     gemm: spill=2937 vsetvli=1433 vwmacc=2304 vsetivli16=0
+     gevm: spill=218 vsetvli=922 vwmacc=576 vsetivli16=0
+  [q2kON.clangrepack] nm weft q2_K syms=2(expect2) banner_gemm=1
+     gemm: spill=6 vsetvli=86 vwmacc=2304 vsetivli16=0
+     gevm: spill=22 vsetvli=81 vwmacc=576 vsetivli16=0
+=== [6] restore source byte-exact + rm .inc + pristine rebuild ===
+  pristine rebuild OK
+  source RESTORED GEN=deb61a29dd079440ffdc8996b5bd2fa1 ARCH=99131cf791e30348b588423b2388e0b8 ; live=05a62e6a8285 tcrv_q2k_sym=0(expect0)
+=== q2k-mixed DONE ===
+05a62e6a82857cdf247ba1933c695849  /tmp/dkgv/libggml-cpu.so.q4kOFF.gcc
+b27bd6860d7202829b676957ed9037f4  /tmp/dkgv/libggml-cpu.so.q2kON.gcc
+0b01c53a753c838f54ce802a52c25232  /tmp/dkgv/libggml-cpu.so.q2kON.clangrepack

@@ -1,0 +1,19 @@
+== q2_K CORRECTNESS A=q2kON.clangrepack B=q4kOFF.gcc model=DeepSeek-R1-Distill-Llama-8B-Q2_K.gguf ntok=24 ==
+board rvv VLEN128 · taskset -c 8-15 -t 8 · llama-completion --temp 0 --top-k 1 --seed 1 (greedy deterministic)
+-- [1] 'The capital of France is'
+   A(repack):  > The capital of France is<think> Okay, so I need to figure out the capital of France. I'
+   B(blkdot):  > The capital of France is<think> Okay, so I need to figure out the capital of France. I'
+   A==B byte-identical
+-- [2] 'Q: What is 2 + 2? A:'
+   A(repack):  > Q: What is 2 + 2? A:<think> To determine the sum of 2 and > EOF by user
+   B(blkdot):  > Q: What is 2 + 2? A:<think> To determine the sum of 2 and > EOF by user
+   A==B byte-identical
+== engage=13(>0) nan=0(0) pass=2 fail=0 ==
+CORRECTNESS_GATE: GREEN
+
+# A(ours clang emitted VLA repack, straight make_block) == B(stock gcc block-dot) BYTE-IDENTICAL both prompts.
+# VLA emitted kernel is byte-exact-correct at VLEN128 (timing-independent byte compare, contention-immune).
+# ZERO-MODEL kernel-level bit-exact-integer proven at k1/VLEN256 (kquant_repack_verify_q2K INT_mismatch=0,
+# all 8 shapes GEVM nr=1 + GEMM nr in {4,8,16}, dual seed) -> same emitted export (gemm md5 d9dee831).
+# MIRAGE excluded: stock block-dot (ggml_vec_dot_q2_K_q8_K) is the canonical VLEN128 path; our straight
+# make_block matches the emitted kernel's decode leaf (the two self-consistent pairs give identical output).

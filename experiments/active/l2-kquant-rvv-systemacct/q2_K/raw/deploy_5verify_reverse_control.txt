@@ -1,0 +1,37 @@
+========== q2_K DEPLOY 5-VERIFY + REVERSE CONTROL ==========
+board rvv openEuler VLEN128 · cores 8-15 · load=4.17 5.01 5.81
+ON = q2kON.clangrepack (md5 0b01c53a753c) · OFF = q4kOFF.gcc (md5 05a62e6a8285)
+
+>>> [A] OFF baseline (stock as-shipped gcc-15 block-dot) <<<
+### STATE=OFF(stock-gcc15-blockdot)  variant=q4kOFF.gcc
+  v1 md5      = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  v2 weft_sym = 0  (expect 0)  PASS
+  v3 banner   = 0  (expect 0)
+  v4 objdump emitted q2_K sym present = 0 (expect 0; stock routes to generic block-dot)
+     stock block-dot symbol ggml_vec_dot_q2_K_q8_K present = 4
+
+>>> [B] ON forward (our clang-18 emitted q2_K repack, front-door) <<<
+### STATE=ON(ours-clang18-repack)  variant=q2kON.clangrepack
+  v1 md5      = 0b01c53a753c  (expect 0b01c53a753c)  PASS
+  v2 weft_sym = 2  (expect 2)  PASS
+  v3 banner   = 2  (expect >=1)
+  v4 objdump spill GEMM=6 GEVM=22  vsetivli16(MUST0)=0/0
+  v5 runtime engage banner:
+     engage_banner_hits=12 (>0 => kernel actually executed)
+       WEFT L2-q2K EMITTED GEMM(q2_K_16x1 VLEN128 compiler-emitted VLA S6-tiled) ENGAGED n=4096 nr=16 nc=128
+
+>>> [C] REVERSE CONTROL: swap back to OFF, confirm kernel gone <<<
+### STATE=OFF-again(reverse-control)  variant=q4kOFF.gcc
+  v1 md5      = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  v2 weft_sym = 0  (expect 0)  PASS
+  v3 banner   = 0  (expect 0)
+  v4 objdump emitted q2_K sym present = 0 (expect 0; stock routes to generic block-dot)
+     stock block-dot symbol ggml_vec_dot_q2_K_q8_K present = 4
+  v5 runtime engage banner (OFF) = 0 (expect 0)
+
+live restored to 05a62e6a8285
+========== q2_K DEPLOY-VERIFY DONE ==========
+
+# Route confirmed by runtime: stock q2_K@VLEN128 -> block-dot (ggml_vec_dot_q2_K_q8_K, 4 refs;
+# GEN repack.cpp case128 {break;}//TODO). ON = our emitted VLA repack (VLEN128-safe: vsetivli16=0/0,
+# no hardcoded AVL=16). Reverse control double-clean (engage 12 ON -> 0 OFF). Identical structure to q4_K.
