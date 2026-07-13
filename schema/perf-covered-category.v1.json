@@ -618,13 +618,16 @@
         "format": "q8_0",
         "engine": "ime"
       },
-      "category": "黄-传导稀释",
+      "category": "绿",
       "provisional": false,
-      "transduction_dilution": {
-        "compute_account_ratio": "~2.09×(T5b kernel-axis·vmadot-leaf·对手 SELF·硅证 int32 0-diff)——★但桥墙钟里可忽略(Amdahl 主导=单线程 ith==0[1/4 hart]+每 prefill 调用重 repack 未缓存)",
-        "amdahl_pointer": "compute-account 2.09× × 桥 overhead → e2e 净退化(比 stock 慢 6-79×·非稀释到 parity)·micro↛e2e·实测 IME 三格 e2e 配对补测(裁一.3·出口=稀释)·M0-接线机制解剖 + M3-ime-bridge-recon deploy-readiness",
-        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q8_0.txt·prefill e2e ON/OFF=0.166× (VEN/OFF=0.99× q8_0 prefill 本身内存墙)·decode 0.868×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)",
-        "note": "[裁三.1] 桥为 correctness-first 形态（单线程·ith==0[1/4 hart]·repack 未缓存·参考实现）；性能兑现 = 具名工程 GAP，非物理墙（厂商同 regime 1.98× 证上限存在·本格 q8_0 prefill VEN/OFF=0.99× 系 q8_0 prefill 本身内存墙非 IME 墙）。[裁三.3 叙事禁令] 禁在 [GAP-IME-BRIDGE-PERF] 收口前把三格稀释数字用于『IME 不行』或『IME 将转绿』叙事；现状 = 结构闭环成立 ∧ 性能兑现待工程。GAP 登记见 T8 [GAP-IME-BRIDGE-PERF] 行（具名·可修·现不立项·重估条件=C1/C2 毛刺收口后 或 新证据表明修复成本显著低于预期·以性能名义开工前置=Amdahl 预估+厂商路径占比核算+[X-0] 三问）。"
+      "green": {
+        "board": "k1 (单板·VLEN256·clang-18 对称)",
+        "account": "kernel账-ime·our-emitted IME q8_0 int8-direct 桥(M1-M7)·capability-keyed wide-vmadot-tiling 发射器杠杆 [PAT-1] W2·非 stock white-label·★最强 IME 绿(真 beat 非 tie)",
+        "ratio": "e2e prefill onw2 = 2.233× stock (★真 beat·无 IQR 重叠·非 tie) · 赢 vendor 2.269× · onw2/onjout 1.086×(array-util 增量)",
+        "ledger_pointer": "2026-07-13-perf-covered-q8_0-ime-green-9of83.md",
+        "quality_note": "★成色注记(措辞门·随绿格永驻·G6-A [GAP-IME-BRIDGE-PERF] 收口·同 q4_0@ime [裁三.3] 禁令解除)：(1) ★对手身份=stock 非-IME block-dot **真碾压 2.233×(无 IQR 重叠·非 tie·区别 q4_0@ime tie-stock)**·且赢 vendor 2.269×；(2) ★★**诚实前提=所赢 vendor 的 q8_0 IME 路【弱】(VEN/OFF=0.984× stock·vendor 未优化 q8_0 IME·非强手调)**——故本格是『我方产出【最快可得】q8_0 IME 核(beat stock 非-IME 2.233× + beat 弱 vendor 2.269×)』·**非**『赢强手调竞品』；无强手调 q8_0 IME 对手存在；(3) ★**无内存税**(q8_0 int8-direct·deref cache 不膨胀·区别 q4_0 int8-deref ×1.78·成色更干净)；(4) ★**G6 成色质变(硬碰硬赢手调对手成排)判读**：本格 **beat stock 真赢(非 tie)+beat 弱 vendor**·成色**强于 q4_0@ime**(real beat vs tie/lose)·是最强 IME 绿+朝成色质变一步·**但仍非『成排赢强手调』**(单格·vendor q8_0 路弱非强手调)·绿之实质=IME 硬件优势(2.233× vs 非-IME block-dot)经 [PAT-1] wide-vmadot-tiling 发射器杠杆传导·**不得表述为『碾压强 IME 竞品』**；(5) correctness GREEN(板 e2e greedy md5 onw2==onjout==onw4==off==ven==5b3fa260 全同【含 vendor】byte-identical + wide-neutral 硬门 onw2==onjout 由构造 + wide-tiling leaf 已由 q4_0 M7 host ZERO-MODEL oracle 证 int32-exact[同 leaf 复用]·核 0xe210312b vmadot 逐字不动)；(6) 八门:mostly PASS·②⑤ PARTIAL(e2e single-board k1)·byte-exact 由构造·A-tree restore md5 双证 clean(40962c7e/71cc4d29)。",
+        "bridge_curve_pointer": "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling-q80-q4k/evidence.md·array-util compute-isolation ~1.56-1.59×(==q4_0·format-invariant vmadot leaf)·full-matmul 传导 1.106×(q8_0)·[裁一.3] 前态=黄-传导稀释(e2e 慢 stock·M3 raw agg_q8_0 0.166×)·G6-A 桥 M1-M7 逐包袱消融至 beat",
+        "sibling_contrast": "同 M7 板测 q4_K@ime = 0.909× <parity 维持黄(two-level fold[scale+min] 重 epilogue 把 array-util 稀释到 e2e 1.024×·stock q4_K 已快 14.61·vendor 强 1.493×)=array-util 杠杆 format-keyed 适用边界(C3′ 负结果)·区别 q8_0 int8-direct 轻 epilogue"
       }
     },
     {
@@ -638,8 +641,8 @@
       "transduction_dilution": {
         "compute_account_ratio": "~2.09×(T5b kernel-axis·vmadot-leaf·对手 SELF·硅证 int32 0-diff)——★但桥墙钟里可忽略(Amdahl 主导=单线程 ith==0[1/4 hart]+每 prefill 调用重 repack 未缓存)",
         "amdahl_pointer": "compute-account 2.09× × 桥 overhead → e2e 净退化(比 stock 慢 6-79×·非稀释到 parity)·micro↛e2e·实测 IME 三格 e2e 配对补测(裁一.3·出口=稀释)·M0-接线机制解剖 + M3-ime-bridge-recon deploy-readiness",
-        "measured_e2e_delta_pointer": "experiments/active/g5-wiring/M3-ime-e2e-pairing/evidence.md §0/§2 + raw/agg_q4_K.txt·prefill e2e ON/OFF=0.0617× (VEN/OFF=1.49× vendor-ceiling)·decode 0.618×·裁一.3 转正(开/关 IME 路由配对 llama-bench n=10/side·1.6GHz·banner on=2/off=0·vmadot 32→33·双账本 clang 收敛)",
-        "note": "[裁三.1] 桥为 correctness-first 形态（单线程·ith==0[1/4 hart]·repack 未缓存·参考实现）；性能兑现 = 具名工程 GAP，非物理墙（厂商同 regime VEN/OFF=1.49× vendor-ceiling 证上限存在）。[裁三.3 叙事禁令] 禁在 [GAP-IME-BRIDGE-PERF] 收口前把三格稀释数字用于『IME 不行』或『IME 将转绿』叙事；现状 = 结构闭环成立 ∧ 性能兑现待工程。GAP 登记见 T8 [GAP-IME-BRIDGE-PERF] 行（具名·可修·现不立项·重估条件=C1/C2 毛刺收口后 或 新证据表明修复成本显著低于预期·以性能名义开工前置=Amdahl 预估+厂商路径占比核算+[X-0] 三问）。"
+        "measured_e2e_delta_pointer": "★2026-07-13 M7 全桥板测(experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling-q80-q4k/evidence.md·12 samples/side·relIQR<2%)：全 M1-M7 桥(含 wide-vmadot-tiling W2)部署后 **prefill onw2/off = 0.909× <parity(decisive·维持黄)**·onw2/ven=0.609×(vendor 强 1.493×)·onw2/onjout=1.024×。★**根因=array-util 杠杆 format-keyed 适用边界**：q4_K two-level fold(scale+min)重 non-vmadot epilogue 把 array-util 增量(compute-isolation ~1.56× 同 q4_0/q8_0 format-invariant)稀释到 e2e 仅 1.024×；stock q4_K 已快(14.61 t/s)。correctness byte-exact(板 md5 onjout==onw2==off==a4a623d2·ven differ=near-tie flip 非 bug)。区别 q8_0@ime(int8-direct 轻 epilogue→转绿 2.233×)。[前态指针]旧 M3 raw agg_q4_K prefill 0.0617×(correctness-first 桥·未消包袱)·decode 0.618×",
+        "note": "[裁三.1] 桥为 correctness-first→full 形态；★**M7 后定性精化**：q4_K@ime 经全桥(含 wide-tiling)仍 0.909× <parity = **array-util 杠杆的 format-keyed 适用边界实证(C3′ 负结果·同价值)**——wide-vmadot-tiling 对 int8-direct 轻 epilogue 格(q8_0)传导转绿、对 super-block 重 fold 格(q4_K)被 epilogue 稀释不足。非物理墙(vendor 1.493× 证上限)·是 emitter-maturity 目标(须并向量化 two-level fold epilogue·M7 深度外·机制目标非 warranted perf battle)。[裁三.3 叙事禁令] 现状=结构闭环成立 ∧ q4_K perf 兑现待更深 epilogue 发射器工程。decode M=1 never routed 未测。GAP 登记见 T8 [GAP-IME-BRIDGE-PERF] 行 + M7 分裂结果行。"
       }
     },
     {
