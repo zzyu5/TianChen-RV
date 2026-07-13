@@ -102,3 +102,20 @@
 **★成色警示（令六 lint·计数 9 ≠ 成色 9）**：9 格覆盖面里 **仅 q4_K@k1 赢 hand-brick（强对手·成色最硬）**；FLAT@rvv 5 格中 q5_0/q5_1 赢 better-vec block-dot（成色相对硬）·q4_0/q4_1/q8_0 赢 light-vec block-dot（弱对手·成色低）。**第二赛道计数=kernel-axis 对称覆盖面（C3′ 证据）·非 e2e·非 perf-covered·禁互推**。系统账 FLAT 仍 [GAP-FLAT-E2E] 黄（micro∧e2e + selector-routing 两门未过·T6 whole-model 后续）。
 
 **需主会核**：① cross-op 口径（gemm-iq/tq vs block-dot）是否纳入 kernel-sym 台账（须明标 cross-op）；② IME「对手 SELF」是否未来升 candidate（需独立 vendor-kernel 对位）。
+
+---
+
+## 5. {rvv × k1} 双板矩阵（货架B·e2e 板覆盖·G7 L3·★≠ 第二赛道 kernel-sym 计数·≠ perf-covered 系统账·三账互不推）
+
+> **性质**：**货架B（e2e 双板矩阵）**·记每格在 rvv/k1 两板的 e2e 板覆盖态。**★禁互推**：此列 = e2e 板覆盖成色（哪些板测过 e2e ≥parity）·**非** kernel-sym ≥parity 计数（§1.1·kernel-axis 对称 micro）·**非** perf-covered 绿（系统账·须我方-constructed kernel）。
+> **成色须标**：e2e ≥parity 的 winner 身份（our-emitted kernel / stock-repack / stock-block-dot）逐格标明。
+
+| 格 | rvv e2e | k1 e2e | winner 身份 | dual-board 态 |
+|---|---|---|---|---|
+| **q4_0** | perf-covered 绿（系统账 routing-win·我方翻 gate 路由上游 repack） | ✅ **≥parity**（prefill 5.18×/decode 1.66× both-WIN·G7 L3 `156ece53`） | k1 = **stock 16x1 repack**（as-shipped·非我方 emitted） | **dual-board 成色**（repack approach 双板 e2e 传导 ≥parity·⚠ k1 winner=stock repack·不增 perf-covered） |
+| **q8_0** | perf-covered 绿（系统账 correctness-carrier·我方 vl=8 承载） | ✅ **≥parity**（prefill 2.35×/decode 1.21× both-WIN·4/4 byte-id） | k1 = **stock 16x1 repack** | **dual-board 成色**（同上·⚠ k1 winner=stock repack） |
+| **q4_1** | perf-covered 绿（净新 scaffold） | ⏳ **pending**（k1 stock 纯 block-dot·无 repack 对位·需部署我方 net-new VLEN256 repack·结构缺口非测量失败） | — | rvv-only green·k1 dual-board pending net-new deploy |
+| **q5_0** | perf-covered 绿（净新 scaffold） | ⏳ pending（同 q4_1） | — | 同上 |
+| **q5_1** | perf-covered 绿（净新 scaffold） | ⏳ pending（同 q4_1） | — | 同上 |
+
+**★货架B 首批结论（诚实）**：q4_0/q8_0 e2e 在 **双板均 ≥parity**（repack approach 传导·dual-board 成色证据）·但 **k1 半的 winner = stock 自己的 repack（非我方 emitted kernel）** → **不新增 perf-covered green·维持 9/83**。our-emit↔stock-repack kernel-axis parity 已封（§1.1 q4_0@k1 1.0022×/q8_0@k1 +4.37%）·传递链 our-emit≈stock-repack≈本 e2e margin。q4_1/q5_0/q5_1 k1 半需 net-new deploy（VLEN256 kernel 重 emit + scaffold 移植 + 模型 provisioning·结构缺口跟进项·rvv 绿不受影响）。IME 格豁免双板（rvv 无矩阵单元·令四）。
