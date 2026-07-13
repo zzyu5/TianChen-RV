@@ -40,9 +40,9 @@
 | **q5_1 @rvv/VLEN128 (gemm)** | repack GEMM（block_q8_1x4·transposed-qh） | factory block-dot as-shipped（**better-vec 较强·24 rvv-insn**） | ✓ gcc-15.2 双侧对称 | ✓ **1.407× ≥parity**（N=12·min 1.350×·opp-side 方差 relIQR 4.06%·我方侧 <1%） |
 | **q8_0 @rvv/VLEN128 (gevm)** | repack GEVM（.inc=M1b·i8@32） | factory block-dot as-shipped（**light-vec 弱·7 rvv-insn**） | ✓ gcc-15.2 双侧对称（clang-O3 deploy 3.47× 亦 ≥parity·三账本稳健） | ✓ **4.077× ≥parity**（N=12·relIQR 0.52%） |
 
-> ★成色分层（9 格·令六 lint·成色须标）：**★★2026-07-13 定稿（另测 b29c269c·证伪）：kernel-sym 9 = 【0 verified hand-brick】+ 2 better-vec（q5_0/q5_1@rvv）+ 7 block-dot/light（含 q4_K@k1·实测对手=block-dot）**。q4_K@k1 **kernel-sym（vl=8 核 s6_q4K.c md5 90d454da）**"赢 hand-brick·成色最硬" 主张**已证伪**（ours vl=8 vs 真 hand-brick 16x1 repack = 0.622× LOSS）——**★但此仅限 vl=8 kernel-sym 核**（27658b8a·五 复核·双核分立）。**★★分轴诚实结论（收窄"两轴 0"过度外推）**：**kernel-sym（micro 轴·9 ≥parity）= 0 verified hand-brick win**（正确·vl=8 核 vs block-dot·输真 16x1）；**★perf-covered+sealed（e2e 轴）= 1 verified e2e hand-brick win = Win-K1-VLEN**（q4_K@k1 **sealed vl=16 核** s6_q4K_vl16_sealed.c md5 e437fd3b·e2e 击败真 hand-brick 1.085×/1.0876× byte-exact·勉强·**未被 b29c269c 触及·测错核之戒**·vl=16 kernel-axis micro 待补测决定双轴 or e2e-only）。→ 成色质变"成排赢手调"两轴仍未达（e2e 仅 1 格勉强）·但**"两轴 0"须收窄为"micro 轴 0·e2e 轴 1 勉强"**。计数 9 不变（覆盖面/C3′ 证据·非成色等价）。〔旧存疑表述已撤〕；其余 8 格对手皆 **factory block-dot / parity-control / memory-bound（非 hand-brick·弱—中对手）**。其中 FLAT @rvv 5 格再分：q4_0/q4_1/q8_0 = light-vec 弱对手（big win 4-6.8×·成色低）· **q5_0/q5_1 = better-vec 较强对手（modest win 1.22-1.41×·成色相对硬·打败 better-vectorized block-dot）**。**计数 9 是覆盖面（第二赛道·C3′ 证据）·非成色等价**——9 格里只有 q4_K@k1 是赢 hand-brick。correctness 全 ZERO-MODEL PASS。
+> ★成色分层（9 格·令六 lint·成色须标）：**★★2026-07-13 定稿（另测 b29c269c·证伪）：kernel-sym 9 = 【0 verified hand-brick】+ 2 better-vec（q5_0/q5_1@rvv）+ 7 block-dot/light（含 q4_K@k1·实测对手=block-dot）**。q4_K@k1 **kernel-sym（vl=8 核 s6_q4K.c md5 90d454da）**"赢 hand-brick·成色最硬" 主张**已证伪**（ours vl=8 vs 真 hand-brick 16x1 repack = 0.622× LOSS）——**★但此仅限 vl=8 kernel-sym 核**（27658b8a·五 复核·双核分立）。**★★分轴诚实结论（收窄"两轴 0"过度外推）**：**kernel-sym（micro 轴·9 ≥parity）= 0 verified hand-brick win**（正确·vl=8 核 vs block-dot·输真 16x1）；**★perf-covered+sealed（e2e 轴 + kernel 轴）= 1 verified 【双轴】hand-brick win = Win-K1-VLEN**（q4_K@k1 **sealed vl=16 核** s6_q4K_vl16_sealed.c md5 e437fd3b·**★G 决胜局 RESOLVED（7d57a571·12 测全>parity·kernel-axis median 1.197× + e2e 1.085×/1.0876× byte-exact）= 首个双轴 verified hand-brick win**·区别 vl=8 kernel-sym 核[双核分立立]）。→ 成色质变"成排赢手调"仍未达（**仅 1 格·勉强**）·但**"两轴 0"错·应"kernel-sym 计数-9(vl=8 核) 0 · Win-K1-VLEN sealed(vl=16 核) 双轴 1"**。★**判别键 = 核形态（S6-tiled/vl=16 满宽 fit 预算 vs vl=8/full-unroll spill）·非 board/VLEN**（register-budget-fit 律·vl=16 spill 2-3=vl=8 的一半）。计数 9 不变（覆盖面/C3′ 证据·非成色等价）。〔旧存疑表述已撤〕；其余 8 格对手皆 **factory block-dot / parity-control / memory-bound（非 hand-brick·弱—中对手）**。其中 FLAT @rvv 5 格再分：q4_0/q4_1/q8_0 = light-vec 弱对手（big win 4-6.8×·成色低）· **q5_0/q5_1 = better-vec 较强对手（modest win 1.22-1.41×·成色相对硬·打败 better-vectorized block-dot）**。**计数 9 是覆盖面（第二赛道·C3′ 证据）·非成色等价**——9 格里只有 q4_K@k1 是赢 hand-brick。correctness 全 ZERO-MODEL PASS。
 
-### 1.2 <parity 已测（candidate·对称重测 LOSS·**不计** ≥parity · 9）
+### 1.2 <parity 已测（candidate·对称重测 LOSS·**不计** ≥parity · 12·+q2_K/q3_K/q6_K@k1）
 
 | 格·板 | emitted kernel 指针 | 对手 kernel 身份 | 对称编译 | 已有 micro A/B（T8） |
 |---|---|---|---|---|
@@ -55,6 +55,10 @@
 | iq3_s @rvv (vec_dot) | 我方 block-dot emit | factory block-dot | ✓ batch2c 对称 | **0.280× LOSS** |
 | iq2_xs @rvv (vec_dot) | 我方 block-dot emit | factory block-dot | ✓ batch2c 对称 | **0.329× LOSS**〔GAP-SB POST 1.509× vs-generic·但 vs-SIMD 仍 LOSS〕 |
 | { iq2_s / iq2_xxs / iq4_xs / tq1_0 / tq2_0 } @rvv (vec_dot) | 我方 block-dot emit | factory SIMD-dispatch block-dot（real·gcc-15.2） | ✓ batch2c 对称 | iq2_s 0.477× / iq2_xxs 0.780×(MILDEST) / iq4_xs 0.718× / tq1_0 0.550× / tq2_0 0.231×·tq2_0 spill-fix→仍 0.45× vs-SIMD |
+
+| q2_K @k1/VLEN256 | 前门 KQuant PLAIN full-unroll | factory block-dot ggml_vec_dot_q2_K_q8_K(机判) | ✓ clang-18 对称 | **0.60× LOSS**(hot≈cold·spill 627·weight-bound·VLEN256 不救 full-unroll·7d57a571) |
+| q3_K @k1/VLEN256 | 前门 KQuant PLAIN full-unroll | factory block-dot ggml_vec_dot_q3_K_q8_K(机判) | ✓ clang-18 对称 | **0.34× LOSS**(spill 1058·weight-bound) |
+| q6_K @k1/VLEN256 | 前门 KQuant PLAIN full-unroll | factory block-dot ggml_vec_dot_q6_K_q8_K(机判) | ✓ clang-18 对称 | **0.30× LOSS**(spill 971·weight-bound·nr64 3-seed) |
 
 > 注：§1.2 末行是 5 格合并展示（vec_dot 同族·gcc-15.2 batch2c 对称），逐格数据在 T8。计入 candidate 池但 **不计** ≥parity 常驻计数。
 
