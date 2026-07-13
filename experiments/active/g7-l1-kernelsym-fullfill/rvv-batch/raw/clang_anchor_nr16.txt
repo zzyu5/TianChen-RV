@@ -1,0 +1,5 @@
+q4_0   nr16 clang-deploy: HOT=6.6212  COLD=5.8524  cold_wGBs=0.253  GATE=PASS
+q4_1   nr16 clang-deploy: HOT=7.1995  COLD=6.3249  cold_wGBs=0.312  GATE=PASS
+q5_0   nr16 clang-deploy: HOT=1.2669  COLD=1.1986  cold_wGBs=0.153  GATE=PASS
+q5_1   nr16 clang-deploy: HOT=1.4405  COLD=1.4023  cold_wGBs=0.177  GATE=PASS
+q8_0   nr16 clang-deploy: HOT=3.5328  COLD=4.0588  cold_wGBs=0.281  GATE=PASS

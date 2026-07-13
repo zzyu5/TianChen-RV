@@ -1,0 +1,10 @@
+# objdump rvv-insn 对称双证 (2026-07-13 rvv board) — pattern: vector mnemonics (broad)
+# OURS = gcc-15 -O2 .o (gemm_XX.gcc.o); OPP = gcc-15 .so symbol slice (ggml_vec_dot_XX)
+# vsetvl(ours only): q4_0=7 q4_1=15 q5_0=12 q5_1=20 q8_0=9
+OURS q4_0: rvv_insn=46    OPP ggml_vec_dot_q4_0_q8_0: rvv_insn=15  (light-vec 弱)
+OURS q4_1: rvv_insn=58    OPP ggml_vec_dot_q4_1_q8_1: rvv_insn=13  (light-vec 弱)
+OURS q5_0: rvv_insn=66    OPP ggml_vec_dot_q5_0_q8_0: rvv_insn=36  (better-vec 较强)
+OURS q5_1: rvv_insn=77    OPP ggml_vec_dot_q5_1_q8_1: rvv_insn=33  (better-vec 较强)
+OURS q8_0: rvv_insn=37    OPP ggml_vec_dot_q8_0_q8_0: rvv_insn=9   (light-vec 弱)
+# opp symbol addrs (nm -D, public T): q4_0=0x91854 q4_1=0x918e4 q5_0=0x91984 q5_1=0x91abe q8_0=0x91c12
+# ggml .so md5 = d1adc634c2ca04ffc389536b30d9d9c4 (UNCHANGED pre/post = restore witness)
