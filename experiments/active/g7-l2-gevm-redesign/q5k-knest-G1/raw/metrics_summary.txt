@@ -1,0 +1,29 @@
+=== TOOLCHAIN ===
+riscv64-unknown-linux-gnu-gcc (gf3b8c022145) 15.2.0
+flags: -march=rv64gcv_zvfh -mabi=lp64d -O3
+
+=== BYTE-EXACT MODEL (hard gate) ===
+q5_K reconstruction equivalence over 32 (nibble x qh_bit) cases:
+  stock  vs current mismatch = 0/32
+  current vs KNEST  mismatch = 0/32
+  stock  vs KNEST  mismatch = 0/32  => BYTE-EXACT (KNEST==current==stock)
+
+=== STOCK q5_K block-dot (per super-block, 1 output) ===
+total v-insn: 130  (incl 28 vsetvl, 6 vector spills vs2r/vs4r, 18 vregs)
+
+=== CURRENT q5_K GEVM emitc (per super-block-column-group, 16 outputs) ===
+total intrinsics: 8714 ; compiled v-insn: 8751 ; vector spills: 0 ; scalar sp(addi/ld/sd): 1259 ; vregs: 32/32
+qh-recon per elem-step-strip: 7 (bit0) / 8 (bit!=0) vector-arith ops
+
+=== KNEST q5_K GEVM (native-mask vand+vmsne+vadd_mu) ===
+qh-recon per elem-step-strip: 6 vector-arith ops (reinterpret free)
+per super-block qh-recon: 3968 -> 3072 = -22.6%
+per super-block-col-group total: 8714 -> ~7818 = -10.3%
+
+=== ROLLED APPLES-TO-APPLES (gcc-15 -O3, single-strip, identical structure) ===
+cur_q5k:   183 v-insn, 0 vector spill, 25 vregs
+knest_q5k: 165 v-insn, 0 vector spill, 25 vregs   (-9.8%)
+
+=== PER-OUTPUT vs STOCK (instruction-count gate) ===
+current: 8714/16 = 545/out = 4.19x stock(130)
+KNEST:   7818/16 = 489/out = 3.76x stock(130)   -> gate <=1.10x NOT MET (structural)
