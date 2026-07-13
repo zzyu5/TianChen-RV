@@ -85,14 +85,18 @@ module {
 // The q3_K SIGNED int8 per-sub-block scale: vle8_v_i8 + vsext_vf2_i16 (SIGN-extend).
 // CHECK: call_opaque "__riscv_vle8_v_i8mf2"
 // CHECK: call_opaque "__riscv_vsext_vf2_i16m1"
-// The q3_K 3-bit subtractive weight assembly: vle8 qs/hmask, 2-bit low plane vand 0x03,
-// SINGLE hmask bit vand 0x01, vsll 2, vor, vsub 4 (the -4 subtractive bias folded into
-// each SIGNED weight lane).
+// The q3_K 3-bit subtractive weight assembly (NATIVE-MASK KNEST): vle8 qs/hmask, 2-bit
+// low plane vand 0x03 reinterpreted to signed i8, then the SINGLE hmask high bit tested
+// IN PLACE by vand(1<<p) + vmseq==0 with the -4 subtractive bias FUSED via masked add
+// vadd_vx_i8mf2_mu (byte-exact to the retired vsll 2 | vor | vsub 4 chain).
 // CHECK: call_opaque "__riscv_vle8_v_u8mf2"
 // CHECK: literal "0x03"
-// CHECK: literal "0x01"
-// CHECK: call_opaque "__riscv_vor_vv_u8mf2"
-// CHECK: call_opaque "__riscv_vsub_vx_i8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_u8mf2_i8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vmseq_vx_u8mf2_b16"
+// CHECK: literal "-4"
+// CHECK: call_opaque "__riscv_vadd_vx_i8mf2_mu"
 // The lane-wise integer dot + scale-weighted i32 promote (NO vredsum).
 // CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
 // CHECK: call_opaque "__riscv_vwmacc_vv_i32m2"

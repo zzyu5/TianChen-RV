@@ -1,6 +1,7 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMIN
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=RETIRED
 
 // G3 主线A T3 format3: the ggml q3_K x q8_K 16x1-REPACKED GEVM (decode) hot kernel --
 // the LAST (and most intricate) K-quant repack sibling -- is now CONSTRUCTED through the
@@ -14,10 +15,12 @@
 // K-quant no-min branch -> emitRepackKQuantGemvBodyQ3K (byte-identical to the retired
 // direct emitter). q3_K REUSES q6_K's no-min single-accumulator + signed-scale scaffold,
 // with ONE delta: the 3-bit SUBTRACTIVE-HMASK weight VALUE is `((qs >> shift) & 3) -
-// ((hmask & (1<<p)) ? 0 : 4)`, assembled from a 2-bit qs low plane (vand 0x03) | a SINGLE
-// hmask high bit (vand 0x01 -- ONE bit, NOT q6_K's two-bit 0x03 qh) lifted to bit-2 (vsll
-// 2), then the -4 SUBTRACTIVE bias (vsub 4 folds bit-CLEAR -> -4 straight into each SIGNED
-// weight lane, the q3_K analogue of q6_K's -32). The 16 SIGNED 6-bit scales are
+// ((hmask & (1<<p)) ? 0 : 4)`, assembled NATIVE-MASK (REDESIGN-B KNEST): a 2-bit qs low
+// plane (vand 0x03) reinterpreted to signed i8 is the base, and the SINGLE hmask high bit
+// (ONE bit, NOT q6_K's two-bit 0x03 qh) is tested IN PLACE by vand(1<<p) + vmseq==0, with
+// the -4 SUBTRACTIVE bias FUSED into ONE masked op vadd_vx_i8mf2_mu(mask0, base, base, -4)
+// -- byte-exact to the retired vsll 2 | vor | vsub 4 expand chain, the q3_K analogue of
+// q5_0/q5_1's native-mask qh decode. The 16 SIGNED 6-bit scales are
 // PRE-UNPACKED + -32-biased at repack time, loaded vle8_v_i8 + SIGN-extended vsext.
 // block_q3_Kx16 stride 1824, qs at +800, hmask at +288, signed scales at +32. VLEN=128 =>
 // TWO disjoint 8-lane strips.
@@ -75,17 +78,21 @@ module {
 // same signed scale side as q6_K -- NOT q4_K/q5_K's vzext_vf2_u16 unsigned scale).
 // CHECK: call_opaque "__riscv_vle8_v_i8mf2"
 // CHECK: call_opaque "__riscv_vsext_vf2_i16m1"
-// The q3_K 3-bit subtractive weight assembly: the qs plane strip load, the 2-bit low
-// plane (vand 0x03) at shift {0,2,4,6}, the hmask plane strip load, the SINGLE hmask bit
-// (vand 0x01 -- q3_K masks ONE bit, NOT q6_K's two-bit 0x03), vsll 2 lifts it to bit-2,
-// vor merges onto the 2-bit low plane -> a raw value in [0,7], then vsub 4 folds the -4
-// SUBTRACTIVE bias straight into each SIGNED weight lane (the q3_K analogue of q6_K's -32).
+// The q3_K 3-bit subtractive weight assembly (NATIVE-MASK KNEST): the qs plane strip
+// load, the 2-bit low plane (vand 0x03) at shift {0,2,4,6} reinterpreted to signed i8,
+// the hmask plane strip load, then the SINGLE hmask high bit is tested IN PLACE by
+// vand(1<<p) + vmseq==0 (a per-lane bool, ONE bit -- NOT q6_K's two-bit 0x03), and the
+// -4 SUBTRACTIVE bias is FUSED with the high-bit select into ONE masked op
+// vadd_vx_i8mf2_mu(mask0, base, base, -4) -- byte-exact to the retired vsll 2 | vor |
+// vsub 4 chain (be_q3k 0/8), the q3_K analogue of q5_0/q5_1's native-mask qh decode.
 // CHECK: call_opaque "__riscv_vle8_v_u8mf2"
 // CHECK: literal "0x03"
-// CHECK: literal "0x01"
-// CHECK: call_opaque "__riscv_vor_vv_u8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
 // CHECK: call_opaque "__riscv_vreinterpret_v_u8mf2_i8mf2"
-// CHECK: call_opaque "__riscv_vsub_vx_i8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vmseq_vx_u8mf2_b16"
+// CHECK: literal "-4"
+// CHECK: call_opaque "__riscv_vadd_vx_i8mf2_mu"
 // The lane-wise integer dot against the single-column q8 quants (NO vredsum), each
 // sub-block partial promoted to i32 weighted by the SIGNED scale (vwmacc_vv).
 // CHECK: call_opaque "*(const int8_t *)"
@@ -111,3 +118,9 @@ module {
 // appear -- the q4_K/q5_K min-fold signature is ABSENT.
 // NOMIN-NOT: vfnmsac
 // NOMIN-NOT: *(const int16_t *)
+
+// The OLD per-lane hmask expand chain (vsll<<2 | vor | vsub 4) is fully RETIRED by the
+// native-mask KNEST recon -- none of those three ops survive anywhere in the q3_K GEVM.
+// RETIRED-NOT: __riscv_vsll_vx_u8mf2
+// RETIRED-NOT: __riscv_vor_vv_u8mf2
+// RETIRED-NOT: __riscv_vsub_vx_i8mf2
