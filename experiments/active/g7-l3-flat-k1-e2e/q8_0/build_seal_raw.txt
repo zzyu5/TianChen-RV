@@ -1,0 +1,22 @@
+[flat-k1 q8_0] board=k1 VLEN256 load=2.78 4.71 4.12 3/453 3266980
+=== [0] baseline verify shared source (NEVER edited) ===
+  GEN=3cac40aa55aece1f69e3d08d4e7e9ae2 (base 3cac40aa55aece1f69e3d08d4e7e9ae2)
+=== [1] seed dedicated build dir (cp -a stock) ===
+  REPACK md5=871169a0123139692177468b3c8578be (stock 871169a0123139692177468b3c8578be) MATCH
+=== [2] private repack.cpp copy w/ q8_0 repack DISABLED (-> block-dot) ===
+  disabled 'return &q8_0_16x1_q8_0;' -> break; (verified absent in private copy)
+=== [3] extract exact compile cmd for repack.cpp, recompile private copy -> build tree .o ===
+  cc_vecdot.sh written; input -> /tmp/flat_q8_0/repack_vecdot.cpp
+  VECDOT md5=bc195e3b577ce88d30033cd3572a7d69
+  VECDOT != REPACK (variants differ, good)
+=== [4] SEAL: repack symbol still present in both (config toggle, behavioral engage) ===
+  REPACK ggml_gemm_q8_0_16x1_q8_0 count: 2
+  VECDOT ggml_gemm_q8_0_16x1_q8_0 count: 2 (present but dispatch-off)
+  ggml_gemm_q8_0_16x1_q8_0 vset forms (REPACK, VLEN256-native seal):
+          4 e16,m1
+          2 e32,m2
+          4 e8,mf2
+=== [5] leave live lib at REPACK (pristine stock) ===
+=== [flat-k1 q8_0 build DONE] ===
+871169a0123139692177468b3c8578be  /tmp/flat_q8_0/libggml-cpu.so.REPACK
+bc195e3b577ce88d30033cd3572a7d69  /tmp/flat_q8_0/libggml-cpu.so.VECDOT

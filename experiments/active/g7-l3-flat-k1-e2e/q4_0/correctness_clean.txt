@@ -1,0 +1,14 @@
+prompt[1] A: please use llamacompletion instead   ▄▄ 
+prompt[1] B: please use llamacompletion instead   ▄▄ ▄▄ ██ ██ ██ ██ ▀▀█▄ �
+  VERDICT: DIVERGE (both coherent? inspect)
+prompt[2] A: please use llamacompletion instead   ▄▄ 
+prompt[2] B: please use llamacompletion instead   ▄▄ ▄▄ ██ ██ ██ ██ ▀▀█▄ �
+  VERDICT: DIVERGE (both coherent? inspect)
+prompt[3] A: please use llamacompletion instead   ▄▄ 
+prompt[3] B: please use llamacompletion instead   ▄▄ ▄▄ ██ ██ ██ ██ ▀▀█▄ �
+  VERDICT: DIVERGE (both coherent? inspect)
+prompt[4] A: please use llamacompletion instead   ▄▄ 
+prompt[4] B: please use llamacompletion instead   ▄▄ ▄▄ ██ ██ ██ ██ ▀▀█▄ �
+  VERDICT: DIVERGE (both coherent? inspect)
+== CLEAN SUMMARY: identical=0 diverge=4 ==
+CORRECTNESS(clean): inspect diverge (fp-order near-tie vs garbage)

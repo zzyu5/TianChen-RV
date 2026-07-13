@@ -1,0 +1,18 @@
+=== RESTORE VERIFY (md5 double proof) ===
+[1] shared source (NEVER edited by design; private copies only):
+  GEN =3cac40aa55aece1f69e3d08d4e7e9ae2  (base 3cac40aa55aece1f69e3d08d4e7e9ae2) MATCH
+  HDR =57851439e7c6f5e35aca7986e148e42b  (base 57851439e7c6f5e35aca7986e148e42b) MATCH
+  ARCH=c3c101fdcc07cf803c4b70551c94343a  (base c3c101fdcc07cf803c4b70551c94343a) MATCH
+[2] shipped stock lib UNTOUCHED:
+  stock lib=871169a0123139692177468b3c8578be  (base 871169a0123139692177468b3c8578be) MATCH
+  k1build live lib=14b6add63a14d813c27b27c687a45a8d  (should also == stock 871169a0)
+[3] route-markers / .ORIG leftovers in shared tree:
+  return-disabled markers (should be 0): 0
+0
+  .ORIG/.inc stray in ggml-cpu: 0
+[4] CLEANUP dedicated build + scratch:
+  /data/build-k1-flat exists: NO-removed
+  /tmp/flat_* exists: 20
+[5] stray procs:
+  llama procs: 0
+0   loadavg=2.07 2.20 3.05 3/451 3270837
