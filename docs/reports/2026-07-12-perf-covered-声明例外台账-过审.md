@@ -3,6 +3,11 @@
 > 生成 2026-07-12 · 触碰集 = docs/tooling 域（只读 roster/coverage 脚本 + 三 casefile + 三具名 GAP 报告，写本报告 + `schema/perf-covered-category.v1.json` 标签 + `.trellis/scripts/perf_covered_metrics.py` recon）。**未跑板·未 git·未改 ODS/lib/·未改 ROADMAP/结构 roster/coverage_metrics.py。**
 > **性质**：用户 2026-07-12 裁决**三（声明例外台账过审）**的落地。把 perf-covered 分类中的 **27 格声明例外**从"分类册一行注记"firm 成**逐格五字段台账**（不做理由 · Amdahl 上限数字/占比 · 占比来源 · 重估条件 · 重估钩子），机检强制字段完整（`perf_covered_metrics.py` reconciliation·缺字段 = CI 红），并给 **anti-gate 自证**（声明例外判定与黄格分母无关）。
 > **口径**：`perf-covered = 绿 / denom(83·fold q4_0-gemm regime·any-board)`。声明例外 **在分母内**（是 certified-but-off-hot-path 格·非域外·非未构造）。数据源 = `2026-07-12-perf-covered-零未定义格分类.md` §1.3/1.5/1.6 + 铺面③ casefile `experiments/active/covering-batch3-stream-rvv/` + `2026-07-12-三具名GAP修复评估.md`。
+>
+> **★★2026-07-13 更新（G7 L0.2 anti-gate 抽查追认 + 例外池扩至 49）**：
+> 1. **★anti-gate 抽查 5/5 PASS·例外池整体追认**（recon `random.seed(20260713)` 抽 decode/GEVM 3 + IQ/TQ 2 = {vec_dot/q3_K, vec_dot/q4_K, rope/f32, gemm_tile/iq2_s@rvv, dequantize_row/iq4_xs}·逐格三项 {Amdahl profile 实/结构声明·roster 热流量 有·对手身份 属实} 全绿·无翻案）。**核心结论：分母无灌水**（49 例外全在分母内·移出反而抬高 headline 9/83→9/34·例外只压低不抬高·无灌水动机）。
+> 2. **★本文档仅覆盖 27 格·晚增 22 格（vec_dot 15 + gemm_tile iq/tq 7·2026-07-12→07-13 黄-未接线全迁入声明例外·headline 不变·裁决驱动）无人读台账行 → 以 `schema/perf-covered-category.v1.json`（机检强制五字段·全 49 完整）为权威·22 格新增见 `2026-07-12-perf-covered-零未定义格分类.md` 分类报告**。人读全 49 台账补版待排。
+> 3. **★测量债周期复核点（附注B）**：`gemm_tile/iq2_s@rvv` 的"opponent-absent"与已引 iq4_nl 0.217× 实测损失锚存在张力（严格读可 morphology-declare 为"对手更强"）。项目纪律辩护 = **"对手更强"判据须真测量**（未测格不外推损失·暂泊例外挂 reestimate_hook）·此为一致纪律非低估。但 **"0 未接线"是强主张·须周期性复核测量债兑现**（板批填充时优先测这批 morphology-declared 例外格·验证是否该转"对手更强"）。
 
 ---
 
