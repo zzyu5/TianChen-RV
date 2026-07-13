@@ -61,7 +61,7 @@
 
 ## 6. 板 restore 双证 + 无 stray
 - **restore**：`== LIVE after restore md5=05a62e6a82857cdf247ba1933c695849 (expect==q5OFF 05a62e6a) ==` → 板 .so 复原到 stock baseline（前后 md5 一致）· deploy_cc=gcc (GCC) 15.2.0 · model_sha256=4b11ec8d06e24600 未改。
-- **无 stray**：`pgrep llama|bench` = 0（测后·主会话 backstop 核实·exit=0）· load_post 10.26/10.03/9.23（8-thread bench + co-tenant·disjoint-pin·非我核污染）· scratch /tmp/g5_q5 保留供审（ephemeral）。
+- **无 stray（★measurement-agent 最终收尾核实·post-backstop）**：`pgrep llama|bench|completion|perplexity` = **0**（测后）· bench 期间 load_post 10.26（=自身 8-thread pinned bench 8-15 + baseline 2·`ps -eL` 证 cores 8-15 独占我方 llama-bench·cores 0,1 vLLM idle 0.0%·非污染）· 收尾后 load 回落 **2.10** baseline。 · **scratch 全清**：`/tmp/g5_q5`（dir）+ 85 个 loose `/tmp/g5_q5_*`/`g5_q51_*` 中间文件（correctness gen 输出 + build 日志·含 7/12 G5-M2 遗留）**全 `rm -rf` 验讫消失**（[禁遗留] 铁律·非 sealed 证据·durable 证据在本 casefile + `raw/`）。
 - **★板编译器纠偏（G2 flag RESOLVED）**：本 e2e ENV FINGERPRINT `deploy_cc=gcc (GCC) 15.2.0` → **RVV 部署 ggml = gcc-15.2.0**·canon [CASE-COMPILER-ASYMMETRY] rvv=gcc-15 **CONFIRMED 非 STALE**。G2 micro 报的 clang-17 = 板默认 `gcc`=12.3.1(无 riscv_vector.h) 的 partial view·部署实走 env gcc-15.2（G2 kernel-axis 数 symmetric 有效但 clang-17 域·e2e 数 gcc-15.2 域=部署真相）。
 
 ---

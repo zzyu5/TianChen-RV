@@ -1,0 +1,36 @@
+# q5_0@rvv e2e 3-variant decode/prefill — analyze_3variant.py output (durable statistical record)
+# source: /tmp/g5_q5/measure.out (raw per-rep llama-bench json; lost to a parallel-write race
+#         between this measurement agent and the main-session backstop — this summary + casefile
+#         §4 per-pass medians are the surviving durable record). n=12/side/phase (REPS=6 x PASSES=2).
+# board: ssh rvv VLEN128 gcc-15.2.0 symmetric, taskset 8-15, DVFS performance 2.6GHz, load-gated.
+
+== per-side sample counts ==
+  new:   pp_n=12 tg_n=12
+  old:   pp_n=12 tg_n=12
+  stock: pp_n=12 tg_n=12
+
+== PREFILL(pp128) ==
+  new   median=4.081910 t/s  relIQR=0.000637 (0.06%)  n=12
+  old   median=4.074625 t/s  relIQR=0.001616 (0.16%)  n=12
+  stock median=3.373595 t/s  relIQR=0.002800 (0.28%)  n=12
+  RATIO new/stock = 1.2100x (>=parity, WIN)   [REDESIGN-B vs stock block-dot, system account]
+  RATIO new/old   = 1.0018x (>=parity, flat)  [REDESIGN-B 削重建 net contribution — GEMM leaf sealed => no prefill change]
+  RATIO old/stock = 1.2078x (>=parity)        [OLD scaffold vs stock, repack-locality path win]
+
+== DECODE(tg32) ==
+  new   median=1.595080 t/s  relIQR=0.002022 (0.20%)  n=12
+  old   median=1.437210 t/s  relIQR=0.000957 (0.10%)  n=12
+  stock median=1.715890 t/s  relIQR=0.026750 (2.67%)  n=12
+  RATIO new/stock = 0.9296x (<parity, NO green flip)  [REDESIGN-B vs stock block-dot, system account]
+  RATIO new/old   = 1.1098x (>=parity, +11.0%)        [REDESIGN-B 削重建 e2e-decode net contribution — TRANSMITS but diluted]
+  RATIO old/stock = 0.8376x (<parity, -16.2%)         [OLD = G5-M2's known q5_0 decode regression (~0.82x)]
+
+== VERDICT ==
+  q5_0@rvv e2e decode NOT >=parity (0.9296x). REDESIGN-B narrows the decode regression from
+  OLD -16.2% to NEW -7.0% (fills ~57% of the gap-to-parity) but does NOT flip it. Prefill 1.21x WIN intact.
+  削重建 kernel-axis micro 1.44-1.67x (vs OLD, G2) -> e2e decode 1.11x (vs OLD): real transmission,
+  diluted by memory-bound decode. [CASE-MICRO-E2E] middle-state material; NOT a kernel failure
+  (byte-exact coherent, +11% over OLD, prefill preserved).
+
+== JSON ==
+{"pp": {"new": {"med": 4.081910, "relIQR": 0.000637, "n": 12}, "old": {"med": 4.074625, "relIQR": 0.001616, "n": 12}, "stock": {"med": 3.373595, "relIQR": 0.002800, "n": 12}}, "tg": {"new": {"med": 1.595080, "relIQR": 0.002022, "n": 12}, "old": {"med": 1.437210, "relIQR": 0.000957, "n": 12}, "stock": {"med": 1.715890, "relIQR": 0.026750, "n": 12}}}
