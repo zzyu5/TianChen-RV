@@ -40,7 +40,7 @@
 | **q5_1 @rvv/VLEN128 (gemm)** | repack GEMM（block_q8_1x4·transposed-qh） | factory block-dot as-shipped（**better-vec 较强·24 rvv-insn**） | ✓ gcc-15.2 双侧对称 | ✓ **1.407× ≥parity**（N=12·min 1.350×·opp-side 方差 relIQR 4.06%·我方侧 <1%） |
 | **q8_0 @rvv/VLEN128 (gevm)** | repack GEVM（.inc=M1b·i8@32） | factory block-dot as-shipped（**light-vec 弱·7 rvv-insn**） | ✓ gcc-15.2 双侧对称（clang-O3 deploy 3.47× 亦 ≥parity·三账本稳健） | ✓ **4.077× ≥parity**（N=12·relIQR 0.52%） |
 
-> ★成色分层（9 格·令六 lint·成色须标）：**q4_K@k1 = 唯一 强对手（hand-brick·case256 真出货 repack）≥parity·成色最硬**；其余 8 格对手皆 **factory block-dot / parity-control / memory-bound（非 hand-brick·弱—中对手）**。其中 FLAT @rvv 5 格再分：q4_0/q4_1/q8_0 = light-vec 弱对手（big win 4-6.8×·成色低）· **q5_0/q5_1 = better-vec 较强对手（modest win 1.22-1.41×·成色相对硬·打败 better-vectorized block-dot）**。**计数 9 是覆盖面（第二赛道·C3′ 证据）·非成色等价**——9 格里只有 q4_K@k1 是赢 hand-brick。correctness 全 ZERO-MODEL PASS。
+> ★成色分层（9 格·令六 lint·成色须标）：**⚠2026-07-13 修正见 §6：q4_K@k1 "hand-brick 对手" 标签【存疑】——实测对手=block-dot·真 repack `ggml_gemm_q4_K_16x1_q8_K` 未接·"唯一 hand-brick ≥parity·成色最硬"主张【未验证·须另测】·修正成色分布=0 verified hand-brick + 2 better-vec + 7 block-dot/light**。以下为旧（存疑）表述：**q4_K@k1 = 唯一 强对手（hand-brick·case256 真出货 repack）≥parity·成色最硬**；其余 8 格对手皆 **factory block-dot / parity-control / memory-bound（非 hand-brick·弱—中对手）**。其中 FLAT @rvv 5 格再分：q4_0/q4_1/q8_0 = light-vec 弱对手（big win 4-6.8×·成色低）· **q5_0/q5_1 = better-vec 较强对手（modest win 1.22-1.41×·成色相对硬·打败 better-vectorized block-dot）**。**计数 9 是覆盖面（第二赛道·C3′ 证据）·非成色等价**——9 格里只有 q4_K@k1 是赢 hand-brick。correctness 全 ZERO-MODEL PASS。
 
 ### 1.2 <parity 已测（candidate·对称重测 LOSS·**不计** ≥parity · 9）
 
@@ -119,3 +119,23 @@
 | **q5_1** | perf-covered 绿（净新 scaffold） | ⏳ pending（同 q4_1） | — | 同上 |
 
 **★货架B 首批结论（诚实）**：q4_0/q8_0 e2e 在 **双板均 ≥parity**（repack approach 传导·dual-board 成色证据）·但 **k1 半的 winner = stock 自己的 repack（非我方 emitted kernel）** → **不新增 perf-covered green·维持 9/83**。our-emit↔stock-repack kernel-axis parity 已封（§1.1 q4_0@k1 1.0022×/q8_0@k1 +4.37%）·传递链 our-emit≈stock-repack≈本 e2e margin。q4_1/q5_0/q5_1 k1 半需 net-new deploy（VLEN256 kernel 重 emit + scaffold 移植 + 模型 provisioning·结构缺口跟进项·rvv 绿不受影响）。IME 格豁免双板（rvv 无矩阵单元·令四）。
+
+---
+
+## 6. hot/cold 双态首批（货架A·k1 4 存量格·G7 L2·`be524605`）+ ★口径校正
+
+> cold 协议：P=8 weight-tile POOL footprint >> LLC·每 round 扫全池·每 tile DRAM cold-read·median N=12。★board fact：k1 L2=512KiB < q4_K tile 576KiB → "hot" 本非真 warm。
+
+| 格@k1 | hot | cold(nr64/nr4) | cold≥parity | regime(GB/s) | e2e decode | cold→decode 预测? |
+|---|---:|---:|:---:|---|---:|:---:|
+| q4_K | 3.19× | 3.18×/2.83× | ✅ | compute-bound(0.03–0.5) | 1.284× WIN | ✅ 弱(运气一致) |
+| q5_K | 1.92× | 1.92×/1.79× | ✅ | spill-bound(0.01–0.19) | **0.729× LOSS** | ❌ **MISMATCH** |
+| q4_0 | 3.51× | 3.50×/3.44× | ✅ | compute-bound(0.03–0.5) | 1.66× WIN | ✅ 弱 |
+| q8_0(GEVM) | 1.48× | 1.48× | ✅ | **memory-leaning(1.73)** | 1.21× WIN | ✅ **机制/干净** |
+
+**★发现①：hot≈cold = NULL 区分**（cache-cold 不改 kernel-axis 比值·因 compute(dequant/spill)-bound + L2<tile·缓存驻留仅二阶）。
+**★发现② cold-predictor 铁律（q5_K 决定性证伪）**：`cold ≥parity ⟹ 预测 e2e decode ≥parity` **仅在 micro=decode-GEVM ∧ 触 memory-wall 时机制成立**（q8_0 GEVM 实证·1.73GB/s memory-leaning→命中 1.21×）。**cold-GEMM micro【禁】当 decode 预测器**（q5_K micro compute-bound repack-GEMM 1.79× WIN 无法预测 e2e memory-bound GEVM decode 0.729× LOSS·双重错配 GEMM≠GEVM ∧ compute≠memory·预测器正在最该预测的 memory 墙失效）。q4_K/q4_0 方向命中=运气一致（GEMM-micro↔e2e·非机制捕获）。**⇒ 货架A cold 行作 e2e decode 预测器须补 per-format decode-GEVM cold micro（现仅 q8_0 有·K-quant 待 [GAP-REPACK-GEVM] GEVM plan 落地·连 G7 L1 P1）**。
+
+### ★★口径校正（需主会周期复核·honesty·影响 §1.1 成色）
+1. **q4_K@k1 "hand-brick" 标签【存疑】**：sealed 3.106× 与本测 3.19× 实测对手都是 `ggml_vec_dot_q4_K_q8_K` **block-dot**（非 hand-brick）。板上确有更强 stock repack `ggml_gemm_q4_K_16x1_q8_K` 但**未接**（未作对手）→ **§1.1 "唯一 hand-brick ≥parity·成色最硬" 主张【未验证】·须另测 vs 真 repack 才能立**。**修正成色分布**：kernel-sym 9 = **0 verified hand-brick**（q4_K@k1 待确认·实测 block-dot） + 2 better-vec + 7 block-dot/light（含 q4_K@k1 实测 block-dot 对手）。
+2. **q4_0/q8_0@k1 sealed 对手口径**：sealed q4_0 1.0022×=VLEN-flip **self-control**·q8_0 +4.37%=item4 **internal 变体**·**皆非 vs block-dot**。本 casefile 首次给 **ours-vs-factory-block-dot 干净对**（q4_0 3.5×/q8_0 1.48×·both ≥parity·light-vec block-dot 对手）。§1.1 那两行的旧数是 self/internal 口径·本行是 vs-block-dot 口径·**两口径并存不混**。
