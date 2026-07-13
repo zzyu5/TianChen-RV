@@ -124,4 +124,4 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 
 **hot/cold 预测器规则收窄**（重编令五.5）：**同形状类 cold micro 方可预测对应 regime e2e**（cold-GEMM ↛ decode·仅 cold-GEVM∧memory-wall → decode）。
 
-**对手类机判**（重编令二.2·q4_K 稻草人事故制度化修复）：对手身份 = **探针解析的具体 kernel 符号**（对手类由**符号映射表机判**·禁手写 "hand-brick"/"block-dot" 类目——q4_K@k1 曾误标 hand-brick·实为 block-dot·b29c269c 证伪）。
+**对手类机判**（重编令二.2·q4_K 稻草人事故制度化修复）：对手身份 = **探针解析的具体 kernel 符号**（对手类由**符号映射表机判**·禁手写 "hand-brick"/"block-dot" 类目）。★**双核分立限定（27658b8a·五 复核）**：q4_K@k1 **kernel-sym vl=8 entry**（s6_q4K.c·md5 90d454da·vwmacc 2240）曾误标 hand-brick·实为 block-dot·b29c269c 证伪（对手确为 block-dot·vs 真 16x1 hand-brick 输 0.622×）——**但此仅限 vl=8 kernel-sym 核**；**sealed Win-K1-VLEN 的 vl=16 核**（s6_q4K_vl16_sealed.c·md5 e437fd3b·vwmacc 1120）对手**确为 hand-brick**（bench_vl16.sh Cbrick=TCRV_Q4K_HANDBRICK·e2e 1.085× byte-exact·**未被 b29c269c 触及**·是 e2e 轴 verified hand-brick win）。**b29c269c scope 收窄 = vl=8 kernel-sym·禁外推至 sealed vl=16**（测错核之戒）。
