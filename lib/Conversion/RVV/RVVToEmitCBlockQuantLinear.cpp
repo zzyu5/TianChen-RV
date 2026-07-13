@@ -1648,72 +1648,80 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
     return emitOpaqueCall(rewriter, loc, u8mf2Type, vsrlCallee,
                           mlir::ValueRange{packed, four, vl8}, opName, role);
   };
-  // A scalar uint16 read of the transposed qh mask for one element step.
-  llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
-  auto qhMaskScalar = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
+  // ===== REDESIGN-B (G7 L2 qh-plane) native-mask 5-bit decode ==================
+  // The transposed qh u16-per-step layout IS a per-lane bool plane already: for
+  // element step i, byte (h*half/8) of the step-i u16 holds strip h's `half` mask
+  // bits, lane l = row (l + h*half)'s 5th bit -- BIT-IDENTICAL to the retired
+  // per-lane (vid + h*half) select. So load the strip mask DIRECTLY with vlm and
+  // fuse the 5th-bit selection + the offset-binary bias into ONE masked op (stock
+  // ggml_vec_dot_q5_0_q8_0's native-mask trick), retiring the OLD
+  // splat/vid/vsrl_vv/vand/vsll/vncvt/vor per-lane expand chain:
+  //   q5_0 (offsetBias > 0):  weight   = qh_bit ? nibble : nibble - bias
+  //                         = vsub_vx_i8_mu(!qh_mask, nib_i8, nib_i8, bias) [invert]
+  //   q5_1 (offsetBias == 0): weight_u = qh_bit ? nibble + 16 : nibble
+  //                         = vadd_vx_u8_mu(qh_mask, nib_u8, nib_u8, 16)    [raw mask]
+  // Algebraic identity `(nibble | (bit<<4)) - 16 == bit ? nibble : nibble - 16`
+  // (and its unsigned q5_1 sibling) -- byte-exact by construction (see the
+  // qh-plane G1 casefile raw/byteexact_model.c: 0/32 both arms). The nibble
+  // extract + the vwmacc accumulate order are UNCHANGED. The predicate width
+  // vbool<N> for an i8<l8> vector is N = 8/LMUL (mf2 -> b16).
+  unsigned qhMaskBits = 16;
+  if (l8 == "mf8") qhMaskBits = 64;
+  else if (l8 == "mf4") qhMaskBits = 32;
+  else if (l8 == "mf2") qhMaskBits = 16;
+  else if (l8 == "m1") qhMaskBits = 8;
+  else if (l8 == "m2") qhMaskBits = 4;
+  else if (l8 == "m4") qhMaskBits = 2;
+  else if (l8 == "m8") qhMaskBits = 1;
+  std::string maskBitsStr = std::to_string(qhMaskBits);
+  mlir::Type qhBoolType =
+      emitc::OpaqueType::get(ctx, ("vbool" + maskBitsStr + "_t"));
+  std::string vlmCallee = "__riscv_vlm_v_b" + maskBitsStr;
+  std::string vmnandCallee = "__riscv_vmnand_mm_b" + maskBitsStr;
+  std::string subMuCallee = ("__riscv_vsub_vx_i8" + l8 + "_mu").str();
+  std::string addMuCallee = ("__riscv_vadd_vx_u8" + l8 + "_mu").str();
+  // A mask byte covers 8 lanes; strip h's mask sits h*(half/8) bytes further in
+  // the step-i u16 (byte-aligned since half is a multiple of 8).
+  int64_t qhStripMaskBytes = half / 8;
+  // Load strip h's qh mask bits directly (byte-aligned vlm, lane l = bit l).
+  auto loadQhMaskBits = [&](mlir::Value qhOff, int64_t h) -> mlir::Value {
+    mlir::Value off = qhOff;
+    if (h != 0)
+      off = rewriter.create<emitc::AddOp>(loc, sizeType, qhOff,
+                                          sizeLit(h * qhStripMaskBytes));
     mlir::Value full =
-        rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
+        rewriter.create<emitc::AddOp>(loc, weightPtrType, bl, off);
     mlir::Value cast =
-        rewriter.create<emitc::CastOp>(loc, u16PtrType, full).getResult();
-    return emitOpaqueCall(rewriter, loc, i32Type, u16ReadCallee,
-                          mlir::ValueRange{cast}, opName, role,
-                          llvm::StringRef("qh_mask_scalar"));
+        rewriter.create<emitc::CastOp>(loc, u8PtrType, full).getResult();
+    return emitOpaqueCall(rewriter, loc, qhBoolType, vlmCallee,
+                          mlir::ValueRange{cast, vl8}, opName, role,
+                          llvm::StringRef("qh_mask_bits"));
   };
-  // Expand a strip's qh mask into a per-lane {0,16} u8 term: splat the 16-bit mask
-  // into u16 lanes, vsrl by (vid + laneShift) so lane l reads bit (l + laneShift),
-  // vand 1, vsll 4 -> {0,16}, narrow u16->u8.
-  std::string vidCallee = ("__riscv_vid_v_u16" + l16).str();
-  std::string vmvU16Callee = riscvIntrinsicName("vmv_v_x", 16, l16, "u16");
-  std::string vaddU16Callee = ("__riscv_vadd_vx_u16" + l16).str();
-  std::string vsrlVvCallee = ("__riscv_vsrl_vv_u16" + l16).str();
-  std::string vandU16Callee = ("__riscv_vand_vx_u16" + l16).str();
-  std::string vsllU16Callee = ("__riscv_vsll_vx_u16" + l16).str();
-  std::string vncvtCallee = ("__riscv_vncvt_x_x_w_u8" + l8).str();
-  auto expandQhBit = [&](mlir::Value maskScalar, int64_t laneShift) -> mlir::Value {
-    mlir::Value splat =
-        emitOpaqueCall(rewriter, loc, u16m1Type, vmvU16Callee,
-                       mlir::ValueRange{maskScalar, vl8}, opName, role);
-    mlir::Value vid = emitOpaqueCall(rewriter, loc, u16m1Type, vidCallee,
-                                     mlir::ValueRange{vl8}, opName, role);
-    if (laneShift != 0)
-      vid = emitOpaqueCallBuilt(
-          rewriter, loc, u16m1Type, vaddU16Callee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            return {vid, sizeLit(laneShift), vl8};
-          });
-    mlir::Value shifted =
-        emitOpaqueCall(rewriter, loc, u16m1Type, vsrlVvCallee,
-                       mlir::ValueRange{splat, vid, vl8}, opName, role);
-    mlir::Value bit = emitOpaqueCallBuilt(
-        rewriter, loc, u16m1Type, vandU16Callee, opName, role,
+  // Fuse the 5th-bit + bias into ONE masked op off the RAW unsigned nibble.
+  auto decodeQh5 = [&](mlir::Value nibbleU8, mlir::Value qhOff,
+                       int64_t h) -> mlir::Value {
+    mlir::Value mask = loadQhMaskBits(qhOff, h);
+    if (offsetBias != 0) {
+      // q5_0: invert the 5th-bit mask, masked-vsub the -bias on the UNSET lanes.
+      mlir::Value inv =
+          emitOpaqueCall(rewriter, loc, qhBoolType, vmnandCallee,
+                         mlir::ValueRange{mask, mask, vl8}, opName, role);
+      mlir::Value nibI8 =
+          emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                         mlir::ValueRange{nibbleU8}, opName, role);
+      return emitOpaqueCall(
+          rewriter, loc, i8mf2Type, subMuCallee,
+          mlir::ValueRange{inv, nibI8, nibI8, biasLit, vl8}, opName, role);
+    }
+    // q5_1: masked-vadd +16 on the SET lanes (raw mask, NO invert), reinterpret.
+    mlir::Value added = emitOpaqueCallBuilt(
+        rewriter, loc, u8mf2Type, addMuCallee, opName, role,
         [&](mlir::OpBuilder &b,
             mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-          return {shifted, sizeLit(1), vl8};
+          return {mask, nibbleU8, nibbleU8, sizeLit(16), vl8};
         });
-    mlir::Value bit16 =
-        emitOpaqueCall(rewriter, loc, u16m1Type, vsllU16Callee,
-                       mlir::ValueRange{bit, four, vl8}, opName, role);
-    return emitOpaqueCall(rewriter, loc, u8mf2Type, vncvtCallee,
-                          mlir::ValueRange{bit16, vl8}, opName, role);
-  };
-  // A = nibble | (qh_bit<<4) -> u8 [0,31], reinterpret u8->i8, then vsub bias.
-  // q5_0 (offsetBias > 0) assembles `((nibble) | (qh_bit << 4)) - bias`; q5_1
-  // (offsetBias == 0, the bias ABSENT sentinel) assembles the UNSIGNED 5-bit weight
-  // `(nibble) | (qh_bit << 4)` in [0,31] with NO centering vsub (the asymmetric bias
-  // lives in the separate per-block MIN fold), byte-identical to the q5_1 direct
-  // emitter's assemble5Unsigned (or + reinterpret only).
-  auto assemble5 = [&](mlir::Value nibbleU8, mlir::Value bit16) -> mlir::Value {
-    mlir::Value a =
-        emitOpaqueCall(rewriter, loc, u8mf2Type, orCallee,
-                       mlir::ValueRange{nibbleU8, bit16, vl8}, opName, role);
-    mlir::Value as =
-        emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
-                       mlir::ValueRange{a}, opName, role);
-    if (offsetBias == 0)
-      return as;
-    return emitOpaqueCall(rewriter, loc, i8mf2Type, subCallee,
-                          mlir::ValueRange{as, biasLit, vl8}, opName, role);
+    return emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                          mlir::ValueRange{added}, opName, role);
   };
 
   // A scalar i8 read of the repacked activation quant byte a_ptr[l].qs[k]:
@@ -1884,10 +1892,10 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
     for (int64_t h = 0; h < numHalves; ++h)
       packed.push_back(loadNibbles(bl, wByteOff[h]));
     // DECODE phase: per strip, lo then hi. q4_0/q4_1 (4-bit): plain
-    // sign-extension / unsigned peel. q5_0 (hasQh): the 5-bit assembly
-    // `((nibble) | (qh_bit<<4)) - bias`, reading the transposed qh masks once per
-    // element step (low element i at qh+i*2, high element i+16 at qh+(16+i)*2) and
-    // selecting each strip's lanes via the (vid + h*half) shift.
+    // sign-extension / unsigned peel. q5_0/q5_1 (hasQh): REDESIGN-B native-mask
+    // 5-bit assembly -- the transposed qh mask bits are loaded DIRECTLY per strip
+    // (low element i at qh+i*2, high element i+16 at qh+(16+i)*2; strip h at
+    // byte-offset h*(half/8)) and the 5th-bit + bias are fused into ONE masked op.
     llvm::SmallVector<mlir::Value> bLo, bHi;
     if (hasQh) {
       step("qh_lo_addr");
@@ -1901,13 +1909,9 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
           sizeLit(activationHighRow * 2));
       mlir::Value qhHiOff =
           rewriter.create<emitc::AddOp>(loc, sizeType, qhHiBase, iTwo);
-      mlir::Value loMaskS = qhMaskScalar(bl, qhLoOff);
-      mlir::Value hiMaskS = qhMaskScalar(bl, qhHiOff);
       for (int64_t h = 0; h < numHalves; ++h) {
-        bLo.push_back(
-            assemble5(nibbleLoU8(packed[h]), expandQhBit(loMaskS, h * half)));
-        bHi.push_back(
-            assemble5(nibbleHiU8(packed[h]), expandQhBit(hiMaskS, h * half)));
+        bLo.push_back(decodeQh5(nibbleLoU8(packed[h]), qhLoOff, h));
+        bHi.push_back(decodeQh5(nibbleHiU8(packed[h]), qhHiOff, h));
       }
     } else {
       for (int64_t h = 0; h < numHalves; ++h) {

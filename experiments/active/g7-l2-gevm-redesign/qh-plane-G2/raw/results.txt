@@ -1,0 +1,59 @@
+G7 L2 qh-plane G2 — raw board results (rvv · VLEN128 · clang-17.0.6 · cores 8-15 · 2026-07-14)
+
+BOARD FACTS
+- host: ssh rvv (openEuler, 64c, riscv64, VLEN128, isa rv64imafdcv...zvfh; hart isa same)
+- DEPLOYMENT COMPILER (both sides symmetric): clang 17.0.6 (system).
+  NOTE: board default gcc is 12.3.1 which LACKS riscv_vector.h (no RVV intrinsics) and
+  its binutils rejects `zvfh` — so the ACTUAL rvv RVV-kernel deployment compiler here is
+  clang-17 (matches memory note: "gate4 用系统 clang17"). CLAUDE.md's "rvv=gcc-15" premise
+  does NOT hold on THIS board (ships gcc-12.3.1 / clang-17). G1's SpacemiT gcc-15.2 was a
+  LOCAL proxy; the on-board static account below is clang-17 (the real deployment).
+- load-gate: uptime load ~2.10-2.22 / 64c (~3%) before & after every measurement; PASS.
+- co-tenant: NO vLLM/llama/bench running during the window (only match was my own shell).
+- pinning: taskset -c 8-15 (single-threaded kernels; disjoint from 0,1).
+- compile: clang-17 -march=rv64gcv_zvfh -mabi=lp64d -O3
+
+=== STEP 2 — BYTE-EXACT HARD GATE (GREEN) ===
+Oracle = OLD emitter (per-lane-expand decode, 24 old-chain ops, pre-change, independently
+certified) vs NEW emitter (REDESIGN-B native-mask). IDENTICAL random repacked bytes fed to
+both; same layout => any output bit difference == a decode error. (riscv64 little-endian =>
+vlm byte-h ≡ OLD vid+8h select.)
+  ./be 8  5000 12345 : 0 mismatches / 80000  outputs => BYTE-EXACT PASS
+  ./be 16 3000 999   : 0 mismatches / 48000  outputs => BYTE-EXACT PASS
+  ./be 4  8000 271828: 0 mismatches / 128000 outputs => BYTE-EXACT PASS
+  TOTAL: 0 / 256000 f32 outputs (each an f32 dot over nb blocks; exhaustive nibble×bit cover)
+Algebraic model (byteexact_model.c): q5_0 0/32, q5_1 0/32 -> BYTE-EXACT (construction confirmed).
+
+=== STEP 3 — COLD GEVM M=1 MICRO (wall-time, CLOCK_MONOTONIC; rdcycle/rdinstret SIGILL on
+this board so no CSR IPC; perf-stat CSRs also gated) ===
+Workload: N rows × nb(=K/32) blocks. NEW=1 repack-GEVM call (whole matrix); STOCK=N per-row
+ggml block-dot calls. Identical MACs and identical 22 B/row/block weight footprint.
+Memory traffic: NEW≈weight+act-once = ~12.6MB@(4096,4096); STOCK≈N×(weight+act) = ~29.4MB
+(re-reads activation per row) => the repack-GEVM path advantage is memory-locality, shared by
+BOTH OLD and NEW.
+
+  N=4096 K=4096 (11.5MB weight, memory-wall):
+    NEW  ms_med=7.227 min=6.822 relIQR=0.158
+    OLD  ms_med=13.364 min=9.810 relIQR=0.210  (noisy)
+    STOCK ms_med=16.090 min=16.050 relIQR=0.002
+    stock/new=2.226(med)/2.353(min) ; old/new=1.849/1.438 ; stock/old=1.204/1.636
+  N=1024 K=4096 (2.9MB):
+    NEW 1.705 / OLD 2.844 / STOCK 4.013 (all relIQR<0.01)
+    stock/new=2.353 ; old/new=1.668 ; stock/old=1.411
+  N=512 K=512 (0.18MB, hot):
+    NEW 0.107 / OLD 0.155 / STOCK 0.257
+    stock/new=2.404 ; old/new=1.449 ; stock/old=1.659
+  N=256 K=256 (45KB, hot):
+    NEW 0.026 / OLD 0.038 / STOCK 0.065
+    stock/new=2.505 ; old/new=1.445 ; stock/old=1.734
+
+=== vsetvli STATIC counts (clang-17 objdump, whole function) ===
+  NEW  (nk.o): 7   OLD (ok.o): 14   STOCK (sk.o): 10
+  NEW hot nibble-step loop = constant vl=8 (vsetvli hoisted out of the 16-step loop).
+  STOCK toggles vl per block (e8/m2 <-> e16/m4 <-> e32/m1) = the qk/2<->qk vl-toggle tax.
+
+=== opponent identity (符号机判) ===
+  nm sk.o: "0000000000000000 T ggml_vec_dot_q5_0_q8_0" (genuine ggml global symbol)
+  body signature: 2× vwredsum + 2× vlm(_v_b4 qh) + 2× vwmul + vl-toggle vsetvli
+  = canonical ggml per-block widening-reduction block-dot. NOT a hand-brick. (source =
+  llama.cpp/ggml/src/ggml-cpu/arch/riscv/quants.c:328, verbatim extract.)

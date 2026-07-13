@@ -55,17 +55,21 @@ module {
 // CHECK: call_opaque "__riscv_vse32_v_f32m2"
 // CHECK: return
 
-// The q5_0 5th-bit (qh) assembly: the transposed qh mask is read as a uint16, the
-// per-strip 5th bit is selected in u16 (vsrl_vv / vand / vsll), narrowed to u8,
-// OR-ed into the RAW unsigned nibble (vor_vv_u8), reinterpreted u8->i8, then the
-// offset-binary -16 bias applied (vsub_vx_i8 by 16).
+// The q5_0 5th-bit (qh) assembly, REDESIGN-B native-mask form: the RAW unsigned
+// nibble is extracted (vand low), the transposed qh mask bits are loaded DIRECTLY
+// per strip (vlm_v_b16, lane l = row (l + h*half) 5th bit), the mask is INVERTED
+// (vmnand), the nibble reinterpreted u8->i8, then the 5th-bit selection + the
+// offset-binary -16 bias are FUSED into ONE masked subtract (vsub_vx_i8mf2_mu).
+// The OLD per-lane expand chain (vsrl_vv / vsll / vncvt / vor) is RETIRED.
 // QH: call_opaque "__riscv_vand_vx_u8mf2"
-// QH: call_opaque "__riscv_vsrl_vv_u16m1"
-// QH: call_opaque "__riscv_vsll_vx_u16m1"
-// QH: call_opaque "__riscv_vncvt_x_x_w_u8mf2"
-// QH: call_opaque "__riscv_vor_vv_u8mf2"
+// QH: call_opaque "__riscv_vlm_v_b16"
+// QH: call_opaque "__riscv_vmnand_mm_b16"
 // QH: call_opaque "__riscv_vreinterpret_v_u8mf2_i8mf2"
-// QH: call_opaque "__riscv_vsub_vx_i8mf2"
+// QH: call_opaque "__riscv_vsub_vx_i8mf2_mu"
+// QH-NOT: __riscv_vor_vv_u8mf2
+// QH-NOT: __riscv_vncvt_x_x_w_u8mf2
+// QH-NOT: __riscv_vsrl_vv_u16m1
+// QH-NOT: __riscv_vsll_vx_u16m1
 
 // The q5_0 fold is d-ONLY (the q4_0 dual-fp16 scale tree, NO min): vfwmul(d) /
 // vfcvt / vfmacc, with NO second vfwmul(m_x) + vfadd min correction.
