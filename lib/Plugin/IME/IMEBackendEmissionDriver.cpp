@@ -14,6 +14,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cassert>
 #include <string>
 
 namespace weft {
@@ -216,6 +217,133 @@ std::string macKloopHelperBody(llvm::StringRef helperName,
 
 std::string vmadotMacKloopHelperBody() {
   return macKloopHelperBody(kVmadotMacKloopHelperName, "vmadot");
+}
+
+//===----------------------------------------------------------------------===//
+// G6-A M7: the WIDE (output-tiled) vmadot MAC leaf + its [PAT-1] registration.
+//
+// A LAYER-4 array-UTILIZATION optimization on the already-mechanized batched vmadot MAC leaf: the
+// WIDE leaf reuses the 4x8 A fragment IN-REGISTER across NJW adjacent column-tiles, so ONE `vle8`
+// of A feeds NJW independent `vmadot` chains (into NJW distinct 4x4 int32 accumulator pairs). This
+// (a) hides the vmadot array latency (NJW MACs in flight instead of a single serialized accumulator
+// chain) and (b) amortizes the A-load + per-tile vsetvli/clear/store entry-exit over NJW tiles. Each
+// 4x4 sub-tile still accumulates its kt fragments in the SAME kf order into its OWN accumulator ->
+// the int32 result is BIT-IDENTICAL to NJW separate weft_ime_vmadot_mac_kloop calls (byte-exact by
+// construction: the 0xe210312b vmadot and its integer accumulation order are UNTOUCHED; only the
+// loop/reuse SCHEDULE changes). This is an optimization on the front-door construction, NOT a new
+// brick -- it NEVER moves C_construct. Board-sealed byte-exact on real K1 (md5 f5e77482, the M1..M6
+// q4_0 bridge lineage) + array-util measured (vmadot compute 1.740s@w1 -> 1.095s@w2 (1.59x) ->
+// 0.890s@w4 (1.955x, ~= the vendor's same-silicon headroom)); the full-matmul perf verdict is w2
+// (matmul 1.159x), w4 is measured-negative (compute win real, but its 16-accumulator f32 epilogue
+// spills -> full-matmul NULL).
+//===----------------------------------------------------------------------===//
+
+/// [PAT-1] IME vmadot output-tiling registry ROW (registration-as-data, the C3' capability-keyed
+/// pattern library object). NOT open-coded selection: a data table the emitter consults. Mirrors the
+/// schema/pattern-registry.v1.json row shape {pattern_id, requires(capability), status, metrics_hook}.
+struct IMEVmadotTilingPattern {
+  llvm::StringRef pattern_id;
+  int njw;                    ///< output-tile width in column-tiles (= A-fragment reuse factor)
+  int minVregBudget;          ///< register floor: 1 A + njw B + 2*njw int32 accumulators
+  llvm::StringRef status;     ///< [PAT-1] status: mechanized | measured-negative | planned
+  llvm::StringRef metricsHook;
+};
+
+/// The DISCRIMINANT capability fact is the vector-register budget (VLEN256 => 32 vregs; each 4x8
+/// int8 fragment fills one m1 register, so NJW=w consumes 1 A + w B + 2w accumulator regs). The
+/// widths whose register floor fits the budget AND that are `mechanized` are selectable; a
+/// `measured-negative` row is a design-space asset (records the falsified w4-epilogue-spill boundary)
+/// and is NOT selectable. Per-format board-measured (perf discipline: no projection).
+static constexpr IMEVmadotTilingPattern kIMEVmadotTilingPatterns[] = {
+    {"IME-VMADOT-TILE-W1-baseline", 1, 3, "mechanized",
+     "test/Conversion/EmitC/ime-q4-0-matmul-tile-materialization.mlir"},
+    {"IME-VMADOT-TILE-W2-Areuse", 2, 7, "mechanized",
+     "test/Target/IME/q4-0-vmadot-tile-wide-int32-oracle.c + "
+     "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md"},
+    {"IME-VMADOT-TILE-W4-Areuse-epilogue-spill", 4, 13, "measured-negative",
+     "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md "
+     "(w4 compute 1.955x but full-matmul NULL: 16-accumulator f32 epilogue spills)"},
+};
+
+/// Capability-keyed selection: the widest `mechanized` tiling whose register floor fits `vregBudget`.
+static const IMEVmadotTilingPattern &selectVmadotTilePattern(int vregBudget) {
+  const IMEVmadotTilingPattern *best = &kIMEVmadotTilingPatterns[0];
+  for (const IMEVmadotTilingPattern &p : kIMEVmadotTilingPatterns)
+    if (p.status == "mechanized" && p.minVregBudget <= vregBudget && p.njw > best->njw)
+      best = &p;
+  return *best;
+}
+
+/// The WIDE (NJW-tiled) register-resident int8->int32 MAC leaf, emitted as ONE self-contained
+/// `static inline` helper. ONE `vle8` of the 4x8 A fragment feeds NJW independent `vmadot`s into NJW
+/// distinct 4x4 int32 accumulator pairs, over the whole kt fragment loop (single entry vsetvli, one
+/// clear per accumulator, NJW stores at the end). `B0` is the first col-tile's fragment stream;
+/// col-tile w is `B0 + w*bstride`. `frag` holds NJW*16 int32 (tile w = frag[w*16 .. w*16+15]). The
+/// per-sub-tile int32 is BIT-IDENTICAL to `macKloopHelperName` run NJW times (same vmadot, same kf
+/// order). Register map matches the K1-sealed board mirror: A=v0; B=v1,v6,v7,v8; acc pairs
+/// v2:v3,v4:v5,v10:v11,v12:v13. Fixed parameter names -> no translator SSA name in the asm.
+std::string macKloopHelperBodyWide(llvm::StringRef helperName,
+                                   llvm::StringRef mnemonic, int njw) {
+  assert((njw == 2 || njw == 4) && "IME wide vmadot leaf supports NJW in {2,4}");
+  static const char *const bReg[4] = {"v1", "v6", "v7", "v8"};
+  static const char *const accLo[4] = {"v2", "v4", "v10", "v12"};
+  static const char *const accHi[4] = {"v3", "v5", "v11", "v13"};
+  static const char *const bPtr[4] = {"t3", "t4", "t5", "t6"};
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// weft_ime.asm_leaf=" << helperName
+     << " wide_batched_kloop mac=4x4x8 elem_in=int8 accum=int32 ime_op=" << mnemonic
+     << " tile_width_njw=" << njw
+     << " a_fragment_reuse=1 register_resident_accumulate=1 single_vsetvli=1\n";
+  os << "static inline void " << helperName
+     << "(const int8_t *A, const int8_t *B0, long bstride, long kt, int32_t *frag) {\n";
+  for (int w = 1; w < njw; ++w)
+    os << "  const int8_t *B" << w << " = B0 + (long)" << w << " * bstride;\n";
+  os << "  __asm__ volatile(\n";
+  os << "      \"vsetvli   t0, zero, e8, m1, ta, ma   \\n\\t\"\n";
+  for (int w = 0; w < njw; ++w) {
+    os << "      \"vmv.v.i   " << accLo[w] << ", 0                       \\n\\t\"\n";
+    os << "      \"vmv.v.i   " << accHi[w] << ", 0                       \\n\\t\"\n";
+  }
+  os << "      \"mv        t2, %[kt]                   \\n\\t\"\n";
+  os << "      \"mv        t1, %[pa]                   \\n\\t\"\n";
+  for (int w = 0; w < njw; ++w)
+    os << "      \"mv        " << bPtr[w] << ", %[pb" << w << "]                  \\n\\t\"\n";
+  os << "      \"1:                                    \\n\\t\"\n";
+  os << "      \"vle8.v    v0, (t1)                    \\n\\t\"\n";
+  for (int w = 0; w < njw; ++w)
+    os << "      \"vle8.v    " << bReg[w] << ", (" << bPtr[w] << ")                    \\n\\t\"\n";
+  for (int w = 0; w < njw; ++w)
+    os << "      \"" << mnemonic << "    " << accLo[w] << ", v0, " << bReg[w]
+       << "                 \\n\\t\"\n";
+  os << "      \"addi      t1, t1, 32                  \\n\\t\"\n";
+  for (int w = 0; w < njw; ++w)
+    os << "      \"addi      " << bPtr[w] << ", " << bPtr[w] << ", 32                  \\n\\t\"\n";
+  os << "      \"addi      t2, t2, -1                  \\n\\t\"\n";
+  os << "      \"bnez      t2, 1b                      \\n\\t\"\n";
+  os << "      \"vsetvli   t0, zero, e32, m1, ta, ma   \\n\\t\"\n";
+  os << "      \"mv        t1, %[pf]                   \\n\\t\"\n";
+  for (int w = 0; w < njw; ++w) {
+    os << "      \"vse32.v   " << accLo[w] << ", (t1)                   \\n\\t\"\n";
+    os << "      \"addi      t1, t1, 32                  \\n\\t\"\n";
+    os << "      \"vse32.v   " << accHi[w] << ", (t1)                   \\n\\t\"\n";
+    if (w + 1 < njw)
+      os << "      \"addi      t1, t1, 32                  \\n\\t\"\n";
+  }
+  os << "      :\n";
+  os << "      : [pa] \"r\"(A), [kt] \"r\"(kt), [pf] \"r\"(frag)";
+  for (int w = 0; w < njw; ++w)
+    os << ", [pb" << w << "] \"r\"(B" << (w == 0 ? std::string("0") : std::to_string(w)) << ")";
+  os << "\n";
+  os << "      : \"t0\", \"t1\", \"t2\", \"t3\", \"t4\", \"t5\", \"t6\", \"v0\", \"v1\"";
+  for (int w = 0; w < njw; ++w)
+    os << ", \"" << accLo[w] << "\", \"" << accHi[w] << "\"";
+  for (int w = 1; w < njw; ++w)
+    os << ", \"" << bReg[w] << "\"";
+  os << ", \"memory\");\n";
+  os << "}";
+  os.flush();
+  return text;
 }
 
 /// The sliding-window MAC helper. UNLIKE macHelperBody (single 32B A fragment),
@@ -1328,6 +1456,34 @@ public:
       rewriter.create<emitc::CallOpaqueOp>(
           loc, mlir::TypeRange{}, kQ40ScaleFoldMatmulHelperName, f32Operands);
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+    }
+
+    // G6-A M7 [PAT-1]: emit the capability-keyed WIDE (output-tiled) vmadot MAC leaf as an
+    // additional available primitive. The DISCRIMINANT capability fact is the RVV vector-register
+    // budget (32 architectural vregs; each 4x8 int8 fragment fills one m1 register). The registry
+    // picks the widest `mechanized` tiling whose register floor fits -> W2 (A reused across 2
+    // col-tiles); W4 is a `measured-negative` design-space row (compute win real but full-matmul
+    // NULL from f32-epilogue spill) and is NOT selected. Byte-exact to the width-1 leaf run NJW
+    // times (K1-sealed md5 f5e77482). Emitted at module END so it never perturbs the int32/f32
+    // seal order above.
+    {
+      constexpr int kRVVVectorRegisterBudget = 32; // RVV architectural vreg count (VLEN-invariant)
+      const IMEVmadotTilingPattern &tp =
+          selectVmadotTilePattern(kRVVVectorRegisterBudget);
+      if (tp.njw > 1) {
+        mlir::OpBuilder::InsertionGuard wideGuard(rewriter);
+        rewriter.setInsertionPointToEnd(module.getBody());
+        std::string wideName =
+            (kVmadotMacKloopHelperName + "_w" + std::to_string(tp.njw)).str();
+        rewriter.create<emitc::VerbatimOp>(
+            loc, std::string("// weft_ime.pat1_tiling=") + tp.pattern_id.str() +
+                     " status=" + tp.status.str() +
+                     " njw=" + std::to_string(tp.njw) +
+                     " discriminant=vreg_budget metrics_hook=" +
+                     tp.metricsHook.str());
+        rewriter.create<emitc::VerbatimOp>(
+            loc, macKloopHelperBodyWide(wideName, "vmadot", tp.njw));
+      }
     }
 
     rewriter.eraseOp(tile);

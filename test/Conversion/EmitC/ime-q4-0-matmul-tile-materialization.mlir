@@ -85,3 +85,17 @@ module {
 // EMITC: emitc.func @weft_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice_f32
 // EMITC: weft_emitc.route_source_op=weft_ime.q4_0_matmul_tile role=compute
 // EMITC: call_opaque "weft_ime_q4_0_vmadot_matmul_f32"
+// G6-A M7 [PAT-1]: the capability-keyed WIDE (output-tiled) vmadot MAC leaf is emitted at module
+// END (order-neutral to the int32/f32 seal above). The registry (vreg-budget discriminant) selects
+// the widest MECHANIZED tiling that fits -- W2 (A-fragment reuse across 2 col-tiles); W4 is a
+// measured-negative row (not selected). The wide leaf shares ONE `vle8` of A (v0) across TWO
+// independent `vmadot`s (v2 and v4) into two 4x4 int32 accumulator pairs -> byte-exact to the
+// width-1 leaf run twice (K1-sealed md5 f5e77482).
+// EMITC: emitc.verbatim
+// EMITC-SAME: weft_ime.pat1_tiling=IME-VMADOT-TILE-W2-Areuse status=mechanized njw=2
+// EMITC-SAME: discriminant=vreg_budget
+// EMITC: emitc.verbatim
+// EMITC-SAME: weft_ime_vmadot_mac_kloop_w2
+// EMITC-SAME: tile_width_njw=2 a_fragment_reuse=1
+// EMITC-SAME: vmadot    v2, v0, v1
+// EMITC-SAME: vmadot    v4, v0, v6
