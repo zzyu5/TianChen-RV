@@ -1,0 +1,14 @@
+# BUILD k1 kernel-sym FLAT q4_1/q5_0/q5_1  KCC=/usr/bin/clang-18 (Bianbu clang version 18.1.8 (11bb4))  march=rv64gcv_zfh_zvfh_zicbop_zihintpause  opt=-O3
+# ggml_stock=/data/k1build-stock/bin/libggml-cpu.so md5_before=871169a0123139692177468b3c8578be
+# OURS_SRC q4_1 md5=736a716c95e0f4ded37fc59573982b8d
+# OURS_SRC q5_0 md5=7b1ac4e670ef4d1489444d43038d0f7e
+# OURS_SRC q5_1 md5=03866f505ed1202527b5e5f47a2590f9
+# LINKED /tmp/g7_l1_k1cold/flatcold_k1
+# OPP_SYM ggml_vec_dot_q4_1_q8_1: 000000000009f774 T ggml_vec_dot_q4_1_q8_1
+# OPP_SYM ggml_vec_dot_q5_0_q8_0: 000000000009f81c T ggml_vec_dot_q5_0_q8_0
+# OPP_SYM ggml_vec_dot_q5_1_q8_1: 000000000009f942 T ggml_vec_dot_q5_1_q8_1
+# OPP_REPACK_SYMS(q4_1/q5_0/q5_1 gemm; expect none): 0
+# OURS_q4_1(clang-18 -O3 .o): vsetvl=18 vwmacc=8 spillish=52 fp16=cleanfp-native-zfh size=2864B
+# OURS_q5_0(clang-18 -O3 .o): vsetvl=13 vwmacc=8 spillish=60 fp16=cleanfp-native-zfh size=2872B
+# OURS_q5_1(clang-18 -O3 .o): vsetvl=21 vwmacc=8 spillish=64 fp16=cleanfp-native-zfh size=2960B
+# BUILD_DONE
