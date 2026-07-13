@@ -1,0 +1,36 @@
+=== q2_K/q3_K/q6_K KNEST GEVM G1 static account (VLEN128 · gcc-15.2 -O3 · deploy domain) ===
+
+STOCK vl128 (hand-written inline asm · per super-block · 1 output · 0 vs*r.v stack traffic):
+  q2_K: 134 v-insn  (gcc unrolled j-loop QK_K/128=2; setup 14 + 2x jbody 60)
+  q3_K: 116 v-insn  (setup 22 + 2x jbody 47)
+  q6_K:  94 v-insn  (2x jbody 47; no separate setup)
+
+CURRENT GEVM emitc (front-door · per super-block-column-group · 16 outputs · gcc-15.2):
+  fmt | total v | vs*r.v store / vl*r.v reload | vregs | vsetvl(vsetvli+vsetivli) | vwmacc | per-output | ratio vs stock
+  (NOTE: 143/174/137 = whole-register vector STORES with 0 whole-register reloads = decoded-16-col-tile
+   round-trip through stack scratch (per-element-broadcast structure; reloaded element-wise via vle8),
+   NOT classic RA spill/reload pairs. Distinguish tile-materialization stores from true spill/reload.)
+  q2  | 3466    | 143            | 32    | 861 (24.8%)              | 576    | 216.6      | 1.62x  NOT MET
+  q3  | 8846    | 174            | 32    | 2675 (30.2%)             | 544    | 552.9      | 4.77x  NOT MET
+  q6  | 7403    | 137            | 32    | 1931 (26.1%)             | 576    | 462.7      | 4.92x  NOT MET
+  (q5_K prior: 3.76x NOT MET · anchor)
+
+DECODE-LEAF SHAPE (source intrinsic histogram):
+  q2: vand+vsrl only (pure 2-bit unpack) · NO plane · NO vsll/vor/vmseq -> NO native-mask headroom
+  q3: vand+vsrl + vsll(1024)+vor(1024)+vsub(1024) = OLD-style hmask single-bit recon -> NATIVE-MASK HEADROOM (q5_K analog)
+  q6: vand+vsrl + vsll(1024)+vor(1024)+vsub(1024) = 2-bit-field qh placement (REQUIRED, matches stock) -> NO native-mask headroom
+
+q3_K byte-exact HARD GATE (be_q3k): native-mask === OLD === stock  0/8 mismatch  PASS
+q3_K rolled apples-to-apples (single-strip · gcc-15.2 -O3 · isolates recon delta):
+  cur_q3k   (OLD vsll+vor+vsub) : 103 v-insn · 0 vs*r.v (true zero stack traffic) · 13 vreg · 24 recon-arith
+  knest_q3k (native vmseq+vadd_mu): 58 v-insn · 0 vs*r.v · 14 vreg · 8 recon-arith
+  Delta: -43.7% v-insn (rolled body) · recon-arith -66.7% · BOTH zero-stack-traffic (register-fitting)
+
+q6_K native-mask 2-mask decomposition (dismissed): vand+vmsne+vadd_mu x2 + vsub = 7 ops
+  vs stock shift-or (vsll+vand+vor amortized) = 3 ops -> native-mask WORSE. Negative result quantified.
+
+REGISTER-BUDGET-FIT: deployed emitc has vector stack traffic all three (vs*r.v store 143/174/137, reload 0)
+  [unlike q5_K = zero stack traffic]. Nature = per-element-broadcast structure round-trips the full-unrolled
+  16-col decoded tile through stack scratch (tile-materialization stores, NOT RA spill/reload pairs).
+  Rolled strip redesign eliminates it (q3_K rolled = 0 vs*r.v / 13-14 vreg demonstrated).
+  Deployed = FAIL ; rolled-redesign = PASS achievable.
