@@ -474,11 +474,14 @@
         "format": "iq2_xxs",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ（K-quant 后）",
-        "transduction_estimate_note": "constructed repack-GEMM·无 gemm-轴公平对位（batch2c 是 vec_dot 非 gemm）·sibling vec_dot 0.78× LOSS → wiring 预判 likely 对手更强"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·opponent 零 iq repack GEMM·sibling vec_dot 0.78× LOSS（T8 row11）",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -487,11 +490,14 @@
         "format": "iq2_xs",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS·wiring 预判对手更强"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·opponent 零 iq repack GEMM·sibling vec_dot 0.33× LOSS（T8 row10）",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -500,11 +506,14 @@
         "format": "iq2_s",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS·wiring 预判对手更强"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·opponent 零 iq repack GEMM·sibling vec_dot 0.48× LOSS（T8 row9）",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -527,11 +536,14 @@
         "format": "iq4_xs",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "constructed·同 iq4_nl 结构-NULL·sibling vec_dot 0.72× LOSS·无 gemm 对位"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·同 iq4_nl 结构-NULL（S6 no-op·codebook-already-lean·T8 row73）·sibling vec_dot 0.72× LOSS",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -540,11 +552,14 @@
         "format": "mxfp4",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "constructed·gemm PLAIN/UNTILED 结构-NULL·tiny-codebook 无杠杆·无 gemm 对位"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·gemm PLAIN/UNTILED 结构-NULL·tiny-codebook 无杠杆·fp4 罕见格·E5 negative-control（coverage-sixstate）",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -553,11 +568,14 @@
         "format": "tq1_0",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ（低优先·ternary 少数部署）",
-        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS+OUTPUT-DIVERGENT"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·ternary 少数部署·[GAP-RP] spill 未修（tq1_0 same-class 未修·T8 row15/row21）·sibling vec_dot LOSS+OUTPUT-DIVERGENT",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -566,11 +584,14 @@
         "format": "tq2_0",
         "engine": "rvv"
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ（低优先·ternary 少数部署）",
-        "transduction_estimate_note": "constructed·无 gemm 对位·sibling vec_dot LOSS"
+      "declared_exception": {
+        "reason": "iq/tq gemm·无独立 gemm-轴公平对手（opponent-absent·对位退化为 vs block-dot routing artifact·已被 iq4_nl anchor 实测证伪：ON net-negative 0.217×/0.505× vs 未优化 stock block-dot·非 path-win）；[X-0]②-LOW（少数部署）× ③-HIGH（gather-batching/需模型下载+板批）× sibling LOSS 强先验→cost-benefit LOW。裁五.4 禁 iq4_nl anchor 静默外推同族→逐格过 X-0+Amdahl 转声明例外（板批守卫①程序）·非静默判对手更强·[主会话4裁定②·opponent-absent]·ternary 少数部署·sibling vec_dot 0.23× LOSS·[GAP-RP] spill-fix vs-SIMD 仍 0.45× LOSS（T8 row14/row21）",
+        "amdahl_ceiling": "<噪声地板（iq/tq 模型内 prefill matmul 热·但全域罕见部署；且结构-NULL/gather-trap 封顶 <parity）",
+        "ceiling_source": "iq4_nl gemm 实测锚 prefill 0.217×（T8 iq4_nl / g5-wiring M2-iq4_nl）·同族 morphology",
+        "reestimate_condition": "iq 系 path-win 假设（ROADMAP 在飞·测净新 iq repack vs stock generic 是否如 q4_1 path-win）若某格回 ≥parity·或 gather-batching 落地",
+        "reestimate_hook": "IQ 板批（在飞）逐格实测·结果落地即改判（≥parity→绿/path-win·<parity→对手更强 如 iq4_nl）"
       }
     },
     {
@@ -624,11 +645,14 @@
         "format": "q4_0",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "FLAT-decode（低优先·绿已由 gemm 覆盖）",
-        "transduction_estimate_note": "block-dot vec_dot（decode matmul 备选路）·parity-by-adoption（采 ggml 自身指令）·无公平 e2e/八门·绿路走 repack GEVM（gemm cell）非本 cell"
+      "declared_exception": {
+        "reason": "FLAT block-dot vec_dot·parity-by-adoption（发射 ggml 自身 block-dot 指令→构造性 parity·beat 不可能）·非部署备选路（deployed decode 赢已在 sibling 绿 gemm_tile cell 记账·repack GEVM routing·独立接线双计数风险）·[主会话4裁定①]·decode 赢由绿 gemm_tile/q4_0 捕获（decode 1.91×）·对手=上游 ggml block-dot（通用路径·SELF-adoption）",
+        "amdahl_ceiling": "≈0（parity-by-construction·decode 赢已被 sibling 绿 gemm_tile cell 捕获·不可二次记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65）·但该 90% 的赢由绿 gemm_tile cell 承载·本 vec_dot cell 增量 fraction=0（重复路径）",
+        "reestimate_condition": "selector 改为在 decode 用本 vec_dot 路而非 repack GEVM（部署路径切换）且能证独立于 gemm_tile cell 的净赢",
+        "reestimate_hook": "T6 e2e phase-split 若揭示 decode 走 block-dot 而非 repack（部署审计）"
       }
     },
     {
@@ -637,11 +661,14 @@
         "format": "q4_1",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "FLAT-decode",
-        "transduction_estimate_note": "block-dot·parity-by-adoption·未测"
+      "declared_exception": {
+        "reason": "FLAT block-dot vec_dot·parity-by-adoption（发射 ggml 自身 block-dot 指令→构造性 parity·beat 不可能）·非部署备选路（deployed decode 赢已在 sibling 绿 gemm_tile cell 记账·repack GEVM routing·独立接线双计数风险）·[主会话4裁定①]·decode 赢由绿 gemm_tile/q4_1 捕获（decode 1.67×）",
+        "amdahl_ceiling": "≈0（parity-by-construction·decode 赢已被 sibling 绿 gemm_tile cell 捕获·不可二次记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65）·但该 90% 的赢由绿 gemm_tile cell 承载·本 vec_dot cell 增量 fraction=0（重复路径）",
+        "reestimate_condition": "selector 改为在 decode 用本 vec_dot 路而非 repack GEVM（部署路径切换）且能证独立于 gemm_tile cell 的净赢",
+        "reestimate_hook": "T6 e2e phase-split 若揭示 decode 走 block-dot 而非 repack（部署审计）"
       }
     },
     {
@@ -650,11 +677,14 @@
         "format": "q5_0",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "FLAT-decode",
-        "transduction_estimate_note": "block-dot·parity-by-adoption·未测"
+      "declared_exception": {
+        "reason": "FLAT block-dot vec_dot·parity-by-adoption（发射 ggml 自身 block-dot 指令→构造性 parity·beat 不可能）·非部署备选路（deployed decode 赢已在 sibling 绿 gemm_tile cell 记账·repack GEVM routing·独立接线双计数风险）·[主会话4裁定①]·decode 由绿 gemm_tile/q5_0 披露（decode 0.82× reg）",
+        "amdahl_ceiling": "≈0（parity-by-construction·decode 赢已被 sibling 绿 gemm_tile cell 捕获·不可二次记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65）·但该 90% 的赢由绿 gemm_tile cell 承载·本 vec_dot cell 增量 fraction=0（重复路径）",
+        "reestimate_condition": "selector 改为在 decode 用本 vec_dot 路而非 repack GEVM（部署路径切换）且能证独立于 gemm_tile cell 的净赢",
+        "reestimate_hook": "T6 e2e phase-split 若揭示 decode 走 block-dot 而非 repack（部署审计）"
       }
     },
     {
@@ -663,11 +693,14 @@
         "format": "q5_1",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "FLAT-decode",
-        "transduction_estimate_note": "block-dot·parity-by-adoption·未测"
+      "declared_exception": {
+        "reason": "FLAT block-dot vec_dot·parity-by-adoption（发射 ggml 自身 block-dot 指令→构造性 parity·beat 不可能）·非部署备选路（deployed decode 赢已在 sibling 绿 gemm_tile cell 记账·repack GEVM routing·独立接线双计数风险）·[主会话4裁定①]·decode 由绿 gemm_tile/q5_1 披露（decode 0.78×）",
+        "amdahl_ceiling": "≈0（parity-by-construction·decode 赢已被 sibling 绿 gemm_tile cell 捕获·不可二次记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65）·但该 90% 的赢由绿 gemm_tile cell 承载·本 vec_dot cell 增量 fraction=0（重复路径）",
+        "reestimate_condition": "selector 改为在 decode 用本 vec_dot 路而非 repack GEVM（部署路径切换）且能证独立于 gemm_tile cell 的净赢",
+        "reestimate_hook": "T6 e2e phase-split 若揭示 decode 走 block-dot 而非 repack（部署审计）"
       }
     },
     {
@@ -676,11 +709,14 @@
         "format": "q8_0",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "FLAT-decode",
-        "transduction_estimate_note": "block-dot·micro-only VLEN256 1.04×/VLEN128 parity（非 e2e·非八门·board+clang-bound·stale）·未过公平协议"
+      "declared_exception": {
+        "reason": "FLAT block-dot vec_dot·parity-by-adoption（发射 ggml 自身 block-dot 指令→构造性 parity·beat 不可能）·非部署备选路（deployed decode 赢已在 sibling 绿 gemm_tile cell 记账·repack GEVM routing·独立接线双计数风险）·[主会话4裁定①]·deployed decode 走 block_dot_memory_bound（能力键控 roofline dual）·赢由绿 gemm_tile/q8_0 捕获（decode 3.81× correctness-carrier）·本 cell stale micro parity（VLEN256 1.04×/VLEN128 parity·非 e2e·非八门）",
+        "amdahl_ceiling": "≈0（parity-by-construction·decode 赢已被 sibling 绿 gemm_tile cell 捕获·不可二次记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65）·但该 90% 的赢由绿 gemm_tile cell 承载·本 vec_dot cell 增量 fraction=0（重复路径）",
+        "reestimate_condition": "selector 改为在 decode 用本 vec_dot 路而非 repack GEVM（部署路径切换）且能证独立于 gemm_tile cell 的净赢",
+        "reestimate_hook": "T6 e2e phase-split 若揭示 decode 走 block-dot 而非 repack（部署审计）"
       }
     },
     {
@@ -689,11 +725,14 @@
         "format": "q1_0",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ/尾",
-        "transduction_estimate_note": "block-dot·binary·未测"
+      "declared_exception": {
+        "reason": "iq/binary/fp4 block-dot vec_dot·罕见格·全域负载价值低（[X-0]②-LOW·iq 少数部署）；gather-trap LOSS 强先验（sibling batch2c 0.16–0.78×）；真赢（若有）潜伏在 gather-batching=独立较大 emit 重构·新立项须问·ROADMAP 队列外·binary·Weft-internal 净新格（非标准 ggml）·no-fair-opponent 负控（主会话4裁定④）·罕见格",
+        "amdahl_ceiling": "<噪声（iq/fp4/binary 模型少数部署→全域贡献<噪声；正向上限受 gather-trap 封顶为 <parity）",
+        "ceiling_source": "iq dequant 冷叶实测锚 <0.4%（[GAP-CLANG-GATHER-TRAP]·T8/三具名GAP §1）·vec_dot 热但受罕见格全域稀释",
+        "reestimate_condition": "gather-batching 落地且外推热 vec_dot iq 族·或 iq/fp4/binary 成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
       }
     },
     {
@@ -702,11 +741,14 @@
         "format": "q2_K",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "K-quant-decode",
-        "transduction_estimate_note": "K-quant block-dot（decode matmul）·未直接测（K-quant 测量在 gemm/repack 轴）"
+      "declared_exception": {
+        "reason": "K-quant decode block-dot·parity-by-adoption；q2_K/q3_K/q6_K 另叠 weight-reconstruction floor + re-roll trap（T8 row219 实证·rolled/unrolled 两 emit 形态都产不出 compact∧register-resident tiling·真杠杆缺失·非 schedule knob）→无翻正空间；q4_K/q5_K decode 贡献已在 @k1 gemm cell 记账（decode roofline-loss）·[主会话4裁定①]·weight-reconstruction floor / re-roll trap（T8 row219 [GAP-P1]：真杠杆=compact∧register-resident tiling·我方 emit 产不出·非 schedule knob）·decode memory-bound·无翻正空间",
+        "amdahl_ceiling": "≤parity（decode 内 matmul 热~90% 但本路=LOSS-bound·weight-recon floor + gcc-codegen 封顶·无 beat）；q4_K/q5_K 独立增量=0（@k1 gemm cell 已记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65 同律）·但受 weight-reconstruction floor 封顶为 <parity",
+        "reestimate_condition": "出现 compact∧register-resident tiling 发射能力（[GAP-EMIT-KNEST] 真杠杆闭合）·或 k1/VLEN256 clang-domain decode 翻正证据",
+        "reestimate_hook": "[GAP-EMIT-KNEST] 发射器杠杆若闭合（G6-B 续）·或 T6 e2e k1 decode phase-split"
       }
     },
     {
@@ -715,11 +757,14 @@
         "format": "q3_K",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "K-quant-decode",
-        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      "declared_exception": {
+        "reason": "K-quant decode block-dot·parity-by-adoption；q2_K/q3_K/q6_K 另叠 weight-reconstruction floor + re-roll trap（T8 row219 实证·rolled/unrolled 两 emit 形态都产不出 compact∧register-resident tiling·真杠杆缺失·非 schedule knob）→无翻正空间；q4_K/q5_K decode 贡献已在 @k1 gemm cell 记账（decode roofline-loss）·[主会话4裁定①]·dual-plane weight-bound（T8 row64/row70 S6 NULL·weight-materialization floor）",
+        "amdahl_ceiling": "≤parity（decode 内 matmul 热~90% 但本路=LOSS-bound·weight-recon floor + gcc-codegen 封顶·无 beat）；q4_K/q5_K 独立增量=0（@k1 gemm cell 已记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65 同律）·但受 weight-reconstruction floor 封顶为 <parity",
+        "reestimate_condition": "出现 compact∧register-resident tiling 发射能力（[GAP-EMIT-KNEST] 真杠杆闭合）·或 k1/VLEN256 clang-domain decode 翻正证据",
+        "reestimate_hook": "[GAP-EMIT-KNEST] 发射器杠杆若闭合（G6-B 续）·或 T6 e2e k1 decode phase-split"
       }
     },
     {
@@ -728,11 +773,14 @@
         "format": "q4_K",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "K-quant-decode",
-        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      "declared_exception": {
+        "reason": "K-quant decode block-dot·parity-by-adoption；q2_K/q3_K/q6_K 另叠 weight-reconstruction floor + re-roll trap（T8 row219 实证·rolled/unrolled 两 emit 形态都产不出 compact∧register-resident tiling·真杠杆缺失·非 schedule knob）→无翻正空间；q4_K/q5_K decode 贡献已在 @k1 gemm cell 记账（decode roofline-loss）·[主会话4裁定①]·decode 贡献已由 gemm_tile/q4_K@k1（decode roofline-loss）捕获·decode memory-bound",
+        "amdahl_ceiling": "≤parity（decode 内 matmul 热~90% 但本路=LOSS-bound·weight-recon floor + gcc-codegen 封顶·无 beat）；q4_K/q5_K 独立增量=0（@k1 gemm cell 已记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65 同律）·但受 weight-reconstruction floor 封顶为 <parity",
+        "reestimate_condition": "出现 compact∧register-resident tiling 发射能力（[GAP-EMIT-KNEST] 真杠杆闭合）·或 k1/VLEN256 clang-domain decode 翻正证据",
+        "reestimate_hook": "[GAP-EMIT-KNEST] 发射器杠杆若闭合（G6-B 续）·或 T6 e2e k1 decode phase-split"
       }
     },
     {
@@ -741,11 +789,14 @@
         "format": "q5_K",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "K-quant-decode",
-        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      "declared_exception": {
+        "reason": "K-quant decode block-dot·parity-by-adoption；q2_K/q3_K/q6_K 另叠 weight-reconstruction floor + re-roll trap（T8 row219 实证·rolled/unrolled 两 emit 形态都产不出 compact∧register-resident tiling·真杠杆缺失·非 schedule knob）→无翻正空间；q4_K/q5_K decode 贡献已在 @k1 gemm cell 记账（decode roofline-loss）·[主会话4裁定①]·decode 贡献已由 gemm_tile/q5_K@k1（decode 0.729× roofline-loss·T8 row191）捕获",
+        "amdahl_ceiling": "≤parity（decode 内 matmul 热~90% 但本路=LOSS-bound·weight-recon floor + gcc-codegen 封顶·无 beat）；q4_K/q5_K 独立增量=0（@k1 gemm cell 已记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65 同律）·但受 weight-reconstruction floor 封顶为 <parity",
+        "reestimate_condition": "出现 compact∧register-resident tiling 发射能力（[GAP-EMIT-KNEST] 真杠杆闭合）·或 k1/VLEN256 clang-domain decode 翻正证据",
+        "reestimate_hook": "[GAP-EMIT-KNEST] 发射器杠杆若闭合（G6-B 续）·或 T6 e2e k1 decode phase-split"
       }
     },
     {
@@ -754,11 +805,14 @@
         "format": "q6_K",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "K-quant-decode",
-        "transduction_estimate_note": "K-quant block-dot·未直接测"
+      "declared_exception": {
+        "reason": "K-quant decode block-dot·parity-by-adoption；q2_K/q3_K/q6_K 另叠 weight-reconstruction floor + re-roll trap（T8 row219 实证·rolled/unrolled 两 emit 形态都产不出 compact∧register-resident tiling·真杠杆缺失·非 schedule knob）→无翻正空间；q4_K/q5_K decode 贡献已在 @k1 gemm cell 记账（decode roofline-loss）·[主会话4裁定①]·6-bit dual-plane weight-reconstruction-bound（T8 row62/row68·2995 vsetivli 无调度）",
+        "amdahl_ceiling": "≤parity（decode 内 matmul 热~90% 但本路=LOSS-bound·weight-recon floor + gcc-codegen 封顶·无 beat）；q4_K/q5_K 独立增量=0（@k1 gemm cell 已记）",
+        "ceiling_source": "decode matmul 90.20%（T8 row65 同律）·但受 weight-reconstruction floor 封顶为 <parity",
+        "reestimate_condition": "出现 compact∧register-resident tiling 发射能力（[GAP-EMIT-KNEST] 真杠杆闭合）·或 k1/VLEN256 clang-domain decode 翻正证据",
+        "reestimate_hook": "[GAP-EMIT-KNEST] 发射器杠杆若闭合（G6-B 续）·或 T6 e2e k1 decode phase-split"
       }
     },
     {
@@ -767,11 +821,14 @@
         "format": "iq1_s",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "1.5-bit 2048-grid block-dot·未在 batch2c·grid-decode-bound 疑似 LOSS 族（未测）"
+      "declared_exception": {
+        "reason": "iq/binary/fp4 block-dot vec_dot·罕见格·全域负载价值低（[X-0]②-LOW·iq 少数部署）；gather-trap LOSS 强先验（sibling batch2c 0.16–0.78×）；真赢（若有）潜伏在 gather-batching=独立较大 emit 重构·新立项须问·ROADMAP 队列外·罕见格（1.5-bit 2048-grid·iq 少数部署）·grid-decode-bound LOSS 疑似族（sibling iq2/iq3 batch2c 全 LOSS 0.16–0.78×·T8 row8-15）",
+        "amdahl_ceiling": "<噪声（iq/fp4/binary 模型少数部署→全域贡献<噪声；正向上限受 gather-trap 封顶为 <parity）",
+        "ceiling_source": "iq dequant 冷叶实测锚 <0.4%（[GAP-CLANG-GATHER-TRAP]·T8/三具名GAP §1）·vec_dot 热但受罕见格全域稀释",
+        "reestimate_condition": "gather-batching 落地且外推热 vec_dot iq 族·或 iq/fp4/binary 成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
       }
     },
     {
@@ -780,11 +837,14 @@
         "format": "iq1_m",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "iq1_s sibling·未测"
+      "declared_exception": {
+        "reason": "iq/binary/fp4 block-dot vec_dot·罕见格·全域负载价值低（[X-0]②-LOW·iq 少数部署）；gather-trap LOSS 强先验（sibling batch2c 0.16–0.78×）；真赢（若有）潜伏在 gather-batching=独立较大 emit 重构·新立项须问·ROADMAP 队列外·iq1_s sibling·同 grid-decode·罕见格",
+        "amdahl_ceiling": "<噪声（iq/fp4/binary 模型少数部署→全域贡献<噪声；正向上限受 gather-trap 封顶为 <parity）",
+        "ceiling_source": "iq dequant 冷叶实测锚 <0.4%（[GAP-CLANG-GATHER-TRAP]·T8/三具名GAP §1）·vec_dot 热但受罕见格全域稀释",
+        "reestimate_condition": "gather-batching 落地且外推热 vec_dot iq 族·或 iq/fp4/binary 成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
       }
     },
     {
@@ -793,11 +853,14 @@
         "format": "iq4_nl",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "codebook block-dot·未在 batch2c（vec_dot 轴·区别于 dequant 轴 gather-trap 冷叶）"
+      "declared_exception": {
+        "reason": "iq/binary/fp4 block-dot vec_dot·罕见格·全域负载价值低（[X-0]②-LOW·iq 少数部署）；gather-trap LOSS 强先验（sibling batch2c 0.16–0.78×）；真赢（若有）潜伏在 gather-batching=独立较大 emit 重构·新立项须问·ROADMAP 队列外·codebook block-dot·decode 贡献已由 gemm_tile/iq4_nl（黄-对手更强·decode 0.505×）捕获·gather-trap",
+        "amdahl_ceiling": "<噪声（iq/fp4/binary 模型少数部署→全域贡献<噪声；正向上限受 gather-trap 封顶为 <parity）",
+        "ceiling_source": "iq dequant 冷叶实测锚 <0.4%（[GAP-CLANG-GATHER-TRAP]·T8/三具名GAP §1）·vec_dot 热但受罕见格全域稀释",
+        "reestimate_condition": "gather-batching 落地且外推热 vec_dot iq 族·或 iq/fp4/binary 成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
       }
     },
     {
@@ -806,11 +869,14 @@
         "format": "nvfp4",
         "engine": ""
       },
-      "category": "黄-未接线",
+      "category": "声明例外",
       "provisional": false,
-      "unwired": {
-        "wiring_queue_position": "IQ",
-        "transduction_estimate_note": "fp4 codebook block-dot·未测"
+      "declared_exception": {
+        "reason": "iq/binary/fp4 block-dot vec_dot·罕见格·全域负载价值低（[X-0]②-LOW·iq 少数部署）；gather-trap LOSS 强先验（sibling batch2c 0.16–0.78×）；真赢（若有）潜伏在 gather-batching=独立较大 emit 重构·新立项须问·ROADMAP 队列外·fp4 codebook·罕见格·no-fair-opponent 负控（ggml 疑无 nvfp4 vec_dot 对位·主会话4裁定④）",
+        "amdahl_ceiling": "<噪声（iq/fp4/binary 模型少数部署→全域贡献<噪声；正向上限受 gather-trap 封顶为 <parity）",
+        "ceiling_source": "iq dequant 冷叶实测锚 <0.4%（[GAP-CLANG-GATHER-TRAP]·T8/三具名GAP §1）·vec_dot 热但受罕见格全域稀释",
+        "reestimate_condition": "gather-batching 落地且外推热 vec_dot iq 族·或 iq/fp4/binary 成主流部署",
+        "reestimate_hook": "uarch.gather_slow scalar-pin 杠杆板测·或 vec_dot iq 族 gather-batching 立项（新立项须问·ROADMAP 队列外）"
       }
     },
     {
