@@ -1,0 +1,5 @@
+CPU_RISCV64_SPACEMIT: num_cores: 8, num_perfer_cores: 4, perfer_core_arch_id: a03c, exclude_main_thread: 0, use_ime1: 1, use_ime2: 0, mem_backend: HPAGE, cpu_mask: f, aicpu_id_offset: 0
+CPU_RISCV64_SPACEMIT: alloc_chunk: open(/dev/tcm_sync_mem) failed, errno=2
+CPU_RISCV64_SPACEMIT: failed to allocate init_barrier from shared mem, falling back to heap
+[TCRV-IME-Q40-BRIDGE] routed real q4_0 PREFILL mul_mat through tcrv IME kernel: M=32 N=2048 K=2048 (real vmadot 0xe210312b) cache=1 threads=1 deref=1 deref_epi=1 parsetup=1 epivec=1 nth=4
+[TCRV-Q40-PROF] cache=1 threads=1 deref=1 deref_epi=1 parsetup=1 epivec=1 mmprof_noepi=0 mmprof_nomadot=0 calls=604 repack_runs=0 dequant_runs=151 cache_hits=453 | ns_repack=0 ns_dequant=15041571788 ns_quant=252636978 ns_alloc=19683779 ns_copyback=80078509 ns_matmul=7173458122 | repack_share=0.0000 dequant_share=0.6695 quant_share=0.0112 matmul_share=0.3193
