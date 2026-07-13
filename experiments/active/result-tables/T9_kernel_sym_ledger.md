@@ -139,3 +139,21 @@
 ### ★★口径校正（需主会周期复核·honesty·影响 §1.1 成色）
 1. **q4_K@k1 "hand-brick" 标签【存疑】**：sealed 3.106× 与本测 3.19× 实测对手都是 `ggml_vec_dot_q4_K_q8_K` **block-dot**（非 hand-brick）。板上确有更强 stock repack `ggml_gemm_q4_K_16x1_q8_K` 但**未接**（未作对手）→ **§1.1 "唯一 hand-brick ≥parity·成色最硬" 主张【未验证】·须另测 vs 真 repack 才能立**。**修正成色分布**：kernel-sym 9 = **0 verified hand-brick**（q4_K@k1 待确认·实测 block-dot） + 2 better-vec + 7 block-dot/light（含 q4_K@k1 实测 block-dot 对手）。
 2. **q4_0/q8_0@k1 sealed 对手口径**：sealed q4_0 1.0022×=VLEN-flip **self-control**·q8_0 +4.37%=item4 **internal 变体**·**皆非 vs block-dot**。本 casefile 首次给 **ours-vs-factory-block-dot 干净对**（q4_0 3.5×/q8_0 1.48×·both ≥parity·light-vec block-dot 对手）。§1.1 那两行的旧数是 self/internal 口径·本行是 vs-block-dot 口径·**两口径并存不混**。
+
+---
+
+## 6.2 货架A 全量 rvv-半 §1.1 cold 双态 + nr 穷举（G7 §L1·`668f1d45`）
+
+> 15/15 cell（FLAT 5 × nr{4,16,64}）hot∧cold 全 ≥parity·GATE=PASS·gcc-15 对称·对手全 = factory block-dot（机判 nm public symbol·非 hand-brick·印证分轴修正 = kernel-sym 0 verified hand-brick）。
+
+| 格@rvv | 对手符号(机判) | 折中态 | HOT | COLD(nr16) | cold regime |
+|---|---|---|---:|---:|---|
+| q4_0 | ggml_vec_dot_q4_0_q8_0 | 单实现折中 | 6.780× | 6.224× | compute-bound |
+| q4_1 | ggml_vec_dot_q4_1_q8_1 | 单实现折中 | 6.747× | 6.105× | compute-bound |
+| q5_0 | ggml_vec_dot_q5_0_q8_0 | 单实现折中 | 1.228× | 1.232× | compute-bound |
+| q5_1 | ggml_vec_dot_q5_1_q8_1 | 单实现折中 | 1.499× | 1.412× | compute-bound |
+| q8_0 | ggml_vec_dot_q8_0_q8_0 | **破损** | 4.193× | 4.752× | memory-leaning |
+
+**★发现**：① cold-penalty 键控 memory-exposure（nr↓→penalty↑·低 weight-reuse 赢家更 memory-exposed·最严 q5_1 nr4 1.124× 仍 ≥parity）② q8_0 反常 cold>hot（对手 block-dot 权重足迹 34B/blk 最大·cold 退化>ours）③ q5_0/q5_1 win↗nr。**★T4b oracle**：VLEN128 repack codegen 候选集 = **{mf2} 单一合法**（half_lanes=8→mf2·columnsPerPass=4 auto-forced·m1 是 RVV0.7-only 非 same-board 候选·[repack-winA-always-mf2]）→ **selector 平凡最优**·变体穷举净信息 = nr-shape 轴（mf2-repack 跨 nr 全 ≥parity·[L-4] 合规）。双账本稳健（clang nr16 10/10 cold ≥parity）。
+
+**进度分数（货架A 全量·§六.1 分数化）**：**rvv-半 §1.1 = 5/5 filled**（cold 双态+nr 穷举+双账本）· **rvv-半 §1.2 = 0/~14 pending**（K-quant/IQ/TQ·regime T8 已确认 LOSS·cold≈hot 不翻）· **k1-半 = 4/9 §1.1 cold（L2 hot/cold 首批）+ pending**。★**kernel-sym ≥parity 计数不因 cold 变**（cold=hot robustness·非新格·NOT e2e·禁混算 perf-covered 9/83）。
