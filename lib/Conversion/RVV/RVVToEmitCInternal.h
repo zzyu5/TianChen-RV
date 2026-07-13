@@ -1540,7 +1540,7 @@ private:
       int64_t weightQuantOffset, int64_t activationQuantOffset,
       int64_t weightDminOffset, int64_t weightScalesOffset,
       int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
-      int64_t half) const;
+      int64_t half, bool rolledMainTerm) const;
 
   /// The INDEPENDENT q4_K colgroup-tiled GEVM Emission Plan BODY emitter ([K-10]
   /// structural-level). SAME per-block q4_K super-block leaf as
@@ -1632,7 +1632,7 @@ private:
       int64_t qk, int64_t weightStride, int64_t activationStride,
       int64_t weightQlOffset, int64_t activationQuantOffset,
       int64_t weightScalesOffset, int64_t weightQhOffset, int64_t nSubblocks,
-      int64_t weightInterleave, int64_t half) const;
+      int64_t weightInterleave, int64_t half, bool rolledMainTerm) const;
 
   /// Emit the COMPLETE ggml q6_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
@@ -1679,7 +1679,7 @@ private:
       int64_t weightQuantOffset, int64_t activationQuantOffset,
       int64_t weightDminOffset, int64_t weightScalesOffset,
       int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
-      int64_t half) const;
+      int64_t half, bool rolledMainTerm) const;
 
   /// Emit the COMPLETE ggml q2_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
@@ -1730,7 +1730,7 @@ private:
       int64_t qk, int64_t weightStride, int64_t activationStride,
       int64_t weightQsOffset, int64_t activationQuantOffset,
       int64_t weightScalesOffset, int64_t weightHmaskOffset, int64_t nSubblocks,
-      int64_t weightInterleave, int64_t half) const;
+      int64_t weightInterleave, int64_t half, bool rolledMainTerm) const;
 
   /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter

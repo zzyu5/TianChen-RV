@@ -1,0 +1,56 @@
+G7 whole-K-nest S6 roll -- K-quant GEVM FAMILY (q2/q3/q4/q6_K) deployment metrics
+(deploy gcc-15.2.0 -O3 -march=rv64gcv_zvfh VLEN128 numHalves=2; kernel-axis C1, ZERO perf)
+==============================================================================
+
+A. STATIC ASM REDUCTION (default unrolled -> rolled), whole emitc function
+  fmt    metric      default   rolled  reduction  factor
+  q2_K   v-insn         3466      483      86.1%    7.2x
+  q2_K   vsetvli         514       68      86.8%    7.6x
+  q2_K   vs*r.v          143       14      90.2%   10.2x
+  q2_K   asm-lines     10410      762      92.7%   13.7x
+
+  q3_K   v-insn         7125      368      94.8%   19.4x
+  q3_K   vsetvli        1126       12      98.9%   93.8x
+  q3_K   vs*r.v          153        4      97.4%   38.2x
+  q3_K   asm-lines     15260      566      96.3%   27.0x
+
+  q4_K   v-insn         4227      467      89.0%    9.1x
+  q4_K   vsetvli         753       76      89.9%    9.9x
+  q4_K   vs*r.v          201        8      96.0%   25.1x
+  q4_K   asm-lines     13494      892      93.4%   15.1x
+
+  q6_K   v-insn         7403      720      90.3%   10.3x
+  q6_K   vsetvli        1017       20      98.0%   50.9x
+  q6_K   vs*r.v          137        2      98.5%   68.5x
+  q6_K   asm-lines     16049     1005      93.7%   16.0x
+
+B. HOT-PATH TILE-ROUNDTRIP (rolled): the per-element ROLLED runtime loop copies
+   (each = one j/pair/k or sh/grp unrolled copy of the runtime element for-loop)
+  q2_K: 4 hot element-loop copies ALL 0 vs*r.v AND 0 vsetvli (tile-RT CLOSED); residual COLD block-loop-top = 12 vs*r.v / 67 vsetvli (numHalves=2 dual-strip resident-bank seed/flush + scale-unpack, NOT hot decode nest -- same class as q5_K's 9 residual)
+  q3_K: 4 hot element-loop copies ALL 0 vs*r.v AND 0 vsetvli (tile-RT CLOSED); residual COLD block-loop-top = 2 vs*r.v / 11 vsetvli (numHalves=2 dual-strip resident-bank seed/flush + scale-unpack, NOT hot decode nest -- same class as q5_K's 9 residual)
+  q4_K: 8 hot element-loop copies ALL 0 vs*r.v AND 0 vsetvli (tile-RT CLOSED); residual COLD block-loop-top = 6 vs*r.v / 75 vsetvli (numHalves=2 dual-strip resident-bank seed/flush + scale-unpack, NOT hot decode nest -- same class as q5_K's 9 residual)
+  q6_K: 8 hot element-loop copies ALL 0 vs*r.v AND 0 vsetvli (tile-RT CLOSED); residual COLD block-loop-top = 0 vs*r.v / 19 vsetvli (numHalves=2 dual-strip resident-bank seed/flush + scale-unpack, NOT hot decode nest -- same class as q5_K's 9 residual)
+
+C. BYTE-EXACT GATES (per format)
+  (1) Conversion/RVV lit: 247/247 PASS (was 243 + 4 new rolled fixtures; zero regression)
+  (2) default(unrolled) emitc byte-IDENTICAL before/after change: PASS all 4 (shipped 0 drift)
+  (3) DYNAMIC op-stream identity (algebraic byte-exact): the TOTAL vwmacc16 executed by
+      the rolled runtime element loops EQUALS the default full-unroll static count (1024
+      for every format); the scale-fold vwmacc_vv_i32 is UNCHANGED. Per-format reconcile
+      (element-loop copies x body-vwmacc x runtime-iters = default 1024 static):
+        q2_K: 4 loops x 16 body x 16 iters = 1024 = default 1024; vwmacc_vv_i32 fold 64 UNCHANGED
+        q3_K: 4 loops x 16 body x 16 iters = 1024 = default 1024; vwmacc_vv_i32 fold 64 UNCHANGED
+        q4_K: 8 loops x  8 body x 16 iters = 1024 = default 1024; vwmacc_vv_i32 fold 64 UNCHANGED
+        q6_K: 8 loops x 16 body x  8 iters = 1024 = default 1024; vwmacc_vv_i32 fold 128 UNCHANGED
+      (only the element loop is materialized as a runtime for; integer vwmacc order
+       position-ascending,then-h,then-lane IDENTICAL => bit-identical by construction)
+  (4) board numeric A/B = DEFERRED (kernel-axis, no board; construction-identity +
+      q5_K deploy precedent -- q5_K host oracle was 0/32 for the identical transform)
+
+D. ISOLATION (git diff)
+  Only lib/.../RVVToEmitCBlockQuantLinear.cpp + RVVToEmitCInternal.h changed (+ 4 new
+  rolled fixtures). Diff hunk contexts = ONLY the 4 target GEVM leaves (Q2K/Q3K/Q4K/Q6K)
+  + the shared dispatch emitTypedRepackGemvLoopBody. q5_K rolled+default emitc byte-
+  IDENTICAL to committed deploy output (34fded0d). GEMM siblings / sealed GEMM leaf /
+  q5_0/q5_1 REDESIGN-B / q4_K colgroup-tiled: ZERO diff (RVVOps.td already carries the
+  emit_loop_schedule attr from the q5_K deploy -- no ODS/verifier change needed).
