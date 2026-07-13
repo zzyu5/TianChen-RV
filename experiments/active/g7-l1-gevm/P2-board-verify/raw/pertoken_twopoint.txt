@@ -1,0 +1,14 @@
+G7 P2 perf 3-test — per-token (two-point (N64-N16)/48) · 3-pass median · taskset 8-15 · decode M=1
+board rvv VLEN128 · perf stat -e instructions,cycles,cache-misses · llama-bench -p0 -nN -r1 --no-warmup -t8
+
+variant  bytes/tok  insn/tok  cyc/tok  IPC    decode_t/s(avg_ts)  vs_stock  relIQR_cyc
+STOCK    4.406 GiB  5.14 G    9.95 G   0.517  2.097               1.00x     0.26%
+OLD      4.389 GiB  5.86 G    19.96 G  0.294  1.033               0.49x     0.53%   (per-column GEVM, =P0 0.50x)
+NEW      4.398 GiB  6.18 G    28.93 G  0.214  0.705               0.34x     2.83%   (colgroup-tiled TG=2)
+
+SUCCESS SIGNAL = NEGATIVE: IPC 0.294->0.214 (REVERSE, not toward roofline 0.517); cyc +45% vs OLD.
+BYTES: NEW 0.998x stock == roofline -> H2 layout tax REJECTED (pure structural regression).
+REASSEMBLY: NEW scalar-stack spill (sp-rel ld/sd) = 534 vs OLD 10 (53x) = register-resident bank overflow.
+M-SCAN: decode M=1 -> GEVM-CT only (gemm=0); prefill M=8 -> GEMM 8 + GEVM leftover 5. M* between 1 and 2 (ggml dispatch).
+CONTAMINATION: insn(private) NEW>OLD +5.5% consistent; bytes(private) flat -> structural not contention.
+BOARD RESTORE: live md5 05a62e6a (stock-pristine) CONFIRMED. NO git.
