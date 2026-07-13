@@ -1,0 +1,20 @@
+== per-side sample counts ==
+  rolled: pp_n=12 tg_n=12
+  unrolled: pp_n=12 tg_n=12
+  stock: pp_n=12 tg_n=12
+== PREFILL(pp) ==
+  rolled   median=3.4969599999999996 t/s  relIQR=0.26%  n=12
+  unrolled median=7.536235 t/s  relIQR=0.06%  n=12
+  stock    median=8.614719999999998 t/s  relIQR=0.12%  n=12
+  ROLLED/STOCK     = 0.4059x  (<parity LOSS)   <- Phase-2 headline
+  UNROLLED/STOCK   = 0.8748x  (<parity LOSS)   <- baseline control (g5=.873x)
+  ROLLED/UNROLLED  = 0.4640x  (emit-quality delta in isolation)
+== DECODE(tg) ==
+  rolled   median=4.200215 t/s  relIQR=0.12%  n=12
+  unrolled median=4.19245 t/s  relIQR=0.24%  n=12
+  stock    median=4.80953 t/s  relIQR=0.15%  n=12
+  ROLLED/STOCK     = 0.8733x  (<parity LOSS)   <- Phase-2 headline
+  UNROLLED/STOCK   = 0.8717x  (<parity LOSS)   <- baseline control (g5=.873x)
+  ROLLED/UNROLLED  = 1.0019x  (emit-quality delta in isolation)
+== JSON ==
+{"pp": {"rolled": 3.4969599999999996, "unrolled": 7.536235, "stock": 8.614719999999998, "rolled_over_stock": 0.40592845733813754, "unrolled_over_stock": 0.8748090477693995, "rolled_over_unrolled": 0.46401950045347573}, "tg": {"rolled": 4.200215, "unrolled": 4.19245, "stock": 4.80953, "rolled_over_stock": 0.8733109056394285, "unrolled_over_stock": 0.8716964027670064, "rolled_over_unrolled": 1.0018521389640902}}
