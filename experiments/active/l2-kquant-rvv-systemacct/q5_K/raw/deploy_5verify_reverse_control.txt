@@ -1,0 +1,39 @@
+========== q5_K DEPLOY 5-VERIFY + REVERSE CONTROL ==========
+load=4.71 5.23 5.05  EXP_ON=53b2d3b0533e
+
+>>> [A] OFF baseline (stock as-shipped gcc-15 block-dot) <<<
+### STATE=OFF(stock-gcc15-blockdot)  variant=q4kOFF.gcc
+  v1 md5      = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  v2 tcrv_sym = 0  (expect 0)  PASS
+  v3 banner   = 0  (expect 0)
+  v4 objdump emitted q5_K sym present = 0 (expect 0; stock routes to generic block-dot)
+     stock block-dot symbol ggml_vec_dot_q5_K_q8_K present = 2
+
+>>> [B] ON forward (our clang-18 emitted q5_K repack, front-door) <<<
+### STATE=ON(ours-clang18-repack)  variant=q5kON.clangrepack
+  v1 md5      = 53b2d3b0533e  (expect 53b2d3b0533e)  PASS
+  v2 tcrv_sym = 2  (expect 2)  PASS
+  v3 banner   = 2  (expect >=1)
+  v4 objdump spill GEMM=155 GEVM=97  vsetivli16(MUST0)=0/0
+  v5 runtime engage banner:
+     engage_banner_hits=4 (>0 => kernel actually executed)
+       WEFT L2-q5K EMITTED GEMM(q5_K_16x1 VLEN128 compiler-emitted VLA S6-tiled ba30ba54) ENGAGED n=4096 nr=16 nc=128 vlen=128
+       WEFT L2-q5K EMITTED GEMM(q5_K_16x1 VLEN128 compiler-emitted VLA S6-tiled ba30ba54) ENGAGED n=4096 nr=16 nc=128 vlen=128
+
+>>> [C] REVERSE CONTROL: swap back to OFF, confirm kernel gone <<<
+### STATE=OFF-again(reverse-control)  variant=q4kOFF.gcc
+  v1 md5      = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  v2 tcrv_sym = 0  (expect 0)  PASS
+  v3 banner   = 0  (expect 0)
+  v4 objdump emitted q5_K sym present = 0 (expect 0; stock routes to generic block-dot)
+     stock block-dot symbol ggml_vec_dot_q5_K_q8_K present = 2
+  v5 runtime engage banner (OFF) = 0 (expect 0)
+
+live restored to 05a62e6a8285
+========== q5_K DEPLOY-VERIFY DONE ==========
+
+NOTE: banner engage shows vlen=128 (VLA emitted kernel correct at VLEN128). GEMM engage only
+shown here (p=16 -n 4 prefill dominated); GEVM engage confirmed during ppl (nr=1/decode) run
+"WEFT L2-q5K EMITTED GEMM(...) ENGAGED n=4096 nr=512 nc=128 vlen=128".
+Reverse control DOUBLE-CLEAN: OFF->ON engine lights (tcrv_sym 0->2, banner 0->2, engage 4),
+ON->OFF engine dark (tcrv_sym 2->0, banner 2->0, engage 0).

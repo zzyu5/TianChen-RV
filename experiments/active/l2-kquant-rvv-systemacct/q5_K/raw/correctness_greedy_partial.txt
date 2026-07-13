@@ -1,0 +1,10 @@
+
+== q5_K CORRECTNESS A=q5kON.clangrepack B=q4kOFF.gcc model=DeepSeek-R1-Distill-Llama-8B-Q5_K_M.gguf ntok=24 ==
+-- [1] 'The capital of France is'
+   A(repack):  > The capital of France is<think> Okay, so I need to figure out the capital of France. Hmm, > EOF b
+   B(blkdot):  > The capital of France is<think>  </think>  The capital of France is **Paris**.  > EOF by user   
+   A!=B (bounded-ULP coherent divergence candidate)
+-- [2] 'Once upon a time'
+   A(repack):  > Once upon a time<think> Okay, so I'm trying to figure out how to respond to the user's > EOF by u
+   B(blkdot):  > Once upon a time<think> Okay, so I'm trying to figure out how to respond to the user's > EOF by u
+Terminated

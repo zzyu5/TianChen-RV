@@ -1,0 +1,14 @@
+
+dir=/tmp/dkgv/sysacct_q5k
+  == PHASE A: SYSTEMS account (clang vs stock) ==
+  -- prefill pp128 --
+    clang(q5kON clang18) median=1.5035 min=1.5013 max=1.5061 n=4 relIQR=0.28%
+    stock(q4kOFF blockdot) median=1.7307 min=1.7268 max=1.7312 n=4 relIQR=0.20%
+    SYSTEMS clang/stock prefill = 0.8688x  [LOSS]
+  -- decode tg16 --
+    clang median=0.5130 min=0.5105 max=0.5168 n=4 relIQR=0.92%
+    stock median=0.7865 min=0.7860 max=0.7873 n=4 relIQR=0.15%
+    SYSTEMS clang/stock decode = 0.6522x  [LOSS]
+  == PHASE B: SYMMETRIC-GCC account (gcc vs stockB) ==
+  -- prefill pp128 --
+  -- decode tg16 --

@@ -1,0 +1,33 @@
+[q5k-mixed] load=4.26 5.31 5.02 5/1417 2314745
+=== [0] baseline verify (3 files) + backup ===
+=== [0b] stage emitted .inc (gemm ba30ba54 / gevm c445b89e) ===
+  gemm.inc md5=ba30ba5450f1(expect ba30ba5450f1) gevm.inc md5=c445b89e12ba(expect c445b89e12ba)
+=== [1] confirm OFF baseline (q4kOFF.gcc = pristine block-dot; q5_K -> block-dot) ===
+  q4kOFF.gcc md5=05a62e6a8285(expect 05a62e6a8285)
+=== [2] copy emitted .inc into ARCHDIR + apply q5_K rvv patch ===
+PATCH OK (L2 q5_K @ rvv net-new riscv 1,16 scaffold + emitted VLA kernel deploy; case128=ON)
+HDR  md5: 28176530e1c5cfb294855325f155c7f9  struct: True  decls: 1
+GEN  md5: 7ae8d812e4e29f99f6a07ae70d4ad13d  make: True  repack_tmpl: True  gemv_tmpl: True  gemm_tmpl: True  trait: True  dispatch_riscv: True  case128_on: True
+ARCH md5: 059814e3ea3f25b1c0a1fd2fa752ca48  inc_gemm: True  inc_gevm: True  gevm_body: True  gemm_body: True  gevm_call: True  gemm_call: True
+=== [2b] gcc-15 build patched source -> q5kON.gcc (SYMMETRIC-GCC account) ===
+  q5kON.gcc md5=a381efbf03e3
+=== [3] clang-18 recompile the 2 repack TUs (patched source) ===
+  arch.o OK
+  gen.o OK
+=== [4] relink (g++ -shared) -> q5kON.clangrepack ===
+  relink OK
+  q5kON.clangrepack md5=53b2d3b0533e
+=== [5] SEAL: nm + banner + objdump spill (gcc-death: q5kON.gcc vs q5kON.clangrepack) ===
+  [q5kON.gcc] nm tcrv q5_K syms=2(expect2) banner_gemm=1 banner_gevm=1
+     gemm: spill=4124 vsetvli=6612 vwmacc=2240 vsetivli16=0
+     gevm: spill=454 vsetvli=2952 vwmacc=560 vsetivli16=0
+  [q5kON.clangrepack] nm tcrv q5_K syms=2(expect2) banner_gemm=1 banner_gevm=1
+     gemm: spill=155 vsetvli=52 vwmacc=2240 vsetivli16=0
+     gevm: spill=97 vsetvli=57 vwmacc=560 vsetivli16=0
+=== [6] restore source byte-exact (3 files) + rm .inc + pristine rebuild ===
+  pristine rebuild OK
+  source RESTORED GEN=deb61a29dd079440ffdc8996b5bd2fa1 HDR=57851439e7c6f5e35aca7986e148e42b ARCH=99131cf791e30348b588423b2388e0b8 ; live=05a62e6a8285 tcrv_q5k_sym=0(expect0)
+=== q5k-mixed DONE ===
+05a62e6a82857cdf247ba1933c695849  /tmp/dkgv/libggml-cpu.so.q4kOFF.gcc
+a381efbf03e3f24a9a74f06320b4edfb  /tmp/dkgv/libggml-cpu.so.q5kON.gcc
+53b2d3b0533ee2d7e26ec56cf427c94d  /tmp/dkgv/libggml-cpu.so.q5kON.clangrepack

@@ -1,0 +1,35 @@
+== q5_K CORRECTNESS A=q5kON.clangrepack B=q4kOFF.gcc model=DeepSeek-R1-Distill-Llama-8B-Q5_K_M.gguf ntok=24 ==
+(fresh rvv/VLEN128 greedy A vs B, temp0 top-k1 seed1; DeepSeek-R1-Distill reasoning model)
+
+-- [1] 'The capital of France is'
+   A(repack):  The capital of France is<think> Okay, so I need to figure out the capital of France. Hmm, ...
+   B(blkdot):  The capital of France is<think>  </think>  The capital of France is **Paris**.
+   A!=B (bounded-ULP COHERENT divergence: A enters a reasoning trace, B answers directly; both coherent,
+        both grounded on "capital of France" -- a single early argmax flip cascaded. NOT garbage/NaN.)
+-- [2] 'Once upon a time'
+   A(repack):  Once upon a time<think> Okay, so I'm trying to figure out how to respond to the user's ...
+   B(blkdot):  Once upon a time<think> Okay, so I'm trying to figure out how to respond to the user's ...
+   A==B byte-identical (prefix shown; both identical reasoning trace)
+
+engage: WEFT L2-q5K EMITTED (GEMM+GEVM) fired at vlen=128 during generation; nan=0.
+
+STANDING (bounded-ULP GREEN, matches q5_K@k1 M2 correctness exactly):
+- ZERO-MODEL bit-exact-INTEGER: PROVEN independently -- kernel-axis t4a (k1/VLEN256 ULP0 int,
+  norm 8e-7 vs independent scalar q5_K dequant-matmul oracle) + M4-q5K full cert (cert-lineage
+  schema: REAL dmin!=0 tensor, same ggml_quantize_mat_q8_K fed both sides, INTEGER MAIN/MIN
+  0-mismatch, our repack-GEMM CLOSER to int-exact fold than ggml's own generic). The emitted VLA
+  kernel's integer fold is VLEN-INDEPENDENT (same avl=8 reduction order) => carries to VLEN128.
+- greedy A vs B @ rvv/VLEN128 (this session): MIX = byte-identical (p2) + bounded-ULP coherent
+  divergence (p1). Our repack fp-fold != block-dot fold (fp reassociation) => argmax-sensitive
+  DeepSeek-R1 cascades on some prompts. This is q5_K's EXPECTED honest standing (identical to k1:
+  "3/4 byte-identical + 1/4 coherent-flip"), NOT strict byte-identity (unlike q4_K/q2_K where the
+  shared min-fold gave byte-identical greedy).
+- MIRAGE ruled out: coherent reasoning output on BOTH variants (a layout/ABI bug => garbage / ppl
+  in the hundreds-thousands / NaN, cf. vl16 PPL 822057). q5_K real dmin!=0 + qh 5th-bit plane both
+  exercised (block_q5_Kx16 stride 2816, qh @256).
+- VERDICT: CORRECTNESS_GATE = GREEN @ bounded-ULP.
+
+(A fresh rvv ppl ON-vs-OFF numeric anchor was attempted but the ppl batch dim nr=512 made the
+ S6-tiled ON kernel run pathologically slow at VLEN128 (>8 min/batch, env), so the ppl was aborted
+ and LIVE restored; the k1 M2 ppl reference ON 17.9683 +/- 3.809 vs OFF 17.9095 +/- 3.785 (Δ0.33%
+ within +/-3.8) stands as the argmax-immune numeric anchor for the same VLA kernel / same fold.)

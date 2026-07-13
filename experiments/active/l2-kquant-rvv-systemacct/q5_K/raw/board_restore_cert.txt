@@ -1,0 +1,20 @@
+== q5_K BOARD RESTORE — md5 TRIPLE-CERT (final verified clean) ==
+
+cert-1 (live .so OFF-pristine):
+  live md5 = 05a62e6a8285  (expect 05a62e6a8285)  PASS
+  tcrv_q5k_sym in live = 0  (expect 0)  PASS
+cert-2 (source 3-file byte-exact baseline):
+  GEN  repack.cpp            = deb61a29dd07  (expect deb61a29dd07)  PASS
+  HDR  repack.h              = 57851439e7c6  (expect 57851439e7c6)  PASS
+  ARCH arch/riscv/repack.cpp = 99131cf791e3  (expect 99131cf791e3)  PASS
+cert-3 (no q5_K stray .inc in ARCHDIR):
+  tcrv_emitted_*q5_K*.inc = 0  (expect 0)  PASS   (q5k_mixed_build.sh EXIT trap rm + step[6] restore)
+
+processes (final):
+  real llama-bench on cores 8-15 = 0  (killed intermediate stale bench 2318466)
+  real q5k_sym_gcc.sh / q5k_measure_lean = 0  (sym repro aborted — gcc-spill4124 bench env-slow)
+  vLLM qwen3-32b TP2 Worker on cores 0,1 (CHIP_MAP=0,1) — UNTOUCHED (NOT restarted; disjoint from 8-15)
+
+board: source 3 files pristine · live OFF-pristine · no stray .inc · no campaign leftover · NO git.
+NOTE: an intermediate snapshot showed bench=1 (a stale llama-bench mid-cleanup) which was then
+kill -9'd; final confirmed state = bench_now=0, live=05a62e6a8285.
