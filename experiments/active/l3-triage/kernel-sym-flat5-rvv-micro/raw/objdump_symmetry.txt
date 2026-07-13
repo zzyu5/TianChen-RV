@@ -1,0 +1,17 @@
+# objdump dual-side symmetry proof (rvv/VLEN128, rvv board, core 14)
+# OURS = exported repack GEMM kernel compiled gcc-15.2.0 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# OPP  = ggml real dispatched block-dot ggml_vec_dot_qX_qY from board libggml-cpu.so (gcc-15 build, md5 d1adc634c2ca04ffc389536b30d9d9c4)
+# rvv-insn = count of vector insns (v*.{v,w,x,s,i} + vsetvl) inside the symbol.
+#
+# fmt   OURS(gcc-15 O3) sym                                                 OURS_rvv | OPP sym                 OPP_rvv
+q4_0   tcrv_emitc_ggml_gemm_q4_0_q8_0_kernel_ggml_gemm_q4_0_q8_0             31      | ggml_vec_dot_q4_0_q8_0   10
+q4_1   tcrv_emitc_ggml_gemm_q4_1_q8_1_kernel_ggml_gemm_q4_1_q8_1             46      | ggml_vec_dot_q4_1_q8_1    8
+q5_0   tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0             49      | ggml_vec_dot_q5_0_q8_0   26
+q5_1   tcrv_emitc_ggml_gemm_q5_1_q8_1_kernel_ggml_gemm_q5_1_q8_1             63      | ggml_vec_dot_q5_1_q8_1   24
+q8_0   tcrv_emitc_ggml_gemm_q8_0_q8_0_kernel_ggml_gemm_q8_0_q8_0             26      | ggml_vec_dot_q8_0_q8_0    7
+#
+# per-run harness header confirms KERNEL_CC=gcc(15.2.0) LINK_CC=gcc(15.2.0) for the symmetric account (both sides gcc-15).
+# vsetvl_count per kernel (from harness stderr): q4_0=6 q4_1=14 q5_0=11 q5_1=19 q8_0=8 (gcc); clang variant differs (19/35/25/41/30).
+# fp16-libcall-free OK for all 5 (no __truncsfhf2/__extendhfsf2 soft-fp confound).
+# INTERPRETATION: light-vectorized opp (q4_0/q4_1/q8_0 = 7-10 rvv-insn) -> big repack win (4-7x);
+#                 better-vectorized opp (q5_0/q5_1 = 24-26 rvv-insn) -> modest win (1.2-1.4x). Matches flat-covering-batch1.

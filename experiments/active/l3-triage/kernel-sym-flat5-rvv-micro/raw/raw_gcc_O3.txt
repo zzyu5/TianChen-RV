@@ -1,0 +1,83 @@
+
+PRE-LOAD: 4.73 4.45 4.37 3/1415 2305764
+==== FMT=q4_0 CC=gcc OPT=O3 N=12 core=14 ====
+# KERNEL_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) LINK_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs ggml=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin(gcc-15) core=14 q4_0_obj=3624B
+# OUR_q4_0 fp16-libcall-free OK
+# OUR_KERNEL vsetvl_count=6
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.458e-05 relerr_opp=1.458e-05 nbad=0 GATE=PASS ours_ns=2019721.1 ours_gmacs=8.3067 opp_ns=13598755.0 opp_gmacs=1.2337 ratio_ours_over_opp=6.7330 sink=1104.8
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.689e-05 relerr_opp=1.689e-05 nbad=0 GATE=PASS ours_ns=2032405.2 ours_gmacs=8.2549 opp_ns=13602947.0 opp_gmacs=1.2334 ratio_ours_over_opp=6.6930 sink=891.9
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.845e-05 relerr_opp=1.845e-05 nbad=0 GATE=PASS ours_ns=2050509.3 ours_gmacs=8.1820 opp_ns=13619682.3 opp_gmacs=1.2318 ratio_ours_over_opp=6.6421 sink=144.6
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.552e-05 relerr_opp=1.552e-05 nbad=0 GATE=PASS ours_ns=2032658.0 ours_gmacs=8.2538 opp_ns=13621683.9 opp_gmacs=1.2317 ratio_ours_over_opp=6.7014 sink=-85.9
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.305e-05 relerr_opp=1.305e-05 nbad=0 GATE=PASS ours_ns=2033267.6 ours_gmacs=8.2514 opp_ns=13611133.5 opp_gmacs=1.2326 ratio_ours_over_opp=6.6942 sink=-421.2
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.358e-05 relerr_opp=2.358e-05 nbad=0 GATE=PASS ours_ns=2031122.8 ours_gmacs=8.2601 opp_ns=13595261.4 opp_gmacs=1.2340 ratio_ours_over_opp=6.6935 sink=744.8
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.947e-05 relerr_opp=1.947e-05 nbad=0 GATE=PASS ours_ns=2028585.2 ours_gmacs=8.2704 opp_ns=13619023.1 opp_gmacs=1.2319 ratio_ours_over_opp=6.7136 sink=1184.1
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.587e-05 relerr_opp=1.587e-05 nbad=0 GATE=PASS ours_ns=2018510.7 ours_gmacs=8.3117 opp_ns=13603896.6 opp_gmacs=1.2333 ratio_ours_over_opp=6.7396 sink=102.0
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.465e-05 relerr_opp=1.465e-05 nbad=0 GATE=PASS ours_ns=2021518.7 ours_gmacs=8.2993 opp_ns=13599601.4 opp_gmacs=1.2337 ratio_ours_over_opp=6.7274 sink=-517.6
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.244e-05 relerr_opp=1.244e-05 nbad=0 GATE=PASS ours_ns=2023122.8 ours_gmacs=8.2927 opp_ns=13618584.7 opp_gmacs=1.2319 ratio_ours_over_opp=6.7315 sink=-441.5
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.085e-05 relerr_opp=1.085e-05 nbad=0 GATE=PASS ours_ns=2031249.2 ours_gmacs=8.2596 opp_ns=13606490.2 opp_gmacs=1.2330 ratio_ours_over_opp=6.6986 sink=-1007.5
+FLATGEMM fmt=q4_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.323e-05 relerr_opp=1.323e-05 nbad=0 GATE=PASS ours_ns=2029785.2 ours_gmacs=8.2655 opp_ns=13623466.3 opp_gmacs=1.2315 ratio_ours_over_opp=6.7118 sink=1661.7
+==== FMT=q4_1 CC=gcc OPT=O3 N=12 core=14 ====
+# KERNEL_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) LINK_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs ggml=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin(gcc-15) core=14 q4_1_obj=3440B
+# OUR_q4_1 fp16-libcall-free OK
+# OUR_KERNEL vsetvl_count=14
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.263e-05 relerr_opp=1.983e-05 nbad=0 GATE=PASS ours_ns=1945116.8 ours_gmacs=8.6253 opp_ns=13272198.4 opp_gmacs=1.2641 ratio_ours_over_opp=6.8233 sink=521.2
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=5.300e-05 relerr_opp=2.088e-05 nbad=0 GATE=PASS ours_ns=1943079.2 ours_gmacs=8.6343 opp_ns=13280588.0 opp_gmacs=1.2633 ratio_ours_over_opp=6.8348 sink=1540.6
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.909e-05 relerr_opp=1.901e-05 nbad=0 GATE=PASS ours_ns=1962344.1 ours_gmacs=8.5496 opp_ns=13260574.3 opp_gmacs=1.2652 ratio_ours_over_opp=6.7575 sink=-1484.2
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.965e-05 relerr_opp=4.339e-05 nbad=0 GATE=PASS ours_ns=1956646.4 ours_gmacs=8.5745 opp_ns=13264647.1 opp_gmacs=1.2648 ratio_ours_over_opp=6.7793 sink=338.5
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.495e-05 relerr_opp=2.593e-05 nbad=0 GATE=PASS ours_ns=1957784.8 ours_gmacs=8.5695 opp_ns=13278615.2 opp_gmacs=1.2635 ratio_ours_over_opp=6.7825 sink=-536.9
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=4.187e-05 relerr_opp=2.798e-05 nbad=0 GATE=PASS ours_ns=1938241.6 ours_gmacs=8.6559 opp_ns=13279559.2 opp_gmacs=1.2634 ratio_ours_over_opp=6.8513 sink=-4645.6
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.385e-05 relerr_opp=2.792e-05 nbad=0 GATE=PASS ours_ns=1937868.8 ours_gmacs=8.6576 opp_ns=13272085.5 opp_gmacs=1.2641 ratio_ours_over_opp=6.8488 sink=193.5
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.718e-05 relerr_opp=4.077e-05 nbad=0 GATE=PASS ours_ns=1931316.7 ours_gmacs=8.6869 opp_ns=13274248.0 opp_gmacs=1.2639 ratio_ours_over_opp=6.8732 sink=-1672.5
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=5.328e-05 relerr_opp=2.728e-05 nbad=0 GATE=PASS ours_ns=1925716.7 ours_gmacs=8.7122 opp_ns=13280984.8 opp_gmacs=1.2633 ratio_ours_over_opp=6.8966 sink=-1639.1
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=6.397e-05 relerr_opp=2.257e-05 nbad=0 GATE=PASS ours_ns=1954124.8 ours_gmacs=8.5855 opp_ns=13279588.8 opp_gmacs=1.2634 ratio_ours_over_opp=6.7957 sink=-1323.7
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.805e-05 relerr_opp=2.946e-05 nbad=0 GATE=PASS ours_ns=1945763.2 ours_gmacs=8.6224 opp_ns=13271545.5 opp_gmacs=1.2641 ratio_ours_over_opp=6.8207 sink=-824.5
+FLATGEMM fmt=q4_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.277e-05 relerr_opp=2.563e-05 nbad=0 GATE=PASS ours_ns=1941068.8 ours_gmacs=8.6433 opp_ns=13271491.2 opp_gmacs=1.2642 ratio_ours_over_opp=6.8372 sink=-658.6
+==== FMT=q5_0 CC=gcc OPT=O3 N=12 core=14 ====
+# KERNEL_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) LINK_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs ggml=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin(gcc-15) core=14 q5_0_obj=3480B
+# OUR_q5_0 fp16-libcall-free OK
+# OUR_KERNEL vsetvl_count=11
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.190e-05 relerr_opp=2.190e-05 nbad=0 GATE=PASS ours_ns=4388394.2 ours_gmacs=3.8231 opp_ns=5293913.5 opp_gmacs=3.1692 ratio_ours_over_opp=1.2063 sink=-116.7
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.450e-05 relerr_opp=2.450e-05 nbad=0 GATE=PASS ours_ns=4350215.6 ours_gmacs=3.8566 opp_ns=5696576.1 opp_gmacs=2.9451 ratio_ours_over_opp=1.3095 sink=4563.1
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.096e-05 relerr_opp=2.096e-05 nbad=0 GATE=PASS ours_ns=4363056.5 ours_gmacs=3.8453 opp_ns=5292999.9 opp_gmacs=3.1697 ratio_ours_over_opp=1.2131 sink=-879.2
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=3.011e-05 relerr_opp=3.011e-05 nbad=0 GATE=PASS ours_ns=4378076.6 ours_gmacs=3.8321 opp_ns=5584586.8 opp_gmacs=3.0042 ratio_ours_over_opp=1.2756 sink=-848.4
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.503e-05 relerr_opp=2.503e-05 nbad=0 GATE=PASS ours_ns=4345155.6 ours_gmacs=3.8611 opp_ns=5293939.1 opp_gmacs=3.1691 ratio_ours_over_opp=1.2184 sink=-1925.0
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.658e-05 relerr_opp=2.658e-05 nbad=0 GATE=PASS ours_ns=4352334.9 ours_gmacs=3.8548 opp_ns=5467180.7 opp_gmacs=3.0687 ratio_ours_over_opp=1.2561 sink=1900.9
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.941e-05 relerr_opp=2.941e-05 nbad=0 GATE=PASS ours_ns=4357303.7 ours_gmacs=3.8504 opp_ns=5327664.8 opp_gmacs=3.1491 ratio_ours_over_opp=1.2227 sink=3371.7
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.838e-05 relerr_opp=2.838e-05 nbad=0 GATE=PASS ours_ns=4356723.6 ours_gmacs=3.8509 opp_ns=5648744.7 opp_gmacs=2.9701 ratio_ours_over_opp=1.2966 sink=-1447.8
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.776e-05 relerr_opp=2.776e-05 nbad=0 GATE=PASS ours_ns=4346917.2 ours_gmacs=3.8596 opp_ns=5604843.7 opp_gmacs=2.9933 ratio_ours_over_opp=1.2894 sink=659.3
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.695e-05 relerr_opp=2.695e-05 nbad=0 GATE=PASS ours_ns=4382221.4 ours_gmacs=3.8285 opp_ns=5320208.8 opp_gmacs=3.1535 ratio_ours_over_opp=1.2140 sink=947.4
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.772e-05 relerr_opp=2.772e-05 nbad=0 GATE=PASS ours_ns=4366213.3 ours_gmacs=3.8425 opp_ns=5322017.6 opp_gmacs=3.1524 ratio_ours_over_opp=1.2189 sink=1427.0
+FLATGEMM fmt=q5_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.998e-05 relerr_opp=1.998e-05 nbad=0 GATE=PASS ours_ns=4376064.6 ours_gmacs=3.8339 opp_ns=5292694.3 opp_gmacs=3.1699 ratio_ours_over_opp=1.2095 sink=932.7
+==== FMT=q5_1 CC=gcc OPT=O3 N=12 core=14 ====
+# KERNEL_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) LINK_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs ggml=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin(gcc-15) core=14 q5_1_obj=3632B
+# OUR_q5_1 fp16-libcall-free OK
+# OUR_KERNEL vsetvl_count=19
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=6.805e-05 relerr_opp=6.153e-05 nbad=0 GATE=PASS ours_ns=4219351.9 ours_gmacs=3.9763 opp_ns=6022484.0 opp_gmacs=2.7858 ratio_ours_over_opp=1.4273 sink=-8532.3
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=5.466e-05 relerr_opp=5.391e-05 nbad=0 GATE=PASS ours_ns=4202783.8 ours_gmacs=3.9919 opp_ns=5755343.6 opp_gmacs=2.9151 ratio_ours_over_opp=1.3694 sink=711.4
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=4.038e-05 relerr_opp=4.045e-05 nbad=0 GATE=PASS ours_ns=4189477.3 ours_gmacs=4.0046 opp_ns=5865084.1 opp_gmacs=2.8605 ratio_ours_over_opp=1.4000 sink=-3430.5
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.219e-04 relerr_opp=3.473e-05 nbad=0 GATE=PASS ours_ns=4198176.6 ours_gmacs=3.9963 opp_ns=5933140.4 opp_gmacs=2.8277 ratio_ours_over_opp=1.4133 sink=-2428.5
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=7.876e-05 relerr_opp=4.919e-05 nbad=0 GATE=PASS ours_ns=4200135.8 ours_gmacs=3.9944 opp_ns=5986311.0 opp_gmacs=2.8026 ratio_ours_over_opp=1.4253 sink=325.5
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=7.666e-05 relerr_opp=4.126e-05 nbad=0 GATE=PASS ours_ns=4199254.2 ours_gmacs=3.9953 opp_ns=5681807.2 opp_gmacs=2.9528 ratio_ours_over_opp=1.3531 sink=-1505.0
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=6.117e-05 relerr_opp=4.681e-05 nbad=0 GATE=PASS ours_ns=4206619.8 ours_gmacs=3.9883 opp_ns=5981089.4 opp_gmacs=2.8050 ratio_ours_over_opp=1.4218 sink=-4155.7
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=5.956e-05 relerr_opp=4.762e-05 nbad=0 GATE=PASS ours_ns=4213539.8 ours_gmacs=3.9817 opp_ns=5802133.4 opp_gmacs=2.8916 ratio_ours_over_opp=1.3770 sink=-429.9
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=5.163e-05 relerr_opp=4.003e-05 nbad=0 GATE=PASS ours_ns=4194994.9 ours_gmacs=3.9993 opp_ns=5948936.5 opp_gmacs=2.8202 ratio_ours_over_opp=1.4181 sink=-7626.6
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=7.588e-05 relerr_opp=3.932e-05 nbad=0 GATE=PASS ours_ns=4187838.1 ours_gmacs=4.0062 opp_ns=6146283.0 opp_gmacs=2.7297 ratio_ours_over_opp=1.4677 sink=616.0
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=7.819e-05 relerr_opp=4.827e-05 nbad=0 GATE=PASS ours_ns=4217443.1 ours_gmacs=3.9781 opp_ns=5691353.7 opp_gmacs=2.9478 ratio_ours_over_opp=1.3495 sink=-2835.8
+FLATGEMM fmt=q5_1 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=7.149e-05 relerr_opp=5.543e-05 nbad=0 GATE=PASS ours_ns=4206658.2 ours_gmacs=3.9883 opp_ns=5696472.1 opp_gmacs=2.9452 ratio_ours_over_opp=1.3542 sink=-2196.8
+==== FMT=q8_0 CC=gcc OPT=O3 N=12 core=14 ====
+# KERNEL_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) LINK_CC=gcc (riscv64-unknown-linux-gnu-gcc (GCC) 15.2.0) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs ggml=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin(gcc-15) core=14 q8_0_obj=3608B
+# OUR_q8_0 fp16-libcall-free OK
+# OUR_KERNEL vsetvl_count=8
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.756e-04 relerr_opp=1.756e-04 nbad=0 GATE=PASS ours_ns=3281287.6 ours_gmacs=5.1130 opp_ns=13437407.9 opp_gmacs=1.2485 ratio_ours_over_opp=4.0952 sink=19270.4
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.389e-04 relerr_opp=1.389e-04 nbad=0 GATE=PASS ours_ns=3294499.7 ours_gmacs=5.0925 opp_ns=13413144.6 opp_gmacs=1.2508 ratio_ours_over_opp=4.0714 sink=11546.4
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.273e-04 relerr_opp=1.273e-04 nbad=0 GATE=PASS ours_ns=3289550.0 ours_gmacs=5.1002 opp_ns=13458170.4 opp_gmacs=1.2466 ratio_ours_over_opp=4.0912 sink=-21424.0
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=2.826e-04 relerr_opp=2.826e-04 nbad=0 GATE=PASS ours_ns=3291767.7 ours_gmacs=5.0967 opp_ns=13484717.7 opp_gmacs=1.2442 ratio_ours_over_opp=4.0965 sink=-26547.6
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.691e-04 relerr_opp=1.691e-04 nbad=0 GATE=PASS ours_ns=3290704.5 ours_gmacs=5.0984 opp_ns=13448951.1 opp_gmacs=1.2475 ratio_ours_over_opp=4.0870 sink=-18915.4
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.221e-04 relerr_opp=1.221e-04 nbad=0 GATE=PASS ours_ns=3289886.0 ours_gmacs=5.0996 opp_ns=13422811.8 opp_gmacs=1.2499 ratio_ours_over_opp=4.0800 sink=-13042.9
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.285e-04 relerr_opp=1.285e-04 nbad=0 GATE=PASS ours_ns=3294494.9 ours_gmacs=5.0925 opp_ns=13421579.0 opp_gmacs=1.2500 ratio_ours_over_opp=4.0739 sink=-15841.0
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=5.122e-05 relerr_opp=5.122e-05 nbad=0 GATE=PASS ours_ns=3305346.1 ours_gmacs=5.0758 opp_ns=13421963.0 opp_gmacs=1.2500 ratio_ours_over_opp=4.0607 sink=4287.9
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.368e-04 relerr_opp=1.368e-04 nbad=0 GATE=PASS ours_ns=3308501.4 ours_gmacs=5.0709 opp_ns=13449637.5 opp_gmacs=1.2474 ratio_ours_over_opp=4.0652 sink=-9225.6
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=1.794e-04 relerr_opp=1.794e-04 nbad=0 GATE=PASS ours_ns=3287029.2 ours_gmacs=5.1041 opp_ns=13447394.3 opp_gmacs=1.2476 ratio_ours_over_opp=4.0910 sink=20888.6
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=6.773e-05 relerr_opp=6.773e-05 nbad=0 GATE=PASS ours_ns=3296832.5 ours_gmacs=5.0889 opp_ns=13427307.0 opp_gmacs=1.2495 ratio_ours_over_opp=4.0728 sink=-952.0
+FLATGEMM fmt=q8_0 VLEN=128 K=2048 nr=16 nc=512 iters=25 relerr_ours=4.986e-05 relerr_opp=4.986e-05 nbad=0 GATE=PASS ours_ns=3301801.3 ours_gmacs=5.0812 opp_ns=13422890.2 opp_gmacs=1.2499 ratio_ours_over_opp=4.0653 sink=3440.3
+POST-LOAD: 5.20 4.84 4.55 3/1414 2306064

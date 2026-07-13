@@ -1,0 +1,5 @@
+7354d823fca87c901fd80a64c8c88c9b  gemm_q4_0.kernel.c
+31912b1385dc9dc7117243aa8f96f422  gemm_q4_1.kernel.c
+f03c6566e90379ef527e1fa94b103b04  gemm_q5_0.kernel.c
+0f52ad460e3e643722f4b79864dafbc8  gemm_q5_1.kernel.c
+03bf52660f412599920e05a03dd322dd  gemm_q8_0.kernel.c
