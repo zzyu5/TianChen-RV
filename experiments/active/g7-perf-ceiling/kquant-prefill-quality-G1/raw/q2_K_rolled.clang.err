@@ -1,0 +1,7 @@
+clang-20: warning: argument unused during compilation: '-c' [-Wunused-command-line-argument]
+In file included from /home/kingdom/.claude/jobs/6b55ec14/tmp/tcrv_emitted_gemm_q2_K.ROLLED.inc:2:
+In file included from /usr/lib/llvm-20/lib/clang/20/include/stdint.h:56:
+/usr/include/stdint.h:26:10: fatal error: 'bits/libc-header-start.h' file not found
+   26 | #include <bits/libc-header-start.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+1 error generated.
