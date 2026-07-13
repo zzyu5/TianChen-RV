@@ -39,6 +39,7 @@
 - **延迟检验**：KNEST plan（结构级·超块流式嵌套·单宽 resident accumulator）**若未来落地**，该批格**应转赢**（柱一预测：我方补上结构对齐后击败对手折中）。
 - **若 KNEST plan 落地后 q2_K/q6_K 仍不转赢** → 柱一预测**证伪**（结构对齐非充分·另有因）= 边界发现。
 - **★状态更新（2026-07-13·L4 消融归拢·`93f9b984`）= OPEN·prior 下调**：KNEST plan 未落地；但 **GEVM P2 board-falsified（67d49316·结构对齐 plan 落地了却 register-pressure 反噬）+ G6-B P3 exit-b** 两条间接负证据 → **延迟检验预期"部分证伪"风险高**（结构对齐落地 ≠ 自动转赢·见下 register-budget-fit）。仍待 KNEST 真落地才裁。
+- **★★RESOLVED-部分证伪（2026-07-14·q5_K KNEST G1 落地·`7a45a2fe`）**：**KNEST plan 首次真落地设计（q5_K·[K-10] 三问 YES/YES/YES 结构级·byte-exact 0/32·register-budget-fit PASS 0 spill·qh-recon −22.6%）→ 但 G1 perf 资格【打回】**（instruction-count ≤1.10× vs stock NOT MET·**3.76× stock·结构性不可达**：q5_K M=1 GEVM element-wise broadcast·赢点在 memory-locality 非 instruction-count·[CASE-MICRO-E2E]）。⟹ **延迟检验裁决 = 柱一"结构对齐→转赢"【部分证伪】坐实**：**结构对齐 plan 造得出（KNEST constructable·byte-exact·预算合规=柱一本体 C1 extensibility 再证）·但不自动转赢（instruction-count/memory-locality 第三层充分条件未满足）**。⇒ **柱一三级充分性链再证**：结构对齐【必要】∧ register-budget-fit【kernel-axis 充分】∧ 目标主导 e2e 相内时间/instruction-count 可达【perf 充分】。★具名新结构 gap **[GAP-EMIT-KNEST-QH-SUBBLOCK-PACK]**（q5_0 vlm direct-mask 杠杆被 q5_K sub-block-bit-packed qh 阻断·恢复需 re-transpose 更深 plan·[远期]）。q2_K/q6_K 预测收窄：**同 K-quant M=1 GEVM instruction-count 结构限·预测同 结构级 C1 可造 + perf 打回**（非转赢·延迟检验对 q2_K/q6_K 亦"部分证伪"高概率）。
 
 ## ★G7 实测精化（2026-07-13·L4 消融归拢·两柱均命中带边界·`93f9b984`/`67d49316`/`b29c269c`）
 
