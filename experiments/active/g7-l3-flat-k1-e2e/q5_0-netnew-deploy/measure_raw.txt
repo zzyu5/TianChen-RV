@@ -1,0 +1,435 @@
+== ENV FINGERPRINT (q5_0@k1) ==
+uname=Linux bianbu 6.6.63 #2.2.7.2 SMP PREEMPT Fri Aug 15 12:32:44 UTC 2025 riscv64 riscv64 riscv64 GNU/Linux
+isa=isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifence...
+nproc=8 pinned=0-3 threads=4 gov=performance
+compiler=clang-18 (both variants COMPILER-SYMMETRIC => kernel==system)
+model=/data/g7q50/tinyllama-q5_0.gguf sha256=2828d7681fff4cbf
+OFF md5=14b6add63a14d813c27b27c687a45a8d  ON md5=8be6ee1d1beebe2719f3c827abaab14b
+== LOAD-GATE (verify NO CPU-bound competitor on pinned cores 0-3) ==
+  loadavg=2.80 2.48 2.24 1/453 3302908  CPU-bound(>20%) threads on cores 0-3 = 1
+  WARN: competitor on pinned cores (interleaved ratio still robust)
+== CORRECTNESS (greedy A==B byte-identical) ==
+-- prompt[1]: 'The capital of France is'
+   A(ON) : --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   B(OFF): --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   VERDICT: MISMATCH
+     4c4
+     < Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/- 
+     ---
+     > Loading model... |-\|/-\|/-\|/-\| 
+     29c29
+     < |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\| Yes, the capital of France is Paris.
+-- prompt[2]: 'Once upon a time'
+   A(ON) : --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   B(OFF): --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   VERDICT: MISMATCH
+     4c4
+     < Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/- 
+     ---
+     > Loading model... |-\|/-\|/-\|/-\| 
+     29c29
+     < |-\|/-\|/-\|/-\|/-\|/-\|/-\|/ Once upon a time, in a small village nestled in the heart of the countryside, there lived a
+-- prompt[3]: 'Q: What is 2 + 2? A:'
+   A(ON) : --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   B(OFF): --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   VERDICT: MISMATCH
+     4c4
+     < Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/ 
+     ---
+     > Loading model... |-\|/-\|/-\|/-\| 
+     29c29
+     < |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/- Yes, 2 + 2 is 4.
+-- prompt[4]: 'The quick brown fox jumps'
+   A(ON) : --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   B(OFF): --no-conversation is not supported by llama-cli please use llama-completion instead  Loadi
+   VERDICT: MISMATCH
+     4c4
+     < Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/- 
+     ---
+     > Loading model... |-\|/-\|/-\|/-\| 
+     29c29
+     < |-\|/-\|/-\|/-\|/-\|/-\|/-\|/ Yes, the phrase "the quick brown fox jumps" is a common idiom in English that means "to
+== CORRECTNESS SUMMARY: byte_identical=0 mismatch/fail=4 ==
+== ENGAGE banner fires (proof our repack ran during e2e) ==
+17
+== PHASE-SPLIT paired A/B (PP=128 TG=32 REPS=6 PASSES=2 => n=12/side) ==
+== WARMUP (dropped) ==
+== ABPASS 1 ==
+###AB pass=1 side=on variant=ON freq_khz=1600000
+[
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:28:43Z",
+    "avg_ns": 15071609725,
+    "stddev_ns": 8620024,
+    "avg_ts": 8.492791,
+    "stddev_ts": 0.004857,
+    "samples_ns": [ 15061284348, 15082681659, 15078842246, 15063754658, 15075303610, 15067791832 ],
+    "samples_ts": [ 8.49861, 8.48655, 8.48872, 8.49722, 8.49071, 8.49494 ]
+  },
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:30:29Z",
+    "avg_ns": 13601002748,
+    "stddev_ns": 14001231,
+    "avg_ts": 2.352770,
+    "stddev_ts": 0.002421,
+    "samples_ns": [ 13620617411, 13616032260, 13590792071, 13595694036, 13586239580, 13596641135 ],
+    "samples_ts": [ 2.34938, 2.35017, 2.35454, 2.35369, 2.35532, 2.35352 ]
+  }
+]
+###END
+###AB pass=1 side=off variant=OFF freq_khz=1600000
+[
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:31:52Z",
+    "avg_ns": 33300134435,
+    "stddev_ns": 8353296,
+    "avg_ts": 3.843829,
+    "stddev_ts": 0.000964,
+    "samples_ns": [ 33315215859, 33294479662, 33292991362, 33303386977, 33299836417, 33294896338 ],
+    "samples_ts": [ 3.84209, 3.84448, 3.84465, 3.84345, 3.84386, 3.84443 ]
+  },
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:35:45Z",
+    "avg_ns": 9749900536,
+    "stddev_ns": 6277367,
+    "avg_ts": 3.282086,
+    "stddev_ts": 0.002113,
+    "samples_ns": [ 9754447838, 9748313631, 9757712121, 9743839024, 9753243305, 9741847299 ],
+    "samples_ts": [ 3.28055, 3.28262, 3.27946, 3.28413, 3.28096, 3.2848 ]
+  }
+]
+###END
+== ABPASS 2 ==
+###AB pass=2 side=on variant=ON freq_khz=1600000
+[
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:36:53Z",
+    "avg_ns": 15073430981,
+    "stddev_ns": 3887324,
+    "avg_ts": 8.491763,
+    "stddev_ts": 0.002189,
+    "samples_ns": [ 15069098726, 15077529394, 15070110537, 15075010589, 15077915502, 15070921140 ],
+    "samples_ts": [ 8.4942, 8.48945, 8.49363, 8.49087, 8.48924, 8.49318 ]
+  },
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:38:39Z",
+    "avg_ns": 13576671432,
+    "stddev_ns": 2762872,
+    "avg_ts": 2.356984,
+    "stddev_ts": 0.000480,
+    "samples_ns": [ 13572596468, 13578201553, 13579841778, 13575679125, 13574840176, 13578869492 ],
+    "samples_ts": [ 2.35769, 2.35672, 2.35643, 2.35716, 2.3573, 2.3566 ]
+  }
+]
+###END
+###AB pass=2 side=off variant=OFF freq_khz=1600000
+[
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:40:02Z",
+    "avg_ns": 33306995065,
+    "stddev_ns": 17664329,
+    "avg_ts": 3.843037,
+    "stddev_ts": 0.002037,
+    "samples_ns": [ 33308419197, 33298751932, 33288564071, 33299920435, 33340155996, 33306158760 ],
+    "samples_ts": [ 3.84287, 3.84399, 3.84516, 3.84385, 3.83921, 3.84313 ]
+  },
+  {
+    "build_commit": "unknown",
+    "build_number": 0,
+    "cpu_info": "Spacemit(R) X60",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/data/g7q50/tinyllama-q5_0.gguf",
+    "model_type": "llama 1B Q5_0",
+    "model_size": 765292544,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-13T15:43:55Z",
+    "avg_ns": 9739087043,
+    "stddev_ns": 2670963,
+    "avg_ts": 3.285729,
+    "stddev_ts": 0.000901,
+    "samples_ns": [ 9736130737, 9742490685, 9740661962, 9739924083, 9739662137, 9735652656 ],
+    "samples_ts": [ 3.28673, 3.28458, 3.2852, 3.28545, 3.28553, 3.28689 ]
+  }
+]
+###END
+== DONE == final loadavg=6.28 6.06 4.94 1/453 3306377

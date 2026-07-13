@@ -1,0 +1,9 @@
+prompt[1]: COMPLETION-IDENTICAL  ::  The capital of France is The capital of France is Paris. Exiting...
+prompt[2]: COMPLETION-IDENTICAL  ::  Once upon a time Once upon a time, in a small village nestled in the heart of th
+prompt[3]: DIVERGE
+1c1
+< noconversation is not supported by llamacli please use llamacompletion instead Loading model... build : b0unknown model : tinyllamaq5_1.gguf modalities : text available commands: exit or Ctrl+C stop or exit regen regenerate the last response clear clear the chat history read <file> add a text file glob <pattern> add text files using globbing pattern > Q: What is 2 + 2? A: The answer is 4. Exiting...
+---
+> noconversation is not supported by llamacli please use llamacompletion instead Loading model... build : b0unknown model : tinyllamaq5_1.gguf modalities : text available commands: exit or Ctrl+C stop or exit regen regenerate the last response clear clear the chat history read <file> add a text file glob <pattern> add text files using globbing pattern > Q: What is 2 + 2? A: The answer to the question is 4. Exiting...
+prompt[4]: COMPLETION-IDENTICAL  ::  The quick brown fox jumps The quick brown fox jumps over the lazy dog. Exiting..
+== CLEAN SUMMARY: token_identical=3 diverge=1 ==

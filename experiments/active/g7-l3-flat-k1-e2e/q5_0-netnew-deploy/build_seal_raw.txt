@@ -1,0 +1,35 @@
+[q5_0-k1] board=k1 VLEN256 load=2.39 2.16 2.11 4/451 3302435
+=== [0] verify shared source at baseline ===
+  GEN=3cac40aa55aece1f69e3d08d4e7e9ae2 HDR=57851439e7c6f5e35aca7986e148e42b ARCH=c3c101fdcc07cf803c4b70551c94343a
+=== [1] snapshot .ORIG (scratch, not tree) ===
+=== [2] seed dedicated build dir (cp -a stock) ===
+  cc_gen.sh + cc_arch.sh written
+=== [3] OFF build (pristine source -> q5_0 block-dot) ===
+  OFF md5=14b6add63a14d813c27b27c687a45a8d
+=== [4] apply q5_0 net-new patch + copy vl=16 incs ===
+PATCH OK (G7-L3 q5_0@k1 net-new scaffold + emitted vl=16 VLEN256 deploy)
+HDR  md5: 20f415cd90372ef94bcbe2000342789c  struct: True  decls: 2
+GEN  md5: da8b5f99133701ce2280721b7d74d3ba  make: True  repack_tmpl: True  trait: True  dispatch: True  generics: 2
+ARCH md5: 792fb88efc7b0c2c3b90536962ded787  inc_gemm: True  inc_gevm: True  gemm_call: True  gevm_call: True
+=== [5] ON build (patched -> our vl=16 repack) ===
+  ON md5=8be6ee1d1beebe2719f3c827abaab14b
+  ON != OFF (variants differ, good)
+=== [6] SEAL: q5_0 symbols + objdump vl=16 (ON) ===
+  ON weft_emitc q5_0 syms: 2
+  OFF weft_emitc q5_0 syms: 0 (expect 0)
+  OFF stock q5_0 repack syms: 0
+  weft_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0 vset forms:
+          7 e16,m1
+          5 e32,m2
+          2 e8,mf2
+  weft_emitc_ggml_vec_dot_q5_0_q8_0_kernel_ggml_vec_dot_q5_0_q8_0 vset forms:
+          4 e16,m1
+          2 e32,m2
+          2 e8,mf2
+=== [7] RESTORE shared source + verify baseline md5 ===
+  post-restore GEN=3cac40aa55aece1f69e3d08d4e7e9ae2 HDR=57851439e7c6f5e35aca7986e148e42b ARCH=c3c101fdcc07cf803c4b70551c94343a
+  RESTORE OK (all 3 == baseline; stray q5_0 incs: 0)
+=== [8] leave live lib at OFF (block-dot pristine) ===
+=== [q5_0-k1 build DONE] ===
+14b6add63a14d813c27b27c687a45a8d  /data/g7q50/scratch/libggml-cpu.so.OFF
+8be6ee1d1beebe2719f3c827abaab14b  /data/g7q50/scratch/libggml-cpu.so.ON
