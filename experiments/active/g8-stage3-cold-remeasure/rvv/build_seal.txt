@@ -1,0 +1,44 @@
+# G8 阶段三 §六 · rvv 板全量 cold A/B 重测 · BUILD SEAL (clang-18 对称域)
+# Board: rvv (openEuler, Linux 6.12.66 riscv64, VLEN128, 64c, L3=64MiB). loadavg 2.08-2.99 (co-tenant drift).
+# Date: 2026-07-14. Opponent tree: /home/ubuntu/vericurve-rv-lab/llama.cpp  ggml pin=e36a602 (== §五 aab4168c).
+# Co-tenant vLLM on core0,1 UNTOUCHED (2 procs, not disturbed). Pin: idlest of core8-15 (load-gate >=70%, picked core8@100%).
+
+## COMPILER (clang-18 对称域 · ours 与对手同编译器/flags/march)
+CLANG   = /opt/tcrv-toolchains/llvm-18.1.8/bin/clang   (clang version 18.1.8)
+BINUTILS= /opt/tcrv-toolchains/binutils-2.46.1/bin      (-fno-integrated-as -B<binutils>)
+MARCH   = rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause
+CFLAGS  = -O3 (vecdot/iqfp4/forward) / -O2 (gemm,drivers) -march=$MARCH -mabi=lp64d -fno-integrated-as -B$BINUTILS
+          (+ -ffp-contract=on for forward & gemm; + -include math.h for iqfp4 vecdot kernels)
+LINK    = gcc-15.2 driver (link-only; ALL object codegen is clang-18) + opp_link_stubs.o + -lstdc++ -lm
+          rationale: clang default ld.lld cannot find GCC crt/libstdc++/libgcc runtime; gcc driver resolves
+          runtime WITHOUT touching per-object instruction codegen (symmetry preserved: ours+opp both clang-18).
+RUNTIME = LD_LIBRARY_PATH=/opt/tcrv-toolchains/gcc-15.2.0/lib64  taskset -c <core>
+
+## OPPONENT (§五 定档真派发核 · recompiled clang-18 for symmetric domain · NOT prebuilt gcc .so)
+quants_opp.o          <- vericurve arch/riscv/quants.c (1288L)  [FLAT + K-quant _vl128 hand-tuned + iq _vl128]  clang-18  md5=ab584887
+quants_generic_opp.o  <- vericurve ggml-cpu/quants.c            [_generic fallbacks + nvfp4 generic]            clang-18  md5=8873178b
+ggmlquants_opp.o      <- vericurve ggml-quants.c (5591L)        [reference quantizers, link deps]               clang-18  md5=0b2cea06
+vec_opp.o             <- §五 /tmp/g8s3/rvv (vec.cpp)            [ggml_vec_silu_f32 / ggml_vec_soft_max_f32]      clang-18
+opp_link_stubs.o      <- /tmp/opp_link_stubs.c (4 ggml-base helpers, PROVEN off timed path, fail-closed abort)  md5=00f3c5f4
+opponent_ggml.cpp     <- verbatim ggml source (add/mul/scale/cpy/gelu/rms_norm/rope, opp_* symbols)              clang-18
+
+## OURS (weft-emitted kernels · same clang-18 recipe)
+vecdot k_{q4_0..q6_K}.o  = G7 casefile kernels/*.kernel.c (GEN_SEAL md5-sealed) recompiled clang-18
+  md5: q4_0=15c0f975 q4_1=e0558119 q5_0=111a8cf8 q5_1=7f0e711d q8_0=8b91a299
+       q2_K=8684675a q3_K=f6382672 q4_K=6e2b4b81 q5_K=71056ef6 q6_K=f1584df1
+iqfp4 kv_{iq1_s,iq1_m,iq4_nl,nvfp4}.o = G7 iqfp4-dequant-rvv kernels_vecdot recompiled clang-18
+forward {9 ops}.o = G7 bclass-forward-ops kernels recompiled clang-18
+gemm k_{q2..q6}.o = REGENERATED via build-weft/bin/weft-opt (fixtures test/Conversion/RVV/rvv-to-emitc-repack-gemm-*-K-q8-K.mlir)
+  source md5 vs MANIFEST 677a2f7f: q2/q4/q5/q6 EXACT MATCH (d9dee831/f373bdb5/41368b6d/bf477693); q3 drifted (fixture edit @aab4168c) -> re-verified byte-exact
+  .o md5: q2=2a0a9c66 q3=9bbd0fc6 q4=a0e181c9 q5=6a7d8fa2 q6=2911c909
+
+## COLD PROTOCOL (TileLang-style)
+vecdot/iqfp4: driver 224MiB flush before each timed region · paired A/B · N=12 reps · median + relIQR · M=1 GEVM primary + M=8 point
+forward: pool footprint target_mb=256 (>3x 64MiB L3) streams cold each round · N=12 · anchor n=4096 (+2048/8192)
+gemm: 224MiB flush paired · N=12 · nr{4,8,16,64} sweep · prefill (nr>=16) primary verdict
+
+## BYTE-EXACT (ZERO-MODEL / ULP gate)
+vecdot+iqfp4 (INT): all 14 formats 0 int_byte_mismatch / 0 ULP (M=1 & M=8, in-run VERIFY)
+forward (f32):      all 9 ops maxulp_ours_vs_opp=0 EXCEPT gelu (structural f16-LUT vs tanhf; ours MORE accurate, not a mismatch)
+gemm (INT):         q4_K + q3_K freshly re-verified clang-18 (verify_q{4,3}K.c): GEMM/GEVM int_mismatch=0 all shapes;
+                    q2/q5/q6 inherited (kernel md5 == batch1 silicon-verified + vec_dot cores 0/0 clang-18; integer core is compiler-independent-exact)
