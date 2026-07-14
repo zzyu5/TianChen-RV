@@ -2148,7 +2148,9 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
 
 // Forward declaration ([GAP-EMIT-UNROLL] / [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP]
 // schedule resolver, defined below): PREFER the explicit emit_loop_schedule stamp,
-// else the capability-derived default (frozen to unrolled). Shared by the q2_K GEMM
+// else the MEASURED-GATE default -- UNROLLED unless code-volume>budget AND a board
+// measurement records rolled beneficial (measured table EMPTY today => unrolled; the
+// [ROLL] capability is wired but activation is measured-gated). Shared by the q2_K GEMM
 // main-term dispatch AND the q5_K GEVM whole-K-nest rolled envelope dispatch.
 static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
                                         llvm::StringRef coreLmul, int64_t qk,
@@ -2504,9 +2506,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*, never
     // the *what*), SHARED across the min-fold K-quant GEVM family (q5_K/q4_K/q2_K): PREFER
-    // the explicit emit_loop_schedule stamp, else the capability-derived default (frozen to
-    // unrolled -- the byte-exact-neutral shipped form; existing fixtures carry NO stamp =>
-    // unchanged output). GEVM is M=1 (no activation column interleave), so
+    // the explicit emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED
+    // unless code-volume>budget AND a board measurement records rolled beneficial (measured
+    // table EMPTY today => UNROLLED, the byte-exact-neutral shipped form; existing fixtures
+    // carry NO stamp => unchanged output). The [ROLL] capability is WIRED but activation is
+    // measured-gated (Stage-3 board A/B). GEVM is M=1 (no activation column interleave), so
     // activationInterleave is 1. BYTE-EXACT across both schedules by construction (identical
     // vwmacc accumulation order -- only the dominant per-16-element inner loop is
     // materialized as a runtime emitc.for instead of unrolled).
@@ -2634,11 +2638,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
     // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*, never
     // the *what*), SHARED across the no-min K-quant GEVM family (q6_K/q3_K): PREFER the
-    // explicit emit_loop_schedule stamp, else the capability-derived default (frozen to
-    // unrolled -- the byte-exact-neutral shipped form; existing fixtures carry NO stamp =>
-    // unchanged output). GEVM is M=1, so activationInterleave is 1. BYTE-EXACT across both
-    // schedules by construction (identical vwmacc accumulation order -- only the dominant
-    // inner element loop is materialized as a runtime emitc.for instead of unrolled).
+    // explicit emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED unless
+    // code-volume>budget AND a board measurement records rolled beneficial (measured table
+    // EMPTY today => UNROLLED, the byte-exact-neutral shipped form; existing fixtures carry
+    // NO stamp => unchanged output). The [ROLL] capability is WIRED but activation is
+    // measured-gated (Stage-3 board A/B). GEVM is M=1, so activationInterleave is 1.
+    // BYTE-EXACT across both schedules by construction (identical vwmacc accumulation order
+    // -- only the dominant inner element loop is materialized as a runtime emitc.for
+    // instead of unrolled).
     bool rolledMainTerm = resolveRepackMainTermRolled(
         loopBody.getEmitLoopSchedule(), coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
@@ -3035,24 +3042,50 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 // folds' acc_next; the within-block weight/activation quant byte offsets driving the
 // integer core are SOURCED from the CORE brick (the anti-bypass surface).
 
-// [GAP-EMIT-UNROLL] capability-keyed schedule selection for the repack GEMM main
+// [GAP-EMIT-UNROLL] capability-keyed schedule selection for the repack GEMM/GEVM main
 // term. Returns whether to emit the compact ROLLED runtime-loop form (true) vs the
 // register-resident UNROLLED full static unroll (false).
 //
 // Key hierarchy (the *how*, never the *what*):
 //   1. explicit emit_loop_schedule stamp ("rolled"|"unrolled") -- the A/B forcing
-//      override + a capability policy pin;
-//   2. else the CAPABILITY-DERIVED default keyed on the CODE-VOLUME fact: the static
-//      instruction volume the full unroll would materialize for the main term
-//      (numHalves strips * nSuperHalves * mHalves(2) * mGroup(16) * columnsPerPass *
-//      lanes(4) vwmacc16) measured against an I-cache instruction budget. When the
-//      unrolled volume exceeds the budget the compact rolled loop is selected.
+//      override + a capability policy pin (fixtures / on-board A/B drive it);
+//   2. else the MEASURED-GATE default: the CODE-VOLUME capability fact (the static
+//      main-term unroll instruction volume -- numHalves strips * nSuperHalves *
+//      mHalves(2) * mGroup(16) * columnsPerPass * lanes(4) vwmacc16, measured against
+//      an I-cache instruction budget) is a NECESSARY predicate leg that selects the
+//      roll-ELIGIBLE super-block family, but it is NOT SUFFICIENT on its own. Rolling
+//      only happens when that code volume exceeds the budget AND a per-(shape x board)
+//      MEASUREMENT records the rolled form as beneficial (reason "measured"). The
+//      measured table is EMPTY today (Stage-3 populates the per-format x board
+//      crossover, board-MEASURED and NEVER projected --
+//      [GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]), so EVERY reached super-block K-quant
+//      main term resolves to the UNROLLED default => BYTE-EXACT with the pre-[ROLL]
+//      shipped emit; every existing no-stamp fixture stays green.
+//
+// This mirrors the loop-order siblingColGroupOuter gate (activate only on
+// reason=="measured") and the full-LMUL[B] selectRepackAccumulatorLMUL gate (default
+// mf2, flip only on a board measurement): DEFAULT UNCHANGED, activate only on measured.
 //
 // The register-budget axis is NOT binding for the S6-tiled body (peak-live is already
 // <=32 vreg by construction), so the DISCRIMINANT capability fact is code volume vs
 // I-cache budget, not register pressure. Byte-exact across both schedules by
 // construction (identical integer accumulation order -- only the loop is materialized
-// instead of unrolled).
+// instead of unrolled), so the measured gate is a PURE perf lever, never a correctness
+// risk (the Stage-3 crossover flips a schedule, not a result).
+
+// STAGE THREE populates this per-(super-block-shape x board) board-measured
+// rolled-vs-unrolled crossover. EMPTY today: nullopt for every shape => the UNROLLED
+// default holds (byte-exact with the pre-[ROLL] emit). Keyed on the CODE-VOLUME /
+// vsetvli-storm SHAPE fact (the unrolled main-term proxy volume + the integer-core
+// LMUL), NEVER the format name/spelling. [GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]: the
+// VLEN256 single-strip main term is a documented carve-back CANDIDATE (may stay
+// unrolled once measured), but Stage-2 asserts NOTHING here -- no projection.
+static std::optional<bool>
+lookupRollMeasuredBeneficial(int64_t /*unrolledMainTermVwmacc*/,
+                             llvm::StringRef /*coreLmul*/) {
+  return std::nullopt;
+}
+
 static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
                                         llvm::StringRef coreLmul, int64_t qk,
                                         int64_t weightInterleave,
@@ -3065,36 +3098,47 @@ static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
       return false;
     // Any other spelling is verifier-rejected upstream; fall through defensively.
   }
-  // Capability-derived default keyed on the unrolled main-term code volume (the
-  // BOTTLENECK-SHAPE fact, NEVER the format name/spelling).
+  // Capability-derived MEASURED-GATE default keyed on the unrolled main-term code
+  // volume (the BOTTLENECK-SHAPE fact, NEVER the format name/spelling).
   int64_t numHalves = (half > 0) ? (weightInterleave / half) : 1;
   int64_t nSuperHalves = (qk > 0) ? (qk / 128) : 1;
   int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
   int64_t unrolledMainTermVwmacc = numHalves * nSuperHalves * /*mHalves*/ 2 *
                                    /*mGroup*/ 16 * columnsPerPass * /*lanes*/ 4;
-  // Phase-2 [ROLL] AUTO producer predicate (the Phase-1 sentinel is UNFROZEN): key the
-  // roll decision on the vsetvli-STORM SHAPE -- the unrolled main-term static code
-  // volume computed above from the super-block structure + numHalves -- measured against
-  // a CONSERVATIVE I-cache instruction budget. Roll when the unrolled volume EXCEEDS the
-  // budget (the per-position decode storm would not sit in the hot I-cache window). The
-  // budget is a PROXY-unit threshold: each proxy unit (one vwmacc16 position) expands to
-  // ~6-8 vector decode instrs (vle/vand/vsrl/vsll/vor/vsub) once fully unrolled, so a
-  // ~2K-instr hot-loop reservation (a conservative fraction of a 32KB / ~8K-instr L1 I$)
-  // divided by that ~8x decode expansion lands a ~256-position proxy budget; the
-  // conservative Phase-2 value sits just BELOW it so every QK_K super-block K-quant main
-  // term (q2/q3/q4/q5/q6_K -- proxy 256..4096, all carrying the real per-position decode
-  // storm) auto-rolls. numHalves stays a FIRST-CLASS input (the VLEN256 single-strip
-  // main term sits at the low end of that band). This resolver is reached ONLY from the
+  // [ROLL] MEASURED-GATE producer (mirrors the loop-order siblingColGroupOuter gate and
+  // the full-LMUL[B] selectRepackAccumulatorLMUL gate): the code-volume-vs-I-cache
+  // budget predicate is ONE (NECESSARY) leg -- it identifies the roll-ELIGIBLE
+  // super-block family whose per-position decode storm would not sit in the hot I-cache
+  // window -- but rolling is gated on a SECOND leg: a per-(shape x board) MEASUREMENT
+  // (lookupRollMeasuredBeneficial, reason "measured") confirming the rolled form
+  // beneficial. Absent the measurement the DEFAULT is UNROLLED (the pre-[ROLL] shipped
+  // form; byte-exact, zero drift). The budget is a PROXY-unit threshold: each proxy unit
+  // (one vwmacc16 position) expands to ~6-8 vector decode instrs (vle/vand/vsrl/vsll/
+  // vor/vsub) once fully unrolled, so a ~2K-instr hot-loop reservation (a conservative
+  // fraction of a 32KB / ~8K-instr L1 I$) divided by that ~8x expansion lands a
+  // ~256-position proxy; the conservative value sits just below it so the WHOLE QK_K
+  // super-block K-quant family (q2/q3/q4/q5/q6_K -- proxy 256..4096) is roll-ELIGIBLE,
+  // but NONE of it ships rolled until Stage-3 board A/B seeds the measured gate.
+  // numHalves stays a FIRST-CLASS input (the VLEN256 single-strip main term sits at the
+  // low end of that band and is a carve-back candidate --
+  // [GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]). This resolver is reached ONLY from the
   // super-block K-quant GEMM/GEVM dispatch arms (the flat/codebook/ternary front doors
-  // never call it), so no ALREADY-LEAN format is forced to roll. BYTE-EXACT either way
-  // by construction (identical accumulation order; only the loop is materialized).
-  // Phase-3 board calibration REPLACES this with the measured per-board x per-compiler
-  // budget ([GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]: VLEN256 may carve back to unrolled
-  // ONCE MEASURED -- Phase-2 does NOT project that, it conservatively rolls the whole
-  // storm-bearing family and defers the VLEN split to on-board A/B measurement).
-  constexpr int64_t kMainTermUnrollProxyICacheBudgetPhase2Conservative = 192;
-  return unrolledMainTermVwmacc >
-         kMainTermUnrollProxyICacheBudgetPhase2Conservative;
+  // never call it), so no ALREADY-LEAN format is forced through. BYTE-EXACT either way
+  // by construction (identical accumulation order; only the loop is materialized), so
+  // the gate is a PURE perf lever. Stage-3 board calibration POPULATES
+  // lookupRollMeasuredBeneficial per-board x per-compiler ([GAP-KQUANT-VLEN256-UNROLL-
+  // VS-ROLLED]: VLEN256 may carve back to unrolled ONCE MEASURED; Stage-2 does NOT
+  // project that, it defers the whole VLEN split to on-board A/B measurement).
+  constexpr int64_t kMainTermUnrollCodeVolumeICacheBudget = 192;
+  bool codeVolumeExceedsBudget =
+      unrolledMainTermVwmacc > kMainTermUnrollCodeVolumeICacheBudget;
+  if (codeVolumeExceedsBudget)
+    if (std::optional<bool> measuredRollBeneficial =
+            lookupRollMeasuredBeneficial(unrolledMainTermVwmacc, coreLmul))
+      return *measuredRollBeneficial; // reason "measured": Stage-3 board-confirmed.
+  // Measured table EMPTY (or code volume within budget) => the UNROLLED default holds
+  // (byte-identical to the pre-[ROLL] shipped emit; restores the zero-drift default).
+  return false;
 }
 
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
@@ -3487,10 +3531,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // schedule axis (the *how*, never the *what*), resolved ONCE for the WHOLE min-fold
     // K-quant GEMM family (q4_K/q2_K/q5_K share it -- the discriminant is the code-volume
     // vs I-cache budget FACT, NEVER the format spelling). PREFER the explicit front-door
-    // emit_loop_schedule stamp, else the CAPABILITY-DERIVED default. ORTHOGONAL to the
-    // q4_K colGroupOuter loop-order axis (both coexist). BYTE-EXACT across both schedules
-    // by construction (identical vwmacc16 accumulation order; only the loop is
-    // materialized).
+    // emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED unless
+    // code-volume>budget AND a board measurement records rolled beneficial (measured table
+    // EMPTY today => UNROLLED; the [ROLL] capability is WIRED but activation is
+    // measured-gated, Stage-3 board A/B). ORTHOGONAL to the q4_K colGroupOuter loop-order
+    // axis (both coexist). BYTE-EXACT across both schedules by construction (identical
+    // vwmacc16 accumulation order; only the loop is materialized).
     bool rolledMainTerm = resolveRepackMainTermRolled(
         loopBody.getEmitLoopSchedule(), coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
@@ -3654,10 +3700,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // K-quant GEMM family (q6_K AND q3_K share it -- the discriminant is the code-volume
     // vs I-cache budget FACT, NEVER the format spelling; the old "rolled is q6_K-only"
     // format-name hardcode is REMOVED). PREFER the explicit front-door emit_loop_schedule
-    // stamp ("unrolled"|"rolled"), else the CAPABILITY-DERIVED default. The GEMM tile is
-    // 4-column (activationInterleave=4), so the rolled register calculus differs from the
-    // M=1 GEVM (a distinct structural plan, not a GEVM knob flip). BYTE-EXACT across both
-    // schedules by construction (identical vwmacc16 accumulation order).
+    // stamp ("unrolled"|"rolled"), else the MEASURED-GATE default -- UNROLLED unless
+    // code-volume>budget AND a board measurement records rolled beneficial (measured table
+    // EMPTY today => UNROLLED; the q3_K/q6_K [ROLL] capability is WIRED SYMMETRICALLY by
+    // the SAME code-volume predicate but activation is measured-gated, Stage-3 board A/B).
+    // The GEMM tile is 4-column (activationInterleave=4), so the rolled register calculus
+    // differs from the M=1 GEVM (a distinct structural plan, not a GEVM knob flip).
+    // BYTE-EXACT across both schedules by construction (identical vwmacc16 accumulation
+    // order).
     bool rolledMainTerm = resolveRepackMainTermRolled(
         loopBody.getEmitLoopSchedule(), coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
