@@ -292,6 +292,36 @@
 
 ---
 
+## 六、★第一段收口对账单（2026-07-14·全量普查测量闭合后·攻坚 disposition）
+
+> **测量闭合状态**：k1-half（vec_dot 10 + iq/fp4 4 + dequant 18[DEQ-AXIS] + B 类 9）+ rvv-half（vec_dot 10 + iq/fp4 4 + dequant 18[DEQ-AXIS] `5396a22d`）+ B 类 rvv-half（`27fdc898`）+ Batch1 K-quant@rvv gemm 全毕。**全 byte-exact 0 mismatch/0 ULP·无死格**。q1_0 = provenance 存疑（枚举41·Weft-internal）单列不计数。
+
+### 6.1 三赛道计数（禁互推·禁混算）
+| 赛道 | 计数 | 说明 |
+|---|---|---|
+| **matmul kernel-sym ≥parity** | **12**（不动） | 全量普查 **0 net-new**（双板）·真 beat 集中在 repack-GEMM 轴（T9§1.1）·vec_dot/plain-GEMM 轴全 <parity（weight-recon floor + 强 `_vl128` 手调对手） |
+| **forward-op 桶**（独立） | 双板 WIN **1**（rms_norm 1-pass fusion）· ≥parity 交集 5（+add/mul/scale/cpy/rope 部分板）· softmax/silu **攻坚 IN FLIGHT**（`ae5dc0e4`） |
+| **DEQ-AXIS**（较弱赢类·独立子账） | k1 **13/18** WIN · rvv **9/18** WIN（rvv `to_float` gcc-15.2 autovec 更强·k1 scalar-ref 更弱） |
+| perf-covered / certified | 9/83 · 84/91（**不动**·本表第二赛道·非系统账/认证账） |
+
+### 6.2 攻坚 disposition（输格逐族→三出口·反汇编归因已在各 batch casefile）
+| 家族 | 冷启动 | 出口 | 具名 GAP / 归因 |
+|---|---|---|---|
+| **K-quant vec_dot**（双板 0.17–0.90×） | LOSS | **Exit A + Exit C** | 对手 `_vl128` hand-tuned STRONG（结构优势具名）+ weight-recon floor（physical）· K-quant 真 beat 归 **repack-GEMM 轴**（轴转移·Win-K1-VLEN q4_K@k1）· roll-GEMM 杠杆已试（`a98cb8fe`·recovery 6.7× 但 sub-parity 0.26×·density floor physical） |
+| **iq/fp4 vec_dot**（0.12–0.97×） | LOSS | **Exit A** | 对手向量化 RVV-gather `_vl128` STRONG · gather-throughput 硬件天花板 · `[GAP-IQ-GATHER-VS-VECTORIZED-RVV]` |
+| **FLAT q5_0/q5_1 vec_dot**（0.27×） | LOSS | **Exit（deployed 已绿）** | 部署路 = REDESIGN-B GEVM leaf（prefill 绿·`40c21de0`）· block-dot vec_dot 为 **非部署 secondary 路** · `[GAP-Q5x-QH-BLOCKDOT-EMIT]` named · low-value 不攻 |
+| **B 类 gelu**（0.15–0.24×） | LOSS | **Exit（structural）** | 对手 f16-LUT（`GGML_GELU_FP16`）· 我方 tanhf **赢精度 2500× acc** · 非公平速度 A/B |
+| **B 类 softmax/silu**（0.76–0.85×） | LOSS | **攻坚 IN FLIGHT** | parity-by-adoption **调度损** = 我方 emit immaturity（非三出口任一）→ 必须真攻（`ae5dc0e4`·反汇编→杠杆→G1→G2 双板·3 杠杆预算） |
+| **DEQ-AXIS LOSS**（rvv 8/k1 5） | LOSS | **Exit A + Exit B(k1 部分)** | rvv `to_float` autovec 强（Exit A）· k1 q2_K「ours 亦标量」可向量化（Exit B·较弱赢类·低优先） |
+
+### 6.3 ★诚实收口结论（范围严格·避免全称 over-claim·G7 补丁一.2 前车）
+- **本收口证实**（此前 patch 一.2 列为「未调查」的 ①②）：**① B 类前向算子** 双板测毕（rms_norm 唯一双板 WIN·softmax/silu 攻坚中）；**② kernel-sym matmul 全量普查** 闭合（**0 net-new 真 beat**·冷启动 matmul 轴天花板 = 结构性 Exit A[强手调对手] + physical[weight-recon floor]·**已从「单点」升为「全轴普查」坐实**·非全称外推）。
+- **仍未开采**（第二/三段·非本段范围）：**③ decode 多算子组合路径**（解剖图证 M=1 decode≈单算子 quant matmul 96%·组合 headroom 在 M>1）；**④ M>1 batch regime**（普查已顺手攒 M=8 形状点·第三段开采）。
+- **「全表超越 baseline（冷启动口径）」评估**：matmul 轴 **不可全超越**（结构性·Exit A/physical·全量普查坐实）· forward-op 轴 **部分可超越**（rms_norm 已赢·softmax/silu 攻坚决定）· DEQ-AXIS 独立较弱赢类（k1 13/rvv 9 WIN）。唯一 emitter-maturity 杠杆（roll-GEMM vsetvli-storm）已真攻（recovery·sub-parity）。
+- **第一段收口条件**：softmax/silu 攻坚 verdict 回 → forward-op 桶终值定 → **第一段闭合 → 第二段全量 e2e**。
+
+---
+
 ## 附：体例合规自检
 - e2e 分类**未改**（本表 read-only·schema 不动）·新增 kernel-sym 列一格两账并行 ✓
 - 对手类**机判符号级**（§0.3 逐符号 grep 实证·非手写类目）✓
