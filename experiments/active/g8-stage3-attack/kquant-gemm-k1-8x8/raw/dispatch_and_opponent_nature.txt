@@ -1,0 +1,58 @@
+### q5_K/q6_K dispatch decision (repack.cpp 4644-4665): NEON-only, NO riscv_v branch => returns nullptr on k1
+    } else if (cur->type == GGML_TYPE_Q5_K) {
+        if (ggml_cpu_has_neon() && ggml_cpu_has_matmul_int8()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &q5_K_8x8_q8_K;
+            }
+        }
+        if (ggml_cpu_has_neon() && ggml_cpu_has_dotprod()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &q5_K_8x4_q8_K;
+            }
+        }
+    } else if (cur->type == GGML_TYPE_Q6_K) {
+        if (ggml_cpu_has_neon() && ggml_cpu_has_matmul_int8()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &q6_K_8x8_q8_K;
+            }
+        }
+        if (ggml_cpu_has_neon() && ggml_cpu_has_dotprod()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &q6_K_8x4_q8_K;
+            }
+        }
+    } else if (cur->type == GGML_TYPE_IQ4_NL) {
+### q4_K/q2_K dispatch: HAS riscv_v branch => 16x1 selected at VLEN256
+        if (ggml_cpu_has_riscv_v()) {
+            #if defined __riscv_zvfh
+            switch (__riscv_vlenb() * 8) {
+                case 128:  { break; } // TODO
+                case 256:  { if (cur->ne[1] % 16 == 0) { return &q4_K_16x1_q8_K; } break; }
+                case 512:  { break; } // TODO
+                case 1024: { break; } // TODO
+                default:   { return nullptr; }
+            }
+            #endif
+        }
+            #if defined __riscv_zvfh
+            switch (__riscv_vlenb() * 8) {
+                case 128:  { break; } // TODO
+                case 256:  { if (cur->ne[1] % 16 == 0) { return &q2_K_16x1_q8_K; } break; }
+                case 512:  { break; } // TODO
+                case 1024: { break; } // TODO
+                default:   { return nullptr; }
+            }
+            #endif
+        }
+    } else if (cur->type == GGML_TYPE_Q5_K) {
+### ggml_gemm_q5_K_8x8_q8_K defined ONLY in arch/arm + arch/x86 (NO riscv) => generic fallback on k1
+ggml/src/ggml-cpu/repack.h
+ggml/src/ggml-cpu/repack.cpp
+ggml/src/ggml-cpu/arch/arm/repack.cpp
+### q5_K_8x8 (generic on k1) insn mix: gather-heavy, vwmacc=0
+     17 vlse8
+     15 vluxei64
+     14 vmacc.vx
+      1 vmacc.vv
+### q2_K_16x1 (real RVV hand-brick) insn mix: vwmacc present
+     16 vwmacc.vx

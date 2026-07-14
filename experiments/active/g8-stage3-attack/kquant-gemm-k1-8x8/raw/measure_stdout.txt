@@ -1,0 +1,22 @@
+# G8 8x8-followup  CC=Bianbu clang version 18.1.8 (11bb4)  march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O2  2026-07-14T17:17:42Z
+# stock_so_md5=871169a0123139692177468b3c8578be
+=== compile ours kernels (unrolled) + harness ===
+# linked OK -> h8
+=== pick idlest core 0-3 ===
+# loadavg_begin=2.80 2.34 2.23 2/452 3415600
+# core0 idle=97
+# core1 idle=97
+# core2 idle=100
+# core3 idle=97
+# PIN core=2 idle=100% gov=performance freq=1600000
+======== MEASURE ========
+H8 fmt=q4_K K=2048 nr=16 nc=512 reps=12 | XCHK_ref(opp) max_rel=2.231e-03 nbad=0/8192 transp=0 | vecdot_ref max_rel=2.820e-06 n=64 | OURS_q4_K max_rel=5.229e-04 nbad=0/8192 transp=0 | COLD ours_med_ns=2422416 oiqr=1.91% opp_med_ns=2838700 piqr=0.59% ours_gmacs=6.9258 opp_gmacs=5.9102 ratio_med=1.1718 ratio_best=1.1734 | sink=4675619069.7
+H8 fmt=q4_K K=2048 nr=64 nc=512 reps=12 | XCHK_ref(opp) max_rel=4.341e-03 nbad=0/32768 transp=0 | vecdot_ref max_rel=9.891e-07 n=64 | OURS_q4_K max_rel=1.029e-03 nbad=0/32768 transp=0 | COLD ours_med_ns=9663662 oiqr=0.45% opp_med_ns=11259676 piqr=0.36% ours_gmacs=6.9445 opp_gmacs=5.9601 ratio_med=1.1652 ratio_best=1.1639 | sink=4675682652.8
+H8 fmt=q5_K K=2048 nr=16 nc=512 reps=12 | XCHK_ref(opp) max_rel=8.770e-03 nbad=0/8192 transp=0 | vecdot_ref max_rel=1.464e-05 n=64 | COLD ours_med_ns=6399262 oiqr=0.72% opp_med_ns=185272973 piqr=0.12% ours_gmacs=2.6217 opp_gmacs=0.0906 ratio_med=28.9522 ratio_best=28.9989 | sink=4675495539.6
+H8 fmt=q5_K K=2048 nr=64 nc=512 reps=12 | XCHK_ref(opp) max_rel=6.521e-03 nbad=0/32768 transp=0 | vecdot_ref max_rel=1.900e-06 n=64 | COLD ours_med_ns=25445967 oiqr=0.31% opp_med_ns=740672772 piqr=0.07% ours_gmacs=2.6373 opp_gmacs=0.0906 ratio_med=29.1077 ratio_best=29.1715 | sink=4675701684.2
+H8 fmt=q6_K K=2048 nr=16 nc=512 reps=12 | XCHK_ref(opp) max_rel=5.112e-04 nbad=0/8192 transp=0 | vecdot_ref max_rel=8.600e-07 n=64 | COLD ours_med_ns=7557241 oiqr=0.28% opp_med_ns=128220815 piqr=0.18% ours_gmacs=2.2200 opp_gmacs=0.1308 ratio_med=16.9666 ratio_best=17.1814 | sink=4675548397.4
+H8 fmt=q6_K K=2048 nr=64 nc=512 reps=12 | XCHK_ref(opp) max_rel=1.916e-03 nbad=0/32768 transp=0 | vecdot_ref max_rel=1.120e-06 n=64 | COLD ours_med_ns=29577602 oiqr=0.33% opp_med_ns=512751637 piqr=0.04% ours_gmacs=2.2689 opp_gmacs=0.1309 ratio_med=17.3358 ratio_best=17.4047 | sink=4675616857.4
+H8 fmt=q2_K K=2048 nr=16 nc=512 reps=12 | XCHK_ref(opp) max_rel=1.983e-03 nbad=0/8192 transp=0 | vecdot_ref max_rel=2.823e-06 n=64 | OURS_q2_K max_rel=1.999e+00 nbad=7984/8192 transp=0 | COLD ours_med_ns=3389190 oiqr=0.22% opp_med_ns=4581336 piqr=0.79% ours_gmacs=4.9502 opp_gmacs=3.6621 ratio_med=1.3517 ratio_best=1.3706 | sink=4675606523.3
+H8 fmt=q2_K K=2048 nr=64 nc=512 reps=12 | XCHK_ref(opp) max_rel=4.166e-02 nbad=1/32768 transp=0 | vecdot_ref max_rel=9.541e-06 n=64 | OURS_q2_K max_rel=2.000e+00 nbad=32001/32768 transp=0 | COLD ours_med_ns=13419721 oiqr=0.45% opp_med_ns=18140804 piqr=0.50% ours_gmacs=5.0008 opp_gmacs=3.6993 ratio_med=1.3518 ratio_best=1.3555 | sink=4675588322.5
+# loadavg_after=2.93 2.46 2.28 2/452 3415696
+# ALL_DONE

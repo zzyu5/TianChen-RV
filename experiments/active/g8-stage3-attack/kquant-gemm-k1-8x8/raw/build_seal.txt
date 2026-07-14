@@ -1,0 +1,4 @@
+# G8 8x8-followup  CC=Bianbu clang version 18.1.8 (11bb4)  march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O2  2026-07-14T17:17:42Z
+# stock_so_md5=871169a0123139692177468b3c8578be
+=== compile ours kernels (unrolled) + harness ===
+# linked OK -> h8

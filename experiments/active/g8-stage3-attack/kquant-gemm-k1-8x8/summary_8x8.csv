@@ -1,0 +1,15 @@
+# G8 §六.3 P1-followup — k1 K-quant GEMM vs REAL native-layout opponent + q2_K correctness. 2026-07-15.
+# ours = weft vl=16 (half_lanes=16) repack-GEMM, clang-18.1.8 -O2 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b.
+# opponent buffers built by ggml's OWN exported repack<block_qX_K,I,N> + ggml_quantize_mat_q8_K_4x{1,8} from stock .so (md5 871169a0). read-only.
+# XCHK = ours/opp output vs INDEPENDENT scalar dequant-dot reference (this harness's re-derived dequantize_row_*, validated by ggml_vec_dot ~1e-6). nbad = count(rel>1e-2).
+# cold = 224MiB flush paired A/B, N=12, median; K=2048 nc=512; core pin; k1 no cache PMU -> wall/median.
+# KEY: q5_K/q6_K DO NOT repack on k1 (dispatch has no riscv_v branch -> nullptr -> block-dot). 8x8 GEMM = ARM/x86-only generic fallback on riscv (vwmacc=0), NOT the deployed opponent.
+fmt,nr,opp_symbol,opp_deployed_on_k1,opp_grade,opp_gmacs,ours_gmacs,xchk_opp_nbad,ours_correctness_nbad,ratio_vs_this_opp,deployed_ratio_vs_blockdot,verdict
+q4_K,16,ggml_gemm_q4_K_16x1_q8_K,YES(riscv_v case256),RVV-hand-brick,5.910,6.926,0/8192,0/8192,1.172,n_a,PASS/WIN(positive-control;ours byte-correct vs independent ref)
+q4_K,64,ggml_gemm_q4_K_16x1_q8_K,YES,RVV-hand-brick,5.960,6.945,0/32768,0/32768,1.165,n_a,PASS/WIN(control)
+q5_K,16,ggml_gemm_q5_K_8x8_q8_K,NO(nullptr->block-dot),generic-fallback(vwmacc=0;NOT-deployed),0.0906,2.622,0/8192,n_a(sep),28.95,4.45(vs deployed block-dot;census),PASS-vs-deployed-blockdot; 8x8-not-dispatched
+q5_K,64,ggml_gemm_q5_K_8x8_q8_K,NO,generic-fallback,0.0906,2.637,0/32768,n_a,29.11,4.46,PASS-vs-deployed-blockdot
+q6_K,16,ggml_gemm_q6_K_8x8_q8_K,NO(nullptr->block-dot),generic-fallback(vwmacc=0;NOT-deployed),0.1308,2.220,0/8192,n_a(sep),16.97,1.77(vs deployed block-dot;census),PASS-vs-deployed-blockdot; 8x8-not-dispatched
+q6_K,64,ggml_gemm_q6_K_8x8_q8_K,NO,generic-fallback,0.1309,2.269,0/32768,n_a,17.34,1.73,PASS-vs-deployed-blockdot
+q2_K,16,ggml_gemm_q2_K_16x1_q8_K,YES(riscv_v case256),RVV-hand-brick,3.662,4.950,0/8192,7984/8192(WRONG),1.352,n_a,OURS-WRONG(max_rel2.0)->q2_K-WIN-RETRACTED
+q2_K,64,ggml_gemm_q2_K_16x1_q8_K,YES,RVV-hand-brick,3.699,5.001,1/32768,32001/32768(WRONG),1.352,n_a,OURS-WRONG->q2_K-WIN-RETRACTED
