@@ -3617,6 +3617,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()));
+    // [GAP-EMIT-VSETVL-TAX] / [K-10] structural GEMM plan: q6_K-ONLY whole-K-nest
+    // schedule axis (the *how*, never the *what*). PREFER the explicit front-door
+    // emit_loop_schedule stamp ("unrolled"|"rolled"), else the CAPABILITY-DERIVED
+    // default (frozen to unrolled => shipped emit byte-identical). The GEMM tile is
+    // 4-column (activationInterleave=4), so the rolled register calculus differs from
+    // the M=1 GEVM (this is a distinct structural plan, not a GEVM knob flip). BYTE-
+    // EXACT across both schedules by construction (identical vwmacc accumulation
+    // order). q3_K (handled by the early return above) is NOT wired -- it stays on the
+    // frozen unrolled emit (capability-guard: rolled is q6_K-only).
+    bool rolledMainTerm = resolveRepackMainTermRolled(
+        loopBody.getEmitLoopSchedule(), coreLmul,
+        static_cast<int64_t>(loopBody.getQk()),
+        static_cast<int64_t>(loopBody.getWeightInterleave()),
+        static_cast<int64_t>(loopBody.getActivationInterleave()),
+        static_cast<int64_t>(loopBody.getHalfLanes()));
     return emitRepackKQuantGemmBodyQ6K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3629,7 +3644,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(*nSub),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+        static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
   }
 
   // ---- Shape facts (the *how* -- LMUL / strip width / spill-avoiding
@@ -10644,7 +10659,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
     int64_t weightStride, int64_t activationStride, int64_t weightQlOffset,
     int64_t activationQuantOffset, int64_t weightScalesOffset,
     int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
-    int64_t activationInterleave, int64_t half) const {
+    int64_t activationInterleave, int64_t half, bool rolledMainTerm) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -11034,46 +11049,150 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
                   llvm::SmallVector<
                       llvm::SmallVector<llvm::SmallVector<mlir::Value>>>
                       acc(activationInterleave);
-                  for (int64_t c = cLo; c < cHi; ++c) {
-                    acc[c].resize(numHalves);
-                    for (int64_t h = 0; h < numHalves; ++h)
-                      for (int q = 0; q < 4; ++q)
-                        acc[c][h].push_back(seedI16());
-                  }
-
-                  for (int64_t p = 0; p < 8; ++p) {
-                    int64_t ll = sh * 16 + k * 8 + p; // 0..31 within quadrant
-                    // SHARED weight decode per (p,h): 4 quadrant signed weights,
-                    // reused across the interleaved activation columns.
-                    llvm::SmallVector<llvm::SmallVector<mlir::Value>> wq(
-                        numHalves);
-                    for (int64_t h = 0; h < numHalves; ++h) {
-                      step("weight_ql_qh_addr");
-                      mlir::Value qlA = loadU8Strip(
-                          bl, weightQlOffset + (j * 64 + ll) * 16 + h * half);
-                      mlir::Value qlB = loadU8Strip(
-                          bl,
-                          weightQlOffset + (j * 64 + 32 + ll) * 16 + h * half);
-                      mlir::Value qh = loadU8Strip(
-                          bl, weightQhOffset + (j * 32 + ll) * 16 + h * half);
-                      for (int q = 0; q < 4; ++q) {
-                        mlir::Value qlSel =
-                            (quads[q].qlStream == 0) ? qlA : qlB;
-                        wq[h].push_back(assembleWeight(
-                            qlSel, qh, quads[q].highNib, quads[q].qhShift));
+                  if (rolledMainTerm) {
+                    // ---- ROLLED whole-K-nest main term ([GAP-EMIT-VSETVL-TAX] /
+                    // [K-10] structural GEMM plan): the dominant per-8-position inner
+                    // p-loop is materialized as ONE runtime emitc.for so gcc hoists the
+                    // e8 vsetvli out of the hot body (collapse the vsetvli storm). The
+                    // 4-column x per-strip x per-quadrant i16 partials accVar[c][h][q]
+                    // (32 @ mf2/VLEN128) are carried as RESIDENT SSA-register
+                    // VariableOps (seeded ABOVE the loop, load-accumulate-store INSIDE
+                    // it). The runtime position p only shifts the base pointers: bl+p*16
+                    // for the 16-way-interleaved weight strips, al+p*4 for the
+                    // 4-column-interleaved q8_Kx4 activation; the compile-time remainder
+                    // rides the strip offset. The 6-bit weight decode stays INSIDE the
+                    // p-loop but OUTSIDE the column loop -> each weight is decoded ONCE
+                    // and shared across all 4 activation columns (NO re-decode, NO tile
+                    // narrowing -- the whole-K-nest, not a narrow output tile).
+                    // BYTE-EXACT to the unrolled emit by construction: the vwmacc16
+                    // accumulation order (p ascending, then column c, then quadrant q,
+                    // then strip h) is IDENTICAL -- only the loop is materialized.
+                    llvm::SmallVector<
+                        llvm::SmallVector<llvm::SmallVector<mlir::Value>>>
+                        accVar(activationInterleave);
+                    for (int64_t c = cLo; c < cHi; ++c) {
+                      accVar[c].resize(numHalves);
+                      for (int64_t h = 0; h < numHalves; ++h)
+                        for (int q = 0; q < 4; ++q) {
+                          auto v = rewriter.create<emitc::VariableOp>(
+                              loc, emitc::LValueType::get(i16m1Type),
+                              emitc::OpaqueAttr::get(ctx, ""));
+                          rewriter.create<emitc::AssignOp>(loc, v, seedI16());
+                          accVar[c][h].push_back(v);
+                        }
+                    }
+                    auto pLoop = rewriter.create<emitc::ForOp>(
+                        loc, sizeLit(0), sizeLit(8), sizeLit(1),
+                        /*bodyBuilder=*/nullptr);
+                    {
+                      mlir::OpBuilder::InsertionGuard ig(rewriter);
+                      rewriter.setInsertionPointToStart(pLoop.getBody());
+                      mlir::Value pv = pLoop.getInductionVar();
+                      int64_t llBase = sh * 16 + k * 8; // ll = llBase + p
+                      mlir::Value pv16 = rewriter.create<emitc::MulOp>(
+                          loc, sizeType, pv, sizeLit(16));
+                      mlir::Value blP = rewriter.create<emitc::AddOp>(
+                          loc, weightPtrType, bl, pv16);
+                      mlir::Value pv4 = rewriter.create<emitc::MulOp>(
+                          loc, sizeType, pv, sizeLit(4));
+                      mlir::Value alP = rewriter.create<emitc::AddOp>(
+                          loc, activationPtrType, al, pv4);
+                      // SHARED weight decode per (p,h): 4 quadrant signed weights,
+                      // reused across the interleaved activation columns.
+                      llvm::SmallVector<llvm::SmallVector<mlir::Value>> wq(
+                          numHalves);
+                      for (int64_t h = 0; h < numHalves; ++h) {
+                        step("weight_ql_qh_addr");
+                        mlir::Value qlA = loadU8Strip(
+                            blP,
+                            weightQlOffset + (j * 64 + llBase) * 16 + h * half);
+                        mlir::Value qlB = loadU8Strip(
+                            blP, weightQlOffset + (j * 64 + 32 + llBase) * 16 +
+                                     h * half);
+                        mlir::Value qh = loadU8Strip(
+                            blP,
+                            weightQhOffset + (j * 32 + llBase) * 16 + h * half);
+                        for (int q = 0; q < 4; ++q) {
+                          mlir::Value qlSel =
+                              (quads[q].qlStream == 0) ? qlA : qlB;
+                          wq[h].push_back(assembleWeight(
+                              qlSel, qh, quads[q].highNib, quads[q].qhShift));
+                        }
+                      }
+                      for (int64_t c = cLo; c < cHi; ++c) {
+                        step("act_quant_addr");
+                        for (int q = 0; q < 4; ++q) {
+                          int64_t gpBase = j * 128 + q * 32 + llBase;
+                          mlir::Value aqc = i8Read(
+                              alP, activationQuantOffset + gpBase * 4 + c);
+                          for (int64_t h = 0; h < numHalves; ++h) {
+                            mlir::Value cur =
+                                rewriter
+                                    .create<emitc::LoadOp>(loc, i16m1Type,
+                                                           accVar[c][h][q])
+                                    .getResult();
+                            rewriter.create<emitc::AssignOp>(
+                                loc, accVar[c][h][q],
+                                vwmacc16(cur, aqc, wq[h][q]));
+                          }
+                        }
                       }
                     }
+                    // Load the resident partials back out for the scale fold below.
                     for (int64_t c = cLo; c < cHi; ++c) {
-                      step("act_quant_addr");
-                      // Interleaved q8_Kx4 quant byte for column c, global element
-                      // position gp = j*128 + q*32 + ll: offset + gp*4 + c.
-                      for (int q = 0; q < 4; ++q) {
-                        int64_t gp = j * 128 + q * 32 + ll;
-                        mlir::Value aqc = i8Read(
-                            al, activationQuantOffset + gp * 4 + c);
-                        for (int64_t h = 0; h < numHalves; ++h)
-                          acc[c][h][q] =
-                              vwmacc16(acc[c][h][q], aqc, wq[h][q]);
+                      acc[c].resize(numHalves);
+                      for (int64_t h = 0; h < numHalves; ++h)
+                        for (int q = 0; q < 4; ++q)
+                          acc[c][h].push_back(
+                              rewriter
+                                  .create<emitc::LoadOp>(loc, i16m1Type,
+                                                         accVar[c][h][q])
+                                  .getResult());
+                    }
+                  } else {
+                    // ---- UNROLLED main term (default, register-resident full
+                    // unroll; the frozen shipped form) ----
+                    for (int64_t c = cLo; c < cHi; ++c) {
+                      acc[c].resize(numHalves);
+                      for (int64_t h = 0; h < numHalves; ++h)
+                        for (int q = 0; q < 4; ++q)
+                          acc[c][h].push_back(seedI16());
+                    }
+
+                    for (int64_t p = 0; p < 8; ++p) {
+                      int64_t ll = sh * 16 + k * 8 + p; // 0..31 within quadrant
+                      // SHARED weight decode per (p,h): 4 quadrant signed weights,
+                      // reused across the interleaved activation columns.
+                      llvm::SmallVector<llvm::SmallVector<mlir::Value>> wq(
+                          numHalves);
+                      for (int64_t h = 0; h < numHalves; ++h) {
+                        step("weight_ql_qh_addr");
+                        mlir::Value qlA = loadU8Strip(
+                            bl, weightQlOffset + (j * 64 + ll) * 16 + h * half);
+                        mlir::Value qlB = loadU8Strip(
+                            bl,
+                            weightQlOffset + (j * 64 + 32 + ll) * 16 + h * half);
+                        mlir::Value qh = loadU8Strip(
+                            bl, weightQhOffset + (j * 32 + ll) * 16 + h * half);
+                        for (int q = 0; q < 4; ++q) {
+                          mlir::Value qlSel =
+                              (quads[q].qlStream == 0) ? qlA : qlB;
+                          wq[h].push_back(assembleWeight(
+                              qlSel, qh, quads[q].highNib, quads[q].qhShift));
+                        }
+                      }
+                      for (int64_t c = cLo; c < cHi; ++c) {
+                        step("act_quant_addr");
+                        // Interleaved q8_Kx4 quant byte for column c, global element
+                        // position gp = j*128 + q*32 + ll: offset + gp*4 + c.
+                        for (int q = 0; q < 4; ++q) {
+                          int64_t gp = j * 128 + q * 32 + ll;
+                          mlir::Value aqc = i8Read(
+                              al, activationQuantOffset + gp * 4 + c);
+                          for (int64_t h = 0; h < numHalves; ++h)
+                            acc[c][h][q] =
+                                vwmacc16(acc[c][h][q], aqc, wq[h][q]);
+                        }
                       }
                     }
                   }

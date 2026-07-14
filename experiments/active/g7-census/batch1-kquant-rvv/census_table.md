@@ -52,3 +52,20 @@ q6_K,64,2048,512,0.0377,0.0383,0.0384,0.1408,3.7400,0.37,0.36,0.002,0.047,240
 - q4_K: block-dot main@000000000009312c vl128=none | unused_repack_gemm=T,T,T,
 - q5_K: block-dot main@0000000000093146 vl128=none | unused_repack_gemm=T,
 - q6_K: block-dot main@00000000000935de vl128=none | unused_repack_gemm=T,
+
+## L1' q6_K@rvv GEMM whole-K-nest roll — recovery annotation (2026-07-14, does NOT change any status)
+
+The q6_K@rvv GEMM deepest LOSS (0.037× vs stock block-dot) root-caused to gcc-15.2
+vsetvli-storm + spill on the giant full-unroll body (NOT MAC quality; vwmacc~2304 equal).
+The whole-K-nest roll (capability-keyed `emit_loop_schedule="rolled"`, deployed emitter,
+byte-exact) was implemented + G2 board-validated — casefile
+`../L1prime-q6k-gemm-roll-deploy/evidence.md`:
+  - on-silicon byte-exact rolled ≡ unrolled (memcmp=0, all shapes)
+  - vsetvli 6278 → 21 (-299×), spill -7.7×, obj 299632B → 22768B
+  - cold GEMM prefill recovery ~6.7× (roll vs unroll), landing 0.037× → ~0.26× vs stock
+The q6_K rows STAY LOSS (0.26× < parity): this is a kernel-axis emitter-maturity RECOVERY
+of the self-inflicted [CASE-COMPILER-ASYMMETRY] codegen collapse, NOT a WIN / NOT
+perf-covered green / NOT an e2e beat. Density floor (vl=8 dual-strip vwmacc + 6-bit
+dual-plane decode vs stock wide block-dot) unchanged; parity needs a density attack [远期].
+Default (no stamp) ships frozen unrolled = byte-identical (zero drift). q3_K (shares the
+no-min GEMM dispatch) is NOT wired to roll (capability-guard: q6_K-only) — same-class deferred.

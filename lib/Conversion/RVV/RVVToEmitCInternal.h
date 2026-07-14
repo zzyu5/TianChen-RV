@@ -1646,6 +1646,15 @@ private:
   /// ql|qh two-plane weight assembly (-32 bias) + signed-scale single-accumulator
   /// no-min fold, with the weight decode AMORTIZED across the 4 interleaved
   /// block_q8_Kx4 activation columns. RESULT-LESS (no monolith token).
+  /// [GAP-EMIT-VSETVL-TAX / K-10 structural GEMM plan] rolledMainTerm: when true the
+  /// dominant per-8-position inner p-loop is materialized as ONE runtime emitc.for
+  /// with the 4-column x per-strip x per-quadrant i16 partials carried as RESIDENT
+  /// SSA-register VariableOps (seeded above the loop, load-accumulate-store inside;
+  /// the weight decode stays inside the p-loop but OUTSIDE the column loop so each
+  /// 6-bit weight is decoded ONCE and shared across all 4 activation columns -- NO
+  /// re-decode / NO tile narrowing). false (the frozen default) keeps the full static
+  /// unroll = byte-identical shipped emit. BYTE-EXACT across both by construction
+  /// (identical vwmacc16 accumulation order; only the loop is materialized).
   mlir::LogicalResult emitRepackKQuantGemmBodyQ6K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
@@ -1655,7 +1664,7 @@ private:
       int64_t weightStride, int64_t activationStride, int64_t weightQlOffset,
       int64_t activationQuantOffset, int64_t weightScalesOffset,
       int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
-      int64_t activationInterleave, int64_t half) const;
+      int64_t activationInterleave, int64_t half, bool rolledMainTerm) const;
 
   /// Emit the COMPLETE ggml q2_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
