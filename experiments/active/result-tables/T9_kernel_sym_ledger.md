@@ -26,7 +26,7 @@
 
 字段：`{emitted kernel 指针 · 对手 kernel 身份 · 对称编译可行否 · 已有 micro A/B 数据(引 T8)}`
 
-### 1.1 ≥parity 已测 — 计入第二常驻计数 ★ **kernel-sym ≥parity 格数 = 12**（★2026-07-13 FLAT 5 @rvv `f8da2f5c` 4→9 · ★2026-07-14 FLAT@k1 kernel-axis q4_1/q5_0/q5_1 `abb26043` 9→12·FLAT 家族 kernel-sym 双板全量收口 rvv 5+k1 5）
+### 1.1 ≥parity 已测 — 计入第二常驻计数 ★ **kernel-sym ≥parity 格数 = 16**（★2026-07-13 FLAT 5 @rvv `f8da2f5c` 4→9 · ★2026-07-14 FLAT@k1 kernel-axis q4_1/q5_0/q5_1 `abb26043` 9→12 · ★2026-07-14 G7 普查 B类前向算子 k1-half `be82f4e1` 12→16：**add@k1 1.182× · mul@k1 1.184× · rms_norm@k1 1.335×[structural 1-pass vs native-m8 2-pass] · cpy@k1 1.103×[cold]**·冷启动口径·净新 territory·对手=ggml as-shipped 机判[add/mul vs autovec-m2·rms_norm vs native-m8·符号级]·byte-exact/ULP 硬门过·rvv-half pending）
 
 | 格·板 | emitted kernel 指针 | 对手 kernel 身份（成色） | 对称编译 | 已有 micro A/B（T8） |
 |---|---|---|---|---|
@@ -102,7 +102,7 @@
 
 | 桶 | 格数 | 说明 |
 |---|---:|---|
-| **★第二常驻计数「kernel-sym ≥parity 格数」** | **12** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c）· ★FLAT@k1 kernel-axis: q4_1 · q5_0 · q5_1（abb26043·9→12）· **★成色分布（L0.3③·计数旁标·2026-07-14 更新）= 0 verified hand-brick（q4_K@k1 kernel-sym vl=8 核输真 hand-brick·成色最硬赢在 sealed vl=16 e2e 非此赛道）+ 2 better-vec block-dot（q5_0/q5_1@rvv·成色中）+ 10 block-dot/light（其余·弱—中对手·成色低）** |
+| **★第二常驻计数「kernel-sym ≥parity 格数」** | **16** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c）· ★FLAT@k1: q4_1 · q5_0 · q5_1（abb26043）· ★G7 普查 B类 k1-half: **add@k1 · mul@k1 · rms_norm@k1 · cpy@k1[cold]**（be82f4e1·12→16·净新 territory）· **★成色分布（2026-07-14 更新）= 0 verified hand-brick + 1 structural WIN（rms_norm@k1 1.33× 1-pass 打败 native-m8 2-pass·成色较硬）+ 2 wide-m8-vs-autovec（add/mul@k1 1.18×·成色中·objdump-substantiated）+ 2 better-vec block-dot（q5_0/q5_1@rvv）+ 11 block-dot/light/cpy（其余·弱—中对手）** |
 | ~~≥parity 待板批补测（FLAT 5 gemm@rvv）~~ | ✅ DONE | 2026-07-13 f8da2f5c·5 格全 ≥parity·4→9 上限达成 |
 | <parity candidate（对称 LOSS·不计 ≥parity） | 9 | §1.2·+ q2_K@rvv 系统账 fresh 0.857×(14f4631a·同向) |
 | 对手类单列（SELF/internal-A/B/CASE-COMPILER-ASYMMETRY） | 3 + N | §2·不入计数（含 IME 三格 SELF·但注：IME q4_0/q8_0@ime 已在 perf-covered 转绿=不同赛道·此处 SELF-account 仍单列） |
