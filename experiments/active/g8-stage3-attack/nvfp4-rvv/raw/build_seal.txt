@@ -1,0 +1,34 @@
+# G8 §六.3 nvfp4-rvv 攻坚 · BUILD SEAL
+# Board: rvv (openEuler, VLEN128, 64c). core8 pin. co-tenant untouched. loadavg 2.13-2.50 (in prior session range).
+# Compiler: clang 18.1.8 canonical (/opt/tcrv-toolchains, via env.sh) -- verified NOT system clang17.0.6.
+MARCH=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause
+CFLAGS=-O3 -mabi=lp64d -fno-integrated-as -B/opt/tcrv-toolchains/binutils-2.46.1/bin (+ -include math.h for kernel TUs, -x c++ for kernel TUs)
+LINK=gcc-15.2 driver (link-only; codegen all clang-18), same rationale as sealed §六 build_seal.txt
+
+## Objects
+nvfp4.kernel.c (BASE, unmodified copy of experiments/active/g7-census/iqfp4-dequant-rvv/kernels_vecdot/nvfp4.kernel.c, md5=afad1b43)
+  -> ours_nvfp4_baseline.o md5=0293e27b
+nvfp4_attack.kernel.c (ATTACK, re-roll + hoist-scale construction, md5=aabad1b7)
+  -> ours_nvfp4_attack.o md5=e9b04b59
+nvfp4_attack_driver.c (3-way G1/G2 driver, md5=eaa0b35f) -> driver.o md5=765cb99c
+my_link_stubs.c (fail-closed abort() stubs for symbols in quants_generic_opp.o's TU
+  proven off the nvfp4 timed path, md5=e275bc41) -> my_link_stubs.o md5=3bf815ff
+OPPONENT: /tmp/g8s3/rvv/quants_generic_opp.o (SEALED, read-only, md5=8873178b --
+  identical md5 to the §五/§六 sealed opponent build; vericurve ggml-cpu/quants.c,
+  ggml pin e36a602ba38a26206c749ba4fb5dcf481bfd92db, real dispatch symbol
+  ggml_vec_dot_nvfp4_q8_0 via arch-fallback.h generic alias -- confirmed 0 nvfp4
+  occurrences in arch/riscv/quants.c, i.e. genuinely no RISC-V hand-tuned path
+  exists upstream for this format)
+Final link: nvfp4_attack_bin md5=8868abec
+
+## Byte-exact (G1)
+K=2048, M in {1,8}, nc in {512,64}: ATTACK-vs-BASE int_byte_mismatch=0 (all 3 shapes)
+                                     ATTACK-vs-OPP  int_byte_mismatch=0 (all 3 shapes, true oracle)
+                                     BASE-vs-OPP    int_byte_mismatch=0 (sanity: reproduces sealed §六 byte-exact)
+
+## Board hygiene
+- core8-15 all 0.0-1.0% busy (1s /proc/stat sample) before pin.
+- co-tenant (2 users, sshd/tpu-smi/containerd/dockerd/irqbalance on other cores) untouched.
+- loadavg: begin 2.13-2.25 -> end 2.33-2.50 (within prior-session drift band, not our own compute -- core8-15 pinned work does not explain a load-1 shift on a 64-core box).
+- board scratch cleaned: /tmp/g8s3-nvfp4-attack removed after evidence pulled. /tmp/g8s3 (sealed) and /tmp/opp_link_stubs.{c,o} (pre-existing shared sealed artifact, not authored by this session) left untouched.
+- no stray processes (ps aux | grep nvfp4_attack: empty after run).
