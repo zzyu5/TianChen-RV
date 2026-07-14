@@ -1,0 +1,33 @@
+L1' q6_K@rvv GEMM whole-K-nest roll -- G1 static account (gcc-15.2 -O2, VLEN128)
+================================================================================
+CURRENT emitter kernel (md5 bf477693 = batch1 census verbatim):
+  vsetvli=6182 (3071 e8,mf2 + 120 e16,m1 + 1 e32,m2)  vwmacc=2304 (2048 vx + 256 vv)
+  vs*r.v=2222  vle8=2788  maxVreg=v31  total_v-insn=20906
+  => census q6_K@rvv GEMM = 0.037x (deepest LOSS). Root cause = gcc vsetvli-storm+spill.
+
+hand-construct A/B (q6k_gemm_roll_gen.c; rolled vs unrolled; SAME algorithm, differ
+only in element-nest #pragma GCC unroll 1 vs 64):
+
+PER-SUPER-BLOCK DYNAMIC (rolled hot p-loop x8-trip + cold ; unrolled straight-line):
+  metric               UNROLLED   ROLLED   reduction   note
+  vsetvli                  6578       21     313.2x     storm collapsed (hot loop = 0)
+  vwmacc (useful)          2304     2304       1.0x     IDENTICAL (byte-exact work)
+  decode_arith             2944     2944       1.0x     IDENTICAL => ZERO re-decode
+  vle8 (weight load)       3004      416       7.2x     redundant reloads removed
+  spill_store (vs*r.v)     2216      926       2.4x     register-cliff residual
+  spill_reload (vl*re*.v)  2228      943       2.4x     register-cliff residual
+  total v-insn            21756     7822       2.8x     NET
+  maxVreg                   v31      v31       ---      both saturate 32 vregs
+
+hot p-loop (.L5) body: 0 vsetvli, 32 vwmacc.vx, 10 vs*r.v store + 10 vl*re*.v reload,
+  6 vle8 (weight decoded ONCE per element, shared across 4 columns) -> NO re-decode.
+
+VERDICT: NET RECOVERY (Exit A). vsetvli collapse dominant (313x); re-decode does NOT
+  occur (whole-K-nest preserves 4-col tile, decode_arith identical); GEMM-specific
+  residual = accumulator SPILL (32 i16 partials + 8 i32 sumi > 32 vregs), REDUCED 2.4x
+  by rolling but not eliminated (GEVM's clean 0-spill unreachable for 4-col tile).
+  Predicted: 0.037x -> ~2.8-3x conservative (~0.10x) up to higher (vsetvli-stall super-
+  linear). SUB-PARITY (density floor unchanged). => implant + G2 board-validation.
+[K-10]: STRUCTURAL-level (independent GEMM Emission Plan; register-cliff differs from
+  GEVM; not a parameter-key flip of GEVM's emit_loop_schedule).
+byte-exact: by-construction (op-stream identity) + board A/B DEFERRED (no local RVV).
