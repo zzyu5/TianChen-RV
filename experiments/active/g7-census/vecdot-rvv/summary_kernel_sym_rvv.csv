@@ -1,0 +1,11 @@
+fmt,board,compiler,VLEN,batch,ratio_hot_M1,ratio_cold_med_M1,ratio_cold_best_M1,o_iqr_M1,p_iqr_M1,ratio_cold_med_M8,byte_exact
+q4_0,rvv,gcc-15.2,128,3a-FLAT,0.9629,0.9198,0.9253,0.59,0.19,0.9570,0mism/0ULP
+q4_1,rvv,gcc-15.2,128,3a-FLAT,1.0208,1.0202,1.0200,0.06,0.08,1.0261,0mism/0ULP
+q5_0,rvv,gcc-15.2,128,3a-FLAT,0.2550,0.2649,0.2645,0.12,1.35,0.2628,0mism/0ULP
+q5_1,rvv,gcc-15.2,128,3a-FLAT,0.2648,0.2718,0.2705,0.04,0.46,0.2683,0mism/0ULP
+q8_0,rvv,gcc-15.2,128,3a-FLAT,0.9684,1.0459,1.0610,1.20,1.25,1.0095,0mism/0ULP
+q2_K,rvv,gcc-15.2,128,3b-Kquant,0.5042,0.2536,0.2543,0.46,0.50,0.4396,0mism/0ULP
+q3_K,rvv,gcc-15.2,128,3b-Kquant,0.5842,0.2719,0.2703,0.44,1.63,0.5217,0mism/0ULP
+q4_K,rvv,gcc-15.2,128,3b-Kquant,0.4231,0.1666,0.1637,0.13,3.25,0.3482,0mism/0ULP
+q5_K,rvv,gcc-15.2,128,3b-Kquant,1.3729,0.8987,0.9028,0.13,2.34,1.1998,0mism/0ULP
+q6_K,rvv,gcc-15.2,128,3b-Kquant,0.4940,0.2827,0.2601,3.60,0.97,0.4247,0mism/0ULP

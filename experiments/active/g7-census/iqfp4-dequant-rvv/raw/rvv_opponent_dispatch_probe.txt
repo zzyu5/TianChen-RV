@@ -1,0 +1,19 @@
+# G7 iqfp4-dequant-rvv — precise opponent dispatch probe (objdump --disassemble, VLEN128 runtime)
+# nm -D misses `.isra.0` local vl-specializations; --disassemble reveals true dispatch.
+#
+# --- iq/fp4 vec_dot opponents (libggml-cpu.so, dispatched @VLEN128 vlenb=16) ---
+# iq1_s  @0x93638: csrr vlenb; branch-tree {_vl256.isra.0,_vl1024.isra.0,_generic@plt,_vl128.isra.0}
+#   => VLEN128 -> ggml_vec_dot_iq1_s_q8_K_vl128.isra.0   [HAND-TUNED, STRONG]
+# iq1_m  @0x93692: same tree -> _vl128.isra.0            [HAND-TUNED, STRONG]
+# iq4_nl @0x937da: csrr vlenb; beq -> _vl128.isra.0 / _vl256.isra.0 => VLEN128 -> _vl128 [HAND-TUNED, STRONG]
+# nvfp4  @0x504f4: single inline impl (no vl-spec siblings); gcc-15.2 codegen [MODERATE inline]
+#
+# --- dequant opponents (libggml-base.so `dequantize_row_*` = deployed to_float ref, gcc-15.2) ---
+# ★ CORRECTION vs k1: on rvv these are MOSTLY gcc-15.2 AUTO-VECTORIZED (rvv>0), NOT scalar-ref.
+#   q2_K:115i/10rvv/32gath  q3_K:48/34  q4_K:37/25  q5_K:58/45  q6_K:41/34/4gath  (all autovec)
+#   iq1_s:22/14  iq1_m:24/12  iq2_xxs:81/70/18gath  iq3_xxs:83/72/18gath  iq3_s:154/140/32gath (autovec-gather)
+#   iq4_nl:14/8  iq4_xs:15/8  mxfp4:11/5  tq1_0:58/51  tq2_0:33/24  (autovec)
+#   iq2_xs:16/0  iq2_s:16/0  nvfp4:10/0  (SCALAR — gcc did not vectorize these 3)
+# OURS dequant (gcc-15.2): q2_K/q3_K/q4_K/q5_K/tq1_0/tq2_0 vectorized (vsetvl>0);
+#   iq*/mxfp4/nvfp4/iq4_nl/q6_K compiled SCALAR (vsetvl=0) under gcc-15.2.
+# => rvv DEQ-AXIS opponent is stronger than k1 scalar-ref; label per-format (autovec-N-rvv | scalar).

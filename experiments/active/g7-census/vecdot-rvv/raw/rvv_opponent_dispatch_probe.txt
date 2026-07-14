@@ -1,0 +1,18 @@
+# G7 vecdot-rvv — precise opponent dispatch probe (objdump --disassemble=<sym>, VLEN128 runtime)
+# NOTE: nm -D alone MISSES `.isra.0` local specializations (q4_K/q6_K _vl128 are .isra.0, not dynsym).
+#       Must use --disassemble to see true dispatch. (avoids q4_K-strawman-class error)
+#
+# q2_K main @0x92316: csrr vlenb; beq t3(=VLEN256?)-> _vl256@plt ; else -> _vl128@plt
+#   => VLEN128 dispatches to ggml_vec_dot_q2_K_q8_K_vl128  [HAND-TUNED, STRONG]
+# q3_K main: sibs _vl128/_vl256/_vl512 => VLEN128 -> _vl128  [HAND-TUNED, STRONG]
+# q4_K main @0x9312c: csrr vlenb; beq -> _vl128.isra.0 ; else _vl256.isra.0
+#   => VLEN128 dispatches to _vl128.isra.0  [HAND-TUNED, STRONG]  (NOT generic; nm missed .isra.0)
+# q5_K main @0x93146: INLINE vectorized (36 ins/23 rvv, 11x csrr vlenb, no clean single vl-spec tailjump)
+#   => opponent = inline VLEN-adaptive main [MODERATE, qh-burdened; the one non-hand-brick K-quant]
+# q6_K main @0x935de: full tree _vl128/_vl256/_vl512/_vl1024/_generic (.isra.0)
+#   => VLEN128 dispatches to _vl128.isra.0  [HAND-TUNED, STRONG]
+#
+# FLAT (from build_seal ins/rvv/csrr, all inline dispatch):
+# q4_0/q4_1: inline 4ins/1rvv light-vec ; q8_0: 4ins/3rvv light-vec
+# q5_0: inline 17ins/10rvv+csrr better-vec ; q5_1: inline 14ins/8rvv+csrr better-vec
+#   => q5_0/q5_1 opponents are genuinely vectorized native RVV (fast); ours block-dot emit diverges (qh 5-bit)

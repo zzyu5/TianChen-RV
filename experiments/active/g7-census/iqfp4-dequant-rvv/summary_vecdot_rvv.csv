@@ -1,0 +1,5 @@
+fmt,board,compiler,VLEN,batch,opp_class,ratio_hot_M1,ratio_cold_med_M1,ratio_cold_best_M1,o_iqr_M1,ratio_cold_med_M8,byte_exact
+iq1_s,rvv,gcc-15.2,128,3c-iqfp4-vecdot,vl128-handtuned-STRONG,1.1663,0.9687,1.1382,14.07,1.0487,0mism/0ULP
+iq1_m,rvv,gcc-15.2,128,3c-iqfp4-vecdot,vl128-handtuned-STRONG,0.1181,0.1215,0.1207,0.96,0.1206,0mism/0ULP
+iq4_nl,rvv,gcc-15.2,128,3c-iqfp4-vecdot,vl128-handtuned-STRONG,0.3705,0.3886,0.3812,0.10,0.3775,0mism/0ULP
+nvfp4,rvv,gcc-15.2,128,3c-iqfp4-vecdot,inline-single-impl-MOD,0.6730,0.6784,0.6768,0.67,0.6771,0mism/0ULP
