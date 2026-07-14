@@ -1,0 +1,27 @@
+# G8s6 vec_dot@k1  CC=Bianbu clang version 18.1.8 (11bb4)  march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -O2 -ffp-contract=on
+# board=Linux 6.6.63 riscv64 vlenb=  2026-07-14T14:12:40Z
+# ggml_so_md5=871169a0123139692177468b3c8578be  (provenance=so-hash; tree has no .git)
+=== [A] compile ours kernels (clang-18 -O2 finalized) + self objdump ===
+# OURS_q4_0(clang18 .o): fp16=cleanfp vsetvl=4 rvv=3 size=1816B
+# OURS_q4_1(clang18 .o): fp16=cleanfp vsetvl=4 rvv=3 size=1832B
+# OURS_q5_0(clang18 .o): fp16=cleanfp vsetvl=9 rvv=8 size=1904B
+# OURS_q5_1(clang18 .o): fp16=cleanfp vsetvl=9 rvv=8 size=1920B
+# OURS_q8_0(clang18 .o): fp16=cleanfp vsetvl=4 rvv=4 size=1792B
+# OURS_q2_K(clang18 .o): fp16=cleanfp vsetvl=38 rvv=34 size=2792B
+# OURS_q3_K(clang18 .o): fp16=cleanfp vsetvl=10 rvv=6 size=2480B
+# OURS_q4_K(clang18 .o): fp16=cleanfp vsetvl=14 rvv=10 size=2640B
+# OURS_q5_K(clang18 .o): fp16=cleanfp vsetvl=14 rvv=10 size=2776B
+# OURS_q6_K(clang18 .o): fp16=cleanfp vsetvl=10 rvv=6 size=2392B
+=== [B] opponent dispatched-symbol machine-probe (as-shipped in stock .so) ===
+# OPP_q4_0: main=ggml_vec_dot_q4_0_q8_0 @000000000009f6dc sibs=[ggml_vec_dot_q4_0_q8_0_generic,]
+# OPP_q4_1: main=ggml_vec_dot_q4_1_q8_1 @000000000009f774 sibs=[ggml_vec_dot_q4_1_q8_1_generic,]
+# OPP_q5_0: main=ggml_vec_dot_q5_0_q8_0 @000000000009f81c sibs=[ggml_vec_dot_q5_0_q8_0_generic,]
+# OPP_q5_1: main=ggml_vec_dot_q5_1_q8_1 @000000000009f942 sibs=[ggml_vec_dot_q5_1_q8_1_generic,]
+# OPP_q8_0: main=ggml_vec_dot_q8_0_q8_0 @000000000009fa90 sibs=[ggml_vec_dot_q8_0_q8_0_generic,]
+# OPP_q2_K: main=ggml_vec_dot_q2_K_q8_K @00000000000a034c sibs=[ggml_vec_dot_q2_K_q8_K_generic,ggml_vec_dot_q2_K_q8_K_vl128,ggml_vec_dot_q2_K_q8_K_vl256,]
+# OPP_q3_K: main=ggml_vec_dot_q3_K_q8_K @00000000000a15da sibs=[ggml_vec_dot_q3_K_q8_K_generic,ggml_vec_dot_q3_K_q8_K_vl128,ggml_vec_dot_q3_K_q8_K_vl256,]
+# OPP_q4_K: main=ggml_vec_dot_q4_K_q8_K @00000000000a192e sibs=[ggml_vec_dot_q4_K_q8_K_generic,]
+# OPP_q5_K: main=ggml_vec_dot_q5_K_q8_K @00000000000a1ed8 sibs=[ggml_vec_dot_q5_K_q8_K_generic,]
+# OPP_q6_K: main=ggml_vec_dot_q6_K_q8_K @00000000000a21d2 sibs=[ggml_vec_dot_q6_K_q8_K_generic,]
+=== [C] link driver + ours + stock libggml-cpu.so ===
+# linked OK -> ./vecdot_census  ALL_BUILT
