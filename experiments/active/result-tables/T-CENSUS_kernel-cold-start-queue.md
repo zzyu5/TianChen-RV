@@ -152,20 +152,22 @@
 ### Batch 2 — B 类前向算子（净新·从未入测·双板）
 
 > §二 判 9/9 入队。全 f32 emitted·对手 native。ROADMAP 明标从未入测。
+> **★ k1-half DONE（2026-07-14·L1 B类前向线）**：9 ops × 8 shapes 测毕·casefile `experiments/active/g7-census/bclass-forward-ops/`（evidence.md + summary_kernel_sym_k1.csv + raw/k1_run.log）。下表 hot/cold = **k1 anchor n=4096 ratio ours/opp**（>1 ours 快）·对手类=符号级机判·**rvv-half PENDING**（rvv 忙 Batch1·harness 复用）。
 
-| 格@板 | 族 | 我方 emit 指针 | 预判对手类 | 数值档 | hot | cold | 对手类 | 胜负 |
+| 格@板 | 族 | 我方 emit 指针 | 对手类 [机判] | 数值档 [实测] | hot(k1) | cold(k1) | 胜负(cold) | rvv |
 |---|---|---|---|---|:--:|:--:|:--:|:--:|
-| softmax@rvv / @k1 | B-fwd | emitElementwiseSoftMaxReduceStrip | native reduce+expf | ULP(expf) | ☐ | ☐ | ☐ | ☐ |
-| rms_norm@rvv / @k1 | B-fwd | emitElementwiseRmsNormReduceStrip | ggml rms_norm | ULP(rsqrt) | ☐ | ☐ | ☐ | ☐ |
-| rope@rvv / @k1 | B-fwd | emitElementwiseRopeRotateStrip | ggml rope | ULP(sin/cos) | ☐ | ☐ | ☐ | ☐ |
-| silu@rvv / @k1 | B-fwd | emitElementwiseSiluMapStrip | ggml_vec_silu_f32 | ULP(expf) | ☐ | ☐ | ☐ | ☐ |
-| gelu@rvv / @k1 | B-fwd | emitElementwiseGeluMapStrip | ggml_vec_gelu_f32 | 1.3e-6 | ☐ | ☐ | ☐ | ☐ |
-| add@rvv / @k1 | B-fwd | emitElementwiseBinaryMapStrip | ggml_vec_add_f32 | bit-exact | ☐ | ☐ | ☐ | ☐ |
-| mul@rvv / @k1 | B-fwd | emitElementwiseBinaryMapStrip | ggml_vec_mul_f32 | bit-exact | ☐ | ☐ | ☐ | ☐ |
-| scale@rvv / @k1 | B-fwd | emitForwardVecMapStrip(scale) | ggml_vec_scale_f32 | bit-exact | ☐ | ☐ | ☐ | ☐ |
-| cpy@rvv / @k1 | B-fwd | emitElementwiseCopyMapStrip | ggml dup/cpy | bit-exact | ☐ | ☐ | ☐ | ☐ |
+| softmax@k1 ★ | B-fwd | emitElementwiseSoftMaxReduceStrip | native-RVV m2·EXPORTED .so·bit-identical(0ULP) | ULP 3·0ULP-vs-opp | 0.821 | 0.822 | LOSS(parity-by-adoption −18%) | ☐pending |
+| rms_norm@k1 | B-fwd | emitElementwiseRmsNormReduceStrip | native-RVV m8 scale·**2-pass**(memcpy+scale) | **0 ULP** bit-exact | 1.177 | **1.335** | **WIN**(1-pass fusion) | ☐pending |
+| rope@k1 | B-fwd | emitElementwiseRopeRotateStrip | autovec-RVV+scalar sin/cos·2-pass cache | 0ULP-vs-opp(f32-θ drift) | 0.981 | 0.984 | PARITY 0.98 | ☐pending |
+| silu@k1 | B-fwd | emitElementwiseSiluMapStrip | native-RVV m2·EXPORTED .so·bit-identical | ULP 2·0ULP-vs-opp | 0.841 | 0.837 | LOSS(parity-by-adoption −16%) | ☐pending |
+| gelu@k1 | B-fwd | emitElementwiseGeluMapStrip | **scalar f16-LUT**(GGML_GELU_FP16) | maxrel 3.7e-7 ≤1.3e-6 | 0.239 | 0.247 | LOSS(STRUCTURAL LUT·ours +2500×acc) | ☐pending |
+| add@k1 | B-fwd | emitElementwiseBinaryMapStrip | autovec-RVV **m2**(clang) | **0 ULP** bit-exact | 1.173 | **1.182** | **WIN**(our m8 vs opp m2) | ☐pending |
+| mul@k1 | B-fwd | emitElementwiseBinaryMapStrip | autovec-RVV **m2**(clang) | **0 ULP** bit-exact | 1.191 | **1.184** | **WIN**(our m8 vs opp m2) | ☐pending |
+| scale@k1 | B-fwd | emitForwardVecMapStrip(scale) | native-RVV m8·**byte-identical algo** | **0 ULP** bit-exact | 0.918 | 0.935 | LOSS 0.93(scheduling) | ☐pending |
+| cpy@k1 | B-fwd | emitElementwiseCopyMapStrip | autovec-RVV/memcpy | **0 ULP** bit-exact | 0.881 | 1.103 | WIN cold/LOSS hot(flip) | ☐pending |
 
-**预判**：near-wall memory-bound（add/mul deploy 0.76–0.83× 实测锚）→ 多数 parity/near-wall；softmax/rope 冷路轻算。成色低但账面净新（9 算子 × 2 板 = 18 格-板点）。
+**k1 anchor cold tally**：4 WIN（add·mul·cpy·rms_norm）· 1 PARITY（rope）· 4 LOSS（scale·silu·softmax·gelu）。
+**★预判校准**：census「多数 parity/near-wall」= **部分证伪**。① 4 纯 elementwise（add/mul/cpy/scale）确 memory-bound（cold 2.3–5.6 GB/s），但**非齐一 parity**——我方 **wide-m8** emit 击败 clang **m2** autovec（add/mul cold ~1.18×·objdump 实证 `vsetvli e32,m8` vs `e32,m2`）。② **rms_norm 1.33× cold = 结构 WIN**（我方 1-pass read-scale-write vs ggml 2-pass memcpy+scale）·净新亮点。③ compute-bound 簇（silu/softmax/gelu/rope）cache-invariant·silu/softmax parity-by-adoption 但输 16–18% 调度·gelu 0.25× 是 LUT-vs-tanhf 结构差(非公平速度 A/B·我方胜精度)。④ **禁互推**：kernel-sym add/mul 1.18× ≠ census e2e 预判 add/mul deploy 0.76–0.83×（system 账·不同赛道）。
 
 ### Batch 3 — 码本/低比特余格（vec_dot + dequant + gemm cross-op）
 
