@@ -1,0 +1,89 @@
+# G8 stage3 k1 opponent objdump metrics (clang-18.1.8 Bianbu symmetric, VLEN256)
+# ★opponent tree = /home/bianbu/tcrv-k1-llama (genuine upstream ggml riscv quants.c · 2025 RVV VLEN-dispatch refactor · NO tcrv markers in source)
+#   NOTE: specified /home/bianbu/vericurve-rv-lab/llama.cpp does NOT exist on k1 (only census subdirs) — subagent found+used tcrv-k1-llama.
+# ★ggml commit = UNPINNABLE (tree has no own .git; walk-up hit wrong repo 20039c9e 2025-07-22 = UNRELIABLE) → FLAG for §六.
+# stock repack .so = /home/bianbu/libggml-cpu-1x16.so (16x1 repack · 920488B · Jun22) [+ libggml-cpu-2x8.so]
+# as-built opp flags (build-off flags.make): clang-18 -fno-integrated-as -O3 -march=rv64gcv_zfh_zvfh_zicbop_zihintpause_zba
+# symmetric recompile (this run): clang-18 -O2 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -fno-integrated-as -ffp-contract=on
+#   (★-fno-integrated-as REQUIRED on k1 too — standard-RVV vsetivli inline-asm; task recipe "k1 no need" corrected)
+#   O2-vs-O3 cross-check: q4_K vl256 recompile tot=211 vs stock .so tot=189 = identical rvv=54/mac=18 (structural grade stable)
+# GNU objdump/nm (no llvm-* on k1); analyzer adapted mnemonic=$3, vlenb=$4. 0 xtheadvector th.* in any object (RVV-1.0 path).
+# dispatcher confirmed via objdump -dr relocs: vlenb==32 -> ggml_vec_dot_<f>_q8_K_vl256 (else _vl128)
+# metric: tot/rvv/mac/vset/gather
+# loadavg start 2.27 -> end 2.15 (core0-3 pinned; co-tenant negligible)
+
+== A. FLAT vec_dot (single sym · block-dot/light-vec) ==
+q4_0   ggml_vec_dot_q4_0_q8_0        tot=70  rvv=12 mac=3  vset=4  gather=0   block-dot/light-vec
+q4_1   ggml_vec_dot_q4_1_q8_1        tot=73  rvv=10 mac=3  vset=4  gather=0   block-dot/light-vec
+q5_0   ggml_vec_dot_q5_0_q8_0        tot=74  rvv=12 mac=2  vset=6  gather=0   block-dot/light-vec  [board-diff: rvv-board q5_0=22rvv native-vec]
+q5_1   ggml_vec_dot_q5_1_q8_1        tot=79  rvv=11 mac=2  vset=6  gather=0   block-dot/light-vec  [board-diff]
+q8_0   ggml_vec_dot_q8_0_q8_0        tot=63  rvv=6  mac=2  vset=4  gather=0   block-dot/light-vec (lightest)
+
+== B. K-quant vec_dot (VLEN256 dispatched _vl256) ==
+q2_K   ggml_vec_dot_q2_K_q8_K_vl256  tot=167 rvv=85 mac=22 vset=24 gather=8   hand-tuned
+q3_K   ggml_vec_dot_q3_K_q8_K_vl256  tot=264 rvv=96 mac=32 vset=7  gather=0   hand-tuned
+q4_K   ggml_vec_dot_q4_K_q8_K_vl256  tot=211 rvv=54 mac=18 vset=19 gather=0   hand-tuned
+q6_K   ggml_vec_dot_q6_K_q8_K_vl256  tot=189 rvv=103 mac=32 vset=7 gather=0   hand-tuned
+q5_K   ggml_vec_dot_q5_K_q8_K        tot=238 rvv=82 mac=26 vset=15 gather=0   native-vec-HEAVY (NO vl-spec·唯一未手调·xtheadvector block compiled out·boundary cell)
+
+== C. iq/fp4 vec_dot (VLEN256 dispatched _vl256) ==
+iq1_s  ggml_vec_dot_iq1_s_q8_K_vl256 tot=175 rvv=56 mac=17 vset=33 gather=3   hand-tuned
+iq1_m  ggml_vec_dot_iq1_m_q8_K_vl256 tot=242 rvv=54 mac=20 vset=12 gather=1   hand-tuned
+iq4_nl ggml_vec_dot_iq4_nl_q8_0_vl256 tot=101 rvv=24 mac=6 vset=6 gather=4    native-vec (codebook gather·thin vl256 wrapper)
+nvfp4  ggml_vec_dot_nvfp4_q8_0(generic) tot=217 rvv=23 mac=2  native-vec-generic-weak (NO riscv hand-tuned spec; generic dispatched; EXISTS same as rvv — subagent "absent" was arch-TU-only)
+
+== D. q4_K hand-brick reckoning (stock_1x16.dis · q4_K 稻草人永久前车) ==
+DECODE (single-row·TRUE deployed) ggml_gemv_q4_K_16x1_q8_K  tot=468 rvv=209 mac=75 vset=19 gather=0  hand-tuned-repack
+PREFILL/batched                   ggml_gemm_q4_K_16x1_q8_K  tot=767 rvv=224 mac=92 vset=24 csrr=30  hand-tuned-repack
+block-dot (repack-OFF fallback)   ggml_vec_dot_q4_K_q8_K_vl256 tot=189 rvv=54 mac=18 vset=19       hand-tuned-block-dot
+# RECKONING: repack-ON (shipped 1x16.so) → decode routes gemv_16x1 (rvv=209) / prefill gemm_16x1 (rvv=224) ~4x heavier than block-dot vl256 (rvv=54).
+#   block-dot vl256 runs ONLY when repack OFF. => kernel-sym vl=8 core races LIGHT block-dot(rvv=54); sealed/e2e Win-K1-VLEN races HEAVY 16x1 repack.
+#   TWO q4_K@k1 numbers race TWO different-tier opponents (双核分立: vl=8 kernel-sym-core vs vl=16 sealed-core).
+
+== D2. ★k1 K-quant repack GEMM/GEMV opponents (stock_1x16.dis) — 4/5 REAL same-op hand-brick (≠ rvv all-cross-op) ==
+# ★CORRECTION to "q4_K@k1 唯一真 hand-brick": stock .so has REAL same-op repack GEMM/GEMV for q2_K/q4_K/q5_K/q6_K; only q3_K absent.
+#   q4_K is唯一 with 16x1 decode-deployed hand-brick that the sealed Win raced; but q2_K/q5_K/q6_K ALSO have (8x8/8x4/16x1) repack hand-bricks.
+q2_K gemm ggml_gemm_q2_K_16x1_q8_K  tot=494  rvv=164 mac=64  vset=54 gather=0  csrr=8   hand-tuned-repack
+q2_K gemm ggml_gemm_q2_K_8x8_q8_K   tot=1338 rvv=361 mac=92  vset=93 gather=9  csrr=56  hand-tuned-repack (heavy)
+q2_K gemv ggml_gemv_q2_K_16x1_q8_K  tot=193  rvv=71  mac=19  vset=30 gather=0  csrr=0   hand-tuned-repack
+q3_K gemm/gemv                       ABSENT (no q3_K repack) -> q3_K@k1 GEMM = CROSS-OP vs ggml_vec_dot_q3_K_q8_K_vl256 (hand-tuned block-dot rvv=96)
+q4_K gemm ggml_gemm_q4_K_16x1_q8_K  tot=767  rvv=224 mac=92  vset=24 csrr=30            hand-tuned-repack (PREFILL deployed)
+q4_K gemv ggml_gemv_q4_K_16x1_q8_K  tot=468  rvv=209 mac=75  vset=19 gather=0  csrr=0   hand-tuned-repack (DECODE deployed·sealed Win raced)
+q5_K gemm ggml_gemm_q5_K_8x8_q8_K   tot=2426 rvv=709 mac=120 vset=31 gather=15 csrr=230 hand-tuned-repack (heaviest)
+q5_K gemv ggml_gemv_q5_K_8x8_q8_K   tot=1120 rvv=319 mac=45  vset=23 gather=7  csrr=75  hand-tuned-repack
+q6_K gemm ggml_gemm_q6_K_8x8_q8_K   tot=526  rvv=190 mac=8   vset=13 gather=0  csrr=8   hand-tuned-repack
+q6_K gemv ggml_gemv_q6_K_8x8_q8_K   tot=528  rvv=195 mac=8   vset=25 gather=8  csrr=25  hand-tuned-repack
+# also FLAT/codebook repack present: q4_0/q8_0/iq4_nl (4x4/8x8/16x1), mxfp4 (4x4/8x8). q4_0 deployed = OUR tcrv_emitc_ggml_repack_gemm/gemv_q4_0 baked in .so.
+
+== E. forward-op opponents (stock_1x16.dis · leaf/wrapper flagged) ==
+softmax  ggml_vec_soft_max_f32 (leaf)     tot=81   rvv=39 mac=7 vset=5 gather=0  native-vec (vectorized expf) [wrapper compute_forward_soft_max tot=480/rvv=19 scalar-setup]
+rms_norm ggml_compute_forward_rms_norm    tot=522  rvv=20 mac=4 vset=8 gather=0  native-vec-light (vectorized sumsq · scalar-heavy body)
+rope     rope_flt<f32> (_ZL29..._fltIfEv) tot=1275 rvv=30 mac=12 vset=4 gather=0 mostly-scalar/light-vec
+silu     ggml_vec_silu_f32               tot=116  rvv=38 mac=7 vset=3 gather=0  native-vec (vectorized expf)
+gelu     ggml_table_gelu_f16 (BSS-LUT)   wrapper=1216/rvv6/mac1  scalar-f16-LUT (CONFIRMED: BSS table + zero vectorized gelu sym · NOT fair speed-AB)
+add      ggml_compute_forward_add_non_quantized tot=2306 rvv=65 mac=1 vset=13   native-vec-autovec (multi-dtype dispatcher)
+mul      ggml_compute_forward_mul        tot=2318 rvv=68 mac=9 vset=17          native-vec-autovec
+scale    ggml_compute_forward_scale      tot=166  rvv=7  mac=2 vset=2           light-vec/near-scalar
+cpy      dup_flt<f32,f32> (_ZL28..._fltIffEv) tot=454 rvv=2 mac=0 vset=1        scalar/memcpy-stream (rvv~0)
+
+== F. dequant [DEQ-AXIS · not in 0.8 denom] (ggmlquants_full.dis · all rvv>0 no pure-scalar) ==
+q2_K   dequantize_row_q2_K   tot=198 rvv=60  mac=0  native-vec-streaming
+q3_K   dequantize_row_q3_K   tot=423 rvv=44  mac=4  native-vec
+q4_K   dequantize_row_q4_K   tot=266 rvv=16  mac=0  native-vec-light  [board-diff: rvv-board q4_K dequant=scalar rvv0]
+q5_K   dequantize_row_q5_K   tot=325 rvv=26  mac=0  native-vec
+q6_K   dequantize_row_q6_K   tot=254 rvv=108 mac=16 hand-tuned/heavy-vec
+iq1_s  dequantize_row_iq1_s  tot=133 rvv=24  mac=4  native-vec-light
+iq1_m  dequantize_row_iq1_m  tot=187 rvv=24  mac=4  native-vec-light
+iq2_xxs dequantize_row_iq2_xxs tot=161 rvv=20 mac=2 native-vec-light
+iq2_xs dequantize_row_iq2_xs tot=185 rvv=10  mac=2  light-vec/near-scalar
+iq2_s  dequantize_row_iq2_s  tot=171 rvv=30  mac=4  native-vec
+iq3_xxs dequantize_row_iq3_xxs tot=168 rvv=20 mac=2 native-vec-light
+iq3_s  dequantize_row_iq3_s  tot=262 rvv=38  mac=4  native-vec
+iq4_nl dequantize_row_iq4_nl tot=131 rvv=13  mac=2  native-vec (codebook gather)
+iq4_xs dequantize_row_iq4_xs tot=179 rvv=13  mac=2  native-vec (codebook gather)
+mxfp4  dequantize_row_mxfp4  tot=126 rvv=14  mac=2  native-vec (codebook gather)
+nvfp4  dequantize_row_nvfp4  tot=193 rvv=24  mac=2  native-vec  [dequant EXISTS though vec_dot ABSENT]
+tq1_0  dequantize_row_tq1_0  tot=766 rvv=107 mac=32 hand-tuned/heavy-vec
+tq2_0  dequantize_row_tq2_0  tot=481 rvv=60  mac=8  native-vec-heavy
+
+# on-board: /tmp/g8s3k/k1/{quants_opp.o,ggmlquants_opp.o,quants_generic_opp.o,metrics.txt} kept; large .dis cleaned (regenerate: objdump -d <.o>). analyzer /tmp/g8s3k/anal2.sh.

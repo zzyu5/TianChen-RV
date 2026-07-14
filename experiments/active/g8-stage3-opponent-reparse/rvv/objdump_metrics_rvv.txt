@@ -1,0 +1,52 @@
+# G8 stage3 rvv opponent objdump metrics (clang-18.1.8 symmetric, VLEN128)
+# ggml tree = /home/ubuntu/vericurve-rv-lab/llama.cpp commit e36a602ba38a26206c749ba4fb5dcf481bfd92db (2026-06-15)
+# opp TUs recompiled clang-18: quants.c -> quants_opp.o ; ggml-quants.c -> ggmlquants_opp.o ; vec.cpp -> vec_opp.o ; ops.cpp -> ops_opp.o
+# march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause -O2/-O3 -fno-integrated-as
+# metric: tot=insns rvv=vector-ops(non-vset) mac=vw?mul/vw?macc/vredsum/... vset=vsetvli gather=vrgather/vlux/vlox csrr_vlenb=VLEN-dispatch
+2026年 07月 14日 星期二 21:41:27 CST
+loadavg: 2.27 2.22 2.15 1/1049 2383198
+== FLAT vec_dot (single sym) ==
+ggml_vec_dot_q4_0_q8_0                   tot=125  rvv=12   mac=3   vset=4   gather=0   csrr_vlenb=0 
+ggml_vec_dot_q4_1_q8_1                   tot=76   rvv=10   mac=3   vset=4   gather=0   csrr_vlenb=0 
+ggml_vec_dot_q5_0_q8_0                   tot=112  rvv=22   mac=4   vset=10  gather=0   csrr_vlenb=1 
+ggml_vec_dot_q5_1_q8_1                   tot=120  rvv=20   mac=4   vset=10  gather=0   csrr_vlenb=1 
+ggml_vec_dot_q8_0_q8_0                   tot=66   rvv=6    mac=2   vset=4   gather=0   csrr_vlenb=0 
+== K-quant vec_dot _vl128 dispatched (VLEN128) + q5_K single ==
+ggml_vec_dot_q2_K_q8_K_vl128             tot=235  rvv=125  mac=66  vset=9   gather=0   csrr_vlenb=0 
+ggml_vec_dot_q3_K_q8_K_vl128             tot=238  rvv=102  mac=36  vset=14  gather=0   csrr_vlenb=0 
+ggml_vec_dot_q4_K_q8_K_vl128             tot=220  rvv=105  mac=35  vset=7   gather=0   csrr_vlenb=0 
+ggml_vec_dot_q6_K_q8_K_vl128             tot=232  rvv=84   mac=36  vset=10  gather=0   csrr_vlenb=0 
+ggml_vec_dot_q5_K_q8_K                   tot=238  rvv=82   mac=26  vset=15  gather=0   csrr_vlenb=0 
+== iq/fp4 vec_dot _vl128 (nvfp4 vec_dot ABSENT) ==
+ggml_vec_dot_iq1_s_q8_K_vl128            tot=225  rvv=68   mac=19  vset=41  gather=5   csrr_vlenb=6 
+ggml_vec_dot_iq1_m_q8_K_vl128            tot=253  rvv=62   mac=26  vset=17  gather=2   csrr_vlenb=8 
+ggml_vec_dot_iq4_nl_q8_0_vl128           tot=102  rvv=18   mac=4   vset=11  gather=2   csrr_vlenb=0 
+ggml_vec_dot_mxfp4_q8_0_vl128            tot=118  rvv=18   mac=4   vset=11  gather=2   csrr_vlenb=0 
+== forward-op (vec.cpp + ops.cpp) ==
+ggml_vec_silu_f32                        tot=112  rvv=38   mac=7   vset=3   gather=0   csrr_vlenb=0 
+ggml_vec_gelu_f32 = ABSENT text sym (only ggml_table_gelu_f16 BSS = scalar f16-LUT)
+ggml_compute_forward_soft_max            tot=592  rvv=19   mac=4   vset=6   gather=0   csrr_vlenb=1 
+ggml_compute_forward_rms_norm            tot=277  rvv=10   mac=2   vset=4   gather=0   csrr_vlenb=3 
+_ZL29ggml_compute_forward_rope_fltIfEvPK19ggml_compute_paramsP11ggml_tensorb tot=1184 rvv=32   mac=12  vset=5   gather=0   csrr_vlenb=0 
+ggml_compute_forward_scale               tot=154  rvv=7    mac=2   vset=2   gather=0   csrr_vlenb=0 
+ggml_compute_forward_add                 tot=413  rvv=4    mac=0   vset=1   gather=0   csrr_vlenb=1 
+ggml_compute_forward_dup                 tot=4339 rvv=51   mac=0   vset=17  gather=0   csrr_vlenb=12
+== dequant [DEQ-AXIS] ==
+dequantize_row_q2_K                      tot=256  rvv=88   mac=0   vset=1   gather=0   csrr_vlenb=0 
+dequantize_row_q3_K                      tot=365  rvv=132  mac=16  vset=58  gather=0   csrr_vlenb=0 
+dequantize_row_q4_K                      tot=467  rvv=0    mac=0   vset=0   gather=0   csrr_vlenb=0 
+dequantize_row_q5_K                      tot=330  rvv=26   mac=0   vset=10  gather=0   csrr_vlenb=1 
+dequantize_row_q6_K                      tot=692  rvv=432  mac=64  vset=136 gather=0   csrr_vlenb=0 
+dequantize_row_iq1_s                     tot=129  rvv=24   mac=4   vset=8   gather=0   csrr_vlenb=0 
+dequantize_row_iq1_m                     tot=194  rvv=24   mac=4   vset=8   gather=0   csrr_vlenb=0 
+dequantize_row_iq2_xxs                   tot=290  rvv=74   mac=8   vset=33  gather=0   csrr_vlenb=0 
+dequantize_row_iq2_xs                    tot=183  rvv=10   mac=2   vset=5   gather=0   csrr_vlenb=0 
+dequantize_row_iq2_s                     tot=281  rvv=74   mac=8   vset=33  gather=0   csrr_vlenb=0 
+dequantize_row_iq3_xxs                   tot=304  rvv=74   mac=8   vset=33  gather=0   csrr_vlenb=0 
+dequantize_row_iq3_s                     tot=528  rvv=146  mac=16  vset=65  gather=0   csrr_vlenb=0 
+dequantize_row_iq4_nl                    tot=131  rvv=13   mac=2   vset=6   gather=2   csrr_vlenb=1 
+dequantize_row_iq4_xs                    tot=179  rvv=13   mac=2   vset=6   gather=2   csrr_vlenb=1 
+dequantize_row_mxfp4                     tot=124  rvv=14   mac=2   vset=8   gather=2   csrr_vlenb=1 
+dequantize_row_nvfp4                     tot=190  rvv=24   mac=2   vset=6   gather=0   csrr_vlenb=0 
+dequantize_row_tq1_0                     tot=734  rvv=135  mac=44  vset=43  gather=0   csrr_vlenb=1 
+dequantize_row_tq2_0                     tot=431  rvv=23   mac=3   vset=6   gather=0   csrr_vlenb=1 

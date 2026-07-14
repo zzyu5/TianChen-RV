@@ -1,0 +1,48 @@
+# board	rowkey	vlen	ledger	opp_grade	opp_symbol	objdump_metric	hardgate	compiler_axis	note
+rvv	vec_dot|q4_0|typed-flat|arity2|micro-fixed	128	matmul-kernel-sym	light-vec	ggml_vec_dot_q4_0_q8_0	tot125/rvv12/mac3/vset4	in-denom	clang18-sym	ggml-block-dot-weak
+rvv	vec_dot|q4_1|typed-flat|arity2|micro-fixed	128	matmul-kernel-sym	light-vec	ggml_vec_dot_q4_1_q8_1	tot76/rvv10/mac3/vset4	in-denom	clang18-sym	ggml-block-dot-weak
+rvv	vec_dot|q5_0|typed-flat|arity2|micro-fixed	128	matmul-kernel-sym	native-vec-moderate	ggml_vec_dot_q5_0_q8_0	tot112/rvv22/mac4/vset10/csrr1	in-denom	clang18-sym	better-vec-qh5bit-VLENadaptive
+rvv	vec_dot|q5_1|typed-flat|arity2|micro-fixed	128	matmul-kernel-sym	native-vec-moderate	ggml_vec_dot_q5_1_q8_1	tot120/rvv20/mac4/vset10/csrr1	in-denom	clang18-sym	better-vec-qh5bit
+rvv	vec_dot|q8_0|typed-flat|arity2|micro-fixed	128	matmul-kernel-sym	light-vec	ggml_vec_dot_q8_0_q8_0	tot66/rvv6/mac2/vset4	in-denom	clang18-sym	ggml-block-dot-weak
+rvv	vec_dot|q2_K|typed-super-block|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned	ggml_vec_dot_q2_K_q8_K_vl128	tot235/rvv125/mac66/vset9	in-denom	clang18-sym	SpacemiT-vl128-unrolled-STRONG
+rvv	vec_dot|q3_K|typed-super-block|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned	ggml_vec_dot_q3_K_q8_K_vl128	tot238/rvv102/mac36/vset14	in-denom	clang18-sym	SpacemiT-vl128-STRONG
+rvv	vec_dot|q4_K|typed-super-block|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned	ggml_vec_dot_q4_K_q8_K_vl128	tot220/rvv105/mac35/vset7	in-denom	clang18-sym	SpacemiT-vl128-STRONG
+rvv	vec_dot|q5_K|typed-super-block|arity2|micro-fixed	128	matmul-kernel-sym	native-vec-moderate	ggml_vec_dot_q5_K_q8_K	tot238/rvv82/mac26/vset15	in-denom	clang18-sym	NO-vl-spec-唯一未手调-MODERATE
+rvv	vec_dot|q6_K|typed-super-block|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned	ggml_vec_dot_q6_K_q8_K_vl128	tot232/rvv84/mac36/vset10	in-denom	clang18-sym	SpacemiT-vl128-STRONG
+rvv	gemm|q2_K|repack-gemm|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned-CROSSOP	ggml_vec_dot_q2_K_q8_K_vl128	cross-op-vs-blockdot-no-repack-GEMM-opp	in-denom	clang18-sym	our-gemm-vs-opp-vl128-blockdot
+rvv	gemm|q3_K|repack-gemm|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned-CROSSOP	ggml_vec_dot_q3_K_q8_K_vl128	cross-op-vs-blockdot	in-denom	clang18-sym	our-gemm-vs-opp-vl128-blockdot
+rvv	gemm|q4_K|repack-gemm|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned-CROSSOP	ggml_vec_dot_q4_K_q8_K_vl128	cross-op-vs-blockdot	in-denom	clang18-sym	our-gemm-vs-opp-vl128-blockdot
+rvv	gemm|q5_K|repack-gemm|arity2|micro-fixed	128	matmul-kernel-sym	native-vec-moderate-CROSSOP	ggml_vec_dot_q5_K_q8_K	cross-op-vs-blockdot-no-vl-spec	in-denom	clang18-sym	our-gemm-vs-opp-MODERATE
+rvv	gemm|q6_K|repack-gemm|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned-CROSSOP	ggml_vec_dot_q6_K_q8_K_vl128	cross-op-vs-blockdot	in-denom	clang18-sym	our-gemm-vs-opp-vl128-blockdot
+rvv	vec_dot|iq1_s|typed-grid|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned	ggml_vec_dot_iq1_s_q8_K_vl128	tot225/rvv68/mac19/gather5/csrr6	in-denom	clang18-sym	SpacemiT-vl128-gather-STRONG
+rvv	vec_dot|iq1_m|typed-grid|arity2|micro-fixed	128	matmul-kernel-sym	hand-tuned	ggml_vec_dot_iq1_m_q8_K_vl128	tot253/rvv62/mac26/gather2/csrr8	in-denom	clang18-sym	SpacemiT-vl128-STRONG
+rvv	vec_dot|iq4_nl|typed-codebook|arity2|micro-fixed	128	matmul-kernel-sym	native-vec-moderate	ggml_vec_dot_iq4_nl_q8_0_vl128	tot102/rvv18/mac4/gather2/vset11	in-denom	clang18-sym	hand-vl128-light-codebook-gather
+rvv	vec_dot|nvfp4|typed-codebook|arity2|micro-fixed	128	matmul-kernel-sym	native-vec-generic-weak	ggml_vec_dot_nvfp4_q8_0	tot214/rvv23/mac2/NO-riscv-spec-generic	in-denom	clang18-sym	generic-C-autovec-NO-vl-spec-weak
+rvv	forward|softmax|reduce-strip|arity1|f32	128	forward-op	native-vec	ggml_compute_forward_soft_max	tot592/rvv19/mac4/csrr1	in-denom	clang18-sym	expf-reduce-max-sub
+rvv	forward|rms_norm|reduce-strip|arity1|f32	128	forward-op	native-vec	ggml_compute_forward_rms_norm	tot277/rvv10/mac2/csrr3	in-denom	clang18-sym	2-pass-VLENadaptive
+rvv	forward|rope|rotate-strip|arity1|f32	128	forward-op	native-vec	ggml_compute_forward_rope_flt_f32	tot1184/rvv32/mac12	in-denom	clang18-sym	autovec+scalar-sin-cos
+rvv	forward|silu|map-strip|arity1|f32	128	forward-op	native-vec	ggml_vec_silu_f32	tot112/rvv38/mac7	in-denom	clang18-sym	sigmoid-expf-vectorized
+rvv	forward|gelu|map-strip|arity1|f32	128	forward-op	scalar-f16-LUT	ggml_table_gelu_f16_BSS_LUT	NO-vec-table-lookup-STRUCTURAL	in-denom	clang18-sym	GGML_GELU_FP16-not-fair-speed-AB
+rvv	forward|add|binary-map|arity2|f32	128	forward-op	native-vec	ggml_compute_forward_add	vfadd.vv-inline-autovec	in-denom	clang18-sym	IEEE-f32-bit-exact
+rvv	forward|mul|binary-map|arity2|f32	128	forward-op	native-vec	ggml_compute_forward_mul	vfmul-binary-op-autovec	in-denom	clang18-sym	IEEE-f32-bit-exact
+rvv	forward|scale|map-strip|arity1|f32	128	forward-op	native-vec-light	ggml_compute_forward_scale	tot154/rvv7/mac2	in-denom	clang18-sym	vfmul.vf-inplace
+rvv	forward|cpy|copy-map|arity1|f32	128	forward-op	native-vec-streaming	ggml_compute_forward_dup_cpy	tot4339/rvv51/csrr12	in-denom	clang18-sym	vector-copy-memcpy-paths
+rvv	dequant|q2_K|streaming|arity1|f32	128	DEQ-AXIS	native-vec	dequantize_row_q2_K	tot256/rvv88	test-only-not-in-denom	clang18-sym	deploy-footnote-gcc15-autovec
+rvv	dequant|q3_K|streaming|arity1|f32	128	DEQ-AXIS	native-vec	dequantize_row_q3_K	tot365/rvv132/mac16	test-only-not-in-denom	clang18-sym	strong-autovec
+rvv	dequant|q4_K|streaming|arity1|f32	128	DEQ-AXIS	scalar	dequantize_row_q4_K	tot467/rvv0-NOT-vectorized	test-only-not-in-denom	clang18-sym	clang18-scalar-vs-gcc15-autovec-footnote
+rvv	dequant|q5_K|streaming|arity1|f32	128	DEQ-AXIS	native-vec-light	dequantize_row_q5_K	tot330/rvv26/csrr1	test-only-not-in-denom	clang18-sym	
+rvv	dequant|q6_K|streaming|arity1|f32	128	DEQ-AXIS	native-vec-heavy	dequantize_row_q6_K	tot692/rvv432/mac64	test-only-not-in-denom	clang18-sym	big-unroll
+rvv	dequant|iq1_s|streaming|arity1|f32	128	DEQ-AXIS	native-vec-light	dequantize_row_iq1_s	tot129/rvv24	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq1_m|streaming|arity1|f32	128	DEQ-AXIS	native-vec-light	dequantize_row_iq1_m	tot194/rvv24	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq2_xxs|streaming|arity1|f32	128	DEQ-AXIS	native-vec	dequantize_row_iq2_xxs	tot290/rvv74	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq2_xs|streaming|arity1|f32	128	DEQ-AXIS	light-vec	dequantize_row_iq2_xs	tot183/rvv10	test-only-not-in-denom	clang18-sym	near-scalar
+rvv	dequant|iq2_s|streaming|arity1|f32	128	DEQ-AXIS	native-vec	dequantize_row_iq2_s	tot281/rvv74	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq3_xxs|streaming|arity1|f32	128	DEQ-AXIS	native-vec	dequantize_row_iq3_xxs	tot304/rvv74	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq3_s|streaming|arity1|f32	128	DEQ-AXIS	native-vec-heavy	dequantize_row_iq3_s	tot528/rvv146	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq4_nl|streaming|arity1|f32	128	DEQ-AXIS	light-vec-gather	dequantize_row_iq4_nl	tot131/rvv13/gather2	test-only-not-in-denom	clang18-sym	
+rvv	dequant|iq4_xs|streaming|arity1|f32	128	DEQ-AXIS	light-vec-gather	dequantize_row_iq4_xs	tot179/rvv13/gather2	test-only-not-in-denom	clang18-sym	
+rvv	dequant|mxfp4|streaming|arity1|f32	128	DEQ-AXIS	light-vec-gather	dequantize_row_mxfp4	tot124/rvv14/gather2	test-only-not-in-denom	clang18-sym	
+rvv	dequant|nvfp4|streaming|arity1|f32	128	DEQ-AXIS	native-vec-light	dequantize_row_nvfp4	tot190/rvv24	test-only-not-in-denom	clang18-sym	nvfp4-dequant-EXISTS-unlike-vecdot
+rvv	dequant|tq1_0|streaming|arity1|f32	128	DEQ-AXIS	native-vec-heavy	dequantize_row_tq1_0	tot734/rvv135/mac44	test-only-not-in-denom	clang18-sym	
+rvv	dequant|tq2_0|streaming|arity1|f32	128	DEQ-AXIS	native-vec-light	dequantize_row_tq2_0	tot431/rvv23	test-only-not-in-denom	clang18-sym	
+rvv	vec_dot|q1_0|typed-flat|arity2|micro-fixed	128	EXCLUDED-internal	native-vec-INTERNAL-A/B	ggml_vec_dot_q1_0_q8_0_vl128	tot111/rvv25/mac4-enum41-Weft-internal	excluded-internal-A/B-not-in-denom	clang18-sym	no-genuine-3rd-party-opp-our-format-only

@@ -96,7 +96,9 @@
 |---|---|---|
 | gemm/iq2_xxs · iq2_xs · iq2_s · iq4_xs · mxfp4 · tq1_0 · tq2_0（7） | **gemm-轴对手 absent**（opponent 零 iq/tq repack GEMM·只有 block-dot vec_dot·跨-op） | 对位退化为 our-gemm vs opponent-block-dot（cross-op·如 iq4_nl 已做）·**非 same-op kernel-sym**·主会话若采 cross-op 口径可纳入（但须明标 cross-op·区别 same-op） |
 | vec_dot/q1_0 | no-fair-opponent（Weft-internal binary·非标准 ggml·[主会话4裁定④]） | ggml 无 q1_0 vec_dot 对位 |
-| vec_dot/nvfp4 | no-fair-opponent（fp4·ggml 疑无 nvfp4·[主会话4裁定④]） | ggml 无 nvfp4 对位 |
+| vec_dot/nvfp4 | ~~no-fair-opponent（fp4·ggml 疑无 nvfp4·[主会话4裁定④]）~~ **SUPERSEDED** | **★对手身份存疑·superseded（G8 阶段三 §五 opponent-reparse 2026-07-14）**：`ggml_vec_dot_nvfp4_q8_0` **存在**（generic·ggml-cpu/quants.c·双板 tot~215/rvv23/mac2·native-vec-generic 弱·无 riscv hand-tuned 专化）→ **≠ absent**·in-0.8-denom（弱对手）。仅 riscv 手调专化缺·非对手 absent。casefile=`experiments/active/g8-stage3-opponent-reparse/` |
+
+> **★G8 阶段三 §五 opponent-reparse 交叉引用（2026-07-14）**：全表对手 clang-18 对称域重解析·casefile `experiments/active/g8-stage3-opponent-reparse/`（evidence.md + 双板 objdump_metrics）。本 T9 rvv opponent 机判**逐格 confirmed**（同符号同成色·无稻草人）；两处收窄/纠正：① nvfp4 vec_dot "absent"→generic-弱（上行 superseded）；② iq4_nl vec_dot `_vlNNN` 旧"STRONG"→native-vec-中（thin wrapper·rvv18/k1 24）。**★k1 K-quant GEMM 对手大纠正**：k1 stock .so 带 **real same-op repack hand-brick**（q2_K/q4_K/q5_K/q6_K·8x8/8x4/16x1·仅 q3_K 无）→ k1 K-quant GEMM **非** cross-op（≠ rvv 全 cross-op）·per-board 对手成色独立·禁跨板沿用。q4_K@k1 双核清算：kernel-sym vl=8 核 races block-dot(vl256 rvv54)·sealed Win-K1-VLEN vl=16 核 races 真 16x1 hand-brick（decode `ggml_gemv_q4_K_16x1` rvv209 / prefill `ggml_gemm_q4_K_16x1` rvv224）。
 
 ---
 
