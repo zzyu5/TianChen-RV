@@ -1,0 +1,70 @@
+
+Authorized users only. All activities may be monitored and reported.
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1M of event 'task-clock:u'
+# Event count (approx.): 1103099097996
+#
+#
+    88.78%  [.] ggml_vec_dot_q5_0_q8_0
+     6.40%  [.] ggml_vec_dot_q6_K_q8_K_vl128.isra.0
+     2.40%  [.] gomp_team_barrier_wait_end
+     0.93%  [.] ggml_compute_forward_mul_mat
+     0.32%  [.] ggml_compute_forward_flash_attn_ext_f16_one_chunk(ggml_compute_params const*, ggml_tensor*, int, int, long, long, float*, long)
+     0.31%  [.] ggml_vec_dot_f16
+     0.08%  [.] quantize_row_q8_0
+     0.08%  [.] expf
+     0.05%  [.] ggml_is_contiguous_0
+     0.05%  [.] ggml_graph_compute_thread.isra.0
+     0.04%  [.] void ggml_compute_forward_rope_flt<float>(ggml_compute_params const*, ggml_tensor*, bool)
+     0.04%  [.] ggml_compute_forward_rms_norm_mul_fused
+     0.04%  [.] gomp_barrier_wait_end
+     0.03%  [.] ggml_row_size
+     0.03%  [.] ggml_vec_dot_q6_K_q8_K
+     0.03%  [.] ggml_vec_swiglu_f32
+     0.03%  [.] ggml_type_size
+     0.02%  [.] gomp_team_barrier_wait
+     0.02%  [.] GOMP_barrier
+     0.02%  [.] sincosf32
+     0.01%  [.] memcpy
+     0.01%  [.] ggml_is_contiguous
+     0.01%  [.] ggml_op_symbol@plt
+     0.01%  [.] strlen
+     0.01%  [.] ggml_compute_forward_add_non_quantized
+     0.01%  [.] ggml::cpu::repack::extra_buffer_type::get_tensor_traits(ggml_tensor const*)
+     0.01%  [.] ggml_cpu_fp32_to_fp16
+     0.01%  [.] ggml_is_empty
+     0.01%  [.] llama_vocab::impl::load(llama_model_loader&, LLM_KV const&)
+     0.01%  [.] memset
+     0.01%  [.] ggml_cpu_extra_compute_forward
+     0.01%  [.] powf
+     0.01%  [.] ggml_blck_size
+     0.01%  [.] ggml_threadpool_chunk_add
+     0.01%  [.] llama_vocab::~llama_vocab()
+     0.01%  [.] std::_Hashtable<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int>, std::allocator<std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int> >, std::__detail::_Select1st, std::equal_to<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >, llama_vocab::impl::pair_hash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_find_before_node(unsigned long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const&, unsigned long) const [clone .isra.0]
+     0.01%  [.] ggml_compute_forward_solve_tri@plt
+     0.00%  [.] ggml_backend_cpu_get_extra_buffer_types()
+     0.00%  [.] llamafile_sgemm
+     0.00%  [.] logf
+     0.00%  [.] bool std::operator==<char, std::char_traits<char>, std::allocator<char> >(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, char const*)
+     0.00%  [.] ggml_barrier
+     0.00%  [.] ggml_compute_forward_glu
+     0.00%  [.] std::_Hashtable<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int>, std::allocator<std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int> >, std::__detail::_Select1st, std::equal_to<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >, llama_vocab::impl::pair_hash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_insert_unique_node(unsigned long, unsigned long, std::__detail::_Hash_node<std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int>, true>*, unsigned long)
+     0.00%  [.] ggml_opt_dataset_get_batch@plt
+     0.00%  [.] ggml_backend_cpu_repack_buffer_type()
+     0.00%  [.] floorf32
+     0.00%  [.] ggml_compute_forward_set_rows
+     0.00%  [.] std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+     0.00%  [.] 0x0000000000071892
+     0.00%  [.] free
+     0.00%  [.] std::__detail::_Map_base<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, int>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, int> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[](std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+     0.00%  [.] syscall
+     0.00%  [.] std::_Hashtable<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, unsigned char>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, unsigned char> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::find(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+     0.00%  [.] __log2_finite
+     0.00%  [.] std::pair<std::__detail::_Node_iterator<std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int>, false, true>, bool> std::_Hashtable<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int>, std::allocator<std::pair<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > const, int> >, std::__detail::_Select1st, std::equal_to<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >, llama_vocab::impl::pair_hash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_emplace<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, int&>(std::integral_constant<bool, true>, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >&&, int&) [clone .isra.0]
+     0.00%  [.] 0x0000000000070930
+     0.00%  [.] floorf32x
+     0.00%  [.] ggml_vec_dot_f32@plt

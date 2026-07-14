@@ -1,0 +1,48 @@
+
+Authorized users only. All activities may be monitored and reported.
+===ENV===
+== ENV ==
+Linux localhost.localdomain 6.12.66-0.0.0.0.riscv64 #1 SMP Mon Feb  2 22:50:01 CST 2026 riscv64 riscv64 riscv64 GNU/Linux
+isa: isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+nproc: 64 pinned=8-15 threads=8
+governor: performance
+freq_khz: 2600000
+model_stat: /home/ubuntu/models/DeepSeek-R1-Distill-Llama-8B-Q5_0.gguf 5599296352 1783795239
+bin_stat: /home/ubuntu/tcrv-llamacpp/build/bin/llama-bench 14624 1782348242
+perf: perf version 6.6.0-27.0.0.31.oe2403.riscv64
+===PROGRESS===
+RUN1_START 1783995442
+RUN1_DONE 1783995704
+RUN2_START 1783995704
+RUN2_DONE 1783995847
+RUN3_START 1783995859
+RUN3_DONE 1783995918
+===PERFSTAT===
+| model                          |       size |     params | backend    | threads |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | ------: | --------------: | -------------------: |
+| llama 8B Q5_0                  |   5.21 GiB |     8.03 B | CPU        |       8 |            tg96 |          1.71 ± 0.00 |
+
+build: f3e1828 (1)
+
+ Performance counter stats for '/home/ubuntu/tcrv-llamacpp/build/bin/llama-bench -m /home/ubuntu/models/DeepSeek-R1-Distill-Llama-8B-Q5_0.gguf -p 0 -n 96 -t 8 -r 1 --no-warmup':
+
+        451,157.45 msec task-clock:u                     #    7.652 CPUs utilized             
+ 1,172,985,197,885      cycles:u                         #    2.600 GHz                       
+   712,224,385,705      instructions:u                   #    0.61  insn per cycle            
+    20,289,887,727      cache-references:u               #   44.973 M/sec                     
+     7,995,443,626      cache-misses:u                   #   39.41% of all cache refs         
+
+      58.957677823 seconds time elapsed
+
+     448.715921000 seconds user
+       1.714930000 seconds sys
+
+
+===PERFRUN===
+| model                          |       size |     params | backend    | threads |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | ------: | --------------: | -------------------: |
+| llama 8B Q5_0                  |   5.21 GiB |     8.03 B | CPU        |       8 |           tg256 |          1.85 ± 0.00 |
+
+build: f3e1828 (1)
+[ perf record: Woken up 328 times to write data ]
+[ perf record: Captured and wrote 42.045 MB /tmp/g7prof/perf.data (1101996 samples) ]
