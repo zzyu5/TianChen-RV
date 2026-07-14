@@ -7,4 +7,4 @@
 
 # q4_0 REPACK GEMM finale perf seal — 未完成 5×(只有 ours-pass1,无 stock/pass2),PARKED P3
 # (moved 2026-07-06 org STAGE1: e2e-harness/results/... -> active/repack/...)
-active/repack/rvv-vlen128-q4_0-gemm-constructed-redeploy/
+archive/parked/repack/rvv-vlen128-q4_0-gemm-constructed-redeploy/

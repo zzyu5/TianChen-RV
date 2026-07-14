@@ -1,0 +1,28 @@
+# G8 stage1.3 — rvv SAMPLE A/B (q4_0, clang-17 symmetric domain)  2026-07-14
+# purpose: 只证 harness+编译器链路通 (非正式测量)
+# ours = /tmp/g7_l1_cold/gemm_q4_0.kernel.c (weft emitted repack-GEMM)  compiled clang-17
+# opp  = ggml_vec_dot_q4_0_q8_0 from clang-17-built ggml.so (upstream-native tree)
+# BOTH sides clang-17 @ SAME march  rv64gcv_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause  (== the .so's own build march → strict symmetry)
+# driver = /tmp/g7_l1_cold/flat_gemm_cold_driver.c (compiled clang-17, all 5 FLAT ours .o linked)
+# opp lib = /home/ubuntu/llama.cpp-upstream-native/build-openeuler-clang17/bin/libggml-cpu.so.0.15.1
+# ggml_so_md5=cbb90c1f4fbe088d8aa8baf55e4700c5
+# pin core 8 (co-tenant vLLM on core0,1 untouched); governor=performance; VLEN=128
+
+OURS_ALL5_COMPILE_OK
+LINK_OK
+
+=== OURS q4_0 objdump (symbol resolvable) ===
+0000000000000000 g F .text 00000000000002b2 weft_emitc_ggml_gemm_q4_0_q8_0_kernel_ggml_gemm_q4_0_q8_0
+OURS_q4_0 insn: vsetvl=11 vle=2 vse=4 vmv=18 fp16=cleanfp (libcall-free)  size=0x2b2=690B
+
+=== OPP q4_0 objdump (clang-17 ggml.so, symbol resolvable, not stripped) ===
+000000000009605a T ggml_vec_dot_q4_0_q8_0
+
+=== SAMPLE RUN (pin core8, K=2048 nr=4 nc=256 hot=6 pool=64 rounds=6 seed=4711) ===
+load average: 2.26, 2.17, 2.71
+HOT  fmt=q4_0 VLEN=128 K=2048 nr=4 nc=256 relerr_ours=9.055e-06 relerr_opp=9.055e-06 nbad=0 GATE=PASS ours_ns=252678.0 ours_gmacs=8.2997 opp_ns=1754661.7 opp_gmacs=1.1952 ratio_ours_over_opp=6.9443 sink=-1083.8
+COLD fmt=q4_0 VLEN=128 K=2048 nr=4 nc=256 pool=64 ws_ours_MB=18.9 ws_opp_MB=18.9 wp_bytes=294912 ours_ns_med=276276.5 ours_iqrpct=2.46 ours_gmacs=7.5908 ours_wGBs=1.067 opp_ns_med=1758243.6 opp_iqrpct=0.06 opp_gmacs=1.1928 opp_wGBs=0.168 ratio_ours_over_opp=6.3641 sink=414.8
+
+# NOTE: ratio 6.94/6.36 = ours repack-GEMM vs ggml block-dot vec_dot (known q4_0 repack-vs-blockdot locality
+#   advantage, per memory ~6.7x). This is a CHAIN-PROOF only, NOT a formal kernel-sym measurement.
+# NOTE: relerr identical both sides (9.055e-06), nbad=0 → correctness carrier intact under clang-17.

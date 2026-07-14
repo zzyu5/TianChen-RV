@@ -1,0 +1,27 @@
+# G8 stage1.3 — k1 SAMPLE A/B (q4_K, clang-18 symmetric NON-IME domain)  2026-07-14
+# purpose: 确认既有 k1 clang-18 域仍有效 (符号探针 + 链路)
+# ours = /tmp/tcrv_k1_vlen_adapt/s6_q4K_vl16_sealed.c (SEALED vl=16 core, md5 e437fd3b) compiled clang-18
+# opp  = ggml_gemm_q4_K_16x1_q8_K (TRUE shipped VLEN256-native hand-brick) from stock ggml.so
+# BOTH sides clang-18 @ MARCH_CANON  rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# opp lib = /data/k1build-stock/bin/libggml-cpu.so.0.15.1  (md5 871169a01231…)
+# pin core 3 (k1 core0-3 allowed); governor=performance; VLEN=256
+# CXX = Bianbu clang version 18.1.8 (11bb4)
+
+ours md5 = e437fd3b   (== sealed vl=16 core, proves NO regen)
+LINK_OK
+
+=== OURS q4_K objdump (symbol resolvable) ===
+000000000000320e g F .text 000000000000001c tcrv_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K
+OURS insn (vl16 core): vsetvli=35 vwmacc=64 vmv=82   libcall-free OK
+
+=== OPP q4_K objdump (stock ggml.so, symbol resolvable, not stripped) ===
+00000000000abe58 T ggml_gemm_q4_K_16x1_q8_K
+
+=== SAMPLE RUN (pin core3, K=2048 nr=64 nc=256 pool=4 rounds=4 iters=8 seed=0xC0FFEE) ===
+loadavg_begin=2.38 2.25 2.20
+CORRECTNESS ours_vs_16x1: max_abs=2.930e-03 max_rel=8.783e-03 nbad=0/16384 first_bad_row=-1 ours[0]=1565.3943 opp[0]=1565.3942 ours[last]=-1392.6117 opp[last]=-1392.6123
+HOT  VLEN=256 K=2048 nr=64 nc=256 iters=8 rounds=8 ours_ns=4637248.6 ours_iqr=0.41% ours_gmacs=7.2358 opp_ns=5577503.4 opp_iqr=0.37% opp_gmacs=6.0160 ratio_ours_over_opp=1.2028
+COLD VLEN=256 K=2048 nr=64 nc=256 pool=4 rounds=8 ours_ns=4667899.5 ours_iqr=0.32% ours_gmacs=7.1883 opp_ns=5612076.1 opp_iqr=0.18% opp_gmacs=5.9790 ratio_ours_over_opp=1.2023 sink=257078.8
+
+# NOTE: ratio 1.20 == known Win-K1-VLEN vl=16 kernel (~1.197x) → chain reproduces the sealed double-axis win.
+# NOTE: nbad=0/16384 (q4_K byte-approx rel tol; both sides bit-consistent within gate). CHAIN-PROOF only.

@@ -12,7 +12,7 @@
 - **代码 HEAD**: `d61259e6`(只读;未 commit;由用户提交)
 - **上游事实来源(均已存在,只读)**:
   - `experiments/active/roofline/roofline.csv`(rvv/k1 两板已标定物理天花板 + ridge)
-  - `experiments/active/p1-k1-vlen256-decode-roofline/MANIFEST.md`(k1 decode bandwidth-bound 判定)
+  - `experiments/archive/perf-historical/p1-k1-vlen256-decode-roofline/MANIFEST.md`(k1 decode bandwidth-bound 判定)
   - `lib/Plugin/RVV/RVVContractionPathSelection.cpp`(fact-3 = `minVLEN==128 || Prefill` 选择器)
   - `lib/Plugin/RVV/RVVLowerQuantContraction.cpp`(repack GEMM/GEVM 前门,`lowerToRepackGemv`/`lowerToRepackGemm`)
   - `include/TianChenRV/Dialect/RVV/IR/RVVOps.td:4220`(`GgmlQuantContractionOp` 抽象请求,`m_regime` 二值)

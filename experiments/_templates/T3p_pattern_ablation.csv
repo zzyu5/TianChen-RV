@@ -1,1 +1,1 @@
-pattern_id,ablation_pair_def(on/off|paired),applicable_board,micro_effect,micro_effect_CI,transduction,mechanism_claim_supported(Y/N/open),status,snapshot
+pattern_id,ablation_pair_def(on/off|paired),applicable_board,micro_effect,micro_effect_CI,transduction,mechanism_claim_supported(Y/N/open),status,snapshot,compiler_axis(clang18-sym=MAIN-verdict|gcc=deploy-footnote),opponent_grade(hand-tuned|native-vec|block-dot|light-vec|scalar|streaming-native|internal-A/B)

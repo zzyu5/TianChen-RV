@@ -9,7 +9,7 @@
 > **三阶段串行（阶段内并行·阶段间硬门）**：**阶段一** 仓库大扫除 + spec/模板修净 ∥ rvv clang 对称环境准备 → **阶段二** 杠杆键控归位（立身之本·自动化对象=决策·每把杠杆写 {能力事实 ∧ 格式特征 ∧ 瓶颈形状} 谓词接入发射器·"没人配"不合法） → **阶段三** 全量双板 kernel 战役（**0.8 硬门·无豁免·物理借口同板一律无效**）。**e2e 总冻结**（阶段三 0.8 门达成前禁开任何 e2e·9/83 + 传导对账封存不撤不扩）。
 > **阶段硬门**：一→二 = 验收四项（recon 全绿·头条三数零漂移·归档索引一页·trellis 树只剩 G8）；二→三 = 键控核查报告 + 双板自动构造证据；三→e2e = 0.8 全量达成。跳门违例。
 > **★头条改版（G8）= 0.8 达标格数/可测格数（双板成对率·硬赢计数）· 键控进度（已键控/总杠杆）· certified · perf-covered（封存 9/83）**。
-> **用户裁定植入**：① rvv kernel-sym 主表 = **clang-17 板系统版对称域**（gcc 降部署附注列·不参与主表胜负）；② **0.8 硬门分母 = matmul kernel-sym + forward-op**（DEQ-AXIS 照测照回填 T3 但不进头条分母·**唯对手成色机判为准**·任何 DEQ 格重解析发现对手是真向量实现→自动升入硬门·禁以赛道归属躲门）；③ batch-regime **封存**（〇.2·G8 期内不扩展 batch 战线）。
+> **用户裁定植入**：① **统一 clang-18 双板**（2026-07-14 改裁·覆盖此前 clang-17）——rvv 板装 clang-18 与 k1 同版·kernel-sym 主表对称域 = **双板 clang-18·一个版本一张表·零逐格口径特例**；全量对手核 clang-18 重编验证（含 vcreate 4 格·对手源码本意最优形态）·clang-17 样例作废重跑·clang-17 upstream ggml.so 保留作环境备份不入主表·装遇 ABI/依赖问题报阻塞禁降级回 17·环境指纹按 clang-18 域重出；gcc 数字降部署附注列（不参与主表胜负）；② **0.8 硬门分母 = matmul kernel-sym + forward-op**（DEQ-AXIS 照测照回填 T3 但不进头条分母·**唯对手成色机判为准**·任何 DEQ 格重解析发现对手是真向量实现→自动升入硬门·禁以赛道归属躲门）；③ batch-regime **封存**（〇.2·G8 期内不扩展 batch 战线）。
 > **落表纪律（用户裁·硬）**：此后一切测量/解析结果**只回填既有模板（T3/T8/T9 及分账表）·禁在新位置另建账本/报告体系**。**认输门槛（阶段三）= "解剖了·学了·造了等价能力·仍差在具名的 X"**（"对手强/物理墙/尽力了"一律不构成出口）。
 > **阶段三优先靶单**：gelu 双板 0.247×（softmax vcpop 短路修法平移首射）→ SiLU@rvv 0.945×（一步之遥）→ vec_dot@k1 四格（0.54-0.68×）→ K-quant GEMM@rvv 批（键控+对称重测后定靶）→ IQ 批。
 > **★G8 阶段一执行中（2026-07-14·Ultracode/Workflow）**：cleanup-classify Workflow（`w3kwfeqxp`·59 exp dirs+28 tasks+16 templates → disposition 清单·只读·主会话审后执行）∥ clang-env agent（`a4f1f96a`·rvv clang-17 对称环境定稿·gates 阶段三）。〇 G7 追认已入账（q5_K@rvv batched-e2e 传导 WIN `6abbf591`·count-neutral）。
@@ -131,7 +131,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 > **新名**：项目 = **Weft**（RISC-V 实例 = **Weft-RV**）；方言前缀 = **weft**（`weft_rvv`/`weft_ime`/`weft_scalar`）；命名空间 `Weft`、`include/Weft/`、工具 `weft-opt`/`weft-translate`。碰撞则备选 `capx`→`strata`。A 段（pattern/registry）可先行；B/C 独占一次机械替换 → CI 绿 + byte-exact 零漂移 + MOVES；时点 = 在飞线收口后。
 
 ## 在飞（裁决执行批·2026-07-12·异域不相交·下 Line-A..E = 已收历史）
-> **★当前在飞**：logit-ULP 三格数值档（k1·`a5e88601`·[K-5]）· 二.2 决定性实验（rvv·`a86d9e8a`）· gcc-death 回溯+X3→[P-4]+〇 登记（docs·`adead0a0`）· [P-4] 8 缺口修复（spec·`a1a795d7`）。
+> **★当前在飞**：logit-ULP 三格数值档（k1·`a5e88601`·[K-5]）· 二.2 决定性实验（rvv·`a86d9e8a`）· gcc-death 回溯+X3〔**已废止代号·→[P-4]/T1c·历史见 docs/reports/2026-07-12-X3-***〕→[P-4]+〇 登记（docs·`adead0a0`）· [P-4] 8 缺口修复（spec·`a1a795d7`）。
 > **★★里程碑（committed）**：perf-covered **7/83**（q5_K@k1 新绿）· IME ratified triple 全 3/3 forward-wired（打回 provisional·裁一）· [WORK-ITEM] K-quant e2e clang 传导存在性证明（gcc 归因隔离 pending·二.2）· [P-4] drill C1 头牌 followability 证据（8 缺口·在修）。
 > **★异板不相交**（rvv ∥ k1·以下 Line-A..E 为历史收口记录）：
 > **★★本轮里程碑（committed）**：**perf-covered 6/83→7/83**——**q5_K@k1 NEW GREEN**（`47e29b35`·首个 our-kernel K-quant e2e 传导·prefill 1.641×·裁四.2 k1 唯一新绿点兑现·第2 K-quant transduction with our kernel）· **[WORK-ITEM] RESOLVED-POSITIVE**（`b12afd57`·q4_K e2e k1-clang 2.644×·C3′ 绿路径确认·rvv LOSS=gcc-death 非 weight-recon wall）· q6_K **FINAL 转正**（`8f80df11`）· iq4_nl **correctness-carrier GREEN→firm yellow-对手更强**（`d0bf1ff8`·codebook 家族首·[GAP-VLEN128] 碎片化第3族）· Line-C k1 编译器对称订正（`17c193eb`）· IME bridge session-1（`13c1c74a`）· 裁决一/三 recon（`2c53e581`）。

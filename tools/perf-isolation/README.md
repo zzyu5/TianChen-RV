@@ -1,0 +1,1 @@
+# perf-isolation — objdump spill compare / mixed clang-gcc build / A-B measure harness. Source campaign: experiments/active(archived)/decisive-kquant-gcc-vs-vlen ([CASE-COMPILER-ASYMMETRY] gcc-vs-vlen isolation). Extracted G8 §一.

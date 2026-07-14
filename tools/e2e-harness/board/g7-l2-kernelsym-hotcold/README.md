@@ -1,0 +1,1 @@
+# g7-l2-kernelsym-hotcold — q4_0/q8/kquant cold drivers + k1 hand-brick resolve run scripts. Source campaign: experiments/archive/g7/g7-l2-kernelsym-hotcold (G7 L2 kernel-sym hot/cold). Extracted G8 §一.

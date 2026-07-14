@@ -52,7 +52,7 @@
 | **T1d** 同 schema 双实例(论文 Table 1 候选) | C1"一图流" | 板无关·结构 | **REAL 可建且强**:VLEN 事实真分化合法集/选择(e8m2@128↔e8m1@256、q8_0 的 VLMAX 正确性边界);**gated on declared-instance-hash 工件(待建)** |
 | **T1c** 外部复制(M4) | C1 协议 | 结构 | M4 远期,gated on 接入文档(待写) |
 | **T2** ledger + 边际曲线 | C2 | 板无关·源码 | 首点(IME 家族本地 LOC)**可复算**(目录 cloc 口径,注意 raw-wc vs cloc 双列);ledger 脚本待建;曲线 gated on 第三家族([X-SCALAR]) |
-| **T3** 双板测量主表(板 A/B 各一) | C3′ + 成熟 | 板相关·测量 | 采纳草案 10 列;**对手身份列 gated on 探针**;**能力键消融列 blocked-by-SEL(先验层未落地)**;正确性/能力形状列现在可填(byte-exact + LMUL/VLEN 翻转已封) |
+| **T3** 双板测量主表(板 A/B 各一) | C3′ + 成熟 | 板相关·测量 | 采纳草案 10 列;**对手身份列 gated on 探针**;**能力键消融列 blocked-by-SEL(先验层未落地)**;正确性/能力形状列现在可填(byte-exact + LMUL/VLEN 翻转已封)。**★G8 修订(2026-07-14·见 §2.1)= clang-18 对称域 schema**:旧 10 列扩为四分账 + cold + 对手成色 + 对手符号/探针指针 + 编译器口径 + 键控状态列;现有 `T3_A/T3_B` STALE/CONTAMINATED/INVALID 数据行保留不删,阶段三 clang-18 域全量重测按 §2.1 新 schema 回填 |
 | **T3p** 模式逐条消融 | C3′ 模板 | 板相关·测量 | gated on 模式注册表(收缩族已数据化,块量化 body 待数据化)+ T-N |
 | **T3m** 迁移判据(双板 diff=0) | C3′ 迁移性 | 板无关·结构 | gated on 模式注册表 + 双板 CI([PAT-3]) |
 | **T4a** 归因样本 | C3′/N3 可归因 | 结构+测量 | **gated on 归因 JSONL 出口**(现有富 in-IR 选择属性重构即可,**M1 可达**);reason 枚举 = {only_feasible, static_order, prior, measured}("是否由能力键选中"列直接从 reason 推导:static_order→否/prior/measured→是/only_feasible→N/A;static_order 在 SEL-1 后应归零=燃减信号);+ oracle 遗憾% |
@@ -61,6 +61,58 @@
 | **T6** 端到端分相 | beat(若有) | 板相关·测量 | gated on llama-bench harness(待接)+ [PERF-1] 八门(现 0/8);decode parity 区预着色 |
 | **T7** 覆盖率/烧减(论文 Fig.1) | 成熟编译器 | 板无关·仓库态 | gated on 覆盖率脚本 + provenance 清单(待建);四指标口径已定(C_construct 只计强义) |
 | **T8** Win/Loss + GAP 台账 | C3′ 负例叙事 | 登记 | 首两实例:钳位回归(→P2b)、矩阵静默落败(→先验层);台账结构可建,gated on [K-6] 缺口关闭环机制化 |
+
+---
+
+## §2.1 T3 列定义(★G8 修订 · 2026-07-14 · clang-18 对称域 · 四分账 · 落表体例权威)
+
+> **性质。** 这是 **G8 总编成令阶段一.二** 落地的 T3 主表体例:**以后表怎么填 · spec 就怎么写**。governs 阶段三全量双板重测的回填格式。草案原 10 列(见 §2 T3 行)在此扩为 **clang-18 对称域 schema**;`experiments/active/result-tables/T3_A/T3_B` 的旧 STALE/CONTAMINATED/INVALID 数据行 **保留不删**(实验宪法 §1 第 1 条:指纹变→自动 stale,不迁移不重解析),新增 **新表头段**,阶段三新行按下方 schema 回填。
+
+### §2.1.1 新增/明确列(相对草案旧 10 列 · 8 新列)
+
+| 新列 | 语义 | 枚举 / 口径 | 服务于 |
+|---|---|---|---|
+| **`ledger_account`** | 该格属四分账哪一本(见 §2.1.2) | `{matmul-kernel-sym \| forward-op \| DEQ-AXIS \| batch-regime}` | 分账结构 + 0.8 硬门分母判定 |
+| **`cold_state` / `cold_ratio`** | **冷启动口径**(TileLang 式冷态·区别 hot;冷权重跨 DRAM,非 cache-resident) | hot 比值住旧 `micro_vs_*` 列;冷比值住 `cold_ratio`。**部署域判读以 cold 为准**(cache-resident-only micro-win 不存活 DRAM streaming;tq2_0 hot 1.15×→cold 0.21× 蒸发为永久前车) | 阶段三 kernel 冷启动主账本 |
+| **`opponent_grade`** | **对手成色**(机判该板 as-shipped 真派发核的实现档次) | `{手调 hand-tuned \| 原生向量 native-vec \| block-dot \| light-vec \| 标量 scalar \| 流式原生 streaming-native}`。**取代**旧 `opponent_class(factory\|algmatched\|naive\|scalar)` 4 值枚举(旧列保留兼容 stale 行;G8 新行以 `opponent_grade` 为准) | 成色分层(赢弱对手 ≠ 赢手调);头条成色分布 |
+| **`opponent_symbol`** | **对手 as-shipped 符号名**(机判真派发 kernel 的 symbol) | 如 `ggml_gemm_q4_K_16x1_q8_K`(hand-brick) / `ggml_vec_dot_q4_K_q8_K`(block-dot)。**refine** 旧 `opponent_ref(probe_artifact)` | q4_K 稻草人永久前车(对手须机判真派发核·禁挑弱对手/手写类目/internal-A/B) |
+| **`opponent_probe_casefile`** | **objdump 探针 casefile 指针** | 符号级反汇编探针存档路径(证对手身份 + 真派发 + libcall-free) | 对手身份保真(实验宪法 §1 第 4/10 条) |
+| **`compiler_axis`** | **编译器口径**([CASE-COMPILER-ASYMMETRY] 判别键) | `clang18-sym = MAIN-verdict`(双板统一 clang-18 对称域 = **主表胜负**) / `gcc = deploy-footnote`(gcc 数字 = 部署附注列·**不参与主表胜负**)。板锁:rvv 板装 clang-18 与 k1 同版·一个版本一张表·零逐格口径特例 | 主表胜负口径唯一化(消编译器不对称) |
+| **`keying_status`** | **键控状态**(该格吃到哪把杠杆/谓词;或谓词判不适用+据) | `lever-hit:<lever>@<{cap-fact ∧ format-feature ∧ bottleneck-shape}>` / `predicate-NA:<据>`(如"该格无 LMUL 旋钮"/"weight-recon floor 强先验") | 阶段二键控归位("没人配"的杠杆不合法) |
+| **`hardgate_0p8`** | 0.8 硬门分母归属 | `{in-denom \| test-only-not-in-denom \| sealed}`(见 §2.1.3) | 0.8 硬门计数 |
+
+> 旧列 `capkey_ablation(blocked_by_SEL)` 由 `keying_status` refine;旧列 `micro_vs_factory` = hot 主比值(与 `cold_ratio` 配对)。新 header = 旧 28 列 + 上 8 新列 = **36 列超集**(前 28 列位置不变,下游按旧列位读取仍有效)。
+
+### §2.1.2 四分账(T3 的四个分账 · 各自口径 + 对手类型 + 落表位置)
+
+**T3 主表按 `ledger_account` 列拆为四个分账;每本落 T3(及其既有派生表 T8/T9),零新建账本(落表纪律 §2.1.4):**
+
+| 分账 | 口径 | 对手类型 | 既有落表位置(不新建) | 进 0.8 硬门分母? |
+|---|---|---|---|---|
+| **matmul kernel-sym** | 内核轴对称 micro A/B(GEMM 测 prefill / GEVM 测 M=1);同编译器 clang-18 对称域;N≥10 + T-N | 该板 as-shipped 真派发 matmul 核(hand-tuned `_vl128` / block-dot / repack) | **T9_kernel_sym_ledger.md**(第二赛道·T3 派生)+ 逐格数在 T8 | **✅ 进分母** |
+| **forward-op** | 前向逐元素算子(softmax/rms_norm/silu/gelu/add/mul/scale/cpy…)冷启动调度 micro | as-shipped 前向核(**非** hand-brick·**禁并入 matmul kernel-sym**) | T3 分账行(`ledger_account=forward-op`)+ T8;**独立桶**(T9 §1.4 记双板 WIN 计数) | **✅ 进分母** |
+| **DEQ-AXIS** | dequant / quant 轴(dequantize_row_*)对 deployed-scalar/autovec | as-shipped dequant 参考(多为 scalar / light-vec·较弱赢类) | T3 分账行(`ledger_account=DEQ-AXIS`)+ T8 | **❌ 照测照回填·不进头条分母**(见 §2.1.3 升级条款) |
+| **batch-regime** | M∈{4,8} batched tiling regime(冷权重摊销机制) | as-shipped batched matmul 路径 | **封存**(〇.2·G8 期内不扩展 batch 战线);登记以求完备 | **❌ 封存·不计** |
+
+### §2.1.3 0.8 硬门(全量重测头条门 · G8 阶段三)
+
+- **门分母 = `matmul kernel-sym` + `forward-op` 两分账**(`hardgate_0p8=in-denom`)。头条 = **0.8 达标格数 / 可测格数(双板成对率·硬赢计数)**。
+- **DEQ-AXIS 照测照回填 T3**,`hardgate_0p8=test-only-not-in-denom`,**不进头条分母**。**唯一升级通道 = 对手成色机判**:**任何 DEQ 格,对手经 `opponent_grade` 重解析发现是【真向量实现】(native-vec / hand-tuned / block-dot 等非 scalar)→ 自动升入硬门**(改 `hardgate_0p8=in-denom`)。**禁以"赛道归属"躲门**——门的归属由对手成色决定,不由格自我声明。
+- **batch-regime `sealed`**,不计入任何头条门(G8 期内封存)。
+- **物理借口同板一律无效**;认输门槛(阶段三)= "解剖了·学了·造了等价能力·仍差在具名的 X"("对手强/物理墙/尽力了"不构成出口)。
+
+### §2.1.4 落表纪律(硬 · G8 用户裁)
+
+**此后一切测量 / 解析结果只回填既有模板(T3 / T8 / T9 及四分账行)·禁在新位置另建账本 / 报告体系。** 新指标 = 既有表加列(如本节 8 新列),不是新表。casefile / 反汇编存档可为过程工件,但**结论数只住 T3/T8/T9**。
+
+### §2.1.5 T3 ↔ T-VALIDITY 关系(编译器口径的背靠证据 · 零新账本)
+
+`compiler_axis` 列的判定 **背靠既有 [CASE-COMPILER-ASYMMETRY] 证据链**,不新建账本:
+
+- **`T-VALIDITY_compiler_symmetry_ledger.md`** = T8 逐格的编译器对称性分类诊断底账(四分类:对称-gcc / 对称-clang / 不对称 / 指纹缺失);
+- **`T-VALIDITY-STAGE1_{rvv,k1}_symmetric_remeasure.md`** = 上表承重格的**对称重测证据存档**(Stage-1 remeasure raw)。
+
+二者 **不是** 四分账的重复账本,而是 **T3→T8→T-VALIDITY 派生链**上的**编译器口径证据层**(validity 轴·非 coverage 轴)。**处置 = 指针关系,零合并新建**:T3 新行的 `compiler_axis` 值(clang18-sym / gcc-footnote)在需要时 **指向** T-VALIDITY 对应格,不把 T-VALIDITY 内容抄进 T3。G8 阶段三统一 clang-18 双板后,`compiler_axis=clang18-sym` 成为默认主口径,历史 gcc/clang-17 域数据由 T-VALIDITY 链保管为部署附注。
 
 ---
 

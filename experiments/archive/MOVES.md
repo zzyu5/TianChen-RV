@@ -308,3 +308,60 @@ full recipe is in the task hand-off (git rm + 3 MANIFEST edits + gen_experiments
 | C8 | `.touch-set/{line-C-iq2s, line-D-f5, line-xscalar-f6, line-xscalar}.txt` | per-line 触碰集 scratch | 对应线已落地·stale（保留 `_example.txt`+`README.md`）·活动线用 `.touch-set/ACTIVE` | b3e3fef4 |
 
 ref-check: 无 load-bearing 引用（.touch-set 自引 + `.trellis/backup/tasks-archive/` 历史 prose 提及·非依赖·TEMPLATE-AUDIT 报告 append-only 存档不改）。C9（parallel-writer-leftover·已不在树）· C10（`.worktrees/cache/` gitignored disk·可能在用·不动）。
+
+---
+
+## 11. G8 §一 大扫除 (org STAGE1 batch·2026-07-14·全 `git mv` 保历史·recon 不动)
+
+分类源 = G8 §一 execution manifest (Workflow w3kwfeqxp)。原始数据 + commit 指针零丢失。recon (schema-based) 全程绿·头条三数零漂移 (perf-covered 9/83 · certified 84/91 · kernel-sym ≥parity 12)。
+
+### 11.1 探针抽出 → `tools/` (纯 archive 会埋掉可复用探针·每目录配 README 记来源战役)
+
+| src (战役) | 探针 → dst | results_target (数据留处) |
+|---|---|---|
+| `.trellis/tasks/increment1-q6k-repack` (G3 线B repack 构造) | 11×`oracle_repack_*.cpp`+`iq2_grids.h` → `tools/oracle-repack/` | 任务空壳删 (无剩余 tracked file) |
+| `decisive-kquant-gcc-vs-vlen` (CASE-COMPILER-ASYMMETRY) | `objdump_spill_compare.sh`/`mixed_build.sh`/`measure_ab.sh` → `tools/perf-isolation/` | 数据 → `archive/g5/decisive-kquant-gcc-vs-vlen` |
+| `g6-b-emit-unroll` | `board_src/g6b_q2k_identity_ab.c` → `tools/e2e-harness/board/g6b-emit-unroll/` | 数据 → `archive/g6/g6-b-emit-unroll` |
+| `g7-l1-gevm` | `pmu_probe.c`/`structcnt.c`/`gguf_bytes.py`/`g7q5k_measure.sh` → `tools/e2e-harness/board/g7-l1-gevm/` | 数据 → `archive/g7/g7-l1-gevm` |
+| `g7-l1-kernelsym-fullfill` | `flat_gemm_cold_driver{,_k1}.c`/`kquant_gemm_hotcold_q236_driver.c`/`run_*.sh`/`k1_{build,measure}.sh` → `tools/e2e-harness/board/g7-l1-kernelsym-fullfill/` | 数据(含 export/*.kernel.c) → `archive/g7/g7-l1-kernelsym-fullfill` |
+| `g7-l2-gevm-redesign` | `byteexact_*.{c,cpp}`/`measure_3variant.sh`/`analyze_3variant.py`/`build_3variant.sh` (保子路径) → `tools/e2e-harness/board/g7-l2-gevm-redesign/` | 数据 → `archive/g7/g7-l2-gevm-redesign` |
+| `g7-l2-kernelsym-hotcold` | 3×`*_cold_driver.c`/`run_k1_*.sh`/`q4k_handbrick_driver.c` → `tools/e2e-harness/board/g7-l2-kernelsym-hotcold/` | 数据 → `archive/g7/g7-l2-kernelsym-hotcold` |
+| `g7-l3-flat-k1-e2e` | `flat_k1_{build,measure}.sh`/`analyze.py`/`parse_ab.py`/`clean_ab_tokens.sh`/`correctness_clean.sh` → `tools/e2e-harness/board/g7-l3-flat-k1-e2e/` | 数据 → `archive/g7/g7-l3-flat-k1-e2e` |
+| `g7-perf-ceiling` | `q5_0-ime-decode-zeromodel.c`/`strip_body_regpressure.c`/`byteexact_retranspose.c` → `tools/e2e-harness/board/g7-perf-ceiling/` | 数据 → `archive/g7/g7-perf-ceiling` |
+
+注: 各 archive 数据 cell 内仍存**一次性**测量源 (per-variant `.c`/`.emitc.c`/`.s`/exported `.kernel.c`/编译产物二进制) = 该 cell 证据·非可复用探针·随 cell 存档 (非抽出)。
+
+### 11.2 实验 cell 归档 → `experiments/archive/<桶>/` (`experiments/active/<src>` → 下列)
+
+| 桶 | cell(s) | rationale |
+|---|---|---|
+| `g1/` | `format-micro-rvv-vlen128` | G1 format-micro 收口·已被 T8/G3 超越 |
+| `g2-fusion/` | `fmtprop-rms-norm-mul-quantize` · `g2-e2e-wholemodel` · `g2-fuse-rms-norm-mul` | G2 融合战役 (e2e null·micro↛e2e 教材) |
+| `g4-ime/` | `g4-m1b-reseal-batched` (★silicon seal 逐字存活·撑 certified 79-81) · `g4-m3-ime-paradigm-t5b` | G4 IME GEMM 家族·seal 存活 |
+| `g5/` | `g5-wiring` · `decisive-kquant-gcc-vs-vlen` (★[CASE-COMPILER-ASYMMETRY] canon 源·archive 不 delete) | G5 wiring + gcc-vs-vlen isolation |
+| `g6/` | `g6-a-ime-perf-bridge` · `g6-b-emit-unroll` · `l2-kquant-rvv-systemacct` | G6 IME 桥 + emit unroll |
+| `g7/` | `g7-l1-gevm` · `g7-l1-kernelsym-fullfill` · `g7-l2-gevm-redesign` · `g7-l2-kernelsym-hotcold` · `g7-l3-flat-k1-e2e` · `g7-perf-ceiling` | G7 GEVM plan 结构级战役 (探针已抽 tools/) |
+| `l1-kquant/` (★统一单根) | `kquant-family-closure` · `kquant-k1-vlen256-kernel-axis-t4a` · `kquant-l1-q4k-q5k-repack-prefill` · `kquant-l1-q6q2q3-repack` · `l1-m2-iq4` · `l1-pipeline-q4k-repack-gemm` · `l1-reroll-q4k-repack-gemm` · `l1-t3-q{2,3,5,6}k-repack-gemm` · `l1-tile-s{1,6}-q4k-repack-gemm` | L1 K-quant 战役 (★s6=[CASE-COMPILER-ASYMMETRY] canon·archive 不 delete) |
+| `t4b/` (★统一单根) | `t4b-m0-q4k-tracer` · `t4b-m1-repacker` · `t4b-m1-minterm-bisect` (★CANON 永不 delete) · `t4b-m2c-dispatch` · `t4b-m2-dispatch` · `t4b-m4-decisive` · `t4b-model-manifest` · `t4b-seal-fix` · `t4b-selector-ablation` | T4b min-term 案 (M4 终审 canon) |
+| `perf-historical/` | `p1-gemm-vlen256-fix-confirm` · `p1-k1-vlen256-decode-roofline` (★T8/T3_B live csv 指针已 repoint·见 §11.4) | P1 roofline 决议 |
+| `rvv-e2e/` | `rvv-e2e-m1` (★vlen-adapt SEALED-WIN 证据链指针已 repoint·见 §11.4) | RVV-E2E M1a token-tile 静态选型 |
+| `measurement-offensive/` | `covering-batch3-stream-rvv` · `flat-covering-batch1` · `workitem-k1-kquant-e2e` | 测量总攻批次 |
+| `l3-triage/` | `l3-triage` (proposals 已并: kernel-sym 台账→T9=12 · 决策键控→T8 · 未接线 22 格→recon 黄-未接线=0) | L3 案头分诊 (已消费) |
+| `line-c-k1-strike/` | `line-c-k1-strike` (T8_double_exit 已并→T8 row184/192 · q5_K-k1 e2e→T8 row191) | Line-C k1 opponent-tier (已并) |
+| `parked/` | `repack` (P3 board-recovery 阻塞·gitignore 指针已 repoint active/→archive/parked/) | q4_0 repack GEMM finale seal (PARKED) |
+| `t6/` | `t6-k1-ime-q4k-e2e` · `t6-rvv-flat-q4k` | T6 e2e 战役 |
+| (root doc) | `m4-touchset-audit.md` → `archive/m4-touchset-audit.md` | 超越的 M4 触碰集核查计划 doc (M4 已真 100%) |
+
+### 11.3 Promote (非 archive) + tasks + deletes
+
+- **Promote**: `experiments/active/t3p-pattern-ablation` → `experiments/active/result-tables/t3p-pattern-ablation` (T3p_ablation_summary.md 指针留 result-tables·KEEP)。
+- **Tasks 归档**: 36 个 `.trellis/tasks/*` → `.trellis/tasks/archive/2026-07/` (全部已被 G5/G6/G7/改名超越·仅保 `07-02-full-refactor` 母 program + `archive/`)。含 manifest D 列 26 + 未列 10 (`07-07-dir-hygiene-lints-ci-clean-red`/`07-07-fix-blockdot-zfh-packager`/`07-07-line-A-board`/`07-07-line-D-evidence`/`07-07-retire-q1_0-monolith`/`07-07-retire-residual-gate-whitelist`/`07-07-wire-opponent-facts-pin-ci`/`07-08-G3-frontdoor`/`07-09-G3-e2e-seal`/`07-09-G3-minterm-fix`·均 pre-G8 07-07~09 超越·为过 gate#4 一并归档)。
+- **Delete (6 空 header 模板·零 filled·git 可复原)**: `_templates/{T1c_external_reproduction,T1d_dual_instance_same_schema,T3m_migration_criterion,T5a_ime_structural_corroboration,T5c_crossover_selector_calibration,T5d_ime_vendor_path_methodology}.csv`。de-listed from `_templates/MANIFEST.md` (16→10) + `experiments/README.md` 表映射 (T5a..d 行收窄为 T5b)。§11.2 上方 §7/§10 及本节 src→dst 历史行留档 (append-only)。
+
+### 11.4 Repoint (移动前解引用·避断链)
+
+- `result-tables/T8_winloss_gap_ledger.csv` + `result-tables/T3_B_board_B_rvv1.0_vlen256.csv` + `docs/reports/2026-07-07-small-m-decode-reuse-scout.md`: `experiments/active/p1-k1-vlen256-decode-roofline` → `experiments/archive/perf-historical/p1-k1-vlen256-decode-roofline`。
+- `active/vlen-adapt/vl16_static_account.md` (SEALED-WIN#1 承重) + `docs/reports/2026-07-11-TEMPLATE-AUDIT-structure.md`: `experiments/active/rvv-e2e-m1` → `experiments/archive/rvv-e2e/rvv-e2e-m1`。
+- `experiments/.gitignore`: `active/repack/rvv-vlen128-...redeploy/` → `archive/parked/repack/rvv-vlen128-...redeploy/` (deploy 工件维持 untracked·check-ignore 已验)。
+
+**残留 stale 证据指针 (非断链·MOVES 本表即重定向图)**: 其它 archived cell (g5-wiring/kquant-*/line-c-k1-strike/g4-*/t4b-* 等) 在 T8/T3/docs 中的 `experiments/active/<cell>` 证据指针**未逐一 mass-repoint** (manifest repoint 域仅 p1 + rvv-e2e-m1·账本本体保护·且无 lint/recon 消费这些字符串)。任一指针经本节 §11.2 桶映射即可重定向 (`active/<cell>` → `archive/<桶>/<cell>`)。

@@ -1,0 +1,1 @@
+# g7-l1-kernelsym-fullfill — flat/kquant GEMM hot-cold cold-start drivers + rvv/k1 run scripts. Source campaign: experiments/archive/g7/g7-l1-kernelsym-fullfill (G7 L1 kernel-sym fullfill). Extracted G8 §一.

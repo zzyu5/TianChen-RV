@@ -327,6 +327,7 @@
 - 本稿 §10 TOP-10 证据线 = 实验总纲 §6 的**前置工具清单**(T-N 噪声地板 / 对手解析探针 / provenance 清单 / 归因 JSONL / schema.def / ledger 脚本 / coverage 脚本)——**一次建设、两处收益**:解锁实验 + 关闭 C1/C_attr/C2 的机检缺口。
 - **[L-8]/[K-4] 的执法工具落地 = provenance 清单**(实验总纲 §1.6):每个机制构造 body 发射时写出模式原语 ID 列表 → 六态脚本判强/弱义、人不可辩解。本稿 §1 里 [L-8]"现为 prose 纪律"、[K-4]"六态无自动读出器"两条缺口,**由 provenance 清单闭合**——这是从"审计标签"升级到"机器可判"的具体机制。
 - **IME(本稿现状 = e2e MEASURED-NULL / 不可隔离)与实验总纲 §3 一致**:IME 表钉死轨1(结构 + 硅上正确)+ T5d(方法学对照);轨2(自有机制构造 GEMM + 净范式消融)= M3+ 理想、gated,**不是轻活**(≥ block-dot body 构造),回退不改任何已发表主张。
+- **★落表纪律(G8 用户裁·硬·2026-07-14):此后一切测量 / 解析结果只回填既有模板(T3 / T8 / T9 及四分账行)·禁在新位置另建账本 / 报告体系。** 新指标 = 既有表加列(如实验总纲 §2.1 的 T3 8 新列),不是新表;casefile / 反汇编存档可为过程工件,但**结论数只住 T3/T8/T9**。**T3 主表体例权威 = 实验总纲 §2.1**(clang-18 对称域 schema:四分账 `{matmul kernel-sym / forward-op / DEQ-AXIS / batch-regime}` + cold + 对手成色 + 对手符号/探针指针 + 编译器口径 + 键控状态列;**0.8 硬门分母 = matmul kernel-sym + forward-op**·DEQ-AXIS 照测不进头条分母·唯对手成色机判升门·batch-regime 封存)。本稿 §7 的双账本 / [CASE-COMPILER-ASYMMETRY] = T3 `compiler_axis` 列的背靠证据层(`T-VALIDITY*` 派生链·validity 轴·非 coverage 轴·零新账本)。
 
 **⚠ 快照漂移(治理提示 [GOV-3]):** 本稿 §0–§11 的核查钉 `7185a62b`;仓库其后已前进(现 `6e2e4e56`),新增 **Fork C 超块构造判定 = CONSTRUCTIBLE 但 LOW-ROI(已 deprioritize,非边界)** 等。这**不改结论方向**(六态/覆盖率的定性判断不变),但下一轮核查须**重钉快照并重跑 §9 [A-2] 基线确认** —— 尤其复核 [B-4](码本/超块参数化)与六态表(super-block 强义构造的 constructible-but-low-ROI 定性)。一切数字随快照演进,携 ID。
 

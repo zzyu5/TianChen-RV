@@ -5,64 +5,23 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**69 cells** (active=54, sealed=10, archive=5).
+**111 cells** (active=13, sealed=10, archive=88).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
-| active | `g4-m1b-reseal-batched` | unknown | — | 3 | — | — |
-| active | `g4-m3-ime-paradigm-t5b` | unknown | — | 4 | — | — |
-| active | `g5-wiring` | unknown | — | 1 | — | — |
-| active | `M1-q8_0` | unknown | — | 6 | — | — |
-| active | `M1b-q8_0` | unknown | — | 11 | `q8_0_gemm_raw.c`, `q8_0_gevm_raw.c`, `tcrv_emitted_q8_0.inc` | — |
-| active | `M2-q4_1` | unknown | — | 10 | `tcrv_emitted_gemm_q4_1.inc`, `tcrv_emitted_gevm_q4_1.inc` | — |
-| active | `M2-q4_K` | unknown | — | 2 | — | — |
-| active | `M2-q5_0` | unknown | — | 10 | `tcrv_emitted_gemm_q5_0.inc`, `tcrv_emitted_gevm_q5_0.inc` | — |
-| active | `M2-q5_1` | unknown | — | 10 | `tcrv_emitted_gemm_q5_1.inc`, `tcrv_emitted_gevm_q5_1.inc` | — |
-| active | `M2-q6_K` | unknown | — | 3 | — | — |
-| active | `M2-recon` | unknown | — | 1 | — | — |
-| active | `M3-ime-bridge-recon` | unknown | — | 1 | — | — |
+| active | `L1prime-q6k-gemm-roll-G1` | unknown | — | 0 | — | — |
+| active | `batch1-kquant-rvv` | unknown | — | 0 | — | — |
+| active | `m-sweep-batch-regime` | unknown | — | 0 | — | — |
+| active | `q5k-rvv-batched-e2e` | unknown | — | 0 | — | — |
+| active | `g8-stage1-clang-env` | unknown | — | 0 | — | — |
 | active | `t3p-pattern-ablation` | unknown | — | 1 | — | — |
-| active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
-| active | `t4b-m1-minterm-bisect` | unknown | — | 1 | — | — |
-| active | `t4b-m1-repacker` | unknown | — | 0 | — | — |
-| active | `t4b-m2-dispatch` | unknown | — | 1 | — | — |
-| active | `t4b-m2c-dispatch` | unknown | — | 1 | — | — |
-| active | `t4b-m4-decisive` | unknown | — | 1 | — | — |
-| active | `t4b-model-manifest` | unknown | — | 0 | — | — |
-| active | `t4b-selector-ablation` | unknown | — | 0 | — | — |
-| active | `t6-k1-ime-q4k-e2e` | unknown | — | 2 | — | — |
 | active | `cert-status` | active | DEBT-CERT + DEBT-VIS (construction-manifest certification audit) | 30 | `repack-probes/iq2_s-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_s-repack-gevm-cert-probe.mlir`, `repack-probes/iq2_xs-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_xs-repack-gevm-cert-probe.mlir`, `repack-probes/iq2_xxs-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_xxs-repack-gevm-cert-probe.mlir`, `repack-probes/iq4_nl-repack-gemm-cert-probe.mlir`, `repack-probes/iq4_nl-repack-gevm-cert-probe.mlir`, `repack-probes/iq4_xs-repack-gemm-cert-probe.mlir`, `repack-probes/iq4_xs-repack-gevm-cert-probe.mlir`, `repack-probes/mxfp4-repack-gemm-cert-probe.mlir`, `repack-probes/mxfp4-repack-gevm-cert-probe.mlir`, `repack-probes/q2_K-repack-gemm-cert-probe.mlir`, `repack-probes/q2_K-repack-gevm-cert-probe.mlir`, `repack-probes/q3_K-repack-gemm-cert-probe.mlir`, `repack-probes/q3_K-repack-gevm-cert-probe.mlir`, `repack-probes/q4_K-repack-gemm-cert-probe.mlir`, `repack-probes/q4_K-repack-gevm-cert-probe.mlir`, `repack-probes/q5_K-repack-gemm-cert-probe.mlir`, `repack-probes/q5_K-repack-gevm-cert-probe.mlir`, `repack-probes/q6_K-repack-gemm-cert-probe.mlir`, `repack-probes/q6_K-repack-gevm-cert-probe.mlir`, `repack-probes/q8_0-repack-gemm-cert-probe.mlir`, `repack-probes/q8_0-repack-gevm-cert-probe.mlir`, `repack-probes/tq1_0-repack-gemm-cert-probe.mlir`, `repack-probes/tq1_0-repack-gevm-cert-probe.mlir`, `repack-probes/tq2_0-repack-gemm-cert-probe.mlir`, `repack-probes/tq2_0-repack-gevm-cert-probe.mlir` | labeled-vs-certified C_construct account + RED per-cell cause roster + repair queue |
-| active | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
-| active | `rvv-e2e-m1 (RVV-E2E M1a token-tile 静态选型)` | active | RVV-E2E / M1a — token-tile 深度选型（静态账先行：objdump + emitter 源 + cache 拓扑账） | 1 | — | 纯静态选型证据 for the M1b 曳光弹（loop-interchange / token-tile depth）—— 部署 kernel 的 |
 | active | `vlen-adapt (VLEN-ADAPT M0 静态账 · Win-K1-VLEN 承重证据)` | active | VLEN-ADAPT / M0 — VLEN256-native vl=16 emit 的寄存器账 + 半宽根因定位 + M1 可行性判定 | 1 | — | 纯静态账 (objdump 类比 / emitter 源 / plugin 源 / lit gate / RVV 寄存器语义) 判定 vl=16 不越 |
 | active | `result-tables` | active | cross-cutting result tables | 12 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
 | active | `frontdoor-framework` | active | frontdoor-framework (C3′ front-door-ization construction-cost ledger — per-decode-format) | 2 | — | NEW C3′ construction-cost evidence line: the LOC/labor cost to lift a decode FORMAT from a DIRECT-EMIT bypass to a front-door typed-region… |
-| active | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 5 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |
-| active | `fmtprop-rms-norm-mul-quantize` | active | fuse / [FMT-PROP] (三 G2 铺量 phase1b — format propagation: fold activation quantize | 3 | — | [FMT-PROP] board evidence. The rms_norm→mul→quantize(q8_0) fused chain (commit 2b814e46, |
-| active | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
-| active | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
-| active | `p1-gemm-vlen256-fix-confirm` | active | repack ([GAP-P1] fix confirmation board batch — 裁决二.1) | 11 | `kernels/q4_0_gemm_post_m1_vlen256.kernel.c`, `kernels/q4_0_gemm_pre_mf2_vlen256.kernel.c`, `kernels/q8_0_gevm_m1_wholeLMUL.kernel.c`, `kernels/q8_0_gevm_narrow_hl8.kernel.c`, `kernels/q8_0_gevm_wide_hl16.kernel.c` | the k1 board batch the [GAP-P1] commit itself deferred ("78%→91% 是机理投影、真吃墙率待 k1 |
-| active | `kquant-family-closure` | active | repack / [KQUANT-L1] (G3 裁决二.2/二.3 — K-quant 家族收口：整模型**传导账** + q4_K **八门**。 | 8 | — | G3 裁决二 K-quant 家族收口的整模型兑现账。**传导账 = 档案 projection**（1.59× prefill 上限 / |
-| active | `l1-m2-iq4` | active | repack / [KQUANT-L1] (M2-tile — CODEBOOK family: does the q4_K S6 register-cliff | 4 | — | L1-maturity M2-tile CODEBOOK-family A/B evidence. Isolates the iq4_nl/iq4_xs codebook |
-| active | `l1-reroll-q4k-repack-gemm` | active | repack / [KQUANT-L1] (RE-ROLL 曳光弹 #2 — q4_K repack GEMM structural RE-ROLL | 5 | — | L1-maturity RE-ROLL A/B evidence. Isolates the non-byte-exact structural re-roll from a |
-| active | `l1-tile-s1-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S1 — q4_K repack GEMM STRUCTURAL h-strip TILE A/B on | 5 | — | L1-maturity T2-tile S1 A/B evidence. Isolates the S1 h-strip STRUCTURAL TILE from the |
-| active | `l1-tile-s6-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S6 — q4_K repack GEMM register-cliff step on rvv/VLEN128: | 5 | — | L1-maturity T2-tile S6 A/B evidence. Isolates the S6 register-cliff increment from the S1 |
-| active | `l1-t3-q2k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile fmt2 — q2_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q2_K tiling increment by measuring UNTILED |
-| active | `l1-t3-q3k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile fmt3 — q3_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q3_K tiling increment by measuring UNTILED |
-| active | `l1-t3-q5k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile fmt4 — q5_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q5_K tiling increment by measuring UNTILED |
-| active | `l1-t3-q6k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile — q6_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q6_K tiling increment by measuring UNTILED |
-| active | `l1-pipeline-q4k-repack-gemm` | active | repack / [KQUANT-L1] (pipeline — q4_K repack GEMM byte-exact schedule-rearrangement | 5 | — | L1-maturity pipeline A/B evidence. Isolates the "pipelining" (byte-exact reorder) from a |
-| active | `kquant-l1-q4k-q5k-repack-prefill` | active | repack / [KQUANT-L1] (增补二 — gemm_tile L1 mineral vein: q4_K + q5_K repack GEMM | 6 | — | [KQUANT-L1] q4_K/q5_K prefill repack path-win evidence. Answers the増補二 L1-critical |
-| active | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
-| active | `kquant-k1-vlen256-kernel-axis-t4a` | active | repack / [KQUANT-L1] · **task**: G3 主线C [SEL-1] **T4a** (k1 dual-board kernel-axis board batch) | 6 | — | close q4_K [PERF-1] eight-gate **③ (dual-board objdump)** and **⑤ (dual-board verified)** on the |
-| active | `t4b-seal-fix` | active | repack / [KQUANT-L1] · **task**: G3-cert-hardening **T4b seal-fix** (clean q4_K repack GEMM+GEVM VLEN128 vl=8 deploy + kernel-isolated e2e bench) | 0 | — | reversible in-place deploy of the CLEAN compiler-emitted q4_K repack-GEMM (md5 90d454da) + repack-GEVM |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
-| active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
 | active | `visibility` | active | visibility | 4 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |
-| active | `t6-rvv-flat-q4k` | unknown | 测量总攻 / T6（内核轴对称候选 → perf-covered 绿格的 e2e 传导验证）· rvv 批 | 8 | — | 用整模型 llama-bench 分相（prefill/decode）A/B 验 flat-covering-batch1（f78ad2da）证得的 |
-| active | `flat-covering-batch1 (线乙 覆盖式铺面①：FLAT 对位)` | active | 测量总攻 / 覆盖式铺面① — FLAT (q4_0-family) repack GEMM prefill fair-align vs ggml's | 4 | — | fair repack-vs-block-dot paired A/B on the constructed FLAT repack GEMM kernels, with a REAL |
-| active | `- covering-batch③ (线丙 覆盖式铺面③：流式格 kernel-axis 对位)` | active | 测量总攻 / 覆盖式铺面③ — streaming-format (dequantize_row / quantize_row / forward | 4 | — | fair OUR-front-door-streaming-kernel vs ggml-dispatched-streaming paired A/B on cold-streamed |
 | sealed | `opponent-facts-provenance` | sealed | c1-cleanliness | 2 | — | opponent-fact provenance -> pinned ggml line anchors. opponent-facts.pin.json is consumed by tools/lint/check_opponent_facts_pin.sh (pin ch… |
 | sealed | `quant-label-proof` | sealed | c1-cleanliness | 2 | — | string-deletion byte-exact proof (fact-drives-routing, label-inert); NOTES sha256 a457e1b9 + machine evidence.json. |
 | sealed | `k1-vlen256-q4_0-flip` | sealed | repack | 5 | — | k1/VLEN256 q4_0 flip e2e; decode 0.857x PARK-P1 reversal source. |
@@ -73,9 +32,92 @@
 | sealed | `silicon-validation-batch-1` | sealed | silicon | 15 | `kernels/iq1_m.kernel.c`, `kernels/iq1_s.kernel.c`, `kernels/iq4_nl.kernel.c`, `kernels/q4_0_repack.kernel.c` | iq4_nl/iq1_s/iq1_m BIT_EXACT ULP=0 + q4_0_repack FMA-fold bounded-ULP; board rvv/VLEN128, no-FMA left-assoc ggml scalar oracle. |
 | sealed | `silicon-validation-batch-2` | sealed | silicon | 8 | `kernels/iq2_xxs.kernel.c`, `kernels/iq3_xxs.kernel.c` | iq3_xxs + iq2_xxs super-block-grid vec_dot BIT_EXACT ULP=0; board rvv/VLEN128. |
 | sealed | `silicon-validation-gemm` | sealed | silicon | 5 | `kernels/q4_0_repack_gemm.kernel.c` | constructed q4_0 REPACK GEMM (PREFILL, M>1) FMA-fold bounded-ULP; board rvv/VLEN128 + f64 ref. |
+| archive | `g4-m1b-reseal-batched` | unknown | — | 3 | — | — |
+| archive | `g4-m3-ime-paradigm-t5b` | unknown | — | 4 | — | — |
+| archive | `decisive-kquant-gcc-vs-vlen` | unknown | — | 0 | — | — |
+| archive | `g5-wiring` | unknown | — | 1 | — | — |
+| archive | `M1-q8_0` | unknown | — | 6 | — | — |
+| archive | `M1b-q8_0` | unknown | — | 11 | `q8_0_gemm_raw.c`, `q8_0_gevm_raw.c`, `tcrv_emitted_q8_0.inc` | — |
+| archive | `M2-iq4_nl` | unknown | — | 5 | — | — |
+| archive | `g5-wiring / M2-q2_K-k1-e2e` | unknown | — | 0 | — | — |
+| archive | `M2-q4_1` | unknown | — | 10 | `tcrv_emitted_gemm_q4_1.inc`, `tcrv_emitted_gevm_q4_1.inc` | — |
+| archive | `M2-q4_K` | unknown | — | 2 | — | — |
+| archive | `M2-q5_0` | unknown | — | 10 | `tcrv_emitted_gemm_q5_0.inc`, `tcrv_emitted_gevm_q5_0.inc` | — |
+| archive | `M2-q5_1` | unknown | — | 10 | `tcrv_emitted_gemm_q5_1.inc`, `tcrv_emitted_gevm_q5_1.inc` | — |
+| archive | `g5-wiring / M2-q5_K-k1-e2e` | unknown | — | 0 | — | — |
+| archive | `M2-q6_K` | unknown | — | 5 | — | — |
+| archive | `M2-recon` | unknown | — | 1 | — | — |
+| archive | `M3-ime-bridge-recon` | unknown | — | 1 | — | — |
+| archive | `M3-ime-e2e-pairing` | unknown | — | 0 | — | — |
+| archive | `M3-ime-logit-ulp` | unknown | — | 0 | — | — |
+| archive | `M3-ime-q4_0-bridge` | unknown | — | 0 | — | — |
+| archive | `M3-ime-q4_K-forward` | unknown | — | 0 | — | — |
+| archive | `M3-ime-q8_0-forward` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M1-repack-cache` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M3-deref-form` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M4-parsetup` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M5-matmul-internal` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M6-feed-locality` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M7-vmadot-tiling` | unknown | — | 0 | — | — |
+| archive | `g6-a-ime-perf-bridge / M7-vmadot-tiling-q80-q4k` | unknown | — | 0 | — | — |
+| archive | `q2_K` | unknown | — | 0 | — | — |
+| archive | `q4_K` | unknown | — | 0 | — | — |
+| archive | `q5_K` | unknown | — | 0 | — | — |
+| archive | `P0-byte-audit` | unknown | — | 0 | — | — |
+| archive | `q5K-k1-补格` | unknown | — | 0 | — | — |
+| archive | `P2-board-verify` | unknown | — | 0 | — | — |
+| archive | `g7-l3-flat-k1-e2e` | unknown | — | 0 | — | — |
+| archive | `decode-anatomy-profile` | unknown | — | 0 | — | — |
+| archive | `ime-mover-G1` | unknown | — | 0 | — | — |
+| archive | `kquant-prefill-quality-G1` | unknown | — | 0 | — | — |
+| archive | `q5k-rvv-regcliff-fix-G1` | unknown | — | 0 | — | — |
+| archive | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
+| archive | `t4b-m1-minterm-bisect` | unknown | — | 1 | — | — |
+| archive | `t4b-m1-repacker` | unknown | — | 0 | — | — |
+| archive | `t4b-m2-dispatch` | unknown | — | 1 | — | — |
+| archive | `t4b-m2c-dispatch` | unknown | — | 1 | — | — |
+| archive | `t4b-m4-decisive` | unknown | — | 1 | — | — |
+| archive | `t4b-model-manifest` | unknown | — | 0 | — | — |
+| archive | `t4b-selector-ablation` | unknown | — | 0 | — | — |
+| archive | `t6-k1-ime-q4k-e2e` | unknown | — | 2 | — | — |
+| archive | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
+| archive | `g6-b-emit-unroll / P2-q2k-k1-e2e (Phase-2 PERF verdict)` | unknown | G6-B emit-quality lever ([K-7] 5th first-emission lever) — Phase-2 e2e PERF verdict for the | 11 | — | deploy ROLLED q2_K repack GEMM (emit_loop_schedule="rolled") into the G5 M2-q2_K-k1-e2e harness, |
+| archive | `g6-b-emit-unroll` | unknown | G6-B emit-quality lever · [GAP-EMIT-UNROLL] rolled-loop emission mode · [K-7] 5th | 0 | — | emitter-maturity milestone evidence. Isolates the rolled-vs-unrolled emission increment |
+| archive | `rvv-iqtq-cold` | unknown | G7 L1 kernel-sym 全量·rvv §1.2 收口（承 rvv-batch §1.1 FLAT-5·同形状 hot/cold·gcc-15 对称）。第二赛道 kernel-sym·NOT e2e·NOT perf-covered·不入 ≥parity 计数。 | 5 | — | — |
+| archive | `g7-l2-kernelsym-hotcold` | active | G7 L2 货架A · **task**: kernel-sym hot/cold 双态首批（k1 存量 4 格补 cold 行） | 5 | — | 为 T9 kernel-sym §1.1 的 4 个 k1 存量格（q4_K / q5_K / q4_0-gemm / q8_0-gevm）补 **cold micro A/B**（cache-cold·WS>>LLC 512KiB pool）·逐格 hot/cold 对照 +… |
+| archive | `k1-batch` | active | G7 §L1 货架A 全量 micro（kernel-sym 表填满 hot/cold 双态）· **k1-半**（VLEN256·clang-18 出货对称域·pin core3） | 0 | — | 二事 — |
+| archive | `q4K-handbrick-resolve (G7 货架A · T9 §6 争议解)` | active | G7 货架A / kernel-sym 成色核实 · **task**: q4_K@k1 hand-brick 对手争议另测 | 3 | — | 解 T9 §6 争议——q4_K@k1 kernel-sym 成色 = hand-brick 还是 block-dot？ |
+| archive | `g7-l1-kernelsym-fullfill/rvv-batch（货架A 全量 rvv-半·FLAT-5 hot/cold + 变体穷举）` | active | G7 重编令 §L1 货架A 全量 — rvv-半 kernel-sym 格补 cold 行 + 变体穷举（T9 §1.1/§1.2 派生·[VERIFY-LADDER] G2 层·同形状 cold micro）。 | 7 | `export/gemm_{q4_0,q4_1,q5_0,q5_1,q8_0}.kernel.c` | 第二赛道 kernel-sym（kernel-axis micro·同编译器/flags/march 对称·NOT e2e·NOT perf-covered·与系统账 9/83 永不混算）。§1.1 FLAT-5 逐格 cold 双态（同形状 nr=16 锚）+ nr-shap… |
+| archive | `rvv-e2e-m1 (RVV-E2E M1a token-tile 静态选型)` | active | RVV-E2E / M1a — token-tile 深度选型（静态账先行：objdump + emitter 源 + cache 拓扑账） | 1 | — | 纯静态选型证据 for the M1b 曳光弹（loop-interchange / token-tile depth）—— 部署 kernel 的 |
+| archive | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 5 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |
+| archive | `fmtprop-rms-norm-mul-quantize` | active | fuse / [FMT-PROP] (三 G2 铺量 phase1b — format propagation: fold activation quantize | 3 | — | [FMT-PROP] board evidence. The rms_norm→mul→quantize(q8_0) fused chain (commit 2b814e46, |
 | archive | `T3_step3` | archive | perf-historical | 13 | `kernel_factory.c`, `kernel_m1.cpp`, `kernel_m1.emitc.mlir`, `kernel_m2.cpp`, `kernel_m2.emitc.mlir` | q8_0 m1/m2 dual-board evidence bundle (T3_A/T3_B q8_0 rows): emitc + factory + raw + objdump seals. Local *.o ignored via in-cell .gitignor… |
 | archive | `ondevice-q5_K` | stale | perf-historical | 6 | `kernel_factory.c`, `kernel_ours.emitc.mlir` | q5_K deferred-reduce vs aux8-roundtrip dual-board split (k1/VLEN256 win / rvv/VLEN128 loss), bit-exact; perf-char #4 decode-width evidence.… |
 | archive | `ondevice-q8_0` | archive | perf-historical | 8 | — | q8_0 flat block-dot dual-board bit-exact + micro (host_k1 / host_rvv). |
 | archive | `ondevice-q8_0-deferred` | stale | perf-historical | 2 | — | q8_0 deferred-fold P2c fair perf (perf_rvv_vlen128_FAIR.csv, referenced by schema/pattern-registry.v1.json) + A_deferred.o vsetvli-diagnosi… |
 | archive | `ondevice-q8_0-mbf` | archive | perf-historical | 1 | — | q8_0 mbf1/mbf2 (e8m1) fold-segment objdump seal + kernel_core_mbf2.o / kernel_q8_mbf1.o / kernel_ggml_factory.o vsetvli-diagnosis .o. |
+| archive | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
+| archive | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
+| archive | `p1-gemm-vlen256-fix-confirm` | active | repack ([GAP-P1] fix confirmation board batch — 裁决二.1) | 11 | `kernels/q4_0_gemm_post_m1_vlen256.kernel.c`, `kernels/q4_0_gemm_pre_mf2_vlen256.kernel.c`, `kernels/q8_0_gevm_m1_wholeLMUL.kernel.c`, `kernels/q8_0_gevm_narrow_hl8.kernel.c`, `kernels/q8_0_gevm_wide_hl16.kernel.c` | the k1 board batch the [GAP-P1] commit itself deferred ("78%→91% 是机理投影、真吃墙率待 k1 |
+| archive | `kquant-family-closure` | active | repack / [KQUANT-L1] (G3 裁决二.2/二.3 — K-quant 家族收口：整模型**传导账** + q4_K **八门**。 | 8 | — | G3 裁决二 K-quant 家族收口的整模型兑现账。**传导账 = 档案 projection**（1.59× prefill 上限 / |
+| archive | `l1-m2-iq4` | active | repack / [KQUANT-L1] (M2-tile — CODEBOOK family: does the q4_K S6 register-cliff | 4 | — | L1-maturity M2-tile CODEBOOK-family A/B evidence. Isolates the iq4_nl/iq4_xs codebook |
+| archive | `l1-reroll-q4k-repack-gemm` | active | repack / [KQUANT-L1] (RE-ROLL 曳光弹 #2 — q4_K repack GEMM structural RE-ROLL | 5 | — | L1-maturity RE-ROLL A/B evidence. Isolates the non-byte-exact structural re-roll from a |
+| archive | `l1-tile-s1-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S1 — q4_K repack GEMM STRUCTURAL h-strip TILE A/B on | 5 | — | L1-maturity T2-tile S1 A/B evidence. Isolates the S1 h-strip STRUCTURAL TILE from the |
+| archive | `l1-tile-s6-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S6 — q4_K repack GEMM register-cliff step on rvv/VLEN128: | 5 | — | L1-maturity T2-tile S6 A/B evidence. Isolates the S6 register-cliff increment from the S1 |
+| archive | `l1-t3-q2k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile fmt2 — q2_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q2_K tiling increment by measuring UNTILED |
+| archive | `l1-t3-q3k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile fmt3 — q3_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q3_K tiling increment by measuring UNTILED |
+| archive | `l1-t3-q5k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile fmt4 — q5_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q5_K tiling increment by measuring UNTILED |
+| archive | `l1-t3-q6k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile — q6_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q6_K tiling increment by measuring UNTILED |
+| archive | `l1-pipeline-q4k-repack-gemm` | active | repack / [KQUANT-L1] (pipeline — q4_K repack GEMM byte-exact schedule-rearrangement | 5 | — | L1-maturity pipeline A/B evidence. Isolates the "pipelining" (byte-exact reorder) from a |
+| archive | `kquant-l1-q4k-q5k-repack-prefill` | active | repack / [KQUANT-L1] (增补二 — gemm_tile L1 mineral vein: q4_K + q5_K repack GEMM | 6 | — | [KQUANT-L1] q4_K/q5_K prefill repack path-win evidence. Answers the増補二 L1-critical |
+| archive | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
+| archive | `kquant-k1-vlen256-kernel-axis-t4a` | active | repack / [KQUANT-L1] · **task**: G3 主线C [SEL-1] **T4a** (k1 dual-board kernel-axis board batch) | 6 | — | close q4_K [PERF-1] eight-gate **③ (dual-board objdump)** and **⑤ (dual-board verified)** on the |
+| archive | `t4b-seal-fix` | active | repack / [KQUANT-L1] · **task**: G3-cert-hardening **T4b seal-fix** (clean q4_K repack GEMM+GEVM VLEN128 vl=8 deploy + kernel-isolated e2e bench) | 0 | — | reversible in-place deploy of the CLEAN compiler-emitted q4_K repack-GEMM (md5 90d454da) + repack-GEVM |
+| archive | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
+| archive | `kernel-sym-flat5-rvv-micro（第二赛道 kernel-sym 首轮立账）` | active | 令三·第二赛道 kernel-sym 台账立账 — FLAT 5 gemm@rvv/VLEN128 逐格独立对称 kernel-axis MICRO A/B（补齐 T9 §1.3 「≥parity 待板批对称 micro 补测」5 格）。 | 7 | — | 第二赛道 kernel-sym（kernel-axis micro·同编译器/flags/march 对称·NOT e2e·NOT perf-covered·与系统账 9/83 永不混算）逐格 N=12 对称 A/B + ZERO-MODEL 数值门 + 对手身份 objdum… |
+| archive | `line-c-k1-strike (Line C · K1 精准打击)` | unknown | 测量总攻 / **Line C · K1 精准打击** (用户 2026-07-12 裁四 · parallel with Line A[IQ/rvv] & Line B[IME/k1]; | 7 | — | k1-side opponent-identity map + q8_0 VLEN256 correctness double-exit + [XFER-1] three-lever pre-board |
+| archive | `workitem-k1-kquant-e2e` | unknown | 测量总攻 / Line C reopen — **[WORK-ITEM-K1-KQUANT-E2E]** (k1-clang q4_K e2e: gcc-codegen 候选因素[冠名待二.2 出口A·裁二.1 锁定] vs | 7 | — | decisive thesis measurement — q4_K **repack (stock as-shipped)** vs **vec_dot (forced fallback)** e2e on |
+| archive | `t6-rvv-flat-q4k` | unknown | 测量总攻 / T6（内核轴对称候选 → perf-covered 绿格的 e2e 传导验证）· rvv 批 | 8 | — | 用整模型 llama-bench 分相（prefill/decode）A/B 验 flat-covering-batch1（f78ad2da）证得的 |
+| archive | `flat-covering-batch1 (线乙 覆盖式铺面①：FLAT 对位)` | active | 测量总攻 / 覆盖式铺面① — FLAT (q4_0-family) repack GEMM prefill fair-align vs ggml's | 4 | — | fair repack-vs-block-dot paired A/B on the constructed FLAT repack GEMM kernels, with a REAL |
+| archive | `- covering-batch③ (线丙 覆盖式铺面③：流式格 kernel-axis 对位)` | active | 测量总攻 / 覆盖式铺面③ — streaming-format (dequantize_row / quantize_row / forward | 4 | — | fair OUR-front-door-streaming-kernel vs ggml-dispatched-streaming paired A/B on cold-streamed |
 

@@ -87,7 +87,7 @@
 | # | 路径 | 为何废/问题 | 建议 | 复原指针 |
 |---|---|---|---|---|
 | C1 | `experiments/INDEX.md` | STALE vs 生成器(check_index_consistency #1) | **regen**(`tools/lint/gen_experiments_index.py`)· 机械、非删 | git `b3e3fef4` |
-| C2 | `experiments/active/rvv-e2e-m1/token_tile_selection.md` · `experiments/active/vlen-adapt/vl16_static_account.md` | orphan durable:无 owning cell MANIFEST(hygiene #2)。**注:vl16_static_account.md 被 SEALED-WIN-REGISTRY 引为证据 → 严禁删**,须登记 | **注册进 MANIFEST**(非删) | git `b3e3fef4` |
+| C2 | `experiments/archive/rvv-e2e/rvv-e2e-m1/token_tile_selection.md` · `experiments/active/vlen-adapt/vl16_static_account.md` | orphan durable:无 owning cell MANIFEST(hygiene #2)。**注:vl16_static_account.md 被 SEALED-WIN-REGISTRY 引为证据 → 严禁删**,须登记 | **注册进 MANIFEST**(非删) | git `b3e3fef4` |
 | C3 | `experiments/active/cert-status/repack-probes/*.mlir`(28 个:14 格 × gemm/gevm) | 未注册 + "code leaked into data cell"(hygiene + layout 双报) | **git mv 到 tools/** 或注册进 cert-status MANIFEST(证据指针) | git `b3e3fef4` |
 | C4 | `experiments/active/result-tables/{T-PERF1b_q4k_e2e_prefill_regression, T-VALIDITY-STAGE1_k1_symmetric_remeasure, T-VALIDITY-STAGE1_rvv_symmetric_remeasure, T-VALIDITY_compiler_symmetry_ledger}.md`(4 个) | 未注册进 result-tables MANIFEST(hygiene #4)。**均为 [CASE-COMPILER-ASYMMETRY] 承重证据 → 注册非删** | **注册进 MANIFEST** | git `b3e3fef4` |
 | C5 | `experiments/archive/perf-historical/`(ondevice-q8_0* · ondevice-q5_K · T3_step3;**16 个 tracked .o 二进制** + pre-swap/撤回数) | STALE 历史 perf 数(换板前不可比)+ 二进制入库膨胀 | **保留归档**(已 `MOVES.md` 登记),但确认覆盖于 RETIRED-INDEX/MOVES ledger;**.o 二进制** 评估移出版本控制 | git `b3e3fef4` + `MOVES.md` |

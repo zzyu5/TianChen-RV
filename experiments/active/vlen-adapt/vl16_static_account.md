@@ -4,7 +4,7 @@
 
 **依据源**：
 - K1-SEAL 终审 `docs/reports/2026-07-10-k1-seal-e2e-transduction.md`（emitted vl=8 在 VLEN256 输 hand-brick vl=16 0.750×）。
-- M1a 选型 `experiments/active/rvv-e2e-m1/token_tile_selection.md`（peak_hot(d)=6d+7 vs 32-vreg，S6 实测 C=7）。
+- M1a 选型 `experiments/archive/rvv-e2e/rvv-e2e-m1/token_tile_selection.md`（peak_hot(d)=6d+7 vs 32-vreg，S6 实测 C=7）。
 - S6 tiling `experiments/active/l1-tile-s6-q4k-repack-gemm/tile_s6_findings.md`（VLEN128 numHalves=2、vl=8、spill 23→0、maxVreg v30）。
 - Emitter `lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:6747` `emitRepackKQuantGemmBodyQ4K`（只读账）。
 - Strip-width plugin `lib/Plugin/RVV/RVVRepackStripWidthMaterialization.cpp`（`deriveRepackHalfLanes` / `deriveMinimumVLEN`）。
