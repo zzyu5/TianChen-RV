@@ -618,6 +618,74 @@ constexpr llvm::StringLiteral kNibbleQ51ScaleModel =
 constexpr llvm::StringLiteral kNibbleQ80ScaleModel =
     "dual-fp16-per-block-d_x.d_y-full-i8";
 
+// The q4_0 base decode-family discriminator (the abstract request's committed scale_model
+// WHAT for the plain q4_0 nibble): the dual-fp16 per-block d_x*d_y scale, NO min, offset-
+// binary -8 nibble. It is the DEFAULT flat construction (no kNibbleQ*/kCodebook*/kKQuant*
+// row matches). Named here as a registry key for the VLEN256-decode measured table below;
+// it MIRRORS the "dual-fp16-per-block-d_x.d_y" the pass stamps on the constructed q4_0 loop
+// body (RVVLowerQuantContraction ... builder.getStringAttr("dual-fp16-per-block-d_x.d_y")).
+constexpr llvm::StringLiteral kNibbleQ40ScaleModel =
+    "dual-fp16-per-block-d_x.d_y";
+
+// [G8 六.3] The per-(decode-family, VLEN256, DECODE) BOARD-MEASURED repack-vs-block-dot
+// registry. It is the SEED that FALSIFIES the selector's old blanket fact-3 rule ("VLEN256
+// decode always declines repack", RVVContractionPathSelection.cpp), which mislabeled a
+// q4_0-only 0.74x LOSS as a NON-per-format capability rule. The k1 GEVM sweep (casefile
+// experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md, commit ac5ea76f) MEASURED
+// the VLEN256 decode repack-GEVM leaf per format on real k1/X60 silicon (cold median,
+// K=2048, N>=10, 32MiB flush, byte-exact vs stock native-vec AND an independent oracle) and
+// found the disposition SPLITS by format:
+//   * q5_0 / q5_1  -> BENEFICIAL (1.190x / 1.306x): the contiguous block_q5x16 x16 weight
+//                     stream + wide SIMD reduction (1 fused GEVM) out-VLENs the DIVERGENT
+//                     per-column 5-bit qh block-dot (512 scattered vec_dot calls) at VLEN256.
+//   * q4_0 / iq4_nl-> NEGATIVE (0.74x / 0.248x): q4_0's linear block-dot is already near-
+//                     optimal (repack overhead nets a loss); iq4_nl's repack leaf is
+//                     codebook-gather-bound (vsetvl 260 / 64 gather).
+// This is registration-as-data -- the SAME status/metric/hook mechanism as the IME
+// wide-vmadot kIMEWideFormatMeasurements registry, NOT a per-format C++ switch: a row is a
+// BOARD FACT keyed on the committed decode-family scale_model WHAT (NOT the optional `quant`
+// label; the pass already dispatches CONSTRUCTION on scale_model, and "delete quant, keep
+// the facts" still routes identically). A scale_model with NO row is UNMEASURED -> the
+// selector's conservative VLEN256-decode DECLINE (add a format = add a data row, 换键不改
+// 条目). The selector consumes ONLY the resulting fact (vlen256DecodeRepackBeneficial) and
+// stays BLIND to the format label.
+enum class Vlen256DecodeRepackDisposition { Beneficial, Negative };
+struct RepackVlen256DecodeMeasurement {
+  llvm::StringRef scaleModel; ///< committed decode-family WHAT (registry key)
+  Vlen256DecodeRepackDisposition disposition; ///< board-measured repack disposition
+  llvm::StringRef metric;      ///< measured cold repack-vs-block-dot ratio
+  llvm::StringRef metricsHook; ///< the board evidence provenance
+};
+constexpr RepackVlen256DecodeMeasurement kRepackVlen256DecodeMeasurements[] = {
+    {kNibbleQ50ScaleModel, Vlen256DecodeRepackDisposition::Beneficial, "1.190x",
+     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
+     "(q5_0@k1 VLEN256 decode repack-GEVM leaf 1.190x vs stock native-vec, "
+     "byte-exact; k1 GEVM sweep ac5ea76f)"},
+    {kNibbleQ51ScaleModel, Vlen256DecodeRepackDisposition::Beneficial, "1.306x",
+     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
+     "(q5_1@k1 VLEN256 decode repack-GEVM leaf 1.306x vs stock native-vec, "
+     "byte-exact; k1 GEVM sweep ac5ea76f)"},
+    {kNibbleQ40ScaleModel, Vlen256DecodeRepackDisposition::Negative, "0.74x",
+     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
+     "(q4_0@k1 VLEN256 decode repack 0.74x LOSS -- near-optimal linear block-dot; "
+     "the original fact-3 seed, now scoped per-format; k1 GEVM sweep ac5ea76f)"},
+    {kCodebookIq4NlScaleModel, Vlen256DecodeRepackDisposition::Negative, "0.248x",
+     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
+     "(iq4_nl@k1 VLEN256 decode repack-GEVM leaf 0.248x LOSS -- codebook-gather-bound, "
+     "vsetvl 260 / 64 gather; k1 GEVM sweep ac5ea76f)"},
+};
+
+// Pure DATA lookup: the board-measured VLEN256-decode repack disposition for the committed
+// decode-family scale_model, or nullopt when the format has NO measured row (=> the
+// selector's conservative VLEN256-decode decline). Mirrors lookupWideFormatMeasuredNegative.
+std::optional<Vlen256DecodeRepackDisposition>
+lookupRepackVlen256Decode(llvm::StringRef scaleModel) {
+  for (const RepackVlen256DecodeMeasurement &m : kRepackVlen256DecodeMeasurements)
+    if (m.scaleModel == scaleModel)
+      return m.disposition;
+  return std::nullopt;
+}
+
 // The iq2_xxs GRID CODEBOOK + SIGN-PLANE decode-FAMILY discriminator (the abstract
 // request's committed scale_model WHAT): the FIRST grid decode sibling (retirement_batch
 // 3). A QK_K=256 super-block whose per-(sub-block, group, column) 8-bit GRID INDEX selects
@@ -963,6 +1031,16 @@ private:
       facts.ggmlVlenNativeKernelFloor = floor.getInt();
     facts.blockDotComputeHeavy = op.getBlockDotComputeHeavy().value_or(false);
     facts.blockDotMemoryBound = op.getBlockDotMemoryBound().value_or(false);
+    // [G8 六.3] Fact 3-MEASURED: consult the board-seeded per-format VLEN256-decode
+    // repack registry keyed on the committed decode-family scale_model WHAT (the SAME key
+    // the CONSTRUCTION dispatch uses; NOT the optional `quant` label -- deleting `quant`
+    // and keeping the facts still routes identically). An UNMEASURED scale_model leaves the
+    // fact nullopt => the selector's conservative VLEN256-decode decline. The selector reads
+    // ONLY this fact (it never sees the registry key), so it stays blind to the format label.
+    if (std::optional<Vlen256DecodeRepackDisposition> disp =
+            lookupRepackVlen256Decode(op.getScaleModel()))
+      facts.vlen256DecodeRepackBeneficial =
+          (*disp == Vlen256DecodeRepackDisposition::Beneficial);
     return facts;
   }
 

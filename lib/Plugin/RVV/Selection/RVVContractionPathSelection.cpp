@@ -75,14 +75,28 @@ namespace weft::plugin::rvv {
 
 namespace {
 
-// Fact 3: does the VLEN regime (or the prefill M-regime) favor repack? VLEN==128
-// keeps the two disjoint 8-lane halves repack is tuned for; any prefill GEMM
-// amortizes the repack weight decode across the M columns. q4_0 @ VLEN256 decode
-// measured a 0.74x LOSS, so that decode cell is declined. This is the ONE fact
-// that is NOT per-format -- it is a pure capability/regime rule -- so it stays in
-// C++ (there is no format knowledge to relocate).
-bool vlenOrPrefillFavorsRepack(std::int64_t minVLEN, MRegime mRegime) {
-  return minVLEN == 128 || mRegime == MRegime::Prefill;
+// Fact 3: does the VLEN regime (or the prefill M-regime) favor repack? THREE cells:
+//   (a) any Prefill GEMM amortizes the repack weight decode across the M columns -> favor.
+//   (b) VLEN128 decode keeps the two disjoint 8-lane halves repack is tuned for -> favor.
+//       (This is the rvv deployed cell; it is UNCHANGED, so rvv sees ZERO drift.)
+//   (c) VLEN256+ decode is PER-FORMAT MEASURED [G8 六.3]. The old rule declined this cell
+//       BLANKET ("VLEN256 decode always declines"), generalizing a q4_0-only 0.74x LOSS to
+//       every format. The k1 GEVM sweep (ac5ea76f) FALSIFIED that: the VLEN256 decode
+//       repack-GEVM leaf WINS for q5_0/q5_1 (1.190x/1.306x) and LOSES for q4_0/iq4_nl. So
+//       this cell now reads the BOARD-MEASURED per-format fact (populated by
+//       RVVLowerQuantContraction's kRepackVlen256DecodeMeasurements registry) -- the
+//       selector stays BLIND to the format label, consulting only the fact. An UNMEASURED
+//       format (nullopt) DECLINES (conservative == the old blanket behavior for it).
+bool vlenOrPrefillFavorsRepack(std::int64_t minVLEN, MRegime mRegime,
+                               const ContractionOpponentFacts &facts) {
+  if (mRegime == MRegime::Prefill)
+    return true; // (a) prefill amortizes -- unchanged
+  if (minVLEN == 128)
+    return true; // (b) VLEN128 decode -- unchanged (rvv deployed cell, zero drift)
+  if (minVLEN >= 256)
+    // (c) VLEN256+ decode -- per-format BOARD-MEASURED (was blanket decline)
+    return facts.vlen256DecodeRepackBeneficial.value_or(false);
+  return false; // minVLEN < 128 decode: no repack-affording capability -- unchanged
 }
 
 } // namespace
@@ -109,21 +123,28 @@ selectContractionAlgorithm(const ContractionOpponentFacts &facts,
       facts.blockDotComputeHeavy || facts.blockDotMemoryBound;
 
   bool selectRepack = !ggmlVlenNativeExists && repackRemovesRedundantWork &&
-                      vlenOrPrefillFavorsRepack(minVLEN, mRegime);
+                      vlenOrPrefillFavorsRepack(minVLEN, mRegime, facts);
 
   if (selectRepack) {
     // Repack SELECTED. Differentiate the reason by (a) WHICH benefit mechanism
     // carried it -- compute-heavy out-stream (fact 2) vs memory-bandwidth-bound
-    // locality (fact 2b) -- and (b) prefill (amortized) vs VLEN128 decode, so the
-    // audit reflects the carrying fact. When BOTH facts hold the compute reason
-    // wins (nibble decode is the stronger, historically-first cell). The audit
-    // token retains the historical format spelling as pure PROVENANCE (it names the
-    // fact-pattern/cell, it is NOT read from the op's format label).
+    // locality (fact 2b) -- and (b) prefill (amortized) vs VLEN128 decode vs the new
+    // VLEN256 board-measured-beneficial decode cell, so the audit reflects the carrying
+    // fact. When BOTH facts hold the compute reason wins (nibble decode is the stronger,
+    // historically-first cell). The audit token retains the historical format spelling as
+    // pure PROVENANCE (it names the fact-pattern/cell, it is NOT read from the op's format
+    // label). The VLEN256-decode cell names the MEASURED fact-pattern (format-blind: two
+    // formats, q5_0/q5_1, share it).
     bool memoryCarried = !facts.blockDotComputeHeavy; // then fact 2b carried it
     if (mRegime == MRegime::Prefill)
       return {ContractionAlgorithm::Repack,
               memoryCarried ? "repack-kept-q8_0-memory-bound-prefill"
                             : "repack-kept-q4_0-prefill"};
+    // VLEN256+ decode reaches Repack ONLY via the board-measured-beneficial fact (fact
+    // 3-measured); VLEN128 decode via the capability/regime rule. Name the cell.
+    if (minVLEN >= 256)
+      return {ContractionAlgorithm::Repack,
+              "repack-kept-vlen256-decode-measured-beneficial"};
     return {ContractionAlgorithm::Repack,
             memoryCarried ? "repack-kept-q8_0-memory-bound-vlen128-decode"
                           : "repack-kept-q4_0-vlen128-decode"};
@@ -137,10 +158,17 @@ selectContractionAlgorithm(const ContractionOpponentFacts &facts,
   if (!repackRemovesRedundantWork)
     return {ContractionAlgorithm::BlockDot,
             "block-dot-decline-lean-no-repack-benefit"};
-  // A benefit fact holds + no native kernel, but fact 3 declined: the VLEN256
-  // decode loss cell.
+  // A benefit fact holds + no native kernel, but fact 3 declined. The VLEN256+ decode
+  // cell is per-format MEASURED: distinguish a board-measured-NEGATIVE format (q4_0 0.74x
+  // / iq4_nl 0.248x) from an UNMEASURED one (both DECLINE, but the token is precise). The
+  // remaining case is the sub-128 decode cell with no repack-affording capability.
+  if (mRegime == MRegime::Decode && minVLEN >= 256)
+    return {ContractionAlgorithm::BlockDot,
+            facts.vlen256DecodeRepackBeneficial.has_value()
+                ? "block-dot-decline-vlen256-decode-measured-negative"
+                : "block-dot-decline-vlen256-decode-unmeasured"};
   return {ContractionAlgorithm::BlockDot,
-          "block-dot-decline-q4_0-vlen256-decode-k1-loss"};
+          "block-dot-decline-no-repack-capability"};
 }
 
 } // namespace weft::plugin::rvv

@@ -76,6 +76,25 @@ struct ContractionOpponentFacts {
   // measured e2e number only CONFIRMS it, exactly as fact 2 is confirmed but not
   // ESTABLISHED by q4_0's 5.9x.
   bool blockDotMemoryBound;
+  // Fact 3-MEASURED [G8 六.3]: the per-format BOARD-MEASURED repack disposition of the
+  // VLEN256+ DECODE cell. This is the fact that FALSIFIES the earlier premise (recorded
+  // below as fact 3) that "VLEN256 decode always declines" is a NON-per-format capability
+  // rule: the k1 GEVM sweep (casefile experiments/.../k1-gevm-sweep, commit ac5ea76f)
+  // MEASURED the VLEN256 decode repack-GEVM leaf per format and found it SPLITS by format.
+  //   std::nullopt => the (format, VLEN256, decode) cell is UNMEASURED => conservative
+  //                   DECLINE (identical block-dot behavior to the old blanket rule).
+  //   true         => board-MEASURED repack-BENEFICIAL (q5_0 1.190x / q5_1 1.306x: the
+  //                   contiguous block_q5x16 x16 stream + wide SIMD reduction out-VLENs the
+  //                   divergent per-column 5-bit qh block-dot at VLEN256) => SELECT repack.
+  //   false        => board-MEASURED repack-NEGATIVE (q4_0 0.74x / iq4_nl 0.248x: the
+  //                   near-optimal linear block-dot / the codebook-gather-bound leaf) =>
+  //                   DECLINE (matching the ggml-parity block-dot at VLEN256).
+  // Populated by RVVLowerQuantContraction's board-seeded per-format measured REGISTRY
+  // (kRepackVlen256DecodeMeasurements) keyed on the committed decode-family scale_model
+  // WHAT -- so the selector below stays BLIND to the format label and reads ONLY this
+  // fact (registration-as-data, the SAME status=="measured-*" mechanism as the IME
+  // wide-vmadot kIMEWideFormatMeasurements registry; NOT a per-format C++ switch).
+  std::optional<bool> vlen256DecodeRepackBeneficial;
 };
 
 struct ContractionSelection {
@@ -105,8 +124,14 @@ struct ContractionSelection {
 //      bandwidth-bound; q4_0 no -- its benefit is fact 2). Facts 2 and 2b are DUAL
 //      roofline mechanisms; requiring compute-heaviness ALONE wrongly declined the
 //      bandwidth-bound q8_0 cell that repack demonstrably out-streams.
-//   3. VLEN==128 OR Prefill favors repack (q4_0 @ VLEN256 decode measured a
-//      0.74x LOSS -> decline that decode cell).
+//   3. the VLEN/M-regime favors repack. TWO cells stay pure capability/regime rules:
+//      EVERY Prefill GEMM amortizes the repack decode across M, and VLEN128 decode keeps
+//      the two disjoint 8-lane halves repack is tuned for -- both favor repack
+//      unconditionally. The THIRD cell, VLEN256+ DECODE, is PER-FORMAT MEASURED [G8 六.3]
+//      (fact 3-measured): it consults facts.vlen256DecodeRepackBeneficial (the board
+//      registry result), replacing the old blanket "VLEN256 decode always declines" that a
+//      q4_0-only 0.74x LOSS wrongly generalized. q5_0/q5_1 WIN there (1.190x/1.306x) and
+//      SELECT repack; q4_0/iq4_nl LOSE and DECLINE; unmeasured formats DECLINE (conservative).
 ContractionSelection
 selectContractionAlgorithm(const ContractionOpponentFacts &facts,
                            MRegime mRegime, std::int64_t minVLEN);

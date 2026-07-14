@@ -1,0 +1,79 @@
+# loadavg_begin=2.39 2.10 2.03 2/453 3427619
+# core0 idle=97%
+# core1 idle=97%
+# core2 idle=100%
+# core3 idle=97%
+# PIN core=2 idle=100% gov=performance freq=1600000
+=== VERIFY (nc=64) ===
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/64 max_rel=0.00e+00 | blockdot vs opp: mism=0/64 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/64
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/64 max_rel=6.49e-07 | blockdot vs opp: mism=0/64 max_rel=0.00e+00 | vs oracle: 0/64
+=== COLD PRIMARY K=2048 N=512 (x12 trials) ===
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6376(iqr0.080) blockdot_ms=2.9859(iqr0.005) opp_ms=1.1734(iqr0.042) | ratio_repack=1.8403 ratio_blockdot=0.3930
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5339(iqr0.031) blockdot_ms=2.9965(iqr0.014) opp_ms=1.2197(iqr0.039) | ratio_repack=2.2844 ratio_blockdot=0.4070
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6573(iqr0.091) blockdot_ms=2.9824(iqr0.014) opp_ms=1.1312(iqr0.043) | ratio_repack=1.7209 ratio_blockdot=0.3793
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5346(iqr0.016) blockdot_ms=2.9989(iqr0.002) opp_ms=1.2241(iqr0.041) | ratio_repack=2.2899 ratio_blockdot=0.4082
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6522(iqr0.097) blockdot_ms=2.9864(iqr0.002) opp_ms=1.1351(iqr0.001) | ratio_repack=1.7405 ratio_blockdot=0.3801
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5342(iqr0.020) blockdot_ms=2.9976(iqr0.003) opp_ms=1.1844(iqr0.003) | ratio_repack=2.2171 ratio_blockdot=0.3951
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6509(iqr0.063) blockdot_ms=2.9876(iqr0.017) opp_ms=1.1808(iqr0.039) | ratio_repack=1.8142 ratio_blockdot=0.3952
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5389(iqr0.022) blockdot_ms=2.9984(iqr0.002) opp_ms=1.2281(iqr0.036) | ratio_repack=2.2791 ratio_blockdot=0.4096
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6557(iqr0.096) blockdot_ms=2.9851(iqr0.005) opp_ms=1.1327(iqr0.001) | ratio_repack=1.7274 ratio_blockdot=0.3795
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5343(iqr0.028) blockdot_ms=2.9968(iqr0.001) opp_ms=1.1841(iqr0.040) | ratio_repack=2.2162 ratio_blockdot=0.3951
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6302(iqr0.069) blockdot_ms=2.9833(iqr0.018) opp_ms=1.1349(iqr0.001) | ratio_repack=1.8007 ratio_blockdot=0.3804
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5368(iqr0.020) blockdot_ms=2.9990(iqr0.002) opp_ms=1.1842(iqr0.037) | ratio_repack=2.2059 ratio_blockdot=0.3949
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6258(iqr0.067) blockdot_ms=2.9836(iqr0.003) opp_ms=1.1337(iqr0.040) | ratio_repack=1.8115 ratio_blockdot=0.3800
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5341(iqr0.021) blockdot_ms=2.9989(iqr0.005) opp_ms=1.1873(iqr0.001) | ratio_repack=2.2231 ratio_blockdot=0.3959
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6486(iqr0.083) blockdot_ms=2.9831(iqr0.014) opp_ms=1.1314(iqr0.000) | ratio_repack=1.7444 ratio_blockdot=0.3793
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5304(iqr0.010) blockdot_ms=3.0011(iqr0.001) opp_ms=1.1901(iqr0.038) | ratio_repack=2.2435 ratio_blockdot=0.3965
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6428(iqr0.056) blockdot_ms=2.9839(iqr0.016) opp_ms=1.1315(iqr0.001) | ratio_repack=1.7603 ratio_blockdot=0.3792
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5368(iqr0.079) blockdot_ms=2.9968(iqr0.003) opp_ms=1.1849(iqr0.001) | ratio_repack=2.2072 ratio_blockdot=0.3954
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6295(iqr0.081) blockdot_ms=2.9844(iqr0.017) opp_ms=1.1323(iqr0.001) | ratio_repack=1.7987 ratio_blockdot=0.3794
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5351(iqr0.016) blockdot_ms=2.9967(iqr0.014) opp_ms=1.1848(iqr0.001) | ratio_repack=2.2143 ratio_blockdot=0.3954
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6472(iqr0.047) blockdot_ms=2.9854(iqr0.017) opp_ms=1.1321(iqr0.001) | ratio_repack=1.7493 ratio_blockdot=0.3792
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5364(iqr0.015) blockdot_ms=2.9976(iqr0.015) opp_ms=1.2302(iqr0.044) | ratio_repack=2.2933 ratio_blockdot=0.4104
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/512 max_rel=0.00e+00 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/512
+[q5_0] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.6620(iqr0.069) blockdot_ms=2.9841(iqr0.019) opp_ms=1.1343(iqr0.001) | ratio_repack=1.7134 ratio_blockdot=0.3801
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/512 max_rel=5.59e-04 | blockdot vs opp: mism=0/512 max_rel=0.00e+00 | vs oracle: 0/512
+[q5_1] COLD K=2048 N=512 reps=15 | repack_leaf_ms=0.5283(iqr0.030) blockdot_ms=2.9981(iqr0.003) opp_ms=1.1840(iqr0.002) | ratio_repack=2.2411 ratio_blockdot=0.3949
+=== COLD SECONDARY K=4096 N=256 (x4 trials) ===
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/256 max_rel=0.00e+00 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/256
+[q5_0] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5349(iqr0.067) blockdot_ms=2.9899(iqr0.017) opp_ms=1.1286(iqr0.001) | ratio_repack=2.1098 ratio_blockdot=0.3775
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/256 max_rel=3.47e-05 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle: 0/256
+[q5_1] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5157(iqr0.016) blockdot_ms=3.0144(iqr0.007) opp_ms=1.2297(iqr0.050) | ratio_repack=2.3843 ratio_blockdot=0.4079
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/256 max_rel=0.00e+00 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/256
+[q5_0] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.6053(iqr0.059) blockdot_ms=2.9967(iqr0.007) opp_ms=1.1270(iqr0.001) | ratio_repack=1.8619 ratio_blockdot=0.3761
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/256 max_rel=3.47e-05 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle: 0/256
+[q5_1] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5139(iqr0.024) blockdot_ms=3.0079(iqr0.007) opp_ms=1.2298(iqr0.039) | ratio_repack=2.3930 ratio_blockdot=0.4088
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/256 max_rel=0.00e+00 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/256
+[q5_0] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5997(iqr0.050) blockdot_ms=2.9840(iqr0.013) opp_ms=1.1299(iqr0.004) | ratio_repack=1.8840 ratio_blockdot=0.3786
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/256 max_rel=3.47e-05 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle: 0/256
+[q5_1] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5125(iqr0.015) blockdot_ms=3.0020(iqr0.004) opp_ms=1.2268(iqr0.047) | ratio_repack=2.3937 ratio_blockdot=0.4086
+[q5_0] BYTEEXACT repack_leaf vs opp: mism(bitf32)=0/256 max_rel=0.00e+00 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle(rel>1e-3): 0/256
+[q5_0] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5444(iqr0.051) blockdot_ms=2.9862(iqr0.018) opp_ms=1.1289(iqr0.003) | ratio_repack=2.0734 ratio_blockdot=0.3780
+[q5_1] rel>1e-3 repack_leaf vs opp: mism=0/256 max_rel=3.47e-05 | blockdot vs opp: mism=0/256 max_rel=0.00e+00 | vs oracle: 0/256
+[q5_1] COLD K=4096 N=256 reps=12 | repack_leaf_ms=0.5182(iqr0.011) blockdot_ms=3.0057(iqr0.004) opp_ms=1.1799(iqr0.001) | ratio_repack=2.2771 ratio_blockdot=0.3926
+# loadavg_end=2.63 2.18 2.06 2/454 3427746
+# STRAY=0
+0
+# ALL_DONE

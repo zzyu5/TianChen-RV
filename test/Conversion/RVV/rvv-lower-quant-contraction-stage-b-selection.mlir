@@ -32,8 +32,12 @@
 // as the real repack op carrying weight_layout_contract = "x16" (half_lanes 8).
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=VLEN128
 //
-// VLEN256 (rv64gcv_zvl256b => 256, the K1 decode cell that measured a 0.74x
-// LOSS): q4_0 decode -> BLOCK-DOT SELECTED (declined), fully realized here.
+// VLEN256 (rv64gcv_zvl256b => 256, the K1 decode cell): q4_0 decode -> BLOCK-DOT
+// SELECTED (declined), fully realized here. [G8 六.3] the decline is now PER-FORMAT
+// MEASURED (kRepackVlen256DecodeMeasurements): q4_0 carries a board-measured-NEGATIVE
+// row (0.74x LOSS), distinct from q5_0/q5_1 which measured BENEFICIAL at this SAME cell
+// (1.190x/1.306x) and SELECT repack -- see
+// rvv-lower-quant-contraction-vlen256-decode-per-format-measured.mlir.
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=VLEN256
 //
 // DEFAULT -march "" => deriveMinimumVLEN 0 => no capability => fact 3 false =>
@@ -105,7 +109,7 @@ module {
 // VLEN256: weft_rvv.q4_0_q8_0_block_dot
 // VLEN256-SAME: weft_rvv.contraction_algorithm = "block-dot"
 // VLEN256-SAME: weft_rvv.path_materialization = "realized"
-// VLEN256-SAME: weft_rvv.path_selection_reason = "block-dot-decline-q4_0-vlen256-decode-k1-loss"
+// VLEN256-SAME: weft_rvv.path_selection_reason = "block-dot-decline-vlen256-decode-measured-negative"
 
 // DEFAULT-NOT: weft_rvv.quant_contraction
 // DEFAULT-NOT: weft_rvv.repack_gemv_q4_0_q8_0

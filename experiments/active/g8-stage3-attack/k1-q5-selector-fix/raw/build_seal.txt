@@ -1,0 +1,9 @@
+# G8 q5x-fix@k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O3 -fno-integrated-as Tue Jul 14 07:03:11 PM UTC 2026
+# stock_so_md5=871169a0123139692177468b3c8578be
+# OURS_q5_0_gevm_frontdoor_vlen256: fp16=cleanfp vsetvl=5 rvv~=28 textsize=0x00000136
+# OURS_q5_1_gevm_frontdoor_vlen256: fp16=cleanfp vsetvl=7 rvv~=32 textsize=0x0000014c
+# OURS_q5_0_blockdot_deployed: fp16=cleanfp vsetvl=9 rvv~=35 textsize=0x000000e6
+# OURS_q5_1_blockdot_deployed: fp16=cleanfp vsetvl=9 rvv~=33 textsize=0x000000f4
+# OPP ggml_vec_dot_q5_0_q8_0 @0x000000000009f81c (stock .so, native-RVV inline)
+# OPP ggml_vec_dot_q5_1_q8_1 @0x000000000009f942 (stock .so, native-RVV inline)
+# LINK OK -> /tmp/g8k1_q5xfix_deploy/q5x_bench
