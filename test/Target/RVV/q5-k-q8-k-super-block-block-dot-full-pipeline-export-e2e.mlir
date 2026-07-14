@@ -106,15 +106,22 @@ module attributes {weft_rvv.source_front_door = "ggml_q5_K_q8_K_block_dot_source
 // CORE: call_opaque "__riscv_vsetvl_e8m2"
 // CORE: call_opaque "__riscv_vle8_v_u8m2"
 // The q5_K-SPECIFIC piece: the qh 5th-bit plane loaded (a SECOND u8m2 load from a
-// FIXED per-super-block offset) and injected via vand/vsll/vadd in the u8 domain
-// BEFORE the u8->i8 reinterpret (lifting q4 in [0,15] to q5 in [0,31]). This is the
-// ONLY q5_K-vs-q4_K node difference; a regression into q4_K's plain unpack drops it.
+// FIXED per-super-block offset) and injected via the SHARED [QH-MASK] native-mask
+// helper -- the SINGLE qh bit isolated IN PLACE (vand 1<<h), lifted to a per-lane
+// bool (vmsne==0, SET lanes), and the +16 FUSED into ONE vadd_vx_u8m2_mu on the SET
+// lanes -- in the u8 domain BEFORE the u8->i8 reinterpret (lifting q4 in [0,15] to q5
+// in [0,31]). This is the ONLY q5_K-vs-q4_K node difference; a regression into q4_K's
+// plain unpack drops the vmsne/vadd_mu pair. Byte-exact to the RETIRED vsll<<4|vadd_vv.
 // CORE: call_opaque "__riscv_vle8_v_u8m2"
 // CORE: call_opaque "__riscv_vand_vx_u8m2"
-// CORE: call_opaque "__riscv_vsll_vx_u8m2"
-// CORE: call_opaque "__riscv_vadd_vv_u8m2"
+// CORE: call_opaque "__riscv_vand_vx_u8m2"
+// CORE: call_opaque "__riscv_vmsne_vx_u8m2_b4"
+// CORE: call_opaque "__riscv_vadd_vx_u8m2_mu"
 // CORE: call_opaque "__riscv_vreinterpret_v_u8m2_i8m2"
 // CORE: call_opaque "__riscv_vse8_v_i8m2"
+// The OLD per-lane qh contribution chain (vsll<<4 then a vector-vector vadd of the
+// 0/16 contribution) is fully RETIRED by the native-mask helper.
+// CORE-NOT: call_opaque "__riscv_vadd_vv_u8m2"
 // The 6-bit scale/min bit-dance (scalar emitc bitwise ops; NOT the K4a 16-byte store).
 // CORE: bitwise_right_shift
 // CORE: bitwise_and

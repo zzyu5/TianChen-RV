@@ -1,6 +1,7 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMIN
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=RETIRED
 
 // G3 主线A T3 format3: the ggml q3_K x q8_K 16x1-REPACKED PREFILL GEMM (M>>1) hot kernel
 // is now CONSTRUCTED through the typed-region FRONT DOOR (the q4_0 / ternary / q4_K / q6_K
@@ -80,14 +81,21 @@ module {
 // kept in the plain per-block scale form (S6 stack-panel NULL for weight-bound q3_K).
 // CHECK: call_opaque "__riscv_vle8_v_i8mf2"
 // CHECK: call_opaque "__riscv_vsext_vf2_i16m1"
-// The q3_K 3-bit subtractive weight assembly (SHARED across the 4 columns): qs/hmask
-// strip loads, the 2-bit low plane vand 0x03, the SINGLE hmask bit vand 0x01, vsll 2,
-// vor, then vsub 4 (the -4 subtractive bias folded into each SIGNED weight lane).
+// The q3_K 3-bit subtractive weight assembly (SHARED across the 4 columns, NATIVE-MASK
+// KNEST via the SHARED [QH-MASK] helper): qs/hmask strip loads, the 2-bit low plane
+// (vand 0x03) reinterpreted to signed i8, then the SINGLE hmask high bit tested IN PLACE
+// by vand(1<<p) + vmseq==0 (a per-lane bool, ONE bit -- NOT q6_K's two-bit 0x03), with
+// the -4 SUBTRACTIVE bias FUSED into ONE masked op vadd_vx_i8mf2_mu(mask0, base, base,
+// -4) -- byte-exact to the retired vsll 2 | vor | vsub 4 chain (the q3_K GEVM sibling
+// proves the SAME helper, be_q3k 0/8).
 // CHECK: call_opaque "__riscv_vle8_v_u8mf2"
 // CHECK: literal "0x03"
-// CHECK: literal "0x01"
-// CHECK: call_opaque "__riscv_vor_vv_u8mf2"
-// CHECK: call_opaque "__riscv_vsub_vx_i8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_u8mf2_i8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vmseq_vx_u8mf2_b16"
+// CHECK: literal "-4"
+// CHECK: call_opaque "__riscv_vadd_vx_i8mf2_mu"
 // The per-column interleaved q8_Kx4 quant read + lane-wise integer dot (NO vredsum),
 // scale-weighted i32 promote (vwmacc_vv).
 // CHECK: call_opaque "*(const int8_t *)"
@@ -106,3 +114,9 @@ module {
 // activation bsums read (int16_t) appear -- the q4_K/q5_K min-fold signature is ABSENT.
 // NOMIN-NOT: vfnmsac
 // NOMIN-NOT: *(const int16_t *)
+
+// The OLD per-lane hmask expand chain (vsll<<2 | vor | vsub 4) is fully RETIRED by the
+// SHARED [QH-MASK] native-mask helper -- none of those three ops survive in the q3_K GEMM.
+// RETIRED-NOT: __riscv_vsll_vx_u8mf2
+// RETIRED-NOT: __riscv_vor_vv_u8mf2
+// RETIRED-NOT: __riscv_vsub_vx_i8mf2

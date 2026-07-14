@@ -1724,6 +1724,36 @@ private:
       int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
       int64_t half, bool rolledMainTerm) const;
 
+  /// [QH-MASK] native-interleaved-static mask-source decode variant (parametric,
+  /// NOT a knob). Fuse a COMPILE-TIME-STATIC single high-bit-plane select with a
+  /// bias into ONE masked op: isolate bit `bitPos` of the u8 `maskSrcU8` plane
+  /// (vand 1<<bitPos), lift it to a per-lane vbool (vmsne==0 when the bias rides
+  /// the SET lanes / vmseq==0 when it rides the CLEAR lanes), then
+  /// vadd_vx_<i8|u8><lmul>_mu the signed bias into `base` on exactly those lanes.
+  /// RETIRES the OLD per-lane expand chains -- q3_K's `vsrl|vand|vsll|vor|vsub`
+  /// and q5_K's `vsrl|vand|vsll|vadd_vv`. Byte-exact BY CONSTRUCTION: for a SINGLE
+  /// bit `(base | (bit<<k)) +/- bias == bit ? base : base +/- bias`, the SAME
+  /// identity the q5_0/q5_1 GEVM (transposed-byte-aligned vlm arm) and q3_K GEVM
+  /// siblings already prove. Shared by the q3_K GEMM leaf, the q3_K GEVM leaf, and
+  /// the q5_K super-block nibble unpack; the `bit_plane_width==1` predicate term
+  /// GATES this variant OUT for q6_K (a 2-bit qh plane).
+  ///   base      : the i8/u8 vector to conditionally bias (in [0, 2^n))
+  ///   maskSrcU8 : the u8 hmask/qh plane carrying the static bit
+  ///   bitPos    : compile-time bit position (1<<bitPos isolated)
+  ///   biasWhenBitSet : true -> bias the SET lanes (q5_K +16, vmsne); false ->
+  ///                    bias the CLEAR lanes (q3_K -4, vmseq)
+  ///   biasImm   : the signed bias literal (+16 / -4)
+  ///   lmul      : the LMUL suffix ("mf2".."m2"); fixes the vbool width (8/LMUL)
+  ///   elemSigned: true -> "i8" masked-add result, false -> "u8"
+  ///   u8VecType : the u8<lmul> vector type of the vand isolate step
+  ///   resultVecType : the emitc vector type of `base` / the result
+  mlir::Value emitNativeMaskStaticBitBias(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value base, mlir::Value maskSrcU8, int bitPos, bool biasWhenBitSet,
+      int biasImm, llvm::StringRef lmul, bool elemSigned, mlir::Type u8VecType,
+      mlir::Type resultVecType, mlir::Value vl, llvm::StringRef opName,
+      llvm::StringRef role) const;
+
   /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
   /// emitRepackGemvQ3KQ8K, refactored to take the mapped ABI values + block-format facts

@@ -1,5 +1,6 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMIN
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=RETIRED
 
 // G8 [ROLL] whole-K-nest keying: the SAME q3_K x q8_K 16x1-REPACKED PREFILL GEMM (M>>1)
 // front-door region as rvv-to-emitc-repack-gemm-q3-K-q8-K.mlir, but the loop-body op
@@ -66,15 +67,21 @@ module {
 // sub-block positions -- the compact per-element decode loop the full-unroll emit lacks.
 // CHECK: for %[[LL:.*]] = %{{.*}} to %{{.*}} step
 // Inside it: the SHARED 3-bit subtractive-hmask weight decode (qs/hmask strip loads, the
-// 2-bit low plane vand 0x03, the single hmask bit vand 0x01, vsll 2, vor, vsub 4), then
-// per-column reload of the running i16 partial (load), weight x activation vwmacc_vx,
-// assign the partial back (the rolled resident load-accumulate-store, byte-exact to the
-// unrolled SSA accumulation; the weight decode is OUTSIDE the column reads so it is shared
-// across the 4 columns -- NO re-decode).
+// 2-bit low plane vand 0x03 reinterpreted to signed i8, then the SINGLE hmask high bit
+// tested IN PLACE by vand(1<<p) + vmseq==0 and the -4 SUBTRACTIVE bias FUSED into ONE
+// masked op vadd_vx_i8mf2_mu via the SHARED [QH-MASK] helper -- byte-exact to the retired
+// vsll 2 | vor | vsub 4 chain), then per-column reload of the running i16 partial (load),
+// weight x activation vwmacc_vx, assign the partial back (the rolled resident load-
+// accumulate-store, byte-exact to the unrolled SSA accumulation; the weight decode is
+// OUTSIDE the column reads so it is shared across the 4 columns -- NO re-decode).
 // CHECK: call_opaque "__riscv_vle8_v_u8mf2"
-// CHECK: literal "0x01"
-// CHECK: call_opaque "__riscv_vor_vv_u8mf2"
-// CHECK: call_opaque "__riscv_vsub_vx_i8mf2"
+// CHECK: literal "0x03"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_u8mf2_i8mf2"
+// CHECK: call_opaque "__riscv_vand_vx_u8mf2"
+// CHECK: call_opaque "__riscv_vmseq_vx_u8mf2_b16"
+// CHECK: literal "-4"
+// CHECK: call_opaque "__riscv_vadd_vx_i8mf2_mu"
 // CHECK: call_opaque "*(const int8_t *)"
 // CHECK: load %{{.*}} : <!emitc.opaque<"vint16m1_t">>
 // CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
@@ -92,3 +99,9 @@ module {
 // activation bsums read (int16_t) appear even under the rolled schedule.
 // NOMIN-NOT: vfnmsac
 // NOMIN-NOT: *(const int16_t *)
+
+// The OLD per-lane hmask expand chain (vsll<<2 | vor | vsub 4) is fully RETIRED by the
+// SHARED [QH-MASK] native-mask helper -- none survive under the rolled schedule either.
+// RETIRED-NOT: __riscv_vsll_vx_u8mf2
+// RETIRED-NOT: __riscv_vor_vv_u8mf2
+// RETIRED-NOT: __riscv_vsub_vx_i8mf2

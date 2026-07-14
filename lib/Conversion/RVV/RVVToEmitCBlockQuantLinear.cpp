@@ -17402,6 +17402,76 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
 // dequant-matmul reference (controls HMASK-OFF / HMASK-INV / SCALE-ROT / BIAS-OFF).
 // RESULT-LESS (no monolith token). The hmask SECOND weight plane rides the SHARED qh
 // slot (weightHmaskOffset == the loop op's weight_qh_byte_offset).
+
+// [QH-MASK] SHARED native-interleaved-static mask-source decode helper. See the
+// header doc for the byte-exact identity + the bit_plane_width==1 predicate term.
+// The ONE implementation of the native-mask single-bit-plane bias fuse, called by
+// the q3_K GEVM leaf, the q3_K GEMM leaf, and the q5_K super-block nibble unpack.
+mlir::Value VariantToEmitCFunc::emitNativeMaskStaticBitBias(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value base, mlir::Value maskSrcU8, int bitPos, bool biasWhenBitSet,
+    int biasImm, llvm::StringRef lmul, bool elemSigned, mlir::Type u8VecType,
+    mlir::Type resultVecType, mlir::Value vl, llvm::StringRef opName,
+    llvm::StringRef role) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type immI32Type = emitc::OpaqueType::get(ctx, "int");
+  // The vbool predicate width for an i8/u8<lmul> vector is N = 8/LMUL, the SAME
+  // mapping the q5_0/q5_1 REDESIGN-B qh decode + the q3_K GEVM sibling use.
+  unsigned maskBits = 16;
+  if (lmul == "mf8") maskBits = 64;
+  else if (lmul == "mf4") maskBits = 32;
+  else if (lmul == "mf2") maskBits = 16;
+  else if (lmul == "m1") maskBits = 8;
+  else if (lmul == "m2") maskBits = 4;
+  else if (lmul == "m4") maskBits = 2;
+  else if (lmul == "m8") maskBits = 1;
+  std::string bitsStr = std::to_string(maskBits);
+  mlir::Type boolType =
+      emitc::OpaqueType::get(ctx, ("vbool" + bitsStr + "_t"));
+  std::string vandCallee = ("__riscv_vand_vx_u8" + lmul).str();
+  // vmsne==0 -> TRUE where the bit is SET (bias rides SET lanes: q5_K +16);
+  // vmseq==0 -> TRUE where the bit is CLEAR (bias rides CLEAR lanes: q3_K -4).
+  std::string cmpCallee =
+      (llvm::Twine("__riscv_") + (biasWhenBitSet ? "vmsne" : "vmseq") +
+       "_vx_u8" + lmul + "_b" + bitsStr)
+          .str();
+  std::string signStr = elemSigned ? "i8" : "u8";
+  std::string addMuCallee = ("__riscv_vadd_vx_" + signStr + lmul + "_mu").str();
+  // isolate the STATIC high bit: hbit = maskSrcU8 & (1 << bitPos).
+  mlir::Value isolated = emitOpaqueCallBuilt(
+      rewriter, loc, u8VecType, vandCallee, opName, role,
+      [&](mlir::OpBuilder &b,
+          mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value immV =
+            rewriter
+                .create<emitc::LiteralOp>(loc, immI32Type,
+                                          std::to_string(1 << bitPos))
+                .getResult();
+        return {maskSrcU8, immV, vl};
+      });
+  // lift the isolated bit to a per-lane bool plane.
+  mlir::Value mask = emitOpaqueCallBuilt(
+      rewriter, loc, boolType, cmpCallee, opName, role,
+      [&](mlir::OpBuilder &b,
+          mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value zero =
+            rewriter.create<emitc::LiteralOp>(loc, immI32Type, "0").getResult();
+        return {isolated, zero, vl};
+      });
+  // FUSE the +/- bias into ONE masked add on exactly the selected lanes.
+  return emitOpaqueCallBuilt(
+      rewriter, loc, resultVecType, addMuCallee, opName, role,
+      [&](mlir::OpBuilder &b,
+          mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value immV =
+            rewriter
+                .create<emitc::LiteralOp>(loc, immI32Type,
+                                          std::to_string(biasImm))
+                .getResult();
+        return {mask, base, base, immV, vl};
+      });
+}
+
 mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ3K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
@@ -17541,63 +17611,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ3K(
     // vadd_vx_i8_mu(mask0, base, base, -4). This RETIRES the OLD per-lane expand chain
     // (vsrl(hm,p) | vand 0x01 | vsll 2 | vor | vsub 4). Byte-exact BY CONSTRUCTION:
     // mask0 TRUE <=> hmask bit p CLEAR <=> stock's `if (hbit==0) q -= 4` (be_q3k 0/8:
-    // native === OLD === stock scalar). The vbool predicate width for an i8<l8> vector
-    // is 8/LMUL (mf2 -> b16), the SAME mapping the q5_0/q5_1 REDESIGN-B qh decode uses.
-    unsigned q3MaskBits = 16;
-    if (l8 == "mf8") q3MaskBits = 64;
-    else if (l8 == "mf4") q3MaskBits = 32;
-    else if (l8 == "mf2") q3MaskBits = 16;
-    else if (l8 == "m1") q3MaskBits = 8;
-    else if (l8 == "m2") q3MaskBits = 4;
-    else if (l8 == "m4") q3MaskBits = 2;
-    else if (l8 == "m8") q3MaskBits = 1;
-    std::string q3MaskBitsStr = std::to_string(q3MaskBits);
-    mlir::Type q3BoolType =
-        emitc::OpaqueType::get(ctx, ("vbool" + q3MaskBitsStr + "_t"));
-    std::string vmseqCallee =
-        ("__riscv_vmseq_vx_u8" + l8 + "_b" + q3MaskBitsStr).str();
-    std::string vaddMuCallee = ("__riscv_vadd_vx_i8" + l8 + "_mu").str();
-    // mask0 = (hbitIsolated == 0): the SINGLE high-bit plane lowered to a per-lane
-    // bool (TRUE where the bit is CLEAR, i.e. where the -4 bias must be applied).
-    auto vmseqZero = [&](mlir::Value v) -> mlir::Value {
-      return emitOpaqueCallBuilt(
-          rewriter, loc, q3BoolType, vmseqCallee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            mlir::Value zero =
-                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "0")
-                    .getResult();
-            return {v, zero, vl8};
-          });
-    };
-    // q = vadd_vx_i8_mu(mask0, base, base, -4): the -4 subtractive bias fused with the
-    // high-bit select (UNMASKED lanes keep base in [0,3]; MASKED lanes -> [-4,-1]).
-    auto addBiasMasked = [&](mlir::Value mask,
-                             mlir::Value baseI8) -> mlir::Value {
-      return emitOpaqueCallBuilt(
-          rewriter, loc, i8mf2Type, vaddMuCallee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            mlir::Value immV =
-                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "-4")
-                    .getResult();
-            return {mask, baseI8, baseI8, immV, vl8};
-          });
-    };
+    // native === OLD === stock scalar). The native-mask + vbool-width work now rides
+    // the SHARED [QH-MASK] emitNativeMaskStaticBitBias helper (biasWhenBitSet=false,
+    // biasImm=-4), the SAME implementation the q3_K GEMM leaf + q5_K super-block call.
     // Assemble ONE 3-bit SUBTRACTIVE signed weight strip from a qs strip + the hmask
     // strip. `shift` = 2*shift_group (the 2-bit qs lane), `p` = the hmask bit
     // position 4*sh + shift_group. The 2-bit low plane (vand 0x03) reinterpreted to
-    // signed i8 is the base; the SINGLE hmask bit p is tested by vand(1<<p) + vmseq==0
-    // (native-mask, ONE bit -- NOT q6_K's 0x03 two-bit qh) and the -4 bias is fused in.
+    // signed i8 is the base; the SHARED helper isolates the SINGLE hmask bit p
+    // (vand(1<<p) + vmseq==0, ONE bit -- NOT q6_K's 0x03 two-bit qh) + fuses the -4.
     auto assembleWeight = [&](mlir::Value qs, mlir::Value hm, int shift,
                               int p) -> mlir::Value {
       mlir::Value shifted =
           (shift == 0) ? qs : u8Imm(vsrlCallee, qs, std::to_string(shift));
       mlir::Value low2 = u8Imm(vandCallee, shifted, "0x03");
       mlir::Value baseI8 = reinterpretToI8(low2); // i8 in [0,3]
-      mlir::Value hbitIsolated = u8Imm(vandCallee, hm, std::to_string(1 << p));
-      mlir::Value mask0 = vmseqZero(hbitIsolated);
-      return addBiasMasked(mask0, baseI8); // i8 in [-4,3]
+      return emitNativeMaskStaticBitBias(
+          rewriter, loc, baseI8, hm, /*bitPos=*/p, /*biasWhenBitSet=*/false,
+          /*biasImm=*/-4, l8, /*elemSigned=*/true, u8mf2Type, i8mf2Type, vl8,
+          opName, role); // i8 in [-4,3]
     };
     // A scalar i8 read of the activation quant byte a.qs[k] (int8).
     llvm::StringRef i8ReadCallee = "*(const int8_t *)";
@@ -18079,8 +18110,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
     };
     std::string vandCallee = ("__riscv_vand_vx_u8" + l8).str();
     std::string vsrlCallee = ("__riscv_vsrl_vx_u8" + l8).str();
-    std::string vsllCallee = ("__riscv_vsll_vx_u8" + l8).str();
-    std::string vorCallee = ("__riscv_vor_vv_u8" + l8).str();
     auto u8Imm = [&](llvm::StringRef callee, mlir::Value v,
                      llvm::StringRef imm) -> mlir::Value {
       return emitOpaqueCallBuilt(
@@ -18093,38 +18122,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
             return {v, immV, vl8};
           });
     };
-    auto u8Or = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return emitOpaqueCall(rewriter, loc, u8mf2Type, vorCallee,
-                            mlir::ValueRange{a, b, vl8}, opName, role);
-    };
     std::string reinterpretCallee =
         ("__riscv_vreinterpret_v_u8" + l8 + "_i8" + l8).str();
     auto reinterpretToI8 = [&](mlir::Value u) -> mlir::Value {
       return emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
                             mlir::ValueRange{u}, opName, role);
     };
-    std::string vsubI8Callee = ("__riscv_vsub_vx_i8" + l8).str();
-    auto subBias = [&](mlir::Value i8vec) -> mlir::Value {
-      return emitOpaqueCallBuilt(
-          rewriter, loc, i8mf2Type, vsubI8Callee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            mlir::Value immV =
-                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "4")
-                    .getResult();
-            return {i8vec, immV, vl8};
-          });
-    };
+    // [QH-MASK] q3_K GEMM leaf: the SAME 3-bit SUBTRACTIVE-hmask assembly as the
+    // q3_K GEVM sibling, now routed through the SHARED native-mask helper. The
+    // 2-bit low plane (vand 0x03) reinterpreted to signed i8 is the base; the
+    // helper isolates the SINGLE hmask bit p (vand(1<<p) + vmseq==0) and fuses the
+    // -4 SUBTRACTIVE bias into ONE vadd_vx_i8_mu -- byte-exact to the RETIRED OLD
+    // per-lane expand chain (vsrl(hm,p) | vand 0x01 | vsll 2 | vor | vsub 4).
     auto assembleWeight = [&](mlir::Value qs, mlir::Value hm, int shift,
                               int p) -> mlir::Value {
       mlir::Value shifted =
           (shift == 0) ? qs : u8Imm(vsrlCallee, qs, std::to_string(shift));
       mlir::Value low2 = u8Imm(vandCallee, shifted, "0x03");
-      mlir::Value hsel =
-          (p == 0) ? hm : u8Imm(vsrlCallee, hm, std::to_string(p));
-      mlir::Value hbit = u8Imm(vsllCallee, u8Imm(vandCallee, hsel, "0x01"), "2");
-      mlir::Value raw = u8Or(low2, hbit);
-      return subBias(reinterpretToI8(raw));
+      mlir::Value baseI8 = reinterpretToI8(low2); // i8 in [0,3]
+      return emitNativeMaskStaticBitBias(
+          rewriter, loc, baseI8, hm, /*bitPos=*/p, /*biasWhenBitSet=*/false,
+          /*biasImm=*/-4, l8, /*elemSigned=*/true, u8mf2Type, i8mf2Type, vl8,
+          opName, role); // i8 in [-4,3]
     };
     llvm::StringRef i8ReadCallee = "*(const int8_t *)";
     auto i8Read = [&](mlir::Value ab, int64_t byteOff) -> mlir::Value {

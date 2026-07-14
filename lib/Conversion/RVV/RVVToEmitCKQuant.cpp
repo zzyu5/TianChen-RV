@@ -967,11 +967,6 @@ void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
             return {src, amt, vl};
           });
     };
-    auto u8AddVV = [&](mlir::Value a, mlir::Value b,
-                       mlir::Value vl) -> mlir::Value {
-      return emitVCall(rewriter, loc, cx.u8m2Type, "vadd_vv", "u8m2",
-                       mlir::ValueRange{a, b, vl}, opName, role);
-    };
     for (int64_t chunk = 0; chunk < qk / 64; ++chunk) {
       int64_t qsChunk = chunk * 32; // q4 advances 32 bytes per 64-elem chunk
       int64_t aChunk = chunk * 64;  // aux8 element base for this chunk
@@ -1001,17 +996,20 @@ void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
         qh = u8Load(qhPtr, vlu);
       }
 
-      // The qh 5th-bit injection for one 32-element half h in 0..7: add
-      // `((qh[l] >> h) & 1) << 4` (== 16 iff qh bit h of element l is set) to the
-      // unpacked nibble in the UINT8 domain, exactly mirroring _generic's
-      // `a[l] += (hm[l] & m ? 16 : 0)` with m = 1<<h. Done BEFORE the u8->i8
-      // reinterpret (q5 in [0,31] stays non-negative so the reinterpret is exact).
+      // [QH-MASK] The qh 5th-bit injection for one 32-element half h in 0..7:
+      // `a[l] += (hm[l] & (1<<h) ? 16 : 0)` (== _generic's `a[l] += (hm[l] & m ?
+      // 16 : 0)` with m = 1<<h). The qh plane is a SINGLE-bit-plane
+      // (bit_plane_width==1), the native-interleaved-static ANALOG of q5_0/q5_1's
+      // 5th bit, so the SHARED native-mask helper isolates bit h IN PLACE (vand
+      // (1<<h) + vmsne==0) and fuses the +16 into ONE vadd_vx_u8m2_mu on the SET
+      // lanes -- byte-exact to the RETIRED OLD vsrl|vand|vsll|vadd_vv expand chain
+      // (both stay in the UINT8 domain BEFORE the u8->i8 reinterpret; q5 in [0,31]
+      // stays non-negative so the reinterpret is exact).
       auto injectQh = [&](mlir::Value nib, int64_t h) -> mlir::Value {
-        mlir::Value shifted =
-            (h == 0) ? qh : u8ImmOp("vsrl_vx", qh, std::to_string(h), vlu);
-        mlir::Value bit = u8ImmOp("vand_vx", shifted, "0x01", vlu);
-        mlir::Value contrib = u8ImmOp("vsll_vx", bit, "0x04", vlu);
-        return u8AddVV(nib, contrib, vlu);
+        return emitNativeMaskStaticBitBias(
+            rewriter, loc, nib, qh, /*bitPos=*/static_cast<int>(h),
+            /*biasWhenBitSet=*/true, /*biasImm=*/16, "m2",
+            /*elemSigned=*/false, cx.u8m2Type, cx.u8m2Type, vlu, opName, role);
       };
 
       auto emitNibble = [&](bool lowNibble, int64_t aBase) {
