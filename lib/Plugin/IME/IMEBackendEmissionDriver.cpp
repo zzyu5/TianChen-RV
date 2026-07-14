@@ -160,6 +160,19 @@ std::string vmadotusHelperBody() {
 // same kf order); only the accumulate/store SCHEDULE changes.
 constexpr llvm::StringLiteral kVmadotMacKloopHelperName(
     "weft_ime_vmadot_mac_kloop");
+// The u/su/us BATCHED register-resident MAC leaf names -- the signedness-family
+// siblings of kVmadotMacKloopHelperName. FORWARD-LOOKING capability keys: NO
+// deployed IME cell carries these ime_op facts today (the VmadotMacLeafOp verifier
+// admits only "vmadot"), so selectIMEMacLeaf emits one of these ONLY when a future
+// u/su/us leaf brick appears. Same register-resident K-loop STRUCTURE as the vmadot
+// batched leaf (macKloopHelperBody is mnemonic-parametric); only the instruction
+// mnemonic (hence the int32 signedness semantics) differs.
+constexpr llvm::StringLiteral kVmadotuMacKloopHelperName(
+    "weft_ime_vmadotu_mac_kloop");
+constexpr llvm::StringLiteral kVmadotsuMacKloopHelperName(
+    "weft_ime_vmadotsu_mac_kloop");
+constexpr llvm::StringLiteral kVmadotusMacKloopHelperName(
+    "weft_ime_vmadotus_mac_kloop");
 
 /// The batched register-resident int8->int32 MAC leaf, emitted as ONE
 /// self-contained `static inline` helper. It reduces `kt` contiguous 4x8 A/B
@@ -217,8 +230,78 @@ std::string macKloopHelperBody(llvm::StringRef helperName,
   return text;
 }
 
-std::string vmadotMacKloopHelperBody() {
-  return macKloopHelperBody(kVmadotMacKloopHelperName, "vmadot");
+//===----------------------------------------------------------------------===//
+// G8 leaf-batching-IME UNIFIED SELECTOR (selectIMEMacLeaf): replaces the three
+// hardcoded `= kVmadotMacKloopHelperName` sites. The MAC-leaf brick's OP-CARRIED
+// facts key the emitted leaf -- no mnemonic is hardcoded to vmadot -- so a new IME
+// cell (a u/su/us op, or a single-fragment kt==1 tile) inherits the correct leaf
+// AUTOMATICALLY instead of by hand-copy. Three predicate legs:
+//   (1) cap    = ime_op in {vmadot, vmadotu, vmadotsu, vmadotus}, read off the
+//                VmadotMacLeafOp brick -> the MAC instruction mnemonic + the leaf
+//                helper family. (Only "vmadot" is verifier-admitted today; the
+//                other three are forward-looking keying-completeness.)
+//   (2) fmt    = fragment kt = mat_k / mac_k (fragments along K; q4_0/q8_0 = K/8,
+//                q4_K = 256/8 = 32 super-block fragments).
+//   (3) bottleneck = kt>=2 selects the register-resident BATCHED K-loop leaf
+//                (single vsetvli, one store); kt==1 auto-falls back to the
+//                single-fragment un-batched leaf (macHelperBody; no K/8 loop --
+//                the batching optimization is definitionally not applicable). No
+//                deployed cell has kt==1, so this leg is forward-looking too.
+// For every deployed IME cell (ime_op="vmadot", kt=mat_k/8>=2) this selects the
+// register-resident batched vmadot K-loop leaf => byte-IDENTICAL to the prior
+// hardcoded emit (the predicate only turns the hardcode into fact-derivation).
+//===----------------------------------------------------------------------===//
+struct IMEMacLeafSelection {
+  llvm::StringRef helperName; ///< the leaf helper the matmul body calls + we emit
+  llvm::StringRef mnemonic;   ///< the IME MAC instruction (asm leaf)
+  bool batched = true;        ///< kt>=2 => register-resident batched K-loop leaf
+  std::string reason;         ///< predicate provenance ({ime_op /\ kt} = the reason)
+};
+
+IMEMacLeafSelection selectIMEMacLeaf(weft::ime::VmadotMacLeafOp macLeaf,
+                                     int64_t matK) {
+  IMEMacLeafSelection sel;
+  // (1) cap: the op-carried MAC instruction fact (never a hardcoded "vmadot").
+  llvm::StringRef imeOp = macLeaf.getImeOp();
+  // (2) fmt: fragments along K = mat_k / mac_k. (3) bottleneck: batch only when
+  // there is more than one fragment to fold register-resident.
+  const int64_t macK = macLeaf.getMacK();
+  const int64_t fragmentKt = macK > 0 ? matK / macK : 1;
+  sel.batched = fragmentKt >= 2;
+  if (imeOp == "vmadotu") {
+    sel.mnemonic = "vmadotu";
+    sel.helperName =
+        sel.batched ? kVmadotuMacKloopHelperName : kVmadotuHelperName;
+  } else if (imeOp == "vmadotsu") {
+    sel.mnemonic = "vmadotsu";
+    sel.helperName =
+        sel.batched ? kVmadotsuMacKloopHelperName : kVmadotsuHelperName;
+  } else if (imeOp == "vmadotus") {
+    sel.mnemonic = "vmadotus";
+    sel.helperName =
+        sel.batched ? kVmadotusMacKloopHelperName : kVmadotusHelperName;
+  } else {
+    // The signed "vmadot" MAC -- the only leaf the verifier admits today.
+    sel.mnemonic = "vmadot";
+    sel.helperName =
+        sel.batched ? kVmadotMacKloopHelperName : kVmadotHelperName;
+  }
+  sel.reason = "ime_op=" + sel.mnemonic.str() +
+               " fragment_kt=" + std::to_string(fragmentKt) +
+               (sel.batched
+                    ? " (>=2 => register-resident batched K-loop leaf)"
+                    : " (==1 => single-fragment un-batched leaf)");
+  return sel;
+}
+
+/// Emits the SELECTED MAC-leaf body: the register-resident batched K-loop leaf
+/// (macKloopHelperBody) when kt>=2, else the single-fragment un-batched leaf
+/// (macHelperBody). Both are mnemonic-parametric, so the signed/unsigned/mixed
+/// divergence is exactly the instruction; for the deployed vmadot+batched cells
+/// this is byte-identical to the prior vmadotMacKloopHelperBody() emit.
+std::string selectedMacLeafBody(const IMEMacLeafSelection &sel) {
+  return sel.batched ? macKloopHelperBody(sel.helperName, sel.mnemonic)
+                     : macHelperBody(sel.helperName, sel.mnemonic);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1525,9 +1608,14 @@ public:
       return rewriter.notifyMatchFailure(
           tile, "q4_0 tile region must carry the q4_0_dequant_core + "
                 "vmadot_mac_leaf bricks");
-    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot); the
-    // leaf is the register-resident BATCHED K/8-loop form ([GAP-IME-LEAF-PIPELINE]).
-    llvm::StringRef macKloopHelperName = kVmadotMacKloopHelperName;
+    // G8 leaf-batching-IME unified selector: the MAC leaf's OP-CARRIED ime_op fact
+    // (cap) + the tile's fragment kt (fmt = mat_k/mac_k, bottleneck) key BOTH the
+    // MAC mnemonic AND the batched-vs-unbatched leaf -- no hardcoded vmadot. The
+    // deployed q4_0 cell (ime_op="vmadot", kt=mat_k/8>=2) selects the
+    // register-resident BATCHED vmadot K-loop leaf => byte-identical emit.
+    IMEMacLeafSelection macLeaf =
+        selectIMEMacLeaf(*macLeaves.begin(), tile.getMatK());
+    llvm::StringRef macKloopHelperName = macLeaf.helperName;
 
     auto variant =
         tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1578,7 +1666,7 @@ public:
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
-      rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, selectedMacLeafBody(macLeaf));
       wideName = emitDeployedWideVmadotLeaf(rewriter, loc, wide);
       rewriter.create<emitc::VerbatimOp>(loc, q40DequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(
@@ -1712,9 +1800,14 @@ public:
       return rewriter.notifyMatchFailure(
           tile, "q8_0 tile region must carry the q8_0_dequant_core + "
                 "vmadot_mac_leaf bricks");
-    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot); the
-    // leaf is the register-resident BATCHED K/8-loop form ([GAP-IME-LEAF-PIPELINE]).
-    llvm::StringRef macKloopHelperName = kVmadotMacKloopHelperName;
+    // G8 leaf-batching-IME unified selector: the MAC leaf's OP-CARRIED ime_op fact
+    // (cap) + the tile's fragment kt (fmt = mat_k/mac_k, bottleneck) key BOTH the
+    // MAC mnemonic AND the batched-vs-unbatched leaf -- no hardcoded vmadot. The
+    // deployed q8_0 cell (ime_op="vmadot", kt=mat_k/8>=2) selects the
+    // register-resident BATCHED vmadot K-loop leaf => byte-identical emit.
+    IMEMacLeafSelection macLeaf =
+        selectIMEMacLeaf(*macLeaves.begin(), tile.getMatK());
+    llvm::StringRef macKloopHelperName = macLeaf.helperName;
 
     auto variant =
         tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1765,7 +1858,7 @@ public:
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
-      rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, selectedMacLeafBody(macLeaf));
       wideName = emitDeployedWideVmadotLeaf(rewriter, loc, wide);
       rewriter.create<emitc::VerbatimOp>(loc, q80DequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(
@@ -1853,9 +1946,14 @@ public:
                 "q4_K_scale_min_unpack_core + vmadot_mac_leaf + "
                 "q4_K_scale_weighted_accum + q4_K_min_bias_accum bricks (the "
                 "hollow bare-MAC shape is rejected)");
-    // The register-resident BATCHED K-loop MAC leaf ([GAP-IME-LEAF-PIPELINE]);
-    // for q4_K it batches the 4 fragments of each sub-block into one sumi_b.
-    llvm::StringRef macKloopHelperName = kVmadotMacKloopHelperName;
+    // G8 leaf-batching-IME unified selector: the MAC leaf's OP-CARRIED ime_op fact
+    // (cap) + the tile's fragment kt (fmt = mat_k/mac_k = 256/8 = 32, bottleneck)
+    // key the leaf -- no hardcoded vmadot. The deployed q4_K cell (ime_op="vmadot",
+    // kt=32>=2) selects the register-resident BATCHED vmadot K-loop leaf, which
+    // q4_K then drives with 4 fragments per sub-block => byte-identical emit.
+    IMEMacLeafSelection macLeaf =
+        selectIMEMacLeaf(*macLeaves.begin(), tile.getMatK());
+    llvm::StringRef macKloopHelperName = macLeaf.helperName;
 
     auto variant =
         tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1907,7 +2005,7 @@ public:
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
-      rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, selectedMacLeafBody(macLeaf));
       rewriter.create<emitc::VerbatimOp>(
           loc, std::string("// weft_ime.pat1_tiling=decline njw=1 ") + wide.reason);
       rewriter.create<emitc::VerbatimOp>(loc, q4KFp16HelperBody());
