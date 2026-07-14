@@ -300,7 +300,7 @@
 | 赛道 | 计数 | 说明 |
 |---|---|---|
 | **matmul kernel-sym ≥parity** | **12**（不动） | 全量普查 **0 net-new**（双板）·真 beat 集中在 repack-GEMM 轴（T9§1.1）·vec_dot/plain-GEMM 轴全 <parity（weight-recon floor + 强 `_vl128` 手调对手） |
-| **forward-op 桶**（独立） | 双板 WIN **1**（rms_norm 1-pass fusion）· ≥parity 交集 5（+add/mul/scale/cpy/rope 部分板）· softmax/silu **攻坚 IN FLIGHT**（`ae5dc0e4`） |
+| **forward-op 桶**（独立） | 双板 WIN **2**（rms_norm 1-pass fusion + **softmax vcpop 短路复位 FIXED** `9a0b5fa4`）· silu@k1 WIN / silu@rvv 近-parity（`[GAP-SILU-RVV-VLEN128-GCC-SCHED]`）· ≥parity 交集扩（+add/mul/scale/cpy/rope 部分板） |
 | **DEQ-AXIS**（较弱赢类·独立子账） | k1 **13/18** WIN · rvv **9/18** WIN（rvv `to_float` gcc-15.2 autovec 更强·k1 scalar-ref 更弱） |
 | perf-covered / certified | 9/83 · 84/91（**不动**·本表第二赛道·非系统账/认证账） |
 
@@ -311,14 +311,15 @@
 | **iq/fp4 vec_dot**（0.12–0.97×） | LOSS | **Exit A** | 对手向量化 RVV-gather `_vl128` STRONG · gather-throughput 硬件天花板 · `[GAP-IQ-GATHER-VS-VECTORIZED-RVV]` |
 | **FLAT q5_0/q5_1 vec_dot**（0.27×） | LOSS | **Exit（deployed 已绿）** | 部署路 = REDESIGN-B GEVM leaf（prefill 绿·`40c21de0`）· block-dot vec_dot 为 **非部署 secondary 路** · `[GAP-Q5x-QH-BLOCKDOT-EMIT]` named · low-value 不攻 |
 | **B 类 gelu**（0.15–0.24×） | LOSS | **Exit（structural）** | 对手 f16-LUT（`GGML_GELU_FP16`）· 我方 tanhf **赢精度 2500× acc** · 非公平速度 A/B |
-| **B 类 softmax/silu**（0.76–0.85×） | LOSS | **攻坚 IN FLIGHT** | parity-by-adoption **调度损** = 我方 emit immaturity（非三出口任一）→ 必须真攻（`ae5dc0e4`·反汇编→杠杆→G1→G2 双板·3 杠杆预算） |
+| **B 类 softmax**（0.82–0.85×→**1.00–1.01×**） | **FIXED 双板 WIN** | 根因单点=vexpf `emitGgmlVExpfM2` 误删 ggml `vcpop` fast-path 短路（同算法调度当可省）· 杠杆 1/3 复用既有 `emitc.if` 惯用法复位· byte-exact 0-ULP· lit 248/248（`9a0b5fa4`）· forward-op 桶双板 WIN 1→2 |
+| **B 类 silu**（0.76–0.84×→k1 **1.01×**/rvv **0.945×**） | **k1 FIXED WIN·rvv Exit（编译器调度）** | 同 vcpop 修· k1 满 parity WIN· rvv 残余 5-8%（large-n）= 修后 op-count=native+0-ULP → 对称 gcc-vs-gcc downstream 调度方差（固定 SSA 序 vs ggml 手排 C 源序）· `[GAP-SILU-RVV-VLEN128-GCC-SCHED]`（非 emitter 可表达·收手非 lazy） |
 | **DEQ-AXIS LOSS**（rvv 8/k1 5） | LOSS | **Exit A + Exit B(k1 部分)** | rvv `to_float` autovec 强（Exit A）· k1 q2_K「ours 亦标量」可向量化（Exit B·较弱赢类·低优先） |
 
 ### 6.3 ★诚实收口结论（范围严格·避免全称 over-claim·G7 补丁一.2 前车）
 - **本收口证实**（此前 patch 一.2 列为「未调查」的 ①②）：**① B 类前向算子** 双板测毕（rms_norm 唯一双板 WIN·softmax/silu 攻坚中）；**② kernel-sym matmul 全量普查** 闭合（**0 net-new 真 beat**·冷启动 matmul 轴天花板 = 结构性 Exit A[强手调对手] + physical[weight-recon floor]·**已从「单点」升为「全轴普查」坐实**·非全称外推）。
 - **仍未开采**（第二/三段·非本段范围）：**③ decode 多算子组合路径**（解剖图证 M=1 decode≈单算子 quant matmul 96%·组合 headroom 在 M>1）；**④ M>1 batch regime**（普查已顺手攒 M=8 形状点·第三段开采）。
-- **「全表超越 baseline（冷启动口径）」评估**：matmul 轴 **不可全超越**（结构性·Exit A/physical·全量普查坐实）· forward-op 轴 **部分可超越**（rms_norm 已赢·softmax/silu 攻坚决定）· DEQ-AXIS 独立较弱赢类（k1 13/rvv 9 WIN）。唯一 emitter-maturity 杠杆（roll-GEMM vsetvli-storm）已真攻（recovery·sub-parity）。
-- **第一段收口条件**：softmax/silu 攻坚 verdict 回 → forward-op 桶终值定 → **第一段闭合 → 第二段全量 e2e**。
+- **「全表超越 baseline（冷启动口径）」评估**：matmul 轴 **不可全超越**（结构性·Exit A/physical·全量普查坐实·roll-GEMM 杠杆已真攻 recovery·sub-parity）· forward-op 轴 **部分超越已兑现**（rms_norm + **softmax 双板 FIXED** + silu@k1 FIXED·vcpop 短路复位 emitter 调度成熟度·`9a0b5fa4`·silu@rvv 走编译器调度 GAP 收手）· DEQ-AXIS 独立较弱赢类（k1 13/rvv 9 WIN）。
+- **★第一段收口达成（2026-07-14）**：**全量普查测量闭合**（双板 vec_dot+dequant+B类+K-quant@rvv 全毕·byte-exact 无死格）∧ **攻坚 disposition 完成**（fixable 家族真攻：softmax/silu vcpop 短路复位双板 flip + roll-GEMM vsetvli-storm 真攻·其余逐族三出口具名·反汇编归因入 casefile）。**forward-op 桶双板 WIN 1→2·matmul kernel-sym 12 不动·DEQ-AXIS k1 13/rvv 9·perf-covered 9/83·certified 84/91（禁互推）**。→ **进第二段全量 e2e**（kernel 账 ≥parity∧可接线格全过分相·e2e=增光项·预期 9~11 无惊喜）。
 
 ---
 
