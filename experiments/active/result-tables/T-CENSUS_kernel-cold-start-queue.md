@@ -171,15 +171,31 @@
 
 ### Batch 3 — 码本/低比特余格（vec_dot + dequant + gemm cross-op）
 
-**3a · FLAT vec_dot（§一.B·5 格·parity-by-adoption·低值）** — 对手=block-dot·成色 tautological·补 4 列即可：
-| 格 | 我方 emit | 对手类 | 备注 |
-|---|---|---|---|
-| vec_dot/{q4_0,q4_1,q5_0,q5_1,q8_0}@rvv/@k1 | block-dot emit | ggml block-dot（light/better-vec） | parity-by-adoption·同 format repack-GEMM 已在 T9 §1.1 真 beat·此为独立 block-dot 路 parity 确认 |
+**3a · FLAT vec_dot（§一.B·5 格·parity-by-adoption）** — 对手=block-dot·成色 tautological·补 4 列即可：
+> **★ k1-half DONE（2026-07-14·L1 vec_dot k1-lane）**：cold_med ratio ours/opp (>1 ours 快)·对手类=objdump 逐符号机判·byte-exact 全格 0 mismatch/0 ULP·casefile `experiments/active/g7-census/vecdot-k1/`·**rvv-half PENDING**。
 
-**3b · K-quant vec_dot（§一.C·5 格）** — ours-block-dot vs ggml-block-dot·数值档 INT bit-exact：
-| 格 | 我方 emit | 对手类 | 预判 |
-|---|---|---|---|
-| vec_dot/{q2_K,q3_K,q4_K,q5_K,q6_K}@rvv/@k1 | KQuant aux32 core | ggml_vec_dot_q*_K_q8_K_generic | <parity（weight-recon floor 强先验） |
+| 格@板 | 我方 emit | 对手类 [机判·符号级] | hot(k1) | cold M=1 | cold M=8 | 胜负(cold) | rvv |
+|---|---|---|:--:|:--:|:--:|:--:|:--:|
+| q4_0@k1 | block-dot emit | native-RVV inline (41ins/16rvv) | 0.983 | **0.983** | 0.983 | PARITY-by-adoption 0.98×（✓ tautological）| ☐pending |
+| q4_1@k1 | block-dot emit | native-RVV inline (45/14) | 1.007 | **1.008** | 1.009 | PARITY-by-adoption 1.01×（✓）| ☐pending |
+| q5_0@k1 | block-dot emit | native-RVV inline (80/32·csrr) | 0.385 | **0.383** | 0.386 | **LOSS 0.38×** ★parity-by-adoption **证伪**（qh 5-bit 发射发散·非 ggml 本体）| ☐pending |
+| q5_1@k1 | block-dot emit | native-RVV inline (90/30·csrr) | 0.402 | **0.400** | 0.403 | **LOSS 0.40×** ★**证伪** | ☐pending |
+| q8_0@k1 | block-dot emit | native-RVV inline (34/10) | 0.984 | **0.979** | 0.983 | PARITY-by-adoption 0.98×（✓）| ☐pending |
+
+**3b · K-quant vec_dot（§一.C·5 格）** — ours-block-dot vs ggml-as-shipped·数值档 INT byte-exact（0 mismatch/0 ULP 全格）：
+> **★ 对手纠正**：预判「ggml generic block-dot(弱)」**证伪**——as-shipped k1 VLEN256 dispatched = **全 hand-tuned native-RVV**（q2_K/q3_K/q5_K 单体 inline heavy RVV；q4_K/q6_K runtime dispatcher→`_vl256` 手调 specialization）=**强对手**。
+
+| 格@板 | 我方 emit | 对手类 [机判·符号级] | hot(k1) | cold M=1 | cold M=8 | 胜负(cold) | rvv |
+|---|---|---|:--:|:--:|:--:|:--:|:--:|
+| q2_K@k1 | KQuant aux32 core | hand-tuned native-RVV inline (376/243) | 0.678 | **0.685** | 0.678 | **LOSS 0.68×**（weight-recon floor vs heavy 手调）| ☐pending |
+| q3_K@k1 | KQuant aux32 core | hand-tuned native-RVV inline (239/116) | 0.538 | **0.538** | 0.538 | **LOSS 0.54×** | ☐pending |
+| q4_K@k1 | KQuant aux32 core | runtime dispatch→`_vl256` 手调 (main 9ins csrr) | 0.610 | **0.617** | 0.606 | **LOSS 0.62×** | ☐pending |
+| q5_K@k1 | KQuant aux32 core | native-RVV inline (214/97·**NO vl-spec**) | 1.081 | **1.085** | 1.081 | **WIN 1.09×** ⚠机制=对手 q5_K 无 vl256 specialization(唯一未手调格)·非"赢手调"·L1' 审 | ☐pending |
+| q6_K@k1 | KQuant aux32 core | runtime dispatch→`_vl256` 手调 (main 28ins csrr) | 0.547 | **0.554** | 0.553 | **LOSS 0.55×** | ☐pending |
+
+**★ vec_dot@k1 cold tally**：**1 WIN**（q5_K·⚠对手 immaturity 机制）· **3 PARITY**（q4_0/q4_1/q8_0·parity-by-adoption tautological）· **6 LOSS**（q2_K/q3_K/q4_K/q6_K weight-recon floor vs 强 native 对手；q5_0/q5_1 parity-by-adoption 证伪）。
+**★ 输格三出口候选（K-quant vec_dot·供 L1'）**：Exit A=对手结构优势具名 `[GAP-KQUANT-VECDOT-VS-NATIVE-RVV]`；Exit B=能力键控 VLEN256/wide-LMUL K-quant block-dot 发射（SEL-1）；Exit C=**轴转移**（K-quant 真 beat 在 repack-GEMM 轴 T9§1.1/Win-K1-VLEN·vec_dot 天然 weight-recon-bound·**推荐主处置=vec_dot 轴维持 LOSS·format-beat 归 GEMM 轴**）。
+**★ kernel-sym 计数建议（主会裁）**：非-tautological ≥parity = **q5_K 1.085×**（1 格·vs 真 native-RVV·须披露对手 immaturity 机制）；FLAT parity-by-adoption q4_0/q4_1/q8_0（3 格·tautological·report-as-parity 不计独立 beat）；q5_0/q5_1 证伪剔除；q2_K/q3_K/q4_K/q6_K LOSS。**禁互推 perf-covered/certified**。
 
 **3c · IQ/fp4 vec_dot（§一.D·4 格 ✅ + q1_0 flag）** — gather-trap·数值档 INT bit-exact：
 | 格 | 我方 emit | 对手类 | 预判 |

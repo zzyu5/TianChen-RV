@@ -1,0 +1,15 @@
+# G7 L1 vec_dot@k1 kernel-sym census (VLEN256, clang-18 symmetric, cold_med ratio ours/opp >1=ours faster)
+# axis=kernel-sym-micro NOT-e2e NOT-perf-covered; byte-exact=ZERO-MODEL vs stock-ggml (all 0 mismatch/0 ULP)
+family,fmt,hot_ratio,cold_M1_ratio,cold_M8_ratio,o_iqr_pct,p_iqr_pct,opp_class,opp_ins,opp_rvv,verdict_cold,byte_mismatch,worst_ulp
+Kquant,q2_K,0.6776,0.6847,0.6778,4.26,4.85,hand-tuned-native-RVV-inline,376,243,LOSS,0,0
+Kquant,q3_K,0.5379,0.5379,0.5381,2.51,1.11,hand-tuned-native-RVV-inline,239,116,LOSS,0,0
+Kquant,q4_K,0.6098,0.6166,0.6055,3.42,5.67,runtime-dispatch-to-vl256-hand-tune,9,0,LOSS,0,0
+Kquant,q5_K,1.0805,1.0851,1.0813,3.03,3.04,native-RVV-inline-NO-vl-spec,214,97,WIN,0,0
+Kquant,q6_K,0.5470,0.5544,0.5534,2.79,4.80,runtime-dispatch-to-vl256-hand-tune,28,0,LOSS,0,0
+FLAT,q4_0,0.9826,0.9830,0.9832,4.59,4.09,native-RVV-inline,41,16,PARITY-by-adoption,0,0
+FLAT,q4_1,1.0072,1.0084,1.0087,0.23,4.39,native-RVV-inline,45,14,PARITY-by-adoption,0,0
+FLAT,q5_0,0.3854,0.3830,0.3859,1.49,3.67,native-RVV-inline,80,32,LOSS-parity-by-adoption-FALSIFIED,0,0
+FLAT,q5_1,0.4024,0.3999,0.4031,1.43,4.12,native-RVV-inline,90,30,LOSS-parity-by-adoption-FALSIFIED,0,0
+FLAT,q8_0,0.9839,0.9789,0.9827,4.55,0.30,native-RVV-inline,34,10,PARITY-by-adoption,0,0
+# tally-cold: 1 WIN(q5_K) / 3 PARITY(q4_0,q4_1,q8_0 tautological) / 6 LOSS(q2_K,q3_K,q4_K,q6_K,q5_0,q5_1)
+# params: K=2048 nc=512 hiters=8 reps=12 ; verify also at nc=64

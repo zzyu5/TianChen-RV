@@ -1,0 +1,11 @@
+# refined opponent classification (objdump --disassemble per sym) @ k1 VLEN256, md5=871169a0123139692177468b3c8578be
+OPP ggml_vec_dot_q4_0_q8_0 : ins=41 rvv=16 csrr=0 dispatch=[none]
+OPP ggml_vec_dot_q4_1_q8_1 : ins=45 rvv=14 csrr=0 dispatch=[none]
+OPP ggml_vec_dot_q5_0_q8_0 : ins=80 rvv=32 csrr=1 dispatch=[none]
+OPP ggml_vec_dot_q5_1_q8_1 : ins=90 rvv=30 csrr=1 dispatch=[none]
+OPP ggml_vec_dot_q8_0_q8_0 : ins=34 rvv=10 csrr=0 dispatch=[none]
+OPP ggml_vec_dot_q2_K_q8_K : ins=376 rvv=243 csrr=1 dispatch=[none]
+OPP ggml_vec_dot_q3_K_q8_K : ins=239 rvv=116 csrr=1 dispatch=[none]
+OPP ggml_vec_dot_q4_K_q8_K : ins=9 rvv=0 csrr=1 dispatch=[<ggml_vec_dot_q4_K_q8_K_vl128>,<ggml_vec_dot_q4_K_q8_K_vl256>,]
+OPP ggml_vec_dot_q5_K_q8_K : ins=214 rvv=97 csrr=0 dispatch=[none]
+OPP ggml_vec_dot_q6_K_q8_K : ins=28 rvv=0 csrr=1 dispatch=[<ggml_vec_dot_q6_K_q8_K_vl128>,<ggml_vec_dot_q6_K_q8_K_vl256>,]
