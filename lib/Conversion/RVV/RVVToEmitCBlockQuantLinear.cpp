@@ -3180,6 +3180,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
       if (loopOrder.getValue() == "col_outer" &&
           loopOrderReason.getValue() == "measured")
         siblingColGroupOuter = true;
+      else if (loopOrder.getValue() == "col_outer") {
+        // [档 C#8 override record] The front-door SELECTED col_outer but on an
+        // UNMEASURED reason (prior / only_feasible). The emitter measured-gate (same
+        // discipline as full-LMUL[B] selectRepackAccumulatorLMUL and [ROLL]
+        // resolveRepackMainTermRolled) does NOT flip the shipped sibling nest on an
+        // unmeasured selection, so the REALIZED order is the byte-exact row_outer
+        // default. Emit the override record so the EMIT side carries the
+        // "selector=col_outer/<reason> -> realized row_outer" fact -- closing the
+        // log-vs-realized divergence (the loop_order_selection_record attr alone would
+        // read as a shipped col_outer). No behavior change: row_outer already ships.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, std::string("// weft_emitc.loop_order_override selector=col_outer/") +
+                     loopOrderReason.getValue().str() +
+                     " realized=row_outer gate=measured-gate-blocks-unmeasured");
+      }
     }
   }
 
@@ -3611,6 +3626,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // repackColGroupOuterForLayout stride predicate the selector keys on -- so the stamp
     // and the emitter carry ONE stride fact and an un-stamped (emitter-direct) fixture
     // stays byte-identical to the M1b-committed behavior.
+    //
+    // [档 C#8 / 核查 ④ pre-existing M1c 留档] UNLIKE the sibling gate above, this q4_K arm
+    // honors ANY col_outer stamp with NO reason gate. This is NOT a [ROLL]-style
+    // pre-enablement: col_outer is q4_K's M1b-COMMITTED byte-exact default -- BOTH the
+    // measured seed (lookupLoopOrderMeasurement q4_K col_outer, board hash 3cd23a4e,
+    // reason=measured, the 2.47x M1b A/B) AND the repackColGroupOuterForLayout stride
+    // fallback (q4_K weight panel stride >= activation panel stride) yield col_outer. So
+    // honoring col_outer/prior re-affirms the SAME committed nest; it never ships an
+    // UNMEASURED DIVERGENT nest (log==emit, no divergence, no override record needed).
+    // The absent reason gate is pre-existing M1c, byte-exact-neutral, OUT of this
+    // round's scope (the sibling gate above IS reason-gated, per Roll/full-LMUL[B]
+    // discipline). If a future q4_K key ever made col_outer differ from the committed
+    // default, this arm would need the sibling gate's reason==measured predicate.
     bool colGroupOuter = weft::plugin::rvv::repackColGroupOuterForLayout(
         static_cast<int64_t>(loopBody.getWeightBlockStride()),
         static_cast<int64_t>(loopBody.getActivationBlockStride()));
@@ -17629,10 +17657,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
 // RESULT-LESS (no monolith token). The hmask SECOND weight plane rides the SHARED qh
 // slot (weightHmaskOffset == the loop op's weight_qh_byte_offset).
 
-// [QH-MASK] SHARED native-interleaved-static mask-source decode helper. See the
-// header doc for the byte-exact identity + the bit_plane_width==1 predicate term.
-// The ONE implementation of the native-mask single-bit-plane bias fuse, called by
-// the q3_K GEVM leaf, the q3_K GEMM leaf, and the q5_K super-block nibble unpack.
+// [QH-MASK] SHARED native-interleaved-static mask-source decode helper. The ONE
+// implementation of the native-mask single-bit-plane bias fuse, called by the q3_K
+// GEVM leaf, the q3_K GEMM leaf, and the q5_K super-block nibble unpack.
+//
+// [档 C#6 归因订正] The single-bit-plane restriction is enforced BY CONSTRUCTION, NOT
+// by a runtime `bit_plane_width==1` predicate. The helper isolates EXACTLY one bit
+// (`1 << bitPos`, a single `bitPos` param), so a 2-bit high plane (q6_K's 0x03 qh)
+// CANNOT be expressed through it. q6_K is therefore excluded by EMITTER-IDENTITY
+// dispatch: the K-quant no-min GEVM/GEMM arms route decode_model "q6_K" to its own
+// 2-bit two-plane leaf (emitRepackKQuantGemvBodyQ6K / ...Gemm...) and decode_model
+// "q3_K" (single-bit hmask) to the leaf that calls this helper -- the discriminant is
+// the decode_model WHAT, NEVER a codified/evaluated bit-plane-width attribute. The
+// earlier "bit_plane_width==1 predicate term" wording overstated this as a codified
+// predicate; it is documentary rationale for WHY the single-bit formats (q3_K hmask,
+// q5_K qh) share this helper while q6_K's 2-bit plane does not.
 mlir::Value VariantToEmitCFunc::emitNativeMaskStaticBitBias(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value base, mlir::Value maskSrcU8, int bitPos, bool biasWhenBitSet,

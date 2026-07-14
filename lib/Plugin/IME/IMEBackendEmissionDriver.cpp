@@ -300,8 +300,18 @@ IMEMacLeafSelection selectIMEMacLeaf(weft::ime::VmadotMacLeafOp macLeaf,
 /// divergence is exactly the instruction; for the deployed vmadot+batched cells
 /// this is byte-identical to the prior vmadotMacKloopHelperBody() emit.
 std::string selectedMacLeafBody(const IMEMacLeafSelection &sel) {
-  return sel.batched ? macKloopHelperBody(sel.helperName, sel.mnemonic)
-                     : macHelperBody(sel.helperName, sel.mnemonic);
+  // [档 C#7 归因接线] CONSUME sel.reason (previously a computed-but-dead field): emit
+  // the leaf-batching selection provenance as a leading comment on the materialized
+  // leaf, so the emitted source records WHY this mnemonic / batched-vs-unbatched leaf
+  // was chosen (the same discipline the wide-vmadot [PAT-1] provenance comment
+  // follows). Inert C comment => byte-IDENTICAL integer result; only provenance added.
+  std::string provenance =
+      std::string("// weft_ime.mac_leaf_batching helper=") + sel.helperName.str() +
+      " batched=" + (sel.batched ? "1" : "0") + " reason=" + sel.reason + "\n";
+  std::string body = sel.batched
+                         ? macKloopHelperBody(sel.helperName, sel.mnemonic)
+                         : macHelperBody(sel.helperName, sel.mnemonic);
+  return provenance + body;
 }
 
 //===----------------------------------------------------------------------===//

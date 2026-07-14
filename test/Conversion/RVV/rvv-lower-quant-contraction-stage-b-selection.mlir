@@ -85,6 +85,9 @@ module {
 // VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
 // VLEN128-SAME: weft_rvv.path_materialization = "realized"
 // VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
+// [档 C#9 full-LMUL[B]] the accumulator-LMUL selection reason (m1/mf2 provenance,
+// previously discarded): RVV1.0 measured table EMPTY => mf2 default, byte-exact.
+// VLEN128-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "capability-default-mf2"
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 // VLEN128-SAME: weight_block_stride = 288 : i64
 // VLEN128-SAME: weight_interleave = 16 : i64

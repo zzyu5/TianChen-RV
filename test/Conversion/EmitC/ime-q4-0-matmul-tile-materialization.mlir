@@ -58,6 +58,8 @@ module {
 // narrow leaf (K1-sealed f5e77482).
 // EMITC: emitc.include <"stdint.h">
 // EMITC: emitc.verbatim
+// [档 C#7] leaf-batching selection provenance (sel.reason wired, no longer dead):
+// EMITC-SAME: weft_ime.mac_leaf_batching helper=weft_ime_vmadot_mac_kloop batched=1
 // EMITC-SAME: register_resident_accumulate=1
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1

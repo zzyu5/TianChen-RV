@@ -33,6 +33,8 @@
 // panel => col_outer); NO loop-order A/B seed here (only q4_K is) => cold-start prior.
 // CHECK-SAME: weft_rvv.loop_order = "col_outer"
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
+// [档 C#9 full-LMUL[B]] accumulator-LMUL selection reason (mf2 default, measured table empty):
+// CHECK-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "capability-default-mf2"
 // CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
 // CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}measured
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"

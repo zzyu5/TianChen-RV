@@ -998,9 +998,11 @@ void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
 
       // [QH-MASK] The qh 5th-bit injection for one 32-element half h in 0..7:
       // `a[l] += (hm[l] & (1<<h) ? 16 : 0)` (== _generic's `a[l] += (hm[l] & m ?
-      // 16 : 0)` with m = 1<<h). The qh plane is a SINGLE-bit-plane
-      // (bit_plane_width==1), the native-interleaved-static ANALOG of q5_0/q5_1's
-      // 5th bit, so the SHARED native-mask helper isolates bit h IN PLACE (vand
+      // 16 : 0)` with m = 1<<h). The qh plane is a SINGLE-bit plane -- the native-
+      // interleaved-static ANALOG of q5_0/q5_1's 5th bit (single-bit BY CONSTRUCTION:
+      // the shared helper isolates `1 << h`, one bit -- NOT a codified bit_plane_width
+      // predicate; see emitNativeMaskStaticBitBias's [档 C#6] header note) -- so the
+      // SHARED native-mask helper isolates bit h IN PLACE (vand
       // (1<<h) + vmsne==0) and fuses the +16 into ONE vadd_vx_u8m2_mu on the SET
       // lanes -- byte-exact to the RETIRED OLD vsrl|vand|vsll|vadd_vv expand chain
       // (both stay in the UINT8 domain BEFORE the u8->i8 reinterpret; q5 in [0,31]
