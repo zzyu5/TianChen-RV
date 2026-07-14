@@ -60,6 +60,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVRepackTilingSelection.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/DeclaredInstanceHash.h"
@@ -839,6 +840,82 @@ std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits) {
   return std::min<std::int64_t>(vlenBits / 16, kWeightInterleave);
 }
 
+//===----------------------------------------------------------------------===//
+// full-LMUL[B] repack accumulator-LMUL MEASURED-GATE (keying-audit report §一C /
+// §二 P1: the last parametric class-C under-keyed lever).
+//
+// The repack GEVM/GEMM integer core realizes EITHER the mf2 FRACTIONAL chain
+// (i8mf2 -> i16m1 -> i32m2: two 8-lane strips @VLEN128, half_lanes 8, no
+// integer_core_lmul anchor) OR the m1 WHOLE-LMUL chain (i8m1 -> i16m2 -> i32m4:
+// one 16-lane strip, half_lanes 16, integer_core_lmul "m1"). The emitter
+// (RVVToEmitCBlockQuantLinear.cpp:2854-2857) is version-BLIND and fully
+// attribute-driven -- it reads integer_core_lmul (default mf2) + half_lanes off
+// the loop-body op and derives the l8/l16/l32 widening chain from THAT alone --
+// so the m1 arm ALREADY auto-realizes on ANY ISA once those attrs are stamped.
+// The ONLY reason m1 never shipped on RVV1.0 is that the front-door STAMP was
+// gated on `isM1 = isRVV0p7` -- a CORRECTNESS fork (RVV0.7.1 xtheadvector has no
+// fractional LMUL, so the whole-LMUL chain is mandatory), NEVER a perf predicate.
+// q4 wants m1 (whole 16-lane strip, one pass) while q8 wants mf2 (its lean core
+// spills at m1) -- a PER-FORMAT x PER-BOARD crossover that this ISA-generation
+// fork cannot express. This selector REPLACES that correctness-only fork:
+//
+//   * RVV0.7.1: m1 is a CORRECTNESS constraint (no fractional LMUL) -> kept.
+//   * RVV1.0: BOTH chains are constructible once the capability affords a strip
+//     width (halfLanes != 0 => minVLEN >= 128). The m1 chain's register
+//     footprint (i16m2 product + i32m4 accumulator, computed via the SAME gate4
+//     footprint helper getRVVLMULRegisterFootprint) trivially fits the 32-vreg
+//     budget, so both are budget-legal.
+//
+// [GAP-P1] IRON RULE -- widen-to-m1 was FALSIFIED TWICE (micro win washes at e2e
+// / regfile spill). We do NOT blind-select the wider m1 (that is exactly what the
+// gate4 widest-legal selector does for a DIFFERENT kernel path; reusing it here
+// verbatim would re-commit [GAP-P1]). The DEPLOYED default stays mf2; ONLY a
+// per-format BOARD MEASUREMENT recording m1-faster for this (format, board) flips
+// it (reason "measured"). The measured table is EMPTY today (STAGE THREE
+// populates the per-format x board crossover, board-MEASURED and NEVER projected
+// -- [GAP-P1]), so every RVV1.0 format resolves to mf2 => BYTE-EXACT with the
+// pre-selector emit; every existing fixture stays green unchanged.
+struct RepackAccumulatorLMULChoice {
+  bool useM1;             // true => m1 whole-LMUL chain; false => mf2 default.
+  llvm::StringRef reason; // audit token (STAGE THREE stamp material; not emitted
+                          // yet, to keep the default emit byte-exact).
+};
+
+// STAGE THREE populates this per-format (x board) board-measured m1-vs-mf2
+// crossover. EMPTY today: nullopt for every format => the mf2 default holds
+// (byte-exact). q4_0 is the documented m1-faster CANDIDATE and q8_0 the
+// mf2-faster candidate, but NEITHER is asserted here without a board number
+// ([GAP-P1]: no projection; the board key is threaded in at STAGE THREE).
+inline std::optional<bool>
+lookupRepackMeasuredM1Faster(llvm::StringRef /*scaleModel*/) {
+  return std::nullopt;
+}
+
+// Replaces the correctness-only `isM1 = isRVV0p7` fork with the measured gate.
+// `capabilityHalfLanes` is the in-scope e16m1 strip width (nonzero on every
+// reached leaf => minVLEN >= 128), the capability witness that BOTH chains are
+// constructible on RVV1.0.
+inline RepackAccumulatorLMULChoice
+selectRepackAccumulatorLMUL(llvm::StringRef scaleModel, bool isRVV0p7,
+                            std::int64_t capabilityHalfLanes) {
+  if (isRVV0p7)
+    return {/*useM1=*/true, "correctness-rvv0p7"};
+  // Budget legality of the m1 whole-LMUL chain, via the gate4 footprint helper:
+  // the peak-live groups are the i16m2 product + the i32m4 accumulator.
+  constexpr std::int64_t kVectorRegisterBudget = 32;
+  const std::int64_t m1ChainRegisterFootprint =
+      pluginrvv::getRVVLMULRegisterFootprint("m2") +
+      pluginrvv::getRVVLMULRegisterFootprint("m4");
+  const bool m1Constructible = capabilityHalfLanes != 0 &&
+                               m1ChainRegisterFootprint <= kVectorRegisterBudget;
+  if (m1Constructible)
+    if (std::optional<bool> measuredM1Faster =
+            lookupRepackMeasuredM1Faster(scaleModel))
+      return {/*useM1=*/*measuredM1Faster, "measured"};
+  // [GAP-P1]: default mf2 -- never blind-widest; only a board measurement flips.
+  return {/*useM1=*/false, "capability-default-mf2"};
+}
+
 class RVVLowerQuantContractionPass final
     : public impl::RVVLowerQuantContractionBase<RVVLowerQuantContractionPass> {
 public:
@@ -1248,8 +1325,10 @@ private:
     // capability-derived strip width (8 @VLEN128 -> two strips, 16 @VLEN256 ->
     // one). numHalves == weight_interleave / half_lanes is the disjoint-strip
     // count, and the region carries ONE per-strip vector accumulator per strip.
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     // The per-strip accumulator + per-strip integer sumi share the ONE LMUL rung:
     // f32m4/i32m4 for the m1 whole-LMUL chain, f32m2/i32m2 for the mf2 fractional
@@ -1436,8 +1515,10 @@ private:
     // integer_core_lmul unset (the fractional mf2 default) with the
     // capability-derived strip width and folds all activation_interleave columns in
     // ONE pass (columnsPerPass 4). numHalves == weight_interleave / half_lanes.
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -1642,8 +1723,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -1784,8 +1867,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -1961,8 +2046,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -2103,8 +2190,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -2281,8 +2370,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -2431,8 +2522,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -2609,8 +2702,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -2743,8 +2838,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -2917,8 +3014,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -3061,8 +3160,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -3238,8 +3339,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -3389,8 +3492,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -3581,8 +3686,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -3722,8 +3829,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
@@ -3901,8 +4010,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
@@ -4035,8 +4146,10 @@ private:
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
-    bool isM1 = isRVV0p7;
+    bool isM1 = selectRepackAccumulatorLMUL(op.getScaleModel(), isRVV0p7,
+                                            halfLanes)
+                    .useM1;
+    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
