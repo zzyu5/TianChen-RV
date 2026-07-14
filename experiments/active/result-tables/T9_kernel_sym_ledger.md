@@ -26,7 +26,8 @@
 
 字段：`{emitted kernel 指针 · 对手 kernel 身份 · 对称编译可行否 · 已有 micro A/B 数据(引 T8)}`
 
-### 1.1 ≥parity 已测 — 计入第二常驻计数 ★ **kernel-sym ≥parity 格数 = 16**（★2026-07-13 FLAT 5 @rvv `f8da2f5c` 4→9 · ★2026-07-14 FLAT@k1 kernel-axis q4_1/q5_0/q5_1 `abb26043` 9→12 · ★2026-07-14 G7 普查 B类前向算子 k1-half `be82f4e1` 12→16：**add@k1 1.182× · mul@k1 1.184× · rms_norm@k1 1.335×[structural 1-pass vs native-m8 2-pass] · cpy@k1 1.103×[cold]**·冷启动口径·净新 territory·对手=ggml as-shipped 机判[add/mul vs autovec-m2·rms_norm vs native-m8·符号级]·byte-exact/ULP 硬门过·rvv-half pending）
+### 1.1 ≥parity 已测 — 计入第二常驻计数 ★ **kernel-sym ≥parity 格数 = 12（matmul 家族·★2026-07-14 收窄订正：B类 forward 不并入此计数·见 §1.4 独立桶）**（★2026-07-13 FLAT 5 @rvv `f8da2f5c` 4→9 · ★2026-07-14 FLAT@k1 kernel-axis q4_1/q5_0/q5_1 `abb26043` 9→12·FLAT 家族双板收口 rvv5+k13）
+> **★★收窄订正（`27fdc898`·2026-07-14·axis hygiene 禁并入）**：此前误把 B类前向算子 k1-half 4 WIN 并入 matmul kernel-sym（12→16）·**撤回**——① forward-elementwise=**独立 op 家族桶**（对手=as-shipped 前向核非 hand-brick·**禁并入 matmul kernel-sym-12**）② B类 rvv-half（`27fdc898`）证 **k1 的 add/mul/cpy WIN=VLEN256-only·VLEN128 部署板全塌回 PARITY**（纯 elementwise cold=DRAM 带宽绑定·wide-m8 优势 VLEN256-特定蒸发）→ **B类双板确认 WIN 仅 1（rms_norm·VLEN-invariant 1-pass fusion·成色=结构融合非硬碰硬手调）**。matmul kernel-sym 回 **12**·B类见 §1.4。
 
 | 格·板 | emitted kernel 指针 | 对手 kernel 身份（成色） | 对称编译 | 已有 micro A/B（T8） |
 |---|---|---|---|---|
@@ -103,7 +104,8 @@
 
 | 桶 | 格数 | 说明 |
 |---|---:|---|
-| **★第二常驻计数「kernel-sym ≥parity 格数」** | **16** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c）· ★FLAT@k1: q4_1 · q5_0 · q5_1（abb26043）· ★G7 普查 B类 k1-half: **add@k1 · mul@k1 · rms_norm@k1 · cpy@k1[cold]**（be82f4e1·12→16·净新 territory）· **★成色分布（2026-07-14 更新）= 0 verified hand-brick + 1 structural WIN（rms_norm@k1 1.33× 1-pass 打败 native-m8 2-pass·成色较硬）+ 2 wide-m8-vs-autovec（add/mul@k1 1.18×·成色中·objdump-substantiated）+ 2 better-vec block-dot（q5_0/q5_1@rvv）+ 11 block-dot/light/cpy（其余·弱—中对手）** |
+| **★第二常驻计数「matmul kernel-sym ≥parity 格数」** | **12** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c）· ★FLAT@k1: q4_1 · q5_0 · q5_1（abb26043）· **★成色分布 = 0 verified hand-brick + 2 better-vec block-dot（q5_0/q5_1@rvv）+ 10 block-dot/light（弱—中对手）**·〔B类前向不并入·见下独立桶〕 |
+| **★★forward-op kernel-sym（独立桶·2026-07-14·`27fdc898`·禁并入 matmul-12·禁混算 perf-covered）** | **双板 WIN 交集 = 1** | **rms_norm**（k1 1.335×/rvv 1.152×·VLEN-invariant 1-pass fusion vs ggml 2-pass·唯一双板确认 WIN·成色=结构融合非硬碰硬）｜双板 ≥parity 交集 = 5{add,mul,cpy,rms_norm,rope}（add/mul/cpy 的 k1 WIN=VLEN256-only·rvv PARITY 不得计双板赢）｜dual-LOSS 3{softmax −15~18% sched·silu·gelu LUT-vs-tanhf 结构}｜byte-exact/ULP 全硬门过·净新 territory |
 | ~~≥parity 待板批补测（FLAT 5 gemm@rvv）~~ | ✅ DONE | 2026-07-13 f8da2f5c·5 格全 ≥parity·4→9 上限达成 |
 | <parity candidate（对称 LOSS·不计 ≥parity） | 9 | §1.2·+ q2_K@rvv 系统账 fresh 0.857×(14f4631a·同向) |
 | 对手类单列（SELF/internal-A/B/CASE-COMPILER-ASYMMETRY） | 3 + N | §2·不入计数（含 IME 三格 SELF·但注：IME q4_0/q8_0@ime 已在 perf-covered 转绿=不同赛道·此处 SELF-account 仍单列） |
