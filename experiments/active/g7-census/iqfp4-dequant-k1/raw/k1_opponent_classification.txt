@@ -1,0 +1,26 @@
+# Refined opponent machine-judge (objdump --disassemble=<sym>) @ k1 VLEN256
+# libggml-cpu.so md5=871169a0123139692177468b3c8578be  libggml-base.so md5=00267134a3e86cd4fb83e9a2cbf5185a
+
+## VEC_DOT opponents (as-shipped dispatched, linked from libggml-cpu.so)
+OPP ggml_vec_dot_iq1_s_q8_K   : dispatched ins=28 rvv=0 csrr=1 (VLEN-adaptive dispatcher) -> generic body has rvv=149 gather=68 => VECTORIZED-RVV-GATHER opponent (strong)
+OPP ggml_vec_dot_iq1_m_q8_K   : dispatched ins=28 rvv=0 csrr=1 (VLEN-adaptive dispatcher) -> vectorized generic => VECTORIZED-RVV-GATHER opponent (strong)
+OPP ggml_vec_dot_iq4_nl_q8_0  : dispatcher ins=9 csrr=1 -> ggml_vec_dot_iq4_nl_q8_0_vl256 (ins=79 rvv=1 gather=4) => VLEN256-specialized RVV (strong)
+OPP ggml_vec_dot_nvfp4_q8_0   : ins=194 rvv=2 csrr=0 => NEAR-SCALAR / UNOPTIMIZED (only 2 rvv insn; no VLEN specialization) => WEAK opponent (immaturity)
+OPP ggml_vec_dot_iq1_s_q8_K_generic : ins=1296 rvv=149 gather=68 csrr=140 (reference vectorized gather body)
+
+## DEQUANT opponents (as-shipped DEPLOYED via ggml_get_type_traits(type)->to_float, linked from libggml-base.so)
+# CONFIRMED deployed path: ggml-cpu/ops.cpp lines 485/596/941/4334/4756 all call
+#   ggml_to_float_t const dequantize_row_q = ggml_get_type_traits(type)->to_float;
+# and ggml.c sets .to_float = (ggml_to_float_t) dequantize_row_<fmt>  (base scalar reference).
+# => the linked dequantize_row_<fmt> IS the genuine deployed dequant. ALL rvv=0 (scalar reference).
+OPP dequantize_row_q4_K   : ins=460 rvv=0 (scalar) calls=[none]
+OPP dequantize_row_q5_K   : ins=191 rvv=0 (scalar)
+OPP dequantize_row_q2_K   : ins=394 rvv=0 (scalar)
+OPP dequantize_row_iq4_nl : ins=69  rvv=0 (scalar) calls=[kvalues_iq4nl]
+OPP dequantize_row_iq3_xxs: ins=341 rvv=0 (scalar) calls=[iq3xxs_grid, ksigns_iq2xs]
+OPP dequantize_row_tq2_0  : ins=297 rvv=0 (scalar)
+OPP dequantize_row_mxfp4  : ins=50  rvv=0 (scalar) calls=[kvalues_mxfp4]
+OPP dequantize_row_nvfp4  : ins=204 rvv=0 (scalar) calls=[kvalues_mxfp4]
+# (all 18 dequant opponents probed rvv=0 in build_seal.txt; deployed-scalar-reference. NOT a straw-man
+#  weak-vs-strong swap: it is exactly what ggml runs for to_float. But it is UNVECTORIZED reference,
+#  so ours-RVV-vec vs opp-scalar wins are a weaker class than vs hand-tuned RVV -- disclosed.)

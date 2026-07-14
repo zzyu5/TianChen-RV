@@ -1,0 +1,53 @@
+# BUILD iqfp4+dequant@k1  CC=Bianbu clang version 18.1.8 (11bb4)  march=rv64gcv_zfh_zvfh_zicbop_zihintpause
+# board=Linux 6.6.63 riscv64
+# ggml_cpu_md5=871169a0123139692177468b3c8578be  ggml_base_md5=00267134a3e86cd4fb83e9a2cbf5185a
+=== [A] compile OURS vec_dot kernels (clang-18 -O3 symmetric) + objdump self-probe ===
+# OURS_vecdot_iq1_s: vsetvl=79 gather=8 size=19800B
+# OURS_vecdot_iq1_m: vsetvl=158 gather=17 size=21976B
+# OURS_vecdot_iq4_nl: vsetvl=5 gather=2 size=2200B
+# OURS_vecdot_nvfp4: vsetvl=17 gather=8 size=4384B
+=== [B] compile OURS dequant kernels + self-probe ===
+# OURS_dequant_q2_K: vsetvl=0 gather=0 size=3136B
+# OURS_dequant_q3_K: vsetvl=36 gather=0 size=10288B
+# OURS_dequant_q4_K: vsetvl=21 gather=0 size=5992B
+# OURS_dequant_q5_K: vsetvl=24 gather=0 size=5936B
+# OURS_dequant_q6_K: vsetvl=0 gather=0 size=2312B
+# OURS_dequant_iq1_s: vsetvl=65 gather=0 size=20488B
+# OURS_dequant_iq1_m: vsetvl=65 gather=0 size=21184B
+# OURS_dequant_iq2_xxs: vsetvl=65 gather=0 size=7856B
+# OURS_dequant_iq2_xs: vsetvl=385 gather=32 size=13432B
+# OURS_dequant_iq2_s: vsetvl=65 gather=0 size=15232B
+# OURS_dequant_iq3_xxs: vsetvl=354 gather=64 size=9528B
+# OURS_dequant_iq3_s: vsetvl=321 gather=32 size=11488B
+# OURS_dequant_iq4_nl: vsetvl=6 gather=2 size=2760B
+# OURS_dequant_iq4_xs: vsetvl=56 gather=16 size=6752B
+# OURS_dequant_mxfp4: vsetvl=6 gather=2 size=2952B
+# OURS_dequant_nvfp4: vsetvl=0 gather=0 size=5032B
+# OURS_dequant_tq1_0: vsetvl=9 gather=0 size=7448B
+# OURS_dequant_tq2_0: vsetvl=16 gather=0 size=5288B
+=== [C] opponent symbol machine-probe (objdump per sym; as-shipped dispatched class) ===
+# OPP ggml_vec_dot_iq1_s_q8_K : ins=0 rvv=0 gather=0 csrr=1 dispatch=[none]
+# OPP ggml_vec_dot_iq1_m_q8_K : ins=0 rvv=0 gather=0 csrr=1 dispatch=[none]
+# OPP ggml_vec_dot_iq4_nl_q8_0 : ins=0 rvv=0 gather=0 csrr=1 dispatch=[<ggml_vec_dot_iq4_nl_q8_0_vl128>,<ggml_vec_dot_iq4_nl_q8_0_vl256>,]
+# OPP ggml_vec_dot_nvfp4_q8_0 : ins=3 rvv=2 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_q2_K : ins=9 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_q3_K : ins=7 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_q4_K : ins=15 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_q5_K : ins=14 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_q6_K : ins=7 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq1_s : ins=10 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq1_m : ins=17 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq2_xxs : ins=41 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq2_xs : ins=19 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq2_s : ins=41 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq3_xxs : ins=41 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq3_s : ins=73 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq4_nl : ins=6 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_iq4_xs : ins=7 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_mxfp4 : ins=6 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_nvfp4 : ins=10 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_tq1_0 : ins=11 rvv=0 gather=0 csrr=0 dispatch=[none]
+# OPP dequantize_row_tq2_0 : ins=9 rvv=0 gather=0 csrr=0 dispatch=[none]
+=== [D] compile drivers + link ours + stock libggml-{cpu,base}.so ===
+# linked OK -> ./iqfp4_vecdot ./dequant_census
+# ALL_BUILT

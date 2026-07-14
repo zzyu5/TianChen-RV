@@ -198,20 +198,32 @@
 **★ kernel-sym 计数建议（主会裁）**：非-tautological ≥parity = **q5_K 1.085×**（1 格·vs 真 native-RVV·须披露对手 immaturity 机制）；FLAT parity-by-adoption q4_0/q4_1/q8_0（3 格·tautological·report-as-parity 不计独立 beat）；q5_0/q5_1 证伪剔除；q2_K/q3_K/q4_K/q6_K LOSS。**禁互推 perf-covered/certified**。
 
 **3c · IQ/fp4 vec_dot（§一.D·4 格 ✅ + q1_0 flag）** — gather-trap·数值档 INT bit-exact：
-| 格 | 我方 emit | 对手类 | 预判 |
-|---|---|---|---|
-| vec_dot/iq1_s@rvv | iq1_s grid core | iq1_s_q8_K_generic | <parity（gather-trap·sibling 0.16–0.78×） |
-| vec_dot/iq1_m@rvv | iq1_m grid core | iq1_m_q8_K_generic | <parity |
-| vec_dot/iq4_nl@rvv | iq4_nl codebook core | iq4_nl_q8_0_generic | <parity（vec_dot 路未测·区别 gemm 0.217×） |
-| vec_dot/nvfp4@rvv | emitNVFP4BlockDotBodyShared | nvfp4_q8_0_generic（★存在） | <parity（罕见格·fp4 codebook） |
-| vec_dot/q1_0@rvv | q1_0 FLAT core | ⚠ q1_0_q8_0_generic（provenance 存疑） | flag 主会核·leans 单列 internal-A/B |
+> **★ k1-half DONE（2026-07-14·L1 iqfp4-dequant k1-lane）**：cold_med ratio ours/opp (>1 ours 快)·对手类=objdump `--disassemble=<sym>` 逐符号机判·byte-exact 全格 0 mismatch/0 ULP·casefile `experiments/active/g7-census/iqfp4-dequant-k1/`·**rvv-half PENDING**。★对手实测纠正：dispatched `ggml_vec_dot_*`（非 `_generic`）= iq1_s/iq1_m/iq4_nl 均**向量化 RVV**（iq1_s/iq1_m→RVV-gather generic 149rvv/68gather；iq4_nl→`_vl256` RVV）·nvfp4=**近标量未优化**（194ins/rvv2/无 vl-spec）。
 
-**3d · dequant [DEQ-AXIS]（§一.E·17 格 ✅ + q1_0 flag）** — streaming·数值档 ULP≈0·parity-expected·低值批量：
-| 格族 | 对手类 | 预判 |
-|---|---|---|
-| dequant/{5 K-quant}@rvv/@k1 | dequantize_row_q*_K（mem-bound） | parity @roofline（同物理墙 dequant 体例） |
-| dequant/{9 iq}+mxfp4+nvfp4+{2 tq}@rvv | dequantize_row_*（mem-bound/gather） | parity/LOSS @roofline |
-| dequant/q1_0 | ⚠ provenance 存疑 | flag |
+| 格@板 | 我方 emit | 对手类 [机判·符号级] | hot(k1) | cold M=1 | cold M=8 | 胜负(cold) |
+|---|---|---|:--:|:--:|:--:|---|
+| vec_dot/iq1_s@k1 | iq1_s grid core | VLEN-dispatch→**RVV-gather**(强) | 0.363 | **0.367** | 0.364 | **LOSS 0.37×**（gather-trap 预判确认） |
+| vec_dot/iq1_m@k1 | iq1_m grid core (C2 复用) | VLEN-dispatch→**RVV-gather**(强) | 0.241 | **0.247** | 0.242 | **LOSS 0.24×** |
+| vec_dot/iq4_nl@k1 | iq4_nl codebook core | dispatcher→`_vl256` **RVV**(强) | 0.686 | **0.694** | 0.685 | **LOSS 0.69×**（cf. gemm 0.217×） |
+| vec_dot/nvfp4@k1 | emitNVFP4BlockDotBodyShared | **近标量未优化**(rvv2/194·弱) | 1.066 | **1.064** | 1.043 | **WIN 1.06×** ⚠ opponent-immaturity（同 q5_K 机制·marginal·勿计独立 beat） |
+| vec_dot/q1_0@rvv | q1_0 FLAT core | ⚠ q1_0_q8_0_generic（provenance 存疑） | — | — | — | flag 主会核·未测（leans 单列 internal-A/B） |
+
+**★ iqfp4 vec_dot@k1 cold tally**：**3 LOSS**（iq1_s/iq1_m/iq4_nl·gather-bound vs 向量化 RVV·预判确认）· **1 marginal-WIN**（nvfp4 1.06×·⚠对手 immaturity=对手本身未向量化·非"赢手调"）。**matmul-axis kernel-sym ≥parity 净新 = 0**（nvfp4 marginal 归 report-as-parity）。
+
+**3d · dequant [DEQ-AXIS]（§一.E·18 格 ✅ + q1_0 flag）** — streaming·数值档 ULP≈0·低值·**DEQ-AXIS 独立子账·不进 matmul headline**：
+> **★ k1-half DONE（2026-07-14·同 casefile·全 18 格尽测·rvv 忙 rvv-half PENDING）**：cold_med ratio (K=131072·512KiB f32 out>L2)·**byte-exact 全 18 格 0 mismatch/0 ULP**。**★对手=deployed-scalar-reference**（机判 rvv=0 全·部署路径实证：ggml-cpu/ops.cpp `ggml_get_type_traits(type)->to_float`=ggml.c 的 `.to_float=dequantize_row_<fmt>` 标量参考·**非稻草人替换·就是 ggml to_float 真跑的路**·但**未向量化**→ours-RVV-vec vs opp-scalar 属较弱赢类·如实标）。
+
+| 格族 | cold_med 范围 | 对手类 | 结果 [DEQ-AXIS] |
+|---|---|---|---|
+| dequant/{q3_K,q4_K,q5_K,q6_K}@k1 | 1.13–5.14× | deployed-scalar-ref(rvv0) | **4 WIN**（q5_K 5.14× 最大·q2_K 例外见下） |
+| dequant/q2_K@k1 | 0.81× | deployed-scalar-ref | LOSS（ours 亦 emit 标量 vsetvl=0） |
+| dequant/{iq1_s,iq1_m,iq2_xxs,iq2_s,iq4_nl,iq4_xs}@k1 | 1.70–3.76× | deployed-scalar-ref | **6 WIN** |
+| dequant/{iq2_xs,iq3_xxs,iq3_s}@k1 | 0.53–0.93× | deployed-scalar-ref | **3 LOSS**（heavy gather re-config vsetvl 321–385） |
+| dequant/{mxfp4,nvfp4}@k1 | 3.17× / 0.74× | deployed-scalar-ref | mxfp4 WIN·nvfp4 LOSS（ours scalar/ldexpf） |
+| dequant/{tq1_0,tq2_0}@k1 | 2.23× / 4.22× | deployed-scalar-ref | **2 WIN** |
+| dequant/q1_0 | — | ⚠ provenance 存疑 | flag·未测 |
+
+**★ dequant@k1 tally（18 格·DEQ-AXIS·vs deployed-scalar-ref）**：**13 WIN**（q3_K/q4_K/q5_K/q6_K/iq1_s/iq1_m/iq2_xxs/iq2_s/iq4_nl/iq4_xs/mxfp4/tq1_0/tq2_0）· **0 PARITY**· **5 LOSS**（q2_K/iq2_xs/iq3_xxs/iq3_s/nvfp4）。**★预判「parity @roofline mem-bound」证伪**：对手 scalar-ref 是 **compute-bound**（0.43–0.77 GB/s ≪ ~6 GB/s roofline）·我方向量化 decode 处真赢·标量/重-gather 处输。**DEQ-AXIS 子账·不加 matmul ≥parity headline**（体例）。
 
 **3e · GEMM iq/tq cross-op（§一.A·7 格·主会话采 cross-op 才入·须明标）**：
 | 格 | 口径 | 对手类 | 预判 |

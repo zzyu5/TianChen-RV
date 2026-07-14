@@ -1,0 +1,6 @@
+iq1_s  md5=0ad06db45d8c914a00e5c4f0f4025413  sym=weft_emitc_ggml_vec_dot_iq1_s_q8_K_kernel_rvv_iq1_s_q8_K_block_dot  lines=793
+iq1_m  md5=d0a0994ff05d030cac602aa223da3062  sym=weft_emitc_ggml_vec_dot_iq1_m_q8_K_kernel_rvv_iq1_m_q8_K_block_dot  lines=1780
+iq4_nl  md5=214fbf6692b71983a143a4942ad1838b  sym=weft_emitc_ggml_vec_dot_iq4_nl_q8_0_kernel_rvv_iq4_nl_q8_0_block_dot  lines=80
+nvfp4  md5=afad1b4338f8c76bb30ba9c812d4f695  sym=weft_emitc_ggml_vec_dot_nvfp4_q8_0_kernel_rvv_nvfp4_q8_0_block_dot  lines=308
+recipe: weft-opt <fixture> --<materialize-slug-block-dot-source-front-door> --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
+HEAD=27fdc8986ae6ac426fdda5362cfdea36e63706a8
