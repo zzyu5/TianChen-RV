@@ -63,50 +63,61 @@ extern "C" double weft_emitc_ggml_vec_soft_max_f32_kernel_ggml_vec_soft_max_f32(
     vfloat32m2_t v35 = __riscv_vfmacc_vv_f32m2(v32, v34, v29, v11);
     // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
     vfloat32m2_t v36 = __riscv_vfmacc_vv_f32m2(v30, v35, v29, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfle_vf_f32m2_b16
-    vbool16_t v37 = __riscv_vmfle_vf_f32m2_b16(v20, 0.0f, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u32m2
-    vuint32m2_t v38 = __riscv_vmv_v_x_u32m2(0, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vxm_u32m2
-    vuint32m2_t v39 = __riscv_vmerge_vxm_u32m2(v38, 0x82000000, v37, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vadd_vx_u32m2
-    vuint32m2_t v40 = __riscv_vadd_vx_u32m2(v39, 0x7f000000, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
-    vfloat32m2_t v41 = __riscv_vreinterpret_v_u32m2_f32m2(v40);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsub_vv_u32m2
-    vuint32m2_t v42 = __riscv_vsub_vv_u32m2(v24, v39, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
-    vfloat32m2_t v43 = __riscv_vreinterpret_v_u32m2_f32m2(v42);
     // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
-    vfloat32m2_t v44 = __riscv_vfmacc_vv_f32m2(v26, v26, v36, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
-    vfloat32m2_t v45 = __riscv_vfmacc_vv_f32m2(v43, v43, v36, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
-    vfloat32m2_t v46 = __riscv_vfmul_vv_f32m2(v45, v41, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
-    vfloat32m2_t v47 = __riscv_vmerge_vvm_f32m2(v44, v46, v28, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfabs_v_f32m2
-    vfloat32m2_t v48 = __riscv_vfabs_v_f32m2(v20, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfgt_vf_f32m2_b16
-    vbool16_t v49 = __riscv_vmfgt_vf_f32m2_b16(v48, 192.0f, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
-    vfloat32m2_t v50 = __riscv_vfmul_vv_f32m2(v41, v41, v11);
-    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
-    vfloat32m2_t v51 = __riscv_vmerge_vvm_f32m2(v47, v50, v49, v11);
+    vfloat32m2_t v37 = __riscv_vfmacc_vv_f32m2(v26, v26, v36, v11);
+    // weft_emitc.local_variable=expf_r source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface
+    vfloat32m2_t v38;
+    v38 = v37;
+    // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vcpop_m_b16
+    size_t v39 = __riscv_vcpop_m_b16(v28, v11);
+    bool v40 = v39 != 0;
+    if (v40) {
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfle_vf_f32m2_b16
+      vbool16_t v41 = __riscv_vmfle_vf_f32m2_b16(v20, 0.0f, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u32m2
+      vuint32m2_t v42 = __riscv_vmv_v_x_u32m2(0, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vxm_u32m2
+      vuint32m2_t v43 = __riscv_vmerge_vxm_u32m2(v42, 0x82000000, v41, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vadd_vx_u32m2
+      vuint32m2_t v44 = __riscv_vadd_vx_u32m2(v43, 0x7f000000, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
+      vfloat32m2_t v45 = __riscv_vreinterpret_v_u32m2_f32m2(v44);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsub_vv_u32m2
+      vuint32m2_t v46 = __riscv_vsub_vv_u32m2(v24, v43, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
+      vfloat32m2_t v47 = __riscv_vreinterpret_v_u32m2_f32m2(v46);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
+      vfloat32m2_t v48 = __riscv_vfmacc_vv_f32m2(v47, v47, v36, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
+      vfloat32m2_t v49 = __riscv_vfmul_vv_f32m2(v48, v45, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
+      vfloat32m2_t v50 = __riscv_vmerge_vvm_f32m2(v37, v49, v28, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfabs_v_f32m2
+      vfloat32m2_t v51 = __riscv_vfabs_v_f32m2(v20, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfgt_vf_f32m2_b16
+      vbool16_t v52 = __riscv_vmfgt_vf_f32m2_b16(v51, 192.0f, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
+      vfloat32m2_t v53 = __riscv_vfmul_vv_f32m2(v45, v45, v11);
+      // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
+      vfloat32m2_t v54 = __riscv_vmerge_vvm_f32m2(v50, v53, v52, v11);
+      // weft_emitc.assign target=expf_r source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface
+      v38 = v54;
+    }
+    vfloat32m2_t v55 = v38;
     // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
-    __riscv_vse32_v_f32m2(v15, v51, v11);
-    vfloat64m1_t v52 = v6;
+    __riscv_vse32_v_f32m2(v15, v55, v11);
+    vfloat64m1_t v56 = v6;
     // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwredusum_vs_f32m2_f64m1
-    vfloat64m1_t v53 = __riscv_vfwredusum_vs_f32m2_f64m1(v51, v52, v11);
+    vfloat64m1_t v57 = __riscv_vfwredusum_vs_f32m2_f64m1(v55, v56, v11);
     // weft_emitc.assign target=vsum source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface
-    v6 = v53;
+    v6 = v57;
   }
-  vfloat64m1_t v54 = v6;
+  vfloat64m1_t v58 = v6;
   // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_f_s_f64m1_f64
-  double v55 = __riscv_vfmv_f_s_f64m1_f64(v54);
+  double v59 = __riscv_vfmv_f_s_f64m1_f64(v58);
   // weft_emitc.source_op=weft_rvv.elementwise_soft_max_reduce_core role=compute op_interface=WEFTEmitCLowerableOpInterface callee=return
-  double v56 = (double) v55;
-  return v56;
+  double v60 = (double) v59;
+  return v60;
 }
 
 

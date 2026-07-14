@@ -181,3 +181,46 @@
 - **Report as a distinct forward-op kernel-sym family**, dual-board, NOT merged into the matmul kernel-sym-9 (different op family, different opponent nature = as-shipped forward kernels, machine-judged, not hand-brick).
 - **Both-board ≥parity intersection = 5** {add, mul, cpy, rms_norm, rope}; **both-board WIN intersection = 1** {rms_norm}.
 - **rvv-half new ≥parity格 = 6/9** (add, mul, scale, cpy, rms_norm, rope); of the 4 k1 WINs, only **rms_norm** is also a WIN on rvv → the double-board-confirmed forward-op kernel-sym WIN count = **1 (rms_norm, VLEN-invariant structural fusion)**. add/mul/cpy are **PARITY-not-WIN on rvv** (their k1 WIN is VLEN256-scoped; do NOT count as dual-board wins).
+
+---
+
+## 7. ★ ATTACK — softmax/silu 冷启动调度攻坚 (vcpop short-circuit 复位) · G7 终编成令一 · 双板
+
+> **Line**: 全量普查后唯一可修 non-exit 损（parity-by-adoption 调度损）的攻坚线. **Axis**: kernel-sym micro 第二赛道 · forward-elementwise family · [NG-4] NOT e2e/perf-covered/matmul-12/certified. **Amdahl 披露**: B 类前向 <1% decode (decode≈96% quant matmul) → 即便全胜**无 e2e 传导**·仅以【冷启动 kernel 表·全表超越】+【emitter 调度成熟度 C3′】名义登记, **不得以 e2e perf 名义**.
+
+### 7.1 反汇编归因 (先做·必做) — 根因 = vcpop 短路被删
+- **共享根**: `emitGgmlVExpfM2` (RVVToEmitCForwardElementwise.cpp:643, silu+softmax 唯二消费者) 曾把 ggml `ggml_v_expf` 的 **slow-path overflow/underflow merge 无条件发射**, 删除了 ggml `if (!__riscv_vcpop_m_b16(c, vl)) return fast` 短路 (vec.h:1348). 注释自承"vcpop short-circuit is a pure perf branch"——正是把**同算法调度**当成可省。
+- **rvv gcc-15 反汇编 (修前, per-strip 动态)**:
+  - **native** `ggml_vec_silu_f32` (.so): fast-path = 27 公共前缀(到 `vcpop.m`+`bnez`) + 6 fast tail = **33 insn**; slow-path 18 insn 被 `bnez` **跳过** (总静态 82).
+  - **ours (旧)**: **~43 insn 全执行** (无短路; ~38 向量 op vs native fast ~26) = **1.46× 向量-ALU 工作量** → 与观测 rvv silu 0.762× (=1.31× 慢) 吻合 (div/访存部分掩盖差).
+  - softmax 同构 (native 85 静态·vcpop=1·2 分支; ours 旧 78·vcpop=0·1 分支).
+- **判**: 损**非**三出口任何一个 (无对手结构优势/无重建成本/无硬件缺席) = 纯 emit 调度 immaturity → 可修.
+
+### 7.2 修复 (杠杆 1/3·复用既有能力·byte-exact 硬门)
+- **复位 ggml vcpop 短路**, 用既有 **STRUCTURED `emitc.variable` + `emitc.if`** 惯用法 (与 q8_0/K-quant 的 `id=d?1/d:0` / `amax` 条件同一模式, 非 raw string): seed 结果变量 = fast `vfmacc(k,k,j)`; 计算 `pop=__riscv_vcpop_m_b16(c,vl)`; `if (pop!=0){ <~14-op slow merge>; result=slow; }`; 返回 result.
+- **byte-exact 保持 (0-ULP)**: `vcpop==0` 时保留 seed 的 fast 值 = 旧无条件 emit 对 c-false/|n|≤192 lane 本就 bitwise-equal 的值; `vcpop!=0` 时 slow merge 与旧路径逐 op 相同. → **仅恢复 ggml 原生调度, 数值零漂移**.
+- **git 隔离**: 单 hunk `@@ emitGgmlVExpfM2 @@` (84+/45−), 未碰 rms_norm/add/mul/gelu/任何 matmul leaf (gelu 不经 vexpf, 唯二调用点 = silu/softmax). 另更新 2 lit golden (silu-map / soft-max-reduce loop-body, CHECK 反映 vcpop/variable/if 结构) + 2 census kernel 产物.
+- **lit 零回归**: 2 更新 golden 全 RUN 行过 (main + BADKIND/BADMODEL/BADSEW/BADBRICK); RVV Conversion 248/248 过; 全套 916 中 913 过 (唯 3 失败 = `rvv_generated_bundle_abi_e2e.py` dequant-bundle self-test·**预存在·不引用 silu/softmax/vexpf·正交**).
+- **修后反汇编验证**: ours silu/softmax 现 **vcpop=1 + `bnez` 短路** (gcc/clang 均编成真分支跳过 slow path); fast-path 向量 op 数 **与 native 相同 (~26)**.
+
+### 7.3 G2 双板冷启动结果 (N=12 median·224MiB-class flush·load-gate·pin rvv 8-15/k1 0-3·全 32 格 GATE=PASS·maxulp_ours_vs_opp=0)
+
+| 算子·板 | 修前 COLD (anchor 4096) | 修后 COLD (4096) | 全 shape 修后 COLD 范围 | 判 |
+|---|:--:|:--:|:--:|---|
+| **softmax @rvv** | 0.854× LOSS | **1.002×** | 1.001–1.072× | **LOSS→≥parity WIN (全 shape)** |
+| **softmax @k1** | 0.822× LOSS | **1.006×** | 1.001–1.011× | **LOSS→≥parity WIN (全 shape)** |
+| **silu @rvv** | 0.762× LOSS | **0.945×** | 0.924–1.072× (WIN@≤512) | **LOSS→近-parity** (残余 large-n ~5-8%) |
+| **silu @k1** | 0.837× LOSS | **1.010×** | 0.979–1.013× | **LOSS→≥parity WIN (anchor)** |
+
+- IQR 0.07–0.98% (极稳). HOT 同向 (softmax rvv 1.001×/k1 1.013×; silu rvv 0.954×/k1 1.015×).
+
+### 7.4 三出口 verdict + 诚实成色
+- **softmax**: **FIXED 双板** (LOSS→≥parity WIN, 全 shape). 无需出口.
+- **silu@k1**: **FIXED** (LOSS→WIN 1.010×).
+- **silu@rvv (残余)**: 修后 fast-path **op-count 与 native 相同 (~26 向量 op) 且 0-ULP bit-identical** → 残余 5-8%(large-n)**非三出口任何一个** (无结构优势/无重建成本/无硬件缺席), 而是 **downstream 编译器最终调度方差**: **对称 gcc-vs-gcc** (非 [CASE-COMPILER-ASYMMETRY]), 差异 = 我方 emit 的固定 SSA 顺序 vs ggml 手排 C 源顺序, 二者同过 gcc-15 但 gcc 对 ggml 手排源的 vfdiv 尾调度更优. emitter 已发射最小正确 op 集, 最终 schedule 归 gcc 所有 → 具名 **[GAP-SILU-RVV-VLEN128-GCC-SCHED]** (与既有 §6.5 scale 0.93×/1.02× "identical-algo 纯编译器调度" 同类·per-board). k1 clang-18 恢复满 parity.
+- **杠杆预算**: 用 1/3 (vcpop 短路 = 根因单击). 杠杆 2-3 **未花**: 对 op-identical byte-identical 内核追 gcc 的指令调度 = 无限深潜 (宪章禁), 且非 emitter 可表达 → 主动收手, 非 lazy 认输 (反汇编已做·根因已击中·softmax 双板 + silu k1 已翻).
+
+### 7.5 计数登记 (forward-op 桶·如实·不混算)
+- forward-op kernel-sym 桶双板 WIN 修前 = 1 {rms_norm}. **修后**: **softmax = 第 2 个双板 ≥parity flip** (rvv 1.002×/k1 1.006×, 全 shape ≥parity). **silu = k1 WIN / rvv 近-parity** (非干净双板 flip; rvv 残余具名 [GAP-SILU-RVV-VLEN128-GCC-SCHED]).
+- **禁互推**: 本组 = 冷启动 kernel-sym 第二赛道 forward-elementwise 桶, **独立于 matmul kernel-sym≥parity-9 · 独立于 perf-covered 9/83 · 独立于 DEQ-AXIS · 无 e2e 传导** (Amdahl <1% decode). 不动 perf-covered/certified 计数.
+- **C3′ 证词**: emitter 调度成熟度 —— 恢复能力键控的**数据依赖短路** (vcpop-gated fast/slow) 是 emitter 从"数值正确但调度朴素的直线发射"迈向"匹配 as-shipped 调度"的一步; byte-exact 保持下把普查唯一可修 non-exit 损从双板 LOSS 修至 softmax 双板 WIN + silu k1 WIN.

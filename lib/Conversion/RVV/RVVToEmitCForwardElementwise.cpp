@@ -725,52 +725,91 @@ mlir::Value VariantToEmitCFunc::emitGgmlVExpfM2(mlir::ConversionPatternRewriter 
     mlir::Value j = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
                           mlir::ValueRange{jOuterA, jMid, u, bodyVL});
 
-    // Slow path emitted UNCONDITIONALLY (the vcpop short-circuit is a pure perf
-    // branch; the slow path's c-false/|n|<=192 lanes are bitwise-equal to the
-    // fast path k + j*k). vec.h:1348-1359.
-    // const vbool16_t dm = __riscv_vmfle_vf_f32m2_b16(n, 0.0f, vl);
-    mlir::Value dm = vcall(boolType, "__riscv_vmfle_vf_f32m2_b16",
-                           mlir::ValueRange{n, fimm("0.0f"), bodyVL});
-    // const vuint32m2_t d = vmerge_vxm(vmv_v_x(0, vl), 0x82000000, dm, vl);
-    mlir::Value dZero =
-        vcall(u32VecType, "__riscv_vmv_v_x_u32m2",
-              mlir::ValueRange{uimm("0"), bodyVL});
-    mlir::Value d =
-        vcall(u32VecType, "__riscv_vmerge_vxm_u32m2",
-              mlir::ValueRange{dZero, uimm("0x82000000"), dm, bodyVL});
-    // const vfloat32m2_t s1 = vreinterpret(vadd_vx_u32m2(d, 0x7f000000, vl));
-    mlir::Value s1Bits = vcall(u32VecType, "__riscv_vadd_vx_u32m2",
-                               mlir::ValueRange{d, uimm("0x7f000000"), bodyVL});
-    mlir::Value s1 = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
-                           mlir::ValueRange{s1Bits});
-    // const vfloat32m2_t s2 = vreinterpret(vsub_vv_u32m2(e, d, vl));
-    mlir::Value s2Bits = vcall(u32VecType, "__riscv_vsub_vv_u32m2",
-                               mlir::ValueRange{e, d, bodyVL});
-    mlir::Value s2 = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
-                           mlir::ValueRange{s2Bits});
-    // const vfloat32m2_t r1 = vmerge_vvm(
-    //     vfmacc_vv(k, k, j, vl),
-    //     vfmul_vv(vfmacc_vv(s2, s2, j, vl), s1, vl),
-    //     c, vl);
+    // Fast-path result (all lanes |n|<=126): return k + j*k directly. ggml seeds
+    // its early return with EXACTLY this (`vfmacc_vv(k, j, k)`); we reuse it both
+    // as the vcpop==0 result AND as the slow-path r1 c-false lane, so the emit is
+    // byte-identical to the retired unconditional slow path (whose c-false /
+    // |n|<=192 lanes were already bitwise-equal to k + j*k). vec.h:1348.
     mlir::Value r1False = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
-                                mlir::ValueRange{k, k, j, bodyVL});
-    mlir::Value r1TrueInner = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
-                                    mlir::ValueRange{s2, s2, j, bodyVL});
-    mlir::Value r1True = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
-                               mlir::ValueRange{r1TrueInner, s1, bodyVL});
-    mlir::Value r1 = vcall(f32VecType, "__riscv_vmerge_vvm_f32m2",
-                           mlir::ValueRange{r1False, r1True, c, bodyVL});
-    // return vmerge_vvm(r1, vfmul_vv(s1, s1, vl),
-    //                   vmfgt_vf(vfabs_v(n), 192.0f, vl), vl);
-    mlir::Value absN2 = vcall(f32VecType, "__riscv_vfabs_v_f32m2",
-                              mlir::ValueRange{n, bodyVL});
-    mlir::Value overMask = vcall(boolType, "__riscv_vmfgt_vf_f32m2_b16",
-                                 mlir::ValueRange{absN2, fimm("192.0f"),
-                                                  bodyVL});
-    mlir::Value s1Sq = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
-                             mlir::ValueRange{s1, s1, bodyVL});
-    return vcall(f32VecType, "__riscv_vmerge_vvm_f32m2",
-                 mlir::ValueRange{r1, s1Sq, overMask, bodyVL});
+                               mlir::ValueRange{k, k, j, bodyVL});
+
+    // RESTORED ggml short-circuit (vec.h:1348 `if (!vcpop(c)) return fast`): emit
+    // the ~14-op slow-path merge INSIDE a data-dependent `emitc.if`, guarded by
+    // `__riscv_vcpop_m_b16(c, vl) != 0`. On the common all-fast strip (every soft_max
+    // / silu decode input) the guard is 0 and the slow path is SKIPPED -- the
+    // scheduling maturity that closes the parity-by-adoption census gap. BYTE-EXACT:
+    // the result variable is seeded with the fast path, so vcpop==0 yields exactly
+    // the value the retired unconditional emit produced (see above). Reuses the
+    // STRUCTURED emitc.variable + emitc.if idiom the q8_0/K-quant `id`/`amax`
+    // conditionals use (NOT a raw string).
+    mlir::Type i1Type = rewriter.getI1Type();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("expf_r", opName, role));
+    auto resultVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(f32VecType),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, resultVar, r1False);
+
+    // size_t pop = __riscv_vcpop_m_b16(c, vl);
+    mlir::Value pop =
+        vcall(sizeType, "__riscv_vcpop_m_b16", mlir::ValueRange{c, bodyVL});
+    mlir::Value zeroPop =
+        rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    mlir::Value anyExtreme = rewriter.create<emitc::CmpOp>(
+        loc, i1Type, emitc::CmpPredicate::ne, pop, zeroPop);
+    auto slowIf = rewriter.create<emitc::IfOp>(loc, anyExtreme,
+                                               /*addThenBlock=*/true,
+                                               /*addElseBlock=*/false);
+    {
+      mlir::OpBuilder::InsertionGuard ifGuard(rewriter);
+      rewriter.setInsertionPointToStart(&slowIf.getThenRegion().front());
+      // const vbool16_t dm = __riscv_vmfle_vf_f32m2_b16(n, 0.0f, vl);
+      mlir::Value dm = vcall(boolType, "__riscv_vmfle_vf_f32m2_b16",
+                             mlir::ValueRange{n, fimm("0.0f"), bodyVL});
+      // const vuint32m2_t d = vmerge_vxm(vmv_v_x(0, vl), 0x82000000, dm, vl);
+      mlir::Value dZero =
+          vcall(u32VecType, "__riscv_vmv_v_x_u32m2",
+                mlir::ValueRange{uimm("0"), bodyVL});
+      mlir::Value d =
+          vcall(u32VecType, "__riscv_vmerge_vxm_u32m2",
+                mlir::ValueRange{dZero, uimm("0x82000000"), dm, bodyVL});
+      // const vfloat32m2_t s1 = vreinterpret(vadd_vx_u32m2(d, 0x7f000000, vl));
+      mlir::Value s1Bits = vcall(u32VecType, "__riscv_vadd_vx_u32m2",
+                                 mlir::ValueRange{d, uimm("0x7f000000"), bodyVL});
+      mlir::Value s1 = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
+                             mlir::ValueRange{s1Bits});
+      // const vfloat32m2_t s2 = vreinterpret(vsub_vv_u32m2(e, d, vl));
+      mlir::Value s2Bits = vcall(u32VecType, "__riscv_vsub_vv_u32m2",
+                                 mlir::ValueRange{e, d, bodyVL});
+      mlir::Value s2 = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
+                             mlir::ValueRange{s2Bits});
+      // const vfloat32m2_t r1 = vmerge_vvm(
+      //     vfmacc_vv(k, k, j, vl),   <- r1False (fast, computed above)
+      //     vfmul_vv(vfmacc_vv(s2, s2, j, vl), s1, vl),
+      //     c, vl);
+      mlir::Value r1TrueInner = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
+                                      mlir::ValueRange{s2, s2, j, bodyVL});
+      mlir::Value r1True = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
+                                 mlir::ValueRange{r1TrueInner, s1, bodyVL});
+      mlir::Value r1 = vcall(f32VecType, "__riscv_vmerge_vvm_f32m2",
+                             mlir::ValueRange{r1False, r1True, c, bodyVL});
+      // result = vmerge_vvm(r1, vfmul_vv(s1, s1, vl),
+      //                     vmfgt_vf(vfabs_v(n), 192.0f, vl), vl);
+      mlir::Value absN2 = vcall(f32VecType, "__riscv_vfabs_v_f32m2",
+                                mlir::ValueRange{n, bodyVL});
+      mlir::Value overMask = vcall(boolType, "__riscv_vmfgt_vf_f32m2_b16",
+                                   mlir::ValueRange{absN2, fimm("192.0f"),
+                                                    bodyVL});
+      mlir::Value s1Sq = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
+                               mlir::ValueRange{s1, s1, bodyVL});
+      mlir::Value slow = vcall(f32VecType, "__riscv_vmerge_vvm_f32m2",
+                               mlir::ValueRange{r1, s1Sq, overMask, bodyVL});
+      rewriter.create<emitc::VerbatimOp>(loc, assignComment("expf_r", opName, role));
+      rewriter.create<emitc::AssignOp>(loc, resultVar, slow);
+      rewriter.create<emitc::YieldOp>(loc);
+    }
+    return rewriter.create<emitc::LoadOp>(loc, f32VecType, resultVar)
+        .getResult();
   }
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseSiluMapStrip(

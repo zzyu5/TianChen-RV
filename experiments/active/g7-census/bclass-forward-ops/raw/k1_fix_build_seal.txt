@@ -1,0 +1,38 @@
+# BUILD k1 B-fwd kernel-sym  KCC=/usr/bin/clang-18 (Bianbu clang version 18.1.8 (11bb4))  march=rv64gcv_zfh_zvfh_zicbop_zihintpause  opt=-O3
+# ggml_stock=/data/k1build-stock/bin/libggml-cpu.so md5_before=871169a0123139692177468b3c8578be
+# OURS_SRC add md5=e04002371582881fd4a9691abf8ff22f
+# OURS_SRC mul md5=030d0edfff20d67c60c9f7a2670c92ea
+# OURS_SRC scale md5=a78d3e6d6a66739b6f1d7f20f2b4edb3
+# OURS_SRC cpy md5=4fc7926797c4f60c1c27b2a60744f5ed
+# OURS_SRC silu md5=d739245410c415dcb0987768b0afc676
+# OURS_SRC gelu md5=e5b485d4e60bb6b2b05798ab3d5bea58
+# OURS_SRC rms-norm md5=c1291c0e298d43e60324b12301604344
+# OURS_SRC soft-max md5=6cbd952c9b0cd9f989f3affc1d0292dc
+# OURS_SRC rope md5=8951feed02ef8b76664841c325f570e5
+# OPP_SRC opponent_ggml.cpp md5=a4696d7f82ee48cd1bfd1961ef04f940
+# LINKED /tmp/g7_bfwd_k1/bfwd_k1
+# OPP_SYM_EXPORTED ggml_vec_silu_f32: 0000000000076a2c T ggml_vec_silu_f32
+# OPP_SYM_EXPORTED ggml_vec_soft_max_f32: 0000000000076e9a T ggml_vec_soft_max_f32
+# OPP_INLINE_NOT_EXPORTED(expect all ABSENT): ggml_vec_add_f32=absent
+ggml_vec_mul_f32=absent
+ggml_vec_scale_f32=absent
+ggml_vec_cpy_f32=absent
+ggml_vec_gelu_f32=absent
+## OPP-CLASS (objdump opp.o per-symbol RVV insn count)
+# OPPCLASS opp_ggml_vec_add_f32: rvv_insn=3 => native-RVV
+# OPPCLASS opp_ggml_vec_mul_f32: rvv_insn=3 => native-RVV
+# OPPCLASS opp_ggml_vec_cpy_f32: rvv_insn=1 => native-RVV
+# OPPCLASS opp_ggml_vec_scale_f32: rvv_insn=4 => native-RVV
+# OPPCLASS opp_ggml_vec_gelu_f32: rvv_insn=0 => scalar-or-autovec
+# OPPCLASS opp_ggml_rms_norm_f32: rvv_insn=9 => native-RVV
+# OPPCLASS opp_ggml_rope_norm_f32: rvv_insn=5 => native-RVV
+# OURS_add(clang-18 .o): vsetvl=2 m8_ops=0 m2_ops=0 size=1696B
+# OURS_mul(clang-18 .o): vsetvl=2 m8_ops=0 m2_ops=0 size=1696B
+# OURS_scale(clang-18 .o): vsetvl=2 m8_ops=0 m2_ops=0 size=1704B
+# OURS_cpy(clang-18 .o): vsetvl=2 m8_ops=0 m2_ops=0 size=1688B
+# OURS_silu(clang-18 .o): vsetvl=4 m8_ops=0 m2_ops=0 size=3512B
+# OURS_gelu(clang-18 .o): vsetvl=0 m8_ops=0 m2_ops=0 size=2392B
+# OURS_rms-norm(clang-18 .o): vsetvl=6 m8_ops=0 m2_ops=0 size=2512B
+# OURS_soft-max(clang-18 .o): vsetvl=4 m8_ops=0 m2_ops=0 size=3536B
+# OURS_rope(clang-18 .o): vsetvl=0 m8_ops=0 m2_ops=0 size=1968B
+# BUILD_DONE

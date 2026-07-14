@@ -104,7 +104,20 @@ module {
 // CHECK: literal "0x1.555e66p-3f"
 // CHECK: literal "0x1.573e2ep-5f"
 // CHECK: literal "0x1.0e4020p-7f"
-// The slow-path overflow/underflow vmerge fixup, emitted UNCONDITIONALLY.
+// RESTORED ggml vcpop short-circuit (vec.h:1348 `if (!vcpop(c)) return fast`): the
+// fast result (k + j*k) is seeded into an emitc.variable, and the ~14-op slow-path
+// overflow/underflow fixup is emitted INSIDE a data-dependent emitc.if guarded by
+// __riscv_vcpop_m_b16(c) != 0 (SKIPPED on the all-fast strip = every soft_max decode
+// input). BYTE-EXACT: vcpop==0 keeps exactly the seeded fast value, which the retired
+// unconditional slow path already produced for c-false/|n|<=192 lanes; the f64 reduce
+// consumes the SAME per-lane exp value either way.
+// CHECK: call_opaque "__riscv_vfmacc_vv_f32m2"
+// CHECK: emitc.variable
+// CHECK: assign
+// CHECK: call_opaque "__riscv_vcpop_m_b16"
+// CHECK: literal "0"
+// CHECK: cmp ne
+// CHECK: if %
 // CHECK: call_opaque "__riscv_vmfle_vf_f32m2_b16"
 // CHECK: literal "0x82000000"
 // CHECK: call_opaque "__riscv_vmerge_vxm_u32m2"
@@ -112,6 +125,8 @@ module {
 // CHECK: call_opaque "__riscv_vmerge_vvm_f32m2"
 // CHECK: literal "192.0f"
 // CHECK: call_opaque "__riscv_vmerge_vvm_f32m2"
+// CHECK: assign
+// CHECK: load
 // soft_max epilogue: store y[i] = exp(x[i]-max), then the f64 WIDENING reduce into
 // the loop-carried f64m1 accumulator (the byte-exactness crux for the sum).
 // CHECK: call_opaque "__riscv_vse32_v_f32m2"

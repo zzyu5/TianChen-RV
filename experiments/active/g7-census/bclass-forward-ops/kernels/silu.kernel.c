@@ -58,42 +58,53 @@ extern "C" void weft_emitc_ggml_vec_silu_f32_kernel_ggml_vec_silu_f32(size_t v1,
     vfloat32m2_t v32 = __riscv_vfmacc_vv_f32m2(v29, v31, v26, v8);
     // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
     vfloat32m2_t v33 = __riscv_vfmacc_vv_f32m2(v27, v32, v26, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfle_vf_f32m2_b16
-    vbool16_t v34 = __riscv_vmfle_vf_f32m2_b16(v17, 0.0f, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u32m2
-    vuint32m2_t v35 = __riscv_vmv_v_x_u32m2(0, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vxm_u32m2
-    vuint32m2_t v36 = __riscv_vmerge_vxm_u32m2(v35, 0x82000000, v34, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vadd_vx_u32m2
-    vuint32m2_t v37 = __riscv_vadd_vx_u32m2(v36, 0x7f000000, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
-    vfloat32m2_t v38 = __riscv_vreinterpret_v_u32m2_f32m2(v37);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsub_vv_u32m2
-    vuint32m2_t v39 = __riscv_vsub_vv_u32m2(v21, v36, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
-    vfloat32m2_t v40 = __riscv_vreinterpret_v_u32m2_f32m2(v39);
     // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
-    vfloat32m2_t v41 = __riscv_vfmacc_vv_f32m2(v23, v23, v33, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
-    vfloat32m2_t v42 = __riscv_vfmacc_vv_f32m2(v40, v40, v33, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
-    vfloat32m2_t v43 = __riscv_vfmul_vv_f32m2(v42, v38, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
-    vfloat32m2_t v44 = __riscv_vmerge_vvm_f32m2(v41, v43, v25, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfabs_v_f32m2
-    vfloat32m2_t v45 = __riscv_vfabs_v_f32m2(v17, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfgt_vf_f32m2_b16
-    vbool16_t v46 = __riscv_vmfgt_vf_f32m2_b16(v45, 192.0f, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
-    vfloat32m2_t v47 = __riscv_vfmul_vv_f32m2(v38, v38, v8);
-    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
-    vfloat32m2_t v48 = __riscv_vmerge_vvm_f32m2(v44, v47, v46, v8);
+    vfloat32m2_t v34 = __riscv_vfmacc_vv_f32m2(v23, v23, v33, v8);
+    // weft_emitc.local_variable=expf_r source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface
+    vfloat32m2_t v35;
+    v35 = v34;
+    // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vcpop_m_b16
+    size_t v36 = __riscv_vcpop_m_b16(v25, v8);
+    bool v37 = v36 != 0;
+    if (v37) {
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfle_vf_f32m2_b16
+      vbool16_t v38 = __riscv_vmfle_vf_f32m2_b16(v17, 0.0f, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u32m2
+      vuint32m2_t v39 = __riscv_vmv_v_x_u32m2(0, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vxm_u32m2
+      vuint32m2_t v40 = __riscv_vmerge_vxm_u32m2(v39, 0x82000000, v38, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vadd_vx_u32m2
+      vuint32m2_t v41 = __riscv_vadd_vx_u32m2(v40, 0x7f000000, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
+      vfloat32m2_t v42 = __riscv_vreinterpret_v_u32m2_f32m2(v41);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsub_vv_u32m2
+      vuint32m2_t v43 = __riscv_vsub_vv_u32m2(v21, v40, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m2_f32m2
+      vfloat32m2_t v44 = __riscv_vreinterpret_v_u32m2_f32m2(v43);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmacc_vv_f32m2
+      vfloat32m2_t v45 = __riscv_vfmacc_vv_f32m2(v44, v44, v33, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
+      vfloat32m2_t v46 = __riscv_vfmul_vv_f32m2(v45, v42, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
+      vfloat32m2_t v47 = __riscv_vmerge_vvm_f32m2(v34, v46, v25, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfabs_v_f32m2
+      vfloat32m2_t v48 = __riscv_vfabs_v_f32m2(v17, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmfgt_vf_f32m2_b16
+      vbool16_t v49 = __riscv_vmfgt_vf_f32m2_b16(v48, 192.0f, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmul_vv_f32m2
+      vfloat32m2_t v50 = __riscv_vfmul_vv_f32m2(v42, v42, v8);
+      // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_f32m2
+      vfloat32m2_t v51 = __riscv_vmerge_vvm_f32m2(v47, v50, v49, v8);
+      // weft_emitc.assign target=expf_r source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface
+      v35 = v51;
+    }
+    vfloat32m2_t v52 = v35;
     // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfadd_vf_f32m2
-    vfloat32m2_t v49 = __riscv_vfadd_vf_f32m2(v48, 1.0f, v8);
+    vfloat32m2_t v53 = __riscv_vfadd_vf_f32m2(v52, 1.0f, v8);
     // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfdiv_vv_f32m2
-    vfloat32m2_t v50 = __riscv_vfdiv_vv_f32m2(v13, v49, v8);
+    vfloat32m2_t v54 = __riscv_vfdiv_vv_f32m2(v13, v53, v8);
     // weft_emitc.source_op=weft_rvv.elementwise_silu_map role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
-    __riscv_vse32_v_f32m2(v12, v50, v8);
+    __riscv_vse32_v_f32m2(v12, v54, v8);
   }
   return;
 }
