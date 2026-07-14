@@ -1,0 +1,27 @@
+# G8 stage1.3 — rvv 对手核 clang-18 全量重编 + 符号探针  2026-07-14
+# 要求3：对手源码【本意最优形态】(vericurve 部署树) 用 clang-18 可重编·符号对上探针·含 vcreate 4 格
+#
+# tree = /home/ubuntu/vericurve-rv-lab/llama.cpp (部署/instrumented 树·SpacemiT 手调)
+# TU   = ggml/src/ggml-cpu/arch/riscv/quants.c
+# cmd  = clang(18.1.8) -O3 -march=<rich FZ18> -mabi=lp64d -fno-integrated-as \
+#          -I.../ggml/include -I.../ggml/src -I.../ggml/src/ggml-cpu -I.../arch/riscv -DGGML_USE_CPU -c quants.c -o opp_all.o
+# 结果 = OPP_FULL_RECOMPILE_OK   (整 TU 编过·符号全解析)
+
+=== 两个 clang-兼容性 blocker 及其解 (关键·记入 preflight) ===
+[B1] __riscv_vcreate_v_* intrinsic (q5_0/q5_1/iq4_nl/mxfp4 用):
+     clang-17 无此内建 → 编译失败 (旧口径 blocker)。
+     clang-18 有此内建 → 解决 ✓ (k1+rvv 均验)。
+[B2] 手写 inline-asm "vsetivli zero,16,e8,m1" (policy-less·无 ta/ma·q1_0/iq4_nl 用):
+     clang-17 集成汇编器【接受】(宽松) → build-openeuler-clang17 得以成功。
+     clang-18 集成汇编器【拒】(严格·要求 ta/ma) = clang-17→18 汇编器回归。
+     系统 gnu-as(binutils 2.41) 太老·不认 rich march(zvfh/zfa/zfhmin) → -fno-integrated-as 单用死路。
+     解 = clang-18 -fno-integrated-as + binutils-2.46.1 (env.sh·新 gnu-as 认 rich march 且接受 policy-less) ✓。
+     → 两侧(ours+opp)统一带 -fno-integrated-as 即对称 (codegen 不变·仅 asm 阶段交新 gnu-as)。
+
+=== 符号探针 (opp_all.o·objdump -t·可解析非 stripped) ===
+硬门 matmul 格 (0.8 门分母内)  : ggml_vec_dot_{q4_0_q8_0, q8_0_q8_0, q4_K_q8_K, q2_K_q8_K, q3_K_q8_K, q6_K_q8_K, q5_0_q8_0, q5_1_q8_1, q4_1_q8_1}  全部 ✓
+vcreate-4 (曾 clang-17 blocker)  : ggml_vec_dot_{iq4_nl_q8_0, mxfp4_q8_0}  (+ _vl128/_vl256 变体)  ✓
+inline-asm 格                    : ggml_vec_dot_q1_0_q8_0 (+ _vl128/_vl256)  ✓
+→ 对手【全格】clang-18 可重编·含曾被 clang-17 卡的 vcreate-4 与 inline-asm 格·符号对上探针 = 要求3 SATISFIED
+
+# 对照：clang-17 时此 TU 在 line 399 (q5_0 vcreate) 即失败·永远编不出 → clang-18 统一是【净解锁】·非退让。

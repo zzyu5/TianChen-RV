@@ -1,31 +1,35 @@
-# G8 stage1.3 — kernel-axis clang flags 定稿  2026-07-14
+# G8 stage1.3 — kernel-axis clang-18 flags 定稿  2026-07-14 (口径统一：双板 clang-18)
 
 ## 定稿原则
-1. **板内 ours == opp 同 clang 同 march 同 flags** (§三.2 硬要求·防 [CASE-COMPILER-ASYMMETRY] artifact)。
-2. `-march` 取 **该 clang 版本稳定扩展 ∩ 板 cpuinfo 实测能力** 的上界 (逐项列全·不含板未实测扩展)。
-3. gcc 数字 = 部署域附注列，**不参与主表胜负判定**。
+1. **板内 ours == opp 同 clang-18 同 march 同 flags**（§三.2 硬要求·防 [CASE-COMPILER-ASYMMETRY]）。
+2. `-march` = 该 clang 稳定扩展 ∩ 板 cpuinfo 实测能力 的上界（逐项列全）。
+3. gcc 数字 = 部署域附注列·不参与主表胜负。IME 格 carve-out 出 clang-18 域（见下）。
 
-## rvv (clang-17 域·VLEN128)
+## rvv (clang-18·VLEN128)
 
-**定稿 march (推荐·板全覆盖)**：
+**编译器 (canonical)**：`/opt/tcrv-toolchains/llvm-18.1.8/bin/clang` (18.1.8)，`source /opt/tcrv-toolchains/env.sh` 后
+PATH 含 binutils-2.46.1(as) + gcc-15.2.0(runtime)。
+
+**定稿编译 flags (ours 与 opp 两侧完全一致)**：
 ```
--march=rv64gcv_zfh_zfhmin_zvfh_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zihintpause -mabi=lp64d -O2 -ffp-contract=on
+-O2 -march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause \
+    -mabi=lp64d -fno-integrated-as -ffp-contract=on
+链接追加: --gcc-install-dir=/opt/tcrv-toolchains/gcc-15.2.0/lib/gcc/riscv64-unknown-linux-gnu/15.2.0
 ```
-- 取舍理由：
-  - **剔 zfa / zicond / zvfhmin / zihintntl** — clang-17 视为 experimental，无 `-menable-experimental-extensions` 直接 REJECT (逐个实测确认)。
-  - **剔 zicbop** — 板 cpuinfo **无** zicbop (只有 zicbom/zicboz)；clang 虽接受(hint-nop)，但违"覆盖板实测能力"原则，故不列。
-  - **保 zfh/zfhmin** (板有·fp16 scale 解码) · **zicbom/zicboz** (板有·cache 管理) · **zawrs** (板有) · zvfh (向量 fp16) · zba/zbb/zbc/zbs (bit-manip)。
-- **⚠ 对称性待办 (交主会话·stage-3 地基)**：板上现成 clang-17 ggml (`build-openeuler-clang17`) 是用 **近邻 march** `rv64gcv_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause` 编的 (缺 zfh/zfhmin/zicbom/zicboz·多 zicbop)。**要与定稿 march 严格对称，stage-3 须用定稿 march 重编 ggml-cpu** (单库·upstream-native 树可编)。zfh 可能影响 fp16 scale codegen → 不保证 codegen-neutral → 不能省重编。
+- **march 全板覆盖**：clang-18 下全板 compute 扩展稳定（含 clang-17 拒的 zvfhmin/zicond/zfa/zihintntl）→ 逐项列全无遗漏；剔板 cpuinfo 未列的扩展（如 zicbop）。
+- **`-fno-integrated-as` 为何必带（两侧对称）**：对手部署树(vericurve) quants.c 有手写 policy-less inline-asm `vsetivli zero,16,e8,m1`（无 ta/ma）·clang-18 集成汇编器【拒】(clang-17→18 回归)。转 binutils-2.46.1 gnu-as(认 rich march 且接受 policy-less)。ours(纯 intrinsic) 带不带都编过·但为两侧 flags 逐字符对称·统一带。**codegen 不变**(仅 asm 阶段换汇编器)。
+- **`--gcc-install-dir`**：canonical clang 默认 triple=riscv64-unknown-linux-gnu·须显式指 gcc-15.2.0 找 CRT(crtbeginS/crtendS)+libgcc；仅链接可执行时需要·-c 编 .o 不需。
 
-**本役样例采用 march (严格对称·链路证)**：`rv64gcv_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause` (== 现成 .so 自身 build march·两侧完全一致)。样例仅证链路通，非定稿测量。
+## k1 (clang-18·VLEN256·非-IME 格)
 
-## k1 (clang-18 域·VLEN256)
-
-**定稿 march (canonical·非-IME 格)**：
+**编译器**：`/usr/bin/clang` (Bianbu 18.1.8)。**定稿 march (canonical)**：
 ```
--march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -O2 -ffp-contract=on
+-O2 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -ffp-contract=on
 ```
-- clang-18 zvfhmin/zvl256b 稳定，可选加 `_zvfhmin_zvl256b_zicbom_zicboz`；t4a canonical 历史即用此串，本役样例沿用 → 与既有 k1 kernel-sym 数可比。
-- 对手 fair-recipe (stock repack.cpp.o) = `-O3 -march=rv64gcv_zfh_zvfh_zicbop_zihintpause`；对称测时 ours 也须同串。
+- k1 样例 q4_K 用集成汇编器直接编过·**不需** -fno-integrated-as。可选加 `_zvfhmin_zvl256b`。
+- 对手 fair-recipe (stock repack.cpp.o) = `-O3 -march=rv64gcv_zfh_zvfh_zicbop_zihintpause`；对称测时 ours 同串。
 
-**⚠ IME 域分离 (环境发现·非本役对称域)**：IME 格 (q4_0@ime/q8_0@ime/q4_K@ime) 的 march `rv64gcv_xsmtvdotii1p0` 被 **clang-18 拒** (`unsupported version 1.0 for extension 'xsmtvdotii'`)，仅 **gcc-13 接受**。→ **k1 clang-18 对称主表 = 非-IME RVV 格**；IME 格留在 **gcc-13/xsmtvdotii 真硅 cert 域** (与既有 N2 cert 绑 gcc-13 一致·非本役范畴)。
+## ★IME 域 carve-out（不在 clang-18 主表·不在 0.8 硬门分母）
+IME march `rv64gcv_xsmtvdotii1p0` clang-18 **拒**(`unsupported version 1.0`)·仅 gcc-13 接受。
+→ IME 格 (q4_0/q8_0/q4_K @ime) 留 **gcc-13/xsmtvdotii 真硅 cert 域**·不参与 clang-18 主表胜负。
+硬门分母 = matmul kernel-sym + forward-op·**IME 格不在其中** → carve-out 合法（同 [CASE-COMPILER-ASYMMETRY] 家族·已同步用户）。

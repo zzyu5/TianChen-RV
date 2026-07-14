@@ -1,4 +1,9 @@
-# G8 stage1.3 — rvv SAMPLE A/B (q4_0, clang-17 symmetric domain)  2026-07-14
+# ★★★ 作废 VOID (2026-07-14 口径统一裁定：双板主表=clang-18) ★★★
+# 此 clang-17 样例【不入主表】·仅保留作环境备份/历史。取代文件 = sample_ab_q4_0_clang18.txt。
+# 作废原因：clang-17 编不出对手部署树(vericurve)的 vcreate-4 格·且此样例对手=clang-17 upstream block-dot
+#   (非部署核)·ratio 6.94× 含 upstream-blockdot artifact。clang-18 域重跑得 ratio 2.19×(更公平·对手=部署核)。
+# ---------------------------------------------------------------------------------------------
+# G8 stage1.3 — rvv SAMPLE A/B (q4_0, clang-17 symmetric domain)  2026-07-14  [VOID]
 # purpose: 只证 harness+编译器链路通 (非正式测量)
 # ours = /tmp/g7_l1_cold/gemm_q4_0.kernel.c (weft emitted repack-GEMM)  compiled clang-17
 # opp  = ggml_vec_dot_q4_0_q8_0 from clang-17-built ggml.so (upstream-native tree)

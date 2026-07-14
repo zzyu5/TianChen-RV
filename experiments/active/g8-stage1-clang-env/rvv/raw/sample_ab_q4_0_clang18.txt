@@ -1,0 +1,29 @@
+# G8 stage1.3 — rvv SAMPLE A/B (q4_0, clang-18 UNIFIED symmetric domain)  2026-07-14
+# 口径统一裁定后：双板主表 = clang-18。此文件取代作废的 sample_ab_q4_0_clang17.txt。
+#
+# clang = /opt/tcrv-toolchains/llvm-18.1.8/bin/clang  →  "clang version 18.1.8" (project-canonical, env.sh)
+# as    = /opt/tcrv-toolchains/binutils-2.46.1/bin/as →  GNU as 2.46.1  (新·解 policy-less inline-asm)
+# gcc-runtime = /opt/tcrv-toolchains/gcc-15.2.0 (--gcc-install-dir for CRT/libgcc at link)
+# march (rich·全板实测) = rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause
+# flags 两侧对称 = -O2 -march=<rich> -mabi=lp64d -fno-integrated-as -ffp-contract=on   (link: --gcc-install-dir=<gcc-15.2.0>)
+# ours = /tmp/g7_l1_cold/gemm_q4_0.kernel.c (weft emitted repack-GEMM)  clang-18
+# opp  = ggml_vec_dot_q4_0_q8_0 from opp_all.o (= vericurve quants.c FULL recompile @clang-18, object-precedence wins over .so)
+#   → opp 是 clang-18 重编的【部署树本意最优形态】对手 (非 clang-17 upstream block-dot)
+# base = vericurve build-vericurve/bin libggml-cpu.so + libggml-base.so (供 *_generic 回退 + fp16 表·非 vec_dot 主体)
+# pin core 8 (co-tenant vLLM core0,1 未扰); governor=performance; VLEN=128
+
+LINK_OK
+driver-resolved opp ggml_vec_dot_q4_0_q8_0 @ 0x11b54 (= opp_all.o clang-18 定义·object 优先·非 .so gcc 版)
+
+=== objdump 双方符号 (可解析·非 stripped) ===
+OURS: weft_emitc_ggml_gemm_q4_0_q8_0_kernel_ggml_gemm_q4_0_q8_0  (libcall-free, sizeB=3904)
+OPP : ggml_vec_dot_q4_0_q8_0 @ 0x3d2 (opp_all.o)
+
+=== SAMPLE RUN (pin core8, K=2048 nr=4 nc=256 hot=6 pool=64 rounds=6 seed=4711) ===
+loadavg=2.16 2.19 2.42
+HOT  fmt=q4_0 VLEN=128 K=2048 nr=4 nc=256 relerr_ours=9.055e-06 relerr_opp=9.055e-06 nbad=0 GATE=PASS ours_ns=254734.5 ours_gmacs=8.2327 opp_ns=558082.7 opp_gmacs=3.7578 ratio_ours_over_opp=2.1908 sink=-1083.8
+COLD fmt=q4_0 VLEN=128 K=2048 nr=4 nc=256 pool=64 ours_ns_med=292445.2 ours_iqrpct=3.26 ours_gmacs=7.1711 opp_ns_med=563561.5 opp_iqrpct=0.54 opp_gmacs=3.7212 ratio_ours_over_opp=1.9271 sink=414.8
+
+# NOTE: ratio 2.19(HOT)/1.93(COLD) — CHAIN-PROOF only (N small·非正式测量).
+# NOTE: ratio 比 clang-17 样例(6.94×)低 = 对手换成 clang-18 重编的 vericurve 部署核 (opp_gmacs 1.19→3.76·对手强了~3×)·更公平·印证"同 clang 同树对称"消除了 clang-17-upstream-blockdot artifact.
+# NOTE: relerr 双侧同=9.055e-06·nbad=0 → correctness carrier 在 clang-18 域完好.
