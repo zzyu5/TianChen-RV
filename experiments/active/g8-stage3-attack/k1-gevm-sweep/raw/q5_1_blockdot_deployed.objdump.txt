@@ -1,0 +1,75 @@
+
+q5_1_blockdot_deployed.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <weft_emitc_ggml_vec_dot_q5_1_q8_1_kernel_rvv_q5_1_q8_1_block_dot>:
+   0:	8115                	srli	a0,a0,0x5
+   2:	c565                	beqz	a0,ea <.LBB0_4>
+   4:	cc987057          	vsetivli	zero,16,e16,m2,ta,ma
+   8:	5208a457          	vid.v	v8
+   c:	02803457          	vadd.vi	v8,v8,0
+  10:	0d207057          	vsetvli	zero,zero,e32,m4,ta,ma
+  14:	42006557          	vmv.s.x	v10,zero
+  18:	01468793          	addi	a5,a3,20
+  1c:	0621                	addi	a2,a2,8
+  1e:	20a52533          	sh1add	a0,a0,a0
+  22:	20c56833          	sh3add	a6,a0,a2
+  26:	f00007d3          	fmv.w.x	fa5,zero
+
+000000000000002a <.LBB0_2>:
+  2a:	ffc60713          	addi	a4,a2,-4
+  2e:	ffe60513          	addi	a0,a2,-2
+  32:	02060587          	vle8.v	v11,(a2)
+  36:	ff078693          	addi	a3,a5,-16
+  3a:	02068607          	vle8.v	v12,(a3)
+  3e:	02078687          	vle8.v	v13,(a5)
+  42:	0c007057          	vsetvli	zero,zero,e8,m1,ta,ma
+  46:	0a075707          	vlse16.v	v14,(a4),zero
+  4a:	26b7b857          	vand.vi	v16,v11,15
+  4e:	a2b235d7          	vsrl.vi	v11,v11,4
+  52:	0c907057          	vsetvli	zero,zero,e16,m2,ta,ma
+  56:	a2e40757          	vsrl.vv	v14,v14,v8
+  5a:	26e0b757          	vand.vi	v14,v14,1
+  5e:	96e23757          	vsll.vi	v14,v14,4
+  62:	0c007057          	vsetvli	zero,zero,e8,m1,ta,ma
+  66:	0a055907          	vlse16.v	v18,(a0),zero
+  6a:	b2e038d7          	vnsrl.wi	v17,v14,0
+  6e:	0c907057          	vsetvli	zero,zero,e16,m2,ta,ma
+  72:	a3240757          	vsrl.vv	v14,v18,v8
+  76:	26e0b757          	vand.vi	v14,v14,1
+  7a:	96e23757          	vsll.vi	v14,v14,4
+  7e:	0c007057          	vsetvli	zero,zero,e8,m1,ta,ma
+  82:	b2e03957          	vnsrl.wi	v18,v14,0
+  86:	2b088757          	vor.vv	v14,v16,v17
+  8a:	2ab905d7          	vor.vv	v11,v11,v18
+  8e:	eee62857          	vwmul.vv	v16,v14,v12
+  92:	f6d5a857          	vwmacc.vv	v16,v11,v13
+  96:	0c907057          	vsetvli	zero,zero,e16,m2,ta,ma
+  9a:	c70505d7          	vwredsum.vs	v11,v16,v10
+  9e:	0d207057          	vsetvli	zero,zero,e32,m4,ta,ma
+  a2:	42b02557          	vmv.x.s	a0,v11
+  a6:	ff861707          	flh	fa4,-8(a2)
+  aa:	fec79687          	flh	fa3,-20(a5)
+  ae:	ffa61607          	flh	fa2,-6(a2)
+  b2:	fee79587          	flh	fa1,-18(a5)
+  b6:	40270753          	fcvt.s.h	fa4,fa4
+  ba:	402686d3          	fcvt.s.h	fa3,fa3
+  be:	40260653          	fcvt.s.h	fa2,fa2
+  c2:	402585d3          	fcvt.s.h	fa1,fa1
+  c6:	10d77753          	fmul.s	fa4,fa4,fa3
+  ca:	d00576d3          	fcvt.s.w	fa3,a0
+  ce:	10b67653          	fmul.s	fa2,fa2,fa1
+  d2:	60d77743          	fmadd.s	fa4,fa4,fa3,fa2
+  d6:	00e7f7d3          	fadd.s	fa5,fa5,fa4
+  da:	0661                	addi	a2,a2,24
+  dc:	02478793          	addi	a5,a5,36
+  e0:	f50615e3          	bne	a2,a6,2a <.LBB0_2>
+  e4:	00f5a027          	fsw	fa5,0(a1)
+  e8:	8082                	ret
+
+00000000000000ea <.LBB0_4>:
+  ea:	f00007d3          	fmv.w.x	fa5,zero
+  ee:	00f5a027          	fsw	fa5,0(a1)
+  f2:	8082                	ret

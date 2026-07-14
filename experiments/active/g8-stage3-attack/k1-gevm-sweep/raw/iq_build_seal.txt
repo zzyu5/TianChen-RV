@@ -1,0 +1,10 @@
+# G8 iq@k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O3 -fno-integrated-as Tue Jul 14 06:15:38 PM UTC 2026
+# stock_so_md5=871169a0123139692177468b3c8578be
+# OURS_iq1_s_baseline: vsetvl=79 gather=8 size=20216B
+# OURS_iq1_m_baseline: vsetvl=171 gather=17 size=21752B
+# LINK OK -> iq_bench_baseline
+# OURS_iq1_s_wide: vsetvl=45 gather=8 size=19896B
+# OURS_iq1_m_wide: vsetvl=155 gather=9 size=21536B
+# LINK OK -> iq_bench_wide
+# OPP ggml_vec_dot_iq1_s_q8_K @0x00000000000a2c8c
+# OPP ggml_vec_dot_iq1_m_q8_K @0x00000000000a361e
