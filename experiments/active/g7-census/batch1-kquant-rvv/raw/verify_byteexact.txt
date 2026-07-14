@@ -1,0 +1,81 @@
+[verify] core=8 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+[cc] g++ (GCC) 15.2.0
+# ggml_so_md5=d1adc634c2ca04ffc389536b30d9d9c4 loadavg=2.60 2.93 3.55 1/1056 2348367
+d9dee8318eae9280f91bc016b25c7b1c  repack_gemm_q2_K_q8_K.kernel.c
+54beac580f3f383cc60a91ad3f37e4f0  repack_gemm_q3_K_q8_K.kernel.c
+f373bdb509935525718ef2e3f9cc022a  repack_gemm_q4_K_q8_K.kernel.c
+41368b6dcd06df166d5f3f5572496036  repack_gemm_q5_K_q8_K.kernel.c
+bf4776930399c88f88667ed8f5cd7276  repack_gemm_q6_K_q8_K.kernel.c
+=== [verify q2_K] ===
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=16   n=256   worst_ulp=2      norm=2.600e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=5      norm=2.746e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=12     norm=2.069e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=150    norm=3.224e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=197    norm=2.021e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=36     norm=4.632e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1063   norm=4.505e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=375    norm=6.612e-07 (maxAbsErr/rms)
+VERDICT q2_K: INT_mismatch_total=0  NORM worst_ulp=1063 worst_norm=6.612e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+=== [verify q3_K] ===
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=16   n=256   worst_ulp=1      norm=7.009e-08 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=3      norm=1.102e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=1      norm=3.581e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=112    norm=2.005e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=18     norm=3.258e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=1      norm=4.280e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=5.554e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=261    norm=3.604e-07 (maxAbsErr/rms)
+VERDICT q3_K: INT_mismatch_total=0  NORM worst_ulp=261 worst_norm=5.554e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+=== [verify q4_K] ===
+== INT (unit d, dmin=0, magnitude-bounded, BYTE-EXACT-INTEGER vs stock ggml) ==
+  GEMM nr=4   nc=16  K=256   : int_mismatch=0  worstULP=0   byte-exact-int OK
+  GEMM nr=4   nc=32  K=512   : int_mismatch=0  worstULP=0   byte-exact-int OK
+  GEMM nr=8   nc=64  K=256   : int_mismatch=0  worstULP=0   byte-exact-int OK
+  GEMM nr=16  nc=256 K=512   : int_mismatch=0  worstULP=0   byte-exact-int OK
+  GEMM nr=4   nc=160 K=2560  : int_mismatch=0  worstULP=0   byte-exact-int OK
+  GEMM nr=4   nc=16  K=256   : worstULP=419  worstRel=2.826e-05   bounded-ULP OK (fp32 reassoc)
+  GEMM nr=4   nc=32  K=512   : worstULP=15   worstRel=1.127e-06   bounded-ULP OK (fp32 reassoc)
+  GEMM nr=8   nc=64  K=256   : worstULP=5    worstRel=4.189e-07   bounded-ULP OK (fp32 reassoc)
+  GEMM nr=16  nc=256 K=512   : worstULP=2403 worstRel=1.441e-04   bounded-ULP OK (fp32 reassoc)
+  GEMM nr=4   nc=160 K=2560  : worstULP=291  worstRel=2.035e-05   bounded-ULP OK (fp32 reassoc)
+# SUMMARY: worst_int_mismatch=0  worst_norm_ULP=2403  worst_norm_rel=1.441e-04  =>  PASS
+=== [verify q6_K] ===
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=16   n=256   worst_ulp=1      norm=3.608e-08 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=1      norm=1.067e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=1      norm=2.931e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=405    norm=2.473e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=16     norm=1.371e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=1      norm=3.080e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=5.243e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=110    norm=3.441e-07 (maxAbsErr/rms)
+VERDICT q6_K: INT_mismatch_total=0  NORM worst_ulp=405 worst_norm=5.243e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+# loadavg_end=3.09 3.06 3.49 2/1057 2348521
+=== VERIFY DONE ===

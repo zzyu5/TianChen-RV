@@ -1,0 +1,52 @@
+[census] MODE=full core=8 K=2048 nc=512 hiters=4 reps=12 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+[cc] gcc (GCC) 15.2.0 | opp_lib=gcc-15
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64  core=8  gov=performance freq=2600000
+# ggml_so_md5=d1adc634c2ca04ffc389536b30d9d9c4
+# loadavg_begin=2.50 2.92 3.82 1/1057 2347877
+=== [A] compile ours kernels gcc-15.2 -O2 (libcall-free check) ===
+# OURS_q2_K(gcc-15 .o): fp16=cleanfp vsetvli=1433 spill=1446 reload=0 vwmacc=2304 maxVreg=v31 size=107480B
+# OURS_q3_K(gcc-15 .o): fp16=cleanfp vsetvli=5115 spill=1676 reload=0 vwmacc=2176 maxVreg=v31 size=260160B
+# OURS_q4_K(gcc-15 .o): fp16=cleanfp vsetvli=820 spill=368 reload=0 vwmacc=2240 maxVreg=v31 size=59056B
+# OURS_q5_K(gcc-15 .o): fp16=cleanfp vsetvli=2354 spill=525 reload=0 vwmacc=2240 maxVreg=v31 size=91656B
+# OURS_q6_K(gcc-15 .o): fp16=cleanfp vsetvli=6278 spill=2234 reload=0 vwmacc=2304 maxVreg=v31 size=299648B
+=== [B] opponent symbol machine-probe (which kernel dispatches @VLEN128?) ===
+# OPP_q2_K: main=0000000000092316 vl128=0000000000091cb6 unused_repack_gemm=T,T,T,
+# OPP_q3_K: main=00000000000930a6 vl128=000000000009232c unused_repack_gemm=none
+# OPP_q4_K: main=000000000009312c vl128=none unused_repack_gemm=T,T,T,
+# OPP_q5_K: main=0000000000093146 vl128=none unused_repack_gemm=T,
+# OPP_q6_K: main=00000000000935de vl128=none unused_repack_gemm=T,
+=== [C] link driver + ours + real libggml-cpu.so ===
+  linked OK -> ./census
+=== [D] CENSUS sweep: 5 fmt x nr{4,8,16,64} (K=2048 nc=512 hiters=4 reps=12 core 8) ===
+# loadavg_pre_sweep=3.21 3.03 3.70 1/1057 2348169
+CENSUS fmt=q2_K VLEN=128 K=2048 nr=4 nc=512 hiters=4 reps=12 nf_ns=60 | HOT ours_ns=2357815 opp_ns=890024 ours_gmacs=1.7789 opp_gmacs=4.7126 ratio_hot=0.3775 | COLD ours_med_ns=2611351 ours_iqrpct=8.14 opp_med_ns=958023 opp_iqrpct=0.24 ours_gmacs=1.6062 opp_gmacs=4.3781 ours_wGBs=0.132 opp_wGBs=0.359 ratio_cold_med=0.3669 ratio_cold_best=0.3779 | sink=nan
+CENSUS fmt=q2_K VLEN=128 K=2048 nr=8 nc=512 hiters=4 reps=12 nf_ns=300 | HOT ours_ns=4655149 opp_ns=1792282 ours_gmacs=1.8020 opp_gmacs=4.6804 ratio_hot=0.3850 | COLD ours_med_ns=5261882 ours_iqrpct=1.56 opp_med_ns=1861968 opp_iqrpct=0.40 ours_gmacs=1.5942 opp_gmacs=4.5052 ours_wGBs=0.065 opp_wGBs=0.185 ratio_cold_med=0.3539 ratio_cold_best=0.3752 | sink=nan
+CENSUS fmt=q2_K VLEN=128 K=2048 nr=16 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=9302578 opp_ns=3623975 ours_gmacs=1.8035 opp_gmacs=4.6295 ratio_hot=0.3896 | COLD ours_med_ns=10066401 ours_iqrpct=0.92 opp_med_ns=3715455 opp_iqrpct=0.94 ours_gmacs=1.6667 opp_gmacs=4.5155 ours_wGBs=0.034 opp_wGBs=0.093 ratio_cold_med=0.3691 ratio_cold_best=0.3818 | sink=7325234380.8
+CENSUS fmt=q2_K VLEN=128 K=2048 nr=64 nc=512 hiters=4 reps=12 nf_ns=140 | HOT ours_ns=37322604 opp_ns=14770036 ours_gmacs=1.7981 opp_gmacs=4.5436 ratio_hot=0.3957 | COLD ours_med_ns=38678580 ours_iqrpct=1.18 opp_med_ns=15038902 opp_iqrpct=0.39 ours_gmacs=1.7350 opp_gmacs=4.4624 ours_wGBs=0.009 opp_wGBs=0.023 ratio_cold_med=0.3888 ratio_cold_best=0.3927 | sink=nan
+# loadavg_after_q2_K=3.25 3.05 3.70 1/1057 2348182
+CENSUS fmt=q3_K VLEN=128 K=2048 nr=4 nc=512 hiters=4 reps=12 nf_ns=300 | HOT ours_ns=24057374 opp_ns=1210780 ours_gmacs=0.1743 opp_gmacs=3.4641 ratio_hot=0.0503 | COLD ours_med_ns=25420105 ours_iqrpct=0.23 opp_med_ns=1317105 opp_iqrpct=0.53 ours_gmacs=0.1650 opp_gmacs=3.1845 ours_wGBs=0.018 opp_wGBs=0.342 ratio_cold_med=0.0518 ratio_cold_best=0.0520 | sink=6042637770.1
+CENSUS fmt=q3_K VLEN=128 K=2048 nr=8 nc=512 hiters=4 reps=12 nf_ns=300 | HOT ours_ns=48032719 opp_ns=2377580 ours_gmacs=0.1746 opp_gmacs=3.5282 ratio_hot=0.0495 | COLD ours_med_ns=49610145 ours_iqrpct=0.13 opp_med_ns=2569631 opp_iqrpct=0.44 ours_gmacs=0.1691 opp_gmacs=3.2645 ours_wGBs=0.009 opp_wGBs=0.175 ratio_cold_med=0.0518 ratio_cold_best=0.0516 | sink=nan
+CENSUS fmt=q3_K VLEN=128 K=2048 nr=16 nc=512 hiters=4 reps=12 nf_ns=240 | HOT ours_ns=96189833 opp_ns=4690809 ours_gmacs=0.1744 opp_gmacs=3.5766 ratio_hot=0.0488 | COLD ours_med_ns=97905805 ours_iqrpct=0.28 opp_med_ns=4943581 opp_iqrpct=0.59 ours_gmacs=0.1714 opp_gmacs=3.3937 ours_wGBs=0.005 opp_wGBs=0.091 ratio_cold_med=0.0505 ratio_cold_best=0.0503 | sink=nan
+CENSUS fmt=q3_K VLEN=128 K=2048 nr=64 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=385240399 opp_ns=19022664 ours_gmacs=0.1742 opp_gmacs=3.5278 ratio_hot=0.0494 | COLD ours_med_ns=387615384 ours_iqrpct=0.40 opp_med_ns=19204640 opp_iqrpct=0.34 ours_gmacs=0.1731 opp_gmacs=3.4944 ours_wGBs=0.001 opp_wGBs=0.023 ratio_cold_med=0.0495 ratio_cold_best=0.0496 | sink=nan
+# loadavg_after_q3_K=3.38 3.10 3.70 1/1057 2348205
+CENSUS fmt=q4_K VLEN=128 K=2048 nr=4 nc=512 hiters=4 reps=12 nf_ns=300 | HOT ours_ns=2449590 opp_ns=869878 ours_gmacs=1.7122 opp_gmacs=4.8217 ratio_hot=0.3551 | COLD ours_med_ns=3923136 ours_iqrpct=1.53 opp_med_ns=922384 opp_iqrpct=0.86 ours_gmacs=1.0691 opp_gmacs=4.5472 ours_wGBs=0.150 opp_wGBs=0.639 ratio_cold_med=0.2351 ratio_cold_best=0.2448 | sink=6833704361.0
+CENSUS fmt=q4_K VLEN=128 K=2048 nr=8 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=4852915 opp_ns=1749122 ours_gmacs=1.7286 opp_gmacs=4.7959 ratio_hot=0.3604 | COLD ours_med_ns=6333626 ours_iqrpct=1.29 opp_med_ns=1851887 opp_iqrpct=0.70 ours_gmacs=1.3245 opp_gmacs=4.5298 ours_wGBs=0.093 opp_wGBs=0.318 ratio_cold_med=0.2924 ratio_cold_best=0.2961 | sink=6833542711.2
+CENSUS fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=9698670 opp_ns=3726915 ours_gmacs=1.7298 opp_gmacs=4.5016 ratio_hot=0.3843 | COLD ours_med_ns=11314527 ours_iqrpct=0.62 opp_med_ns=4412379 opp_iqrpct=1.23 ours_gmacs=1.4828 opp_gmacs=3.8023 ours_wGBs=0.052 opp_wGBs=0.134 ratio_cold_med=0.3900 ratio_cold_best=0.3917 | sink=6833631584.8
+CENSUS fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 hiters=4 reps=12 nf_ns=260 | HOT ours_ns=38705055 opp_ns=15496159 ours_gmacs=1.7339 opp_gmacs=4.3307 ratio_hot=0.4004 | COLD ours_med_ns=40933470 ours_iqrpct=0.16 opp_med_ns=15982086 opp_iqrpct=0.41 ours_gmacs=1.6395 opp_gmacs=4.1990 ours_wGBs=0.014 opp_wGBs=0.037 ratio_cold_med=0.3904 ratio_cold_best=0.3905 | sink=6833481021.9
+# loadavg_after_q4_K=3.29 3.10 3.68 1/1057 2348222
+CENSUS fmt=q5_K VLEN=128 K=2048 nr=4 nc=512 hiters=4 reps=12 nf_ns=60 | HOT ours_ns=4015592 opp_ns=2866192 ours_gmacs=1.0445 opp_gmacs=1.4634 ratio_hot=0.7138 | COLD ours_med_ns=5518803 ours_iqrpct=2.06 opp_med_ns=3753636 opp_iqrpct=1.54 ours_gmacs=0.7600 opp_gmacs=1.1174 ours_wGBs=0.131 opp_wGBs=0.192 ratio_cold_med=0.6802 ratio_cold_best=0.6922 | sink=6833626447.5
+CENSUS fmt=q5_K VLEN=128 K=2048 nr=8 nc=512 hiters=4 reps=12 nf_ns=260 | HOT ours_ns=8061993 opp_ns=5743859 ours_gmacs=1.0405 opp_gmacs=1.4604 ratio_hot=0.7125 | COLD ours_med_ns=8785896 ours_iqrpct=0.58 opp_med_ns=6666768 opp_iqrpct=0.81 ours_gmacs=0.9548 opp_gmacs=1.2583 ours_wGBs=0.082 opp_wGBs=0.108 ratio_cold_med=0.7588 ratio_cold_best=0.7628 | sink=6833459759.5
+CENSUS fmt=q5_K VLEN=128 K=2048 nr=16 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=16102582 opp_ns=12291616 ours_gmacs=1.0419 opp_gmacs=1.3649 ratio_hot=0.7633 | COLD ours_med_ns=16930110 ours_iqrpct=0.17 opp_med_ns=13232915 opp_iqrpct=0.30 ours_gmacs=0.9910 opp_gmacs=1.2678 ours_wGBs=0.043 opp_wGBs=0.054 ratio_cold_med=0.7816 ratio_cold_best=0.7819 | sink=6833807788.1
+CENSUS fmt=q5_K VLEN=128 K=2048 nr=64 nc=512 hiters=4 reps=12 nf_ns=260 | HOT ours_ns=64780198 opp_ns=49650410 ours_gmacs=1.0359 opp_gmacs=1.3516 ratio_hot=0.7664 | COLD ours_med_ns=66108034 ours_iqrpct=0.82 opp_med_ns=50719030 opp_iqrpct=0.10 ours_gmacs=1.0151 opp_gmacs=1.3231 ours_wGBs=0.011 opp_wGBs=0.014 ratio_cold_med=0.7672 ratio_cold_best=0.7681 | sink=6833810115.4
+# loadavg_after_q5_K=3.30 3.11 3.68 1/1057 2348237
+CENSUS fmt=q6_K VLEN=128 K=2048 nr=4 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=29478952 opp_ns=1112960 ours_gmacs=0.1423 opp_gmacs=3.7686 ratio_hot=0.0378 | COLD ours_med_ns=31747751 ours_iqrpct=0.71 opp_med_ns=1269685 opp_iqrpct=1.27 ours_gmacs=0.1321 opp_gmacs=3.3034 ours_wGBs=0.027 opp_wGBs=0.677 ratio_cold_med=0.0400 ratio_cold_best=0.0395 | sink=nan
+CENSUS fmt=q6_K VLEN=128 K=2048 nr=8 nc=512 hiters=4 reps=12 nf_ns=280 | HOT ours_ns=59250985 opp_ns=2162919 ours_gmacs=0.1416 opp_gmacs=3.8784 ratio_hot=0.0365 | COLD ours_med_ns=61487594 ours_iqrpct=0.59 opp_med_ns=2418050 opp_iqrpct=2.10 ours_gmacs=0.1364 opp_gmacs=3.4692 ours_wGBs=0.014 opp_wGBs=0.356 ratio_cold_med=0.0393 ratio_cold_best=0.0391 | sink=-5400137377.8
+CENSUS fmt=q6_K VLEN=128 K=2048 nr=16 nc=512 hiters=4 reps=12 nf_ns=60 | HOT ours_ns=118457995 opp_ns=4397943 ours_gmacs=0.1416 opp_gmacs=3.8148 ratio_hot=0.0371 | COLD ours_med_ns=120576399 ours_iqrpct=1.05 opp_med_ns=4733280 opp_iqrpct=1.30 ours_gmacs=0.1391 opp_gmacs=3.5445 ours_wGBs=0.007 opp_wGBs=0.182 ratio_cold_med=0.0393 ratio_cold_best=0.0391 | sink=13949478487.8
+CENSUS fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 hiters=4 reps=12 nf_ns=240 | HOT ours_ns=476526962 opp_ns=17943629 ours_gmacs=0.1408 opp_gmacs=3.7400 ratio_hot=0.0377 | COLD ours_med_ns=479761285 ours_iqrpct=0.37 opp_med_ns=18397856 opp_iqrpct=0.36 ours_gmacs=0.1399 opp_gmacs=3.6476 ours_wGBs=0.002 opp_wGBs=0.047 ratio_cold_med=0.0383 ratio_cold_best=0.0384 | sink=6931915607.7
+# loadavg_after_q6_K=3.15 3.09 3.65 1/1055 2348272
+# loadavg_end=3.15 3.09 3.65 1/1055 2348273
+=== DONE ===
