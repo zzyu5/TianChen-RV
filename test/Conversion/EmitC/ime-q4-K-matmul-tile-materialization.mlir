@@ -18,7 +18,7 @@
 // RUN 2 (EMISSION): the full pipeline lowers the region to the q4_K raw-nibble
 // decode + 6-bit scale/min unpack + two-level-fold vmadot MAC EmitC kernel
 // (op-identity driven, I5).
-// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy"
+// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="mac_kloop_w2"
 
 module {
   weft.exec.kernel @ime_q4_K_matmul_kernel {
@@ -66,6 +66,13 @@ module {
 // EMITC-SAME: register_resident_accumulate=1
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
+// G8 wide-vmadot key: q4_K is EPILOGUE-BOUND, so the bottleneck-shape predicate leg
+// DECLINES the wide MAC tiling (materialized honestly as a decline comment; NO wide
+// leaf is emitted -- see --implicit-check-not=mac_kloop_w2 above -- the narrow leaf
+// stays deployed).
+// EMITC: emitc.verbatim
+// EMITC-SAME: weft_ime.pat1_tiling=decline njw=1
+// EMITC-SAME: bottleneck-shape=epilogue-bound decline
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime.fp16_epilogue=weft_ime_fp16_to_f32
 // EMITC-SAME: static inline float weft_ime_fp16_to_f32

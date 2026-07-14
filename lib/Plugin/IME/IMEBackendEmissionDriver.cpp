@@ -14,7 +14,9 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <string>
 
 namespace weft {
@@ -265,13 +267,125 @@ static constexpr IMEVmadotTilingPattern kIMEVmadotTilingPatterns[] = {
      "(w4 compute 1.955x but full-matmul NULL: 16-accumulator f32 epilogue spills)"},
 };
 
-/// Capability-keyed selection: the widest `mechanized` tiling whose register floor fits `vregBudget`.
-static const IMEVmadotTilingPattern &selectVmadotTilePattern(int vregBudget) {
+/// The RISC-V architectural vector register-file size. This is the ONE genuinely
+/// VLEN-INVARIANT fact in the wide-vmadot accounting: 32 architectural vregs exist
+/// at every VLEN. (The per-fragment vreg COST is NOT VLEN-invariant -- that is the
+/// bug the hardcoded `32` budget hid; see decideWideVmadotDeployment below.)
+constexpr int kRVVVectorRegisterFileSize = 32;
+
+/// G8 wide-vmadot deployment decision (the parametric capability-key result). njw>1
+/// => deploy the WIDE (output-tiled) leaf; njw==1 => narrow-only (auto fallback /
+/// legal decline). The reason string records WHICH predicate leg fired (for the
+/// emitted provenance comment: honest decline is materialized, never silent).
+struct IMEWideDeployDecision {
+  int njw = 1;
+  llvm::StringRef patternId;
+  llvm::StringRef statusStr;
+  llvm::StringRef metricsHook;
+  std::string reason;
+};
+
+/// The VLEN-PARAMETRIC capability-keyed wide-vmadot predicate (replaces the
+/// hardcoded `32` + q4_0-only hand-wiring). Three legs, all derived from FACTS on
+/// the tile op + the capability provider -- none hardcoded per-format:
+///   (1) CAPABILITY FACT: vlen_bits -> the per-fragment vreg cost. The int8 4x8 A/B
+///       fragment costs rpfIn = ceil(macM*macK*elem_in_bits / VLEN) vregs; the 4x4
+///       int32 accumulator tile costs rpfAcc = ceil(macM*macN*accum_bits / VLEN).
+///       (=1 / =2 @ VLEN256; =2 / =4 @ VLEN128 -- so the budget floor is NOT
+///       VLEN-invariant.) The emitted leaf loads the fragment with ONE `vle8 e8,m1`,
+///       which is only valid when the fragment fits ONE vreg (rpfIn==1); otherwise
+///       fail-closed to narrow.
+///   (2) FORMAT FEATURE: the fragment kt/bits (macM/macN/macK, elem/accum bits) come
+///       from the tile op -- the same predicate serves q4_0/q8_0/q4_K, no format name.
+///   (3) BOTTLENECK SHAPE: MAC-tiling payoff vs. epilogue weight. `epilogueBound`
+///       formats (q4_K: the two-level 6-bit sc/m + S_scale/S_min + fp16 fold that
+///       dominates the tile) get a MAC-tiling NULL -> LEGAL DECLINE (the M7
+///       q4_K@ime 0.909x measured-null boundary is made an explicit predicate leg,
+///       not a silent hand-omission).
+/// The vreg floor for a width-njw tiling is rpfIn (the reused A) + njw*rpfIn (the
+/// njw B col-tiles) + njw*rpfAcc (the njw int32 accumulator tiles); the widest
+/// MECHANIZED tiling whose floor fits the 32-register file is selected.
+IMEWideDeployDecision
+decideWideVmadotDeployment(int64_t vlenBits, int64_t macM, int64_t macN,
+                          int64_t macK, int64_t elemInBits, int64_t accumBits,
+                          bool epilogueBound) {
+  IMEWideDeployDecision d;
+  const int64_t fragBits = macM * macK * elemInBits;
+  const int64_t accBits = macM * macN * accumBits;
+  // Back-compat default when no provider property is reachable: the validated X60
+  // shape has macM*macK*elem_in_bits == VLEN == one m1 vreg, so rpfIn==1.
+  const int64_t vb = vlenBits > 0 ? vlenBits : fragBits;
+  auto ceilDiv = [](int64_t a, int64_t b) -> int64_t {
+    return b > 0 ? (a + b - 1) / b : 1;
+  };
+  const int64_t rpfIn = std::max<int64_t>(1, ceilDiv(fragBits, vb));
+  const int64_t rpfAcc = std::max<int64_t>(1, ceilDiv(accBits, vb));
+
+  // (3) bottleneck-shape leg: epilogue-bound formats decline MAC-tiling.
+  if (epilogueBound) {
+    d.reason =
+        "bottleneck-shape=epilogue-bound decline (MAC-tiling NULL): the two-level "
+        "6-bit sc/m + S_scale/S_min + fp16 fold dominates the tile; array-util wins "
+        "wash out [PAT-1 format-keyed boundary; M7 q4_K@ime 0.909x measured-null]";
+    return d;
+  }
+  // (1) capability leg: the single-`vle8 e8,m1` leaf requires the fragment to fit
+  // ONE vreg. At a VLEN where it does not (rpfIn>1) the emitted leaf is invalid ->
+  // fail-closed to narrow.
+  if (rpfIn != 1) {
+    d.reason = "capability=vlen-fragment-mismatch decline: macM*macK*elem_in_bits=" +
+               std::to_string(fragBits) + " does not fit one " + std::to_string(vb) +
+               "-bit vreg (rpfIn=" + std::to_string(rpfIn) +
+               "); single-vle8 e8,m1 leaf invalid at this VLEN -> narrow fallback";
+    return d;
+  }
+  // (1)+(2): widest MECHANIZED tiling whose VLEN-parametric vreg floor fits 32.
   const IMEVmadotTilingPattern *best = &kIMEVmadotTilingPatterns[0];
-  for (const IMEVmadotTilingPattern &p : kIMEVmadotTilingPatterns)
-    if (p.status == "mechanized" && p.minVregBudget <= vregBudget && p.njw > best->njw)
+  int64_t bestFloor = rpfIn * (1 + best->njw) + rpfAcc * best->njw;
+  for (const IMEVmadotTilingPattern &p : kIMEVmadotTilingPatterns) {
+    const int64_t floorNjw = rpfIn * (1 + p.njw) + rpfAcc * (int64_t)p.njw;
+    if (p.status == "mechanized" && floorNjw <= kRVVVectorRegisterFileSize &&
+        p.njw > best->njw) {
       best = &p;
-  return *best;
+      bestFloor = floorNjw;
+    }
+  }
+  d.njw = best->njw;
+  d.patternId = best->pattern_id;
+  d.statusStr = best->status;
+  d.metricsHook = best->metricsHook;
+  d.reason = "capability=vlen_bits=" + std::to_string(vb) + " rpfIn=1 rpfAcc=" +
+             std::to_string(rpfAcc) + " vreg_floor(njw=" + std::to_string(best->njw) +
+             ")=" + std::to_string(bestFloor) + "<=32 => deploy " +
+             best->pattern_id.str();
+  return d;
+}
+
+/// Reads the DEPLOYED VLEN capability FACT (bits) reachable from the tile op's
+/// module. The IME capability provider (weft.exec.capability, id "spacemit.ime")
+/// carries vlen_bits as a string property; emission runs on a whole-module clone so
+/// the provider is still a sibling of the tile op's kernel. Returns 0 when no
+/// provider/property is found (caller falls back to the fragment-fits-one-vreg
+/// default -- back-compat with standalone tile-op fixtures that carry no provider).
+int64_t readDeployedVlenBits(mlir::Operation *tile) {
+  auto module = tile->getParentOfType<mlir::ModuleOp>();
+  if (!module)
+    return 0;
+  int64_t vlenBits = 0;
+  module.walk([&](mlir::Operation *op) {
+    if (!op->getName().getStringRef().ends_with("exec.capability"))
+      return mlir::WalkResult::advance();
+    auto idAttr = op->getAttrOfType<mlir::StringAttr>("id");
+    if (!idAttr || !idAttr.getValue().contains("spacemit.ime"))
+      return mlir::WalkResult::advance();
+    if (auto vb = op->getAttrOfType<mlir::StringAttr>("vlen_bits")) {
+      long long parsed = 0;
+      if (!vb.getValue().getAsInteger(10, parsed) && parsed > 0)
+        vlenBits = parsed;
+    }
+    return mlir::WalkResult::interrupt();
+  });
+  return vlenBits;
 }
 
 /// The WIDE (NJW-tiled) register-resident int8->int32 MAC leaf, emitted as ONE self-contained
@@ -344,6 +458,32 @@ std::string macKloopHelperBodyWide(llvm::StringRef helperName,
   os << "}";
   os.flush();
   return text;
+}
+
+/// G8 applied=>deployed: emits (at the CURRENT insertion point = module prologue,
+/// BEFORE the format matmul helper that CALLS it) the [PAT-1] registry provenance
+/// comment + the selected WIDE vmadot MAC leaf body, and returns its helper name so
+/// the matmul body can be wired to it. Returns "" when the decision declines wide
+/// (njw<=1): the narrow leaf stays the deployed leaf (auto fallback). This closes
+/// the "_w2 emitted but never wired -> dead" gap: the leaf is now emitted ONLY when
+/// it is deployed, and always at prologue scope (declared-before-use).
+std::string
+emitDeployedWideVmadotLeaf(mlir::ConversionPatternRewriter &rewriter,
+                           mlir::Location loc,
+                           const IMEWideDeployDecision &decision) {
+  if (decision.njw <= 1)
+    return {};
+  std::string wideName =
+      (kVmadotMacKloopHelperName + "_w" + std::to_string(decision.njw)).str();
+  rewriter.create<emitc::VerbatimOp>(
+      loc, std::string("// weft_ime.pat1_tiling=") + decision.patternId.str() +
+               " status=" + decision.statusStr.str() +
+               " njw=" + std::to_string(decision.njw) +
+               " discriminant=vreg_budget deployed=1 metrics_hook=" +
+               decision.metricsHook.str() + " reason=" + decision.reason);
+  rewriter.create<emitc::VerbatimOp>(
+      loc, macKloopHelperBodyWide(wideName, "vmadot", decision.njw));
+  return wideName;
 }
 
 /// The sliding-window MAC helper. UNLIKE macHelperBody (single 32B A fragment),
@@ -564,36 +704,76 @@ std::string q40DequantHelperBody() {
 /// fragment): Bq4 col-tile nj is kt contiguous q4_0 blocks. The activation is the
 /// SAME fragment-major int8 pack as weft.ime.matmul. `vmadotHelperName` is the
 /// FOUNDATION single-fragment MAC helper this reuses.
-std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName) {
-  std::string text;
-  llvm::raw_string_ostream os(text);
-  os << "// weft_ime.asm_leaf=" << macKloopHelperName
-     << " tiled_q4_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
-        "weight_format=q4_0 int32_exact=1 register_resident_accumulate=1\n";
-  os << "static void " << kQ40MatmulHelperName
-     << "(const int8_t *Apack, const uint8_t *Bq4, int32_t *C,\n";
-  os << "    long M, long N, long K) {\n";
+/// G8 shared FLAT-format (q4_0/q8_0) tiled int32 GEMM loop body. Emits, into `os`,
+/// the (M/4)x(N/4) output-tile grid over a flat per-fragment decode. When a wide
+/// leaf is DEPLOYED (njw>1, wideName non-empty) the column-tile loop runs in NJW
+/// steps through `wideName` -- decoding NJW adjacent col-tiles into ONE contiguous
+/// buffer (col-tile w at w*kt*32, bstride kt*32) and reusing ONE `vle8` of A across
+/// NJW `vmadot` chains -- then a NARROW remainder loop covers the leftover (<njw)
+/// col-tiles. Each wide sub-tile w's int32 is BIT-IDENTICAL to `macKloopName` on
+/// that col-tile (K1-sealed f5e77482): same vmadot, same kf order, same scatter;
+/// only the A-reuse/register schedule differs. njw<=1 => narrow-only (byte-exact
+/// auto fallback), identical to the pre-G8 body.
+void emitFlatTiledMatmulLoop(llvm::raw_string_ostream &os,
+                             llvm::StringRef weightParam,
+                             llvm::StringRef blockBytesConst,
+                             llvm::StringRef dequantName,
+                             llvm::StringRef macKloopName,
+                             llvm::StringRef wideName, int njw) {
   os << "  const long mt = M / 4, nt = N / 4, kt = K / 8;\n";
-  os << "  const long q40_block_bytes = 18; // fp16 d + 16 nibble bytes\n";
   os << "  for (long mi = 0; mi < mt; ++mi) {\n";
   os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
-  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
-  os << "      const uint8_t *Bcol = Bq4 + (long)nj * kt * q40_block_bytes;\n";
-  // Decode the tile's kt q4_0 weight blocks into a contiguous int8 fragment
-  // buffer, then run ONE register-resident batched MAC over the K/8 loop (v2/v3
-  // accumulate, single vsetvli, single store) => frag = Sum_kf A_kf . B_kf^T.
-  // int32-identical to the per-fragment `acc[r] += vmadot(...)[r]` form.
+  os << "    long nj = 0;\n";
+  if (njw > 1 && !wideName.empty()) {
+    os << "    for (; nj + " << njw << " <= nt; nj += " << njw << ") {\n";
+    os << "      int8_t Bdec[" << njw << " * kt * 32];\n";
+    os << "      for (long w = 0; w < " << njw << "; ++w) {\n";
+    os << "        const uint8_t *Bcol = " << weightParam << " + (nj + w) * kt * "
+       << blockBytesConst << ";\n";
+    os << "        for (long kf = 0; kf < kt; ++kf)\n";
+    os << "          " << dequantName << "(Bcol + kf * " << blockBytesConst
+       << ", Bdec + (w * kt + kf) * 32);\n";
+    os << "      }\n";
+    os << "      int32_t frag[" << njw << " * 16];\n";
+    os << "      " << wideName << "(Arow, Bdec, kt * 32, kt, frag);\n";
+    os << "      for (long w = 0; w < " << njw << "; ++w)\n";
+    os << "        for (long r = 0; r < 4; ++r)\n";
+    os << "          for (long c = 0; c < 4; ++c)\n";
+    os << "            C[(long)(mi * 4 + r) * N + ((nj + w) * 4 + c)] += "
+          "frag[w * 16 + r * 4 + c];\n";
+    os << "    }\n";
+  }
+  os << "    for (; nj < nt; ++nj) {\n";
+  os << "      const uint8_t *Bcol = " << weightParam << " + (long)nj * kt * "
+     << blockBytesConst << ";\n";
   os << "      int8_t Bdec[kt * 32];\n";
   os << "      for (long kf = 0; kf < kt; ++kf)\n";
-  os << "        " << kQ40DequantHelperName
-     << "(Bcol + kf * q40_block_bytes, Bdec + kf * 32);\n";
+  os << "        " << dequantName << "(Bcol + kf * " << blockBytesConst
+     << ", Bdec + kf * 32);\n";
   os << "      int32_t frag[16];\n";
-  os << "      " << macKloopHelperName << "(Arow, Bdec, kt, frag);\n";
+  os << "      " << macKloopName << "(Arow, Bdec, kt, frag);\n";
   os << "      for (long r = 0; r < 4; ++r)\n";
   os << "        for (long c = 0; c < 4; ++c)\n";
   os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];\n";
   os << "    }\n";
   os << "  }\n";
+}
+
+std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName,
+                                llvm::StringRef wideName, int njw) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// weft_ime.asm_leaf=" << macKloopHelperName
+     << " tiled_q4_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
+        "weight_format=q4_0 int32_exact=1 register_resident_accumulate=1"
+     << (njw > 1 ? " wide_deployed_njw=" + std::to_string(njw) : std::string())
+     << "\n";
+  os << "static void " << kQ40MatmulHelperName
+     << "(const int8_t *Apack, const uint8_t *Bq4, int32_t *C,\n";
+  os << "    long M, long N, long K) {\n";
+  os << "  const long q40_block_bytes = 18; // fp16 d + 16 nibble bytes\n";
+  emitFlatTiledMatmulLoop(os, "Bq4", "q40_block_bytes", kQ40DequantHelperName,
+                          macKloopHelperName, wideName, njw);
   os << "}";
   os.flush();
   return text;
@@ -611,13 +791,16 @@ std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName) {
 /// tensor's real shape). This is the forward-facing epilogue (introduces fp16
 /// rounding), distinct from the int32-exact weft_ime_q4_0_vmadot_matmul seal object.
 /// `macKloopHelperName` is the FOUNDATION batched MAC helper this reuses.
-std::string q40ScaleFoldMatmulHelperBody(llvm::StringRef macKloopHelperName) {
+std::string q40ScaleFoldMatmulHelperBody(llvm::StringRef macKloopHelperName,
+                                         llvm::StringRef wideName, int njw) {
   std::string text;
   llvm::raw_string_ostream os(text);
   os << "// weft_ime.scale_fold_epilogue=" << kQ40ScaleFoldMatmulHelperName
      << " tiled_q4_0_matmul_f32 fold_model=per_block_da_dw weight_format=q4_0 "
         "int32_core_exact=1 fp16_scale_fold=deferred "
-        "register_resident_accumulate=1\n";
+        "register_resident_accumulate=1"
+     << (njw > 1 ? " wide_deployed_njw=" + std::to_string(njw) : std::string())
+     << "\n";
   os << "static void " << kQ40ScaleFoldMatmulHelperName
      << "(const int8_t *Apack, const float *dA, const uint8_t *Bnib,\n";
   os << "    const float *dW, float *Cf, long M, long N, long K) {\n";
@@ -627,7 +810,38 @@ std::string q40ScaleFoldMatmulHelperBody(llvm::StringRef macKloopHelperName) {
   os << "  const long kt = K / 8;\n";
   os << "  for (long mi = 0; mi < mt; ++mi) {\n";
   os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
-  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
+  os << "    long nj = 0;\n";
+  if (njw > 1 && !wideName.empty()) {
+    // G8 applied=>deployed on the ggml-called FORWARD path: the wide leaf tiles the
+    // per-32-block MAC (frags_per_block fragments) across NJW adjacent col-tiles.
+    // The f32 fold's per-(m,n) accumulation over b keeps the SAME order as narrow
+    // (b-loop inside the nj-group), so Cf is byte-exact (the int32 core is the
+    // K1-sealed wide==narrow leaf; the fp16 fold is per-element, order-preserved).
+    os << "    for (; nj + " << njw << " <= nt; nj += " << njw << ") {\n";
+    os << "      for (long b = 0; b < nb; ++b) {\n";
+    os << "        int8_t Bdec[" << njw << " * 128];\n";
+    os << "        for (long w = 0; w < " << njw << "; ++w) {\n";
+    os << "          const uint8_t *Bcol = Bnib + (nj + w) * kt * q40_block_bytes;\n";
+    os << "          for (long f = 0; f < frags_per_block; ++f)\n";
+    os << "            " << kQ40DequantHelperName
+       << "(Bcol + (b * frags_per_block + f) * q40_block_bytes, "
+          "Bdec + (w * frags_per_block + f) * 32);\n";
+    os << "        }\n";
+    os << "        int32_t frag[" << njw << " * 16];\n";
+    os << "        " << wideName
+       << "(Arow + b * frags_per_block * 32, Bdec, frags_per_block * 32, "
+          "frags_per_block, frag);\n";
+    os << "        for (long w = 0; w < " << njw << "; ++w)\n";
+    os << "          for (long r = 0; r < 4; ++r)\n";
+    os << "            for (long c = 0; c < 4; ++c) {\n";
+    os << "              long m = mi * 4 + r, n = (nj + w) * 4 + c;\n";
+    os << "              Cf[m * N + n] += dA[m * nb + b] * dW[n * nb + b] * "
+          "(float)frag[w * 16 + r * 4 + c];\n";
+    os << "            }\n";
+    os << "      }\n";
+    os << "    }\n";
+  }
+  os << "    for (; nj < nt; ++nj) {\n";
   os << "      const uint8_t *Bcol = Bnib + (long)nj * kt * q40_block_bytes;\n";
   os << "      for (long b = 0; b < nb; ++b) {\n";
   os << "        int8_t Bdec[128];\n";
@@ -698,36 +912,21 @@ std::string q80DequantHelperBody() {
 /// int32 accumulator (int32-EXACT). The weight is pre-packed FRAGMENT-MAJOR (one
 /// 34-byte q8_0 block per 4x8 MAC fragment). `vmadotHelperName` is the FOUNDATION
 /// single-fragment MAC helper this reuses.
-std::string q80MatmulHelperBody(llvm::StringRef macKloopHelperName) {
+std::string q80MatmulHelperBody(llvm::StringRef macKloopHelperName,
+                                llvm::StringRef wideName, int njw) {
   std::string text;
   llvm::raw_string_ostream os(text);
   os << "// weft_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q8_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
-        "weight_format=q8_0 int32_exact=1 register_resident_accumulate=1\n";
+        "weight_format=q8_0 int32_exact=1 register_resident_accumulate=1"
+     << (njw > 1 ? " wide_deployed_njw=" + std::to_string(njw) : std::string())
+     << "\n";
   os << "static void " << kQ80MatmulHelperName
      << "(const int8_t *Apack, const uint8_t *Bq8, int32_t *C,\n";
   os << "    long M, long N, long K) {\n";
-  os << "  const long mt = M / 4, nt = N / 4, kt = K / 8;\n";
   os << "  const long q80_block_bytes = 34; // fp16 d + 32 int8 quant bytes\n";
-  os << "  for (long mi = 0; mi < mt; ++mi) {\n";
-  os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
-  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
-  os << "      const uint8_t *Bcol = Bq8 + (long)nj * kt * q80_block_bytes;\n";
-  // Decode the tile's kt q8_0 blocks (direct int8) into a contiguous int8
-  // fragment buffer, then run ONE register-resident batched MAC over the K/8
-  // loop (v2/v3 accumulate, single vsetvli, single store). int32-identical to
-  // the per-fragment `acc[r] += vmadot(...)[r]` form.
-  os << "      int8_t Bdec[kt * 32];\n";
-  os << "      for (long kf = 0; kf < kt; ++kf)\n";
-  os << "        " << kQ80DequantHelperName
-     << "(Bcol + kf * q80_block_bytes, Bdec + kf * 32);\n";
-  os << "      int32_t frag[16];\n";
-  os << "      " << macKloopHelperName << "(Arow, Bdec, kt, frag);\n";
-  os << "      for (long r = 0; r < 4; ++r)\n";
-  os << "        for (long c = 0; c < 4; ++c)\n";
-  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];\n";
-  os << "    }\n";
-  os << "  }\n";
+  emitFlatTiledMatmulLoop(os, "Bq8", "q80_block_bytes", kQ80DequantHelperName,
+                          macKloopHelperName, wideName, njw);
   os << "}";
   os.flush();
   return text;
@@ -1361,17 +1560,29 @@ public:
         context, emitc::OpaqueType::get(context, "int32_t"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // Module-scope prologue: include + the validated vmadot MAC leaf + the q4_0
-    // decode helper + the tiled q4_0 kernel.
+    // G8 wide-vmadot key: the VLEN-parametric capability predicate (q4_0 is a flat
+    // MAC-BOUND format -> the bottleneck-shape leg admits the wide tiling). The
+    // selected wide leaf is DEPLOYED into both the int32 seal kernel and the f32
+    // forward kernel below (closing applied!=deployed); narrow is the auto fallback.
+    IMEWideDeployDecision wide = decideWideVmadotDeployment(
+        readDeployedVlenBits(tile), tile.getMacM(), tile.getMacN(),
+        tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
+        /*epilogueBound=*/false);
+    std::string wideName;
+
+    // Module-scope prologue: include + the validated vmadot MAC leaf + the DEPLOYED
+    // wide leaf (declared-before-use, only when selected) + the q4_0 decode helper +
+    // the tiled q4_0 kernel.
     {
       mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
       rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
+      wideName = emitDeployedWideVmadotLeaf(rewriter, loc, wide);
       rewriter.create<emitc::VerbatimOp>(loc, q40DequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(
-          loc, q40MatmulHelperBody(macKloopHelperName));
+          loc, q40MatmulHelperBody(macKloopHelperName, wideName, wide.njw));
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
@@ -1423,7 +1634,8 @@ public:
       // f32 wrapper that uses it): declared-before-use, and a deterministic
       // module order (int32 kernel + wrapper, then f32 kernel + wrapper).
       rewriter.create<emitc::VerbatimOp>(
-          loc, q40ScaleFoldMatmulHelperBody(macKloopHelperName));
+          loc, q40ScaleFoldMatmulHelperBody(macKloopHelperName, wideName,
+                                            wide.njw));
       auto cf32PtrType = emitc::PointerType::get(
           context, emitc::OpaqueType::get(context, "const float"));
       auto f32PtrType = emitc::PointerType::get(
@@ -1458,34 +1670,12 @@ public:
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
     }
 
-    // G6-A M7 [PAT-1]: emit the capability-keyed WIDE (output-tiled) vmadot MAC leaf as an
-    // additional available primitive. The DISCRIMINANT capability fact is the RVV vector-register
-    // budget (32 architectural vregs; each 4x8 int8 fragment fills one m1 register). The registry
-    // picks the widest `mechanized` tiling whose register floor fits -> W2 (A reused across 2
-    // col-tiles); W4 is a `measured-negative` design-space row (compute win real but full-matmul
-    // NULL from f32-epilogue spill) and is NOT selected. Byte-exact to the width-1 leaf run NJW
-    // times (K1-sealed md5 f5e77482). Emitted at module END so it never perturbs the int32/f32
-    // seal order above.
-    {
-      constexpr int kRVVVectorRegisterBudget = 32; // RVV architectural vreg count (VLEN-invariant)
-      const IMEVmadotTilingPattern &tp =
-          selectVmadotTilePattern(kRVVVectorRegisterBudget);
-      if (tp.njw > 1) {
-        mlir::OpBuilder::InsertionGuard wideGuard(rewriter);
-        rewriter.setInsertionPointToEnd(module.getBody());
-        std::string wideName =
-            (kVmadotMacKloopHelperName + "_w" + std::to_string(tp.njw)).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, std::string("// weft_ime.pat1_tiling=") + tp.pattern_id.str() +
-                     " status=" + tp.status.str() +
-                     " njw=" + std::to_string(tp.njw) +
-                     " discriminant=vreg_budget metrics_hook=" +
-                     tp.metricsHook.str());
-        rewriter.create<emitc::VerbatimOp>(
-            loc, macKloopHelperBodyWide(wideName, "vmadot", tp.njw));
-      }
-    }
-
+    // G8: the WIDE leaf is now emitted in the PROLOGUE and DEPLOYED into both the
+    // int32 seal kernel (weft_ime_q4_0_vmadot_matmul) and the f32 forward kernel
+    // (..._f32) above -- no longer a dead module-END primitive (applied!=deployed
+    // closed). Its perf-vs-narrow verdict is a STAGE-3 board (kernel-axis) remeasure;
+    // this stage seals only the byte-exact int32 keying (wide sub-tile == narrow,
+    // K1-sealed f5e77482).
     rewriter.eraseOp(tile);
     return mlir::success();
   }
@@ -1557,17 +1747,29 @@ public:
         context, emitc::OpaqueType::get(context, "int32_t"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // Module-scope prologue: include + the validated vmadot MAC leaf + the q8_0
-    // decode helper + the tiled q8_0 kernel.
+    // G8 wide-vmadot key: q8_0 is a flat MAC-BOUND format (direct int8 decode, light
+    // int32 scatter epilogue) -> the bottleneck-shape leg admits the wide tiling, so
+    // the selected wide leaf is DEPLOYED into the int32 kernel below (closing
+    // applied!=deployed for q8_0). narrow is the auto fallback.
+    IMEWideDeployDecision wide = decideWideVmadotDeployment(
+        readDeployedVlenBits(tile), tile.getMacM(), tile.getMacN(),
+        tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
+        /*epilogueBound=*/false);
+    std::string wideName;
+
+    // Module-scope prologue: include + the validated vmadot MAC leaf + the DEPLOYED
+    // wide leaf (declared-before-use, only when selected) + the q8_0 decode helper +
+    // the tiled q8_0 kernel.
     {
       mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
       rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
+      wideName = emitDeployedWideVmadotLeaf(rewriter, loc, wide);
       rewriter.create<emitc::VerbatimOp>(loc, q80DequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(
-          loc, q80MatmulHelperBody(macKloopHelperName));
+          loc, q80MatmulHelperBody(macKloopHelperName, wideName, wide.njw));
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
@@ -1687,6 +1889,16 @@ public:
         context, emitc::OpaqueType::get(context, "float"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
+    // G8 wide-vmadot key: q4_K is EPILOGUE-BOUND (the two-level 6-bit sc/m +
+    // S_scale/S_min + fp16 fold dominates the tile), so the bottleneck-shape leg
+    // DECLINES the wide MAC tiling (measured NULL: M7 q4_K@ime 0.909x). The decline
+    // is MATERIALIZED as a provenance comment (honest, not a silent hand-omission);
+    // no wide leaf is emitted and the narrow leaf stays deployed.
+    IMEWideDeployDecision wide = decideWideVmadotDeployment(
+        readDeployedVlenBits(tile), tile.getMacM(), tile.getMacN(),
+        tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
+        /*epilogueBound=*/true);
+
     // Module-scope prologue: include + the validated vmadot MAC leaf + the q4_K
     // fp16 epilogue helpers + the raw-nibble decode + the 6-bit scale/min unpack +
     // the tiled q4_K two-level-fold kernel (declared-before-use ordering).
@@ -1696,6 +1908,8 @@ public:
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
       rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
+      rewriter.create<emitc::VerbatimOp>(
+          loc, std::string("// weft_ime.pat1_tiling=decline njw=1 ") + wide.reason);
       rewriter.create<emitc::VerbatimOp>(loc, q4KFp16HelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q4KDequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q4KScaleMinHelperBody());

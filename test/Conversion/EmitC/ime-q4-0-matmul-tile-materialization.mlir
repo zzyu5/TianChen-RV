@@ -50,52 +50,58 @@ module {
 // REGION-SAME: -> vector<16xi32>
 // REGION: weft_ime.q4_0_matmul_tile_yield %{{.*}} : vector<16xi32>
 
-// The emitted kernel: the register-resident BATCHED vmadot MAC leaf (single
-// vsetvli, store once) + the q4_0 decode helper + the tiled q4_0 kernel
-// (decode-to-scratch then one batched MAC per tile) + the structured extern "C"
-// wrapper. int32-EXACT ([GAP-IME-LEAF-PIPELINE] closed in the emitter).
+// G8 applied=>deployed: the emitted kernel is the register-resident BATCHED vmadot
+// MAC leaf (single vsetvli, store once) + the capability-keyed DEPLOYED WIDE leaf
+// (_w2, emitted in the PROLOGUE declared-before-use) + the q4_0 decode helper + the
+// tiled q4_0 kernel whose BULK column-tiles run through the wide leaf and whose
+// leftover (<njw) tiles fall back to the narrow leaf. int32-EXACT; wide sub-tile ==
+// narrow leaf (K1-sealed f5e77482).
 // EMITC: emitc.include <"stdint.h">
 // EMITC: emitc.verbatim
 // EMITC-SAME: register_resident_accumulate=1
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
-// EMITC: emitc.verbatim
-// EMITC-SAME: decode_model=q4_0_offset_binary_nibble
-// EMITC-SAME: static inline void weft_ime_q4_0_dequant_fragment
-// EMITC-SAME: (int8_t)((int)(qs[j] & 0x0F) - 8)
-// EMITC: emitc.verbatim
-// EMITC-SAME: int32_exact=1
-// EMITC-SAME: static void weft_ime_q4_0_vmadot_matmul
-// EMITC-SAME: weft_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes, Bdec + kf * 32)
-// EMITC-SAME: weft_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag)
-// EMITC: emitc.func @weft_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice
-// EMITC: weft_emitc.route_source_op=weft_ime.q4_0_matmul_tile role=compute
-// EMITC: call_opaque "weft_ime_q4_0_vmadot_matmul"
-// G5-M3 forward bridge: the deferred per-block d_a*d_w SCALE-FOLD epilogue kernel
-// (f32) is emitted AFTER the int32 kernel + wrapper (declared-before-use), then a
-// SECOND extern "C" wrapper (<name>_f32) the ggml forward hook calls. The int32
-// core stays the seal object; the fold introduces fp16 rounding and is
-// board-validated against a canonical q4_0xq8_0 ZERO-MODEL reference
-// (test/Target/IME/q4-0-matmul-tile-scalefold-{oracle,k1seal}.c).
-// EMITC: emitc.verbatim
-// EMITC-SAME: scale_fold_epilogue=weft_ime_q4_0_vmadot_matmul_f32
-// EMITC-SAME: fold_model=per_block_da_dw
-// EMITC-SAME: static void weft_ime_q4_0_vmadot_matmul_f32
-// EMITC-SAME: Cf[m * N + n] += dA[m * nb + b] * dW[n * nb + b] * (float)frag[r * 4 + c]
-// EMITC: emitc.func @weft_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice_f32
-// EMITC: weft_emitc.route_source_op=weft_ime.q4_0_matmul_tile role=compute
-// EMITC: call_opaque "weft_ime_q4_0_vmadot_matmul_f32"
-// G6-A M7 [PAT-1]: the capability-keyed WIDE (output-tiled) vmadot MAC leaf is emitted at module
-// END (order-neutral to the int32/f32 seal above). The registry (vreg-budget discriminant) selects
-// the widest MECHANIZED tiling that fits -- W2 (A-fragment reuse across 2 col-tiles); W4 is a
-// measured-negative row (not selected). The wide leaf shares ONE `vle8` of A (v0) across TWO
-// independent `vmadot`s (v2 and v4) into two 4x4 int32 accumulator pairs -> byte-exact to the
-// width-1 leaf run twice (K1-sealed md5 f5e77482).
+// The [PAT-1] registry provenance: VLEN-parametric predicate deploys W2 (deployed=1)
+// with the capability-fact reason (vlen_bits=256 rpfIn=1 rpfAcc=2 floor 7<=32).
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime.pat1_tiling=IME-VMADOT-TILE-W2-Areuse status=mechanized njw=2
-// EMITC-SAME: discriminant=vreg_budget
+// EMITC-SAME: discriminant=vreg_budget deployed=1
+// EMITC-SAME: rpfIn=1 rpfAcc=2
+// The DEPLOYED wide leaf: ONE `vle8` of A (v0) across TWO independent `vmadot`s (v2
+// and v4) into two 4x4 int32 accumulator pairs.
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime_vmadot_mac_kloop_w2
 // EMITC-SAME: tile_width_njw=2 a_fragment_reuse=1
 // EMITC-SAME: vmadot    v2, v0, v1
 // EMITC-SAME: vmadot    v4, v0, v6
+// EMITC: emitc.verbatim
+// EMITC-SAME: decode_model=q4_0_offset_binary_nibble
+// EMITC-SAME: static inline void weft_ime_q4_0_dequant_fragment
+// EMITC-SAME: (int8_t)((int)(qs[j] & 0x0F) - 8)
+// The int32 seal kernel now CALLS the deployed wide leaf over the bulk column-tiles
+// (frag[w * 16 ...]) and the narrow leaf over the remainder.
+// EMITC: emitc.verbatim
+// EMITC-SAME: int32_exact=1
+// EMITC-SAME: wide_deployed_njw=2
+// EMITC-SAME: static void weft_ime_q4_0_vmadot_matmul
+// EMITC-SAME: weft_ime_vmadot_mac_kloop_w2(Arow, Bdec, kt * 32, kt, frag)
+// EMITC-SAME: frag[w * 16 + r * 4 + c]
+// EMITC-SAME: weft_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag)
+// EMITC: emitc.func @weft_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice
+// EMITC: weft_emitc.route_source_op=weft_ime.q4_0_matmul_tile role=compute
+// EMITC: call_opaque "weft_ime_q4_0_vmadot_matmul"
+// G5-M3 forward bridge + G8: the deferred per-block d_a*d_w SCALE-FOLD epilogue
+// kernel (f32, the ggml-called FORWARD path) ALSO deploys the wide leaf over the
+// bulk column-tiles (byte-exact int32 core + order-preserved fp16 fold), closing
+// applied!=deployed on the forward path; narrow remainder + fold stays intact.
+// EMITC: emitc.verbatim
+// EMITC-SAME: scale_fold_epilogue=weft_ime_q4_0_vmadot_matmul_f32
+// EMITC-SAME: fold_model=per_block_da_dw
+// EMITC-SAME: wide_deployed_njw=2
+// EMITC-SAME: static void weft_ime_q4_0_vmadot_matmul_f32
+// EMITC-SAME: weft_ime_vmadot_mac_kloop_w2(Arow + b * frags_per_block * 32, Bdec, frags_per_block * 32, frags_per_block, frag)
+// EMITC-SAME: Cf[m * N + n] += dA[m * nb + b] * dW[n * nb + b] * (float)frag[w * 16 + r * 4 + c]
+// EMITC-SAME: Cf[m * N + n] += dA[m * nb + b] * dW[n * nb + b] * (float)frag[r * 4 + c]
+// EMITC: emitc.func @weft_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice_f32
+// EMITC: weft_emitc.route_source_op=weft_ime.q4_0_matmul_tile role=compute
+// EMITC: call_opaque "weft_ime_q4_0_vmadot_matmul_f32"

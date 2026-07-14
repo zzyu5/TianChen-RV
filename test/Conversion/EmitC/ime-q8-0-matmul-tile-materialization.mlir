@@ -50,23 +50,35 @@ module {
 // REGION-SAME: -> vector<16xi32>
 // REGION: weft_ime.q8_0_matmul_tile_yield %{{.*}} : vector<16xi32>
 
-// The emitted kernel: the register-resident BATCHED vmadot MAC leaf (single
-// vsetvli, store once) + the q8_0 decode helper + the tiled q8_0 kernel
-// (decode-to-scratch then one batched MAC per tile) + the structured extern "C"
-// wrapper. int32-EXACT ([GAP-IME-LEAF-PIPELINE] closed in the emitter).
+// G8 applied=>deployed: the emitted kernel is the register-resident BATCHED vmadot
+// MAC leaf + the capability-keyed DEPLOYED WIDE leaf (_w2, emitted in the PROLOGUE
+// declared-before-use; q8_0 is a flat MAC-BOUND format so the bottleneck-shape leg
+// admits the wide tiling) + the q8_0 decode helper + the tiled q8_0 kernel whose
+// BULK column-tiles run through the wide leaf and whose leftover tiles fall back to
+// the narrow leaf. int32-EXACT; wide sub-tile == narrow leaf (K1-sealed f5e77482).
 // EMITC: emitc.include <"stdint.h">
 // EMITC: emitc.verbatim
 // EMITC-SAME: register_resident_accumulate=1
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
 // EMITC: emitc.verbatim
+// EMITC-SAME: weft_ime.pat1_tiling=IME-VMADOT-TILE-W2-Areuse status=mechanized njw=2
+// EMITC-SAME: discriminant=vreg_budget deployed=1
+// EMITC-SAME: rpfIn=1 rpfAcc=2
+// EMITC: emitc.verbatim
+// EMITC-SAME: weft_ime_vmadot_mac_kloop_w2
+// EMITC-SAME: tile_width_njw=2 a_fragment_reuse=1
+// EMITC-SAME: vmadot    v4, v0, v6
+// EMITC: emitc.verbatim
 // EMITC-SAME: decode_model=q8_0_direct_int8
 // EMITC-SAME: static inline void weft_ime_q8_0_dequant_fragment
 // EMITC-SAME: out[j] = qs[j]
 // EMITC: emitc.verbatim
 // EMITC-SAME: int32_exact=1
+// EMITC-SAME: wide_deployed_njw=2
 // EMITC-SAME: static void weft_ime_q8_0_vmadot_matmul
-// EMITC-SAME: weft_ime_q8_0_dequant_fragment(Bcol + kf * q80_block_bytes, Bdec + kf * 32)
+// EMITC-SAME: weft_ime_vmadot_mac_kloop_w2(Arow, Bdec, kt * 32, kt, frag)
+// EMITC-SAME: frag[w * 16 + r * 4 + c]
 // EMITC-SAME: weft_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag)
 // EMITC: emitc.func @weft_emitc_ime_q8_0_matmul_kernel_ime_vmadot_matmul_slice
 // EMITC: weft_emitc.route_source_op=weft_ime.q8_0_matmul_tile role=compute
