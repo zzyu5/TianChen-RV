@@ -1,0 +1,26 @@
+q5_K qh RE-TRANSPOSE G1 -- static account (gcc-15.2 -march=rv64gcv_zvfh -O3, VLEN128 e8mf2 vl=8)
+
+BYTE-EXACT HARD GATE (be_retranspose):
+  (A) qh round-trip bijection mismatches ...... 0     (byte-exact permutation)
+      nibble region byte-diff (cur vs new) .... 0     (nibbles untouched)
+      qh popcount cur=2096 new=2096 ........... EQUAL (permutation preserves bits)
+  (B) 5th-bit decode (stock==cur==new) ........ 0/4096
+  (C) full 5-bit weight ....................... 0/4096
+  RESULT: PASS
+
+ROLLED per-(ii,h) qh-recon strip (whole tile incl shared nibble unpack):
+  variant          v-insn  vsetvli  qh-recon-arith (excl shared nib+load)
+  OLD_CUR (deploy)   16       2      8  (vsrl2+vsll2+vor2+vand2)   4 op/arm
+  SB_KNEST (design)  14       2      6  (vand2+vmsne2+vadd2)       3 op/arm
+  RETRANS (this)     12       2      4  (vlm2+vadd2)               2 op/arm
+  => RETRANS vs OLD  -25% v-insn / -50% qh-recon-arith  (full q5_0 vlm leverage)
+  => RETRANS vs SB_KNEST -14% v-insn / -33% qh-recon-arith
+  vsll/vor RETIRED; qh mask LOADED (vlm) instead of EXTRACTED (vand+vmsne).
+
+IMPACT-FACE:
+  REPACKED-qh consumers (MUST change, share block_q5_Kx16 ABI):
+    emitRepackKQuantGemvBodyQ5K (GEVM decode)   -- qh-recon leaf
+    emitRepackKQuantGemmBodyQ5K (GEMM decode)   -- qh-recon leaf (SAME weight bytes)
+    kqr_repack_q5_K (offline packer)            -- verbatim copy -> bit-transpose
+  RAW-qh consumer (UNAFFECTED): RVVToEmitCKQuant.cpp injectQh reads x[i].qh (on-disk block, not repacked)
+  SEALED artifact re-seal: q5_K kernel md5 ba30ba54 (block_q5_Kx16/2816) changes -> board re-validate
