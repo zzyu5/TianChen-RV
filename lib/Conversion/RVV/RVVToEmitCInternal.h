@@ -1735,8 +1735,12 @@ private:
   /// bit `(base | (bit<<k)) +/- bias == bit ? base : base +/- bias`, the SAME
   /// identity the q5_0/q5_1 GEVM (transposed-byte-aligned vlm arm) and q3_K GEVM
   /// siblings already prove. Shared by the q3_K GEMM leaf, the q3_K GEVM leaf, and
-  /// the q5_K super-block nibble unpack; the `bit_plane_width==1` predicate term
-  /// GATES this variant OUT for q6_K (a 2-bit qh plane).
+  /// the q5_K super-block nibble unpack. The single-bit-plane restriction is a BY
+  /// CONSTRUCTION invariant -- the helper isolates 1<<bitPos via a single `bitPos`
+  /// param, so a 2-bit high plane (q6_K's 0x03 qh) CANNOT be expressed through it --
+  /// NOT a codified/evaluated `bit_plane_width==1` predicate. q6_K is excluded by
+  /// EMITTER-IDENTITY dispatch on the decode_model WHAT (see [档 C#6] in
+  /// RVVToEmitCBlockQuantLinear.cpp), never by a runtime bit-plane-width term.
   ///   base      : the i8/u8 vector to conditionally bias (in [0, 2^n))
   ///   maskSrcU8 : the u8 hmask/qh plane carrying the static bit
   ///   bitPos    : compile-time bit position (1<<bitPos isolated)

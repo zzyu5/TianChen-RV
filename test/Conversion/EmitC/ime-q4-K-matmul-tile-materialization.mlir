@@ -75,6 +75,10 @@ module {
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime.pat1_tiling=decline njw=1
 // EMITC-SAME: bottleneck-shape=epilogue-bound decline
+// The decline is pinned to the per-format MEASURED-NEGATIVE registry FACT (not a bare
+// static prefix): the registry row's board-measured metric + the [PAT-1] provenance.
+// EMITC-SAME: registry status=measured-negative measured 0.909x
+// EMITC-SAME: [PAT-1 measured-negative row
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime.fp16_epilogue=weft_ime_fp16_to_f32
 // EMITC-SAME: static inline float weft_ime_fp16_to_f32

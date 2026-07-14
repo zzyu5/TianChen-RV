@@ -8,7 +8,10 @@
 // q5_K-only weight_qh_byte_offset@16), so emitQ4_KPlainNibbleUnpack runs under
 // cx.hasQh and the SHARED [QH-MASK] emitNativeMaskStaticBitBias helper fires.
 //
-// The qh plane is a SINGLE-bit-plane (bit_plane_width==1) -- the native-interleaved-
+// The qh plane is a SINGLE-bit plane (single-bit BY CONSTRUCTION: the shared helper
+// isolates 1<<h, one bit -- NOT a codified bit_plane_width predicate; q6_K's 2-bit
+// plane is excluded by emitter-identity dispatch on the decode_model WHAT, see
+// [档 C#6]) -- the native-interleaved-
 // static ANALOG of q5_0/q5_1's 5th bit -- so per half h the helper isolates bit h IN
 // PLACE (vand(1<<h)), lifts it to a per-lane bool (vmsne==0, TRUE where the bit is
 // SET), and FUSES the +16 into ONE masked op vadd_vx_u8m2_mu on exactly the SET lanes.
