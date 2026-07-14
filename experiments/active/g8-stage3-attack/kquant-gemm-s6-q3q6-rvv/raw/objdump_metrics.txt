@@ -1,0 +1,8 @@
+# G8 s6-q3q6 objdump metrics (clang-18 -O2 rvv VLEN128)
+kernel              total   vwmacc     vl1r     vs1r     csrr
+q4_K                 6405     2240        6        4       10
+q6_K_PLAIN          20960     2304     1241      971     2210
+q6_K_S6              9215     2304       59       38       97
+q3_K_PLAIN          20022     2176     1179     1065     2242
+q3_K_S6_unroll       9237     2176      221       93      314
+q3_K_S6_rolled       1841      256       59       51      110

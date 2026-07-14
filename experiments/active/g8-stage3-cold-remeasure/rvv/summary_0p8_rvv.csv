@@ -10,10 +10,10 @@ Kquant-vecdot,q4_K,ggml_vec_dot_q4_K_q8_K_vl128,hand-tuned,0.445,0.189,0.362,,M1
 Kquant-vecdot,q5_K,ggml_vec_dot_q5_K_q8_K,native-vec,0.753,0.843,0.798,,M1-GEVM,PASS,0mism/0ULP,opp-immaturity-q5K-no-vl-spec
 Kquant-vecdot,q6_K,ggml_vec_dot_q6_K_q8_K_vl128,hand-tuned,0.481,0.180,0.377,,M1-GEVM,FAIL,0mism/0ULP,predicate-NA-weight-recon-floor
 Kquant-GEMM,q2_K,ggml_vec_dot_q2_K_q8_K_vl128(cross-op),hand-tuned-blockdot,1.590,1.112,0.824,nr64=1.382,prefill-nr16,PASS,INT0mism(verify),lever-hit-S6-tile-amortize
-Kquant-GEMM,q3_K,ggml_vec_dot_q3_K_q8_K_vl128(cross-op),hand-tuned-blockdot,0.166,0.161,0.158,nr64=0.166,prefill-nr16,FAIL,INT0mism(verify),predicate-NA-PLAIN-untiled-S6NULL
+Kquant-GEMM,q3_K,ggml_vec_dot_q3_K_q8_K_vl128(cross-op),hand-tuned-blockdot,1.405,1.399,1.409,nr64=1.407,prefill-nr16,PASS,INT0mism(S6==PLAIN 27/27),S6-strip-outer+ROLLED-WIN[G8§6.3-attack;PLAIN was 0.16;unrolled+S6=0.79 near-miss;rolled+S6=1.40 WIN;PASS-via-rolled;selector-ROLL-stamp-for-q3K-pending(proxy-gate shares q6_K)]
 Kquant-GEMM,q4_K,ggml_vec_dot_q4_K_q8_K_vl128(cross-op),hand-tuned-blockdot,1.892,1.114,0.673,nr64=1.572,prefill-nr16,PASS,INT0mism(verify),lever-hit-S6-tile-amortize
 Kquant-GEMM,q5_K,ggml_vec_dot_q5_K_q8_K(cross-op),native-vec-blockdot-weak,1.172,1.067,0.985,nr64=1.260,prefill-nr16,PASS,INT0mism(inherit),lever-hit-S6-tile-amortize-vs-weak-qh
-Kquant-GEMM,q6_K,ggml_vec_dot_q6_K_q8_K_vl128(cross-op),hand-tuned-blockdot,0.154,0.173,0.148,nr64=0.155,prefill-nr16,FAIL,INT0mism(inherit),predicate-NA-PLAIN-untiled-S6NULL
+Kquant-GEMM,q6_K,ggml_vec_dot_q6_K_q8_K_vl128(cross-op),hand-tuned-blockdot,1.112,0.960,0.805,nr64=1.137,prefill-nr16,PASS,INT0mism(S6==PLAIN 27/27),S6-strip-outer-WIN[G8§6.3-attack;PLAIN was 0.17;unrolled+S6 ship;rolled worse 0.90]
 iq-vecdot,iq1_s,ggml_vec_dot_iq1_s_q8_K_vl128,hand-tuned-gather,0.454,0.365,0.438,,M1-GEVM,FAIL,0mism/0ULP,predicate-NA-gather-trap-noisy
 iq-vecdot,iq1_m,ggml_vec_dot_iq1_m_q8_K_vl128,hand-tuned,0.158,0.152,0.160,,M1-GEVM,FAIL,0mism/0ULP,predicate-NA-gather-trap
 iq-vecdot,iq4_nl,ggml_vec_dot_iq4_nl_q8_0_vl128,native-vec-mid,1.140,1.150,1.154,,M1-GEVM,PASS,0mism/0ULP,clang18-codegen-lever-vs-mid-codebook
