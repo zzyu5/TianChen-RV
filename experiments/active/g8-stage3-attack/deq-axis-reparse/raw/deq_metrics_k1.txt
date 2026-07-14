@@ -1,0 +1,27 @@
+# G8 §6.3 DEQ-AXIS opponent re-parse @k1 (VLEN256)
+# decree-named stock libggml-cpu.so md5 = 871169a0123139692177468b3c8578be  [expect 871169a0]
+# dequant symbols DEFINED in sibling libggml-base.so = /data/k1build-stock/bin/libggml-base.so
+# md5(base before-read) = 00267134a3e86cd4fb83e9a2cbf5185a  [census 00267134]
+# objdump = GNU objdump (GNU Binutils for Ubuntu) 2.42
+# metric = whole-symbol block; rvv=v-prefix mnemonics; class SCALAR iff rvv==0
+fmt          tot    rvv   vset gather    mac  class
+q2_K         394      0      0      0      0  SCALAR
+q3_K         685      0      0      0      0  SCALAR
+q4_K         460      0      0      0      0  SCALAR
+q5_K         191      0      0      0      0  SCALAR
+q6_K         191      0      0      0      0  SCALAR
+iq1_m        319      0      0      0      0  SCALAR
+iq1_s        252      0      0      0      0  SCALAR
+iq2_s        326      0      0      0      0  SCALAR
+iq2_xs       172      0      0      0      0  SCALAR
+iq2_xxs      329      0      0      0      0  SCALAR
+iq3_s        638      0      0      0      0  SCALAR
+iq3_xxs      341      0      0      0      0  SCALAR
+iq4_nl        69      0      0      0      0  SCALAR
+iq4_xs       106      0      0      0      0  SCALAR
+mxfp4         50      0      0      0      0  SCALAR
+nvfp4        204      0      0      0      0  SCALAR
+tq1_0        736      0      0      0      0  SCALAR
+tq2_0        297      0      0      0      0  SCALAR
+# md5(base after-read) = 00267134a3e86cd4fb83e9a2cbf5185a
+# loadavg = 2.00 2.02 2.00

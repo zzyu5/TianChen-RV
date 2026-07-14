@@ -1,0 +1,26 @@
+# G8 §6.3 DEQ-AXIS opponent re-parse @rvv (VLEN128)
+# stock opponent = /home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin/libggml-base.so
+# md5(before-read) = 1b4580c4f248c91cad26fccc617415e1  [census 1b4580c4]
+# objdump = GNU objdump (GNU Binutils) 2.46.1
+# metric = whole-symbol block; rvv=v-prefix mnemonics; class SCALAR iff rvv==0
+fmt          tot    rvv   vset gather    mac  class
+q2_K         669    461     73     32     34  TRUE-VEC
+q3_K         317    141     39      0      8  TRUE-VEC
+q4_K         274    120     26      0      0  TRUE-VEC
+q5_K         440    238     46      0      0  TRUE-VEC
+q6_K         193     96     34      4      8  TRUE-VEC
+iq1_m        226     67     13      0      8  TRUE-VEC
+iq1_s        180     65     15      0      8  TRUE-VEC
+iq2_s        197      0      0      0      0  SCALAR
+iq2_xs       190      0      0      0      0  SCALAR
+iq2_xxs      339    229     74     18     18  TRUE-VEC
+iq3_s        598    475    146     32     33  TRUE-VEC
+iq3_xxs      331    237     76     18     18  TRUE-VEC
+iq4_nl        69     23      8      2      2  TRUE-VEC
+iq4_xs       107     23      8      2      2  TRUE-VEC
+mxfp4         61     20      5      2      2  TRUE-VEC
+nvfp4        182      0      0      0      0  SCALAR
+tq1_0        493    279     52      0     84  TRUE-VEC
+tq2_0        153     90     25      0      8  TRUE-VEC
+# md5(after-read) = 1b4580c4f248c91cad26fccc617415e1
+# loadavg = 2.06 2.13 2.09
