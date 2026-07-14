@@ -3112,6 +3112,33 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed repack GEMM loop body missing the op");
 
+  // ---- [loop-order REALIZE 铺面] SIBLING prefill-GEMM col-group-outer schedule
+  // resolution (parallel to the q4_K min-fold arm's own resolution below). The
+  // col-group-OUTER nest is a BYTE-EXACT loop-interchange of the fixed row-group-
+  // outer nest the sibling leaves currently emit: every out[y,x] is a PRIVATE
+  // K-accumulation, so swapping the two INDEPENDENT group loops leaves the hot
+  // inner core, the per-block fold order and every stored value bit-identical (the
+  // same invariant proven for q4_K's M1b two-arm body). The sibling DEPLOYED default
+  // stays the M1-committed row-group-outer single nest; col_outer is REALIZED here as
+  // a CAPABILITY but SELECTED only when the front-door stamps a MEASURED col_outer
+  // winner (Stage-3 board A/B, mirroring the q4_K measured seed). The UNMEASURED
+  // layout-PRIOR stamp -- weft_rvv.loop_order = "col_outer" with reason "prior", which
+  // EVERY K-quant sibling carries because its repacked weight col-group panel stride
+  // is >= the activation panel stride -- does NOT flip the shipped nest, so this
+  // REALIZE adds the capability while keeping the emitted C byte-identical until a
+  // measurement is seeded. (q4_K, resolved separately in its own arm below, keeps its
+  // M1b stride-prior fallback; its measured seed already ships col_outer.)
+  bool siblingColGroupOuter = false;
+  if (auto loopOrder =
+          loopBody->getAttrOfType<mlir::StringAttr>("weft_rvv.loop_order")) {
+    if (auto loopOrderReason = loopBody->getAttrOfType<mlir::StringAttr>(
+            "weft_rvv.loop_order_selection_reason")) {
+      if (loopOrder.getValue() == "col_outer" &&
+          loopOrderReason.getValue() == "measured")
+        siblingColGroupOuter = true;
+    }
+  }
+
   // ---- TERNARY front-door dispatch (the retired emitRepackGem{m}TQ{20,10}Q8K
   // direct emitters, now CONSTRUCTED through this typed-region front door). Gate on
   // the in-region weft_rvv.repack_gemm_ternary_core brick's block_index +
@@ -3163,7 +3190,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
     // tq1_0 base-3: the base-3 decode reads a SECOND weight plane (qh), whose
     // repacked byte offset rides on the loop body op's OPTIONAL weight_qh_byte_offset
     // attr (the tq2_0 single-plane fold does not carry it).
@@ -3184,7 +3211,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
     }
     return rewriter.notifyMatchFailure(
         coreBrick, "ternary repack GEMM decode_model not recognized (expected "
@@ -3280,7 +3307,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*nSub), coreBrick.getCodebook(),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
     }
     // The mxfp4 FLAT E8M0 sibling: the SAME codebook gather + i32 dot AMORTIZED across the
     // 4 interleaved block_q8_0x4 columns, but the per-column weight scale is the E8M0
@@ -3298,7 +3325,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           coreBrick.getCodebook(),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
     return emitRepackCodebookGemmBodyIq4Nl(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3310,7 +3337,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         coreBrick.getCodebook(),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+        static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
   }
 
   // ---- GRID front-door dispatch (the retired emitRepackGemmIq2XxsQ8K direct emitter,
@@ -3380,7 +3407,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(coreBrick.getNSubblocks()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()));
+          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
     Iq2DualGridVariant variant =
         decodeModel == "iq2_xs" ? Iq2DualGridVariant::Xs : Iq2DualGridVariant::S;
     return emitRepackGemmIq2DualScaleQ8K(
@@ -3396,7 +3423,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(coreBrick.getNSubblocks()),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+        static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
   }
 
   // ---- K-QUANT front-door dispatch (the retired emitRepackGemmQ4KQ8K direct
@@ -3513,7 +3540,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
     }
     if (coreBrick.getDecodeModel() == "q2_K") {
       // [ROLL] schedule resolved ABOVE for the whole min-fold family (rolledMainTerm).
@@ -3529,7 +3556,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
     }
     // q4_K: the min-fold family default arm (the s6_tiled PURE REALIZE was gated for
     // the WHOLE min-fold family above). RE-EMITs the byte-exact S6-tiled q4_K GEMM body.
@@ -3653,7 +3680,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
     return emitRepackKQuantGemmBodyQ6K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3666,7 +3693,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(*nSub),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm);
+        static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
   }
 
   // ---- Shape facts (the *how* -- LMUL / strip width / spill-avoiding
@@ -3905,41 +3932,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   mlir::Value ncGroups = rewriter.create<emitc::DivOp>(
       loc, sizeType, columnCount, sizeLit(weightInterleave));
 
-  // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-  auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                               sizeLit(1),
-                                               /*bodyBuilder=*/nullptr);
-  {
-    mlir::OpBuilder::InsertionGuard rg(rewriter);
-    rewriter.setInsertionPointToStart(rowLoop.getBody());
-    mlir::Value y = rowLoop.getInductionVar();
+  // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+  // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+  // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+  // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+  // Which loop is OUTER is a SCHEDULE axis resolved ABOVE (siblingColGroupOuter)
+  // from the front-door weft_rvv.loop_order stamp (row-group-OUTER == the
+  // M1-committed flat default; col-group-OUTER holds the DRAM-dominant repacked
+  // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+  // interchange proven byte-exact for the q4_K min-fold GEMM.
 
-    // const uint8_t *a = vy + y*nb*136;  (the q8_0x4 row group base).
+  // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+  auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
     step("act_group_base");
     mlir::Value aGroupBlocks =
         rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
     mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
         loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-    mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-        loc, activationPtrType, activationBase, aGroupOff);
+    return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                         aGroupOff);
+  };
+  // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+  // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+  auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+    step("weight_group_base");
+    mlir::Value bGroupBlocks =
+        rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+    mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+        loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+    return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                         bGroupOff);
+  };
 
-    // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-    auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard cg(rewriter);
-      rewriter.setInsertionPointToStart(colLoop.getBody());
-      mlir::Value x = colLoop.getInductionVar();
-
-      // const uint8_t *b = vx + x*nb*288;  (the q4_0x16 column group base).
-      step("weight_group_base");
-      mlir::Value bGroupBlocks =
-          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-      mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-          loc, weightPtrType, weightBase, bGroupOff);
+  // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+  // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+  // arm reproduces the M1-committed single fixed flat nest op-for-op.
+  auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                      mlir::Value aGroup) {
 
       // ===== Strip loop: for (h = 0; h < num_halves; ++h) {roff = h*half} =====
       auto halfLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0),
@@ -4070,7 +4099,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           }
         } // end activation-column-PASS loop (cLo)
       }
-    }
+  };  // end emitTile (byte-identical body for both loop orders)
+
+  if (siblingColGroupOuter) {
+    // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+    auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard cg(rewriter);
+    rewriter.setInsertionPointToStart(colLoop.getBody());
+    mlir::Value x = colLoop.getInductionVar();
+    mlir::Value bGroup = emitBGroupBase(x);
+    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard rg(rewriter);
+    rewriter.setInsertionPointToStart(rowLoop.getBody());
+    mlir::Value y = rowLoop.getInductionVar();
+    mlir::Value aGroup = emitAGroupBase(y);
+    emitTile(x, y, bGroup, aGroup);
+  } else {
+    // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard rg(rewriter);
+    rewriter.setInsertionPointToStart(rowLoop.getBody());
+    mlir::Value y = rowLoop.getInductionVar();
+    mlir::Value aGroup = emitAGroupBase(y);
+    auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard cg(rewriter);
+    rewriter.setInsertionPointToStart(colLoop.getBody());
+    mlir::Value x = colLoop.getInductionVar();
+    mlir::Value bGroup = emitBGroupBase(x);
+    emitTile(x, y, bGroup, aGroup);
   }
 
   return mlir::success();
@@ -9444,7 +9508,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ5K(
     int64_t activationQuantOffset, int64_t weightDminOffset,
     int64_t weightScalesOffset, int64_t activationBsumsOffset,
     int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
-    int64_t activationInterleave, int64_t half, bool rolledMainTerm) const {
+    int64_t activationInterleave, int64_t half, bool rolledMainTerm, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -9715,42 +9779,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ5K(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
     mlir::LogicalResult status = mlir::success();
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
 
-      // const uint8_t *a = vy + y*nb*1168;  (the q8_Kx4 row group base).
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        // const uint8_t *b = vx + x*nb*2816;  (the q5_Kx16 column group base).
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         // Activation-column-PASS loop (compile-time, C++): the columns
         // [cLo, cLo+columnsPerPass) folded in this pass over the block loop.
@@ -10267,7 +10333,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ5K(
         }
         } // end S1 h-strip output tile (hs=1)
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
     if (mlir::failed(status))
       return mlir::failure();
@@ -10866,7 +10967,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
     int64_t weightStride, int64_t activationStride, int64_t weightQlOffset,
     int64_t activationQuantOffset, int64_t weightScalesOffset,
     int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
-    int64_t activationInterleave, int64_t half, bool rolledMainTerm) const {
+    int64_t activationInterleave, int64_t half, bool rolledMainTerm, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -11110,41 +11211,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
     mlir::LogicalResult status = mlir::success();
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
 
-      // const uint8_t *a = vy + y*nb*1168;  (the q8_Kx4 row group base).
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         // Activation-column-PASS loop (compile-time, C++).
         for (int64_t cLo = 0; cLo < activationInterleave;
@@ -11472,7 +11576,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
             }
           }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
     if (mlir::failed(status))
       return mlir::failure();
@@ -12209,7 +12348,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
     int64_t activationQuantOffset, int64_t weightDminOffset,
     int64_t weightScalesOffset, int64_t activationBsumsOffset,
     int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half, bool rolledMainTerm) const {
+    int64_t half, bool rolledMainTerm, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*), the SAME
@@ -12431,42 +12570,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
     mlir::LogicalResult status = mlir::success();
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
 
-      // const uint8_t *a = vy + y*nb*1168;  (the q8_Kx4 row group base).
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        // const uint8_t *b = vx + x*nb*1344;  (the q2_Kx16 column group base).
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         // Activation-column-PASS loop (compile-time): the columns [cLo, cHi) folded
         // in this pass over the block loop.
@@ -12891,7 +13032,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
         }
         } // end S1 h-strip output tile (hs=1)
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
     if (mlir::failed(status))
       return mlir::failure();
@@ -18012,7 +18188,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
     int64_t weightStride, int64_t activationStride, int64_t weightQsOffset,
     int64_t activationQuantOffset, int64_t weightScalesOffset,
     int64_t weightHmaskOffset, int64_t nSubblocks, int64_t weightInterleave,
-    int64_t activationInterleave, int64_t half, bool rolledMainTerm) const {
+    int64_t activationInterleave, int64_t half, bool rolledMainTerm, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -18232,41 +18408,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
     mlir::LogicalResult status = mlir::success();
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
 
-      // const uint8_t *a = vy + y*nb*1168;  (the q8_Kx4 row group base).
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         // Activation-column-PASS loop (compile-time, C++).
         for (int64_t cLo = 0; cLo < activationInterleave;
@@ -18582,7 +18761,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
             }
           }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
     if (mlir::failed(status))
       return mlir::failure();
@@ -18994,7 +19208,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
     llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
     int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
     int64_t activationQuantOffset, int64_t weightInterleave,
-    int64_t activationInterleave, int64_t half) const {
+    int64_t activationInterleave, int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -19184,39 +19398,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -19390,7 +19608,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
                                role);
           }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // The typed_repack_gemm_loop_body region op is RESULT-LESS (the per-column
@@ -19804,7 +20057,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
     llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
     int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
     int64_t weightQhOffset, int64_t activationQuantOffset,
-    int64_t weightInterleave, int64_t activationInterleave, int64_t half) const {
+    int64_t weightInterleave, int64_t activationInterleave, int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -20055,38 +20308,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
             }
         };
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -20227,7 +20485,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
                                role);
           }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // The typed_repack_gemm_loop_body region op is RESULT-LESS (the per-column
@@ -20590,7 +20883,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Nl(
     int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
     int64_t activationQuantOffset, llvm::ArrayRef<int8_t> codebook,
     int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half) const {
+    int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -20752,39 +21045,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Nl(
     std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
     std::string mvI32Callee = riscvIntrinsicName("vmv_v_x", 32, l32, "i32");
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -20963,7 +21260,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Nl(
                                  role);
             }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // The typed_repack_gemm_loop_body region op is RESULT-LESS (the per-column per-strip
@@ -21402,7 +21734,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyMxfp4(
     int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
     int64_t activationQuantOffset, llvm::ArrayRef<int8_t> codebook,
     int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half) const {
+    int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -21622,39 +21954,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyMxfp4(
     std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
     std::string mvI32Callee = riscvIntrinsicName("vmv_v_x", 32, l32, "i32");
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -21836,7 +22172,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyMxfp4(
                                  role);
             }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // The typed_repack_gemm_loop_body region op is RESULT-LESS (the per-column lane-wise
@@ -22284,7 +22655,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Xs(
     int64_t scalesLowOffset, int64_t scalesHighOffset,
     int64_t activationQuantOffset, int64_t nSubblocks,
     llvm::ArrayRef<int8_t> codebook, int64_t weightInterleave,
-    int64_t activationInterleave, int64_t half) const {
+    int64_t activationInterleave, int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*): "mf2" (default
@@ -22511,39 +22882,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Xs(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -22752,7 +23127,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Xs(
                                  role);
             }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // The typed_repack_gemm_loop_body region op is RESULT-LESS (the per-column lane-wise
@@ -23216,7 +23626,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
     int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
     int64_t lsOffset, int64_t signOffset, int64_t activationQuantOffset,
     int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half) const {
+    int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -23427,39 +23837,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -23676,7 +24090,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
                                  role);
             }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // RESULT-LESS (no monolith token): the front-door typed_repack_gemm_loop_body region
@@ -24161,7 +24610,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
     int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
     int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half) const {
+    int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -24395,39 +24844,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
-    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard rg(rewriter);
-      rewriter.setInsertionPointToStart(rowLoop.getBody());
-      mlir::Value y = rowLoop.getInductionVar();
+    // ===== [loop-order REALIZE] SEL-1 loop-order schedule axis (PURE REALIZE) =====
+    // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
+    // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
+    // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
+    // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
+    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
+    // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
+    // interchange proven byte-exact for the q4_K min-fold GEMM.
 
+    // a = vy + y*nb*activationStride  (the row-group activation base; fn of y ONLY).
+    auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {
       step("act_group_base");
       mlir::Value aGroupBlocks =
           rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
       mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
           loc, sizeType, aGroupBlocks, sizeLit(activationStride));
-      mlir::Value aGroup = rewriter.create<emitc::AddOp>(
-          loc, activationPtrType, activationBase, aGroupOff);
+      return rewriter.create<emitc::AddOp>(loc, activationPtrType, activationBase,
+                                           aGroupOff);
+    };
+    // b = vx + x*nb*weightStride  (the repacked weight col-group base; fn of x ONLY).
+    // In the col-OUTER nest this is HOISTED above the row sweep (once per col-group).
+    auto emitBGroupBase = [&](mlir::Value x) -> mlir::Value {
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      return rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase,
+                                           bGroupOff);
+    };
 
-      // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
-      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard cg(rewriter);
-        rewriter.setInsertionPointToStart(colLoop.getBody());
-        mlir::Value x = colLoop.getInductionVar();
-
-        step("weight_group_base");
-        mlir::Value bGroupBlocks =
-            rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
-        mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
-            loc, sizeType, bGroupBlocks, sizeLit(weightStride));
-        mlir::Value bGroup = rewriter.create<emitc::AddOp>(
-            loc, weightPtrType, weightBase, bGroupOff);
+    // The per-(y,x) OUTPUT TILE. BYTE-EXACT INVARIANT: emitted IDENTICALLY for both
+    // loop orders -- only the two enclosing ForOp headers swap. The row-group-OUTER
+    // arm reproduces the M1-committed single fixed nest op-for-op.
+    auto emitTile = [&](mlir::Value x, mlir::Value y, mlir::Value bGroup,
+                        mlir::Value aGroup) {
 
         for (int64_t cLo = 0; cLo < activationInterleave;
              cLo += columnsPerPass) {
@@ -24647,7 +25100,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
                                  role);
             }
         } // end activation-column-PASS loop (cLo)
-      }
+    };  // end emitTile (byte-identical body for both loop orders)
+
+    if (colGroupOuter) {
+      // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      emitTile(x, y, bGroup, aGroup);
+    } else {
+      // activation ROW panel OUTER; col groups sweep INSIDE (M1-committed default).
+      auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard rg(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value y = rowLoop.getInductionVar();
+      mlir::Value aGroup = emitAGroupBase(y);
+      auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+      mlir::Value bGroup = emitBGroupBase(x);
+      emitTile(x, y, bGroup, aGroup);
     }
 
     // RESULT-LESS (no monolith token): the front-door typed_repack_gemm_loop_body region

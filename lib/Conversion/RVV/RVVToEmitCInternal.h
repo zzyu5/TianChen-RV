@@ -1618,7 +1618,7 @@ private:
       int64_t activationQuantOffset, int64_t weightDminOffset,
       int64_t weightScalesOffset, int64_t activationBsumsOffset,
       int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
-      int64_t activationInterleave, int64_t half, bool rolledMainTerm) const;
+      int64_t activationInterleave, int64_t half, bool rolledMainTerm, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml q6_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
@@ -1673,7 +1673,7 @@ private:
       int64_t weightStride, int64_t activationStride, int64_t weightQlOffset,
       int64_t activationQuantOffset, int64_t weightScalesOffset,
       int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
-      int64_t activationInterleave, int64_t half, bool rolledMainTerm) const;
+      int64_t activationInterleave, int64_t half, bool rolledMainTerm, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml q2_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
@@ -1722,7 +1722,7 @@ private:
       int64_t activationQuantOffset, int64_t weightDminOffset,
       int64_t weightScalesOffset, int64_t activationBsumsOffset,
       int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-      int64_t half, bool rolledMainTerm) const;
+      int64_t half, bool rolledMainTerm, bool colGroupOuter) const;
 
   /// [QH-MASK] native-interleaved-static mask-source decode variant (parametric,
   /// NOT a knob). Fuse a COMPILE-TIME-STATIC single high-bit-plane select with a
@@ -1800,7 +1800,7 @@ private:
       int64_t weightStride, int64_t activationStride, int64_t weightQsOffset,
       int64_t activationQuantOffset, int64_t weightScalesOffset,
       int64_t weightHmaskOffset, int64_t nSubblocks, int64_t weightInterleave,
-      int64_t activationInterleave, int64_t half, bool rolledMainTerm) const;
+      int64_t activationInterleave, int64_t half, bool rolledMainTerm, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml tq2_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// Emit the COMPLETE ggml tq2_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
@@ -1839,7 +1839,7 @@ private:
       llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
       int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
       int64_t activationQuantOffset, int64_t weightInterleave,
-      int64_t activationInterleave, int64_t half) const;
+      int64_t activationInterleave, int64_t half, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml tq1_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
@@ -1880,7 +1880,7 @@ private:
       llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
       int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
       int64_t weightQhOffset, int64_t activationQuantOffset,
-      int64_t weightInterleave, int64_t activationInterleave, int64_t half) const;
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
@@ -1922,7 +1922,7 @@ private:
       int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
       int64_t activationQuantOffset, llvm::ArrayRef<int8_t> codebook,
       int64_t weightInterleave, int64_t activationInterleave,
-      int64_t half) const;
+      int64_t half, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the mxfp4 direct emitter, refactored to
@@ -1963,7 +1963,7 @@ private:
       int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
       int64_t activationQuantOffset, llvm::ArrayRef<int8_t> codebook,
       int64_t weightInterleave, int64_t activationInterleave,
-      int64_t half) const;
+      int64_t half, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml iq4_xs x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
@@ -2009,7 +2009,7 @@ private:
       int64_t scalesLowOffset, int64_t scalesHighOffset,
       int64_t activationQuantOffset, int64_t nSubblocks,
       llvm::ArrayRef<int8_t> codebook, int64_t weightInterleave,
-      int64_t activationInterleave, int64_t half) const;
+      int64_t activationInterleave, int64_t half, bool colGroupOuter) const;
 
   /// Emit the COMPLETE ggml iq2_xxs x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
@@ -2056,7 +2056,7 @@ private:
       int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
       int64_t lsOffset, int64_t signOffset, int64_t activationQuantOffset,
       int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-      int64_t half) const;
+      int64_t half, bool colGroupOuter) const;
 
   /// The two DUAL-scale GRID+SIGN repack variants that share the iq2_xxs block-as-
   /// lane scaffold VERBATIM but split each sub-block into TWO ls-weighted group
@@ -2103,7 +2103,7 @@ private:
       llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
       int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
       int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
-      int64_t weightInterleave, int64_t activationInterleave, int64_t half) const;
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half, bool colGroupOuter) const;
 
   // NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the four thin direct-emit
   // dispatch entry points emitRepackGem{v,m}Iq2{Xs,S}Q8K are RETIRED with the iq2_xs /
