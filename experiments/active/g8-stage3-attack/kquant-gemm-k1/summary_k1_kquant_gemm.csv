@@ -1,0 +1,25 @@
+# G8 §六.3 P1 — K-quant GEMM@k1 (VLEN256) cold A/B census. 2026-07-14/15.
+# ours = weft-exported vl=16 (half_lanes=16) repack-GEMM, clang-18.1.8 -O2 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b, pure intrinsics, cleanfp.
+# opponent = as-shipped dispatched kernel in stock /data/k1build-stock/bin/libggml-cpu.so (md5 871169a0123139692177468b3c8578be), clang-18 symmetric.
+# cold = 224 MiB flush paired A/B, N=12 reps, median; K=2048 nc=512; core0 pin (idlest); co-tenant present (paired ratio absorbs).
+# ratio = ours_gmacs / opp_gmacs. sched=unrolled is the deploy DEFAULT (measured-gate empty => unrolled); rolled = alt schedule.
+# opp_validity: drop-in=byte-layout-matches-ours+correctness-cross-checked; timing-valid=same-stride+same-footprint (work-volume content-independent) but byte-layout differs; deferred=could-not-feed-native-layout.
+fmt,sched,nr,ours_cold_gmacs,opp_cold_gmacs,ratio_cold_med,ratio_cold_best,opp_symbol,opp_grade,opp_validity,pass_0p8,xchk_nbad
+q4_K,unrolled,16,6.9852,5.8870,1.1865,1.1686,ggml_gemm_q4_K_16x1_q8_K,RVV-hand-brick(real@0xabe58),drop-in-BYTE-verified,PASS/WIN,0/8192
+q4_K,unrolled,64,6.9164,5.9559,1.1613,1.1646,ggml_gemm_q4_K_16x1_q8_K,RVV-hand-brick(real@0xabe58),drop-in-BYTE-verified,PASS/WIN,0/32768
+q4_K,rolled,16,6.1021,5.9193,1.0309,1.0381,ggml_gemm_q4_K_16x1_q8_K,RVV-hand-brick,drop-in-BYTE-verified,PASS,0/8192
+q4_K,rolled,64,6.1049,5.9787,1.0211,1.0222,ggml_gemm_q4_K_16x1_q8_K,RVV-hand-brick,drop-in-BYTE-verified,PASS,0/32768
+q2_K,unrolled,16,4.9165,3.6046,1.3639,1.3581,ggml_gemm_q2_K_16x1_q8_K,RVV-hand-brick(real@0xacd96),timing-valid(byte-layout-differs),PASS/WIN,8114/8192
+q2_K,unrolled,64,5.0128,3.7054,1.3529,1.3542,ggml_gemm_q2_K_16x1_q8_K,RVV-hand-brick(real@0xacd96),timing-valid(byte-layout-differs),PASS/WIN,32413/32768
+q2_K,unrolled,16,4.9446,1.0637,4.6483,4.6952,ggml_vec_dot_q2_K_q8_K,block-dot(floor),correctness-separate,PASS/WIN,n_a
+q2_K,unrolled,64,5.0012,1.1034,4.5326,4.5342,ggml_vec_dot_q2_K_q8_K,block-dot(floor),correctness-separate,PASS/WIN,n_a
+q3_K,unrolled,16,3.4177,1.1704,2.9202,2.9115,ggml_vec_dot_q3_K_q8_K,block-dot(NO-repack-exists;cross-op),correctness-separate,PASS/WIN,0/8192
+q3_K,unrolled,64,3.5233,1.1629,3.0299,3.0325,ggml_vec_dot_q3_K_q8_K,block-dot(NO-repack-exists;cross-op),correctness-separate,PASS/WIN,0/32768
+q3_K,rolled,16,3.9194,1.1687,3.3536,3.3582,ggml_vec_dot_q3_K_q8_K,block-dot(cross-op),correctness-separate,PASS/WIN,0/8192
+q3_K,rolled,64,4.0262,1.1608,3.4685,3.4846,ggml_vec_dot_q3_K_q8_K,block-dot(cross-op),correctness-separate,PASS/WIN,0/32768
+q5_K,unrolled,16,2.5964,0.5885,4.4483,4.4769,ggml_vec_dot_q5_K_q8_K,block-dot(floor; 8x8-handbrick-DEFERRED),correctness-separate,PASS/WIN,0/8192
+q5_K,unrolled,64,2.6286,0.5920,4.4555,4.4691,ggml_vec_dot_q5_K_q8_K,block-dot(floor; 8x8-handbrick-DEFERRED),correctness-separate,PASS/WIN,0/32768
+q5_K,rolled,16,3.2636,0.5885,5.5456,n_a,ggml_vec_dot_q5_K_q8_K,block-dot(best-sched=rolled),correctness-separate,PASS/WIN,0/8192
+q6_K,unrolled,16,2.2027,1.2523,1.7685,1.7726,ggml_vec_dot_q6_K_q8_K,block-dot(floor; 8x8-handbrick-DEFERRED),correctness-separate,PASS/WIN,0/8192
+q6_K,unrolled,64,2.2264,1.2884,1.7338,1.7366,ggml_vec_dot_q6_K_q8_K,block-dot(floor; 8x8-handbrick-DEFERRED),correctness-separate,PASS/WIN,0/32768
+# q5_K/q6_K 8x8 hand-brick (ggml_gemm_qX_K_8x8_q8_K, RVV-specialized) A/B DEFERRED: fed our block_qX_Kx16 or 8-way-strided random -> 0.09-0.13 GMAC/s = cache-thrash artifact (native 8x8 needs ggml's exact 8-way weight interleave + q8_Kx8 activation + scale placement, not reconstructed). block-dot is the correctness-separate fair floor reported here.

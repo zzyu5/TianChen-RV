@@ -1,0 +1,39 @@
+# k1 stock libggml-cpu.so md5=871169a0123139692177468b3c8578be
+# === opponent GEMM/vec_dot symbols ===
+000000000002b3ee T ggml_gemm_q4_K_8x4_q8_K
+000000000002be0a T ggml_gemm_q4_K_8x8_q8_K
+000000000002c924 T ggml_gemm_q2_K_8x8_q8_K
+000000000002db10 T ggml_gemm_q5_K_8x4_q8_K
+000000000002fa90 T ggml_gemm_q5_K_8x8_q8_K
+0000000000031cb2 T ggml_gemm_q6_K_8x4_q8_K
+00000000000321fa T ggml_gemm_q6_K_8x8_q8_K
+00000000000350ba T ggml_gemm_q4_K_16x1_q8_K_generic
+00000000000369a8 T ggml_gemm_q2_K_16x1_q8_K_generic
+00000000000a00f0 T ggml_vec_dot_q2_K_q8_K_vl256
+00000000000a0c06 T ggml_vec_dot_q3_K_q8_K_vl256
+00000000000abe58 T ggml_gemm_q4_K_16x1_q8_K
+00000000000acd96 T ggml_gemm_q2_K_16x1_q8_K
+# === per-symbol RVV specialization (insns/rvv/vwmacc) ===
+ggml_gemm_q4_K_16x1_q8_K     insns=767 rvv=238 vwmacc=80
+ggml_gemm_q2_K_16x1_q8_K     insns=494 rvv=196 vwmacc=16
+ggml_gemm_q5_K_8x8_q8_K      insns=2426 rvv=646 vwmacc=0
+ggml_gemm_q6_K_8x8_q8_K      insns=526 rvv=201 vwmacc=0
+ggml_gemm_q5_K_8x4_q8_K      insns=2245 rvv=568 vwmacc=0
+ggml_gemm_q3_K_q8_K          insns=1 rvv=0 vwmacc=0
+# === dispatcher repack candidates ===
+      2 q2_K_16x1_q8_K
+      1 q2_K_8x8_q8_K
+      1 q4_0_16x1_q8_0
+      1 q4_0_4x4_q8_0
+      1 q4_0_4x8_q8_0
+      1 q4_0_8x8_q8_0
+      1 q4_K_16x1_q8_K
+      1 q4_K_8x4_q8_K
+      1 q4_K_8x8_q8_K
+      1 q5_K_8x4_q8_K
+      1 q5_K_8x8_q8_K
+      1 q6_K_8x4_q8_K
+      1 q6_K_8x8_q8_K
+      1 q8_0_16x1_q8_0
+      1 q8_0_4x4_q8_0
+      1 q8_0_4x8_q8_0

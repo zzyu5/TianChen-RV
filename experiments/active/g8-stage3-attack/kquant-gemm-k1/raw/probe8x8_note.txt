@@ -1,0 +1,18 @@
+# q5_K/q6_K 8x8 & 8x4 hand-brick standalone timing probe (raw/probe8_8way.c)
+# k1 VLEN256 core0 · K=2048 nr=64 nc=512 N=12 cold-flush. Full-buffer finite-fp16 fill (kills denormals).
+# TWO layout attempts BOTH give cache-thrash artifact (NOT true throughput):
+#   attempt A: our block_qX_Kx16 buffer (16-way stride 2816/3360)   -> 0.09-0.13 GMAC/s
+#   attempt B: correct 8-way weight stride (q5=1408 q6=1680) + q8_Kx8 act + finite fill -> SAME 0.09-0.13
+#
+# PROBEB q5_K_8x8  wstride8=1408 : opp_med_ns=740198621 opp_gmacs=0.0907
+# PROBEB q6_K_8x8  wstride8=1680 : opp_med_ns=513457843 opp_gmacs=0.1307
+# PROBEB q5_K_8x4  wstride8=1408 : opp_med_ns=743676323 opp_gmacs=0.0902
+# PROBEB q6_K_8x4  wstride8=1680 : opp_med_ns=549865064 opp_gmacs=0.1220
+#
+# ours (census, opp-independent): q5_K ~2.60 (unrolled)/3.26 (rolled) ; q6_K ~2.20 GMAC/s.
+# The 8x8/8x4 are RVV-SPECIALIZED (q5_K_8x8 rvv=646, q6_K_8x8 rvv=201 — NOT scalar), so 0.09 is
+# NOT a scalar-baseline; it is a memory-thrash artifact from feeding a non-native buffer layout.
+# Named residual X (checkable): ggml's exact x8 weight-interleave + q8_Kx8 activation interleave
+# + fp16 scale byte placement must be produced by ggml's OWN repack function (not reconstructed here).
+# => q5_K/q6_K 8x8 hand-brick A/B DEFERRED. block-dot correctness-separate floor reported instead
+#    (q5_K 4.45x, q6_K 1.77x cold vs ggml_vec_dot).

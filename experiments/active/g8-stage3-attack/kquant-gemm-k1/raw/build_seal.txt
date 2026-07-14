@@ -1,0 +1,22 @@
+# G8 K-quant GEMM@k1 census  CC=Bianbu clang version 18.1.8 (11bb4)  march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O2 -ffp-contract=on
+# board=Linux 6.6.63 riscv64 vlenb=n/a  2026-07-14T16:24:42Z
+# stock_ggml_so_md5=871169a0123139692177468b3c8578be  (provenance=so-hash; k1 tree no .git)
+=== [A] compile ours kernels (both schedules) + self objdump ===
+# OURS_unrolled_q2_K: fp16=cleanfp vsetvl=44 vwmacc=1152 spill=3 size=15840B
+# OURS_unrolled_q3_K: fp16=cleanfp vsetvl=13 vwmacc=1088 spill=48 size=19216B
+# OURS_unrolled_q4_K: fp16=cleanfp vsetvl=36 vwmacc=1120 spill=2 size=15008B
+# OURS_unrolled_q5_K: fp16=cleanfp vsetvl=36 vwmacc=1120 spill=45 size=22000B
+# OURS_unrolled_q6_K: fp16=cleanfp vsetvl=21 vwmacc=1152 spill=19 size=20448B
+# linked OK -> census_unrolled
+# OURS_rolled_q2_K: fp16=cleanfp vsetvl=42 vwmacc=192 spill=29 size=9296B
+# OURS_rolled_q3_K: fp16=cleanfp vsetvl=13 vwmacc=128 spill=29 size=5736B
+# OURS_rolled_q4_K: fp16=cleanfp vsetvl=36 vwmacc=160 spill=4 size=6440B
+# OURS_rolled_q5_K: fp16=cleanfp vsetvl=36 vwmacc=160 spill=5 size=6680B
+# OURS_rolled_q6_K: fp16=cleanfp vsetvl=21 vwmacc=256 spill=51 size=8952B
+# linked OK -> census_rolled
+=== [B] opponent dispatched-symbol machine-probe (stock .so) ===
+# OPP_q2_K: gemm_16x1@00000000000acd96 (real, generic@00000000000369a8) HAND-BRICK
+# OPP_q4_K: gemm_16x1@00000000000abe58 (real, generic@00000000000350ba) HAND-BRICK
+# OPP_q5_K: gemm_8x8@000000000002fa90 HAND-BRICK (no 16x1 candidate in dispatcher)
+# OPP_q6_K: gemm_8x8@00000000000321fa HAND-BRICK (no 16x1 candidate in dispatcher)
+# OPP_q3_K: NO ggml_gemm_q3_K (absent from repack dispatcher) => block-dot ggml_vec_dot_q3_K_q8_K
