@@ -350,6 +350,48 @@ static constexpr IMEVmadotTilingPattern kIMEVmadotTilingPatterns[] = {
      "(w4 compute 1.955x but full-matmul NULL: 16-accumulator f32 epilogue spills)"},
 };
 
+/// [PAT-1] wide-vmadot per-FORMAT MEASURED-NEGATIVE registry (registration-as-data,
+/// the C3' capability-keyed pattern-library object). This is approach (b) of the G8
+/// keying-audit deliverable: it REPLACES the hardcoded `epilogueBound=false/false/true`
+/// bool literals that were previously spelled per format at the three deploy sites.
+/// A row records a BOARD-MEASURED negative result for a (weight_format, wide-vmadot)
+/// pair -- exactly the SAME `status=="measured-negative"` mechanism as the W4 tiling
+/// row above (the W4 row is width-keyed; these rows are format-keyed). When a tile's
+/// weight_format has a `measured-negative` row, deployment DECLINES wide by REGISTRY
+/// LOOKUP; a format with NO row (q4_0/q8_0: no measured negative) deploys the widest
+/// mechanized tiling. The real fold/epilogue-cost BOTTLENECK MODEL (deriving the
+/// decline from the region's fold primitives) is deferred to phase 3 (the q4_K@ime
+/// push), where it will corroborate or supersede this measured row with fresh board
+/// data. Per-format board-measured (perf discipline: no projection).
+struct IMEWideFormatMeasurement {
+  llvm::StringRef weightFormat; ///< the tile's weight_format fact (registry key)
+  llvm::StringRef status;       ///< "measured-negative" => decline wide for this fmt
+  llvm::StringRef metric;       ///< the measured wide-vs-narrow full-matmul ratio
+  llvm::StringRef metricsHook;  ///< the board evidence for the measured row
+};
+
+/// q4_K@ime wide-vmadot was BOARD-MEASURED at 0.909x (G6-A M7 tiling roll-out: the
+/// super-block two-level 6-bit sc/m + S_scale/S_min fold epilogue dilutes the
+/// array-util MAC-tiling win -> full-matmul LOSS). Registering it here as a
+/// measured-negative row makes the q4_K wide decline a REGISTRY FACT, not a hardcoded
+/// per-format bool. q4_0/q8_0 have NO row (no measured negative) => wide deploys.
+static constexpr IMEWideFormatMeasurement kIMEWideFormatMeasurements[] = {
+    {"q4_K", "measured-negative", "0.909x",
+     "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md "
+     "(q4_K@ime wide-vmadot 0.909x: super-block two-level 6-bit sc/m + "
+     "S_scale/S_min fold epilogue dominates -> array-util MAC-tiling win washes out)"},
+};
+
+/// Looks up the per-format measured-negative registry. Returns the matching row when
+/// the format has a board-measured-negative wide result (=> decline wide), else null.
+const IMEWideFormatMeasurement *
+lookupWideFormatMeasuredNegative(llvm::StringRef weightFormat) {
+  for (const IMEWideFormatMeasurement &m : kIMEWideFormatMeasurements)
+    if (m.status == "measured-negative" && m.weightFormat == weightFormat)
+      return &m;
+  return nullptr;
+}
+
 /// The RISC-V architectural vector register-file size. This is the ONE genuinely
 /// VLEN-INVARIANT fact in the wide-vmadot accounting: 32 architectural vregs exist
 /// at every VLEN. (The per-fragment vreg COST is NOT VLEN-invariant -- that is the
@@ -380,18 +422,19 @@ struct IMEWideDeployDecision {
 ///       fail-closed to narrow.
 ///   (2) FORMAT FEATURE: the fragment kt/bits (macM/macN/macK, elem/accum bits) come
 ///       from the tile op -- the same predicate serves q4_0/q8_0/q4_K, no format name.
-///   (3) BOTTLENECK SHAPE: MAC-tiling payoff vs. epilogue weight. `epilogueBound`
-///       formats (q4_K: the two-level 6-bit sc/m + S_scale/S_min + fp16 fold that
-///       dominates the tile) get a MAC-tiling NULL -> LEGAL DECLINE (the M7
-///       q4_K@ime 0.909x measured-null boundary is made an explicit predicate leg,
-///       not a silent hand-omission).
+///   (3) BOTTLENECK SHAPE: MAC-tiling payoff vs. epilogue weight, driven by the
+///       per-format MEASURED-NEGATIVE registry (approach b). A `weightFormat` with a
+///       `measured-negative` row (q4_K: board-measured 0.909x -- the two-level 6-bit
+///       sc/m + S_scale/S_min fold dominates) gets a MAC-tiling NULL -> LEGAL DECLINE
+///       by REGISTRY LOOKUP, NOT a hardcoded per-format bool. Formats with no row
+///       (q4_0/q8_0) proceed to the capability/width legs and deploy wide.
 /// The vreg floor for a width-njw tiling is rpfIn (the reused A) + njw*rpfIn (the
 /// njw B col-tiles) + njw*rpfAcc (the njw int32 accumulator tiles); the widest
 /// MECHANIZED tiling whose floor fits the 32-register file is selected.
 IMEWideDeployDecision
 decideWideVmadotDeployment(int64_t vlenBits, int64_t macM, int64_t macN,
                           int64_t macK, int64_t elemInBits, int64_t accumBits,
-                          bool epilogueBound) {
+                          llvm::StringRef weightFormat) {
   IMEWideDeployDecision d;
   const int64_t fragBits = macM * macK * elemInBits;
   const int64_t accBits = macM * macN * accumBits;
@@ -404,12 +447,15 @@ decideWideVmadotDeployment(int64_t vlenBits, int64_t macM, int64_t macN,
   const int64_t rpfIn = std::max<int64_t>(1, ceilDiv(fragBits, vb));
   const int64_t rpfAcc = std::max<int64_t>(1, ceilDiv(accBits, vb));
 
-  // (3) bottleneck-shape leg: epilogue-bound formats decline MAC-tiling.
-  if (epilogueBound) {
-    d.reason =
-        "bottleneck-shape=epilogue-bound decline (MAC-tiling NULL): the two-level "
-        "6-bit sc/m + S_scale/S_min + fp16 fold dominates the tile; array-util wins "
-        "wash out [PAT-1 format-keyed boundary; M7 q4_K@ime 0.909x measured-null]";
+  // (3) bottleneck-shape leg: a per-format MEASURED-NEGATIVE registry row declines
+  // MAC-tiling (same status=="measured-negative" mechanism as the W4 tiling row).
+  // The decline is a REGISTRY LOOKUP on the weight_format fact, not a hardcoded bool.
+  if (const IMEWideFormatMeasurement *neg =
+          lookupWideFormatMeasuredNegative(weightFormat)) {
+    d.reason = "bottleneck-shape=epilogue-bound decline (MAC-tiling NULL): " +
+               weightFormat.str() + " wide-vmadot registry status=" +
+               neg->status.str() + " measured " + neg->metric.str() +
+               " [PAT-1 measured-negative row; " + neg->metricsHook.str() + "]";
     return d;
   }
   // (1) capability leg: the single-`vle8 e8,m1` leaf requires the fragment to fit
@@ -547,15 +593,22 @@ std::string macKloopHelperBodyWide(llvm::StringRef helperName,
 /// BEFORE the format matmul helper that CALLS it) the [PAT-1] registry provenance
 /// comment + the selected WIDE vmadot MAC leaf body, and returns its helper name so
 /// the matmul body can be wired to it. Returns "" when the decision declines wide
-/// (njw<=1): the narrow leaf stays the deployed leaf (auto fallback). This closes
-/// the "_w2 emitted but never wired -> dead" gap: the leaf is now emitted ONLY when
-/// it is deployed, and always at prologue scope (declared-before-use).
+/// (njw<=1): the narrow leaf stays the deployed leaf (auto fallback). On decline it
+/// MATERIALIZES the honest-decline provenance comment (never a silent omission -- the
+/// same discipline the q4_K epilogue-bound path already follows), so the VLEN-mismatch
+/// / capability declines land a reason. This closes the "_w2 emitted but never wired
+/// -> dead" gap: the leaf is emitted ONLY when it is deployed, and always at prologue
+/// scope (declared-before-use).
 std::string
 emitDeployedWideVmadotLeaf(mlir::ConversionPatternRewriter &rewriter,
                            mlir::Location loc,
                            const IMEWideDeployDecision &decision) {
-  if (decision.njw <= 1)
+  if (decision.njw <= 1) {
+    rewriter.create<emitc::VerbatimOp>(
+        loc, std::string("// weft_ime.pat1_tiling=decline njw=1 deployed=0 ") +
+                 decision.reason);
     return {};
+  }
   std::string wideName =
       (kVmadotMacKloopHelperName + "_w" + std::to_string(decision.njw)).str();
   rewriter.create<emitc::VerbatimOp>(
@@ -1648,14 +1701,16 @@ public:
         context, emitc::OpaqueType::get(context, "int32_t"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // G8 wide-vmadot key: the VLEN-parametric capability predicate (q4_0 is a flat
-    // MAC-BOUND format -> the bottleneck-shape leg admits the wide tiling). The
-    // selected wide leaf is DEPLOYED into both the int32 seal kernel and the f32
-    // forward kernel below (closing applied!=deployed); narrow is the auto fallback.
+    // G8 wide-vmadot key: the VLEN-parametric capability predicate. The
+    // bottleneck-shape leg consults the per-format MEASURED-NEGATIVE registry keyed on
+    // the tile's weight_format fact (no hardcoded per-format bool): q4_0 has NO
+    // measured-negative row => the leg admits the wide tiling. The selected wide leaf
+    // is DEPLOYED into both the int32 seal kernel and the f32 forward kernel below
+    // (closing applied!=deployed); narrow is the auto fallback.
     IMEWideDeployDecision wide = decideWideVmadotDeployment(
         readDeployedVlenBits(tile), tile.getMacM(), tile.getMacN(),
         tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
-        /*epilogueBound=*/false);
+        tile.getWeightFormat());
     std::string wideName;
 
     // Module-scope prologue: include + the validated vmadot MAC leaf + the DEPLOYED
@@ -1840,14 +1895,15 @@ public:
         context, emitc::OpaqueType::get(context, "int32_t"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // G8 wide-vmadot key: q8_0 is a flat MAC-BOUND format (direct int8 decode, light
-    // int32 scatter epilogue) -> the bottleneck-shape leg admits the wide tiling, so
-    // the selected wide leaf is DEPLOYED into the int32 kernel below (closing
+    // G8 wide-vmadot key: the bottleneck-shape leg consults the per-format
+    // MEASURED-NEGATIVE registry keyed on the tile's weight_format fact (no hardcoded
+    // per-format bool): q8_0 has NO measured-negative row => the leg admits the wide
+    // tiling. The selected wide leaf is DEPLOYED into the int32 kernel below (closing
     // applied!=deployed for q8_0). narrow is the auto fallback.
     IMEWideDeployDecision wide = decideWideVmadotDeployment(
         readDeployedVlenBits(tile), tile.getMacM(), tile.getMacN(),
         tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
-        /*epilogueBound=*/false);
+        tile.getWeightFormat());
     std::string wideName;
 
     // Module-scope prologue: include + the validated vmadot MAC leaf + the DEPLOYED
@@ -1987,15 +2043,18 @@ public:
         context, emitc::OpaqueType::get(context, "float"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // G8 wide-vmadot key: q4_K is EPILOGUE-BOUND (the two-level 6-bit sc/m +
-    // S_scale/S_min + fp16 fold dominates the tile), so the bottleneck-shape leg
-    // DECLINES the wide MAC tiling (measured NULL: M7 q4_K@ime 0.909x). The decline
-    // is MATERIALIZED as a provenance comment (honest, not a silent hand-omission);
-    // no wide leaf is emitted and the narrow leaf stays deployed.
+    // G8 wide-vmadot key: the bottleneck-shape leg consults the per-format
+    // MEASURED-NEGATIVE registry keyed on the tile's weight_format fact: q4_K carries a
+    // `measured-negative` row (board-measured G6-A M7 wide-vmadot 0.909x -- the
+    // super-block two-level 6-bit sc/m + S_scale/S_min fold dominates), so the leg
+    // DECLINES the wide MAC tiling by REGISTRY LOOKUP, NOT a hardcoded bool. The decline
+    // is MATERIALIZED as a provenance comment (honest, not a silent hand-omission); no
+    // wide leaf is emitted and the narrow leaf stays deployed. (The fold-cost bottleneck
+    // MODEL that would DERIVE this decline is deferred to phase 3, the q4_K@ime push.)
     IMEWideDeployDecision wide = decideWideVmadotDeployment(
         readDeployedVlenBits(tile), tile.getMacM(), tile.getMacN(),
         tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
-        /*epilogueBound=*/true);
+        tile.getWeightFormat());
 
     // Module-scope prologue: include + the validated vmadot MAC leaf + the q4_K
     // fp16 epilogue helpers + the raw-nibble decode + the 6-bit scale/min unpack +
