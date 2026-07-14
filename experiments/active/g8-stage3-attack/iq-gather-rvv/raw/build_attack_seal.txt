@@ -1,0 +1,4 @@
+# stubbed 4 ggml-internal symbols
+# OURS_attack_iq1_s: vsetvl=45 gather=8 textsize=0x000003e6
+# OURS_attack_iq1_m: vsetvl=134 gather=9 textsize=0x00000c58
+# LINK OK -> /tmp/g8s3iq/rvv/iq_bench (attack)
