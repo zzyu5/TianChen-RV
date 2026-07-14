@@ -95,12 +95,12 @@ static float oracle_q5_1(const block_q5_1 & w, const block_q8_1 & a) {
 }
 
 // ---------- ours kernels ----------
-// repack-mf2 GEVM leaf (force-constructed VLEN256; front-door DECLINES it at decode)
+// repack-GEVM leaf (half_lanes=16 whole-strip; front-door DEPLOYS it at VLEN256 decode after per-format measured-gate fix d109d6ed2 -- this IS the real decode dispatch post-fix)
 extern "C" void weft_emitc_ggml_vec_dot_q5_0_q8_0_kernel_ggml_vec_dot_q5_0_q8_0(
     size_t n, float* s, size_t nc, const uint8_t* vx, size_t bx, const uint8_t* vy, size_t by, int32_t nrc);
 extern "C" void weft_emitc_ggml_vec_dot_q5_1_q8_1_kernel_ggml_vec_dot_q5_1_q8_1(
     size_t n, float* s, size_t nc, const uint8_t* vx, size_t bx, const uint8_t* vy, size_t by, int32_t nrc);
-// deployed BLOCK-DOT vec_dot (per-column) -- the REAL decode dispatch on k1 VLEN256
+// NON-deployed BLOCK-DOT vec_dot (per-column) -- pre-fix decode dispatch; post-fix this is the DECLINED variant, kept as hand-fed 对照 baseline on k1 VLEN256
 extern "C" void weft_emitc_ggml_vec_dot_q5_0_q8_0_kernel_rvv_q5_0_q8_0_block_dot(
     size_t n, float* out, const uint8_t* x, const uint8_t* y, const int32_t* nrc);
 extern "C" void weft_emitc_ggml_vec_dot_q5_1_q8_1_kernel_rvv_q5_1_q8_1_block_dot(
