@@ -1,0 +1,158 @@
+diff --git a/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp b/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
+index c51dc0c4f..016f6d900 100644
+--- a/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
++++ b/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
+@@ -318,92 +318,67 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
+             return {zeroSeed, sizeLit(1)};
+           });
+ 
+-      // uint16_t tmp[4];  (scratch holding the 4 grid byte-offset indices idx*8;
+-      // EEW=16 byte offsets feed the vluxei16 indexed gather. Max idx 2047 -> 2047
+-      // * 8 = 16376 < 65535 fits u16.)
+-      rewriter.create<emitc::VerbatimOp>(
+-          loc, localVariableComment("idxoff", opName, role));
+-      mlir::Type idxArrayType =
+-          emitc::ArrayType::get({groupsPerSub}, u16ElemType);
+-      auto idxVar = rewriter.create<emitc::VariableOp>(
+-          loc, idxArrayType, emitc::OpaqueAttr::get(ctx, ""));
+-      auto idxArray =
+-          llvm::cast<mlir::TypedValue<emitc::ArrayType>>(idxVar.getResult());
+-
+-      // KEEP the 4 scalar 11-bit index computations (byte-exact, untouched), each
+-      // shifted <<3 to a byte offset and stored into tmp[l].
+-      for (int64_t l = 0; l < groupsPerSub; ++l) {
+-        rewriter.create<emitc::VerbatimOp>(
+-            loc, stepComment(opName, role, "ternary_grid_index"));
+-        // idx = qs[ib*4 + l] | (((qhw >> (3*l)) & 7) << 8).  The low 8 bits are a
+-        // single qs index byte; the high 3 bits are taken from the (3*l)-shifted qh
+-        // field masked to bits [8,10] (shift 0,3,6,9 for l=0,1,2,3). The whole index
+-        // stays within [0,2047].
+-        mlir::Value qsIdxByte =
+-            loadByteAsInt(qsBase, ib * groupsPerSub + l);
+-        mlir::Value qhField =
+-            rewriter
+-                .create<emitc::BitwiseAndOp>(
+-                    loc, intType,
+-                    rewriter
+-                        .create<emitc::BitwiseRightShiftOp>(loc, intType,
+-                                                            qhWord,
+-                                                            intLit(3 * l))
+-                        .getResult(),
+-                    intLit(7))
+-                .getResult();
+-        mlir::Value qhHighBits =
+-            rewriter
+-                .create<emitc::BitwiseLeftShiftOp>(loc, intType, qhField,
+-                                                   intLit(8))
+-                .getResult();
+-        mlir::Value idx =
+-            rewriter
+-                .create<emitc::BitwiseOrOp>(loc, intType, qsIdxByte,
+-                                            qhHighBits)
+-                .getResult();
+-        // tmp[l] = (uint16_t)(idx << 3);  (idx*8 byte offset into the u64 grid).
+-        mlir::Value byteOff =
+-            rewriter
+-                .create<emitc::BitwiseLeftShiftOp>(loc, intType, idx,
+-                                                   intLit(3))
+-                .getResult();
+-        mlir::Value byteOffU16 =
+-            rewriter.create<emitc::CastOp>(loc, u16ElemType, byteOff)
+-                .getResult();
+-        mlir::Value tmpIdx = rewriter.create<emitc::LiteralOp>(
+-            loc, rewriter.getIndexType(), std::to_string(l));
+-        mlir::Value tmpElem =
+-            rewriter
+-                .create<emitc::SubscriptOp>(loc, idxArray,
+-                                            mlir::ValueRange{tmpIdx})
+-                .getResult();
+-        rewriter.create<emitc::AssignOp>(
+-            loc, llvm::cast<mlir::TypedValue<emitc::LValueType>>(tmpElem),
+-            byteOffU16);
+-      }
+-
+-      // vuint16mf2_t vidx = __riscv_vle16_v_u16mf2(&tmp[0], 4);  (index EMUL =
+-      // (EEW_idx/SEW_data)*LMUL_data = (16/64)*2 = 1/2 -> mf2 for the i64m2 gather.)
+-      mlir::Value idxBaseIndex0 =
+-          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+-      mlir::Value idxBaseElem0 =
+-          rewriter
+-              .create<emitc::SubscriptOp>(loc, idxArray,
+-                                          mlir::ValueRange{idxBaseIndex0})
+-              .getResult();
+-      mlir::Value idxBase =
+-          rewriter
+-              .create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", idxBaseElem0)
+-              .getResult();
+-      std::string idxLoadCallee =
+-          riscvIntrinsicName("vle", 16, "mf2", "u16");
+-      mlir::Value vidx = emitOpaqueCallBuilt(
+-          rewriter, loc, u16mf2Type, idxLoadCallee, opName, role,
+-          [&](mlir::OpBuilder &b,
+-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+-            return {idxBase, sizeLit(groupsPerSub)};
+-          });
++      // [G8 §六.3 vector grid-index primitive] Synthesize the 4 grid byte-offset
++      // indices ENTIRELY in vector registers -- NO uint16_t tmp[4] stack scratch,
++      // NO scalar index chain, NO vle16 read-back. Byte-identical, per lane l, to
++      // the scalar form  idx = qs[ib*4+l] | (((qhw>>(3*l))&7)<<8),  vidx = idx<<3;
++      // the 4 lanes are assembled with vid/vmul/vsrl.vv/vand/vsll/vor mirroring the
++      // opponent's all-vector index assembly (raw/opp_iq1s_vl128.s .LBB29_4). The
++      // synthesized vuint16mf2_t is the u16-EEW gather index (EMUL = (16/64)*2 =
++      // 1/2 -> mf2 for the i64m2 gather).
++      mlir::Type u8mf4Type = emitc::OpaqueType::get(ctx, "vuint8mf4_t");
++      // qsGroup = qs + ib*4;  ONE vle8 u8mf4 loads this sub-block's 4 qs index
++      // bytes (contiguous), then vzext.vf2 widens to the u16 low index bits.
++      mlir::Value qsGroupPtr =
++          (ib == 0)
++              ? qsBase
++              : rewriter
++                    .create<emitc::AddOp>(loc, u8PtrType, qsBase,
++                                          sizeLit(ib * groupsPerSub))
++                    .getResult();
++      std::string qsLoadCallee = riscvIntrinsicName("vle", 8, "mf4", "u8");
++      mlir::Value qsBytes = emitOpaqueCall(
++          rewriter, loc, u8mf4Type, qsLoadCallee,
++          mlir::ValueRange{qsGroupPtr, sizeLit(groupsPerSub)}, opName, role,
++          llvm::StringRef("ternary_grid_index_vector"));
++      mlir::Value qsU16 = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vzext_vf2_u16mf2",
++          mlir::ValueRange{qsBytes, sizeLit(groupsPerSub)}, opName, role);
++      // qhwSplat = broadcast(qhw) over 4 lanes;  vid = [0,1,2,3];
++      // shiftVec = vid*3 = [0,3,6,9]  (the per-lane 3*l qh shift amounts).
++      std::string vmvU16Callee = riscvIntrinsicName("vmv_v_x", 16, "mf2", "u16");
++      mlir::Value qhwSplat = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, vmvU16Callee,
++          mlir::ValueRange{qhWord, sizeLit(groupsPerSub)}, opName, role);
++      mlir::Value vidVec = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vid_v_u16mf2",
++          mlir::ValueRange{sizeLit(groupsPerSub)}, opName, role);
++      mlir::Value shiftVec = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vmul_vx_u16mf2",
++          mlir::ValueRange{vidVec, sizeLit(3), sizeLit(groupsPerSub)}, opName,
++          role);
++      // per-lane (qhw >> (3*l)) & 7, then << 8 = the high-3 index bits [8,10].
++      mlir::Value shifted = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vsrl_vv_u16mf2",
++          mlir::ValueRange{qhwSplat, shiftVec, sizeLit(groupsPerSub)}, opName,
++          role);
++      mlir::Value qhField = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vand_vx_u16mf2",
++          mlir::ValueRange{shifted, sizeLit(7), sizeLit(groupsPerSub)}, opName,
++          role);
++      mlir::Value qhHighBits = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vsll_vx_u16mf2",
++          mlir::ValueRange{qhField, sizeLit(8), sizeLit(groupsPerSub)}, opName,
++          role);
++      // idx = qs | qhHigh  (11-bit, [0,2047]);  vidx = idx << 3  (idx*8 byte off).
++      mlir::Value idxVec = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vor_vv_u16mf2",
++          mlir::ValueRange{qsU16, qhHighBits, sizeLit(groupsPerSub)}, opName,
++          role);
++      mlir::Value vidx = emitOpaqueCall(
++          rewriter, loc, u16mf2Type, "__riscv_vsll_vx_u16mf2",
++          mlir::ValueRange{idxVec, sizeLit(3), sizeLit(groupsPerSub)}, opName,
++          role);
+ 
+       // grid64 = (const int64_t *)weft_iq1s_grid;  (the u64 grid as int64 base for
+       // the indexed gather -- exactly ggml's (const int64_t *)iq1s_grid.)
