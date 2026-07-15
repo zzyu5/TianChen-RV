@@ -1,0 +1,340 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <riscv_vector.h>
+extern "C" void weft_emitc_dequant_q5_K_kernel_dequant_q5_K(size_t v1, const uint8_t* v2, float* v3) {
+  // weft_emitc.route_source_op=weft_rvv.with_vl role=scope op_interface=WEFTEmitCLowerableOpInterface
+  // weft_emitc.source_op=weft_rvv.setvl role=configure op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
+  size_t v4 = __riscv_vsetvl_e32m1(v1);
+  // weft_emitc.route_source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface
+  // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=super_block_count
+  size_t v5 = v1 / 256;
+  for (size_t v6 = 0; v6 < v5; v6 += 1) {
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=xb
+    size_t v7 = v6 * 176;
+    const uint8_t* v8 = v2 + v7;
+    size_t v9 = v6 * 256;
+    float* v10 = v3 + v9;
+    float* v11 = (float*) v10;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=fcvt.s.h
+    float v12 = (float)*(const _Float16 *)(v8);
+    const uint8_t* v13 = v8 + 2;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=fcvt.s.h
+    float v14 = (float)*(const _Float16 *)(v13);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=q5_K_decode
+    const uint8_t* v15 = v8 + 4;
+    const uint8_t v16 = v15[0];
+    int v17 = (int) v16;
+    int v18 = v17 & 63;
+    const uint8_t* v19 = v8 + 8;
+    const uint8_t v20 = v19[0];
+    int v21 = (int) v20;
+    int v22 = v21 & 63;
+    float v23 = (float) v18;
+    float v24 = v12 * v23;
+    float v25 = (float) v22;
+    float v26 = v14 * v25;
+    const uint8_t* v27 = v8 + 5;
+    const uint8_t v28 = v27[0];
+    int v29 = (int) v28;
+    int v30 = v29 & 63;
+    const uint8_t* v31 = v8 + 9;
+    const uint8_t v32 = v31[0];
+    int v33 = (int) v32;
+    int v34 = v33 & 63;
+    float v35 = (float) v30;
+    float v36 = v12 * v35;
+    float v37 = (float) v34;
+    float v38 = v14 * v37;
+    for (size_t v39 = 0; v39 < 32; v39 += 1) {
+      size_t v40 = 48 + v39;
+      const uint8_t* v41 = v8 + v40;
+      const uint8_t v42 = v41[0];
+      int v43 = (int) v42;
+      int v44 = v43 & 15;
+      size_t v45 = 16 + v39;
+      const uint8_t* v46 = v8 + v45;
+      const uint8_t v47 = v46[0];
+      int v48 = (int) v47;
+      int v49 = v48 >> 0;
+      int v50 = v49 & 1;
+      int v51 = v50 << 4;
+      int v52 = v44 + v51;
+      float v53 = (float) v52;
+      float v54 = v24 * v53;
+      float v55 = v54 - v26;
+      size_t v56 = 0 + v39;
+      float* v57 = v11 + v56;
+      v57[0] = v55;
+    }
+    for (size_t v58 = 0; v58 < 32; v58 += 1) {
+      size_t v59 = 48 + v58;
+      const uint8_t* v60 = v8 + v59;
+      const uint8_t v61 = v60[0];
+      int v62 = (int) v61;
+      int v63 = v62 >> 4;
+      size_t v64 = 16 + v58;
+      const uint8_t* v65 = v8 + v64;
+      const uint8_t v66 = v65[0];
+      int v67 = (int) v66;
+      int v68 = v67 >> 1;
+      int v69 = v68 & 1;
+      int v70 = v69 << 4;
+      int v71 = v63 + v70;
+      float v72 = (float) v71;
+      float v73 = v36 * v72;
+      float v74 = v73 - v38;
+      size_t v75 = 32 + v58;
+      float* v76 = v11 + v75;
+      v76[0] = v74;
+    }
+    const uint8_t* v77 = v8 + 6;
+    const uint8_t v78 = v77[0];
+    int v79 = (int) v78;
+    int v80 = v79 & 63;
+    const uint8_t* v81 = v8 + 10;
+    const uint8_t v82 = v81[0];
+    int v83 = (int) v82;
+    int v84 = v83 & 63;
+    float v85 = (float) v80;
+    float v86 = v12 * v85;
+    float v87 = (float) v84;
+    float v88 = v14 * v87;
+    const uint8_t* v89 = v8 + 7;
+    const uint8_t v90 = v89[0];
+    int v91 = (int) v90;
+    int v92 = v91 & 63;
+    const uint8_t* v93 = v8 + 11;
+    const uint8_t v94 = v93[0];
+    int v95 = (int) v94;
+    int v96 = v95 & 63;
+    float v97 = (float) v92;
+    float v98 = v12 * v97;
+    float v99 = (float) v96;
+    float v100 = v14 * v99;
+    for (size_t v101 = 0; v101 < 32; v101 += 1) {
+      size_t v102 = 80 + v101;
+      const uint8_t* v103 = v8 + v102;
+      const uint8_t v104 = v103[0];
+      int v105 = (int) v104;
+      int v106 = v105 & 15;
+      size_t v107 = 16 + v101;
+      const uint8_t* v108 = v8 + v107;
+      const uint8_t v109 = v108[0];
+      int v110 = (int) v109;
+      int v111 = v110 >> 2;
+      int v112 = v111 & 1;
+      int v113 = v112 << 4;
+      int v114 = v106 + v113;
+      float v115 = (float) v114;
+      float v116 = v86 * v115;
+      float v117 = v116 - v88;
+      size_t v118 = 64 + v101;
+      float* v119 = v11 + v118;
+      v119[0] = v117;
+    }
+    for (size_t v120 = 0; v120 < 32; v120 += 1) {
+      size_t v121 = 80 + v120;
+      const uint8_t* v122 = v8 + v121;
+      const uint8_t v123 = v122[0];
+      int v124 = (int) v123;
+      int v125 = v124 >> 4;
+      size_t v126 = 16 + v120;
+      const uint8_t* v127 = v8 + v126;
+      const uint8_t v128 = v127[0];
+      int v129 = (int) v128;
+      int v130 = v129 >> 3;
+      int v131 = v130 & 1;
+      int v132 = v131 << 4;
+      int v133 = v125 + v132;
+      float v134 = (float) v133;
+      float v135 = v98 * v134;
+      float v136 = v135 - v100;
+      size_t v137 = 96 + v120;
+      float* v138 = v11 + v137;
+      v138[0] = v136;
+    }
+    const uint8_t* v139 = v8 + 4;
+    const uint8_t v140 = v139[0];
+    int v141 = (int) v140;
+    int v142 = v141 >> 6;
+    int v143 = v142 << 4;
+    const uint8_t* v144 = v8 + 12;
+    const uint8_t v145 = v144[0];
+    int v146 = (int) v145;
+    int v147 = v146 & 15;
+    int v148 = v147 | v143;
+    const uint8_t* v149 = v8 + 8;
+    const uint8_t v150 = v149[0];
+    int v151 = (int) v150;
+    int v152 = v151 >> 6;
+    int v153 = v152 << 4;
+    const uint8_t* v154 = v8 + 12;
+    const uint8_t v155 = v154[0];
+    int v156 = (int) v155;
+    int v157 = v156 >> 4;
+    int v158 = v157 | v153;
+    float v159 = (float) v148;
+    float v160 = v12 * v159;
+    float v161 = (float) v158;
+    float v162 = v14 * v161;
+    const uint8_t* v163 = v8 + 5;
+    const uint8_t v164 = v163[0];
+    int v165 = (int) v164;
+    int v166 = v165 >> 6;
+    int v167 = v166 << 4;
+    const uint8_t* v168 = v8 + 13;
+    const uint8_t v169 = v168[0];
+    int v170 = (int) v169;
+    int v171 = v170 & 15;
+    int v172 = v171 | v167;
+    const uint8_t* v173 = v8 + 9;
+    const uint8_t v174 = v173[0];
+    int v175 = (int) v174;
+    int v176 = v175 >> 6;
+    int v177 = v176 << 4;
+    const uint8_t* v178 = v8 + 13;
+    const uint8_t v179 = v178[0];
+    int v180 = (int) v179;
+    int v181 = v180 >> 4;
+    int v182 = v181 | v177;
+    float v183 = (float) v172;
+    float v184 = v12 * v183;
+    float v185 = (float) v182;
+    float v186 = v14 * v185;
+    for (size_t v187 = 0; v187 < 32; v187 += 1) {
+      size_t v188 = 112 + v187;
+      const uint8_t* v189 = v8 + v188;
+      const uint8_t v190 = v189[0];
+      int v191 = (int) v190;
+      int v192 = v191 & 15;
+      size_t v193 = 16 + v187;
+      const uint8_t* v194 = v8 + v193;
+      const uint8_t v195 = v194[0];
+      int v196 = (int) v195;
+      int v197 = v196 >> 4;
+      int v198 = v197 & 1;
+      int v199 = v198 << 4;
+      int v200 = v192 + v199;
+      float v201 = (float) v200;
+      float v202 = v160 * v201;
+      float v203 = v202 - v162;
+      size_t v204 = 128 + v187;
+      float* v205 = v11 + v204;
+      v205[0] = v203;
+    }
+    for (size_t v206 = 0; v206 < 32; v206 += 1) {
+      size_t v207 = 112 + v206;
+      const uint8_t* v208 = v8 + v207;
+      const uint8_t v209 = v208[0];
+      int v210 = (int) v209;
+      int v211 = v210 >> 4;
+      size_t v212 = 16 + v206;
+      const uint8_t* v213 = v8 + v212;
+      const uint8_t v214 = v213[0];
+      int v215 = (int) v214;
+      int v216 = v215 >> 5;
+      int v217 = v216 & 1;
+      int v218 = v217 << 4;
+      int v219 = v211 + v218;
+      float v220 = (float) v219;
+      float v221 = v184 * v220;
+      float v222 = v221 - v186;
+      size_t v223 = 160 + v206;
+      float* v224 = v11 + v223;
+      v224[0] = v222;
+    }
+    const uint8_t* v225 = v8 + 6;
+    const uint8_t v226 = v225[0];
+    int v227 = (int) v226;
+    int v228 = v227 >> 6;
+    int v229 = v228 << 4;
+    const uint8_t* v230 = v8 + 14;
+    const uint8_t v231 = v230[0];
+    int v232 = (int) v231;
+    int v233 = v232 & 15;
+    int v234 = v233 | v229;
+    const uint8_t* v235 = v8 + 10;
+    const uint8_t v236 = v235[0];
+    int v237 = (int) v236;
+    int v238 = v237 >> 6;
+    int v239 = v238 << 4;
+    const uint8_t* v240 = v8 + 14;
+    const uint8_t v241 = v240[0];
+    int v242 = (int) v241;
+    int v243 = v242 >> 4;
+    int v244 = v243 | v239;
+    float v245 = (float) v234;
+    float v246 = v12 * v245;
+    float v247 = (float) v244;
+    float v248 = v14 * v247;
+    const uint8_t* v249 = v8 + 7;
+    const uint8_t v250 = v249[0];
+    int v251 = (int) v250;
+    int v252 = v251 >> 6;
+    int v253 = v252 << 4;
+    const uint8_t* v254 = v8 + 15;
+    const uint8_t v255 = v254[0];
+    int v256 = (int) v255;
+    int v257 = v256 & 15;
+    int v258 = v257 | v253;
+    const uint8_t* v259 = v8 + 11;
+    const uint8_t v260 = v259[0];
+    int v261 = (int) v260;
+    int v262 = v261 >> 6;
+    int v263 = v262 << 4;
+    const uint8_t* v264 = v8 + 15;
+    const uint8_t v265 = v264[0];
+    int v266 = (int) v265;
+    int v267 = v266 >> 4;
+    int v268 = v267 | v263;
+    float v269 = (float) v258;
+    float v270 = v12 * v269;
+    float v271 = (float) v268;
+    float v272 = v14 * v271;
+    for (size_t v273 = 0; v273 < 32; v273 += 1) {
+      size_t v274 = 144 + v273;
+      const uint8_t* v275 = v8 + v274;
+      const uint8_t v276 = v275[0];
+      int v277 = (int) v276;
+      int v278 = v277 & 15;
+      size_t v279 = 16 + v273;
+      const uint8_t* v280 = v8 + v279;
+      const uint8_t v281 = v280[0];
+      int v282 = (int) v281;
+      int v283 = v282 >> 6;
+      int v284 = v283 & 1;
+      int v285 = v284 << 4;
+      int v286 = v278 + v285;
+      float v287 = (float) v286;
+      float v288 = v246 * v287;
+      float v289 = v288 - v248;
+      size_t v290 = 192 + v273;
+      float* v291 = v11 + v290;
+      v291[0] = v289;
+    }
+    for (size_t v292 = 0; v292 < 32; v292 += 1) {
+      size_t v293 = 144 + v292;
+      const uint8_t* v294 = v8 + v293;
+      const uint8_t v295 = v294[0];
+      int v296 = (int) v295;
+      int v297 = v296 >> 4;
+      size_t v298 = 16 + v292;
+      const uint8_t* v299 = v8 + v298;
+      const uint8_t v300 = v299[0];
+      int v301 = (int) v300;
+      int v302 = v301 >> 7;
+      int v303 = v302 & 1;
+      int v304 = v303 << 4;
+      int v305 = v297 + v304;
+      float v306 = (float) v305;
+      float v307 = v270 * v306;
+      float v308 = v307 - v272;
+      size_t v309 = 224 + v292;
+      float* v310 = v11 + v309;
+      v310[0] = v308;
+    }
+  }
+  return;
+}
+
+
