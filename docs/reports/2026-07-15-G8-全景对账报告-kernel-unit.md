@@ -1,5 +1,7 @@
 # G8 全景对账报告 · kernel-unit 口径（2026-07-15）
 
+> **▸ 镜头指引（二次整顿令补）**：本报告是 **全 COV-1 系统账镜头（80 distinct kernel，含 dequant/quantize/forward/product_reduce）**。二次整顿令要的 **46 真 matmul 对局 kernel 聚焦镜头** 在姊妹报告 [`2026-07-15-G8-全景报告-v2.md`](2026-07-15-G8-全景报告-v2.md)（46 = 24 vec_dot + 22 gemm-with-opponent，含 12 项清账逐项病因+处置）。两者 **不同 scope、非废除关系**：v1 = 全 COV 面板；v2 = matmul-对局战斗分母。数字互洽（46 ⊂ 80，见 v2 item 1/3 的桥）。
+>
 > **口径**：唯一计数单位 = **kernel（算子×格式）**，板是属性列（冻结整顿令一）。全部数字 recon 机算可溯源（`recon_kernel_unit.py` join `[COV-1] 83` + `T3_A(rvv)` + `T3_B(k1)`），禁手写小计。**80 个 distinct kernel**（[COV-1] 83 cell = 80 op×format + 3 个 engine 变体折叠）。
 > **状态**：阶段三攻坚已冻结，本报告交付即 idle 等裁决。
 
