@@ -12,17 +12,17 @@ vec_dot,q5_K,,,matmul,通用向量,PASS,0.843,ggml_vec_dot_q5_K_q8_K,native-vec 
 vec_dot,q6_K,,,matmul,手调,具名-X,0.18,ggml_vec_dot_q6_K_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.549,ggml_vec_dot_q6_K_q8_K_vl256,SpacemiT vl256 STRONG
 vec_dot,iq1_s,,,matmul,手调,具名-X,0.365,ggml_vec_dot_iq1_s_q8_K_vl128,SpacemiT vl128 grid-gather STRONG,手调,具名-X,0.361,ggml_vec_dot_iq1_s_q8_K_vl256,SpacemiT vl256 STRONG
 vec_dot,iq1_m,,,matmul,手调,具名-X,0.152,ggml_vec_dot_iq1_m_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.25,ggml_vec_dot_iq1_m_q8_K_vl256,SpacemiT vl256 STRONG
-vec_dot,iq2_xxs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq2_xxs_q8_K_vl128.isra.0,objdump rvv:121/vec36/mac6/gather4·vl128手写gather→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:333/vec122/mac24/gather16→手调〔清偿〕
-vec_dot,iq2_xs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0,objdump rvv:226/vec73/mac24/gather8·heavy→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:216/vec53/mac20→手调〔清偿〕
-vec_dot,iq2_s,,,matmul,手调,pending-fold,,ggml_vec_dot_iq2_s_q8_K_vl128.isra.0,objdump rvv:102/vec27/mac3/gather2→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:344/vec105/mac20/gather12→手调〔清偿〕
-vec_dot,iq3_xxs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq3_xxs_q8_K_vl128.isra.0,objdump rvv:129/vec26/mac5/gather3→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:314/vec71/mac20/gather12→手调〔清偿〕
-vec_dot,iq3_s,,,matmul,手调,pending-fold,,ggml_vec_dot_iq3_s_q8_K_vl128.isra.0,objdump rvv:102/vec26/mac2→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:232/vec84/mac12/gather8→手调〔清偿〕
+vec_dot,iq2_xxs,,,matmul,手调,具名-X,0.697,ggml_vec_dot_iq2_xxs_q8_K_vl128.isra.0,objdump rvv:121/vec36/mac6/gather4·vl128手写gather→手调〔清偿〕,手调,具名-X,0.612,..._vl256,objdump k1:333/vec122/mac24/gather16→手调〔清偿〕
+vec_dot,iq2_xs,,,matmul,手调,具名-X,0.529,ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0,objdump rvv:226/vec73/mac24/gather8·heavy→手调〔清偿〕,手调,具名-X,0.474,..._vl256,objdump k1:216/vec53/mac20→手调〔清偿〕
+vec_dot,iq2_s,,,matmul,手调,PASS,1.92,ggml_vec_dot_iq2_s_q8_K_vl128.isra.0,objdump rvv:102/vec27/mac3/gather2→手调〔清偿〕,手调,具名-X,0.562,..._vl256,objdump k1:344/vec105/mac20/gather12→手调〔清偿〕
+vec_dot,iq3_xxs,,,matmul,手调,具名-X,0.156,ggml_vec_dot_iq3_xxs_q8_K_vl128.isra.0,objdump rvv:129/vec26/mac5/gather3→手调〔清偿〕,手调,具名-X,0.192,..._vl256,objdump k1:314/vec71/mac20/gather12→手调〔清偿〕
+vec_dot,iq3_s,,,matmul,手调,具名-X,0.213,ggml_vec_dot_iq3_s_q8_K_vl128.isra.0,objdump rvv:102/vec26/mac2→手调〔清偿〕,手调,具名-X,0.2,..._vl256,objdump k1:232/vec84/mac12/gather8→手调〔清偿〕
 vec_dot,iq4_nl,,,matmul,手调,PASS,1.15,ggml_vec_dot_iq4_nl_q8_0_vl128,hand-vl128 codebook-gather LIGHT〔V·手调〕,手调,具名-X,0.697,ggml_vec_dot_iq4_nl_q8_0_vl256,hand-vl256 codebook-gather LIGHT〔V-纠·板一致·chip-tuned〕
-vec_dot,iq4_xs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq4_xs_q8_K_vl128.isra.0,objdump rvv:84/vec16/mac3·LIGHT→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:144/vec18/mac5→手调〔清偿〕
+vec_dot,iq4_xs,,,matmul,手调,PASS,1.31,ggml_vec_dot_iq4_xs_q8_K_vl128.isra.0,objdump rvv:84/vec16/mac3·LIGHT→手调〔清偿〕,手调,PASS,1.196,..._vl256,objdump k1:144/vec18/mac5→手调〔清偿〕
 vec_dot,mxfp4,,,matmul,手调,pending-fold,,ggml_vec_dot_mxfp4_q8_0_vl128,objdump rvv:118/vec18/mac4/gather2·hand-vl128 LIGHT→手调〔清偿〕,手调,pending-fold,,ggml_vec_dot_mxfp4_q8_0_vl256,objdump k1:96/vec24/mac6/gather4→手调〔清偿·k1原UNRESOLVED已清〕
 vec_dot,nvfp4,,,matmul,标量类,具名-X,0.565,ggml_vec_dot_nvfp4_q8_0,generic-C autovec NO-riscv-spec→标量类(§〇.1)〔V〕,标量类,PASS,1.086,ggml_vec_dot_nvfp4_q8_0,generic-C autovec→标量类〔V〕
-vec_dot,tq1_0,,,matmul,手调,pending-fold,,ggml_vec_dot_tq1_0_q8_K_vl128.isra.0,objdump rvv:114/vec45/mac14·ternary vl128手写→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:172/vec93/mac32→手调〔清偿〕
-vec_dot,tq2_0,,,matmul,手调,pending-fold,,ggml_vec_dot_tq2_0_q8_K_vl128.isra.0,objdump rvv:85/vec46/mac10→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:88/vec46/mac10→手调〔清偿〕
+vec_dot,tq1_0,,,matmul,手调,具名-X,0.207,ggml_vec_dot_tq1_0_q8_K_vl128.isra.0,objdump rvv:114/vec45/mac14·ternary vl128手写→手调〔清偿〕,手调,具名-X,0.606,..._vl256,objdump k1:172/vec93/mac32→手调〔清偿〕
+vec_dot,tq2_0,,,matmul,手调,PASS,0.975,ggml_vec_dot_tq2_0_q8_K_vl128.isra.0,objdump rvv:85/vec46/mac10→手调〔清偿〕,手调,PASS,0.879,..._vl256,objdump k1:88/vec46/mac10→手调〔清偿〕
 product_reduce,q4_0_nibble,,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
 product_reduce,offset_binary_n3,,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
 product_reduce,codebook_n3,,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗

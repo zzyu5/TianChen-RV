@@ -1,0 +1,27 @@
+# BUILD iq/tq @k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zicbop_zihintpause
+# ggml_src=/home/bianbu/tcrv-k1-llama commit=20039c9 2025-07-22 09:23:46 +0800
+=== [B] factory (arch/riscv fno-integrated-as + generic), ld -r ===
+# arch/riscv/quants.o = 212480B
+# quants.o = 176704B
+# factory.o = 385432B  .comment=clang version 18.1.8
+=== [B.probe] opponent identity ===
+# OPP_iq3_s: ggml_vec_dot_iq3_s_q8_K = T
+# OPP_iq2_s: ggml_vec_dot_iq2_s_q8_K = T
+# OPP_iq2_xs: ggml_vec_dot_iq2_xs_q8_K = T
+# OPP_iq2_xxs: ggml_vec_dot_iq2_xxs_q8_K = T
+# OPP_iq3_xxs: ggml_vec_dot_iq3_xxs_q8_K = T
+# OPP_iq4_xs: ggml_vec_dot_iq4_xs_q8_K = T
+# OPP_tq2_0: ggml_vec_dot_tq2_0_q8_K = T
+# OPP_tq1_0: ggml_vec_dot_tq1_0_q8_K = T
+=== [A] ours kernels clang-18 -O3 ===
+# OURS_iq3_s: cleanfp vsetvli=105 7928B md5=45c72e040053b96e518158aa59661bc4
+# OURS_iq2_s: cleanfp vsetvli=81 15040B md5=0d27d2fd1a47ece226829c1c8afab902
+# OURS_iq2_xs: cleanfp vsetvli=65 9928B md5=45cfdf060f21ff8c127a49c85fe1eb4c
+# OURS_iq2_xxs: cleanfp vsetvli=41 6992B md5=acb10742bfbc9765c32d644e85d51401
+# OURS_iq3_xxs: cleanfp vsetvli=137 7120B md5=f10a6d0e59695e25fff7257073adde25
+# OURS_iq4_xs: cleanfp vsetvli=26 2944B md5=ab1d55fc487f125c32a479959c532a72
+# OURS_tq2_0: cleanfp vsetvli=8 2024B md5=c18ed180cc020c0ae498a924e9022781
+# OURS_tq1_0: cleanfp vsetvli=57 2776B md5=64204259c6b08754d1c7615f63eac76a
+=== [C] driver + link ===
+# LINK_OK via [clang-18 -O2 -march=rv64gcv_zfh_zvfh_zicbop_zihintpause -mabi=lp64d -no-pie -Wl,--gc-sections] bench=132664B
+=== BUILD_DONE_K1 ===

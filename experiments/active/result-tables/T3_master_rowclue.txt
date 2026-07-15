@@ -3,23 +3,23 @@
 
 ===== rvv (板分母=102) =====
 
-[手调] 头条 PASS 5/24 (全量) · 已测胜率 5/11 (派生) · 格内: PASS 5/具名-X 6/挂起 0/pending 13
+[手调] 头条 PASS 8/24 (全量) · 已测胜率 8/19 (派生) · 格内: PASS 8/具名-X 11/挂起 0/pending 5
     具名-X    vec_dot|q2_K cold=0.342
     具名-X    vec_dot|q3_K cold=0.258
     具名-X    vec_dot|q4_K cold=0.189
     具名-X    vec_dot|q6_K cold=0.18
     具名-X    vec_dot|iq1_s cold=0.365
     具名-X    vec_dot|iq1_m cold=0.152
-    pending vec_dot|iq2_xxs
-    pending vec_dot|iq2_xs
-    pending vec_dot|iq2_s
-    pending vec_dot|iq3_xxs
-    pending vec_dot|iq3_s
+    具名-X    vec_dot|iq2_xxs cold=0.697
+    具名-X    vec_dot|iq2_xs cold=0.529
+    PASS    vec_dot|iq2_s cold=1.92
+    具名-X    vec_dot|iq3_xxs cold=0.156
+    具名-X    vec_dot|iq3_s cold=0.213
     PASS    vec_dot|iq4_nl cold=1.15
-    pending vec_dot|iq4_xs
+    PASS    vec_dot|iq4_xs cold=1.31
     pending vec_dot|mxfp4
-    pending vec_dot|tq1_0
-    pending vec_dot|tq2_0
+    具名-X    vec_dot|tq1_0 cold=0.207
+    PASS    vec_dot|tq2_0 cold=0.975
     pending gemm|q2_K@rvv/decode
     PASS    gemm|q2_K@rvv/prefill cold=1.112
     pending gemm|q3_K@rvv/decode
@@ -117,23 +117,23 @@
 
 ===== k1 (板分母=105) =====
 
-[手调] 头条 PASS 5/29 (全量) · 已测胜率 5/12 (派生) · 格内: PASS 5/具名-X 7/挂起 0/pending 17
+[手调] 头条 PASS 7/29 (全量) · 已测胜率 7/20 (派生) · 格内: PASS 7/具名-X 13/挂起 0/pending 9
     具名-X    vec_dot|q2_K cold=0.684
     具名-X    vec_dot|q3_K cold=0.522
     具名-X    vec_dot|q4_K cold=0.592
     具名-X    vec_dot|q6_K cold=0.549
     具名-X    vec_dot|iq1_s cold=0.361
     具名-X    vec_dot|iq1_m cold=0.25
-    pending vec_dot|iq2_xxs
-    pending vec_dot|iq2_xs
-    pending vec_dot|iq2_s
-    pending vec_dot|iq3_xxs
-    pending vec_dot|iq3_s
+    具名-X    vec_dot|iq2_xxs cold=0.612
+    具名-X    vec_dot|iq2_xs cold=0.474
+    具名-X    vec_dot|iq2_s cold=0.562
+    具名-X    vec_dot|iq3_xxs cold=0.192
+    具名-X    vec_dot|iq3_s cold=0.2
     具名-X    vec_dot|iq4_nl cold=0.697
-    pending vec_dot|iq4_xs
+    PASS    vec_dot|iq4_xs cold=1.196
     pending vec_dot|mxfp4
-    pending vec_dot|tq1_0
-    pending vec_dot|tq2_0
+    具名-X    vec_dot|tq1_0 cold=0.606
+    PASS    vec_dot|tq2_0 cold=0.879
     pending gemm|q2_K@rvv/decode
     PASS    gemm|q2_K@rvv/prefill cold=1.364
     pending gemm|q3_K@rvv/decode

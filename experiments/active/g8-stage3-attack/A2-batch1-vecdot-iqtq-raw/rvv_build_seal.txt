@@ -1,0 +1,44 @@
+# BUILD iq/tq vec_dot 0.8 cold @ rvv-VLEN128-clang18  CC=clang version 18.1.8
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64  march=rv64gcv_zfh_zvfh_zba_zbb_zbs  ggml_src=/home/ubuntu/llama.cpp-upstream-native
+# ggml_src_commit=f3e1828 2026-06-17 22:40:50 +0200
+=== [A] ours kernels clang-18 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbs ===
+# OURS_iq3_s: fp16=cleanfp vsetvli=105 size=7904B src_md5=45c72e040053b96e518158aa59661bc4
+# OURS_iq2_s: fp16=cleanfp vsetvli=81 size=15016B src_md5=0d27d2fd1a47ece226829c1c8afab902
+# OURS_iq2_xs: fp16=cleanfp vsetvli=65 size=9904B src_md5=45cfdf060f21ff8c127a49c85fe1eb4c
+# OURS_iq2_xxs: fp16=cleanfp vsetvli=41 size=6968B src_md5=acb10742bfbc9765c32d644e85d51401
+# OURS_iq3_xxs: fp16=cleanfp vsetvli=137 size=7096B src_md5=f10a6d0e59695e25fff7257073adde25
+# OURS_iq4_xs: fp16=cleanfp vsetvli=26 size=2928B src_md5=ab1d55fc487f125c32a479959c532a72
+# OURS_tq2_0: fp16=cleanfp vsetvli=8 size=2008B src_md5=c18ed180cc020c0ae498a924e9022781
+# OURS_tq1_0: fp16=cleanfp vsetvli=57 size=2760B src_md5=64204259c6b08754d1c7615f63eac76a
+=== [B] factory opponent clang-18 -O3 (ggml source, ld -r merge) ===
+# factory COMPILE_FAIL /home/ubuntu/llama.cpp-upstream-native/ggml/src/ggml-cpu/arch/riscv/quants.c
+/home/ubuntu/llama.cpp-upstream-native/ggml/src/ggml-cpu/arch/riscv/quants.c:720:13: error: operand must be e[8|16|32|64|128|256|512|1024],m[1|2|4|8|f2|f4|f8],[ta|tu],[ma|mu]
+  720 |             "vsetivli zero, 16, e8, m1\n\t"
+      |             ^
+<inline asm>:1:21: note: instantiated into assembly here
+    1 |         vsetivli zero, 16, e8, m1
+      |                            ^
+/home/ubuntu/llama.cpp-upstream-native/ggml/src/ggml-cpu/arch/riscv/quants.c:729:37: error: operand must be e[8|16|32|64|128|256|512|1024],m[1|2|4|8|f2|f4|f8],[ta|tu],[ma|mu]
+  729 |             "vse8.v v0, (%[scale])\n\t"
+      |                                     ^
+<inline asm>:11:21: note: instantiated into assembly here
+   11 |         vsetivli zero, 16, e16, m2
+      |                            ^
+# factory compiled ggml-cpu/quants.c OK
+# factory.o = 178288B
+=== [B.probe] opponent symbol identity (nm DEFINED-T = real ggml dispatched) ===
+# OPP_iq3_s: ggml_vec_dot_iq3_s_q8_K = ABSENT
+# OPP_iq2_s: ggml_vec_dot_iq2_s_q8_K = ABSENT
+# OPP_iq2_xs: ggml_vec_dot_iq2_xs_q8_K = ABSENT
+# OPP_iq2_xxs: ggml_vec_dot_iq2_xxs_q8_K = ABSENT
+# OPP_iq3_xxs: ggml_vec_dot_iq3_xxs_q8_K = ABSENT
+# OPP_iq4_xs: ggml_vec_dot_iq4_xs_q8_K = ABSENT
+# OPP_tq2_0: ggml_vec_dot_tq2_0_q8_K = ABSENT
+# OPP_tq1_0: ggml_vec_dot_tq1_0_q8_K = ABSENT
+=== [C] driver + link ===
+LINK_FAIL
+ld.lld: error: cannot open crtbegin.o: No such file or directory
+ld.lld: error: unable to find library -lgcc
+ld.lld: error: unable to find library -lgcc
+ld.lld: error: cannot open crtend.o: No such file or directory
+clang: error: linker command failed with exit code 1 (use -v to see invocation)

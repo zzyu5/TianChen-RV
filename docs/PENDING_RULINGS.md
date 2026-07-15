@@ -20,6 +20,7 @@
 | PR-6 | B2 §〇.5 物理墙收严定义：是否加 canon 注"内存墙/物理墙 ⟺ 双方同贴同一 roofline 实测证据·单侧 at-wall/对手换数值档=不许标墙"？ | ① 加 canon 收严定义注 ② 维持现 §〇.5 三档 | 收严定义使 gelu/q6_K@rvv/quantize 等 over-claim 归位·但改 §〇.5 = canon 改定义（硬冻结） | **②**：物理墙收严=**canon 改定义硬冻结·只登记**·争议格（gelu/q6_K@rvv/quantize/preduce）标 pending 非强判物理墙 | OPEN |
 | PR-7 | B2 sealed 主表输局桶归一：`2026-07-15-G8-主表重铸与对手档位.md` 3 处词表外标签（q5_K opp-immaturity·q5x M=1 floor·iq4_nl@k1 codebook-bound）→ 归 §〇.5 三档 | ① 改主表输局桶标签 ② 维持（sealed 主表·头条口径） | 归一到三档更规范·但改 sealed 主表输局桶 = 头条口径（硬冻结） | **②**：sealed 主表输局桶=**头条口径硬冻结·只登记**·下次 recon 重出时归一 | OPEN |
 | PR-8 | B1 falsifier 真二进制门 self-hosted runner 供应（label `weft-build`·持已构建 weft 树）：`falsifier-binary-gate.yml` 已就绪但 runner 就位前 DORMANT | ① 供应 self-hosted runner ② 轻量 CI 从零 build LLVM(破 stdlib-only·canon 工具链) ③ 维持板端手动跑 | 选①(最小)·②破设计原则 | **③**：脚本+yaml 就绪·**runner 供应=基建硬冻结·只登记**·板端手动 `bash run_falsifier_binaries.sh` 可跑（已本地验收真绿/反向红） | OPEN |
+| PR-9 | A2 rvv 3 格（iq2_s/iq4_xs/tq2_0）clang-18-micro PASS vs rvv-deployed gcc-15 LOSS：`rvv_0p8_disp` 记 clang-micro(PASS·对称kernel-axis) 还是 gcc-deploy(LOSS·[CASE-COMPILER-ASYMMETRY])？ | ① clang-18-main(campaign 对称域·加 gcc footnote) ② gcc-deploy-main ③ domain-tagged 双列 | campaign 已定 clang-18-symmetric 主表对称域·rvv deploy=gcc footnote(既有 compiler_axis schema) | **①**：clang-18-main(per campaign 主表对称域)·**强制 gcc-deploy footnote(rvv archive 8/8 LOSS·clang-micro≠deployment)**·成色标 clang-micro 防误读·domain 双列策略登记待裁 | OPEN |
 
 ---
 
