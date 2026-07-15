@@ -1,0 +1,16 @@
+## md5
+29c3ddc1a035a510d4c7fabe28ed3f47  /tmp/g8q5e2e/so/libggml-cpu.so.CTRL_Q50
+14b6add63a14d813c27b27c687a45a8d  /tmp/g8q5e2e/so/libggml-cpu.so.STOCK
+df88afa3d1a029fbf42dd4df316443eb  /tmp/g8q5e2e/so/libggml-cpu.so.WEFT_Q50
+43569a46d0c2cb68aae74bf6cadb7a66  /tmp/g8q5e2e/so/libggml-cpu.so.WEFT_Q51
+## WEFT q5_0 symbols
+00000000000ae518 T ggml_gemv_q5_0_16x1_q8_0
+0000000000037408 T ggml_gemv_q5_0_16x1_q8_0_generic
+00000000000acfbe T weft_emitc_ggml_vec_dot_q5_0_q8_0_kernel_ggml_vec_dot_q5_0_q8_0
+0000000000155680 b ggml_gemv_q5_0_16x1_q8_0::announced_egevm_q50
+## STOCK q5_0 our-symbols (empty=confirmed absent)
+## STOCK opponent
+000000000009f83c T ggml_vec_dot_q5_0_q8_0
+## REDESIGN-B fingerprint (WEFT q5_0 GEVM)
+   ad05c:	02b50807          	vlm.v	v16,(a0)
+   ad060:	02b60887          	vlm.v	v17,(a2)
