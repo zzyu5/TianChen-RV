@@ -1,0 +1,91 @@
+op,format,engine,group,rvv_tier,rvv_disp,rvv_cold,rvv_opp_sym,rvv_note,k1_tier,k1_disp,k1_cold,k1_opp_sym,k1_note
+vec_dot,q4_0,,matmul,通用向量,PASS,0.938,ggml_vec_dot_q4_0_q8_0,light-vec block-dot 弱,通用向量,PASS,0.986,ggml_vec_dot_q4_0_q8_0,light-vec 弱
+vec_dot,q4_1,,matmul,通用向量,PASS,1.027,ggml_vec_dot_q4_1_q8_1,light-vec block-dot 弱,通用向量,PASS,1.008,ggml_vec_dot_q4_1_q8_1,light-vec 弱
+vec_dot,q5_0,,matmul,通用向量,PASS,0.451,ggml_vec_dot_q5_0_q8_0,native-vec 中·qh5bit VLEN-adaptive,通用向量,PASS,0.384,ggml_vec_dot_q5_0_q8_0,light-vec 弱·板异塌轻
+vec_dot,q5_1,,matmul,通用向量,PASS,0.446,ggml_vec_dot_q5_1_q8_1,native-vec 中·qh5bit,通用向量,PASS,0.398,ggml_vec_dot_q5_1_q8_1,light-vec 弱·板异
+vec_dot,q8_0,,matmul,通用向量,PASS,0.965,ggml_vec_dot_q8_0_q8_0,light-vec 弱·上游VLEN128破损,通用向量,PASS,0.984,ggml_vec_dot_q8_0_q8_0,light-vec 弱
+vec_dot,q1_0,,matmul,域外,域外-永久(q1_0),,ggml_vec_dot_q1_0_q8_0_vl128(Weft-internal),internal-A/B·自己当自己靶禁·永久域外,域外,域外-永久(q1_0),,(Weft-internal),永久域外
+vec_dot,q2_K,,matmul,手调,具名-X,0.342,ggml_vec_dot_q2_K_q8_K_vl128,SpacemiT vl128 full-unroll STRONG,手调,具名-X,0.684,ggml_vec_dot_q2_K_q8_K_vl256,SpacemiT vl256 STRONG
+vec_dot,q3_K,,matmul,手调,具名-X,0.258,ggml_vec_dot_q3_K_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.522,ggml_vec_dot_q3_K_q8_K_vl256,SpacemiT vl256 STRONG
+vec_dot,q4_K,,matmul,手调,具名-X,0.189,ggml_vec_dot_q4_K_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.592,ggml_vec_dot_q4_K_q8_K_vl256,SpacemiT vl256 STRONG
+vec_dot,q5_K,,matmul,通用向量,PASS,0.843,ggml_vec_dot_q5_K_q8_K,native-vec 中·NO vl-spec 唯一未手调,通用向量,PASS,1.065,ggml_vec_dot_q5_K_q8_K,native-vec-heavy·NO vl-spec 唯一未手调
+vec_dot,q6_K,,matmul,手调,具名-X,0.18,ggml_vec_dot_q6_K_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.549,ggml_vec_dot_q6_K_q8_K_vl256,SpacemiT vl256 STRONG
+vec_dot,iq1_s,,matmul,手调,具名-X,0.365,ggml_vec_dot_iq1_s_q8_K_vl128,SpacemiT vl128 grid-gather STRONG,手调,具名-X,0.361,ggml_vec_dot_iq1_s_q8_K_vl256,SpacemiT vl256 STRONG
+vec_dot,iq1_m,,matmul,手调,具名-X,0.152,ggml_vec_dot_iq1_m_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.25,ggml_vec_dot_iq1_m_q8_K_vl256,SpacemiT vl256 STRONG
+vec_dot,iq2_xxs,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq2_xxs_q8_K(vec_dot符号未反汇编),仅dequant反了·手调=类推非符号级→UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,iq2_xs,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq2_xs_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,iq2_s,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq2_s_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,iq3_xxs,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq3_xxs_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,iq3_s,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq3_s_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,iq4_nl,,matmul,手调,PASS,1.15,ggml_vec_dot_iq4_nl_q8_0_vl128,hand-vl128 codebook-gather LIGHT〔V·手调〕,手调,具名-X,0.697,ggml_vec_dot_iq4_nl_q8_0_vl256,hand-vl256 codebook-gather LIGHT〔V-纠·板一致·chip-tuned〕
+vec_dot,iq4_xs,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq4_xs_q8_K(未反汇编),pending cold·符号未反汇编·UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,mxfp4,,matmul,手调,pending-fold,,ggml_vec_dot_mxfp4_q8_0_vl128,★实已反汇编 rvv=18/mac4/gather2·同iq4_nl profile·hand-vl128 LIGHT→手调〔V-纠〕,UNRESOLVED,pending-fold,,(k1未反汇编),UNRESOLVED〔V〕
+vec_dot,nvfp4,,matmul,标量类,具名-X,0.565,ggml_vec_dot_nvfp4_q8_0,generic-C autovec NO-riscv-spec→标量类(§〇.1)〔V〕,标量类,PASS,1.086,ggml_vec_dot_nvfp4_q8_0,generic-C autovec→标量类〔V〕
+vec_dot,tq1_0,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_tq1_0_q8_K(vec_dot未反汇编),仅dequant反了·UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,tq2_0,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_tq2_0_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+product_reduce,q4_0_nibble,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
+product_reduce,offset_binary_n3,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
+product_reduce,codebook_n3,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
+quantize_row,q8_0,,quantize,通用向量,pending-真(待补向量仗),,quantize_row_q8_0,★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕,通用向量,pending-真(待补向量仗),,quantize_row_q8_0,★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕
+quantize_row,q8_1,,quantize,通用向量,pending-真(待补向量仗),,quantize_row_q8_1,★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕,通用向量,pending-真(待补向量仗),,quantize_row_q8_1,★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕
+quantize_row,q8_K,,quantize,通用向量,pending-真(待补向量仗),,quantize_row_q8_K,★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕,通用向量,pending-真(待补向量仗),,quantize_row_q8_K,★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕
+dequantize_row,q4_0,,dequant,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q4_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q4_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q4_1,,dequant,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q4_1,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q4_1,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q5_0,,dequant,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q5_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q5_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q5_1,,dequant,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q5_1,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q5_1,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q8_0,,dequant,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q8_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q8_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q1_0,,dequant,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q1_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ-历史(pre-clang18 stale·照测不进头条),,dequantize_row_q1_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q2_K,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_q2_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),0.828,dequantize_row_q2_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q3_K,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_q3_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),3.227,dequantize_row_q3_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q4_K,,dequant,标量类,具名-X(照测·标量仗),,dequantize_row_q4_K,clang18 rvv0 真SCALAR·deploy gcc15.2 autovec footnote · scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),4.315,dequantize_row_q4_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q5_K,,dequant,标量类,具名-X(照测·标量仗),,dequantize_row_q5_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),5.127,dequantize_row_q5_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,q6_K,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_q6_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),1.115,dequantize_row_q6_K,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq1_s,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_iq1_s,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),2.893,dequantize_row_iq1_s,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq1_m,,dequant,标量类,具名-X(照测·标量仗),,dequantize_row_iq1_m,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),3.545,dequantize_row_iq1_m,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq2_xxs,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_iq2_xxs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),2.475,dequantize_row_iq2_xxs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq2_xs,,dequant,标量类,DEQ照测(not-in-denom·标量仗),,dequantize_row_iq2_xs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),0.923,dequantize_row_iq2_xs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq2_s,,dequant,标量类,DEQ照测(not-in-denom·标量仗),,dequantize_row_iq2_s,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),1.813,dequantize_row_iq2_s,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq3_xxs,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_iq3_xxs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),0.526,dequantize_row_iq3_xxs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq3_s,,dequant,标量类,具名-X(照测·标量仗),,dequantize_row_iq3_s,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),0.665,dequantize_row_iq3_s,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq4_nl,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_iq4_nl,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),3.867,dequantize_row_iq4_nl,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,iq4_xs,,dequant,标量类,具名-X(照测·标量仗),,dequantize_row_iq4_xs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),3.151,dequantize_row_iq4_xs,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,mxfp4,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_mxfp4,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),3.13,dequantize_row_mxfp4,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,nvfp4,,dequant,标量类,DEQ照测(not-in-denom·标量仗),,dequantize_row_nvfp4,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),0.716,dequantize_row_nvfp4,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,tq1_0,,dequant,标量类,PASS(照测·标量仗·不进头条0.8),,dequantize_row_tq1_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),4.285,dequantize_row_tq1_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+dequantize_row,tq2_0,,dequant,标量类,具名-X(照测·标量仗),,dequantize_row_tq2_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,DEQ照测(not-in-denom·标量仗),4.232,dequantize_row_tq2_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
+gemm_tile,q4_0,rvv,matmul,UNRESOLVED,pending-fold,,upstream repack / block-dot(rvv objdump零gemm符号),对手候选二义:block-dot(通用向量·repack-off) vs repack(手调/标量未验)→UNRESOLVED〔V-纠〕·decode+prefill同行双子行·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
+gemm_tile,q4_1,rvv,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot vectorized·nibble-unpack非autovec-able→通用向量〔V-纠〕·e2e 3.68×,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot→通用向量〔V-纠〕·pending-fold
+gemm_tile,q5_0,rvv,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.21×·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold ·[deploy k1 repack 1.760× PASS-DEPLOYED·anti-gate:真部署路新格·beat-weak-baseline]
+gemm_tile,q5_1,rvv,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.09×·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold ·[deploy k1 repack 2.241× PASS-DEPLOYED·anti-gate:真部署路新格·beat-weak-baseline]
+gemm_tile,q8_0,rvv,matmul,通用向量,pending-fold,,FLAT block-dot,e2e 4.35× correctness-carrier·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold
+gemm_tile,q1_0,rvv,matmul,域外,域外-永久(q1_0),,(Weft-internal),永久域外,域外,域外-永久(q1_0),,(Weft-internal),永久域外
+gemm_tile,q2_K,rvv,matmul,手调,PASS,1.112,ggml_vec_dot_q2_K_q8_K_vl128(CROSSOP),our-gemm vs vl128 手调block-dot·cross-op(rvv零K-quant repack),手调,PASS,1.364,ggml_gemm_q2_K_8x8_q8_K(REAL),真16x1/8x8 hand-brick repack STRONG
+gemm_tile,q3_K,rvv,matmul,手调,PASS,1.399,ggml_vec_dot_q3_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,2.92,ggml_vec_dot_q3_K_q8_K_vl256(CROSSOP),q3_K唯一无repack·cross-op vs vl256 手调block-dot
+gemm_tile,q4_K,rvv,matmul,手调,PASS,1.114,ggml_vec_dot_q4_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.187,ggml_gemm_q4_K_16x1_q8_K(REAL),真16x1 hand-brick byte-drop-in STRONG(Win-K1-VLEN)
+gemm_tile,q5_K,rvv,matmul,通用向量,PASS,1.067,ggml_vec_dot_q5_K_q8_K(CROSSOP),cross-op vs native-vec-moderate(q5_K无vl-spec),手调,PASS,4.448,ggml_gemm_q5_K_8x4_q8_K(REAL),真 hand-brick repack STRONG
+gemm_tile,q6_K,rvv,matmul,手调,PASS,0.96,ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.769,ggml_gemm_q6_K_16x1_q8_K(REAL),真 hand-brick repack STRONG
+gemm_tile,iq1_s,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),1-bit grid·无 repack GEMM→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq1_m,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),无 repack GEMM→标量参考兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xxs,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xs,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_s,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq3_xxs,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq3_s,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq4_nl,rvv,matmul,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP),measured anchor 0.217×·pending-fold·native-vec中,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP),pending-fold
+gemm_tile,iq4_xs,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,mxfp4,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,nvfp4,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback·generic-C),generic-C autovec→标量类·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq1_0,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq2_0,rvv,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,q4_0,ime,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),通用向量,pending-fold,,block-dot,pending-fold
+gemm_tile,q8_0,ime,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),通用向量,pending-fold,,FLAT block-dot,pending-fold
+gemm_tile,q4_K,ime,matmul,N/A-hw,N/A-hw,1.114,—,ime.present unsatisfiable on rvv(机判),手调,PASS,1.187,ggml_gemm_q4_K_16x1_q8_K(REAL),真16x1 hand-brick byte-drop-in STRONG(Win-K1-VLEN)
+rms_norm,f32,,forward,通用向量,PASS,1.24,ggml_compute_forward_rms_norm_f32,native RVV m8 vec_scale + scalar-dbl reduce·HYBRID·BORDERLINE,通用向量,PASS,1.336,ggml_compute_forward_rms_norm_f32,HYBRID·native-vec-light
+softmax,f32,,forward,通用向量,PASS,1.007,ggml_vec_soft_max_f32,exported ggml手写RVV intrinsic·expf reduce,通用向量,PASS,1.004,ggml_vec_soft_max_f32,leaf 手写intrinsic·wrapper scalar-setup
+rope,f32,,forward,标量类,PASS,1.013,ggml_compute_forward_rope_f32,scalar cos/sin cache 2-pass + autovec rotate→标量类,标量类,PASS,0.982,ggml_compute_forward_rope_f32,mostly-scalar→标量类
+silu,f32,,forward,通用向量,PASS,0.997,ggml_vec_silu_f32,exported ggml手写RVV intrinsic·sigmoid/expf 向量化,通用向量,PASS,1.012,ggml_vec_silu_f32,手写intrinsic
+scale,f32,,forward,通用向量,PASS,0.998,ggml_vec_scale_f32(vec.h:703),NATIVE RVV m8 vfmul_vf 手写intrinsic·byte-identical algo,通用向量,PASS,0.917,ggml_vec_scale_f32,native RVV m8·板异emit较轻但同源intrinsic
+gelu,f32,,forward,标量类,例外-数值档挂起(gelu·待f16-LUT同档重比§一.4),0.141,ggml_table_gelu_f16(BSS-LUT),f16 LUT 查表·结构差·数值档不对等·待f16-LUT同档重比(§一.4),标量类,例外-数值档挂起(gelu·待f16-LUT同档重比§一.4),0.247,ggml_table_gelu_f16(BSS-LUT),f16 LUT·待同档重比
+add,f32,,forward,标量类,PASS,0.967,ggml_vec_add_f32(vec.h:89),AVX2-only vec path·RV落scalar loop→autovec→标量类,标量类,PASS,1.209,ggml_vec_add_f32,scalar loop autovec→标量类
+mul,f32,,forward,标量类,PASS,0.963,ggml_vec_mul_f32(vec.h:127),pure scalar loop→autovec→标量类,标量类,PASS,1.189,ggml_vec_mul_f32,autovec→标量类
+cpy,f32,,forward,标量类,PASS,0.987,ggml_vec_cpy_f32(vec.h:119),pure scalar loop→autovec/memcpy→标量类,标量类,PASS,1.108,ggml_compute_forward_dup_cpy,scalar/memcpy-stream→标量类
