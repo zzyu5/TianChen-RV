@@ -1,0 +1,18 @@
+# A2b5 KQUANT-GEVM-M1 @rvv(VLEN128) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -O3 2026年 07月 15日 星期三 18:00:51 UTC
+# CLANG=clang version 18.1.8  GCC=g++ (GCC) 15.2.0
+# stock_so_md5_before=d1adc634c2ca04ffc389536b30d9d9c4
+# OURS[clang]_q2_K: fp16=cleanfp vsetvl=81
+# OURS[clang]_q3_K: fp16=cleanfp vsetvl=14
+# OURS[clang]_q5_K: fp16=cleanfp vsetvl=57
+# OURS[clang]_q6_K: fp16=cleanfp vsetvl=22
+# LINK OK[clang] -> /tmp/g8_a2b5_rvv/bench_clang
+# OURS[gcc]_q2_K: fp16=cleanfp vsetvl=922
+# OURS[gcc]_q3_K: fp16=cleanfp vsetvl=2225
+# OURS[gcc]_q5_K: fp16=cleanfp vsetvl=2952
+# OURS[gcc]_q6_K: fp16=cleanfp vsetvl=2461
+# LINK OK[gcc] -> /tmp/g8_a2b5_rvv/bench_gcc
+# OPP ggml_vec_dot_q2_K_q8_K @0x0000000000092316 (gcc-15 stock .so)
+# OPP ggml_vec_dot_q3_K_q8_K @0x00000000000930a6 (gcc-15 stock .so)
+# OPP ggml_vec_dot_q5_K_q8_K @0x0000000000093146 (gcc-15 stock .so)
+# OPP ggml_vec_dot_q6_K_q8_K @0x00000000000935de (gcc-15 stock .so)
+# stock_so_md5_after=d1adc634c2ca04ffc389536b30d9d9c4

@@ -188,7 +188,16 @@ GEMM_DECODE = {
  ("gemm_tile","q5_1"):{"rvv":(1.090,"PASS","near-parity"),
                        "k1":(1.317,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.317×")},
  ("gemm_tile","q4_K"):{"rvv":(0.361,"具名-X","★genuine-C3′-negative·super-block-fold@M=1不amortize·对手结构优势(rvv q4_K native-vec block-dot 3.6×快·gap=opp-strength非我方核)·rvv-gcc-death vsetvl1387([CASE-KQUANT-GCC-CODEGEN])"),
-                       "k1":(1.535,"PASS","手调-REAL·k1 WIN vs 弱opp·genuine(k1 real repack hand-brick域)")},
+                       "k1":(1.535,"PASS","手调-REAL·k1 WIN vs 弱opp·genuine(k1 real repack hand-brick域·batch4·8-sub-block不泛化到16-sub)")},
+ # ★A2-batch5: K-quant decode C3′ 负结果(super-block fold@M=1 不amortize·format-keyed 适用边界·11/12 具名-X·batch4 q4_K@k1 win 不泛化·判别键=sub-block数16 vs 8)
+ ("gemm_tile","q2_K"):{"rvv":(0.0685,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block双fold)·rvv-gcc-death vsetvl922(clang也输0.36·wall非compiler)·C3′负"),
+                       "k1":(0.9585,"PASS","★near-parity非win(ratio<1.0·弱opp·q2_K 2-bit但16-sub-block最高vsetvl81)·唯一非-loss·成色低不称赢")},
+ ("gemm_tile","q3_K"):{"rvv":(0.0830,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2225·C3′负"),
+                       "k1":(0.4252,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block)·C3′负")},
+ ("gemm_tile","q5_K"):{"rvv":(0.1273,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2952·C3′负"),
+                       "k1":(0.6806,"具名-X","指令数内禀-fold@M=1不amortize·C3′负")},
+ ("gemm_tile","q6_K"):{"rvv":(0.0535,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2461·C3′负"),
+                       "k1":(0.3771,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block)·C3′负")},
 }
 
 def disp(op, fmt, engine, board, tier, cold, na):

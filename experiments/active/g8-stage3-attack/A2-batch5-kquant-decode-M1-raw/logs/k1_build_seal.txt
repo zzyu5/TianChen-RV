@@ -1,0 +1,12 @@
+# A2b5 KQUANT-GEVM-M1 @k1 CXX=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O3 -fno-integrated-as -DBOARD_K1 Wed Jul 15 06:01:52 PM UTC 2026
+# stock_so_md5_before=871169a0123139692177468b3c8578be
+# OURS_q2_K: fp16=cleanfp vsetvl=81 text=0x0000286a
+# OURS_q3_K: fp16=cleanfp vsetvl=14 text=0x000046e0
+# OURS_q5_K: fp16=cleanfp vsetvl=57 text=0x00005a62
+# OURS_q6_K: fp16=cleanfp vsetvl=22 text=0x00004ada
+# OPP ggml_vec_dot_q2_K_q8_K @0x00000000000a034c (stock .so, native-RVV inline)
+# OPP ggml_vec_dot_q3_K_q8_K @0x00000000000a15da (stock .so, native-RVV inline)
+# OPP ggml_vec_dot_q5_K_q8_K @0x00000000000a1ed8 (stock .so, native-RVV inline)
+# OPP ggml_vec_dot_q6_K_q8_K @0x00000000000a21d2 (stock .so, native-RVV inline)
+# LINK OK -> /tmp/g8_a2b5_k1/bench
+# stock_so_md5_after=871169a0123139692177468b3c8578be
