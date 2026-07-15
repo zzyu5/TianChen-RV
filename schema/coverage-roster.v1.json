@@ -6,16 +6,16 @@
     "ggml_ref_note": "TAG-ANCHORED pin: upstream release tag b9652 (ggml-org/llama.cpp) points EXACTLY at sha 6eab471 (git describe, zero offset), verified clean on upstream master. Replaces the prior bare-SHA-against-out-of-repo-sibling anti-pattern (unverifiable + CI-irreproducible). Authoritative lock + constitution (epoch/patch/verify rules) live in schema/ggml-pin.lock.json; verify via .trellis/scripts/fetch_ggml_pin.py. Re-anchoring did not move the tree -> epoch stays 1.",
     "epoch": 1,
     "denominator_key": "(op, format[, shape_class])",
-    "decomposed_family_policy": "SEPARATE-KEYS (option a); vec_dot and product_reduce are distinct ops - do NOT merge (option b rejected: the decomposed-strong q4_0 path would pollute the G1 vec_dot burn-down denominator).",
+    "decomposed_family_policy": "SEPARATE-KEYS (option a); vec_dot and product_reduce are distinct ops - do NOT merge (option b rejected: the decomposed-strong q4_0 path would pollute the G1 vec_dot burn-down denominator). | regime-split criterion (G8 全量补齐令〇.1·2026-07-15·结构判据制): a gemm_tile format carrying >=2 structurally-distinct repack lowering routes (Gemv=decode AND Gemm=prefill, RVVLowerQuantContraction.cpp:1232-1336 mRegime==Prefill bifurcation) is split into decode/prefill cells. Criterion is WIN-AGNOSTIC (losers split too). 18 formats hit: q4_0(pre-existing)+17 new [q4_1,q5_0,q5_1,q8_0,q2_K,q3_K,q4_K,q5_K,q6_K,iq2_xxs,iq2_xs,iq2_s,iq4_nl,iq4_xs,mxfp4,tq1_0,tq2_0]. 6 absent (block-dot/vec_dot single-path): q1_0,iq1_s,iq1_m,iq3_xxs,iq3_s,nvfp4.",
     "denominator_semantics": "roster = the FULL workload denominator INCLUDING not-yet-built kernels; absent kernels stay in the denominator and pull coverage down (that is what makes C_dispatch a real target). A key's covered-state = best six-state across its variant rows (实验总纲 line 32).",
     "roster_notes": [
       "vec_dot: all 24 formats are class A (the ruling moved low-bit INTO the numerator). q1_0 (1-bit) and nvfp4 are in-code as their own monoliths -> default class A.",
       "product_reduce (3 decomposed shapes) are SEPARATE keys from vec_dot. q4_0 therefore appears twice: vec_dot/q4_0 (constructed-weak) AND product_reduce/q4_0_nibble (constructed strong). These are NOT merged.",
       "quantize_row roster = the activation quantizers {q8_0,q8_1,q8_K} (you quantize the activation to q8_x, not to every weight format). WIDTH LEVER: a human may widen.",
-      "dequantize_row roster = per A-format (all 24 weight formats each have a row dequantizer). Only q5_0 is wired in-code today; the other 23 are absent and correctly pull coverage down. WIDTH LEVER (research escalation 5).",
-      "gemm_tile RVV roster = per A-format (all 24) WIDE with unbuilt=absent, to expose the real gap: 5 formats {q4_0,q4_1,q4_K,q5_0,q8_0} have repack GEMM in-code; the other 19 are absent. WIDTH LEVER (research escalation 5). q4_0/rvv SPLITS on the m_regime axis into a DECODE cell (the block-as-lane GEVM, regime=decode) and a PREFILL cell (the block-as-lane GEMM, regime=prefill) -- two distinct repack routes the option-2 bridge constructs (lowerToRepackGemv / lowerToRepackGemm); the regime key component keeps them separate keys so each is counted once (all other gemm_tile rows carry no regime).",
-      "gemm_tile IME = the ratified aspirational triple {q4_0,q8_0,q4_K}. IME exposes a format-AGNOSTIC MMAOp/MMAUOp execution op, not a format-keyed tile -> these 3 keys are absent (roster goal, not an in-code op set).",
-      "B class = all 9 forward ops (B-pending, not excluded): gelu/add/mul/cpy are absent in-code and stay in the denominator (honest C_dispatch, decision 3).",
+      "dequantize_row roster = per A-format (all 24 weight formats each have a row dequantizer). Only q5_0 is wired in-code today; the other 23 are absent and correctly pull coverage down. WIDTH LEVER (research escalation 5). [★2026-07-15 全量补齐令〇.1 订正: in-code repack GEMM = 18 formats (Gemv∧Gemm) / 6 absent; regime-split applied to all 18, gemm rows 28->45]",
+      "gemm_tile RVV roster = per A-format (all 24) WIDE with unbuilt=absent, to expose the real gap: 5 formats {q4_0,q4_1,q4_K,q5_0,q8_0} have repack GEMM in-code; the other 19 are absent. WIDTH LEVER (research escalation 5). q4_0/rvv SPLITS on the m_regime axis into a DECODE cell (the block-as-lane GEVM, regime=decode) and a PREFILL cell (the block-as-lane GEMM, regime=prefill) -- two distinct repack routes the option-2 bridge constructs (lowerToRepackGemv / lowerToRepackGemm); the regime key component keeps them separate keys so each is counted once (all other gemm_tile rows carry no regime). [★2026-07-15 全量补齐令〇.1 订正: in-code repack GEMM = 18 formats (Gemv∧Gemm) / 6 absent; regime-split applied to all 18, gemm rows 28->45]",
+      "gemm_tile IME = the ratified aspirational triple {q4_0,q8_0,q4_K}. IME exposes a format-AGNOSTIC MMAOp/MMAUOp execution op, not a format-keyed tile -> these 3 keys are absent (roster goal, not an in-code op set). [★2026-07-15 全量补齐令〇.1 订正: in-code repack GEMM = 18 formats (Gemv∧Gemm) / 6 absent; regime-split applied to all 18, gemm rows 28->45]",
+      "B class = all 9 forward ops (B-pending, not excluded): gelu/add/mul/cpy are absent in-code and stay in the denominator (honest C_dispatch, decision 3). [★2026-07-15 全量补齐令〇.1 订正: in-code repack GEMM = 18 formats (Gemv∧Gemm) / 6 absent; regime-split applied to all 18, gemm rows 28->45]",
       "C class = explicit defer (flash_attn tile, bf16 Zvfbfmin/bf16 roadmap X-line)."
     ]
   },
@@ -365,28 +365,64 @@
       "format": "q4_1",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_1",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q5_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_0",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q5_1",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_1",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q8_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q8_0",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -400,35 +436,80 @@
       "format": "q2_K",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q2_K",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q3_K",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q3_K",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q4_K",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_K",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q5_K",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_K",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q6_K",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q6_K",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -449,21 +530,48 @@
       "format": "iq2_xxs",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xxs",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "iq2_xs",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xs",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "iq2_s",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_s",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -484,21 +592,48 @@
       "format": "iq4_nl",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_nl",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "iq4_xs",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_xs",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "mxfp4",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "mxfp4",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -512,14 +647,32 @@
       "format": "tq1_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq1_0",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "tq2_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "decode"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq2_0",
+      "class": "A",
+      "bucket": "prefill-gemm",
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",

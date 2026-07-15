@@ -55,29 +55,46 @@ dequantize_row,tq1_0,,,dequant,标量类,PASS,,dequantize_row_tq1_0,scalar源 au
 dequantize_row,tq2_0,,,dequant,标量类,具名-X,,dequantize_row_tq2_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,pending(照测未定verdict),4.232,dequantize_row_tq2_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
 gemm_tile,q4_0,rvv,decode,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_0_q8_0(block-dot),★二义解〔清偿〕:stock 有 repack(ggml_gemm_q4_0_8x8/16x1)但 VLEN128 gate-off·真派发=block-dot→通用向量·我方win=routing白嫖非beat-repack·decode+prefill·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
 gemm_tile,q4_0,rvv,prefill,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_0_q8_0(block-dot),★二义解〔清偿〕:stock 有 repack(ggml_gemm_q4_0_8x8/16x1)但 VLEN128 gate-off·真派发=block-dot→通用向量·我方win=routing白嫖非beat-repack·decode+prefill·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
-gemm_tile,q4_1,rvv,,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot vectorized·nibble-unpack非autovec-able→通用向量〔V-纠〕·e2e 3.68×,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot→通用向量〔V-纠〕·pending-fold
-gemm_tile,q5_0,rvv,,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.21×·pending-fold,通用向量,PASS-DEPLOYED(部署路·k1 repack decode-GEVM),,FLAT block-dot,pending-fold ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) 1.760× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]
-gemm_tile,q5_1,rvv,,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.09×·pending-fold,通用向量,PASS-DEPLOYED(部署路·k1 repack decode-GEVM),,FLAT block-dot,pending-fold ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) 2.241× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]
-gemm_tile,q8_0,rvv,,matmul,通用向量,pending-fold,,FLAT block-dot,e2e 4.35× correctness-carrier·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold
+gemm_tile,q4_1,rvv,decode,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot vectorized·nibble-unpack非autovec-able→通用向量〔V-纠〕·e2e 3.68×,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot→通用向量〔V-纠〕·pending-fold
+gemm_tile,q4_1,rvv,prefill,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot vectorized·nibble-unpack非autovec-able→通用向量〔V-纠〕·e2e 3.68×,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot→通用向量〔V-纠〕·pending-fold
+gemm_tile,q5_0,rvv,decode,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.21×·pending-fold,通用向量,PASS-DEPLOYED(部署路·k1 repack decode-GEVM),,FLAT block-dot,pending-fold ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) 1.760× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]
+gemm_tile,q5_0,rvv,prefill,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.21×·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold
+gemm_tile,q5_1,rvv,decode,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.09×·pending-fold,通用向量,PASS-DEPLOYED(部署路·k1 repack decode-GEVM),,FLAT block-dot,pending-fold ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) 2.241× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]
+gemm_tile,q5_1,rvv,prefill,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.09×·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold
+gemm_tile,q8_0,rvv,decode,matmul,通用向量,pending-fold,,FLAT block-dot,e2e 4.35× correctness-carrier·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold
+gemm_tile,q8_0,rvv,prefill,matmul,通用向量,pending-fold,,FLAT block-dot,e2e 4.35× correctness-carrier·pending-fold,通用向量,pending-fold,,FLAT block-dot,pending-fold
 gemm_tile,q1_0,rvv,,matmul,域外,域外-永久(q1_0),,(Weft-internal),q1_0 internal-A/B·永久域外·非分母,域外,域外-永久(q1_0),,(Weft-internal),q1_0 internal-A/B·永久域外·非分母
-gemm_tile,q2_K,rvv,,matmul,手调,PASS,1.112,ggml_vec_dot_q2_K_q8_K_vl128(CROSSOP),our-gemm vs vl128 手调block-dot·cross-op(rvv零K-quant repack),手调,PASS,1.364,ggml_gemm_q2_K_8x8_q8_K(REAL),真16x1/8x8 hand-brick repack STRONG
-gemm_tile,q3_K,rvv,,matmul,手调,PASS,1.399,ggml_vec_dot_q3_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,2.92,ggml_vec_dot_q3_K_q8_K_vl256(CROSSOP),q3_K唯一无repack·cross-op vs vl256 手调block-dot
-gemm_tile,q4_K,rvv,,matmul,手调,PASS,1.114,ggml_vec_dot_q4_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.187,ggml_gemm_q4_K_16x1_q8_K(REAL),真16x1 hand-brick byte-drop-in STRONG(Win-K1-VLEN)
-gemm_tile,q5_K,rvv,,matmul,通用向量,PASS,1.067,ggml_vec_dot_q5_K_q8_K(CROSSOP),cross-op vs native-vec-moderate(q5_K无vl-spec),手调,PASS,4.448,ggml_gemm_q5_K_8x4_q8_K(REAL),真 hand-brick repack STRONG
-gemm_tile,q6_K,rvv,,matmul,手调,PASS,0.96,ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.769,ggml_gemm_q6_K_16x1_q8_K(REAL),真 hand-brick repack STRONG
+gemm_tile,q2_K,rvv,decode,matmul,手调,pending-fold,,ggml_vec_dot_q2_K_q8_K_vl128(CROSSOP),our-gemm vs vl128 手调block-dot·cross-op(rvv零K-quant repack),手调,pending-fold,,ggml_gemm_q2_K_8x8_q8_K(REAL),真16x1/8x8 hand-brick repack STRONG
+gemm_tile,q2_K,rvv,prefill,matmul,手调,PASS,1.112,ggml_vec_dot_q2_K_q8_K_vl128(CROSSOP),our-gemm vs vl128 手调block-dot·cross-op(rvv零K-quant repack),手调,PASS,1.364,ggml_gemm_q2_K_8x8_q8_K(REAL),真16x1/8x8 hand-brick repack STRONG
+gemm_tile,q3_K,rvv,decode,matmul,手调,pending-fold,,ggml_vec_dot_q3_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,pending-fold,,ggml_vec_dot_q3_K_q8_K_vl256(CROSSOP),q3_K唯一无repack·cross-op vs vl256 手调block-dot
+gemm_tile,q3_K,rvv,prefill,matmul,手调,PASS,1.399,ggml_vec_dot_q3_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,2.92,ggml_vec_dot_q3_K_q8_K_vl256(CROSSOP),q3_K唯一无repack·cross-op vs vl256 手调block-dot
+gemm_tile,q4_K,rvv,decode,matmul,手调,pending-fold,,ggml_vec_dot_q4_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,pending-fold,,ggml_gemm_q4_K_16x1_q8_K(REAL),真16x1 hand-brick byte-drop-in STRONG(Win-K1-VLEN)
+gemm_tile,q4_K,rvv,prefill,matmul,手调,PASS,1.114,ggml_vec_dot_q4_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.187,ggml_gemm_q4_K_16x1_q8_K(REAL),真16x1 hand-brick byte-drop-in STRONG(Win-K1-VLEN)
+gemm_tile,q5_K,rvv,decode,matmul,通用向量,pending-fold,,ggml_vec_dot_q5_K_q8_K(CROSSOP),cross-op vs native-vec-moderate(q5_K无vl-spec),手调,pending-fold,,ggml_gemm_q5_K_8x4_q8_K(REAL),真 hand-brick repack STRONG
+gemm_tile,q5_K,rvv,prefill,matmul,通用向量,PASS,1.067,ggml_vec_dot_q5_K_q8_K(CROSSOP),cross-op vs native-vec-moderate(q5_K无vl-spec),手调,PASS,4.448,ggml_gemm_q5_K_8x4_q8_K(REAL),真 hand-brick repack STRONG
+gemm_tile,q6_K,rvv,decode,matmul,手调,pending-fold,,ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,pending-fold,,ggml_gemm_q6_K_16x1_q8_K(REAL),真 hand-brick repack STRONG
+gemm_tile,q6_K,rvv,prefill,matmul,手调,PASS,0.96,ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.769,ggml_gemm_q6_K_16x1_q8_K(REAL),真 hand-brick repack STRONG
 gemm_tile,iq1_s,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),1-bit grid·无 repack GEMM→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq1_m,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),无 repack GEMM→标量参考兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_xxs,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_xs,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_s,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xxs,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xxs,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xs,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xs,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_s,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_s,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq3_xxs,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq3_s,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq4_nl,rvv,,matmul,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP),measured anchor 0.217×·pending-fold·native-vec中,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP),pending-fold
-gemm_tile,iq4_xs,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,mxfp4,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq4_nl,rvv,decode,matmul,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP),measured anchor 0.217×·pending-fold·native-vec中,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP),pending-fold
+gemm_tile,iq4_nl,rvv,prefill,matmul,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP),measured anchor 0.217×·pending-fold·native-vec中,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP),pending-fold
+gemm_tile,iq4_xs,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq4_xs,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,mxfp4,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,mxfp4,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,nvfp4,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback·generic-C),generic-C autovec→标量类·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,tq1_0,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,tq2_0,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq1_0,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq1_0,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq2_0,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq2_0,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,q4_0,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q4_0 (vendor),vendor IME dispatch chip-specific→手调·成色:tie-stock 1.0088×(未真beat)
 gemm_tile,q8_0,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q8_0 (vendor),vendor IME dispatch chip-specific→手调·成色:beat-stock 2.233×(赢弱vendor)
 gemm_tile,q4_K,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q4_K (vendor),vendor IME dispatch chip-specific→手调·成色:黄0.909× super-block 传导稀释

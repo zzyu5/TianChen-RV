@@ -230,9 +230,12 @@ def main():
             else:
                 tier, sym, note = U, "(no-map)", "UNRESOLVED"
             # cold/disp: prefer T3-measured verdict; else pending
-            # ★一.1 IME 数据串行 bug 修: IME 行(engine=ime)禁用 native (op,fmt) T3 cold
-            #   (q4_K@ime 曾误继承 q4_K@k1 native gemm cold 1.187·IME kernel-sym 实未测→pending)
-            t3rec = None if eng=="ime" else t3[board].get((op,fmt))
+            # ★串行 bug 双修:
+            #  (1) IME 行(engine=ime)禁用 native (op,fmt) T3 cold (q4_K@ime 前科)
+            #  (2) ★regime-split: T3 "gemm" 测量 = nr16 GEMM(prefill·M>1)·非 decode(GEVM·M=1)
+            #      →只 prefill regime 拿 T3 cold·decode regime pending(GEVM 未测·除 q5x deploy)
+            skip_t3 = (eng=="ime") or (op=="gemm_tile" and regime=="decode")
+            t3rec = None if skip_t3 else t3[board].get((op,fmt))
             if t3rec and t3rec["disp"]!="?":
                 c = t3rec["cold"]
                 td = t3rec["disp"]
@@ -251,10 +254,10 @@ def main():
             else:
                 c = None
                 d = disp(op,fmt,eng,board,tier,c,na)
-            # q5@k1 deploy absorb (裁决④·§一.1 吸纳·master 内·denom 不变·perf-covered 换算另需 roster canon 扩)
+            # q5@k1 deploy absorb (裁决④·decode-GEVM 部署赢·只落 decode regime·非 prefill)
             dep = Q5K1_DEPLOY.get((op,fmt))
             depnote=""
-            if dep and dep[0]==board:
+            if dep and dep[0]==board and regime in ("decode",""):
                 depnote = " ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) %.3f× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]"%dep[1]
                 if d.startswith("具名-X") or d.startswith("pending"): d="PASS-DEPLOYED(部署路·k1 repack decode-GEVM)"
             if na: tier="N/A-hw"; sym="—"; note="ime.present unsatisfiable on %s(机判)"%board; d="N/A-hw"
