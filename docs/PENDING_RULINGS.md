@@ -22,6 +22,8 @@
 | PR-8 | B1 falsifier 真二进制门 self-hosted runner 供应（label `weft-build`·持已构建 weft 树）：`falsifier-binary-gate.yml` 已就绪但 runner 就位前 DORMANT | ① 供应 self-hosted runner ② 轻量 CI 从零 build LLVM(破 stdlib-only·canon 工具链) ③ 维持板端手动跑 | 选①(最小)·②破设计原则 | **③**：脚本+yaml 就绪·**runner 供应=基建硬冻结·只登记**·板端手动 `bash run_falsifier_binaries.sh` 可跑（已本地验收真绿/反向红） | OPEN |
 | PR-9 | A2 rvv 3 格（iq2_s/iq4_xs/tq2_0）clang-18-micro PASS vs rvv-deployed gcc-15 LOSS：`rvv_0p8_disp` 记 clang-micro(PASS·对称kernel-axis) 还是 gcc-deploy(LOSS·[CASE-COMPILER-ASYMMETRY])？ | ① clang-18-main(campaign 对称域·加 gcc footnote) ② gcc-deploy-main ③ domain-tagged 双列 | campaign 已定 clang-18-symmetric 主表对称域·rvv deploy=gcc footnote(既有 compiler_axis schema) | **①**：clang-18-main(per campaign 主表对称域)·**强制 gcc-deploy footnote(rvv archive 8/8 LOSS·clang-micro≠deployment)**·成色标 clang-micro 防误读·domain 双列策略登记待裁 | OPEN |
 
+| PR-10 | quantize 3(q8_0/q8_1/q8_K)成色+ledger: 对手=arch/riscv手写intrinsic(通用向量)·6/6 PASS=**parity-by-roofline**(对手贴墙满分·非独立beat)·ledger_account 归属(quant-stream子账?) | ① 记通用向量PASS+parity成色注 ② 独立quant-stream子账 | 单分母下已在通用向量档·parity=满分(非beat)·ledger归属=display | **①**：通用向量PASS·**强制parity-by-roofline成色注(非beat·禁外推win)**·quant-stream子账=display登记 | OPEN |
+| PR-11 | DEQ/quantize 域=per-lane deploy-matched(rvv gcc-15.2/k1 clang-18)≠matmul clang-18双板对称: dequant rvv opp=gcc-autovec TRUE-VEC·agent建议'升门vec-vs-vec'·但§〇.1(autovec→标量类)+收口令DEQ resolved说标量类 | ① 维持§〇.1标量类(DEQ per-lane compiler_axis注) ② rvv autovec升通用向量 | §〇.1 autovec归标量类·收口令DEQ display已resolved(两板统一标量仗)·per-lane是compiler_axis note | **①**：dequant=标量类(§〇.1权威·收口令resolved)·per-lane deploy记compiler_axis·rvv gcc-autovec不升通用向量 | OPEN |
 ---
 
 ## 已被后续裁决解决（存档）

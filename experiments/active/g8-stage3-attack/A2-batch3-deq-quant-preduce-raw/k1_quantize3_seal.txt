@@ -1,0 +1,12 @@
+# BUILD quantize3@k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zicbop_zihintpause
+# board=Linux 6.6.63 riscv64 cpu_md5=871169a0123139692177468b3c8578be
+=== [A] compile OURS quantize kernels + self-probe ===
+# OURS_quantize_q8_0: vsetvl=4 real_vec=10 size=1912B
+# OURS_quantize_q8_1: vsetvl=6 real_vec=12 size=1952B
+# OURS_quantize_q8_K: vsetvl=11 real_vec=24 size=2840B
+=== [B] opponent symbol machine-probe (whole-symbol objdump; as-shipped arch/riscv RVV) ===
+# OPP quantize_row_q8_0 : ins=10 rvv=4 gather=0 csrr=0 dispatch=[inline] => TRUE-VEC
+# OPP quantize_row_q8_1 : ins=12 rvv=6 gather=0 csrr=0 dispatch=[inline] => TRUE-VEC
+# OPP quantize_row_q8_K : ins=25 rvv=7 gather=0 csrr=4 dispatch=[inline] => TRUE-VEC
+=== [C] compile driver + link ===
+# linked OK -> ./quantize3

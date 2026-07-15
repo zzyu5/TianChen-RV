@@ -1,0 +1,16 @@
+# BUILD dq-flat5@k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zicbop_zihintpause
+# board=Linux 6.6.63 riscv64 base_md5=00267134a3e86cd4fb83e9a2cbf5185a
+=== [A] compile OURS dequant kernels + self-probe ===
+# OURS_dequant_q4_0: vsetvl=0 rvv_ins=33 size=2296B
+# OURS_dequant_q4_1: vsetvl=0 rvv_ins=34 size=2368B
+# OURS_dequant_q5_0: vsetvl=1 rvv_ins=23 size=2496B
+# OURS_dequant_q5_1: vsetvl=1 rvv_ins=24 size=2504B
+# OURS_dequant_q8_0: vsetvl=0 rvv_ins=33 size=2192B
+=== [B] opponent symbol machine-probe (whole-symbol objdump; deployed to_float class) ===
+# OPP dequantize_row_q4_0 : ins=6 rvv=0 gather=0 csrr=0 => SCALAR
+# OPP dequantize_row_q4_1 : ins=9 rvv=0 gather=0 csrr=0 => SCALAR
+# OPP dequantize_row_q5_0 : ins=6 rvv=0 gather=0 csrr=0 => SCALAR
+# OPP dequantize_row_q5_1 : ins=8 rvv=0 gather=0 csrr=0 => SCALAR
+# OPP dequantize_row_q8_0 : ins=6 rvv=0 gather=0 csrr=0 => SCALAR
+=== [C] compile driver + link ===
+# linked OK -> ./dequant_flat5

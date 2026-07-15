@@ -1,0 +1,19 @@
+# A2-batch3 exported kernel provenance 2026-07-15T16:31:16Z
+# weft-opt=build-weft/bin/weft-opt HEAD=7966349db02161dc4d8cf9045cc3bfc319986819
+# recipe-dequant: sed 's/q8_0/<fmt>/g' test/Conversion/RVV/rvv-dequantize-row-stream-front-door-construct.mlir | weft-opt --weft-rvv-materialize-dequantize-row-stream-front-door --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
+# recipe-quantize: weft-opt <per-fmt fixture> --weft-rvv-materialize-quantize-row-stream-front-door --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
+## dequant kernels (md5):
+  q4_0  c7094315024654f4fc008813af96dd8d  lines=46
+  q4_1  1f5b6f4557e2448d7684cd5c2a691031  lines=49
+  q5_0  269eb5d4be8d4cc2a45b923e347170b8  lines=74
+  q5_1  f12dbe0a618eeb44c2ea46e092222138  lines=77
+  q8_0  81df412726ce44940f428f126635dbcc  lines=37
+## quantize kernels (md5):
+  q8_0  b40973a237f4f3512dce34fb987e76ac  lines=60
+  q8_1  03ba04e0d0a0bd12900799977b9ce35d  lines=73
+  q8_K  fde2fac549ea49ded04a3f628969aa8b  lines=162
+## product_reduce kernels (md5·2026-07-15T16:51:45Z):
+# recipe: weft-opt <fixture> --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
+  nibble   8268604c7d941f2eb191fbb316acfef2  from rvv-to-emitc-unsigned-nibble-x-i8-product-reduce.mlir
+  offbin   27e2621bdf546fff6cd09c7df9b6373b  from rvv-to-emitc-five-bit-offset-binary-x-i8-product-reduce.mlir
+  codebook 49826fd5e6c6fd86620268bee3fb2bbf  from rvv-to-emitc-codebook-gather-x-i8-product-reduce.mlir

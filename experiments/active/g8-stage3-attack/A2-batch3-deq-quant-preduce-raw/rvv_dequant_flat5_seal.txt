@@ -1,0 +1,16 @@
+# BUILD dq-flat5@rvv CC=gcc (GCC) 15.2.0 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 base_md5=1b4580c4f248c91cad26fccc617415e1
+=== [A] compile OURS dequant kernels + self-probe ===
+# OURS_dequant_q4_0: vsetvl=17 rvv_ins=16 size=3296B
+# OURS_dequant_q4_1: vsetvl=9 rvv_ins=8 size=3168B
+# OURS_dequant_q5_0: vsetvl=17 rvv_ins=16 size=3608B
+# OURS_dequant_q5_1: vsetvl=17 rvv_ins=16 size=3592B
+# OURS_dequant_q8_0: vsetvl=17 rvv_ins=16 size=3208B
+=== [B] opponent symbol machine-probe (whole-symbol objdump; deployed to_float class) ===
+# OPP dequantize_row_q4_0 : ins=19 rvv=11 gather=0 csrr=0 => TRUE-VEC
+# OPP dequantize_row_q4_1 : ins=21 rvv=11 gather=0 csrr=0 => TRUE-VEC
+# OPP dequantize_row_q5_0 : ins=42 rvv=34 gather=0 csrr=0 => TRUE-VEC
+# OPP dequantize_row_q5_1 : ins=42 rvv=32 gather=0 csrr=0 => TRUE-VEC
+# OPP dequantize_row_q8_0 : ins=21 rvv=13 gather=0 csrr=0 => TRUE-VEC
+=== [C] compile driver + link ===
+# linked OK -> ./dequant_flat5

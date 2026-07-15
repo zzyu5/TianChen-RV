@@ -1,0 +1,12 @@
+# BUILD quantize3@rvv CC=gcc (GCC) 15.2.0 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 cpu_md5=d1adc634c2ca04ffc389536b30d9d9c4
+=== [A] compile OURS quantize kernels + self-probe ===
+# OURS_quantize_q8_0: vsetvl=6 real_vec=15 size=2792B
+# OURS_quantize_q8_1: vsetvl=6 real_vec=12 size=2736B
+# OURS_quantize_q8_K: vsetvl=12 real_vec=23 size=4320B
+=== [B] opponent symbol machine-probe (whole-symbol objdump; as-shipped arch/riscv RVV) ===
+# OPP quantize_row_q8_0 : ins=13 rvv=6 gather=0 csrr=0 dispatch=[inline] => TRUE-VEC
+# OPP quantize_row_q8_1 : ins=11 rvv=5 gather=0 csrr=0 dispatch=[inline] => TRUE-VEC
+# OPP quantize_row_q8_K : ins=25 rvv=9 gather=0 csrr=2 dispatch=[inline] => TRUE-VEC
+=== [C] compile driver + link ===
+# linked OK -> ./quantize3

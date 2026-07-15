@@ -45,11 +45,17 @@ def parse_t3(path):
         elif op0=="vec_dot": op, fmt = "vec_dot", parts[1]
         else: op, fmt = op0, (parts[1] if len(parts)>1 else "")
         v=f[35]
-        if "JUDGMENT-SUSPENDED" in v: d="JUDGMENT-SUSPENDED"
-        elif "test-only-not-in-denom" in v: d="DEQ-照测-not-in-denom"
-        elif "NAMED-X" in v or "具名" in v: d="具名-X"
+        # ★按 in-denom[*;] 后的 verdict TOKEN 分类·非全串子串(成色注记可能含 '具名-X'/'PASS' 污染·前科)
+        m=re.search(r'in-denom[*;]([A-Za-z0-9._-]+)', v)
+        tok=m.group(1) if m else ""
+        if "test-only-not-in-denom" in v: d="DEQ-照测-not-in-denom"
+        elif tok.startswith("JUDGMENT-SUSPENDED") or (not tok and "JUDGMENT-SUSPENDED" in v): d="JUDGMENT-SUSPENDED"
+        elif tok.startswith("PASS"): d="PASS"
+        elif tok.startswith("FAIL") or "NAMED-X" in tok: d="具名-X"
+        # fallback (旧行无 in-denom* 前缀时)
+        elif "JUDGMENT-SUSPENDED" in v: d="JUDGMENT-SUSPENDED"
         elif re.search(r'(in-denom|;|\*)PASS',v): d="PASS"
-        elif "FAIL" in v: d="具名-X"
+        elif "NAMED-X" in v or "FAIL" in v: d="具名-X"
         elif "PASS" in v: d="PASS"
         else: d="?"
         craw=f[29]; m=re.match(r'\s*([0-9]*\.?[0-9]+)',craw); cold=float(m.group(1)) if m else None

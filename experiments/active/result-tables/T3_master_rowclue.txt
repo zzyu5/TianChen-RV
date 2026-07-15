@@ -29,16 +29,16 @@
     pending gemm|q6_K@rvv/decode
     PASS    gemm|q6_K@rvv/prefill cold=0.96
 
-[通用向量] 头条 PASS 16/27 (全量) · 已测胜率 16/16 (派生) · 格内: PASS 16/具名-X 0/挂起 0/pending 11
+[通用向量] 头条 PASS 19/27 (全量) · 已测胜率 19/19 (派生) · 格内: PASS 19/具名-X 0/挂起 0/pending 8
     PASS    vec_dot|q4_0 cold=0.938
     PASS    vec_dot|q4_1 cold=1.027
     PASS    vec_dot|q5_0 cold=0.451
     PASS    vec_dot|q5_1 cold=0.446
     PASS    vec_dot|q8_0 cold=0.965
     PASS    vec_dot|q5_K cold=0.843
-    pending quantize|q8_0
-    pending quantize|q8_1
-    pending quantize|q8_K
+    PASS    quantize|q8_0 cold=1.0
+    PASS    quantize|q8_1 cold=1.0
+    PASS    quantize|q8_K cold=1.0
     pending gemm|q4_0@rvv/decode
     PASS    gemm|q4_0@rvv/prefill cold=6.224
     pending gemm|q4_1@rvv/decode
@@ -58,16 +58,16 @@
     PASS    silu|f32 cold=0.997
     PASS    scale|f32 cold=0.998
 
-[标量类] 头条 PASS 13/51 (全量) · 已测胜率 13/20 (派生) · 格内: PASS 13/具名-X 7/挂起 1/pending 30
+[标量类] 头条 PASS 18/51 (全量) · 已测胜率 18/28 (派生) · 格内: PASS 18/具名-X 10/挂起 1/pending 22
     具名-X    vec_dot|nvfp4 cold=0.565
-    pending prod_reduce|q4_0_nibble
-    pending prod_reduce|offset_binary_n3
-    pending prod_reduce|codebook_n3
-    pending dequantize|q4_0
-    pending dequantize|q4_1
-    pending dequantize|q5_0
-    pending dequantize|q5_1
-    pending dequantize|q8_0
+    PASS    prod_reduce|q4_0_nibble cold=2.712
+    PASS    prod_reduce|offset_binary_n3 cold=0.855
+    PASS    prod_reduce|codebook_n3 cold=1.978
+    具名-X    dequantize|q4_0 cold=0.703
+    PASS    dequantize|q4_1 cold=1.284
+    具名-X    dequantize|q5_0 cold=0.618
+    具名-X    dequantize|q5_1 cold=0.724
+    PASS    dequantize|q8_0 cold=0.838
     PASS    dequantize|q2_K
     PASS    dequantize|q3_K
     具名-X    dequantize|q4_K
@@ -148,16 +148,16 @@
     pending gemm|q8_0@ime
     pending gemm|q4_K@ime
 
-[通用向量] 头条 PASS 17/25 (全量) · 已测胜率 17/17 (派生) · 格内: PASS 17/具名-X 0/挂起 0/pending 8
+[通用向量] 头条 PASS 20/25 (全量) · 已测胜率 20/20 (派生) · 格内: PASS 20/具名-X 0/挂起 0/pending 5
     PASS    vec_dot|q4_0 cold=0.986
     PASS    vec_dot|q4_1 cold=1.008
     PASS    vec_dot|q5_0 cold=0.384
     PASS    vec_dot|q5_1 cold=0.398
     PASS    vec_dot|q8_0 cold=0.984
     PASS    vec_dot|q5_K cold=1.065
-    pending quantize|q8_0
-    pending quantize|q8_1
-    pending quantize|q8_K
+    PASS    quantize|q8_0 cold=1.0
+    PASS    quantize|q8_1 cold=1.0
+    PASS    quantize|q8_K cold=1.004
     pending gemm|q4_0@rvv/decode
     PASS    gemm|q4_0@rvv/prefill cold=3.5
     pending gemm|q4_1@rvv/decode
@@ -175,16 +175,16 @@
     PASS    silu|f32 cold=1.012
     PASS    scale|f32 cold=0.917
 
-[标量类] 头条 PASS 5/51 (全量) · 已测胜率 5/5 (派生) · 格内: PASS 5/具名-X 0/挂起 1/pending 45
+[标量类] 头条 PASS 12/51 (全量) · 已测胜率 12/13 (派生) · 格内: PASS 12/具名-X 1/挂起 1/pending 37
     PASS    vec_dot|nvfp4 cold=1.086
-    pending prod_reduce|q4_0_nibble
-    pending prod_reduce|offset_binary_n3
-    pending prod_reduce|codebook_n3
-    pending dequantize|q4_0
-    pending dequantize|q4_1
-    pending dequantize|q5_0
-    pending dequantize|q5_1
-    pending dequantize|q8_0
+    PASS    prod_reduce|q4_0_nibble cold=1.166
+    具名-X    prod_reduce|offset_binary_n3 cold=0.797
+    PASS    prod_reduce|codebook_n3 cold=1.096
+    PASS    dequantize|q4_0 cold=1.437
+    PASS    dequantize|q4_1 cold=1.396
+    PASS    dequantize|q5_0 cold=4.22
+    PASS    dequantize|q5_1 cold=4.421
+    PASS    dequantize|q8_0 cold=1.067
     pending dequantize|q2_K cold=0.828
     pending dequantize|q3_K cold=3.227
     pending dequantize|q4_K cold=4.315

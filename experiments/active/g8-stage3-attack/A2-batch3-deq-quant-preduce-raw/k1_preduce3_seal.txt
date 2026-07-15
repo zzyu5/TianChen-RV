@@ -1,0 +1,8 @@
+# BUILD preduce3@k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zicbop_zihintpause
+# board=Linux 6.6.63 riscv64
+=== [A] compile OURS product_reduce kernels + self-probe ===
+# OURS_preduce_nibble: vsetvl=6 vec_core=5 size=1800B
+# OURS_preduce_offbin: vsetvl=10 vec_core=9 size=1872B
+# OURS_preduce_codebook: vsetvl=8 vec_core=7 size=2200B
+=== [B] compile driver (scalar-ref oracle inside) + link (NO ggml lib) ===
+# linked OK -> ./preduce3

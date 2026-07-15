@@ -1,0 +1,8 @@
+# BUILD preduce3@rvv CC=gcc (GCC) 15.2.0 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64
+=== [A] compile OURS product_reduce kernels + self-probe ===
+# OURS_preduce_nibble: vsetvl=11 vec_core=10 size=2384B
+# OURS_preduce_offbin: vsetvl=11 vec_core=9 size=2376B
+# OURS_preduce_codebook: vsetvl=17 vec_core=14 size=2808B
+=== [B] compile driver (scalar-ref oracle inside) + link (NO ggml lib) ===
+# linked OK -> ./preduce3
