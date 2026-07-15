@@ -1,0 +1,176 @@
+diff --git a/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp b/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
+index c51dc0c4f..7a0e727b6 100644
+--- a/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
++++ b/lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
+@@ -245,6 +245,31 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
+     rewriter.create<emitc::AssignOp>(
+         loc, sumi1Var, rewriter.create<emitc::LiteralOp>(loc, i32Type, "0"));
+ 
++    // DEFERRED-SCALE-REDUCTION (A2.5): two 8-lane i32 scratch arrays holding the
++    // per-sub-block ternary grid dots (partsum) and their per-sub-block ls scales
++    // (lsScale). The per-sub-block `vmv.x.s -> scalar sumi += ls*lsum` extract-
++    // chain is replaced by a vl=1 vse32 store of the reduction lane 0 into
++    // partsum[ib] (NO per-sub-block vmv.x.s), and ONE post-loop vmul.vv (all 8 ls
++    // scales) + ONE vredsum + ONE vmv.x.s -- mirroring ggml's 2-vmv.x.s deferred
++    // scale scheme. Byte-exact: integer add is associative/commutative and every
++    // lane product |ls*dot| <= 15*(32*127) < 2^16 (sum of 8 < 2^31, no overflow).
++    mlir::Type i32PtrTypeMut = emitc::PointerType::get(i32Type);
++    mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
++    mlir::Type i32ArrayType =
++        emitc::ArrayType::get({numSubBlocks}, i32Type);
++    rewriter.create<emitc::VerbatimOp>(
++        loc, localVariableComment("partsum", opName, role));
++    auto partsumVar = rewriter.create<emitc::VariableOp>(
++        loc, i32ArrayType, emitc::OpaqueAttr::get(ctx, ""));
++    auto partsumArray =
++        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(partsumVar.getResult());
++    rewriter.create<emitc::VerbatimOp>(
++        loc, localVariableComment("lsScale", opName, role));
++    auto lsScaleVar = rewriter.create<emitc::VariableOp>(
++        loc, i32ArrayType, emitc::OpaqueAttr::get(ctx, ""));
++    auto lsScaleArray =
++        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(lsScaleVar.getResult());
++
+     // The FLAT per-sub-block loop (ib = 0..7), fully unrolled. Each sub-block has 4
+     // single-byte qs index bytes (qs[ib*4 + l]), one uint16 qh word (qh[ib]) and two
+     // int16 bsums (bsums[2*ib+0], bsums[2*ib+1]); the q8 cursor advances 8 per group.
+@@ -459,28 +484,41 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
+             return {product, laccAcc, sizeLit(subBlock)};
+           });
+ 
+-      // int lsum = __riscv_vmv_x_s_i32m1_i32(laccAcc);  (extract the ternary dot of
+-      // this sub-block's 4 groups).
+-      std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+-      mlir::Value lsum =
+-          emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+-                         mlir::ValueRange{laccAcc}, opName, role);
+-
+-      // sumi = sumi + ls * lsum;  (integer accumulation; order-free).
++      // DEFERRED-SCALE-REDUCTION: instead of `int lsum = vmv.x.s(laccAcc); sumi +=
++      // ls*lsum;` (a per-sub-block vector->scalar extract feeding a serial scalar
++      // accumulate), store this sub-block's grid dot (lane 0 of laccAcc) into
++      // partsum[ib] via a vl=1 vse32 (NO vmv.x.s), and stash ls into lsScale[ib].
++      // The scale application is deferred to ONE post-loop vmul.vv + vredsum.
+       rewriter.create<emitc::VerbatimOp>(
+-          loc, stepComment(opName, role, "sumi_accumulate"));
++          loc, stepComment(opName, role, "defer_partsum_store"));
++      mlir::Value partsumIdx = rewriter.create<emitc::LiteralOp>(
++          loc, rewriter.getIndexType(), std::to_string(ib));
++      mlir::Value partsumElem =
++          rewriter
++              .create<emitc::SubscriptOp>(loc, partsumArray,
++                                          mlir::ValueRange{partsumIdx})
++              .getResult();
++      mlir::Value partsumAddr =
++          rewriter.create<emitc::ApplyOp>(loc, i32PtrTypeMut, "&", partsumElem)
++              .getResult();
++      emitVCallVoidBuilt(rewriter, loc, "vse32", "v_i32m1", opName, role,
++                         [&](mlir::OpBuilder &b, mlir::Location l)
++                             -> llvm::SmallVector<mlir::Value> {
++                           return {partsumAddr, laccAcc, sizeLit(1)};
++                         });
++      // lsScale[ib] = (int32_t) ls;
+       mlir::Value lsI32 =
+           rewriter.create<emitc::CastOp>(loc, i32Type, ls).getResult();
+-      mlir::Value sumiCur =
+-          rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar).getResult();
+-      mlir::Value lsLsum =
+-          rewriter.create<emitc::MulOp>(loc, i32Type, lsI32, lsum).getResult();
+-      mlir::Value sumiNext =
+-          rewriter.create<emitc::AddOp>(loc, i32Type, sumiCur, lsLsum)
++      mlir::Value lsScaleIdx = rewriter.create<emitc::LiteralOp>(
++          loc, rewriter.getIndexType(), std::to_string(ib));
++      mlir::Value lsScaleElem =
++          rewriter
++              .create<emitc::SubscriptOp>(loc, lsScaleArray,
++                                          mlir::ValueRange{lsScaleIdx})
+               .getResult();
+-      rewriter.create<emitc::VerbatimOp>(
+-          loc, assignComment("sumi", opName, role));
+-      rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiNext);
++      rewriter.create<emitc::AssignOp>(
++          loc, llvm::cast<mlir::TypedValue<emitc::LValueType>>(lsScaleElem),
++          lsI32);
+ 
+       // DELTA term: sumi1 = sumi1 + ls * delta * (bsums[2*ib+0] + bsums[2*ib+1]);
+       // (the NEW mechanism -- a per-sub-block +-ls constant times the q8 16-element
+@@ -509,6 +547,79 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
+       rewriter.create<emitc::AssignOp>(loc, sumi1Var, sumi1Next);
+     }
+ 
++    // DEFERRED-SCALE-REDUCTION post-loop collapse: load the 8 per-sub-block grid
++    // dots and the 8 ls scales as i32m2 vectors, apply ALL scales with ONE
++    // vmul.vv, and reduce to the single scalar sumi with ONE vredsum + ONE
++    // vmv.x.s (mirrors ggml's 2-vmv.x.s deferred scheme; replaces the 8 in-loop
++    // vmv.x.s extracts). numSubBlocks(8) fits e32m2 at VLEN>=128 (VLMAX 8@128 /
++    // 16@256) -- SAME bytes at both VLENs. Byte-exact vs the baseline left-assoc
++    // scalar sumi: integer add is associative/commutative, no overflow.
++    rewriter.create<emitc::VerbatimOp>(
++        loc, stepComment(opName, role, "deferred_scale_reduce"));
++    mlir::Value partsumBaseIdx =
++        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
++    mlir::Value partsumBaseElem =
++        rewriter
++            .create<emitc::SubscriptOp>(loc, partsumArray,
++                                        mlir::ValueRange{partsumBaseIdx})
++            .getResult();
++    mlir::Value partsumBase =
++        rewriter.create<emitc::ApplyOp>(loc, i32PtrTypeMut, "&", partsumBaseElem)
++            .getResult();
++    mlir::Value lsScaleBaseIdx =
++        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
++    mlir::Value lsScaleBaseElem =
++        rewriter
++            .create<emitc::SubscriptOp>(loc, lsScaleArray,
++                                        mlir::ValueRange{lsScaleBaseIdx})
++            .getResult();
++    mlir::Value lsScaleBase =
++        rewriter.create<emitc::ApplyOp>(loc, i32PtrTypeMut, "&", lsScaleBaseElem)
++            .getResult();
++    std::string psLoadCallee = riscvIntrinsicName("vle", 32, "m2", "i32");
++    mlir::Value partsumVec = emitOpaqueCallBuilt(
++        rewriter, loc, i32m2Type, psLoadCallee, opName, role,
++        [&](mlir::OpBuilder &b,
++            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
++          return {partsumBase, sizeLit(numSubBlocks)};
++        });
++    mlir::Value lsScaleVec = emitOpaqueCallBuilt(
++        rewriter, loc, i32m2Type, psLoadCallee, opName, role,
++        [&](mlir::OpBuilder &b,
++            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
++          return {lsScaleBase, sizeLit(numSubBlocks)};
++        });
++    std::string scaleMulCallee = riscvIntrinsicName("vmul", 32, "m2", "i32");
++    mlir::Value scaledVec = emitOpaqueCallBuilt(
++        rewriter, loc, i32m2Type, scaleMulCallee, opName, role,
++        [&](mlir::OpBuilder &b,
++            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
++          return {partsumVec, lsScaleVec, sizeLit(numSubBlocks)};
++        });
++    std::string redSeedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
++    mlir::Value redSeed = emitOpaqueCallBuilt(
++        rewriter, loc, i32m1Type, redSeedCallee, opName, role,
++        [&](mlir::OpBuilder &b,
++            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
++          mlir::Value zeroSeed =
++              rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
++          return {zeroSeed, sizeLit(1)};
++        });
++    std::string sumiRedCallee =
++        riscvReductionIntrinsicName("vredsum", 32, "m2", "i32");
++    mlir::Value sumiRedVec = emitOpaqueCallBuilt(
++        rewriter, loc, i32m1Type, sumiRedCallee, opName, role,
++        [&](mlir::OpBuilder &b,
++            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
++          return {scaledVec, redSeed, sizeLit(numSubBlocks)};
++        });
++    std::string sumiExtractCallee = "__riscv_vmv_x_s_i32m1_i32";
++    mlir::Value sumiVal =
++        emitOpaqueCall(rewriter, loc, i32Type, sumiExtractCallee,
++                       mlir::ValueRange{sumiRedVec}, opName, role);
++    rewriter.create<emitc::VerbatimOp>(loc, assignComment("sumi", opName, role));
++    rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiVal);
++
+     // sumf = sumf + d * ((float)sumi + 0.125f * (float)sumi1);  -- ONE
+     // emitc.expression so it renders as ggml's single C statement and the compiler
+     // fuses the SAME contraction under -ffp-contract=on/default/fast. The 0.125
