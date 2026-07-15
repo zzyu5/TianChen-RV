@@ -117,6 +117,56 @@ def gather_code_loc(dirs):
     return {"raw_wc_l": raw, "cloc_approx": approx, "files": files}
 
 
+# --- at-commit reproduction (git-driven; NEVER reads the live tree) ---------
+# The C2 marginal-cost pins (IME 2484 @54465ee7, X-SCALAR 1501 @2dd654d8) are
+# FOUNDING-SLICE numbers -- a property of a specific commit, not the live tree.
+# gather_code_loc above reports the LIVE family size, which DRIFTS as the family
+# grows (C3' op-extension). This path lets anyone reproduce the pinned number at
+# its pin commit: `report --family IME --at-commit 54465ee7` => 2484. It reads
+# blobs via `git ls-tree`/`git show`, so it is checkout-free and safe to run on a
+# dirty tree. The 2026-07-12 rename (fc72fe53, TianChenRV -> Weft) moved the
+# include/ paths, so each dir is probed under BOTH prefixes and de-duplicated;
+# whichever existed at REF wins. `emitter` = *BackendEmissionDriver.{cpp,h} raw
+# wc-l (the F-6 "own emitter" cost-住址; IME 757, X-SCALAR 907).
+_RENAME_ALIASES = (("include/Weft/", "include/TianChenRV/"),
+                    ("include/TianChenRV/", "include/Weft/"))
+
+
+def _dir_aliases(d):
+    out = [d]
+    for a, b in _RENAME_ALIASES:
+        if d.startswith(a):
+            alt = b + d[len(a):]
+            if alt not in out:
+                out.append(alt)
+    return out
+
+
+def gather_code_loc_at_commit(ref, dirs):
+    """raw/cloc/files + emitter-住址 split for `dirs` as they were at `ref`.
+
+    Pure git plumbing (ls-tree + show); the live working tree is never read, so
+    the number is a stable function of the commit -- the definition of a pin."""
+    probe = []
+    for d in dirs:
+        probe.extend(_dir_aliases(d))
+    listed = _git(["ls-tree", "-r", "--name-only", ref, "--", *probe])
+    paths = sorted({p for p in listed.splitlines()
+                    if p.strip() and Path(p).name != "CMakeLists.txt"})
+    raw = approx = files = 0
+    emitter_raw = 0
+    for rel in paths:
+        text = _git_blob(["show", f"{ref}:{rel}"])  # exact bytes; no strip
+        raw += raw_loc(text)
+        approx += cloc_approx(text)
+        files += 1
+        if "BackendEmissionDriver" in Path(rel).name:
+            emitter_raw += raw_loc(text)
+    return {"raw_wc_l": raw, "cloc_approx": approx, "files": files,
+            "emitter_raw_wc_l": emitter_raw, "at_commit": ref,
+            "files_listed": paths}
+
+
 def gather_test_loc(test_files):
     """test_LOC口径 fixed ONCE, applied UNIFORMLY to every family (ruling
     2026-07-03): count the FULL test footprint -- tests are a mandatory [P-2]
@@ -166,6 +216,15 @@ def _git(args):
         ["git", "-C", str(REPO_ROOT), *args],
         check=True, capture_output=True, text=True,
     ).stdout.strip()
+
+
+def _git_blob(args):
+    """git output WITHOUT strip() -- for blob content whose exact line count
+    (raw wc-l) is load-bearing; strip() would drop leading/trailing blank lines."""
+    return subprocess.run(
+        ["git", "-C", str(REPO_ROOT), *args],
+        check=True, capture_output=True, text=True,
+    ).stdout
 
 
 def calendar_days(dirs):
@@ -230,6 +289,32 @@ def cmd_report(args) -> int:
         if not fams:
             print(f"no family {args.family!r} in {MANIFEST_JSON.name}", file=sys.stderr)
             return 1
+    if getattr(args, "at_commit", None):
+        # Pin reproduction: report the FOUNDING-SLICE code_LOC at a commit, not the
+        # live (drifting) family size. Deterministic function of `ref` + manifest
+        # dirs -- anyone reruns and prints the same number. code_LOC only (the pin);
+        # test/anchor/calendar fields are live-tree constructs and intentionally
+        # omitted here.
+        ref = args.at_commit
+        rows = []
+        for f in fams:
+            loc = gather_code_loc_at_commit(ref, f["code_dirs"])
+            rows.append({"family": f["family"], "at_commit": ref, "code_LOC": loc})
+        out = {
+            "$meta": {
+                "report": "family_ledger --at-commit (founding-slice pin reproduction)",
+                "at_commit": ref,
+                "at_commit_full": _git(["rev-parse", ref]),
+                "manifest_sha256": compute_hash(manifest),
+                "note": ("git-blob recompute (checkout-free); raw_wc_l == pinned "
+                         "founding-slice cost; emitter_raw_wc_l == F-6 own-emitter "
+                         "住址. Live `report` (no --at-commit) gives current family "
+                         "size, which drifts up via C3' extension."),
+            },
+            "families": rows,
+        }
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+        return 0
     report = {
         "$meta": {
             "report": "family_ledger",
@@ -313,6 +398,10 @@ def main(argv=None) -> int:
     p_report = sub.add_parser("report", help="[LED-1] per-family engineering ledger")
     p_report.add_argument("--family", default=None,
                           help="restrict to one family (default: all in manifest)")
+    p_report.add_argument("--at-commit", dest="at_commit", default=None,
+                          help="reproduce the FOUNDING-SLICE code_LOC at a git ref "
+                               "(pin recompute, checkout-free). e.g. --at-commit "
+                               "54465ee7 => IME 2484; 2dd654d8 => Scalar 1501.")
     p_report.set_defaults(func=cmd_report)
 
     args = parser.parse_args(argv)
