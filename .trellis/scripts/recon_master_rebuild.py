@@ -207,6 +207,12 @@ GEMM_DECODE = {
  ("gemm_tile","tq1_0"):{"rvv":(1.67,"PASS","decode·便宜档(rvv-clang boundary 0.79 X footnote)"),"k1":(1.99,"PASS","decode·便宜档·禁称硬赢")},
  ("gemm_tile","tq2_0"):{"rvv":(1.19,"PASS","decode·便宜档"),"k1":(1.59,"PASS","decode·便宜档·禁称硬赢")},
 }
+# ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME 核·非便宜档·honest 负结果·赛道≠e2e perf-covered 绿·禁互推)
+IME_KERNELSYM = {
+ ("gemm_tile","q4_0"):(0.196,"具名-X","IME kernel-sym vs vendor手调IME核 gemm_kernel_i8i4(真硅vmadot)·输5.1×·墙=scale-fold epilogue未融进vmadot MAC·真硬件vendor正面度量负结果"),
+ ("gemm_tile","q8_0"):(None,"该板无合法对手","q8_0不进vendor IME(dispatch ime.cpp:317仅q4_0/q4_1/q4_K)·落RVV-repack回退·结构无IME对手·探针证据·★坐实e2e q8_0@ime beat 0.984×=赢RVV-repack非赢IME"),
+ ("gemm_tile","q4_K"):(0.049,"具名-X","IME kernel-sym vs vendor IME·输20×·★C3′[PAT-1]format-keyed边界最锋利·gap随格式复杂度扩张(q4_0 5×→q4_K 20×·我方fold随super-block暴涨25→110ms·vendor单核塞所有格式4.9→5.5ms)"),
+}
 
 def disp(op, fmt, engine, board, tier, cold, na):
     if na: return "N/A-hw"
@@ -298,6 +304,13 @@ def main():
                     elif "DEPLOY" in dtok: d="PASS-DEPLOYED(decode-GEVM·C1)"
                     else: d="具名-X(decode-M1)"
                     note = note + " ·[decode-M1: "+cx+"]"
+            # ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME·非便宜档·honest 负结果)
+            if eng=="ime" and board=="k1":
+                ik = IME_KERNELSYM.get((op,fmt))
+                if ik:
+                    c, dtok, cx = ik
+                    d = "该板无合法对手(IME结构)" if "无合法对手" in dtok else "具名-X(IME-kernel-sym·vendor手调IME)"
+                    note = note + " ·[IME-kernel-sym: "+cx+"]"
             # q5@k1 deploy absorb (裁决④·decode-GEVM 部署赢·只落 decode regime·非 prefill)
             dep = Q5K1_DEPLOY.get((op,fmt))
             depnote=""
