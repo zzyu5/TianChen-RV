@@ -24,6 +24,7 @@
 
 | PR-10 | quantize 3(q8_0/q8_1/q8_K)成色+ledger: 对手=arch/riscv手写intrinsic(通用向量)·6/6 PASS=**parity-by-roofline**(对手贴墙满分·非独立beat)·ledger_account 归属(quant-stream子账?) | ① 记通用向量PASS+parity成色注 ② 独立quant-stream子账 | 单分母下已在通用向量档·parity=满分(非beat)·ledger归属=display | **①**：通用向量PASS·**强制parity-by-roofline成色注(非beat·禁外推win)**·quant-stream子账=display登记 | OPEN |
 | PR-11 | DEQ/quantize 域=per-lane deploy-matched(rvv gcc-15.2/k1 clang-18)≠matmul clang-18双板对称: dequant rvv opp=gcc-autovec TRUE-VEC·agent建议'升门vec-vs-vec'·但§〇.1(autovec→标量类)+收口令DEQ resolved说标量类 | ① 维持§〇.1标量类(DEQ per-lane compiler_axis注) ② rvv autovec升通用向量 | §〇.1 autovec归标量类·收口令DEQ display已resolved(两板统一标量仗)·per-lane是compiler_axis note | **①**：dequant=标量类(§〇.1权威·收口令resolved)·per-lane deploy记compiler_axis·rvv gcc-autovec不升通用向量 | OPEN |
+| PR-12 | A2-batch6 iq/tq/fp4 gemm(7测)vs scalar-ref(ggml _generic兜底非as-shipped手调): (a)入0.8硬门分母?(scalar-ref·agent建议test-only·但单分母制除N/A-hw/q1_0无不进头条) (b)rvv域=gcc-deploy-MAIN(7/7具名-X our-kernel gcc-death)vs clang-micro(PASS)·k1 big-multiple=clang-bloat假象 | ① 标量类in-denom部署域(rvv gcc/k1 clang) ② test-only-not-in-denom(违单分母制) ③ clang-18-main双板 | 单分母制已废test-only(除N/A-hw/q1_0)·部署域最honest·便宜档compiler-artifact | **①**：标量类in-denom·部署域(rvv=gcc-MAIN具名-X gcc-death·k1=clang PASS便宜档)·**成色便宜档-compiler-artifact-both-sides强制标注·禁称硬赢·单诚实数2.5-4.8×** | OPEN |
 ---
 
 ## 已被后续裁决解决（存档）

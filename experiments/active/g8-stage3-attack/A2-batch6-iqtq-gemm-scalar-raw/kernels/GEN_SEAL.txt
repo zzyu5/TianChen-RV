@@ -1,0 +1,16 @@
+# batch6 kernel export: weft-opt HEAD=04fca90c9 2026年 07月 15日 星期三 18:31:15 UTC
+iq4_xs  md5=ea5e9cf2d22d4b367e447431adad3614  lines=20463  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-iq4-xs-q8-K.mlir
+iq2_xxs  md5=f4d86b5bba430b92b5e628ec7d4fdae6  lines=24360  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-iq2-xxs-q8-K.mlir
+iq2_xs  md5=c92888736444c5ae240a238ea6b334ae  lines=24920  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-iq2-xs-q8-K.mlir
+iq2_s  md5=d0459698ea522e33f25f06b5a94d780c  lines=24920  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-iq2-s-q8-K.mlir
+mxfp4  md5=66809d13b9e813d5fd6c76a814b4a66e  lines=2725  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-mxfp4-q8-0.mlir
+tq1_0  md5=7f67604bf64635bd74bef3ecc3c97985  lines=16313  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-tq1-0-q8-K.mlir
+tq2_0  md5=c9f52b9d08feec758d5a7e192cc6ab5e  lines=14080  src=test/Conversion/RVV/rvv-to-emitc-repack-gemm-tq2-0-q8-K.mlir
+# batch6 GEVM(decode) kernel export HEAD=04fca90c9 2026年 07月 15日 星期三 19:05:58 UTC
+gevm iq4_xs lines=9854 md5=d306826e0694e4821524968f727db393 sig=MISSING
+gevm iq2_xxs lines=10628 md5=9c5264756fffffc8f5d86424c6af3bac sig=MISSING
+gevm iq2_xs lines=10756 md5=908dd5c0039bee8fced1850a1eaa893b sig=MISSING
+gevm iq2_s lines=10756 md5=1efa1fd7d3bb05e829d85e88f81d08a8 sig=MISSING
+gevm mxfp4 lines=1281 md5=8f37a7890f9b0baa0cf91c467655d730 sig=void weft_emitc_ggml_repack_gemv_mxfp4_q8_0_kernel_ggml_repack_gemv_mxfp4_q8_0(
+gevm tq1_0 lines=10380 md5=e4f6d41ca64adb2692d8e30550efccbb sig=MISSING
+gevm tq2_0 lines=8183 md5=628e58fe37c4184e8a1e68dc341f9b22 sig=MISSING

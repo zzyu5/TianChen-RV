@@ -1,0 +1,9 @@
+# A2b6-DECODE @rvv DOMAIN=clang clang version 18.1.8 2026年 07月 15日 星期三 19:15:31 UTC stock_md5=d1adc634c2ca04ffc389536b30d9d9c4
+# OURS_gevm_iq4_xs: vsetvl=2093
+# OURS_gevm_iq2_xxs: vsetvl=1941
+# OURS_gevm_iq2_xs: vsetvl=1957
+# OURS_gevm_iq2_s: vsetvl=1957
+# OURS_gevm_mxfp4: vsetvl=258
+# OURS_gevm_tq1_0: vsetvl=1035
+# OURS_gevm_tq2_0: vsetvl=9
+# LINK OK

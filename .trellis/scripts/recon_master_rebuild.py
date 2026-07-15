@@ -198,6 +198,14 @@ GEMM_DECODE = {
                        "k1":(0.6806,"具名-X","指令数内禀-fold@M=1不amortize·C3′负")},
  ("gemm_tile","q6_K"):{"rvv":(0.0535,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2461·C3′负"),
                        "k1":(0.3771,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block)·C3′负")},
+ # ★A2-batch6: iq/tq/fp4 gemm decode(scalar-ref兜底·便宜档·部署域 rvv=gcc-MAIN/k1=clang·PR-12)·memory-bound parity-leaning
+ ("gemm_tile","iq4_xs"):{"rvv":(0.63,"具名-X","decode near-parity·rvv-gcc named-X·便宜档-scalar-ref·PR-12"),"k1":(0.93,"PASS","decode near-parity·便宜档-scalar-ref·禁称硬赢")},
+ ("gemm_tile","iq2_xxs"):{"rvv":(0.60,"具名-X","decode·rvv-gcc named-X·便宜档"),"k1":(1.13,"PASS","decode·便宜档-scalar-ref·禁称硬赢")},
+ ("gemm_tile","iq2_xs"):{"rvv":(1.00,"PASS","decode·便宜档-scalar-ref·禁称硬赢"),"k1":(3.81,"PASS","decode·便宜档·k1 opp clang-bloat假象·禁称硬赢")},
+ ("gemm_tile","iq2_s"):{"rvv":(1.03,"PASS","decode·便宜档"),"k1":(3.55,"PASS","decode·便宜档·clang-bloat假象·禁称硬赢")},
+ ("gemm_tile","mxfp4"):{"rvv":(1.51,"PASS","decode·便宜档-scalar-ref·禁称硬赢"),"k1":(0.94,"PASS","decode near-parity·便宜档")},
+ ("gemm_tile","tq1_0"):{"rvv":(1.67,"PASS","decode·便宜档(rvv-clang boundary 0.79 X footnote)"),"k1":(1.99,"PASS","decode·便宜档·禁称硬赢")},
+ ("gemm_tile","tq2_0"):{"rvv":(1.19,"PASS","decode·便宜档"),"k1":(1.59,"PASS","decode·便宜档·禁称硬赢")},
 }
 
 def disp(op, fmt, engine, board, tier, cold, na):

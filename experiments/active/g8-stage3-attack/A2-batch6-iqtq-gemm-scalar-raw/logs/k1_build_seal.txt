@@ -1,0 +1,17 @@
+# A2b6 iqtq-GEMM-scalar @k1 CXX=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O3 -fno-integrated-as Wed Jul 15 06:40:27 PM UTC 2026
+# stock_so_md5=871169a0123139692177468b3c8578be  /data/k1build-stock/bin/libggml-cpu.so
+# OPP-generic ggml_vec_dot_iq4_xs_q8_K_generic @0x000000000006089e
+# OPP-generic ggml_vec_dot_iq2_xxs_q8_K_generic @0x0000000000059076
+# OPP-generic ggml_vec_dot_iq2_xs_q8_K_generic @0x00000000000594c2
+# OPP-generic ggml_vec_dot_iq2_s_q8_K_generic @0x000000000005a88e
+# OPP-generic ggml_vec_dot_mxfp4_q8_0_generic @0x0000000000051ea4
+# OPP-generic ggml_vec_dot_tq1_0_q8_K_generic @0x0000000000052b4c
+# OPP-generic ggml_vec_dot_tq2_0_q8_K_generic @0x0000000000053352
+# OURS_iq4_xs: fp16=cleanfp vsetvl=5162
+# OURS_iq2_xxs: fp16=cleanfp vsetvl=5461
+# OURS_iq2_xs: fp16=cleanfp vsetvl=5477
+# OURS_iq2_s: fp16=cleanfp vsetvl=5477
+# OURS_mxfp4: fp16=cleanfp vsetvl=643
+# OURS_tq1_0: fp16=cleanfp vsetvl=1034
+# OURS_tq2_0: fp16=cleanfp vsetvl=8
+# LINK OK -> /tmp/g8_a2b6_k1/bench

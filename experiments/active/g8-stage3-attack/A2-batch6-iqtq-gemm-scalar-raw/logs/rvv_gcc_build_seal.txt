@@ -1,0 +1,16 @@
+# A2b6 iqtq-GEMM-scalar @rvv DOMAIN=gcc CXX=g++ (GCC) 15.2.0 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs 2026年 07月 15日 星期三 18:39:39 UTC
+# stock_so=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin md5=d1adc634c2ca04ffc389536b30d9d9c4
+# OPP-generic ggml_vec_dot_iq4_xs_q8_K_generic @0x00000000000569e2
+# OPP-generic ggml_vec_dot_iq2_xxs_q8_K_generic @0x0000000000054178
+# OPP-generic ggml_vec_dot_iq2_xs_q8_K_generic @0x0000000000054628
+# OPP-generic ggml_vec_dot_iq2_s_q8_K_generic @0x0000000000054b7e
+# OPP-generic ggml_vec_dot_mxfp4_q8_0_generic @0x0000000000050152
+# OPP-generic ggml_vec_dot_tq1_0_q8_K_generic @0x0000000000050e4c
+# OPP-generic ggml_vec_dot_tq2_0_q8_K_generic @0x0000000000051544
+# OURS_iq4_xs: vsetvl=5374 comment=GCC: (GNU) 15.2.0
+# OURS_iq2_xxs: vsetvl=4451 comment=GCC: (GNU) 15.2.0
+# OURS_iq2_xs: vsetvl=4104 comment=GCC: (GNU) 15.2.0
+# OURS_iq2_s: vsetvl=4104 comment=GCC: (GNU) 15.2.0
+# OURS_mxfp4: vsetvl=581 comment=GCC: (GNU) 15.2.0
+# OURS_tq1_0: vsetvl=3294 comment=GCC: (GNU) 15.2.0
+# OURS_tq2_0: vsetvl=2705 comment=GCC: (GNU) 15.2.0

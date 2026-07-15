@@ -76,25 +76,25 @@ gemm_tile,q6_K,rvv,decode,matmul,手调,具名-X(decode-M1),0.0535,ggml_vec_dot_
 gemm_tile,q6_K,rvv,prefill,matmul,手调,PASS,0.96,ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP),cross-op vs vl128 手调block-dot,手调,PASS,1.769,ggml_gemm_q6_K_16x1_q8_K(REAL),真 hand-brick repack STRONG
 gemm_tile,iq1_s,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),1-bit grid·无 repack GEMM→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq1_m,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),无 repack GEMM→标量参考兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_xxs,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_xxs,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_xs,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_xs,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_s,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq2_s,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xxs,rvv,decode,matmul,标量类,具名-X(decode-M1),0.6,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗 ·[decode-M1: decode·rvv-gcc named-X·便宜档],标量类,PASS(decode-M1-GEVM),1.13,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档-scalar-ref·禁称硬赢]
+gemm_tile,iq2_xxs,rvv,prefill,matmul,标量类,具名-X,0.503,ggml scalar-ref(fallback),same-op repack absent→标量参考兜底(§〇.2)·待补标量仗,标量类,PASS,3.02,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_xs,rvv,decode,matmul,标量类,PASS(decode-M1-GEVM),1.0,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档-scalar-ref·禁称硬赢],标量类,PASS(decode-M1-GEVM),3.81,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档·k1 opp clang-bloat假象·禁称硬赢]
+gemm_tile,iq2_xs,rvv,prefill,matmul,标量类,具名-X,0.379,ggml scalar-ref(fallback),待补标量仗,标量类,PASS,10.3,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq2_s,rvv,decode,matmul,标量类,PASS(decode-M1-GEVM),1.03,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档],标量类,PASS(decode-M1-GEVM),3.55,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档·clang-bloat假象·禁称硬赢]
+gemm_tile,iq2_s,rvv,prefill,matmul,标量类,具名-X,0.37,ggml scalar-ref(fallback),待补标量仗,标量类,PASS,9.7,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq3_xxs,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq3_s,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,iq4_nl,rvv,decode,matmul,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP),measured anchor 0.217×·pending-fold·native-vec中,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP),pending-fold
 gemm_tile,iq4_nl,rvv,prefill,matmul,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP),measured anchor 0.217×·pending-fold·native-vec中,通用向量,pending-fold,,ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP),pending-fold
-gemm_tile,iq4_xs,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,iq4_xs,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,mxfp4,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,mxfp4,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,iq4_xs,rvv,decode,matmul,标量类,具名-X(decode-M1),0.63,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode near-parity·rvv-gcc named-X·便宜档-scalar-ref·PR-12],标量类,PASS(decode-M1-GEVM),0.93,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode near-parity·便宜档-scalar-ref·禁称硬赢]
+gemm_tile,iq4_xs,rvv,prefill,matmul,标量类,具名-X,0.502,ggml scalar-ref(fallback),待补标量仗,标量类,PASS,2.1,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,mxfp4,rvv,decode,matmul,标量类,PASS(decode-M1-GEVM),1.51,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档-scalar-ref·禁称硬赢],标量类,PASS(decode-M1-GEVM),0.94,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode near-parity·便宜档]
+gemm_tile,mxfp4,rvv,prefill,matmul,标量类,具名-X,0.75,ggml scalar-ref(fallback),待补标量仗,标量类,PASS,2.3,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,nvfp4,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback·generic-C),generic-C autovec→标量类·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,tq1_0,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,tq1_0,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,tq2_0,rvv,decode,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
-gemm_tile,tq2_0,rvv,prefill,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq1_0,rvv,decode,matmul,标量类,PASS(decode-M1-GEVM),1.67,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档(rvv-clang boundary 0.79 X footnote)],标量类,PASS(decode-M1-GEVM),1.99,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档·禁称硬赢]
+gemm_tile,tq1_0,rvv,prefill,matmul,标量类,具名-X,0.358,ggml scalar-ref(fallback),待补标量仗,标量类,PASS,6.45,ggml scalar-ref(fallback),待补标量仗
+gemm_tile,tq2_0,rvv,decode,matmul,标量类,PASS(decode-M1-GEVM),1.19,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档],标量类,PASS(decode-M1-GEVM),1.59,ggml scalar-ref(fallback),待补标量仗 ·[decode-M1: decode·便宜档·禁称硬赢]
+gemm_tile,tq2_0,rvv,prefill,matmul,标量类,具名-X,0.45,ggml scalar-ref(fallback),待补标量仗,标量类,PASS,4.76,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,q4_0,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q4_0 (vendor),vendor IME dispatch chip-specific→手调·成色:tie-stock 1.0088×(未真beat)
 gemm_tile,q8_0,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q8_0 (vendor),vendor IME dispatch chip-specific→手调·成色:beat-stock 2.233×(赢弱vendor)
 gemm_tile,q4_K,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q4_K (vendor),vendor IME dispatch chip-specific→手调·成色:黄0.909× super-block 传导稀释

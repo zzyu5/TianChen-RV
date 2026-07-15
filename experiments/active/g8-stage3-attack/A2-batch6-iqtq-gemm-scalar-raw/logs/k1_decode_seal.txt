@@ -1,0 +1,8 @@
+# A2b6-DECODE @k1 Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b Wed Jul 15 07:07:28 PM UTC 2026 stock_md5=871169a0123139692177468b3c8578be
+# OURS_gevm_iq4_xs: vsetvl=2093
+# OURS_gevm_iq2_xxs: vsetvl=1941
+# OURS_gevm_iq2_xs: vsetvl=1957
+# OURS_gevm_iq2_s: vsetvl=1957
+# OURS_gevm_mxfp4: vsetvl=258
+# OURS_gevm_tq1_0: vsetvl=1035
+# OURS_gevm_tq2_0: vsetvl=9
