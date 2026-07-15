@@ -21,7 +21,8 @@ ROSTER = ROOT + "/schema/coverage-roster.v1.json"
 T3A = ROOT + "/experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv"
 T3B = ROOT + "/experiments/active/result-tables/T3_B_board_B_rvv1.0_vlen256.csv"
 OUT = ROOT + "/experiments/active/result-tables/T3_master_rebuild.csv"
-SNAPSHOT = "g8-master-rebuild-desk-round"
+CLUE = ROOT + "/experiments/active/result-tables/T3_master_rowclue.txt"
+SNAPSHOT = "g8-master-rebuild-v2-single-denom"
 FWD_OPS = {"add","cpy","gelu","mul","rms_norm","rope","scale","silu","softmax"}
 
 def parse_t3(path):
@@ -187,28 +188,30 @@ def disp(op, fmt, engine, board, tier, cold, na):
 def main():
     roster = json.load(open(ROSTER))["kernels"]
     t3 = {"rvv":parse_t3(T3A), "k1":parse_t3(T3B)}
-    # build master rows: (op,format,engine), fold q4_0 gemm decode/prefill -> 1 row
+    # build master rows: (op,format,engine,regime). ★单分母制(数字字典v2令): 全量口径
+    # q4_0 gemm decode/prefill = 2 独立行([K-10] 结构分立·不再折·上轮折成1行=错·85/88 全量分母要求)
     seen = set(); rows = []
     for k in roster:
         op, fmt, eng = k["op"], k["format"], k.get("engine","")
         if op in ("flash_attn","bf16"): continue          # class C OOD (not in 5 groups)
-        key = (op, fmt, eng)
-        if op == "gemm_tile" and fmt == "q4_0" and eng == "rvv":
-            key = ("gemm_tile","q4_0","rvv")               # decode+prefill fold to 1
+        regime = k.get("regime","")
+        key = (op, fmt, eng, regime)
         if key in seen: continue
         seen.add(key)
-        rows.append({"op":op,"format":fmt,"engine":eng})
+        rows.append({"op":op,"format":fmt,"engine":eng,"regime":regime})
 
     master = []
     for r in rows:
-        op, fmt, eng = r["op"], r["format"], r["engine"]
+        op, fmt, eng, regime = r["op"], r["format"], r["engine"], r.get("regime","")
         isfwd = op in FWD_OPS
         tkey = ("forward", op) if isfwd else (op, fmt)
         tent = TIER.get(tkey)
-        rec = {"op":op,"format":fmt,"engine":eng,"group":op_group(op)}
+        rec = {"op":op,"format":fmt,"engine":eng,"regime":regime,"group":op_group(op)}
         for board in ("rvv","k1"):
             na = na_hw(op,fmt,eng,board)
-            if op == "dequantize_row":
+            if fmt == "q1_0":            # q1_0 永久域外(§〇.2 唯一例外)·所有 op(vec_dot/dequant/gemm)
+                tier=D; sym="(Weft-internal)"; note="q1_0 internal-A/B·永久域外·非分母"
+            elif op == "dequantize_row":
                 tier = S; sym = "dequantize_row_%s"%fmt
                 note = DEQ_NOTE_RVV.get(fmt,"") if board=="rvv" else ""
                 note = (note+" · " if note else "")+"scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale"
@@ -216,6 +219,11 @@ def main():
                 tier=V; sym="quantize_row_%s"%fmt; note="★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕"
             elif op == "product_reduce":
                 tier=S; sym="ggml scalar-ref(fallback)"; note="internal sub-primitive·§〇.2兜底·待补标量仗"
+            elif eng == "ime":
+                # IME 行对手 = stock vendor IME(chip-specific dispatch)→手调(k1)·rvv=N/A-hw
+                tier = H
+                sym = "stock IME %s (vendor)"%fmt
+                note = "vendor IME dispatch chip-specific→手调·成色:"+{"q4_0":"tie-stock 1.0088×(未真beat)","q8_0":"beat-stock 2.233×(赢弱vendor)","q4_K":"黄0.909× super-block 传导稀释"}.get(fmt,"")
             elif tent:
                 tier, sym, note = tent[board]
             else:
@@ -226,11 +234,11 @@ def main():
                 c = t3rec["cold"]
                 td = t3rec["disp"]
                 if op=="dequantize_row":
-                    # DEQ 照测·标量仗·不进头条(§一.3 filter view)
-                    if td=="PASS": d="PASS(照测·标量仗·不进头条0.8)"
-                    elif td=="具名-X": d="具名-X(照测·标量仗)"
-                    elif td=="DEQ-照测-not-in-denom": d="DEQ照测(not-in-denom·标量仗)"
-                    else: d="DEQ照测"
+                    # ★数字字典v2令: DEQ 计入所属档(标量类)头条·"照测子账/不进头条"废止(§一.3)
+                    if td=="PASS": d="PASS"
+                    elif td=="具名-X": d="具名-X"
+                    elif td=="DEQ-照测-not-in-denom": d="pending(照测未定verdict)"
+                    else: d="pending(DEQ)"
                 elif td=="JUDGMENT-SUSPENDED":
                     d = "例外-数值档挂起(gelu·待f16-LUT同档重比§一.4)"
                 elif td=="PASS": d="PASS"
@@ -240,12 +248,12 @@ def main():
             else:
                 c = None
                 d = disp(op,fmt,eng,board,tier,c,na)
-            # q5@k1 deploy absorb
+            # q5@k1 deploy absorb (裁决④·§一.1 吸纳·master 内·denom 不变·perf-covered 换算另需 roster canon 扩)
             dep = Q5K1_DEPLOY.get((op,fmt))
             depnote=""
             if dep and dep[0]==board:
-                depnote = " ·[deploy k1 repack %.3f× PASS-DEPLOYED·anti-gate:真部署路新格·beat-weak-baseline]"%dep[1]
-                if d.startswith("具名-X"): d="PASS-DEPLOYED(部署路·k1 repack)"
+                depnote = " ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) %.3f× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]"%dep[1]
+                if d.startswith("具名-X") or d.startswith("pending"): d="PASS-DEPLOYED(部署路·k1 repack decode-GEVM)"
             if na: tier="N/A-hw"; sym="—"; note="ime.present unsatisfiable on %s(机判)"%board; d="N/A-hw"
             rec[board] = {"tier":tier,"sym":sym,"note":note+depnote,"cold":c,"disp":d,"na":na}
         master.append(rec)
@@ -253,117 +261,108 @@ def main():
     # ---- group subtotal recon ----
     grp = Counter(r["group"] for r in master)
     # ---- N/A-hw legal-asymmetry scan ----
-    asym = []
-    rev_asym = []  # rvv-legal but k1-absent (expect none)
+    asym = []; rev_asym = []
     for r in master:
-        if r["rvv"]["na"] and not r["k1"]["na"]:
-            asym.append((r["op"],r["format"],r["engine"],"rvv=N/A-hw"))
-        if r["k1"]["na"] and not r["rvv"]["na"]:
-            rev_asym.append((r["op"],r["format"],r["engine"],"k1=N/A-hw"))
-    def is_pass(d): return d.startswith("PASS")
-    def is_x(d): return d.startswith("具名-X")
-    def contested(d): return is_pass(d) or is_x(d)
-    # ---- three-headline: 硬仗(手调)/向量仗(通用向量)/标量仗(标量类)·per board·PASS/局数 ----
-    # 头条 = matmul + forward 主 0.8 对局(DEQ照测不进头条·§一.3·单列子账)
-    def board_stats(board):
-        buckets = {"手调":[0,0],"通用向量":[0,0],"标量类":[0,0],"UNRESOLVED":[0,0]}  # [pass, contest]
-        na=oob=pend=susp=0; deq=[0,0]
-        for r in master:
-            b=r[board]; t=b["tier"]; d=b["disp"]
-            if b["na"]: na+=1; continue
-            if t=="域外" or d.startswith("域外"): oob+=1; continue
-            if r["op"]=="dequantize_row":
-                if contested(d): deq[1]+=1;  deq[0]+= (1 if is_pass(d) else 0)
-                continue
-            if "挂起" in d: susp+=1; continue
-            if contested(d):
-                if t in buckets:
-                    buckets[t][1]+=1
-                    if is_pass(d): buckets[t][0]+=1
-            else:
-                pend+=1
-        return buckets, na, oob, pend, susp, deq
-    # ---- per-board 局数分母(补充令.5): 该板列中 非N/A-hw ∧ 有对局(matmul+forward头条) 的行数 ----
-    def board_contest_denom(board):
-        return sum(1 for r in master if (not r[board]["na"]) and r["op"]!="dequantize_row"
-                   and contested(r[board]["disp"]))
+        rk=f"{r['op']}|{r['format']}|{r['engine']}"+(f"|{r['regime']}" if r['regime'] else "")
+        if r["rvv"]["na"] and not r["k1"]["na"]: asym.append((rk,"rvv=N/A-hw"))
+        if r["k1"]["na"] and not r["rvv"]["na"]: rev_asym.append((rk,"k1=N/A-hw"))
 
-    # ---- write master CSV ----
+    def row_state(d):
+        if d.startswith("PASS"): return "PASS"
+        if d.startswith("具名-X"): return "具名-X"
+        if "挂起" in d: return "挂起"
+        return "pending"
+    TIERS=("手调","通用向量","标量类","UNRESOLVED")
+    # ★单分母制(数字字典v2令): 板分母 = 主表 非N/A-hw ∧ 非q1_0(域外) 全部行. 四档穷尽互斥·Σ=分母.
+    def board_denom_rows(board):
+        return [r for r in master if (not r[board]["na"]) and r[board]["tier"]!="域外"]
+    def tier_stats(board):
+        st={t:{"full":0,"pass":0,"measured":0,"pending":0,"susp":0,"x":0,"rows":[]} for t in TIERS}
+        for r in board_denom_rows(board):
+            t=r[board]["tier"]
+            if t not in st: t="UNRESOLVED"
+            d=r[board]["disp"]; c=r[board]["cold"]; stt=row_state(d)
+            s=st[t]; s["full"]+=1
+            if stt=="PASS": s["pass"]+=1; s["measured"]+=1
+            elif stt=="具名-X": s["x"]+=1; s["measured"]+=1
+            elif stt=="挂起": s["susp"]+=1
+            else: s["pending"]+=1
+            rk=f"{r['op'].replace('_tile','').replace('ntize_row','ntize').replace('quantize_row','quant').replace('uct_reduce','_reduce')}|{r['format']}"+(f"@{r['engine']}" if r['engine'] else "")+(f"/{r['regime']}" if r['regime'] else "")
+            s["rows"].append((rk,stt,c))
+        return st
+
+    # ---- write master CSV (含 regime 列) ----
     with open(OUT,"w",newline="") as f:
         w=csv.writer(f)
-        w.writerow(["op","format","engine","group",
+        w.writerow(["op","format","engine","regime","group",
                     "rvv_tier","rvv_disp","rvv_cold","rvv_opp_sym","rvv_note",
                     "k1_tier","k1_disp","k1_cold","k1_opp_sym","k1_note"])
         for r in master:
-            w.writerow([r["op"],r["format"],r["engine"],r["group"],
+            w.writerow([r["op"],r["format"],r["engine"],r["regime"],r["group"],
                 r["rvv"]["tier"],r["rvv"]["disp"],r["rvv"]["cold"],r["rvv"]["sym"],r["rvv"]["note"],
                 r["k1"]["tier"],r["k1"]["disp"],r["k1"]["cold"],r["k1"]["sym"],r["k1"]["note"]])
 
+    # ---- row-clue 工件 (每口径数字附机打行清单·禁无清单出数·数字字典v2令一.4) ----
+    stats={b:tier_stats(b) for b in ("rvv","k1")}
+    denom={b:len(board_denom_rows(b)) for b in ("rvv","k1")}
+    with open(CLUE,"w") as cf:
+        cf.write(f"# 行清单工件 (数字字典v2·每口径行清单+格内状态·机算·snapshot {SNAPSHOT})\n")
+        cf.write(f"# 单分母制: 板分母 = 主表非N/A-hw ∧ 非q1_0 全部行. 四档穷尽互斥 Σ=分母.\n\n")
+        for board in ("rvv","k1"):
+            cf.write(f"===== {board} (板分母={denom[board]}) =====\n")
+            tot=0
+            for t in TIERS:
+                s=stats[board][t]; tot+=s["full"]
+                cf.write(f"\n[{t}] 头条 PASS {s['pass']}/{s['full']} (全量) · 已测胜率 {s['pass']}/{s['measured']} (派生) · 格内: PASS {s['pass']}/具名-X {s['x']}/挂起 {s['susp']}/pending {s['pending']}\n")
+                for rk,stt,c in s["rows"]:
+                    cf.write(f"    {stt:7s} {rk}"+(f" cold={c}" if c is not None else "")+"\n")
+            cf.write(f"\n  Σ四档 = {tot} == 板分母 {denom[board]} : {'✓' if tot==denom[board] else '✗MISMATCH'}\n\n")
+
     # ---- print recon ----
     print("="*76)
-    print(f"G8 主表重铸 RECON (机算·snapshot {SNAPSHOT}) — {len(master)} 行 master")
+    print(f"G8 主表重铸 RECON v2·单分母制 (机算·snapshot {SNAPSHOT}) — {len(master)} 行 master")
     print("="*76)
     print("\n[分组行数对账] (matmul/forward/dequant/quantize/product_reduce·Σ=主表总行数)")
     for g in ("matmul","forward","dequant","quantize","product_reduce"):
         print(f"    {g:16s} {grp[g]}")
-    print(f"    {'─'*24}\n    Σ = {sum(grp.values())}  (roster in-domain 91 − q4_0-gemm-regime-fold 1 = 90)")
-    print(f"    matmul 细分: gemm {sum(1 for r in master if r['op']=='gemm_tile')} (24 rvv格+3 ime·q4_0 regime折) + vec_dot {sum(1 for r in master if r['op']=='vec_dot')}")
+    print(f"    {'─'*24}\n    Σ = {sum(grp.values())}  (roster in-domain 91·q4_0-gemm decode/prefill=2行不折·[K-10])")
+    print(f"    matmul 细分: gemm {sum(1 for r in master if r['op']=='gemm_tile')} + vec_dot {sum(1 for r in master if r['op']=='vec_dot')}")
 
     print("\n[合法不对称清单] (N/A-hw·机判 ime.present×板实例·禁手标):")
-    for a in asym: print(f"    {a[0]}|{a[1]}|{a[2]}  {a[3]}")
+    for rk,tag in asym: print(f"    {rk}  {tag}")
     print(f"    ---- N/A-hw 行数 = {len(asym)} (预期 IME 3 @rvv) ----")
     print(f"    反向确认(rvv合法∧k1缺席): {len(rev_asym)} 行 {'✓无' if not rev_asym else rev_asym}")
 
-    print("\n[三口径头条·per board·PASS/局数] (硬仗=手调·向量仗=通用向量·标量仗=标量类·DEQ照测不进头条):")
+    print("\n[★单分母头条·四档穷尽互斥·PASS/全档量·Σ=板分母] (便宜档禁称硬赢):")
     for board in ("rvv","k1"):
-        bk,na,oob,pend,susp,deq = board_stats(board)
-        denom = board_contest_denom(board)
-        print(f"  ── {board} (头条局数分母={denom}·非N/A-hw∧有对局∧非DEQ照测) ──")
-        for t in ("手调","通用向量","标量类","UNRESOLVED"):
-            p,c = bk[t]
-            print(f"      {t:10s} PASS {p}/{c}"+("  ★禁称硬赢(便宜档)" if t=="标量类" and c else ""))
-        print(f"      [DEQ照测子账(标量仗·不进头条) PASS {deq[0]}/{deq[1]} · gelu挂起 {susp} · N/A-hw {na} · 域外 {oob} · pending {pend}]")
+        St=stats[board]; tot=sum(St[t]['full'] for t in TIERS)
+        print(f"  ── {board} (板分母={denom[board]}·非N/A-hw∧非q1_0) ──")
+        for t in TIERS:
+            s=St[t]
+            wr = f"已测胜率{s['pass']}/{s['measured']}" if s['measured'] else "已测胜率 n/a"
+            print(f"      {t:10s} 头条 PASS {s['pass']:2d}/{s['full']:2d} (全量) · {wr} · [PASS{s['pass']}/X{s['x']}/挂{s['susp']}/pend{s['pending']}]"+("  ★禁称硬赢" if t=="标量类" else ""))
+        print(f"      Σ四档 = {tot} == 分母 {denom[board]} : {'✓' if tot==denom[board] else '✗MISMATCH!!'}")
 
-    # ---- disposition census ----
-    print("\n[disposition 普查·双板]:")
-    for board in ("rvv","k1"):
-        dc=Counter(r[board]["disp"] for r in master)
-        print(f"  {board}: "+" · ".join(f"{k}:{v}" for k,v in sorted(dc.items(), key=lambda x:-x[1])))
-
-    # ---- tier census ----
-    print("\n[对手三档普查·双板·非N/A-hw]:")
-    for board in ("rvv","k1"):
-        tc=Counter(r[board]["tier"] for r in master if not r[board]["na"])
-        print(f"  {board}: "+" · ".join(f"{k}:{v}" for k,v in sorted(tc.items(), key=lambda x:-x[1])))
-
-    # ---- 数字字典 (交付物 B·每头条数=主表一个过滤器) ----
-    def cnt(pred): return sum(1 for r in master if pred(r))
-    rvvS = board_stats("rvv"); k1S = board_stats("k1")
+    # ---- 数字字典 v2 (交付物 B·单分母·每数=过滤器) ----
     print("\n" + "="*76)
-    print("数字字典 (交付物 B·每数=主表过滤器·机算·snapshot "+SNAPSHOT+")")
+    print("数字字典 v2 (单分母制·每数=主表过滤器·机算·snapshot "+SNAPSHOT+"·行清单见 "+CLUE.split('/')[-1]+")")
     print("="*76)
-    dictrows = [
-     ("master 总行数","(op,format,engine)·in-domain·q4_0-gemm-regime折·flash_attn/bf16 OOD除",len(master),"主表口径"),
-     ("硬仗-rvv","tier=手调 ∧ 头条(matmul+forward) ∧ 非N/A-hw·PASS/局数",f"{rvvS[0]['手调'][0]}/{rvvS[0]['手调'][1]}","0.8硬仗"),
-     ("硬仗-k1","同上",f"{k1S[0]['手调'][0]}/{k1S[0]['手调'][1]}","0.8硬仗"),
-     ("向量仗-rvv","tier=通用向量 ∧ 头条·PASS/局数",f"{rvvS[0]['通用向量'][0]}/{rvvS[0]['通用向量'][1]}","0.8向量仗"),
-     ("向量仗-k1","同上",f"{k1S[0]['通用向量'][0]}/{k1S[0]['通用向量'][1]}","0.8向量仗"),
-     ("标量仗-rvv","tier=标量类 ∧ 头条·PASS/局数·★禁称硬赢",f"{rvvS[0]['标量类'][0]}/{rvvS[0]['标量类'][1]}","0.8标量仗"),
-     ("标量仗-k1","同上",f"{k1S[0]['标量类'][0]}/{k1S[0]['标量类'][1]}","0.8标量仗"),
-     ("DEQ照测-rvv","op=dequant·标量仗·不进头条·PASS/局数",f"{rvvS[5][0]}/{rvvS[5][1]}","DEQ子账"),
-     ("DEQ照测-k1","同上(k1 0 promoted·§〇.1下与rvv同为标量仗照测)",f"{k1S[5][0]}/{k1S[5][1]}","DEQ子账"),
-     ("头条局数分母-rvv","该板非N/A-hw ∧ 有对局(matmul+forward) 行数",board_contest_denom("rvv"),"补充令.5"),
-     ("头条局数分母-k1","同上",board_contest_denom("k1"),"补充令.5"),
-     ("N/A-hw(合法不对称)","ime.present谓词×板实例不满足·机判",len(asym),"两板对称"),
-     ("pending-总-rvv","pending-fold + pending-真",cnt(lambda r:r['rvv']['disp'].startswith('pending')),"待补战线"),
-     ("certified","(op,format[,shape])构造轴·byte-exact/emit-golden·coverage_metrics.py","84/91","构造轴(外·非0.8)"),
-     ("perf-covered","(op,format,engine)系统账e2e·perf_covered_metrics.py","9/83","系统账(外·非kernel-sym)"),
-     ("真硬赢 hand-brick","手调-REAL ∧ PASS ∧ k1·byte-verified","2","成色定性(q4_K/q2_K@k1)"),
-    ]
-    for name,filt,val,track in dictrows:
-        print(f"  {name:18s} = {str(val):9s} | {track:16s} | 过滤器: {filt}")
+    rows_dict=[("master 总行数","(op,format,engine,regime)·in-domain·q4_0-gemm不折·flash_attn/bf16 OOD除",len(master),"主表口径"),
+     ("板分母-rvv","非N/A-hw ∧ 非q1_0(域外) 全部行",denom["rvv"],"单分母"),
+     ("板分母-k1","同上",denom["k1"],"单分母")]
+    for board in ("rvv","k1"):
+        for t in TIERS:
+            s=stats[board][t]
+            rows_dict.append((f"{t}-{board}",f"tier={t} ∧ 板分母·PASS/全档量"+("·禁称硬赢" if t=="标量类" else ""),f"{s['pass']}/{s['full']}",f"头条·{board}"))
+    rows_dict += [
+     ("N/A-hw","ime.present谓词×板实例不满足·机判",len(asym),"两板对称"),
+     ("certified","(op,format[,shape])构造轴·byte-exact·coverage_metrics.py","84/91","构造轴(外)"),
+     ("perf-covered","(op,format,engine)系统账e2e·perf_covered_metrics.py·【裁决④吸纳q5@k1后·见报告置顶】","(见报告)","系统账(外)"),
+     ("真硬赢 hand-brick","手调-REAL ∧ PASS ∧ k1·byte-verified","2","成色定性")]
+    for name,filt,val,track in rows_dict:
+        print(f"  {name:16s} = {str(val):9s} | {track:12s} | {filt}")
     print("\n  [分组行数对账] Σ = "+" + ".join(f"{g}:{grp[g]}" for g in ('matmul','forward','dequant','quantize','product_reduce'))+f" = {sum(grp.values())}")
-    print(f"\n★ master CSV: {OUT}")
+    print(f"\n★ master CSV: {OUT}\n★ 行清单工件: {CLUE}")
 
 if __name__=="__main__":
     main()
