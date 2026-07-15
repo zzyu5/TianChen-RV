@@ -119,8 +119,8 @@ TIER = {
  ("gemm_tile","q2_K"):{"rvv":(H,"ggml_vec_dot_q2_K_q8_K_vl128(CROSSOP)","our-gemm vs vl128 手调block-dot·cross-op(rvv零K-quant repack)"),"k1":(H,"ggml_gemm_q2_K_8x8_q8_K(REAL)","真16x1/8x8 hand-brick repack STRONG")},
  ("gemm_tile","q3_K"):{"rvv":(H,"ggml_vec_dot_q3_K_q8_K_vl128(CROSSOP)","cross-op vs vl128 手调block-dot"),"k1":(H,"ggml_vec_dot_q3_K_q8_K_vl256(CROSSOP)","q3_K唯一无repack·cross-op vs vl256 手调block-dot")},
  ("gemm_tile","q4_K"):{"rvv":(H,"ggml_vec_dot_q4_K_q8_K_vl128(CROSSOP)","cross-op vs vl128 手调block-dot"),"k1":(H,"ggml_gemm_q4_K_16x1_q8_K(REAL)","真16x1 hand-brick byte-drop-in STRONG(Win-K1-VLEN)")},
- ("gemm_tile","q5_K"):{"rvv":(V,"ggml_vec_dot_q5_K_q8_K(CROSSOP)","cross-op vs native-vec-moderate(q5_K无vl-spec)"),"k1":(H,"ggml_gemm_q5_K_8x4_q8_K(REAL)","真 hand-brick repack STRONG")},
- ("gemm_tile","q6_K"):{"rvv":(H,"ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP)","cross-op vs vl128 手调block-dot"),"k1":(H,"ggml_gemm_q6_K_16x1_q8_K(REAL)","真 hand-brick repack STRONG")},
+ ("gemm_tile","q5_K"):{"rvv":(V,"ggml_vec_dot_q5_K_q8_K(CROSSOP)","cross-op vs native-vec-moderate(q5_K无vl-spec)"),"k1":(H,"ggml_gemm_q5_K_8x4_q8_K(repack)","repack opponent·★成色升级 DEFERRED(q5_K 8x8 前提证伪·非 verified hand-brick·F-2 纠·真硬赢锁 2=q4_K/q2_K)")},
+ ("gemm_tile","q6_K"):{"rvv":(H,"ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP)","cross-op vs vl128 手调block-dot"),"k1":(H,"ggml_gemm_q6_K_16x1_q8_K(repack)","repack opponent·★成色升级 DEFERRED(非 verified hand-brick·F-2 纠)")},
  # ---- iq/tq/fp4 GEMM (§〇.2 全员有对手·ggml标量参考兜底·去向=待补标量仗·pending-真) ----
  ("gemm_tile","iq1_s"):{"rvv":(S,"ggml scalar-ref(fallback)","1-bit grid·无 repack GEMM→标量参考兜底(§〇.2)·待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
  ("gemm_tile","iq1_m"):{"rvv":(S,"ggml scalar-ref(fallback)","无 repack GEMM→标量参考兜底·待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
@@ -419,9 +419,9 @@ def main():
             rows_dict.append((f"{t}-{board}",f"tier={t} ∧ 板分母·PASS/全档量"+("·禁称硬赢" if t=="标量类" else ""),f"{s['pass']}/{s['full']}",f"头条·{board}"))
     rows_dict += [
      ("N/A-hw","ime.present谓词×板实例不满足·机判",len(asym),"两板对称"),
-     ("certified","(op,format[,shape])构造轴·byte-exact·coverage_metrics.py","84/91","构造轴(外)"),
-     ("perf-covered","(op,format,engine)系统账e2e·perf_covered_metrics.py·【裁决④吸纳q5@k1后·见报告置顶】","(见报告)","系统账(外)"),
-     ("真硬赢 hand-brick","手调-REAL ∧ PASS ∧ k1·byte-verified","2","成色定性")]
+     ("certified","(op,format[,shape,regime])构造轴·byte-exact·【coverage_metrics.py 机算·非本recon·regime-split后】","101/108","构造轴(外·F-1纠)"),
+     ("perf-covered","(op,format,engine)系统账e2e·perf_covered_metrics.py·【收口令〇.1终裁维持·any-board只升成色】","9/83","系统账(外)"),
+     ("真硬赢 hand-brick","手调-REAL ∧ PASS ∧ k1·byte-verified·【判据锁 q4_K/q2_K@k1·q5_K/q6_K DEFERRED非verified·非本recon机算】","2","成色定性(F-3判据守护)")]
     for name,filt,val,track in rows_dict:
         print(f"  {name:16s} = {str(val):9s} | {track:12s} | {filt}")
     print("\n  [分组行数对账] Σ = "+" + ".join(f"{g}:{grp[g]}" for g in ('matmul','forward','dequant','quantize','product_reduce'))+f" = {sum(grp.values())}")
