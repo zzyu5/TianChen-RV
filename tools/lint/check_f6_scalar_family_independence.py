@@ -124,6 +124,7 @@ def locate_binary(name, override):
     if env:
         candidates.append(os.path.join(env, "bin", name))
     candidates.append(os.path.join(REPO, "build", "bin", name))
+    candidates.append(os.path.join(REPO, "build-weft", "bin", name))
     for c in candidates:
         if os.path.isfile(c):
             return c

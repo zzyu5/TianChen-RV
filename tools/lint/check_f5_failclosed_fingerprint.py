@@ -115,6 +115,7 @@ def locate_opt(override):
     if env:
         candidates.append(os.path.join(env, "bin", "weft-opt"))
     candidates.append(os.path.join(REPO, "build", "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build-weft", "bin", "weft-opt"))
     for c in candidates:
         if os.path.isfile(c):
             return c

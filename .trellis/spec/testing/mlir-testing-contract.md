@@ -56,6 +56,19 @@
 
 任何"效应"（Δ、加速、回归）主张的资格前置是该板×该基准类的 **T-N 噪声地板**（重测-重测的运行间 IQR%）。判据：**`|Δ| > 2×噪声地板` 且 bootstrap 95%CI 不含 0**；**无 T-N = 无判定资格**。T-N 表结构与产出口径见 docs/实验总纲 §1.3 + `experiments/T-N_noise_floor.csv`；spec 只钉门槛。
 
+## T-X X-SCALAR 真板 enablement 证据表（独立家族 [F-6] 真硅证词 · DEFINITION-ONLY）
+
+**T-X** 定义 [X-SCALAR] 向量缺席独立家族在真硅上的 **enablement 证据表**（正确性 / 零向量机检 / 独立见证；**enablement 域·无性能主张**）。它与 T-N 并列为"证据表定义"，本节为**权威定义**，别处按引用对齐、不重定义。**六列钉死**：
+
+1. **目标身份** —— 真硅 + capability-facts，按 [../capability-model/profiles.md](../capability-model/profiles.md) 命名 profile。X-SCALAR 目标须为**向量缺席实例**：(a) 物理 no-V 真硅，或 (b) 带 V 板**强制 `-march=rv64gc` no-V 构建+运行**的**窄豁免**（(b) **必须显式标 `narrow-exempt: V-board-run-as-noV`**）。指纹全分量含 march（须无 `v`/`zve*`）。
+2. **构建** —— 精确工具链 + `-march=rv64gc -mabi=lp64d`（march 无向量扩展）+ `-ffp-contract=off`；双方编译器身份+旗标入案；内核须为 **Weft-RV emitter 产出的 owned `weft_scalar` 内核**，非 fallback 兜底桩（边界见 [../extension-plugins/scalar-fallback-plugin.md](../extension-plugins/scalar-fallback-plugin.md)）。
+3. **零向量指令机检** —— 对产出 `.o`/`.elf` **静态 objdump**：零 RVV opcode（无 `v*`/`vset*`/`vle*`/`vse*` 等）+ 无 `__riscv_` 向量 intrinsic + 无 `weft_rvv` 符号 + 无 XOR-popcount 码本。脚本化（`check_f6_scalar_family_independence.py` emitted-C 独立分类器姊妹）。**板无关（静态）** = PASS/FAIL 结构证明格。
+4. **byte-correct** —— 目标上运行，**byte-exact** vs 独立 host oracle（ZERO-MODEL 从实际输入重算·证书三要件：语料完备/输入路径同源/oracle 独立）；整数路径 = byte-exact 门 [K-5]。
+5. **逐竞品产出数** —— 按对手类词表（factory-dispatched / algorithm-matched / naive-RVV / scalar-oracle）逐类记数 + 对手探针工件指针。**enablement 域 = 无 beat 主张**：scalar 永不作贡献基线（[L-6]），向量缺席目标无 factory 向量路径 → 本表数**仅 diagnostic/sanity·显式非 Win**。
+6. **参考路径披露** —— 披露实际走的路径（deployed variant = proven variant·证书三要件）；披露 enablement（无性能主张）+ 若 (b) 标窄豁免；披露 [F-6] 关系（真硅证词**加强**而非**替换** committed 合成实例）。
+
+**状态枚举沿用上节 §格 schema 二分** `{measured|stale|board-pending|open|n_a}`。铁律：列 3 静态机检板无关随时可产；列 4/5 无真板运行 = `board-pending`（不进正文，[L-5]）；列 5 永不升 Win（enablement 域）。T-X 是**定义**，不是活测量入口；活证据落 experiments/ 并按本 § 引用对齐。
+
 ## 对手解析探针（vs-framework 证据的有效性门）
 
 对比框架（ggml/llama.cpp）的性能证据，必须在钉死的框架版本 + 该板默认构建下，探测每个 `(算子, 格式, 形状类)` **实际派发的 kernel**，产**对手探针工件**并写入测量格的对手指针。**vs-framework 测量格无探针工件 = CI 判 INVALID**（routing 随板/格式/版本变，手填必腐烂）。

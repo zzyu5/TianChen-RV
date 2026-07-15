@@ -1,0 +1,47 @@
+# Falsifier REAL-BINARY gate — F-4 / F-5 / F-6 board/self-hosted lane.
+#
+# [B1 裁决 〇.1] The light-weight falsifier-gate.yml wires the SELF-TEST门 of every
+# falsifier (stdlib-Python, no compiler) and runs the real-binary门 in a BUILD-FREE lane
+# that SKIPs (exit 0) when weft-opt is absent. That SKIP-green is abolished for the real
+# checks: this workflow is the lane that DRIVES the real compiler binaries and treats a
+# missing binary as RED (via tools/lint/run_falsifier_binaries.sh, which forces
+# --require-binaries on all three and hard-fails on an empty/broken WEFT_BUILD).
+#
+# It runs on a self-hosted runner labelled [self-hosted, weft-build] that already holds a
+# built weft tree (weft-opt + weft-translate) — the light CI does NOT build LLVM/MLIR and
+# this lane does not either; it consumes an existing build. Scheduled nightly + manual.
+#
+# ★基建 PENDING（供应=用户/工具链，不在案头执行员权限内）：
+#   - self-hosted runner labelled `weft-build` with an up-to-date built tree must be
+#     provisioned. Until then this workflow is DORMANT (schedule/dispatch fire but find no
+#     matching runner). Installing LLVM/MLIR or standing up the runner = 硬冻结（工具链/
+#     基建），登记 PENDING，未擅自改 CI 装 LLVM。
+#   - WEFT_BUILD below points at the runner-local built tree; adjust to the provisioned
+#     path when the runner exists.
+name: falsifier-binary-gate
+
+on:
+  schedule:
+    # Nightly 03:17 UTC — off the light-CI path; unattended real-binary falsifier lane.
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  falsifier-binaries:
+    # PENDING: requires a provisioned self-hosted runner holding a built weft tree.
+    runs-on: [self-hosted, weft-build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The runner already holds a built tree; point WEFT_BUILD at it. run_falsifier_binaries.sh
+      # forces --require-binaries (no SKIP-green) and RED-fails on an empty/broken WEFT_BUILD.
+      - name: Real-binary falsifier gate (F-4 / F-5 / F-6, --require-binaries, no SKIP-green)
+        run: |
+          # WEFT_BUILD must be the runner-local built tree (bin/weft-opt + bin/weft-translate).
+          # Placeholder default assumes a co-located ./build-weft; override in runner env.
+          export WEFT_BUILD="${WEFT_BUILD:-$GITHUB_WORKSPACE/build-weft}"
+          bash tools/lint/run_falsifier_binaries.sh
