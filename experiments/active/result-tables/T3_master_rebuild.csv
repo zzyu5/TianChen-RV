@@ -12,17 +12,17 @@ vec_dot,q5_K,,,matmul,通用向量,PASS,0.843,ggml_vec_dot_q5_K_q8_K,native-vec 
 vec_dot,q6_K,,,matmul,手调,具名-X,0.18,ggml_vec_dot_q6_K_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.549,ggml_vec_dot_q6_K_q8_K_vl256,SpacemiT vl256 STRONG
 vec_dot,iq1_s,,,matmul,手调,具名-X,0.365,ggml_vec_dot_iq1_s_q8_K_vl128,SpacemiT vl128 grid-gather STRONG,手调,具名-X,0.361,ggml_vec_dot_iq1_s_q8_K_vl256,SpacemiT vl256 STRONG
 vec_dot,iq1_m,,,matmul,手调,具名-X,0.152,ggml_vec_dot_iq1_m_q8_K_vl128,SpacemiT vl128 STRONG,手调,具名-X,0.25,ggml_vec_dot_iq1_m_q8_K_vl256,SpacemiT vl256 STRONG
-vec_dot,iq2_xxs,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq2_xxs_q8_K(vec_dot符号未反汇编),仅dequant反了·手调=类推非符号级→UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
-vec_dot,iq2_xs,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq2_xs_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
-vec_dot,iq2_s,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq2_s_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
-vec_dot,iq3_xxs,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq3_xxs_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
-vec_dot,iq3_s,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq3_s_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,iq2_xxs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq2_xxs_q8_K_vl128.isra.0,objdump rvv:121/vec36/mac6/gather4·vl128手写gather→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:333/vec122/mac24/gather16→手调〔清偿〕
+vec_dot,iq2_xs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0,objdump rvv:226/vec73/mac24/gather8·heavy→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:216/vec53/mac20→手调〔清偿〕
+vec_dot,iq2_s,,,matmul,手调,pending-fold,,ggml_vec_dot_iq2_s_q8_K_vl128.isra.0,objdump rvv:102/vec27/mac3/gather2→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:344/vec105/mac20/gather12→手调〔清偿〕
+vec_dot,iq3_xxs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq3_xxs_q8_K_vl128.isra.0,objdump rvv:129/vec26/mac5/gather3→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:314/vec71/mac20/gather12→手调〔清偿〕
+vec_dot,iq3_s,,,matmul,手调,pending-fold,,ggml_vec_dot_iq3_s_q8_K_vl128.isra.0,objdump rvv:102/vec26/mac2→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:232/vec84/mac12/gather8→手调〔清偿〕
 vec_dot,iq4_nl,,,matmul,手调,PASS,1.15,ggml_vec_dot_iq4_nl_q8_0_vl128,hand-vl128 codebook-gather LIGHT〔V·手调〕,手调,具名-X,0.697,ggml_vec_dot_iq4_nl_q8_0_vl256,hand-vl256 codebook-gather LIGHT〔V-纠·板一致·chip-tuned〕
-vec_dot,iq4_xs,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_iq4_xs_q8_K(未反汇编),pending cold·符号未反汇编·UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
-vec_dot,mxfp4,,,matmul,手调,pending-fold,,ggml_vec_dot_mxfp4_q8_0_vl128,★实已反汇编 rvv=18/mac4/gather2·同iq4_nl profile·hand-vl128 LIGHT→手调〔V-纠〕,UNRESOLVED,pending-fold,,(k1未反汇编),UNRESOLVED〔V〕
+vec_dot,iq4_xs,,,matmul,手调,pending-fold,,ggml_vec_dot_iq4_xs_q8_K_vl128.isra.0,objdump rvv:84/vec16/mac3·LIGHT→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:144/vec18/mac5→手调〔清偿〕
+vec_dot,mxfp4,,,matmul,手调,pending-fold,,ggml_vec_dot_mxfp4_q8_0_vl128,objdump rvv:118/vec18/mac4/gather2·hand-vl128 LIGHT→手调〔清偿〕,手调,pending-fold,,ggml_vec_dot_mxfp4_q8_0_vl256,objdump k1:96/vec24/mac6/gather4→手调〔清偿·k1原UNRESOLVED已清〕
 vec_dot,nvfp4,,,matmul,标量类,具名-X,0.565,ggml_vec_dot_nvfp4_q8_0,generic-C autovec NO-riscv-spec→标量类(§〇.1)〔V〕,标量类,PASS,1.086,ggml_vec_dot_nvfp4_q8_0,generic-C autovec→标量类〔V〕
-vec_dot,tq1_0,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_tq1_0_q8_K(vec_dot未反汇编),仅dequant反了·UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
-vec_dot,tq2_0,,,matmul,UNRESOLVED,pending-fold,,ggml_vec_dot_tq2_0_q8_K(未反汇编),UNRESOLVED〔V〕,UNRESOLVED,pending-fold,,(未反汇编),UNRESOLVED〔V〕
+vec_dot,tq1_0,,,matmul,手调,pending-fold,,ggml_vec_dot_tq1_0_q8_K_vl128.isra.0,objdump rvv:114/vec45/mac14·ternary vl128手写→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:172/vec93/mac32→手调〔清偿〕
+vec_dot,tq2_0,,,matmul,手调,pending-fold,,ggml_vec_dot_tq2_0_q8_K_vl128.isra.0,objdump rvv:85/vec46/mac10→手调〔清偿〕,手调,pending-fold,,..._vl256,objdump k1:88/vec46/mac10→手调〔清偿〕
 product_reduce,q4_0_nibble,,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
 product_reduce,offset_binary_n3,,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
 product_reduce,codebook_n3,,,product_reduce,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),internal sub-primitive·§〇.2兜底·待补标量仗
@@ -53,8 +53,8 @@ dequantize_row,mxfp4,,,dequant,标量类,PASS,,dequantize_row_mxfp4,scalar源 au
 dequantize_row,nvfp4,,,dequant,标量类,pending(照测未定verdict),,dequantize_row_nvfp4,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,pending(照测未定verdict),0.716,dequantize_row_nvfp4,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
 dequantize_row,tq1_0,,,dequant,标量类,PASS,,dequantize_row_tq1_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,pending(照测未定verdict),4.285,dequantize_row_tq1_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
 dequantize_row,tq2_0,,,dequant,标量类,具名-X,,dequantize_row_tq2_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale,标量类,pending(照测未定verdict),4.232,dequantize_row_tq2_0,scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale
-gemm_tile,q4_0,rvv,decode,matmul,UNRESOLVED,pending-fold,,upstream repack / block-dot(rvv objdump零gemm符号),对手候选二义:block-dot(通用向量·repack-off) vs repack(手调/标量未验)→UNRESOLVED〔V-纠〕·decode+prefill同行双子行·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
-gemm_tile,q4_0,rvv,prefill,matmul,UNRESOLVED,pending-fold,,upstream repack / block-dot(rvv objdump零gemm符号),对手候选二义:block-dot(通用向量·repack-off) vs repack(手调/标量未验)→UNRESOLVED〔V-纠〕·decode+prefill同行双子行·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
+gemm_tile,q4_0,rvv,decode,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_0_q8_0(block-dot),★二义解〔清偿〕:stock 有 repack(ggml_gemm_q4_0_8x8/16x1)但 VLEN128 gate-off·真派发=block-dot→通用向量·我方win=routing白嫖非beat-repack·decode+prefill·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
+gemm_tile,q4_0,rvv,prefill,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_0_q8_0(block-dot),★二义解〔清偿〕:stock 有 repack(ggml_gemm_q4_0_8x8/16x1)但 VLEN128 gate-off·真派发=block-dot→通用向量·我方win=routing白嫖非beat-repack·decode+prefill·e2e 5.92×/1.91×,通用向量,pending-fold,,block-dot,pending-fold
 gemm_tile,q4_1,rvv,,matmul,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot vectorized·nibble-unpack非autovec-able→通用向量〔V-纠〕·e2e 3.68×,通用向量,pending-fold,,ggml_vec_dot_q4_1_q8_1(CROSSOP),block-dot→通用向量〔V-纠〕·pending-fold
 gemm_tile,q5_0,rvv,,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.21×·pending-fold,通用向量,PASS-DEPLOYED(部署路·k1 repack decode-GEVM),,FLAT block-dot,pending-fold ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) 1.760× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]
 gemm_tile,q5_1,rvv,,matmul,通用向量,pending-fold,,FLAT block-dot,e2e prefill 1.09×·pending-fold,通用向量,PASS-DEPLOYED(部署路·k1 repack decode-GEVM),,FLAT block-dot,pending-fold ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) 2.241× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]
@@ -80,7 +80,7 @@ gemm_tile,tq1_0,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-
 gemm_tile,tq2_0,rvv,,matmul,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗,标量类,pending-真(待补标量仗),,ggml scalar-ref(fallback),待补标量仗
 gemm_tile,q4_0,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q4_0 (vendor),vendor IME dispatch chip-specific→手调·成色:tie-stock 1.0088×(未真beat)
 gemm_tile,q8_0,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q8_0 (vendor),vendor IME dispatch chip-specific→手调·成色:beat-stock 2.233×(赢弱vendor)
-gemm_tile,q4_K,ime,,matmul,N/A-hw,N/A-hw,1.114,—,ime.present unsatisfiable on rvv(机判),手调,PASS,1.187,stock IME q4_K (vendor),vendor IME dispatch chip-specific→手调·成色:黄0.909× super-block 传导稀释
+gemm_tile,q4_K,ime,,matmul,N/A-hw,N/A-hw,,—,ime.present unsatisfiable on rvv(机判),手调,pending-fold,,stock IME q4_K (vendor),vendor IME dispatch chip-specific→手调·成色:黄0.909× super-block 传导稀释
 rms_norm,f32,,,forward,通用向量,PASS,1.24,ggml_compute_forward_rms_norm_f32,native RVV m8 vec_scale + scalar-dbl reduce·HYBRID·BORDERLINE,通用向量,PASS,1.336,ggml_compute_forward_rms_norm_f32,HYBRID·native-vec-light
 softmax,f32,,,forward,通用向量,PASS,1.007,ggml_vec_soft_max_f32,exported ggml手写RVV intrinsic·expf reduce,通用向量,PASS,1.004,ggml_vec_soft_max_f32,leaf 手写intrinsic·wrapper scalar-setup
 rope,f32,,,forward,标量类,PASS,1.013,ggml_compute_forward_rope_f32,scalar cos/sin cache 2-pass + autovec rotate→标量类,标量类,PASS,0.982,ggml_compute_forward_rope_f32,mostly-scalar→标量类

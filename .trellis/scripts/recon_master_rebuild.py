@@ -97,16 +97,17 @@ TIER = {
  ("vec_dot","iq1_m"):{"rvv":(H,"ggml_vec_dot_iq1_m_q8_K_vl128","SpacemiT vl128 STRONG"),  "k1":(H,"ggml_vec_dot_iq1_m_q8_K_vl256","SpacemiT vl256 STRONG")},
  ("vec_dot","iq4_nl"):{"rvv":(H,"ggml_vec_dot_iq4_nl_q8_0_vl128","hand-vl128 codebook-gather LIGHT〔V·手调〕"),"k1":(H,"ggml_vec_dot_iq4_nl_q8_0_vl256","hand-vl256 codebook-gather LIGHT〔V-纠·板一致·chip-tuned〕")},
  ("vec_dot","nvfp4"):{"rvv":(S,"ggml_vec_dot_nvfp4_q8_0","generic-C autovec NO-riscv-spec→标量类(§〇.1)〔V〕"),"k1":(S,"ggml_vec_dot_nvfp4_q8_0","generic-C autovec→标量类〔V〕")},
- # ---- iq/tq vec_dot (pending·vec_dot _vlNNN 符号【从未反汇编】·仅 dequant 反了·禁猜→UNRESOLVED〔V-纠〕·§六补探针) ----
- ("vec_dot","iq2_xxs"):{"rvv":(U,"ggml_vec_dot_iq2_xxs_q8_K(vec_dot符号未反汇编)","仅dequant反了·手调=类推非符号级→UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","iq2_xs"): {"rvv":(U,"ggml_vec_dot_iq2_xs_q8_K(未反汇编)","UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","iq2_s"):  {"rvv":(U,"ggml_vec_dot_iq2_s_q8_K(未反汇编)","UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","iq3_xxs"):{"rvv":(U,"ggml_vec_dot_iq3_xxs_q8_K(未反汇编)","UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","iq3_s"):  {"rvv":(U,"ggml_vec_dot_iq3_s_q8_K(未反汇编)","UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","iq4_xs"): {"rvv":(U,"ggml_vec_dot_iq4_xs_q8_K(未反汇编)","pending cold·符号未反汇编·UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","mxfp4"):  {"rvv":(H,"ggml_vec_dot_mxfp4_q8_0_vl128","★实已反汇编 rvv=18/mac4/gather2·同iq4_nl profile·hand-vl128 LIGHT→手调〔V-纠〕"),"k1":(U,"(k1未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","tq1_0"):  {"rvv":(U,"ggml_vec_dot_tq1_0_q8_K(vec_dot未反汇编)","仅dequant反了·UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
- ("vec_dot","tq2_0"):  {"rvv":(U,"ggml_vec_dot_tq2_0_q8_K(未反汇编)","UNRESOLVED〔V〕"),"k1":(U,"(未反汇编)","UNRESOLVED〔V〕")},
+ # ---- iq/tq vec_dot ★UNRESOLVED 清偿(收口令二·objdump 反汇编 _vlNNN 静态符号·三判据齐→手调) ----
+ #   源=arch/riscv/quants.c 手写 __riscv_v(1788处)·全格有 _vl128(rvv)/_vl256(k1) 专化·objdump 实向量op → 手调
+ ("vec_dot","iq2_xxs"):{"rvv":(H,"ggml_vec_dot_iq2_xxs_q8_K_vl128.isra.0","objdump rvv:121/vec36/mac6/gather4·vl128手写gather→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:333/vec122/mac24/gather16→手调〔清偿〕")},
+ ("vec_dot","iq2_xs"): {"rvv":(H,"ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0","objdump rvv:226/vec73/mac24/gather8·heavy→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:216/vec53/mac20→手调〔清偿〕")},
+ ("vec_dot","iq2_s"):  {"rvv":(H,"ggml_vec_dot_iq2_s_q8_K_vl128.isra.0","objdump rvv:102/vec27/mac3/gather2→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:344/vec105/mac20/gather12→手调〔清偿〕")},
+ ("vec_dot","iq3_xxs"):{"rvv":(H,"ggml_vec_dot_iq3_xxs_q8_K_vl128.isra.0","objdump rvv:129/vec26/mac5/gather3→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:314/vec71/mac20/gather12→手调〔清偿〕")},
+ ("vec_dot","iq3_s"):  {"rvv":(H,"ggml_vec_dot_iq3_s_q8_K_vl128.isra.0","objdump rvv:102/vec26/mac2→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:232/vec84/mac12/gather8→手调〔清偿〕")},
+ ("vec_dot","iq4_xs"): {"rvv":(H,"ggml_vec_dot_iq4_xs_q8_K_vl128.isra.0","objdump rvv:84/vec16/mac3·LIGHT→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:144/vec18/mac5→手调〔清偿〕")},
+ ("vec_dot","mxfp4"):  {"rvv":(H,"ggml_vec_dot_mxfp4_q8_0_vl128","objdump rvv:118/vec18/mac4/gather2·hand-vl128 LIGHT→手调〔清偿〕"),"k1":(H,"ggml_vec_dot_mxfp4_q8_0_vl256","objdump k1:96/vec24/mac6/gather4→手调〔清偿·k1原UNRESOLVED已清〕")},
+ ("vec_dot","tq1_0"):  {"rvv":(H,"ggml_vec_dot_tq1_0_q8_K_vl128.isra.0","objdump rvv:114/vec45/mac14·ternary vl128手写→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:172/vec93/mac32→手调〔清偿〕")},
+ ("vec_dot","tq2_0"):  {"rvv":(H,"ggml_vec_dot_tq2_0_q8_K_vl128.isra.0","objdump rvv:85/vec46/mac10→手调〔清偿〕"),"k1":(H,"..._vl256","objdump k1:88/vec46/mac10→手调〔清偿〕")},
  ("vec_dot","q1_0"):   {"rvv":(D,"ggml_vec_dot_q1_0_q8_0_vl128(Weft-internal)","internal-A/B·自己当自己靶禁·永久域外"),"k1":(D,"(Weft-internal)","永久域外")},
  # ---- K-quant GEMM (rvv 全 cross-op vs block-dot·k1 4 real repack + q3_K cross-op) ----
  ("gemm_tile","q2_K"):{"rvv":(H,"ggml_vec_dot_q2_K_q8_K_vl128(CROSSOP)","our-gemm vs vl128 手调block-dot·cross-op(rvv零K-quant repack)"),"k1":(H,"ggml_gemm_q2_K_8x8_q8_K(REAL)","真16x1/8x8 hand-brick repack STRONG")},
@@ -130,7 +131,7 @@ TIER = {
  ("gemm_tile","tq2_0"):  {"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
  ("gemm_tile","q1_0"):   {"rvv":(D,"(Weft-internal)","永久域外"),"k1":(D,"(Weft-internal)","永久域外")},
  # FLAT gemm (pending-fold·e2e绿·kernel-sym未折入clang18 T3) — opponent = 上游 repack / FLAT block-dot
- ("gemm_tile","q4_0"):{"rvv":(U,"upstream repack / block-dot(rvv objdump零gemm符号)","对手候选二义:block-dot(通用向量·repack-off) vs repack(手调/标量未验)→UNRESOLVED〔V-纠〕·decode+prefill同行双子行·e2e 5.92×/1.91×"),"k1":(V,"block-dot","pending-fold")},
+ ("gemm_tile","q4_0"):{"rvv":(V,"ggml_vec_dot_q4_0_q8_0(block-dot)","★二义解〔清偿〕:stock 有 repack(ggml_gemm_q4_0_8x8/16x1)但 VLEN128 gate-off·真派发=block-dot→通用向量·我方win=routing白嫖非beat-repack·decode+prefill·e2e 5.92×/1.91×"),"k1":(V,"block-dot","pending-fold")},
  ("gemm_tile","q4_1"):{"rvv":(V,"ggml_vec_dot_q4_1_q8_1(CROSSOP)","block-dot vectorized·nibble-unpack非autovec-able→通用向量〔V-纠〕·e2e 3.68×"),"k1":(V,"ggml_vec_dot_q4_1_q8_1(CROSSOP)","block-dot→通用向量〔V-纠〕·pending-fold")},
  ("gemm_tile","q5_0"):{"rvv":(V,"FLAT block-dot","e2e prefill 1.21×·pending-fold"),"k1":(V,"FLAT block-dot","pending-fold")},
  ("gemm_tile","q5_1"):{"rvv":(V,"FLAT block-dot","e2e prefill 1.09×·pending-fold"),"k1":(V,"FLAT block-dot","pending-fold")},
@@ -229,7 +230,9 @@ def main():
             else:
                 tier, sym, note = U, "(no-map)", "UNRESOLVED"
             # cold/disp: prefer T3-measured verdict; else pending
-            t3rec = t3[board].get((op,fmt))
+            # ★一.1 IME 数据串行 bug 修: IME 行(engine=ime)禁用 native (op,fmt) T3 cold
+            #   (q4_K@ime 曾误继承 q4_K@k1 native gemm cold 1.187·IME kernel-sym 实未测→pending)
+            t3rec = None if eng=="ime" else t3[board].get((op,fmt))
             if t3rec and t3rec["disp"]!="?":
                 c = t3rec["cold"]
                 td = t3rec["disp"]
