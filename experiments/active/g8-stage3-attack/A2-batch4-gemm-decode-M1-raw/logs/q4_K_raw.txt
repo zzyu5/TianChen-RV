@@ -1,0 +1,19 @@
+# A2b4 q4_K decode M=1 GEVM raw (2026-07-16). leaf=weft_emitc_ggml_repack_gemv_q4_K_q8_K (hl8, conversion-test rvv-to-emitc-repack-gemv-q4-K-q8-K.mlir via weft-opt+mlir-translate).
+# opp=ggml_vec_dot_q4_K_q8_K stock. gate=repack_leaf vs opp(ggml) agreement rel<1e-3 (2 independent codegens; NOT from-scratch ZERO-MODEL scalar oracle). weight repack byte-exact from kquant_repack_verify_q4K.c pack_w (stride 2304).
+# === k1 (VLEN256, clang-18.1.8 native, hl8 leaf = half-utilized at VLEN256) ===
+[q4_K] GATE K=2048 N=512 mism=0/512 maxrel<=6.76e-07  (byte-exact vs ggml)
+[q4_K] COLD clang18 seedA t1 repack_leaf_ms=0.5262 opp_ms=0.8041 ratio=1.5281 PASS
+[q4_K] COLD clang18 seedA t2 repack_leaf_ms=0.5260 opp_ms=0.8059 ratio=1.5322 PASS
+[q4_K] COLD clang18 seedB t1 repack_leaf_ms=0.5219 opp_ms=0.8040 ratio=1.5404 PASS
+[q4_K] COLD clang18 seedB t2 repack_leaf_ms=0.5226 opp_ms=0.8057 ratio=1.5417 PASS  -> median 1.535
+# === rvv (VLEN128, hl8 = natural) ===
+[q4_K] clang18 leaf vsetvl=57 ; gcc15.2 leaf vsetvl=1387 (GCC-DEATH regfile spill/scalarize)
+[q4_K] COLD clang18 seedA t1 repack_leaf_ms=0.8004 opp_ms=0.2306 ratio=0.2881 named-X
+[q4_K] COLD clang18 seedA t2 repack_leaf_ms=0.5987 opp_ms=0.2155 ratio=0.3600 named-X
+[q4_K] COLD clang18 seedB t1 repack_leaf_ms=0.5959 opp_ms=0.2154 ratio=0.3614 named-X
+[q4_K] COLD clang18 seedB t2 repack_leaf_ms=0.5893 opp_ms=0.2156 ratio=0.3659 named-X  -> median ~0.361
+[q4_K] COLD gcc15.2 seedA t1 repack_leaf_ms=3.3561 opp_ms=0.2218 ratio=0.0661 named-X
+[q4_K] COLD gcc15.2 seedA t2 repack_leaf_ms=3.3446 opp_ms=0.2292 ratio=0.0685 named-X
+[q4_K] COLD gcc15.2 seedB t1 repack_leaf_ms=3.3566 opp_ms=0.2168 ratio=0.0646 named-X
+[q4_K] COLD gcc15.2 seedB t2 repack_leaf_ms=3.3777 opp_ms=0.2162 ratio=0.0640 named-X  -> median ~0.066 (GCC-DEATH)
+# gate all seeds/boards mism=0/512 (byte-exact vs ggml). opp_ms: rvv 0.22ms (STRONG native-vec) vs k1 0.80ms (weaker) => verdict opponent-strength+board divergent.

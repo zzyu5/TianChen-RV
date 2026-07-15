@@ -3,7 +3,7 @@
 
 ===== rvv (板分母=102) =====
 
-[手调] 头条 PASS 8/24 (全量) · 已测胜率 8/19 (派生) · 格内: PASS 8/具名-X 11/挂起 0/pending 5
+[手调] 头条 PASS 8/24 (全量) · 已测胜率 8/20 (派生) · 格内: PASS 8/具名-X 12/挂起 0/pending 4
     具名-X    vec_dot|q2_K cold=0.342
     具名-X    vec_dot|q3_K cold=0.258
     具名-X    vec_dot|q4_K cold=0.189
@@ -24,12 +24,12 @@
     PASS    gemm|q2_K@rvv/prefill cold=1.112
     pending gemm|q3_K@rvv/decode
     PASS    gemm|q3_K@rvv/prefill cold=1.399
-    pending gemm|q4_K@rvv/decode
+    具名-X    gemm|q4_K@rvv/decode cold=0.361
     PASS    gemm|q4_K@rvv/prefill cold=1.114
     pending gemm|q6_K@rvv/decode
     PASS    gemm|q6_K@rvv/prefill cold=0.96
 
-[通用向量] 头条 PASS 19/27 (全量) · 已测胜率 19/19 (派生) · 格内: PASS 19/具名-X 0/挂起 0/pending 8
+[通用向量] 头条 PASS 22/27 (全量) · 已测胜率 22/22 (派生) · 格内: PASS 22/具名-X 0/挂起 0/pending 5
     PASS    vec_dot|q4_0 cold=0.938
     PASS    vec_dot|q4_1 cold=1.027
     PASS    vec_dot|q5_0 cold=0.451
@@ -39,13 +39,13 @@
     PASS    quantize|q8_0 cold=1.0
     PASS    quantize|q8_1 cold=1.0
     PASS    quantize|q8_K cold=1.0
-    pending gemm|q4_0@rvv/decode
+    PASS    gemm|q4_0@rvv/decode cold=6.909
     PASS    gemm|q4_0@rvv/prefill cold=6.224
     pending gemm|q4_1@rvv/decode
     PASS    gemm|q4_1@rvv/prefill cold=6.105
-    pending gemm|q5_0@rvv/decode
+    PASS    gemm|q5_0@rvv/decode cold=0.947
     PASS    gemm|q5_0@rvv/prefill cold=1.232
-    pending gemm|q5_1@rvv/decode
+    PASS    gemm|q5_1@rvv/decode cold=1.09
     PASS    gemm|q5_1@rvv/prefill cold=1.412
     pending gemm|q8_0@rvv/decode
     PASS    gemm|q8_0@rvv/prefill cold=4.752
@@ -117,7 +117,7 @@
 
 ===== k1 (板分母=105) =====
 
-[手调] 头条 PASS 7/29 (全量) · 已测胜率 7/20 (派生) · 格内: PASS 7/具名-X 13/挂起 0/pending 9
+[手调] 头条 PASS 8/29 (全量) · 已测胜率 8/21 (派生) · 格内: PASS 8/具名-X 13/挂起 0/pending 8
     具名-X    vec_dot|q2_K cold=0.684
     具名-X    vec_dot|q3_K cold=0.522
     具名-X    vec_dot|q4_K cold=0.592
@@ -138,7 +138,7 @@
     PASS    gemm|q2_K@rvv/prefill cold=1.364
     pending gemm|q3_K@rvv/decode
     PASS    gemm|q3_K@rvv/prefill cold=2.92
-    pending gemm|q4_K@rvv/decode
+    PASS    gemm|q4_K@rvv/decode cold=1.535
     PASS    gemm|q4_K@rvv/prefill cold=1.187
     pending gemm|q5_K@rvv/decode
     PASS    gemm|q5_K@rvv/prefill cold=4.448
@@ -148,7 +148,7 @@
     pending gemm|q8_0@ime
     pending gemm|q4_K@ime
 
-[通用向量] 头条 PASS 20/25 (全量) · 已测胜率 20/20 (派生) · 格内: PASS 20/具名-X 0/挂起 0/pending 5
+[通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/21 (派生) · 格内: PASS 21/具名-X 0/挂起 0/pending 4
     PASS    vec_dot|q4_0 cold=0.986
     PASS    vec_dot|q4_1 cold=1.008
     PASS    vec_dot|q5_0 cold=0.384
@@ -158,13 +158,13 @@
     PASS    quantize|q8_0 cold=1.0
     PASS    quantize|q8_1 cold=1.0
     PASS    quantize|q8_K cold=1.004
-    pending gemm|q4_0@rvv/decode
+    PASS    gemm|q4_0@rvv/decode cold=2.575
     PASS    gemm|q4_0@rvv/prefill cold=3.5
     pending gemm|q4_1@rvv/decode
     PASS    gemm|q4_1@rvv/prefill cold=7.11
-    PASS    gemm|q5_0@rvv/decode
+    PASS    gemm|q5_0@rvv/decode cold=1.205
     PASS    gemm|q5_0@rvv/prefill cold=2.327
-    PASS    gemm|q5_1@rvv/decode
+    PASS    gemm|q5_1@rvv/decode cold=1.317
     PASS    gemm|q5_1@rvv/prefill cold=2.568
     pending gemm|q8_0@rvv/decode
     PASS    gemm|q8_0@rvv/prefill cold=1.48

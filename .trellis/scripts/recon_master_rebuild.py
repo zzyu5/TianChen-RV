@@ -178,6 +178,18 @@ COLD = {  # (op,format): (rvv, k1)
 }
 # q5@k1 deployed absorb (§一.1 anti-gate 自证): q5_0/q5_1 k1 gemm-decode repack deploy path
 Q5K1_DEPLOY = {("gemm_tile","q5_0"):("k1",1.760),("gemm_tile","q5_1"):("k1",2.241)}
+# ★A2-batch4 M=1 GEVM decode 实测(禁串行·T3 gemm 行是 prefill·decode 走此独立测量)
+# (op,format): {board:(cold, disp-token, 成色)}·rvv=gcc-deploy-main·q5x@k1 已 PASS-DEPLOYED
+GEMM_DECODE = {
+ ("gemm_tile","q4_0"):{"rvv":(6.909,"PASS","便宜档-weak-q4_0-block-dot-VLEN128-gate-off·big-multiple≠hard-win"),
+                       "k1":(2.575,"PASS","便宜档-what-if(k1 front-door DECLINE repack@decode·force-construct)")},
+ ("gemm_tile","q5_0"):{"rvv":(0.947,"PASS","near-parity-memory-leaning-compiler-sensitive(clang0.794 named-X)"),
+                       "k1":(1.205,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.205×")},
+ ("gemm_tile","q5_1"):{"rvv":(1.090,"PASS","near-parity"),
+                       "k1":(1.317,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.317×")},
+ ("gemm_tile","q4_K"):{"rvv":(0.361,"具名-X","★genuine-C3′-negative·super-block-fold@M=1不amortize·对手结构优势(rvv q4_K native-vec block-dot 3.6×快·gap=opp-strength非我方核)·rvv-gcc-death vsetvl1387([CASE-KQUANT-GCC-CODEGEN])"),
+                       "k1":(1.535,"PASS","手调-REAL·k1 WIN vs 弱opp·genuine(k1 real repack hand-brick域)")},
+}
 
 def disp(op, fmt, engine, board, tier, cold, na):
     if na: return "N/A-hw"
@@ -260,6 +272,15 @@ def main():
             else:
                 c = None
                 d = disp(op,fmt,eng,board,tier,c,na)
+            # ★gemm decode: A2-batch4 M=1 GEVM 实测(禁串行·T3 gemm=prefill·decode 走此独立测量)
+            if op=="gemm_tile" and regime=="decode":
+                gd = GEMM_DECODE.get((op,fmt))
+                if gd and board in gd:
+                    c, dtok, cx = gd[board]
+                    if dtok=="PASS": d="PASS(decode-M1-GEVM)"
+                    elif "DEPLOY" in dtok: d="PASS-DEPLOYED(decode-GEVM·C1)"
+                    else: d="具名-X(decode-M1)"
+                    note = note + " ·[decode-M1: "+cx+"]"
             # q5@k1 deploy absorb (裁决④·decode-GEVM 部署赢·只落 decode regime·非 prefill)
             dep = Q5K1_DEPLOY.get((op,fmt))
             depnote=""

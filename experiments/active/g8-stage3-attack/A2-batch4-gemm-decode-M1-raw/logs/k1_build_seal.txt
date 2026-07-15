@@ -1,0 +1,9 @@
+# A2b4 FLAT-GEVM-M1 @k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zvl256b -O3 -fno-integrated-as -DBOARD_K1 Wed Jul 15 05:27:05 PM UTC 2026
+# stock_so_md5=871169a0123139692177468b3c8578be
+# OURS_q4_0_gevm_hl16_k1: fp16=cleanfp vsetvl=5 text=0x000002da
+# OURS_q5_0_gevm_k1: fp16=cleanfp vsetvl=7 text=0x000001a2
+# OURS_q5_1_gevm_k1: fp16=cleanfp vsetvl=11 text=0x000001d2
+# OPP ggml_vec_dot_q4_0_q8_0 @0x000000000009f6dc (stock .so, native-RVV inline)
+# OPP ggml_vec_dot_q5_0_q8_0 @0x000000000009f81c (stock .so, native-RVV inline)
+# OPP ggml_vec_dot_q5_1_q8_1 @0x000000000009f942 (stock .so, native-RVV inline)
+# LINK OK -> /tmp/g8_a2b4_k1/bench

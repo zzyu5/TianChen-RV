@@ -1,0 +1,14 @@
+# A2b4 FLAT-GEVM-M1 @rvv(VLEN128) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -O3 2026年 07月 15日 星期三 17:32:21 UTC
+# CLANG=clang version 18.1.8  GCC=g++ (GCC) 15.2.0
+# stock_so_md5=d1adc634c2ca04ffc389536b30d9d9c4
+# OURS[clang]_q4_0_gevm_hl8_rvv: fp16=cleanfp vsetvl=7
+# OURS[clang]_q5_0_gevm_hl8_rvv: fp16=cleanfp vsetvl=7
+# OURS[clang]_q5_1_gevm_hl8_rvv: fp16=cleanfp vsetvl=11
+# LINK OK[clang] -> /tmp/g8_a2b4_rvv/bench_clang
+# OURS[gcc]_q4_0_gevm_hl8_rvv: fp16=cleanfp vsetvl=7
+# OURS[gcc]_q5_0_gevm_hl8_rvv: fp16=cleanfp vsetvl=7
+# OURS[gcc]_q5_1_gevm_hl8_rvv: fp16=cleanfp vsetvl=9
+# LINK OK[gcc] -> /tmp/g8_a2b4_rvv/bench_gcc
+# OPP ggml_vec_dot_q4_0_q8_0 @0x0000000000091854 (gcc-15 stock .so)
+# OPP ggml_vec_dot_q5_0_q8_0 @0x0000000000091984 (gcc-15 stock .so)
+# OPP ggml_vec_dot_q5_1_q8_1 @0x0000000000091abe (gcc-15 stock .so)
