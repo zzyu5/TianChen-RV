@@ -100,7 +100,7 @@ K-quant 谱证了 super-block 算术 decode 谱系内的构造边际成本律。
 | # | 家族 | code_LOC raw / cloc-approx | test_LOC(单列) | family_kind | 边际刻画 |
 |---|---|---|---|---|---|
 | 1（锚）| **IME**(Spacemit X60 IME 矩阵扩展) | **2484 / ~1866** | 1003 | integrated-attached extension-family | 首接入 slice = C2 绝对锚（[C2-1]/[C2-4] 可复现，founding-slice @git `54465ee7`；`T2-ledger-anchor.md` 双数口径）。**★锚 drift 已查（先查后改·2026-07-11 用户裁）：`--family IME` 现报 raw 5153 = 同 7 文件从 founding-slice(2484)长起(delta +2669)= C3′ 家族内扩展(更多 MMA op 变体+发射路)、非首接入成本、非计数口径差(同工具同 raw-wc-l)。C2 边际曲线锚永远钉 founding-slice 2484;live 5153 是当前家族体积(informational)。禁静默替换 2484。** |
-| 2 | **X-SCALAR**（向量缺席独立标量家族 #3） | **1501 / 1148** | 1401 | independent extension-family（闭包 ∩ rvv.* = ∅） | [LED-2] 第二点。方向递减（1501 < 2484 ≈ 60% #2）；1148 = **[C2-1] 轨二 independent 家族的诚实 emitter 价格（非超标）**——早先「<300」是 *integrated 子扩展* 预估被误挂到 *independent 家族*，双轨修订（2026-07-11 用户裁）已撤销该单点目标与「超标」定性。 |
+| 2 | **X-SCALAR**（向量缺席独立标量家族 #3） | **1501 / 1148**（pin @`2dd654d8`·`family_ledger.py --at-commit`） | 1401 | independent extension-family（闭包 ∩ rvv.* = ∅） | [LED-2] 第二点。方向递减（1501 < 2484 ≈ 60% #2）；1148 = **[C2-1] 轨二 independent 家族如实报 pin-verified 实测价格**——**成本高即论点本身、非缺陷/非超标**。〇.2 两 regime 成本分解定案（2026-07-15）已废"统一 <300"：轨一 integrated 子扩展 <100 / 轨二 independent 如实实测，X-SCALAR 属轨二。 |
 
 **★C2 第二点的诚实刻画（[NG-4]，不吹成曲线）**:
 
@@ -108,21 +108,21 @@ K-quant 谱证了 super-block 算术 decode 谱系内的构造边际成本律。
    (zvfh 向量族**子扩展**粒度点未落 —— 且它是 *sub-extension* 粒度,与家族级点不同 KIND)。
    「1/≥3 曲线缺失」标注继续保留:landed X-SCALAR 把「1 点」变「2 点」,**未成完整曲线**。
 
-2. **`<300` = 双轨修订【已裁·2026-07-11 用户】：1148 是独立家族的诚实价格·符合双轨预期(非超标)。**
-   早先 canon [C2-1]「标量家族 <300 行」是对 *integrated 子扩展* 的量级预估被**误挂到 independent 家族**。
-   用户裁决 [C2-1] 改为双轨：**integrated 子扩展 <300(zvfh 将验证) / independent family = 真实 emitter 成本
-   (X-SCALAR 1148 cloc-approx 为锚)**。"超标"定性**撤销**；本 ledger 登记的 1148/1501 是 factual 实测,
-   现由双轨预期正确刻画(不再是"未 met 的 <300")。数值一个不改,仅撤销定性框架。
+2. **两 regime 成本分解【〇.2 定案·2026-07-15·已废"统一 <300"】：1148 是独立家族如实报的 pin-verified 实测价格·成本高即论点本身、非缺陷/非超标。**
+   早先 canon [C2-1]「标量家族 <300 行」是对 *integrated 子扩展* 的量级预估被**误挂到 independent 家族**（历史误挂，已撤销）。
+   现行两 regime 成本分解：**(轨一) integrated 子扩展 = <100**（zvfh≈70 pin-verified @`95f1a482` 坐实）**/ (轨二) independent family = 如实报 pin-verified 实测**
+   （X-SCALAR 1148 cloc / 1501 raw @`2dd654d8` 为锚）。"超标"定性**撤销**、"统一 <300"目标**作废**；本 ledger 登记的 1148/1501 是 factual pin-verified 实测,
+   现由两 regime 分解正确刻画(不再有"未 met 的 <300"这一说法)。数值一个不改,仅撤销定性框架。
 
-3. **结构根因(比 <300 直觉更精确的 C2 主张)= [F-6] 独立性禁止复用抬高了独立家族成本。**
+3. **结构根因(比"统一 <300"直觉更精确的 C2 主张)= [F-6] 独立性禁止复用抬高了独立家族成本。**
    X-SCALAR 主体是**净新 pure-C emitter**(`ScalarBackendEmissionDriver.cpp` = 878 raw,单文件最大头),
    **不能复用 RVV EmitC 发射机器**(复用会把 rvv.* 拉进能力闭包、破坏 F-6 独立性)。这与
    「integrated 子扩展(如 zvfh,复用宿主家族机器)= 便宜」形成对比。
    → **C2 曲线的正确刻画不是「随家族序号单调递减」,而是「integrated 子扩展廉价 / independent
    家族付真 emitter 成本」([L-2] integrated vs independent-attached 术语的经济学体现)**。这比
-   原「<300 / 1-of-10-of-#2」直觉**更精确、更可辩护**。审稿人预答([C2-5])的「1/10 of #2」对
+   原「统一 <300 / 1-of-10-of-#2」直觉**更精确、更可辩护**。审稿人预答([C2-5])的「1/10 of #2」对
    independent 家族**不成立**（对 integrated 子扩展成立）。**★此精确版已 codify 为 canon [C2-1]
-   双轨律（2026-07-11 用户裁），[C2-1]/[C2-5]/[X-SCALAR] 行同批修订、"超标"定性撤销。**
+   两 regime 成本分解（〇.2 定案 2026-07-15·前身 2026-07-11 双轨裁），[C2-1′] 订正注 + [C2-5]/[X-SCALAR] 行同口径、"超标"定性撤销、"统一 <300"作废。**
 
 *证据/复算:`python3 .trellis/scripts/family_ledger.py report --family Scalar`(raw 1501 / cloc-approx 1148 /
 test 1401);`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` seq 14;

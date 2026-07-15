@@ -63,9 +63,9 @@
 
 | 主张 | 主证据指针 | 成色 |
 |---|---|---|
-| [C2-1] 逐 extension family 接入代价成边际递减曲线（IME≈2484 → 标量家族<300 → zvfh<100） | 科研目标总纲v2 [C2-1] L154 / [LED-1..3]；执行总纲v2 [LED-1] L93 | canon（权威口径） |
+| [C2-1] 逐 extension family 接入代价 = **两 regime 成本分解**（〇.2 定案 2026-07-15·废"统一 <300"）：轨一 integrated 子扩展 <100（zvfh≈70 pin @`95f1a482`）/ 轨二 independent 家族如实报 pin-verified 实测（IME 2484 pin @`54465ee7` → X-SCALAR 1501 pin @`2dd654d8`·**成本高即论点本身、非缺陷**） | 科研目标总纲v2 [C2-1]+[C2-1′] 订正注 / [LED-1..3]；执行总纲v2 [LED-1] L93 | canon（权威口径） |
 | C2 首点可复算锚 = IME 家族 raw wc-l **2484** | `experiments/active/visibility/T2-ledger-anchor.md`；`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` **seq 0**（axis=C2-extension-family） | machine-anchored（recompute PASS 2484==2484） |
-| **曲线现状 = 缺失（1/≥3 点）** | 仅 IME 一个真 extension family 落地；家族#3（标量<300）依赖 [X-SCALAR]、子扩展 zvfh（<100）依赖 [zvfh]，均未落地 | **honest-missing**（[LED-2] 缺失级；诚实标） |
+| **曲线现状 = 2/≥3 点（未成完整曲线）** | 轨二 independent：IME 2484 + X-SCALAR 1501（家族#3·已 landed·pin @`2dd654d8`）两点·仍缺第 3 独立家族点；轨一 integrated 子扩展 zvfh≈70（pin @`95f1a482`·<100 坐实）粒度点已落 | **honest-missing**（[LED-2] 缺失级；诚实标·2/≥3 不得省略） |
 
 ## C3′ — 能力键控优化模式库（带实测与迁移的模板）
 

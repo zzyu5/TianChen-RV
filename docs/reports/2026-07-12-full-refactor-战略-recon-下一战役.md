@@ -3,6 +3,7 @@
 > **性质**：纯 read-only 静态分析报告（禁 board / 禁改 code·ODS·lib·schema·ROADMAP / 禁 git）。评估 `/goal` 剩余 + 推荐下一战役。
 > **快照锚**：branch `refactor/full-refactor-m1` · HEAD 附近 `a8bfcd0f`（G5-wiring 战役刚 culminate）· perf-covered **7/83** · M4 真 100%（certified 84/91=92.31%）。
 > **定调（承 2026-07-11 纠偏·禁"实质胜利"）**：**结构轴收口 ∧ 测量轴大面积欠账**。C1 结构最强、C2 最薄、C3′ 测量欠账；perf 轴近 headline ceiling（易得绿尽）。
+> **★口径订正（2026-07-15·〇.2 两 regime 成本分解定案·PR-2）**：下文凡提 **"<300 口径裁/Scalar 1501 vs <300"** 已 **RESOLVED**——废"统一 <300"；轨一 integrated 子扩展 <100（zvfh≈70 pin @`95f1a482`）/ 轨二 independent 家族如实报 pin-verified 实测（IME 2484 pin @`54465ee7` / X-SCALAR 1501 pin @`2dd654d8`·**成本高即论点本身、非缺陷/非超标**）；canon [C2-1] 只加 [C2-1′] 订正注（硬冻结）。dated 分析保留为历史快照。
 
 ---
 

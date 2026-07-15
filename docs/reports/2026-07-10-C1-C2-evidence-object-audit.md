@@ -3,6 +3,7 @@
 > **性质**：P0 canon 级只读核查。本文只出**判定 + 误挂位置清单 + 建议改法**，供用户确认。
 > **未改任何 canon / inventory / spec / ledger / 论文提纲。** 确认后由用户授权一次性改（禁双改）。
 > 核查日期 2026-07-10；快照 branch `refactor/full-refactor-m1`。
+> **★口径订正（2026-07-15·〇.2 两 regime 成本分解定案·PR-2）**：下文凡引 canon 曲线 **"IME 2484 → 标量家族<300 → zvfh<100"** 以本订正为准——废"统一 <300"；轨一 integrated 子扩展 <100（zvfh≈70 pin @`95f1a482`）/ 轨二 independent 家族如实报 pin-verified 实测（IME 2484 pin @`54465ee7` / X-SCALAR 1501 pin @`2dd654d8`·**成本高即论点本身、非缺陷**）；canon [C2-1] 只加 [C2-1′] 订正注（硬冻结）。dated 分析保留为历史快照。
 
 ---
 

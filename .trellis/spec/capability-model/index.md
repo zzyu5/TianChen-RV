@@ -23,7 +23,7 @@ Capability model is the first core of Weft-RV MLIR. It turns target facts into M
 ## Quality Check
 
 - Capability facts are structured records with `kind` from the closed enum `{isa_ext, sub_ext, uarch, policy}`, namespaced `params`, and `provenance`/`trust` fields ([S-1]); not free strings.
-- `implies` is a load-time transitive closure; `conflicts` is fail-closed; an unknown/absent fact counts as false ([S-2]).
+- `implies` is a transitive closure (**compile-time today** via the capability model, consumed by the compile-time selection pass; **load-time resolution per [D-2a] is a 目标契约·未实现** target contract, not yet implemented); `conflicts` is fail-closed (executed 编译期 by VariantSelection, `VariantSelection.cpp:667/701`); an unknown/absent fact counts as false ([S-2]).
 - Probes emit facts only — no "probed X therefore route Y" ([S-3]); uarch quirks are table-keyed facts, not `if (core == ...)` branches ([S-4]).
 - The capability shape is the six-item `schema.def` declaration artifact; family-onboarding PRs must not touch it ([S-5]/[F-2′]).
 - A family is a capability-declaration + ownership boundary, not instruction density; "capability-gate families" (e.g. the vector-absent scalar family) are legal ([S-8]).

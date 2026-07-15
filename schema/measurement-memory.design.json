@@ -1,0 +1,93 @@
+{
+  "$meta": {
+    "status": "DESIGN-DRAFT",
+    "NOT_ACTIVE_SCHEMA": true,
+    "warning": "This is a NON-ACTIVE design draft for [SEL-3] measurement-memory layer. It is NOT loaded by any lib/ or plugin code, is NOT a live schema, and MUST NOT be consumed by the selector. The live SEL-1 schedule-axis instance is schema/tiling-measurements.v1.json. Promotion to an active schema/measurement-memory.v1.json is a施工-period task (T-SEL3-1), gated on user ruling + falsifier全过. Do not add to any schema loader or VERSIONLOG until promoted.",
+    "draft_version": "design-0.1.0",
+    "date": "2026-07-15",
+    "author": "案头执行员 (度假自治)",
+    "declares": "[SEL-3] measurement-memory layer superschema: the general offline-profile argmin cache the capability-keyed selector consults BEFORE its [SEL-1] cold-start prior. Generalizes schema/tiling-measurements.v1.json (SP schedule axis only) to a single rows[] table keyed by variant_axis, covering all bounded variant axes (SP4 tiling, M1c loop-order, strip-width, future axes). Evidence-axis mirror data (core-invariants I4): NEVER chooses route/compute/dtype, NEVER a correctness or cost authority in lib/. Authority order: hardware measurement > this cache > static prior.",
+    "authority": [
+      "docs/ROADMAP.md#〇.4 (SEL-3 formal立项: offline-profile argmin + byte-exact gate)",
+      "docs/reports/2026-07-09-SEL-1-design.md (② measurement library schema blueprint)",
+      "schema/tiling-measurements.v1.json (the live SEL-1 schedule-axis instance this generalizes)",
+      "docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3]",
+      ".trellis/spec/variant-pipeline/generation-selection-tuning.md (two-stage selector, authority order)",
+      ".trellis/spec/architecture/core-invariants.md#I4",
+      "experiments/active/g8-stage3-attack/SEL3-measurement-memory-design.md (companion design draft)"
+    ],
+    "primary_key": ["declared_instance_hash", "kernel", "variant"],
+    "pending_ruling": {
+      "id": "[SEL-3-KEY]",
+      "issue": "docs/canon/Weft-RV_执行总纲v2.md:69 states key = kernel+march (NOT instance-hash); ROADMAP令〇.4 + this schema + tiling-measurements.v1.json use (declared_instance_hash, kernel, variant). Semantically reconcilable (instance-hash SUBSUMES march/vlen/vreg) but canon wording conflicts (headline-caliber). This draft designs to the operative directive (instance-hash); canon wording unification needs user ruling. NOT executed here -- registered only.",
+      "suggested_resolution": "amend 执行总纲v2:69 to 'key = declared_instance_hash (subsumes march/vlen/vreg) + kernel + variant'."
+    },
+    "key_semantics": {
+      "declared_instance_hash": "SHA-256 (lowercase hex) of the EXPANDED normalized capability fact set -- the SAME support::computeDeclaredInstanceHash the [D-4](1) exec/schedule attribution sinks compute (one helper, one hash). march/vlen/vreg are SUBSUMED by this hash. Portable across symbol renames; profile-vs-explicit-list declarations hash equal. Seed rows migrated from tiling-measurements carry the @rvv fixture hash (3cd23a4e...).",
+      "kernel": "the decode_model (measurement-row identity, e.g. 'q4_K'). The SELECTION keys on the bottleneck SHAPE (fold_model), NEVER this format name; kernel is measurement-row identity only, not a dispatch key.",
+      "variant": "a bounded enum member (NG-1) within its variant_axis. Members are compile-time hardcoded and closed per axis; see variant_axis."
+    },
+    "decision_rule": "The memoized winner of a (declared_instance_hash, kernel, variant_axis) group = the candidate with byte_exact_gate==pass AND selection_valid_input==true AND still-feasible, with the best cold_median; on a tie / no decisive difference the SIMPLER variant wins (plain / no-tiling / lower-LMUL). A marginal non-cliff shave does NOT flip the winner (inherits tiling-measurements decision_rule: q3_K tiled +8% non-cliff => memoized winner stays plain, 'measurement itself says do not tile here'). Structural gates (e.g. SP4 register_cliff_reached) live in axis_extras, not the common value.",
+    "iron_lines_NG1_L4_I4": {
+      "no_search": "variant set = bounded compile-time enum; refinement = offline-profile measurement (batch), NOT online learning / autotune search / curve-fit cost model.",
+      "no_learned_cost_model": "the library holds NO learnable parameters; static cost formula is only a Stage-1 pruner + no-record fallback, NEVER the cold-start ranking authority (that is [SEL-1] capability prior).",
+      "no_external_tuner_benchmark_L4": "oracle is always SELF (per-cell own-variant enumeration micro-best); never cross-cell/cross-board extrapolation, never benchmarked against TVM/AutoTVM/Triton-autotune. external_tuner_hook is DOCUMENTED ONLY (default empty, not implemented).",
+      "selector_core_front_door": "landing this layer requires selector-core changes to pass [SEL-2] hard-timing falsifier + T4b ablation discriminative mutation tests + full byte-exact regression + [PERF-1] eight-gate. THIS DRAFT changes no core.",
+      "measurement_is_cache_fact_I4": "authority order hardware measurement > this cache > static prior; the library NEVER chooses route/compute/dtype and is NEVER a lib/ correctness or cost authority.",
+      "compiler_symmetry_required_for_selection_input": "a vs_shipped_opp (cross-compiler) cold_median has selection_valid_input=false (成色/disclosure note only); only ab_paired / vs_generic (same-compiler) cold_median may feed memoized argmin ([CASE-COMPILER-ASYMMETRY])."
+    },
+    "fail_closed_revalidate": "The selector discards a cached winner no longer feasible under current capability facts (Stage-1 legality re-check) and falls back to the [SEL-1] prior. A stale cache never forces an infeasible variant.",
+    "byte_exact_gate": "A row is written ONLY past the byte-exact gate (fail-closed): the variant product is bit-identical to the _generic construction oracle (ZERO-MODEL recompute; cert three-requirements: corpus-complete / same input path / independent oracle). Enforced at BOTH ingest (existing-cold transcription) and writeback (new offline profile).",
+    "variant_axis_registry": {
+      "note": "closed set of bounded selection axes this superschema unifies; each row's variant_axis names which axis its variant belongs to; axis_extras carries axis-specific structural gates.",
+      "sp4_tiling": {"variants": ["plain", "s6_tiled"], "axis_extras": ["register_cliff_reached"], "migrated_from": "tiling-measurements.v1.json#measurements"},
+      "loop_order": {"variants": ["col_outer", "row_outer"], "axis_extras": ["weight_panel_larger_stream", "llc_load_miss_ratio", "backend_idle_pct"], "migrated_from": "tiling-measurements.v1.json#loop_order_measurements"},
+      "strip_width": {"variants": ["vl8", "vl16"], "axis_extras": ["vlen_gate"], "seed": "q4_K@k1 vl16 1.197x>vl8 (Win-K1-VLEN·not yet transcribed)"},
+      "codegen_lmul": {"variants": ["mf2", "m1"], "axis_extras": [], "note": "DEGENERATE double-board: {mf2} single legal (m1=RVV0.7 cross-ISA non-same-board). Memory column == prior column, regret 0. NO memoized novelty (single candidate). Recorded for completeness; see design §1."}
+    },
+    "value_shape": {
+      "variant_axis": "which selection axis this variant belongs to (see variant_axis_registry).",
+      "selected": "true on the (declared_instance_hash, kernel, variant_axis)-group argmin the in-memory view returns; false on runner-up.",
+      "cold_median": "cold-measurement median (N>=10, T-N noise floor). Semantics = phase/board/format-bound ratio or ns; denominator per ratio_semantics.",
+      "cold_iqr": "cold-measurement IQR (dispersion / stability guard; oversized IQR => memory untrustworthy => fall to prior). Sentinel when existing source lacks a distribution.",
+      "ratio_semantics": "denominator + opponent identity of cold_median: 'vs_generic' (vs _generic reference, selection-valid) | 'vs_shipped_opp' (vs board-shipped opponent, [CASE-COMPILER-ASYMMETRY] system-account, NOT selection input) | 'ab_paired' (same-compiler A/B, selection-valid) | 'ns' (absolute ns).",
+      "opponent_symbol": "opponent kernel symbol (e.g. ggml_vec_dot_q4_0_q8_0) + caliber class (hand-brick / block-dot / parity-control / self).",
+      "snapshot": {
+        "vlen": "measured VLEN bits.",
+        "vreg_count": "architectural vector register count (32 for rvv1.0).",
+        "march": "the -march the measurement was taken under.",
+        "toolchain": {"ours": "our compiler (rvv=clang-17, k1=clang-18)", "opp_shipped": "board-shipped opponent compiler (rvv=gcc-15, k1=clang-18) -- [CASE-COMPILER-ASYMMETRY] discriminator"},
+        "board_id": "board identity string (rvv=openEuler-VLEN128 / k1=SpacemiT-VLEN256)."
+      },
+      "byte_exact_gate": "'pass' -- row written only past the gate (fail-closed; un-gated timing never cached).",
+      "selection_valid_input": "bool -- true iff cold_median is compiler-symmetric and usable as a selection input (ab_paired/vs_generic same-compiler => true; vs_shipped_opp cross-compiler => false, disclosure-only). Derived from ratio_semantics + snapshot.toolchain; materialized explicit per-row to prevent a query silently missing a guard field.",
+      "axis_extras": "object of axis-specific structural gates keyed per variant_axis_registry (e.g. sp4_tiling.register_cliff_reached, loop_order.weight_panel_larger_stream).",
+      "source": "existing provenance (T8 row / T3 row / onw2 raw / originating commit).",
+      "ts": "ISO-8601 UTC; sentinel '0' for transcribed seed rows."
+    },
+    "ingest_sources": {
+      "note": "existing cold data mapped into rows[] by READ-ONLY transcription -- NO new timing (vacation iron line: no e2e / no new measurement).",
+      "T3": {"file": "experiments/active/result-tables/T3_master_rebuild.csv", "provides": "dual-board cold ratios + opponent symbols + board identity (rvv=VLEN128/gcc-15, k1=VLEN256/clang-18)", "maps_to": "cold_median<-{rvv,k1}_cold; opponent_symbol<-{rvv,k1}_opp_sym; snapshot<-board lock", "caveat": "mostly single-point ratios, many lack IQR/N distribution (T3 is a closure ledger, not a raw sample vault) => missing IQR sentinel + conservative selection_valid_input; vs_shipped_opp rows => selection_valid_input=false."},
+      "T9": {"file": "experiments/active/result-tables/T9_kernel_sym_ledger.md", "provides": "opponent caliber class (hand-brick/block-dot/parity-control) + symmetric-compile feasibility annotation", "maps_to": "ratio_semantics + opponent_symbol caliber; selection_valid_input corroboration"},
+      "onw2": {"file": "tools/e2e-harness/board/g6-m7-ime-vmadot-tiling/raw/prof_onw2_full.err + c_onw2.out", "provides": "G6-M7 IME vmadot-tiling board profile raw (strip/tile-form axis raw samples => can compute IQR)", "maps_to": "cold_iqr (has raw distribution); IME-axis variant_axis seed", "caveat": "raw parsing is a施工-period step, not this draft; no board time consumed."},
+      "T8_via_tiling_measurements": {"file": "schema/tiling-measurements.v1.json", "provides": "SP4 + loop-order seed (12 rows already live)", "maps_to": "direct migration variant_axis in {sp4_tiling, loop_order}; register_cliff_reached/weight_panel_larger_stream -> axis_extras", "caveat": "MIGRATION is a施工-period task (T-SEL3-1); this draft does NOT modify the live schema."}
+    },
+    "external_tuner_hook": {
+      "status": "DOCUMENTED ONLY (default empty, NOT implemented)",
+      "note": "an optional offline-profile ingest point for an external tuner's output, PROVIDED it passes the same byte-exact gate and is transcribed as ab_paired/vs_generic rows. This is a documented插点 per [SEL-3] canon ('留外部 tuner 插点，文档化即可'); it does NOT benchmark against or import an external tuner's cost model ([L-4] no-external-tuner-benchmark). No live consumer."
+    },
+    "acceptance_T4b": {
+      "note": "post-[SEL-3] fills the T4b '仅记忆'/'先验+记忆' columns (currently N/A(gated)) with HONEST numbers. See design §5.",
+      "L1_codegen": "memory column == prior column, regret 0, escape 100% -- trivial NULL ({mf2} single candidate, no memoized novelty).",
+      "L2_tile_form": "memoized argmin top-1 on cliff-reached / weight-panel-larger cells -- the ONLY axis where memory columns differ non-trivially.",
+      "L3_paradigm": "memory does NOT claim L3 (shape dispatch = structural keying, not measured argmin); == prior column ([SEL-2] already landed at prior layer).",
+      "co_bid_regret_zero": "co-bidding special row: memory column verdict == prior column verdict (memory must not de-optimize the [SEL-2] structural fix); a stale/cross-compiler false vector-win row is caught by fail-closed-revalidate + selection_valid_input=false => falls to prior => regret 0. Mutation test: inject a selection_valid_input=false fake vector-win row, assert selector still emits matrix.",
+      "honesty": "the non-trivial real numbers appear ONLY in L2. L1 is trivial (==prior), L3 is not claimed. Do NOT dress L1-trivial / L3-prior as memoized novelty."
+    },
+    "ranking": "independent campaign after A2/A3; ROADMAP node queue: A5 -> e2e transduction -> [SEL-3]施工 -> paper-material freeze. This draft = the pre-施工 schema+ingest design (令〇.4 'first output schema+ingest design draft, desk-only, do not touch core').",
+    "touch_set_discipline": "NEW file, DESIGN-DRAFT, non-active. Does NOT modify tiling-measurements.v1.json (live), lib/, RVVRepackTilingSelection.h, VariantSelection.cpp, or any canon denominator/$meta/headline. Not added to any schema loader or VERSIONLOG until promoted. No new numbers (all cold/parity/spill引自 T3/T8/T9/tiling-measurements existing cells). No git commit."
+  },
+
+  "rows": [],
+  "rows_note": "EMPTY BY DESIGN. This draft carries NO data rows -- ingest transcription (T3/T9/onw2 -> rows[]) is施工-period task T-SEL3-2, not this desk draft. The 12 live seed rows remain in schema/tiling-measurements.v1.json unchanged until the promotion/migration task. Populating rows[] here would (a) duplicate live data and (b) require new instance-hash computation that belongs to施工. See the companion design §3.2 for the mapping spec."
+}

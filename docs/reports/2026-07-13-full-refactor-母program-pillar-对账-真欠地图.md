@@ -4,6 +4,7 @@
 > **快照锚**：branch `refactor/full-refactor-m1` · HEAD `ef3720af`（recon 机检 repo_snapshot 一致）· perf-covered **7/83** · C_construct 强义 **84/91=92.31%** · M4 certified 84/91·blocked_on_IME=0·reconciliation_ok=True。
 > **对账口径**：formal `task.json` = 13 completed / 4 in_progress / 20 planning，**大面积 stale**（母 PRD `[DEBT-TASK]` 已自认）；本报告以 **git log + docs/reports 战役报告 + falsifier-gate.yml + recon 机检脚本** 为准。
 > **定调（承 2026-07-11/12 纠偏）**：**结构轴已收口 ∧ 测量轴近 headline ceiling**。2026-07-12 战略 recon 的 #1 剩余项（[P-4] 外部接入实录）**在其后已 DONE-via-campaign**（Tier-2 clean-room `2fec2471`）；本报告是该 recon 之后的刷新。
+> **★口径订正（2026-07-15·〇.2 两 regime 成本分解定案·PR-2）**：下文 shortlist #1 及全文提及的 **"C2 <300 口径 canon 必问"** 已 **RESOLVED**——废"统一 <300"；轨一 integrated 子扩展 <100（zvfh≈70 pin @`95f1a482`）/ 轨二 independent 家族如实报 pin-verified 实测（IME 2484 pin @`54465ee7` / X-SCALAR 1501 pin @`2dd654d8`·**成本高即论点本身、非缺陷/非超标**）。canon [C2-1] 本体只加 [C2-1′] 订正注（硬冻结·措辞不改）。下文 dated 分析保留为历史快照，凡"<300 未met/超标/pending 必问"以本订正为准。
 
 ---
 

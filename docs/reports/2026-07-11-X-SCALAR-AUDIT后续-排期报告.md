@@ -4,6 +4,7 @@
 > **纯分析 · 不实现 · 不动 lib/schema/code/lit/ROADMAP/既有 casefile。** 排期是**建议非承诺**；
 > C2 现状**诚实标注 1/≥3**；X-SCALAR 接入成本**以实测标注**（landed 部分已量、剩余以预估标注）。
 > **本报告 = 立项裁决材料**：X-SCALAR 实际立项 = 用户裁（家族#3 = 新战役方向，虽 ROADMAP 队列内但规模需报排期）。
+> **★口径订正（2026-07-15·〇.2 两 regime 成本分解定案·PR-2）**：下文甲.5 及全文凡提 **"<300 目标/未met/超标/口径 pending"** 已 **RESOLVED**——废"统一 <300"；轨一 integrated 子扩展 <100（zvfh≈70 pin @`95f1a482`）/ 轨二 independent 家族如实报 pin-verified 实测（IME 2484 pin @`54465ee7` / X-SCALAR 1501 pin @`2dd654d8`·**成本高即论点本身、非缺陷/非超标**）；canon [C2-1] 只加 [C2-1′] 订正注（硬冻结·措辞不改）。dated 分析保留为历史快照。
 
 ---
 

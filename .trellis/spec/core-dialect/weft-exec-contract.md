@@ -134,7 +134,7 @@ Rules:
   must resolve to a module-level `weft.exec.capability` or capability-provider
   `weft.exec.target` with non-empty `id` (a leaf capability-provider also carries a capability-fact `kind` [S-1];
   a **profile-provider carries `provides`, NOT a capability-fact `kind`** — its op-classification uses `target_kind`,
-  and it expands to a normalized fact set at load-time); provider symbols and ids
+  and it expands to a normalized fact set — **目标契约·未实现·[D-2a]**: this normalization is done 编译期 today (VariantSelection consumes compile-time IR facts, fail-closed); load-time expansion is a target contract, not yet implemented); provider symbols and ids
   must be unique across the composed target scope.
   **命名消歧契约:** op-attribute 分类轴用 `target_kind` / `region_kind`，与能力事实的闭合枚举 `kind`（[S-1]）**同名易混，须区分**；此 op 侧 rename 是纯代码改动（不动 schema.def 冻结契约），**随目录归拢 PR、务必在 schema.def v1 定稿之前**落地（同时减少 [F-1] falsifier grep 的假阳性面）。 Missing refs, non-provider
   refs, malformed refs, self references, duplicate symbols/ids, and obvious
