@@ -41,6 +41,18 @@
 > Note the capability-fact **shape** is aspirational vs the fields code consumes
 > ([GAP-P4-SCHEMA-DIVERGENCE]): record which fact keys you actually rely on.
 
+> **③ reuse-emitter vs own-emitter (decide and record which).** Piece ③ is a
+> fork: either **(a) reuse** the shared EmitC/RVV materializer (declare
+> "reuse existing pattern"; the family ships *no* `register<Fam>BackendEmitter`
+> and does *not* touch `BuiltinBackendEmitters.cpp` — e.g. `Demo`, `Offload`), or
+> **(b) own emitter** — the family ships its own `<Fam>BackendEmissionDriver.cpp`
+> (building a shared `TypedBackendEmissionDriver`, interface in
+> `include/Weft/Conversion/EmitC/BackendEmissionRegistry.h`; copy the `Template`
+> reference driver) that lowers a selected `weft_<fam>` boundary into a standalone
+> EmitC module, and it MUST also be entered into the **second shared registration
+> point** (`BuiltinBackendEmitters.cpp`, 见 §2 + [GAP-P4-REGISTER] step 3). Record:
+> `③ mode = <reuse / own-emitter>`.
+
 ## 2. Real touch-set ([GAP-P4-TOUCHSET]) — the 6 roots + registration
 
 > List the concrete files you created/edited. The reference `Template` family =
@@ -53,14 +65,25 @@ lib/Dialect/<Fam>/ (+IR/)              <Dialect.cpp + 2 CMakeLists>
 include/Weft/Dialect/<Fam>/(+IR/) <Dialect.h + Ops.td + 2 CMakeLists>
 lib/Target/<Fam>/                      <TargetSupportBundle.cpp + CMakeLists>
 include/Weft/Target/<Fam>/       <TargetSupportBundle.h>
-lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   <#include + kBuiltinExtensionBundles[] row>  ← [GAP-P4-REGISTER]
+lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp   <#include + kBuiltinExtensionBundles[] row>  ← [GAP-P4-REGISTER] step 2 (ALL families)
+lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp (+ its CMakeLists LINK_LIBS Weft<Fam>BackendEmitter)  <#include + kBuiltinBackendEmitters[] row>  ← [GAP-P4-REGISTER] step 3 (OWN-EMITTER families ONLY; skip for reuse-emitter e.g. Demo)
 schema/family-manifest.v1.json + family-regex.v1.json (+ family-dirs.v1.json)  <territory + dispatch-key rows>
 ```
 
-- **Registration done?** `register<Fam>ExtensionPlugin` declared in the family
-  header AND added to `kBuiltinExtensionBundles[]`: `<yes/no>`.
+- **Registration done? (plugin, ALL families)** `register<Fam>ExtensionPlugin`
+  declared in the family header AND added to `kBuiltinExtensionBundles[]`
+  ([GAP-P4-REGISTER] step 2): `<yes/no>`.
+- **Registration done? (backend emitter, OWN-EMITTER families only)** For a
+  ③=own-emitter family: `register<Fam>BackendEmitter(BackendEmissionRegistry&)`
+  declared in the family header AND added to `kBuiltinBackendEmitters[]` in
+  `BuiltinBackendEmitters.cpp` + the `LINK_LIBS Weft<Fam>BackendEmitter` line in
+  `lib/Conversion/EmitC/Builtin/CMakeLists.txt` ([GAP-P4-REGISTER] step 3;
+  covered by the `backend_emitter_registration` shared_allowance): `<yes/no/n-a-reuse>`.
+- **Own translate route (own-emitter families)** `weft-translate --weft-<fam>-emitc-to-cpp`
+  registered and emits a standalone EmitC/C++ module from a selected boundary: `<yes/no/n-a-reuse>`.
 - **Build links?** `cmake --build build` reaches the family targets
-  (`Weft<Fam>Dialect`, `Weft<Fam>Target`): `<yes/no>`.
+  (`Weft<Fam>Dialect`, `Weft<Fam>Target`, and `Weft<Fam>BackendEmitter` for
+  own-emitter families): `<yes/no>`.
 
 ## 3. Standard-flow conformance
 

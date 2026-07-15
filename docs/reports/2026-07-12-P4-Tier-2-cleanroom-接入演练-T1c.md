@@ -130,3 +130,17 @@ frontdoor-provenance · cert-requirements · retired-index · perf-covered-recon
   本演练以 ③reuse-existing 规避；GAP-B/C 为文档可发现性次缺。
 - **clean-room 偏置诚实注记**：同栖仓库·in-house agent（非真第三方）；Demo = Template clone-adapt（真净新设计≈0，
   证的是可跟随性非原创工程量）。Tier-3（真第三方）仍为 optional 待办。
+
+---
+
+## 8. 第二版 · own-emitter 类接入（Widget·B3 clean-room·2026-07-15）
+
+> **与 §1-7 reuse-emitter(Demo) 分行·不合并表述**（判别键 = emitter-class：reuse-existing vs own-backend）。
+> 详录：`experiments/active/g8-stage3-attack/B3-cleanroom-own-emitter.md`。drill 工件（Widget 玩具家族）drill 后 revert（一次性·[F-3] 默认 RED·不入库）·本节保结论 + 永久 recipe 文档修复。
+
+- **接入类型**：**own-emitter**（自有 `WidgetBackendEmissionDriver.cpp` + 第 2 共享注册点 `BuiltinBackendEmitters.cpp`）——Demo 第一版刻意声明 ③=reuse-existing **规避** GAP-A·本轮**首次真行使 GAP-A 修好的第二注册点**。
+- **接入者**：B3 冷启动无记忆 agent（非协议作者）·**forbidden-source peek = 0**（never read RVV/IME/Scalar emitter 内部）。
+- **✅ 坐实项**：build 绿（weft-opt+weft-translate+6 Widget libs·0 error）· own backend emitter end-to-end functional 绿（`--weft-widget-emitc-to-cpp` 注册·发有效 C++·dialect+target FileCheck PASS·verifier 1 正+5 负）· **[F-1] 零家族分支绿**· 零回归（Template/Demo 仍过）。
+- **✏ 永久 recipe 文档修复（2·保留入库）**：[GAP-B3-P4TEMPLATE-OWNBACKEND]（`P4-family-integration-doc-TEMPLATE.md` 补 own-backend 第 2 注册点 prompt + reuse-vs-own 决策）· [GAP-B3-HARNESS-BYID]（`extension-plugin-integration.md` step3 点名 `TypedBackendEmissionDriver`+`BackendEmissionRegistry.h`+Template copy-me 锚）。
+- **★[C1-4] v2 判读（诚实）**：own-emitter 接入 **坐实 at build-green + own-path functional-green + [F-1]-green + forbidden-peek=0**。**诚实短板（不粉饰）**：(a) clone-adapt·真净新设计 ≈0（证可跟随性·非工程量）；(b) **six-gate machine-parity 未全达**——[F-3] default RED 因 drill 刻意 scope-out `family-manifest.v1.json` Widget 编辑（保触碰集与他线不相交）·靠既有 `backend_emitter_registration` allowance + 手工推证和解；(c) build 是 `build-demo` 增量·非 fresh-clean。
+- **Tier-3（真第三方·非同栖 in-house agent）仍 optional 待办**（与 v1 同注记）。

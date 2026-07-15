@@ -165,6 +165,19 @@ pieces. Concretely (2026-07-12, code-verified against
    `register<Fam>BackendEmitter(BackendEmissionRegistry &)` free function — i.e.
    [P-2] piece ③ is an *own* emission route, **not** a "reuse the shared EmitC
    materializer" declaration), then it must **also** be entered into a *second*
+   built-in table. **What the driver body does** (by-ID per [P-1], discoverable
+   from the `Template` copy-me reference `lib/Plugin/Template/TemplateBackendEmissionDriver.cpp`):
+   `register<Fam>BackendEmitter` constructs a shared **`TypedBackendEmissionDriver`**
+   harness (owning interface in
+   `include/Weft/Conversion/EmitC/BackendEmissionRegistry.h` — a `moduleHasBackendBody`
+   guard + a `convertModuleWithBackendEmitter` that lowers the selected `weft_<fam>`
+   boundary into a standalone EmitC module) and calls
+   `registry.registerBackend(driver)`; the driver is a function-local static so it
+   outlives the registry. The core materialization seam (`tryConvertModuleWithRegisteredBackend`)
+   iterates the table with **no** family branch. It builds the `Weft<Fam>BackendEmitter`
+   library (the 5th `lib/Plugin/<Fam>/` `.cpp`), and its own translate route surfaces
+   as `weft-translate --weft-<fam>-emitc-to-cpp`. The registration itself: this must
+   **also** be entered into a *second*
    built-in table, `lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp`: add
    an `#include "Weft/.../\<Fam>BackendEmissionDriver.h"` plus one row in
    `kBuiltinBackendEmitters[]`
