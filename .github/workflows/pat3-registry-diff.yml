@@ -1,0 +1,64 @@
+# [PAT-3] dual-board registry-diff=0 gate.
+#
+# [PAT-3] canon (docs/canon/Weft-RV_科研目标总纲v2.md:122):
+#   「同一注册表在双板（VLEN128/VLEN256）零条目改写、仅键值不同即通过（diff 注册表 = 0）」
+#
+# ★ WHY THIS IS NOT A FILE-DIFF (anti-hollow) ★
+# schema/pattern-registry.v1.json is ONE board-independent file — there is no per-board copy.
+# A literal "diff the two registries" gate would compare the file to itself and print 0
+# forever: TRIVIALLY GREEN, certifying nothing. This lane instead RESOLVES the one registry
+# against TWO REAL board capability-fact instances (derived from measured snapshots in
+# schema/measurement-memory.v1.json — openEuler-VLEN128 / SpacemiT-K1-VLEN256, never
+# invented) and asserts zero entry rewrite + key-only variation + anti-vacuity. See the
+# module docstring of tools/lint/check_pat3_registry_diff.py for the G1-G5 contract.
+#
+# Stdlib-Python only; the sole external action is actions/checkout. No build, no board.
+#
+# ★ SCOPE (honest boundary — do not overstate in reports) ★
+# This is a STATIC data-level gate. It does NOT execute on a board and does NOT prove
+# runtime dual-board emission on silicon. The real-binary/board lane is a separate,
+# currently DORMANT workflow (falsifier-binary-gate.yml — runner not provisioned).
+name: pat3-registry-diff
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  pat3-registry-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pure-classifier self-test: 6 negative controls + 1 positive control prove every
+      # check DISCRIMINATES before it judges the real registry. A gate that cannot go red
+      # is a hollow gate.
+      - name: Gate self-test (negative controls — proves the gate can go RED)
+        run: python3 tools/lint/check_pat3_registry_diff.py --self-test
+
+      # The real judgement: registry resolved against both real boards.
+      - name: '[PAT-3] dual-board registry-diff = 0 (real registry, real board facts)'
+        run: python3 tools/lint/check_pat3_registry_diff.py -v
+
+      # Live injection (dir-hygiene.yml precedent: "a gate that never catches anything is a
+      # deletion candidate"). Plants [PAT-3]'s exact prohibition — a per-board entry-rewrite
+      # channel — into a COPY of the real registry and asserts the gate REJECTS it. The real
+      # registry is never modified.
+      - name: Live injection (gate must REJECT a planted per-board entry rewrite)
+        run: |
+          set -euo pipefail
+          python3 - /tmp/registry_injected.json <<'PY'
+          import json, sys
+          d = json.load(open('schema/pattern-registry.v1.json', encoding='utf-8'))
+          d['patterns'][0]['board_overrides'] = {'vlen256': {'transform': 'WideOnly.cpp:emitWide'}}
+          json.dump(d, open(sys.argv[1], 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+          PY
+          if python3 tools/lint/check_pat3_registry_diff.py --registry /tmp/registry_injected.json; then
+            echo "RED: gate ACCEPTED a planted per-board override — the gate is hollow." >&2
+            exit 1
+          fi
+          echo "OK: gate rejected the planted per-board entry rewrite."
