@@ -22,7 +22,7 @@ T3A = ROOT + "/experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv"
 T3B = ROOT + "/experiments/active/result-tables/T3_B_board_B_rvv1.0_vlen256.csv"
 OUT = ROOT + "/experiments/active/result-tables/T3_master_rebuild.csv"
 CLUE = ROOT + "/experiments/active/result-tables/T3_master_rowclue.txt"
-SNAPSHOT = "g8-master-rebuild-v2-single-denom"
+SNAPSHOT = "g8-master-final-clang-world"
 FWD_OPS = {"add","cpy","gelu","mul","rms_norm","rope","scale","silu","softmax"}
 
 def parse_t3(path):
@@ -147,16 +147,16 @@ TIER = {
  ("forward","rms_norm"):{"rvv":(V,"ggml_compute_forward_rms_norm_f32","native RVV m8 vec_scale + scalar-dbl reduce·HYBRID·BORDERLINE"),"k1":(V,"ggml_compute_forward_rms_norm_f32","HYBRID·native-vec-light")},
  ("forward","rope"):   {"rvv":(S,"ggml_compute_forward_rope_f32","scalar cos/sin cache 2-pass + autovec rotate→标量类"),"k1":(S,"ggml_compute_forward_rope_f32","mostly-scalar→标量类")},
  ("forward","silu"):   {"rvv":(V,"ggml_vec_silu_f32","exported ggml手写RVV intrinsic·sigmoid/expf 向量化"),"k1":(V,"ggml_vec_silu_f32","手写intrinsic")},
- ("forward","gelu"):   {"rvv":(S,"ggml_table_gelu_f16(BSS-LUT)","A2 f16-LUT同档重比done·WIN 1.116×·便宜档表查·gcc15调度胜·非硬赢·0ULP"),"k1":(S,"ggml_table_gelu_f16(BSS-LUT)","A2同档重比done·PARITY 0.957×·memory-bound near-parity·便宜档")},
+ ("forward","gelu"):   {"rvv":(S,"ggml_table_gelu_f16(BSS-LUT)","A2 f16-LUT同档重比done·WIN 1.116×·便宜档表查·同档调度胜·非硬赢·0ULP"),"k1":(S,"ggml_table_gelu_f16(BSS-LUT)","A2同档重比done·PARITY 0.957×·memory-bound near-parity·便宜档")},
  ("forward","add"):    {"rvv":(S,"ggml_vec_add_f32(vec.h:89)","AVX2-only vec path·RV落scalar loop→autovec→标量类"),"k1":(S,"ggml_vec_add_f32","scalar loop autovec→标量类")},
  ("forward","mul"):    {"rvv":(S,"ggml_vec_mul_f32(vec.h:127)","pure scalar loop→autovec→标量类"),"k1":(S,"ggml_vec_mul_f32","autovec→标量类")},
  ("forward","scale"):  {"rvv":(V,"ggml_vec_scale_f32(vec.h:703)","NATIVE RVV m8 vfmul_vf 手写intrinsic·byte-identical algo"),"k1":(V,"ggml_vec_scale_f32","native RVV m8·板异emit较轻但同源intrinsic")},
  ("forward","cpy"):    {"rvv":(S,"ggml_vec_cpy_f32(vec.h:119)","pure scalar loop→autovec/memcpy→标量类"),"k1":(S,"ggml_compute_forward_dup_cpy","scalar/memcpy-stream→标量类")},
 }
-# dequant (24) — 全 标量类: 源=scalar dequantize_row_*·任何向量化=autovec(§〇.1)·gcc15.2/clang18 per-format autovec·pre-clang18 stale
+# dequant (24) — 全 标量类: 源=scalar dequantize_row_*·任何向量化=autovec(§〇.1)·clang18 per-format autovec·单世界clang(PR-17终裁)
 # quantize (3) — 标量类(scalar quantize_row_* autovec)·flag verify
 # product_reduce (3) — §〇.2 ggml scalar-ref fallback·internal sub-primitive·待补标量仗
-DEQ_NOTE_RVV = {"q4_K":"clang18 rvv0 真SCALAR·deploy gcc15.2 autovec footnote"}
+DEQ_NOTE_RVV = {"q4_K":"clang18 rvv0 真SCALAR·autovec弱(单世界clang)"}
 
 def op_group(op):
     if op in ("gemm_tile","vec_dot"): return "matmul"
@@ -179,7 +179,7 @@ COLD = {  # (op,format): (rvv, k1)
 # q5@k1 deployed absorb (§一.1 anti-gate 自证): q5_0/q5_1 k1 gemm-decode repack deploy path
 Q5K1_DEPLOY = {("gemm_tile","q5_0"):("k1",1.760),("gemm_tile","q5_1"):("k1",2.241)}
 # ★A2-batch4 M=1 GEVM decode 实测(禁串行·T3 gemm 行是 prefill·decode 走此独立测量)
-# (op,format): {board:(cold, disp-token, 成色)}·rvv=gcc-deploy-main·q5x@k1 已 PASS-DEPLOYED
+# (op,format): {board:(cold, disp-token, 成色)}·rvv=clang-world(PR-17终裁)·q5x@k1 已 PASS-DEPLOYED
 GEMM_DECODE = {
  ("gemm_tile","q4_0"):{"rvv":(6.909,"PASS","便宜档-weak-q4_0-block-dot-VLEN128-gate-off·big-multiple≠hard-win"),
                        "k1":(2.575,"PASS","便宜档-what-if(k1 front-door DECLINE repack@decode·force-construct)")},
@@ -187,20 +187,20 @@ GEMM_DECODE = {
                        "k1":(1.205,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.205×")},
  ("gemm_tile","q5_1"):{"rvv":(1.090,"PASS","near-parity"),
                        "k1":(1.317,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.317×")},
- ("gemm_tile","q4_K"):{"rvv":(0.361,"具名-X","★genuine-C3′-negative·super-block-fold@M=1不amortize·对手结构优势(rvv q4_K native-vec block-dot 3.6×快·gap=opp-strength非我方核)·rvv-gcc-death vsetvl1387([CASE-KQUANT-GCC-CODEGEN])"),
+ ("gemm_tile","q4_K"):{"rvv":(0.361,"具名-X","★genuine-C3′-negative·super-block-fold@M=1不amortize·对手结构优势具名(rvv q4_K native-vec block-dot 3.6×快·gap=opp-strength非我方核·vsetvl1387 spill=指令数内禀墙·单世界clang也输)"),
                        "k1":(1.535,"PASS","手调-REAL·k1 WIN vs 弱opp·genuine(k1 real repack hand-brick域·batch4·8-sub-block不泛化到16-sub)")},
  # ★A2-batch5: K-quant decode C3′ 负结果(super-block fold@M=1 不amortize·format-keyed 适用边界·11/12 具名-X·batch4 q4_K@k1 win 不泛化·判别键=sub-block数16 vs 8)
- ("gemm_tile","q2_K"):{"rvv":(0.0685,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block双fold)·rvv-gcc-death vsetvl922(clang也输0.36·wall非compiler)·C3′负"),
+ ("gemm_tile","q2_K"):{"rvv":(0.0685,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block双fold)·vsetvl922 spill·单世界clang也输0.36(wall非compiler·结构墙)·C3′负"),
                        "k1":(0.9585,"PASS","★near-parity非win(ratio<1.0·弱opp·q2_K 2-bit但16-sub-block最高vsetvl81)·唯一非-loss·成色低不称赢")},
- ("gemm_tile","q3_K"):{"rvv":(0.0830,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2225·C3′负"),
+ ("gemm_tile","q3_K"):{"rvv":(0.0830,"具名-X","指令数内禀-fold@M=1·vsetvl2225 spill(结构墙·单世界clang)·C3′负"),
                        "k1":(0.4252,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block)·C3′负")},
- ("gemm_tile","q5_K"):{"rvv":(0.1273,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2952·C3′负"),
+ ("gemm_tile","q5_K"):{"rvv":(0.1273,"具名-X","指令数内禀-fold@M=1·vsetvl2952 spill(结构墙·单世界clang)·C3′负"),
                        "k1":(0.6806,"具名-X","指令数内禀-fold@M=1不amortize·C3′负")},
- ("gemm_tile","q6_K"):{"rvv":(0.0535,"具名-X","指令数内禀-fold@M=1·rvv-gcc-death vsetvl2461·C3′负"),
+ ("gemm_tile","q6_K"):{"rvv":(0.0535,"具名-X","指令数内禀-fold@M=1·vsetvl2461 spill(结构墙·单世界clang)·C3′负"),
                        "k1":(0.3771,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block)·C3′负")},
- # ★A2-batch6: iq/tq/fp4 gemm decode(scalar-ref兜底·便宜档·部署域 rvv=gcc-MAIN/k1=clang·PR-12)·memory-bound parity-leaning
- ("gemm_tile","iq4_xs"):{"rvv":(0.63,"具名-X","decode near-parity·rvv-gcc named-X·便宜档-scalar-ref·PR-12"),"k1":(0.93,"PASS","decode near-parity·便宜档-scalar-ref·禁称硬赢")},
- ("gemm_tile","iq2_xxs"):{"rvv":(0.60,"具名-X","decode·rvv-gcc named-X·便宜档"),"k1":(1.13,"PASS","decode·便宜档-scalar-ref·禁称硬赢")},
+ # ★A2-batch6: iq/tq/fp4 gemm decode(scalar-ref兜底·便宜档·单世界clang·PR-17)·memory-bound parity-leaning
+ ("gemm_tile","iq4_xs"):{"rvv":(0.63,"具名-X","decode near-parity·rvv named-X(单世界clang)·便宜档-scalar-ref·PR-17"),"k1":(0.93,"PASS","decode near-parity·便宜档-scalar-ref·禁称硬赢")},
+ ("gemm_tile","iq2_xxs"):{"rvv":(0.60,"具名-X","decode·rvv named-X(单世界clang)·便宜档"),"k1":(1.13,"PASS","decode·便宜档-scalar-ref·禁称硬赢")},
  ("gemm_tile","iq2_xs"):{"rvv":(1.00,"PASS","decode·便宜档-scalar-ref·禁称硬赢"),"k1":(3.81,"PASS","decode·便宜档·k1 opp clang-bloat假象·禁称硬赢")},
  ("gemm_tile","iq2_s"):{"rvv":(1.03,"PASS","decode·便宜档"),"k1":(3.55,"PASS","decode·便宜档·clang-bloat假象·禁称硬赢")},
  ("gemm_tile","mxfp4"):{"rvv":(1.51,"PASS","decode·便宜档-scalar-ref·禁称硬赢"),"k1":(0.94,"PASS","decode near-parity·便宜档")},
@@ -212,6 +212,24 @@ IME_KERNELSYM = {
  ("gemm_tile","q4_0"):(0.196,"具名-X","IME kernel-sym vs vendor手调IME核 gemm_kernel_i8i4(真硅vmadot)·输5.1×·墙=scale-fold epilogue未融进vmadot MAC·真硬件vendor正面度量负结果"),
  ("gemm_tile","q8_0"):(None,"该板无合法对手","q8_0不进vendor IME(dispatch ime.cpp:317仅q4_0/q4_1/q4_K)·落RVV-repack回退·结构无IME对手·探针证据·★坐实e2e q8_0@ime beat 0.984×=赢RVV-repack非赢IME"),
  ("gemm_tile","q4_K"):(0.049,"具名-X","IME kernel-sym vs vendor IME·输20×·★C3′[PAT-1]format-keyed边界最锋利·gap随格式复杂度扩张(q4_0 5×→q4_K 20×·我方fold随super-block暴涨25→110ms·vendor单核塞所有格式4.9→5.5ms)"),
+}
+# ★线A·A1 单世界 clang-18 override(PR-17 终裁·「用 clang 就用 clang-18 全部都用」·gcc 视为不存在)
+#   cold 引 experiments/active/g8-stage3-attack/A1-rvv-clang18-unify/evidence.md(真-对称 ours-clang18 vs opp-clang18 重编·s1)
+#   承 gelu/GEMM_DECODE/IME_KERNELSYM stale-source 更正范式·rvv board only·便宜档禁称硬赢·0 造数
+# (op,format,regime) -> (rvv_cold, clang-world note)
+CLANG_WORLD = {
+ # ── 7 iq/tq/fp4 gemm PREFILL @rvv(A1 §1·K=2048 nr16 nc512·标量类·opp=ggml scalar-ref 便宜档·byte-exact ZERO-MODEL nbad=0)──
+ ("gemm_tile","iq4_xs","prefill"): (3.15,"clang世界(单一编译器世界)·opp=ggml scalar-ref(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§1·s1 3.15/s2 3.11)"),
+ ("gemm_tile","iq2_xxs","prefill"):(2.32,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§1·s1 2.32/s2 2.34)"),
+ ("gemm_tile","iq2_xs","prefill"): (12.32,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·大倍数=opp-clang编巨胖伪影(160ms)·便宜档禁称硬赢(A1§1·s1 12.32/s2 12.29)"),
+ ("gemm_tile","iq2_s","prefill"):  (11.49,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·大倍数=opp-clang编胖伪影(150ms)·便宜档禁称硬赢(A1§1·s1 11.49/s2 11.46)"),
+ ("gemm_tile","mxfp4","prefill"):  (3.65,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§1·s1 3.65/s2 3.66)"),
+ ("gemm_tile","tq1_0","prefill"):  (7.90,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§1·s1 7.90/s2 7.93)"),
+ ("gemm_tile","tq2_0","prefill"):  (9.91,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·ours vsetvl=8最简·便宜档禁称硬赢(A1§1·s1 9.91/s2 10.10)"),
+ # ── 3 DEQ @rvv 翻转(A1 §2·标量类·opp=dequantize_row_* autovec 便宜档·byte-exact 0mism/0ULP)·q4_1/q8_0 本已 PASS ──
+ ("dequantize_row","q4_0",""): (2.51,"clang世界(单一编译器世界)·opp=dequantize_row autovec(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§2·s1 2.51/s2 2.90)"),
+ ("dequantize_row","q5_0",""): (1.007,"clang世界·opp=autovec·具名-X→PASS·★parity 编译器中性真结果(双方 memory-bound 0.60GB/s·qh5bit DRAM墙)(A1§2·s1/s2 1.007)"),
+ ("dequantize_row","q5_1",""): (1.02,"clang世界·opp=autovec·具名-X→PASS·★parity 编译器中性真结果(双方 memory-bound 0.60GB/s·qh5bit DRAM墙)(A1§2·s1/s2 1.02)"),
 }
 
 def disp(op, fmt, engine, board, tier, cold, na):
@@ -256,7 +274,7 @@ def main():
             elif op == "dequantize_row":
                 tier = S; sym = "dequantize_row_%s"%fmt
                 note = DEQ_NOTE_RVV.get(fmt,"") if board=="rvv" else ""
-                note = (note+" · " if note else "")+"scalar源 autovec→标量类(§〇.1)·per-format gcc15.2/clang18·pre-clang18 stale"
+                note = (note+" · " if note else "")+"scalar源 autovec→标量类(§〇.1)·per-format clang18 autovec·单世界clang(PR-17)"
             elif op == "quantize_row":
                 tier=V; sym="quantize_row_%s"%fmt; note="★ggml-cpu/arch/riscv/quants.c 手写__riscv_v intrinsic(非scalar autovec)→通用向量〔V-纠·source铁证·objdump待§六补〕"
             elif op == "product_reduce":
@@ -288,7 +306,7 @@ def main():
                     else: d="pending(DEQ)"
                 elif td=="JUDGMENT-SUSPENDED":
                     # ★A2 gelu f16-LUT 同档重比清偿(2026-07-16·JUDGMENT-SUSPENDED解除·evidence gelu-f16lut-rematch/·commit f9424d1cb)
-                    # rvv WIN 1.116×/k1 PARITY 0.957×·0ULP·便宜档表查·非硬赢(gcc-15调度胜/memory-bound near-parity)→终态 PASS(0.8门)
+                    # rvv WIN 1.116×/k1 PARITY 0.957×·0ULP·便宜档表查·非硬赢(同档调度胜/memory-bound near-parity)→终态 PASS(0.8门)
                     # gelu 为唯一 JS 格·T3 opponent-reparse 行(数值档不对等)superseded by A2 同档重比·此 override 承 GEMM_DECODE/IME_KERNELSYM stale-source 更正范式
                     d = "PASS"
                 elif td=="PASS": d="PASS"
@@ -312,7 +330,7 @@ def main():
                 ik = IME_KERNELSYM.get((op,fmt))
                 if ik:
                     c, dtok, cx = ik
-                    d = "该板无合法对手(IME结构)" if "无合法对手" in dtok else "具名-X(IME-kernel-sym·vendor手调IME)"
+                    d = "pending(IME结构·该板无合法对手·q8_0落RVV-repack回退·缺vendor-IME对手·探针证据)" if "无合法对手" in dtok else "具名-X(IME-kernel-sym·vendor手调IME)"
                     note = note + " ·[IME-kernel-sym: "+cx+"]"
             # q5@k1 deploy absorb (裁决④·decode-GEVM 部署赢·只落 decode regime·非 prefill)
             dep = Q5K1_DEPLOY.get((op,fmt))
@@ -320,6 +338,13 @@ def main():
             if dep and dep[0]==board and regime in ("decode",""):
                 depnote = " ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) %.3f× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]"%dep[1]
                 if d.startswith("具名-X") or d.startswith("pending"): d="PASS-DEPLOYED(部署路·k1 repack decode-GEVM)"
+            # ★线A·A1 单世界 clang-18 override(PR-17 终裁·gcc 视为不存在·rvv board·终态优先·仅次于 na)
+            #   承 gelu/GEMM_DECODE/IME_KERNELSYM stale-source 更正范式·12 翻转格按 clang 世界入账
+            cw = CLANG_WORLD.get((op,fmt,regime))
+            if cw and board=="rvv":
+                c, cwnote = cw
+                d = "PASS" if c>=0.8 else "具名-X"
+                note = cwnote
             if na: tier="N/A-hw"; sym="—"; note="ime.present unsatisfiable on %s(机判)"%board; d="N/A-hw"
             rec[board] = {"tier":tier,"sym":sym,"note":note+depnote,"cold":c,"disp":d,"na":na}
         master.append(rec)

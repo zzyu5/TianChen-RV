@@ -153,3 +153,37 @@
 ---
 
 *本文件 Stage-1 为纯分类诊断底账；★2026-07-10 Stage-2 落宪已就地更新（顶 banner + 6 承重格 + 计数表 + 承重结局 + 纪律缺口）：rvv 4 蒸发-kernel账撤回 / k1 2 幸存-对称clang。[CASE-COMPILER-ASYMMETRY] CASE CLOSED（与 [CASE-MINTERM] 并列）。未 commit（主会话提交）。*
+
+---
+
+## ★ STAGE-3 gcc 存量归档（PR-17 单世界 clang 终裁 · 2026-07-16 · [CASE-COMPILER-ASYMMETRY] 双向素材夹）
+
+> **裁决**：用户 2026-07-16 裁「用 clang 就用 clang-18，全部都用」→ recon 主表 = 真-对称 clang-18 单世界（gcc 视为不存在）。PR-17 → RESOLVED（`docs/PENDING_RULINGS.md`）。
+> **归档目的**：clang-单世界主表**不删** gcc-deploy 存量数据，归此 [CASE-COMPILER-ASYMMETRY] 素材夹。**双向证据**——本案家族两个方向都实证了 ratio 由**双侧编译器 codegen** 主导（非我方核变强/变弱）：
+> - **方向 A（gcc 杀我方 kernel）**：rvv 出货 gcc-15 对我方 repack/tile kernel 施 vsetvli 洪泛 + regfile spill（q4_K vsetvl1387 / q2_K 922 / …），部署 gcc-death → 我方核在 gcc 域测得 具名-X。
+> - **方向 B（clang 杀对手 autovec）**：clang-18 把 ggml `dequantize_row_*` autovec 编得比部署 gcc 弱 ~3.4×（opp 1.6 GB/s clang vs 5.5 GB/s gcc），把 `_generic` scalar-ref 编成巨胖（iq2_xs opp 160ms clang vs 33ms gcc）→ 同格在 clang 域测得 PASS/大倍数。
+> **两方向同一根因** = 「相×板×格式×**双侧编译器身份**」是性能主张的不可省键（perf-constitution 规则3）；单世界 clang 消除了不对称 artifact，但代价 = 部分翻转的 PASS 含 opp-clang-under-vec / opp-clang-bloat 伪影（便宜档·禁称硬赢·成色注已入 recon note）。
+
+**归档格与三域数字排开**（同格 {gcc-death · opp-gcc-stock · opp-clang-18}·证 ratio 由双侧 codegen 主导）：
+
+### DEQ FLAT-5 @rvv（A1 §2·opp=`dequantize_row_*` autovec·便宜档）
+| 格 | gcc-deploy-MAIN 存量（归档·不删） | opp=gcc-stock footnote | 真-对称 clang-18（新主数·s1/s2） | 单世界 verdict |
+|---|---|---|---|---|
+| q4_0 | 具名-X 0.70（opp gcc-autovec 5.5 GB/s 强） | — | **2.51 / 2.90**（opp clang-vec 1.6 GB/s） | PASS（翻转·opp-clang-under-vec 伪影） |
+| q4_1 | PASS 1.18-1.39 | — | 2.59 / 2.63 | PASS |
+| q5_0 | 具名-X 0.62 | — | **1.007 / 1.007**（双方 0.60 GB/s DRAM 墙） | PASS·★parity 编译器中性真结果 |
+| q5_1 | 具名-X 0.70-0.74 | — | **1.02 / 1.02**（双方 0.60 GB/s） | PASS·★parity 编译器中性真结果 |
+| q8_0 | PASS-marg 0.84 | — | 2.26 / 2.26 | PASS |
+
+### iq/tq/fp4 GEMM prefill @rvv（A1 §1·opp=ggml scalar-ref `_generic`·便宜档·[NG-4] scalar-ref）
+| 格 | gcc-deploy-MAIN 存量（归档·gcc-death 具名-X） | opp=gcc-stock footnote | 真-对称 clang-18（新主数·s1/s2） | 单世界 verdict |
+|---|---|---|---|---|
+| iq4_xs | 0.50 named-X | 3.85/3.95 | 3.15 / 3.11 | PASS（便宜档·opp clang-vec 29ms） |
+| iq2_xxs | 0.51 named-X | 3.67/3.69 | 2.32 / 2.34 | PASS（便宜档） |
+| iq2_xs | 0.38 named-X（输 gcc 纯标量） | 2.58/2.57 | 12.32 / 12.29 | PASS（★opp-clang-bloat 160ms vs gcc-stock 33ms 假象） |
+| iq2_s | 0.37 named-X（输 gcc 纯标量） | 2.55/2.56 | 11.49 / 11.46 | PASS（★opp-clang-bloat 150ms 假象） |
+| mxfp4 | 0.75 named-X | 2.63/2.63 | 3.65 / 3.66 | PASS（便宜档） |
+| tq1_0 | 0.35 named-X | 3.80/3.96 | 7.90 / 7.93 | PASS（便宜档·opp clang 24ms） |
+| tq2_0 | 0.45 named-X | 4.84/4.89 | 9.91 / 10.10 | PASS（便宜档·ours vsetvl=8 最简） |
+
+**一手证据指针**：`experiments/active/g8-stage3-attack/A1-rvv-clang18-unify/evidence.md`（§1 iq/tq gemm 7/7 + §2 DEQ 5/5·byte-exact ZERO-MODEL nbad=0·2-seed <2%）· gcc 存量原指针 `A2-batch6-iqtq-gemm-scalar.md §2.2` · `A2-batch3-deq-quant-preduce.md §2.1` · `deq-axis-reparse/evidence.md`。stock .so md5（gcc `d1adc634`/base `1b4580c4`·clang build `e85fceda`）全程只读。**单诚实数 ≈ 2.3-3.7×·0 verified hand-brick**。

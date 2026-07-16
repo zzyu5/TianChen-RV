@@ -28,3 +28,22 @@
 - [FU-1] vl16 × col-outer 叠加测（k1，正交性 + margin 上探）
 - [FU-2] rvv clang-symmetric 对手构建 + 补测（定⑤双板 kernel-account；正则升双板、负则维持单板）
 - [FU-3] ABI 纯 drop-in 对齐（消 shim）
+
+---
+
+## Win #2 — **q4_K@k1 e2e prefill 1.101×**（首个 e2e beat-hand-brick · 旗舰入册 2026-07-16 · PR-14 RESOLVED）
+
+**措辞（逐字入册，八门措辞门口径）**：
+> 在 K1 板（VLEN256·出货 clang-18）、q4_K、**e2e prefill**：我方 HEAD-live emitc GEMM（byte-verified drop-in·nbad=0·md5 `9e057adb`·deployed==proven·greedy token-identical）对该板**真出货手调 GEMM** `ggml_gemm_q4_K_16x1_q8_K`（compute-bound·objdump 767 insn / 80 vwmacc·M=128 权重复用）交付 **1.101×**。倍数中等（Amdahl 稀释 kernel 1.187× → e2e 1.101×），但对手 = **最强对手类（真手调 hand-brick）**、传导为**真 e2e 传导**（非 wash·非 routing 白嫖·净新发射体 body-swap）= **首个 e2e beat-hand-tuned**。
+
+**机制归因（★净新增·正判据）· [DISCRIMINATOR-OPPONENT-BOUND-TYPE]**：
+> kernel 算力赢**传导 e2e IFF 对手 compute-bound·washes IFF 对手 memory-bound**。判别键 = **对手 bound-type**（由 相(M)×板×出货编译器 对该 kernel 计算路 autovec 质量共同决定·**非格式名·非 kernel 倍数大小**）。**正交** compiler 轴：同格式 q4_K @k1(clang)=1.101× 传导 vs @rvv(gcc)=0.334× gcc-death → 两轴分立归因。三点隔离 CONFIRMED：① 同板同编译器同核族同相·唯一差=格式（q4_0@k1 decode 0.857× WASH vs q5@k1 decode 1.97× 传导）② 同格式跨板（q5@rvv wash vs q5@k1 传导）③ 相轴（q4_K@k1 prefill 传导 vs decode isolation 0.995×）。
+
+**成色 / 边界（登记档不可分割部分）**：
+1. **perf-covered 硬冻结不动 = 9/83**：q4_K@k1 早已 perf-covered 绿（kernel 账 · Win-K1-VLEN 血脉）；本条 = **成色升级**（kernel 账 → e2e-transduced beat-hand-brick）·**非新格**（any-board 规则·收口令〇.1 · 头条口径不增）。
+2. **倍数中等由 Amdahl 稀释**：kernel 1.187× → e2e 1.101×（q4_K GEMM 占 prefill 相内时间比例有限）·非"大倍数"·成色立于「最强对手类 × 真传导」非倍数。
+3. **计数 ≠ 强赢**：本役真硬赢强手调锚点 = 2 verified hand-brick（q4_K/q2_K@k1 GEMM prefill·byte-verified）+ q5@k1 C1 部署 + 本条 q4_K@k1 e2e（首个 e2e beat-hand-brick）。
+
+**证据指针**：`docs/reports/2026-07-16-G8-paper-evidence-freeze.md`（§净新增①·三点隔离 + 1.101× 卷）· `experiments/active/g8-stage3-attack/`（HEAD-live emitc drop-in·md5 `9e057adb`·nbad=0·deployed==proven）· 血脉 Win #1 Win-K1-VLEN（同 q4_K@k1·kernel 满宽机制）。
+
+**八门状态**：①byte-exact ✓（nbad=0·md5 verified）②VLEN-flip ✓ ③objdump 对手身份 ✓（vendor 767 insn/80 vwmacc）④micro∧e2e ✓（1.187 kernel ∧ 1.101 e2e 真传导）⑤ e2e-win ✓（k1·greedy token-identical）⑥纪律 ✓（deployed==proven·body-swap）⑦selector ✓ ⑧措辞 ✓。

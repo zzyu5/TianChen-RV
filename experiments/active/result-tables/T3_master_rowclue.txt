@@ -1,4 +1,4 @@
-# 行清单工件 (数字字典v2·每口径行清单+格内状态·机算·snapshot g8-master-rebuild-v2-single-denom)
+# 行清单工件 (数字字典v2·每口径行清单+格内状态·机算·snapshot g8-master-final-clang-world)
 # 单分母制: 板分母 = 主表非N/A-hw ∧ 非q1_0 全部行. 四档穷尽互斥 Σ=分母.
 
 ===== rvv (板分母=102) =====
@@ -58,15 +58,15 @@
     PASS    silu|f32 cold=0.997
     PASS    scale|f32 cold=0.998
 
-[标量类] 头条 PASS 24/51 (全量) · 已测胜率 24/43 (派生) · 格内: PASS 24/具名-X 19/挂起 0/pending 8
+[标量类] 头条 PASS 34/51 (全量) · 已测胜率 34/43 (派生) · 格内: PASS 34/具名-X 9/挂起 0/pending 8
     具名-X    vec_dot|nvfp4 cold=0.565
     PASS    prod_reduce|q4_0_nibble cold=2.712
     PASS    prod_reduce|offset_binary_n3 cold=0.855
     PASS    prod_reduce|codebook_n3 cold=1.978
-    具名-X    dequantize|q4_0 cold=0.703
+    PASS    dequantize|q4_0 cold=2.51
     PASS    dequantize|q4_1 cold=1.284
-    具名-X    dequantize|q5_0 cold=0.618
-    具名-X    dequantize|q5_1 cold=0.724
+    PASS    dequantize|q5_0 cold=1.007
+    PASS    dequantize|q5_1 cold=1.02
     PASS    dequantize|q8_0 cold=0.838
     PASS    dequantize|q2_K
     PASS    dequantize|q3_K
@@ -89,22 +89,22 @@
     pending gemm|iq1_s@rvv
     pending gemm|iq1_m@rvv
     具名-X    gemm|iq2_xxs@rvv/decode cold=0.6
-    具名-X    gemm|iq2_xxs@rvv/prefill cold=0.503
+    PASS    gemm|iq2_xxs@rvv/prefill cold=2.32
     PASS    gemm|iq2_xs@rvv/decode cold=1.0
-    具名-X    gemm|iq2_xs@rvv/prefill cold=0.379
+    PASS    gemm|iq2_xs@rvv/prefill cold=12.32
     PASS    gemm|iq2_s@rvv/decode cold=1.03
-    具名-X    gemm|iq2_s@rvv/prefill cold=0.37
+    PASS    gemm|iq2_s@rvv/prefill cold=11.49
     pending gemm|iq3_xxs@rvv
     pending gemm|iq3_s@rvv
     具名-X    gemm|iq4_xs@rvv/decode cold=0.63
-    具名-X    gemm|iq4_xs@rvv/prefill cold=0.502
+    PASS    gemm|iq4_xs@rvv/prefill cold=3.15
     PASS    gemm|mxfp4@rvv/decode cold=1.51
-    具名-X    gemm|mxfp4@rvv/prefill cold=0.75
+    PASS    gemm|mxfp4@rvv/prefill cold=3.65
     pending gemm|nvfp4@rvv
     PASS    gemm|tq1_0@rvv/decode cold=1.67
-    具名-X    gemm|tq1_0@rvv/prefill cold=0.358
+    PASS    gemm|tq1_0@rvv/prefill cold=7.9
     PASS    gemm|tq2_0@rvv/decode cold=1.19
-    具名-X    gemm|tq2_0@rvv/prefill cold=0.45
+    PASS    gemm|tq2_0@rvv/prefill cold=9.91
     PASS    rope|f32 cold=1.013
     PASS    gelu|f32 cold=0.141
     PASS    add|f32 cold=0.967
