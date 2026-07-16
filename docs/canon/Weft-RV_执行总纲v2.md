@@ -67,6 +67,7 @@
 | **SEL-1** 两段式先验层 | 合法性过滤(`analyzeRequirementLegality`)+ score argmin 有;**能力先验层(GEMM∧ime.present→矩阵范式)缺失**,现由每插件常量分代理 | 部分 | 增量新建 | C3′ |
 | **SEL-2** 先于/同于 P7 硬时序 | **潜伏错选(定量):** P7 令两族对同一 GEMM co-propose 时,升序 RVV(1.0)<IME(20.0)→ 向量变体被选、矩阵范式静默落败无 error(`VariantSelection.cpp:649-650`)。P7 未落地→风险未触发但已定量可判(详见 §5) | 缺失 | 有界工作项 | C3′ |
 | **SEL-3** 测量回填 + 外部 tuner 插点 | enumerate→dump→load→measured-best\|结构成本 fallback,无搜索(NG-1 合规);**记录键=kernel+march(非 instance-hash)**,且是 RVV 本地 LMUL 调优、非 exec 层跨族 memoized | 部分 | 重构现有 | C3′ |
+| **SEL-3 键订正注**(〇.5 裁·2026-07-16 · PR-5 RESOLVED) | 上行旧措辞「记录键=kernel+march」**订正为对齐活 schema** `tiling-measurements.v1.json` / `measurement-memory.v1.json`:**记录键 = `declared_instance_hash`〔蕴含 march/vlen/vreg〕+ kernel + variant** 的复合主键(令〇.4 权威·instance-hash 展开自规范化能力事实集 [D-2a])。canon 条文本体不改措辞·仅加此订正注(硬冻结) | — | — | C3′ |
 
 ### 发射与构造 [K-*] / [L-8]
 
@@ -241,6 +242,7 @@
    - **系统账(产品对拼)= 各方自有完整栈 + 工具链披露 + 最强基线列。** 主张形态 = 「我方产品(clang-codegen `.o`)vs 对手产品(as-shipped,其自有工具链)」。**必须披露双方工具链**(rvv 出货=gcc-15 / k1 出货=clang-18);**clang 重编 ggml 可行处必列为最强基线列**(否则拿对手 gcc-codegen 的弱当我方赢 = 系统账造假)。系统账里**后端选择 = 系统身份**(我方 L3=clang 为设计事实)。
    - **判别键 = 板出货编译器**:rvv=gcc-15、k1=clang-18。ours 恒 clang → k1 as-shipped 对拼**本就对称**(kernel 账合法 micro beat,如 q4_K-k1 3.106×/q5_K-k1 1.916×,NON-e2e);rvv as-shipped 对拼**不对称**(须归系统账并列 clang 重编最强基线;kernel 账下 rvv 承重 4 格对称重测蒸发 = 撤回)。**iq4_xs batch2b→2c(1.4556→0.7178)= 最早先例。**
    - **落地台账**:`experiments/active/result-tables/T-VALIDITY_compiler_symmetry_ledger.md`(Stage-2 banner + 四分类 + 6 承重格结局) · casefile `docs/reports/2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md` · T8 逐格 `★CASE-COMPILER-ASYMMETRY` 注 · q4_K 8-gate `docs/reports/2026-07-09-q4k-8gate-status.md`(Stage-2 reconcile)。
+   - **★clang-18 统一 canon 注(〇.1 裁·2026-07-16 · PR-9 RESOLVED-BY-RULING)**:**rvv 板生态默认出货 gcc(=gcc-15),本文 campaign 部署账统一采 clang-18 保双板对称**(k1 出货即 clang-18);此 clang-18-symmetric 主表对称域是 perf 主表主数口径。**rvv 之 gcc 差异强制以 footnote 呈现**(rvv archive 8/8 LOSS·clang-micro≠deployment·gcc-death 见 [CASE-COMPILER-ASYMMETRY]),成色标 clang-micro 防误读。此注与上「双板统一 clang-20」奠基旧前提的失效标记(见 §7①落宪修订)一致——部署账口径以出货工具链为一等维度,campaign 主数取 clang-18 对称;domain-tagged 双列策略登记待裁。
 
 5. **★部署 SOP 入宪(2026-07-10;出货正门 + 测量库维度):**
    - **出货形态 = clang `.o` 对象导出(正门)。** 我方 kernel 经 `--weft-rvv-lower-to-emitc | mlir-translate` → C → **clang 编 `.o`**,以对象形式链接/部署。这是我方 L3 后端的设计事实。

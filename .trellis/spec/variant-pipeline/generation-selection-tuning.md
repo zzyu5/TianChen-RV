@@ -64,7 +64,7 @@ selection 是两段式：
 
 1. **编译期选择归因**——JSONL 每条 `{kernel, candidates[], keys_evaluated{}, chosen, reason ∈ {only_feasible, static_order, prior, measured}, declared_instance_hash, ts}`。`reason` 是**所有归因分析的主键**，能力键控与否做在主键上、不做在脚注守卫字段（否则某个查询会漏掉守卫字段，「能力键选中数」静默虚高）：`only_feasible` = 合法性过滤后仅剩一个可执行候选（N/A 能力键）；`static_order` = **能力盲**的冷启动排序（现每插件常量分 + explicit-preference）在 ≥2 候选中裁决——**非**能力派生；`prior` = **严格保留**给能力派生的先验排序层裁决（[SEL-1] 落地后才出现，今天 stage ① 绝不发）；`measured` = 命中 memoized 实测赢家（[SEL-3] 后）。**燃减/诊断不变量：** `static_order` 出现数在 [SEL-1] 落地后应归零；不归零 = 先验层覆盖缺口。此四值使 T4a「是否由能力键选中」列可直接从 reason 推导（static_order→否；prior/measured→是；only_feasible→N/A）。为使 `static_order` 决策可完整重建，参与排序的常量分须进记录（candidates[].score 恒发 / keys_evaluated）。
 2. **装载期解析记录**——即 [D-2a] 的每进程一条记录。
-3. **运行期归因**——随完整运行期 dispatch 链（hwprobe → 事实 → instance-hash 键控调度）产出。
+3. **运行期归因**——**【目标契约·未实现·[D-2b]/[D-3]】**：随完整运行期 dispatch 链（hwprobe → 事实 → instance-hash 键控调度）产出。**现系统无此层**——今天的能力解析在**编译期由 VariantSelection fail-closed** 消费编译期 IR 事实（`hwprobe`/instance-hash grep=0）；load-time/运行期链是目标契约、尚未实现，不得描述为现状。
 
 **归因范围**含选择、**调度**（为何选此 LMUL / 此范式）与**合法性**（为何拒）三个阶段，不止最终 `chosen`。归因日志是 I4 镜像 / 事实，记录"为何选此变体"，**不**反向定义 compute / route / dtype，也不作进度 authority。
 
