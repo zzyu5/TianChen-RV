@@ -20,6 +20,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Support/CapabilityModel.h"
+#include "Weft/Support/GridDecodePlan.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
@@ -4006,16 +4007,30 @@ verifyRepackGridCoreCommon(mlir::Operation *op,
     return err() << "currently supports only kind \"" << expectedKind
                  << "\" for the bounded grid 16x1-repacked per-block lane-wise "
                     "dual memory-gather ls-scale dot integer-core typed surface";
-  // The bounded grid decode family: iq2_xxs (single ls-scale, u8 grid index, signs64
-  // DERIVED), iq2_xs (dual ls-scale, u16 grid index, signs64 DERIVED), iq2_s (dual
-  // ls-scale, u16 assembled grid index, signs256 DIRECT). The FIXED grid + signs planes
-  // stay DERIVED static const (NEVER op attrs); the emitter selects them by decode_model.
-  if (decodeModel != "iq2_xxs" && decodeModel != "iq2_xs" &&
-      decodeModel != "iq2_s")
-    return err() << "only accepts decode_model \"iq2_xxs\" (flat single-ls 256-entry "
-                    "grid + signs64), \"iq2_xs\" (dual-ls 512-entry grid + signs64), "
-                    "or \"iq2_s\" (dual-ls 1024-entry grid + signs256) repack; got \""
-                 << decodeModel << "\"";
+  // The bounded grid decode family is the CLOSED weft::GridDecodePlan registry
+  // (Weft/Support/GridDecodePlan.h) -- the SAME authority the repack GEVM/GEMM emitter
+  // leaves consult, replacing what used to be THREE hand-synced copies of this string
+  // chain. Fail-closed ([D-1] unknown = reject) is preserved BY CONSTRUCTION: an
+  // unregistered decode_model has no plan, so it is rejected here. The FIXED grid +
+  // signs planes stay DERIVED static const (NEVER op attrs); the plan NAMES them.
+  if (!weft::lookupGridDecodePlan(decodeModel)) {
+    // Render the accepted set FROM the registry so the diagnostic can never drift
+    // from what is actually legal.
+    std::string accepted;
+    llvm::raw_string_ostream acceptedOS(accepted);
+    llvm::interleaveComma(weft::getGridDecodePlans(), acceptedOS,
+                          [&](const weft::GridDecodePlan &plan) {
+                            acceptedOS << '"' << plan.decodeModel << "\" ("
+                                       << (plan.lsArity == weft::GridLsArity::Single
+                                               ? "single-ls "
+                                               : "dual-ls ")
+                                       << plan.gridEntryCount << "-entry grid + "
+                                       << plan.signArrayName << ")";
+                          });
+    return err() << "only accepts a decode_model registered in the closed grid "
+                    "decode plan registry -- "
+                 << acceptedOS.str() << " repack; got \"" << decodeModel << "\"";
+  }
   if (coreLmul.has_value() && *coreLmul != "mf2" && *coreLmul != "m1")
     return err() << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 "
                     "fractional chain) or \"m1\" (the RVV0.7 whole-LMUL chain); "

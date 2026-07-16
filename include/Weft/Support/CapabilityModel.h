@@ -24,6 +24,65 @@ enum class CapabilityAvailability {
   Unavailable,
 };
 
+// ---------------------------------------------------------------------------
+// [S-1]/[S-2] relation-type table: the per-relation SEMANTIC annotation.
+//
+// schema/capability.schema.v1.json#item_3_relation_types declares, per relation
+// list, what the relation MEANS (satisfies-by-alias / transitive-satisfiable /
+// fail-closed-mutual-exclusion). Before this table that annotation lived only
+// as prose in the schema JSON (grep=0 in code): the code carried the relation
+// STRUCTURE (three typed id lists) while the semantics carried no code-side
+// representation at all.
+//
+// This pair of enums is the code-side landing of that annotation. It is
+// load-bearing, not decorative: CapabilityDescriptor::satisfiesID consults
+// relationSemanticsParticipateInSatisfaction() below instead of open-coding
+// `id || provides || implies`, so "does this relation participate in
+// satisfaction?" is answered BY the annotation. Flipping an entry in the table
+// therefore changes observable query behavior (which is what makes the table
+// falsifiable rather than a comment).
+//
+// Scope: this declares the relation TYPES and their semantics. The transitive
+// CLOSURE computation stays load-time set-level code (see
+// TargetCapabilitySet::computeImpliedClosure) — `TransitiveSatisfiable` names
+// the semantics, it does not itself walk the graph.
+// ---------------------------------------------------------------------------
+enum class CapabilityRelationKind {
+  Provides,
+  Implies,
+  Conflicts,
+};
+
+enum class CapabilityRelationSemantics {
+  SatisfiesByAlias,
+  TransitiveSatisfiable,
+  FailClosedMutualExclusion,
+};
+
+// The three relation kinds, in schema declaration order. Iterating this is the
+// only sanctioned way to walk "every relation": adding a relation kind without
+// extending the table is a compile error in the switch-based accessors below.
+llvm::ArrayRef<CapabilityRelationKind> getAllCapabilityRelationKinds();
+
+// Schema-facing spelling of a relation list ("provides" / "implies" /
+// "conflicts") — matches item_3_relation_types' keys.
+llvm::StringRef getCapabilityRelationName(CapabilityRelationKind kind);
+
+// THE annotation: relation kind -> its declared semantics.
+CapabilityRelationSemantics
+getCapabilityRelationSemantics(CapabilityRelationKind kind);
+
+// Schema-facing spelling of a semantics value — matches the `semantics` field
+// of item_3_relation_types.
+llvm::StringRef
+getCapabilityRelationSemanticsName(CapabilityRelationSemantics semantics);
+
+// Whether a relation carrying `semantics` participates in satisfaction.
+// satisfies-by-alias and transitive-satisfiable do; fail-closed-mutual-exclusion
+// must never satisfy (a conflict is the opposite of a satisfier).
+bool relationSemanticsParticipateInSatisfaction(
+    CapabilityRelationSemantics semantics);
+
 class CapabilityDescriptor {
 public:
   CapabilityDescriptor() = default;
@@ -60,6 +119,13 @@ public:
     return relations ? relations.getConflicts()
                      : llvm::ArrayRef<mlir::StringAttr>{};
   }
+
+  // Relation id list selected BY relation kind (the typed counterpart of the
+  // three fixed getProvidedIDs/getImpliedIDs/getConflictingIDs accessors).
+  // Lets relation-generic code walk relations through the [S-2] semantic
+  // annotation instead of naming each list by hand.
+  llvm::ArrayRef<mlir::StringAttr>
+  getRelationIDs(CapabilityRelationKind kind) const;
 
   bool providesID(llvm::StringRef capabilityID) const;
   bool impliesID(llvm::StringRef capabilityID) const;

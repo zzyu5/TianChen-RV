@@ -17,6 +17,7 @@
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Support/GridDecodePlan.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -2071,21 +2072,32 @@ private:
   /// 8-bit sign byte). Everything else -- the vluxei16 grid/sign gather, the
   /// vmul-onto-grid sign fold, the i32-accumulator dot, the fp16*fp32 no-min fold,
   /// the 0.125 store -- is byte-identical to iq2_xxs.
-  enum class Iq2DualGridVariant { Xs, S };
+  /// Emit the emit-period `static const` GRID + SIGN table decls a registered
+  /// weft::GridDecodePlan names, ONCE. C4a seam: the registry (Support) carries the
+  /// table NAMES + decode axes as data; the table LITERALS stay here in the Conversion
+  /// layer (they are DERIVED static const, NEVER op attrs -- the signs64 op-attr blocker
+  /// cannot recur). Fails for a plan whose tables have no decl emitter, so a registry row
+  /// can never silently emit a reference to a table that was never declared.
+  mlir::LogicalResult
+  emitGridDecodePlanTableDecls(mlir::ConversionPatternRewriter &rewriter,
+                               mlir::Location loc,
+                               const weft::GridDecodePlan &plan) const;
 
   /// Emit the COMPLETE ggml iq2_xs/iq2_s x q8_K 16x1-REPACKED block-as-lane GEVM
   /// (decode) shared body leaf from the FRONT DOOR: the byte-exact body of the RETIRED
   /// dual-ls direct emitters, refactored (like emitRepackGridGemvBodyIq2Xxs) to take the
   /// mapped ABI values + block-format facts as PARAMETERS and RESULT-LESS (no monolith
   /// token). Called ONLY from emitTypedRepackGemvLoopBody's grid branch (gated on the
-  /// in-region weft_rvv.repack_gemv_grid_core anti-bypass brick, decode_model "iq2_xs" /
-  /// "iq2_s"). `variant` selects the grid table (weft_iq2xs_grid[512] /
-  /// weft_iq2s_grid[1024]) and the sign plane (weft_iq2xs_signs64 / weft_iq2s_signs256)
-  /// emitted ONCE. The DUAL delta over iq2_xxs: a u16 grid index (vle16 direct, NO vzext)
-  /// + each sub-block split into ls1 (groups 0-1) / ls2 (groups 2-3), both on lsOffset.
+  /// in-region weft_rvv.repack_gemv_grid_core anti-bypass brick, ls arity Dual). The
+  /// `plan` (the CLOSED weft::GridDecodePlan registry row) NAMES the grid table
+  /// (weft_iq2xs_grid[512] / weft_iq2s_grid[1024]) and the sign plane
+  /// (weft_iq2xs_signs64 / weft_iq2s_signs256) emitted ONCE -- C4a lifted these from an
+  /// Iq2DualGridVariant hard-select to registry DATA. The DUAL delta over iq2_xxs: a u16
+  /// grid index (vle16 direct, NO vzext) + each sub-block split into ls1 (groups 0-1) /
+  /// ls2 (groups 2-3), both on lsOffset.
   mlir::LogicalResult emitRepackGemvIq2DualScaleQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      Iq2DualGridVariant variant, mlir::Value weightBase,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
       mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
       mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
       llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
@@ -2097,10 +2109,10 @@ private:
   /// grid+sign decode with the weight decode AMORTIZED across the 4 interleaved
   /// block_q8_Kx4 activation columns. Ships PLAIN (untiled): iq2_xs/iq2_s already sit at
   /// the <=32-vreg cliff. RESULT-LESS; called ONLY from emitTypedRepackGemmLoopBody's grid
-  /// branch (decode_model "iq2_xs" / "iq2_s").
+  /// branch (ls arity Dual); `plan` names the grid + sign tables as registry DATA.
   mlir::LogicalResult emitRepackGemmIq2DualScaleQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      Iq2DualGridVariant variant, mlir::Value weightBase,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
       mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
       mlir::Value columnCount, mlir::Value outputRowStride, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,

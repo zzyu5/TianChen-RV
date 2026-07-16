@@ -2395,11 +2395,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
                      "loop-body's own repacked-weight / q8_K-activation ABI "
                      "buffers");
     llvm::StringRef decodeModel = coreBrick.getDecodeModel();
-    if (decodeModel != "iq2_xxs" && decodeModel != "iq2_xs" &&
-        decodeModel != "iq2_s")
+    // The CLOSED weft::GridDecodePlan registry is the SAME fail-closed authority the
+    // grid core verifier consults -- an unregistered decode_model has no plan and is
+    // REJECTED here ([D-1] unknown = reject), rather than being matched against a
+    // hand-synced copy of the verifier's string chain.
+    const weft::GridDecodePlan *gridPlan = weft::lookupGridDecodePlan(decodeModel);
+    if (!gridPlan)
       return rewriter.notifyMatchFailure(
-          coreBrick, "grid repack GEVM decode_model not recognized (expected "
-                     "\"iq2_xxs\", \"iq2_xs\", or \"iq2_s\")");
+          coreBrick, "grid repack GEVM decode_model is not registered in the closed "
+                     "weft::GridDecodePlan registry");
     mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
     mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
     mlir::Value output = valueMap.lookup(loopBody.getOutput());
@@ -2410,9 +2414,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
-    // iq2_xxs (single ls) rides the iq2_xxs body leaf; iq2_xs / iq2_s (dual ls) share the
-    // Iq2DualGridVariant dual-ls body leaf (grid table + sign plane selected by variant).
-    if (decodeModel == "iq2_xxs")
+    // The plan's ls ARITY selects the body leaf: Single rides the iq2_xxs leaf, Dual
+    // rides the shared dual-ls leaf (which now takes the PLAN, so the grid table + sign
+    // plane are DATA rather than an Iq2DualGridVariant hard-select).
+    if (gridPlan->lsArity == weft::GridLsArity::Single)
       return emitRepackGridGemvBodyIq2Xxs(
           rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
           sizeType, opName, role, coreLmul,
@@ -2426,10 +2431,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           static_cast<int64_t>(coreBrick.getNSubblocks()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()));
-    Iq2DualGridVariant variant =
-        decodeModel == "iq2_xs" ? Iq2DualGridVariant::Xs : Iq2DualGridVariant::S;
     return emitRepackGemvIq2DualScaleQ8K(
-        rewriter, loc, variant, weightBase, activationBase, output, columnCount,
+        rewriter, loc, *gridPlan, weightBase, activationBase, output, columnCount,
         avlArg, sizeType, opName, role, coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
         static_cast<int64_t>(loopBody.getWeightBlockStride()),
@@ -3432,11 +3435,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
                      "loop-body's own repacked-weight / q8_K-activation ABI "
                      "buffers");
     llvm::StringRef decodeModel = coreBrick.getDecodeModel();
-    if (decodeModel != "iq2_xxs" && decodeModel != "iq2_xs" &&
-        decodeModel != "iq2_s")
+    // The CLOSED weft::GridDecodePlan registry -- the SAME fail-closed authority the
+    // grid core verifier and the repack GEVM leaf consult ([D-1] unknown = reject).
+    const weft::GridDecodePlan *gridPlan = weft::lookupGridDecodePlan(decodeModel);
+    if (!gridPlan)
       return rewriter.notifyMatchFailure(
-          coreBrick, "grid repack GEMM decode_model not recognized (expected "
-                     "\"iq2_xxs\", \"iq2_xs\", or \"iq2_s\")");
+          coreBrick, "grid repack GEMM decode_model is not registered in the closed "
+                     "weft::GridDecodePlan registry");
     mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
     mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
     mlir::Value output = valueMap.lookup(loopBody.getOutput());
@@ -3450,9 +3455,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
-    // iq2_xxs (single ls) rides the iq2_xxs body leaf; iq2_xs / iq2_s (dual ls) share the
-    // Iq2DualGridVariant dual-ls body leaf (grid table + sign plane selected by variant).
-    if (decodeModel == "iq2_xxs")
+    // The plan's ls ARITY selects the body leaf: Single rides the iq2_xxs leaf, Dual
+    // rides the shared dual-ls leaf (which now takes the PLAN, so the grid table + sign
+    // plane are DATA rather than an Iq2DualGridVariant hard-select).
+    if (gridPlan->lsArity == weft::GridLsArity::Single)
       return emitRepackGridGemmBodyIq2Xxs(
           rewriter, loc, weightBase, activationBase, output, rowCount,
           columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3467,10 +3473,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
-    Iq2DualGridVariant variant =
-        decodeModel == "iq2_xs" ? Iq2DualGridVariant::Xs : Iq2DualGridVariant::S;
     return emitRepackGemmIq2DualScaleQ8K(
-        rewriter, loc, variant, weightBase, activationBase, output, rowCount,
+        rewriter, loc, *gridPlan, weightBase, activationBase, output, rowCount,
         columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
         static_cast<int64_t>(loopBody.getWeightBlockStride()),
@@ -24220,9 +24224,34 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
 // `variant` picks the FIXED canonical tables (iq2_xs: 512-grid + ksigns signs64;
 // iq2_s: 1024-grid + explicit signs256) emitted ONCE as static const decls.
 // ============================================================================
+// C4a: the ONE plan -> emit-period table-decl dispatch. Keyed on the registry row's
+// decode_model; the DECL bodies (ggml's exact literals) stay in the Conversion layer.
+// A registered plan with no decl arm FAILS here rather than emitting a reference to an
+// undeclared table.
+mlir::LogicalResult VariantToEmitCFunc::emitGridDecodePlanTableDecls(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const weft::GridDecodePlan &plan) const {
+  if (plan.decodeModel == "iq2_xxs") {
+    emitIQ2XXSCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2XXSCanonicalSigns64TableDecl(rewriter, loc);
+    return mlir::success();
+  }
+  if (plan.decodeModel == "iq2_xs") {
+    emitIQ2XSCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2XSCanonicalSigns64TableDecl(rewriter, loc);
+    return mlir::success();
+  }
+  if (plan.decodeModel == "iq2_s") {
+    emitIQ2SCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
+    return mlir::success();
+  }
+  return mlir::failure();
+}
+
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    Iq2DualGridVariant variant, mlir::Value weightBase,
+    const weft::GridDecodePlan &plan, mlir::Value weightBase,
     mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
     mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
     llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
@@ -24284,25 +24313,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
     mlir::Value vl8 = sizeLit(half);
 
     // The FIXED canonical GRID table + the SIGN plane, emitted ONCE (byte-exact
-    // anchors the block-dot iq2_xs/iq2_s paths use), selected by `variant`.
-    const char *gridArr, *signsArr;
-    if (variant == Iq2DualGridVariant::Xs) {
-      emitIQ2XSCanonicalGridTableDecl(rewriter, loc);
-      emitIQ2XSCanonicalSigns64TableDecl(rewriter, loc);
-      gridArr = "weft_iq2xs_grid";
-      signsArr = "weft_iq2xs_signs64";
-    } else {
-      emitIQ2SCanonicalGridTableDecl(rewriter, loc);
-      emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
-      gridArr = "weft_iq2s_grid";
-      signsArr = "weft_iq2s_signs256";
-    }
+    // anchors the block-dot iq2_xs/iq2_s paths use). C4a: the DECL bodies (the
+    // literals) stay in this Conversion layer, but WHICH tables and their NAMES are
+    // now registry DATA -- no Iq2DualGridVariant hard-select.
+    if (mlir::failed(emitGridDecodePlanTableDecls(rewriter, loc, plan)))
+      return rewriter.notifyMatchFailure(
+          loc, "grid decode plan has no emit-period table decls");
     mlir::Value gridArrName =
-        rewriter.create<emitc::LiteralOp>(loc, i64PtrType, gridArr);
+        rewriter.create<emitc::LiteralOp>(loc, i64PtrType, plan.gridArrayName);
     mlir::Value gridI8Ptr =
         rewriter.create<emitc::CastOp>(loc, i8PtrType, gridArrName).getResult();
     mlir::Value signsI8Ptr =
-        rewriter.create<emitc::LiteralOp>(loc, i8PtrType, signsArr);
+        rewriter.create<emitc::LiteralOp>(loc, i8PtrType, plan.signArrayName);
 
     step("block_count");
     mlir::Value nb =
@@ -24676,7 +24698,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
 // as pos*4+c).
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    Iq2DualGridVariant variant, mlir::Value weightBase,
+    const weft::GridDecodePlan &plan, mlir::Value weightBase,
     mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
     mlir::Value columnCount, mlir::Value outputRowStride, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
@@ -24742,24 +24764,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
 
     mlir::Value vl8 = sizeLit(half);
 
-    const char *gridArr, *signsArr;
-    if (variant == Iq2DualGridVariant::Xs) {
-      emitIQ2XSCanonicalGridTableDecl(rewriter, loc);
-      emitIQ2XSCanonicalSigns64TableDecl(rewriter, loc);
-      gridArr = "weft_iq2xs_grid";
-      signsArr = "weft_iq2xs_signs64";
-    } else {
-      emitIQ2SCanonicalGridTableDecl(rewriter, loc);
-      emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
-      gridArr = "weft_iq2s_grid";
-      signsArr = "weft_iq2s_signs256";
-    }
+    // C4a: the GRID + SIGN tables are named by the CLOSED registry plan (data), not
+    // hard-selected by an Iq2DualGridVariant enum. The DECL bodies stay here.
+    if (mlir::failed(emitGridDecodePlanTableDecls(rewriter, loc, plan)))
+      return rewriter.notifyMatchFailure(
+          loc, "grid decode plan has no emit-period table decls");
     mlir::Value gridArrName =
-        rewriter.create<emitc::LiteralOp>(loc, i64PtrType, gridArr);
+        rewriter.create<emitc::LiteralOp>(loc, i64PtrType, plan.gridArrayName);
     mlir::Value gridI8Ptr =
         rewriter.create<emitc::CastOp>(loc, i8PtrType, gridArrName).getResult();
     mlir::Value signsI8Ptr =
-        rewriter.create<emitc::LiteralOp>(loc, i8PtrType, signsArr);
+        rewriter.create<emitc::LiteralOp>(loc, i8PtrType, plan.signArrayName);
 
     step("block_count");
     mlir::Value nb =
