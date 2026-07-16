@@ -58,7 +58,7 @@
     PASS    silu|f32 cold=0.997
     PASS    scale|f32 cold=0.998
 
-[标量类] 头条 PASS 34/51 (全量) · 已测胜率 34/43 (派生) · 格内: PASS 34/具名-X 9/挂起 0/pending 8
+[标量类] 头条 PASS 36/51 (全量) · 已测胜率 36/45 (派生) · 格内: PASS 36/具名-X 9/挂起 0/pending 6
     具名-X    vec_dot|nvfp4 cold=0.565
     PASS    prod_reduce|q4_0_nibble cold=2.712
     PASS    prod_reduce|offset_binary_n3 cold=0.855
@@ -77,13 +77,13 @@
     具名-X    dequantize|iq1_m
     PASS    dequantize|iq2_xxs
     pending dequantize|iq2_xs
-    pending dequantize|iq2_s
+    PASS    dequantize|iq2_s cold=1.7534
     PASS    dequantize|iq3_xxs
     具名-X    dequantize|iq3_s
     PASS    dequantize|iq4_nl
     具名-X    dequantize|iq4_xs
     PASS    dequantize|mxfp4
-    pending dequantize|nvfp4
+    PASS    dequantize|nvfp4 cold=2.1736
     PASS    dequantize|tq1_0
     具名-X    dequantize|tq2_0
     pending gemm|iq1_s@rvv
@@ -148,7 +148,7 @@
     pending gemm|q8_0@ime
     具名-X    gemm|q4_K@ime cold=0.049
 
-[通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/21 (派生) · 格内: PASS 21/具名-X 0/挂起 0/pending 4
+[通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/22 (派生) · 格内: PASS 21/具名-X 1/挂起 0/pending 3
     PASS    vec_dot|q4_0 cold=0.986
     PASS    vec_dot|q4_1 cold=1.008
     PASS    vec_dot|q5_0 cold=0.384
@@ -168,7 +168,7 @@
     PASS    gemm|q5_1@rvv/prefill cold=2.568
     pending gemm|q8_0@rvv/decode
     PASS    gemm|q8_0@rvv/prefill cold=1.48
-    pending gemm|iq4_nl@rvv/decode
+    具名-X    gemm|iq4_nl@rvv/decode cold=0.2493
     pending gemm|iq4_nl@rvv/prefill
     PASS    rms_norm|f32 cold=1.336
     PASS    softmax|f32 cold=1.004

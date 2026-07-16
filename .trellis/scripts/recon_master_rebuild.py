@@ -206,6 +206,19 @@ GEMM_DECODE = {
  ("gemm_tile","mxfp4"):{"rvv":(1.51,"PASS","decode·便宜档-scalar-ref·禁称硬赢"),"k1":(0.94,"PASS","decode near-parity·便宜档")},
  ("gemm_tile","tq1_0"):{"rvv":(1.67,"PASS","decode·便宜档(rvv-clang boundary 0.79 X footnote)"),"k1":(1.99,"PASS","decode·便宜档·禁称硬赢")},
  ("gemm_tile","tq2_0"):{"rvv":(1.19,"PASS","decode·便宜档"),"k1":(1.59,"PASS","decode·便宜档·禁称硬赢")},
+ # ★P1-backfill7 (2026-07-17·独立 M=1 GEVM 实测·禁继承 prefill nr16 / vec_dot M=1 / 历史锚 0.2487)
+ #   raw = experiments/active/g8-stage3-attack/P1-backfill7-raw/ · prereg = ../P1-backfill7-prereg.md
+ #   rvv 板【不入表】= VOID-NOISE(我方 leaf 内生波动 relIQR 0.79-14.50% vs 对手恒 0.11-0.38%=机器安静)·维持 pending·0 样本不造数
+ ("gemm_tile","iq4_nl"):{"k1":(0.2493,"具名-X",
+   "★CROSSOP(我方 repack-GEVM vs 对手 per-column block-dot·非同算子硬赢)·s1 0.2493/s2 0.2490·N=25·2-seed·CI[0.2491—0.2498]"
+   "·同算子 OPP-S ggml_gemv_iq4_nl_16x1_q8_0 = 0.1469(亦输)·ZERO-MODEL ours0/512 oppX0/512 oppS0/512 = 正确核(输性能非正确性)"
+   "·★墙(完整环走完·机制级)=codebook-gather-bound: 我 64×vluxei16.v(走内存 codebook 数组 indexed gather) vs OPP-S 32×vrgather.vv"
+   "(16 项 codebook 常驻向量寄存器的寄存器置换)·16 项平凡装入单寄存器→vrgather 是正确原语·vluxei16 每元素付访存端口往返且无法外提"
+   "·叠加 vsetvli storm(我 260 vs 51)+2.5×指令量(724 vs 293)·双方 true_sp_spill=0(排除 spill 病)"
+   "·可修(emitter 成熟度缺口): 需 codebook-size 键控 gather 原语选择(≤VLMAX 项走寄存器 vrgather·大 grid 才走 vluxei16)"
+   "——与 [emitter-maturity-vluxei16] 方向相反(vluxei16 对 iq1_s 大 grid 是 win·对 16 项 tiny codebook 是 loss)→ 判别键=codebook 尺寸(C3′ 能力键控正例)"
+   "·★部署成色=what-if(selector=block-dot-decline-vlen256-decode-measured-negative·出货走 block-dot·禁写成 k1 decode 部署输)"
+   "·循环论证防线: registry DECLINE 由 0.248x 驱动·本轮独立复测 0.2493/0.2490 与 registry Negative 一致(未证伪)→ 无 canon 触发·selector/registry 不动")},
 }
 # ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME 核·非便宜档·honest 负结果·赛道≠e2e perf-covered 绿·禁互推)
 IME_KERNELSYM = {

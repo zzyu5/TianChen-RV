@@ -1,0 +1,19 @@
+
+=== OPPONENT (as-shipped libggml-base.so) ===
+# base_md5=d9c07980cd3d6796e3e9750af7778140
+OPP dequantize_row_iq2_xs @000000000008101a  m1[ins=173 rvv=15 gather=0 vset=5]  m2[ins=173 rvv=15 gather=0 vset=5]  => DUAL-AGREE
+OPP dequantize_row_iq2_s @0000000000081260  m1[ins=271 rvv=107 gather=0 vset=33]  m2[ins=271 rvv=107 gather=0 vset=33]  => DUAL-AGREE
+OPP dequantize_row_nvfp4 @0000000000067b7a  m1[ins=182 rvv=30 gather=0 vset=6]  m2[ins=182 rvv=30 gather=0 vset=6]  => DUAL-AGREE
+=== OURS (weft-emitted dequant kernels, .o built this session) ===
+OURS dequant_iq2_xs  [ins=1583 rvv=1059 gather=32 vset=385] true_sp_spill=0 size=14064B
+OURS dequant_iq2_s  [ins=722 rvv=353 gather=0 vset=65] true_sp_spill=0 size=15864B
+OURS dequant_nvfp4  [ins=558 rvv=0 gather=0 vset=0] true_sp_spill=14 size=5664B
+=== OPPONENT (as-shipped libggml-base.so) ===
+# base_md5=d9c07980cd3d6796e3e9750af7778140
+OPP dequantize_row_iq2_xs @000000000008101a  m1[ins=173 rvv=15 gather=0 vset=5]  m2[ins=173 rvv=15 gather=0 vset=5]  => DUAL-AGREE
+OPP dequantize_row_iq2_s @0000000000081260  m1[ins=271 rvv=107 gather=0 vset=33]  m2[ins=271 rvv=107 gather=0 vset=33]  => DUAL-AGREE
+OPP dequantize_row_nvfp4 @0000000000067b7a  m1[ins=182 rvv=30 gather=0 vset=6]  m2[ins=182 rvv=30 gather=0 vset=6]  => DUAL-AGREE
+=== OURS (weft-emitted dequant kernels, .o built this session) ===
+OURS dequant_iq2_xs  [ins=1583 rvv=1059 gather=32 vset=385] true_sp_spill=0 size=14064B
+OURS dequant_iq2_s  [ins=722 rvv=353 gather=0 vset=65] true_sp_spill=0 size=15864B
+OURS dequant_nvfp4  [ins=558 rvv=0 gather=0 vset=0] true_sp_spill=14 size=5664B

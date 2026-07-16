@@ -189,6 +189,24 @@ pieces. Concretely (2026-07-12, code-verified against
    `BuiltinBackendEmitters.cpp`: `rvv / toy / template / tensorext / ime / scalar`
    are registered today; `demo / offload` are not.)
 
+   **Walkthrough evidence for step 3 — and its grade (read before citing).**
+   The T1c clean-room drill (2026-07-12) deliberately **avoided** this step by
+   declaring [P-2] piece ③ = reuse-existing, so T1c is **not** evidence for step 3.
+   Step 3 was first exercised by an own-emitter family in the **B3 clean-room round**
+   (2026-07-15 · [`experiments/active/g8-stage3-attack/B3-cleanroom-own-emitter.md`](../../../experiments/active/g8-stage3-attack/B3-cleanroom-own-emitter.md)
+   · commit `db9d4e54e`): a forbidden-peek=0 agent clone-adapted `Template` into a
+   `Widget` family, added `registerWidgetBackendEmitter` here, and reports build-green
+   plus own-route-green (`weft-translate --weft-widget-emitc-to-cpp`).
+   **Grade — the drill family was REVERTED, not landed** (a throwaway toy family, kept
+   out of the tree to avoid polluting it and RED-ing the [F-3] *default* gate).
+   Consequence: `db9d4e54e` is **docs-only** — its build / own-route greens exist as
+   **drill-report prose and are NOT reproducible from the tree**, and no `Widget` code
+   or diff survives (`git ls-files | grep -i widget` → empty). What **is** re-runnable
+   from the tree today is the containment machine-check below (the allowance is
+   load-bearing: dropping it flips this file to RED CORE-EDIT). Treat step 3's
+   build-level walkthrough as **attested-but-not-reproducible**; a landed own-backend
+   family (or a re-run drill) is what would upgrade it.
+
 ### Reconciliation with [F-3] no-core-edit
 
 Both shared registration files live under a `Builtin` `core_subdir`, not a family

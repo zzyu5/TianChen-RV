@@ -1,0 +1,9 @@
+seed       N   ours_med   oppX_med  ratio_X             CI95_X   oppS_med  ratio_S             CI95_S
+0x1357    25    2944327     734154   0.2493 [0.2491,0.2498]     432534   0.1469 [0.1464,0.1473]
+             relIQR ours=1.39% oppX=0.16% oppS=0.86%
+0xACE2    25    2953744     735489   0.2490 [0.2484,0.2494]     435035   0.1473 [0.1467,0.1481]
+             relIQR ours=0.53% oppX=0.25% oppS=1.24%
+
+=== PREREG §4 VERDICT (both seeds >=0.8 => PASS; any <0.8 => 具名-X) ===
+OPP-X (CROSSOP)    seeds=['0.2493', '0.2490'] -> 具名-X[0.8]
+OPP-S (same-op)    seeds=['0.1469', '0.1473'] -> 具名-X[0.8]

@@ -1,0 +1,4 @@
+HEAD=c6abcccb87ad825646ed71891283fc40681aec63
+gemv OK md5=a911818ceb301d4858d9698153673d6d lines=1242
+gemm OK md5=2cc64970f65a0b0453b0bc0cca818a42 lines=2683
+recipe: weft-opt test/Conversion/RVV/<f> --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp

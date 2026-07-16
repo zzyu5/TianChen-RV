@@ -1,0 +1,13 @@
+# BUILD dq-p1@rvv CC=clang version 18.1.8
+# march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause cflags="-fno-integrated-as -ffp-contract=on" ldflags="--gcc-install-dir=/opt/tcrv-toolchains/gcc-15.2.0/lib/gcc/riscv64-unknown-linux-gnu/15.2.0"
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 vlenb=isa : rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+# base_md5_before=d9c07980cd3d6796e3e9750af7778140
+# cpu_md5_before=e85fceda47606a115c5fbb0021817cdc
+=== [A] compile OURS dequant kernels + self-probe ===
+# OURS_dequant_iq2_s: vsetvl=65 rvv_ins=64 gather=0 spillish=0 size=15864B md5=8b405fc8588f84e8b28c4930622f243b
+# OURS_dequant_nvfp4: vsetvl=0 rvv_ins=0 gather=0 spillish=20 size=5664B md5=09acb240ff7883c4ac6643d742e6687b
+=== [B] opponent symbol machine-probe (DUAL METHOD: --disassemble= AND whole-file awk) ===
+# OPP dequantize_row_iq2_s @0000000000081260 : m1(ins=271 rvv=24 gather=0 vset=33) m2(ins=50 rvv=24 gather=0 vset=33) => TRUE-VEC-literal DUAL-AGREE
+# OPP dequantize_row_nvfp4 @0000000000067b7a : m1(ins=182 rvv=5 gather=0 vset=6) m2(ins=16 rvv=5 gather=0 vset=6) => TRUE-VEC-literal DUAL-AGREE
+=== [C] compile driver + link ===
+# linked OK -> ./dequant_census md5=b2fb6bec6c432294dbb55cb2846a587b
