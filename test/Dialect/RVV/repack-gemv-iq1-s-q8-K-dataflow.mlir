@@ -49,18 +49,32 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemv_grid_still_rejects_unknown_ternary_decode_model", status = "selected-lowering-boundary"} {
         weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.fp16-grid-ternary-delta-singlescale-nomin-eighth", qk = 256 : i64, weight_block_stride = 1312 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 288 : i64, activation_quant_byte_offset = 4 : i64, activation_bsums_byte_offset = 260 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "grid_ternary_delta_eighth"} {
         ^bb0(%block_index: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">):
-          // [D-1]: adding a ROW does not open the registry. C4a-2 asserted this with
-          // decode_model = "iq1_m" -- then the most plausible "surely it works too" guess,
-          // since iq1_m rides the SAME 2048-entry iq1s_grid. C4a-3 REGISTERED iq1_m (row +
-          // front door + both leaves + oracle, the only legitimate way), so that example
-          // retired: it now names a REAL row and would no longer test anything. The probe
-          // moved to iq3_xxs, which is genuinely unregistered and is the ACTUAL next
-          // candidate -- and, unlike iq1_m, is not a translation of an existing leaf: its
-          // grid entries are uint32 (4 packed int8), not uint64 (8), so
-          // GridEntryWidth::I32x4 stays ABSENT from the enum until a row + front door +
-          // leaf + oracle land together. This test is what keeps that refusal honest.
+          // [D-1]: adding a ROW does not open the registry. This probe has now been walked
+          // forward TWICE, by the two lines that registered the model it was naming:
+          //   * C4a-2 probed with "iq1_m" (then the most plausible "surely it works too"
+          //     guess, since iq1_m rides the SAME 2048-entry iq1s_grid). C4a-3 REGISTERED
+          //     iq1_m, so that example stopped testing anything.
+          //   * The probe moved to "iq3_xxs". C4a-4 has now REGISTERED iq3_xxs the same
+          //     four ways (row + front door + BOTH leaves + oracle), so it too retired.
+          // The probe is now "iq3_s", the LAST unregistered grid sibling. Facts, read off
+          // ggml_vec_dot_iq3_s_q8_K rather than guessed:
+          //   - iq3s_grid is `uint32_t[512]`, and its decode gathers TWO entries per
+          //     8-lane group exactly as iq3_xxs does, so it would REUSE the
+          //     GridEntryWidth::I32x4 axis value C4a-4 added AND its dual-entry leaf shape.
+          //   - It differs in at least three ways the registry would have to carry: a
+          //     9-bit index assembled from qs[l] plus a qh bit; DUAL ls (ls1/ls2 from the
+          //     scales nibbles); an EXPLICIT per-group sign byte taken from the block
+          //     (`signs = x[i].signs`), not the ksigns_iq2xs selector iq3_xxs uses; and
+          //     `*s = sumf` -- NO store-side constant at all.
+          // NOTE what is deliberately NOT asserted here: what "blocks" iq3_s, or what it
+          // would cost. This comment states only what ggml shows. Twice now this family
+          // shipped a confident causal claim about the next row ("iq3_xxs needs
+          // GridEntryWidth::I32x4"; "iq3_xxs needs GridSignPlane::Ksigns128") and twice it
+          // was wrong -- always in a COMMENT, never in the enum, which is where the rule
+          // was looking. iq3_s is unregistered because nobody has landed the four pieces,
+          // full stop. This test keeps that refusal honest.
           // expected-error @+1 {{only accepts a decode_model registered in the closed grid decode plan registry}}
-          %sumi:2 = weft_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq3_xxs", weight_quant_byte_offset = 288 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 160 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
+          %sumi:2 = weft_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq3_s", weight_quant_byte_offset = 288 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 160 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
           weft_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
       } : !weft_rvv.vl

@@ -6,6 +6,8 @@
 
 #include "Weft/Support/GridDecodePlan.h"
 
+#include "llvm/ADT/StringSwitch.h"
+
 using namespace weft;
 
 namespace {
@@ -28,12 +30,21 @@ namespace {
 /// real row using them.
 ///
 /// C4a-3 landed iq1_m the same four ways (row + front door + BOTH leaves + oracle),
-/// promoting GridFoldArith::DeltaGridGroupSum. iq3_xxs / iq3_s remain NOT registered
-/// for the SAME C4a reason: GridEntryWidth::I32x4 stays ABSENT from the enum until a
-/// row + front door + leaf + oracle land together. (C4a-3 ALSO found that the second
-/// axis value this comment used to promise for them -- GridSignPlane::Ksigns128 --
-/// does not exist as a need at all: iq3_xxs's sign plane is the SAME ksigns_iq2xs
-/// mechanism Signs64 already carries. See GridDecodePlan.h.)
+/// promoting GridFoldArith::DeltaGridGroupSum. C4a-4 landed iq3_xxs the same four ways,
+/// promoting GridEntryWidth::I32x4.
+///
+/// This comment previously said iq3_xxs/iq3_s "remain NOT registered ... GridEntryWidth::
+/// I32x4 stays ABSENT from the enum until a row + front door + leaf + oracle land
+/// together". The PROCESS half of that was right and C4a-4 honored it (all four landed
+/// together). The CAUSAL half was a guess that read as fact -- it framed the absent enum
+/// value as the thing standing between the registry and an iq3_xxs row. It was not. The
+/// value is three lines; what actually had to be built is a new emitter leaf, because a
+/// 4-byte grid entry covers only HALF an 8-element group and every existing leaf's
+/// innermost nest is built around one entry covering a whole one. See GridDecodePlan.h's
+/// GridEntryWidth doc. (C4a-3 had already retired this comment's OTHER prediction for
+/// these rows -- a GridSignPlane::Ksigns128 that ggml shows is not needed at all.)
+/// Two wrong predictions about one row, both stated in comments rather than enums, is
+/// the reason the surviving text cites ggml or a landed row for every causal claim.
 ///
 /// The DERIVED grid + sign planes are emit-period `static const` tables named
 /// here; their literals are emitted by the Conversion layer (NEVER op attrs).
@@ -49,7 +60,8 @@ constexpr GridDecodePlan kGridDecodePlans[] = {
         /*entryWidth=*/GridEntryWidth::I64x8,
         /*signPlane=*/GridSignPlane::Signs64,
         /*lsArity=*/GridLsArity::Single,
-        /*foldArith=*/GridFoldArith::SignScaleEighth,
+        /*foldArith=*/GridFoldArith::SignScaleStore,
+        /*storeScaleLiteral=*/"0.125f",
     },
     // iq2_xs -- DUAL ls, 512-entry grid, u16 9-bit index, DERIVED signs64.
     {
@@ -60,7 +72,8 @@ constexpr GridDecodePlan kGridDecodePlans[] = {
         /*entryWidth=*/GridEntryWidth::I64x8,
         /*signPlane=*/GridSignPlane::Signs64,
         /*lsArity=*/GridLsArity::Dual,
-        /*foldArith=*/GridFoldArith::SignScaleEighth,
+        /*foldArith=*/GridFoldArith::SignScaleStore,
+        /*storeScaleLiteral=*/"0.125f",
     },
     // iq2_s -- DUAL ls, 1024-entry grid, u16 assembled index, DIRECT signs256.
     {
@@ -71,7 +84,8 @@ constexpr GridDecodePlan kGridDecodePlans[] = {
         /*entryWidth=*/GridEntryWidth::I64x8,
         /*signPlane=*/GridSignPlane::Signs256,
         /*lsArity=*/GridLsArity::Dual,
-        /*foldArith=*/GridFoldArith::SignScaleEighth,
+        /*foldArith=*/GridFoldArith::SignScaleStore,
+        /*storeScaleLiteral=*/"0.125f",
     },
     // iq1_s (C4a-2) -- the TERNARY-DELTA grid sibling. 2048-entry grid (the
     // LARGEST; the 11-bit index is built from qs[l] | (((qh>>3l)&7)<<8) at REPACK
@@ -90,6 +104,8 @@ constexpr GridDecodePlan kGridDecodePlans[] = {
         /*signPlane=*/GridSignPlane::TernaryDelta,
         /*lsArity=*/GridLsArity::Single,
         /*foldArith=*/GridFoldArith::DeltaGrid,
+        // DeltaGrid has NO store-side factor (its 0.125 rides sumi1 per-block).
+        /*storeScaleLiteral=*/"",
     },
     // iq1_m (C4a-3) -- iq1_s's ternary-grid sibling, and the row that shows what the
     // axes buy: FOUR of its five axis values were already in the enums. It gathers the
@@ -120,6 +136,58 @@ constexpr GridDecodePlan kGridDecodePlans[] = {
         /*signPlane=*/GridSignPlane::TernaryDelta,
         /*lsArity=*/GridLsArity::Dual,
         /*foldArith=*/GridFoldArith::DeltaGridGroupSum,
+        // DeltaGridGroupSum has NO store-side factor either.
+        /*storeScaleLiteral=*/"",
+    },
+    // iq3_xxs (C4a-4) -- the FIRST I32x4 row, and the one that shows the axes' limit:
+    // it REUSES four of five axis values (Signs64, Single, SignScaleStore, and the
+    // 256-entry count iq2_xxs also has) yet still needs a leaf of its own, because the
+    // ONE value it does not reuse is the structural one.
+    //
+    // Against ggml_vec_dot_iq3_xxs_q8_K, what it SHARES with iq2_xxs is nearly the whole
+    // decode: the same `ls = 2*(aux32 >> 28) + 1` single per-sub-block scale, the same
+    // `ksigns_iq2xs[(aux32 >> 7*l) & 127]` 7-bit sign selector tested by `kmask_iq2xs[j]`
+    // (hence Signs64, REUSED -- the DERIVED plane is byte-identical, so this row names
+    // the SAME weft_iq2xxs_signs64 table iq2_xxs does rather than cloning it), the same
+    // single-i32-accumulator `bsum += sumi*ls` / `sumf += d*bsum` chain, and the same
+    // 256-entry grid size.
+    //
+    // What it does NOT share, and why this is a leaf:
+    //   (a) ENTRY WIDTH. iq3xxs_grid is `uint32_t[256]` (ggml-common.h), not uint64_t.
+    //       So one entry supplies 4 grid bytes, an 8-element group needs TWO of them
+    //       (`grid1 = iq3xxs_grid + q3[2*l+0]`, `grid2 = iq3xxs_grid + q3[2*l+1]`, then
+    //       `for j<4: grid1[j]*q8[j+0]; grid2[j]*q8[j+4]`), and the gather shift is 2
+    //       not 3. The emitters key the dual-entry leaf off entryWidth == I32x4 for
+    //       exactly this -- see GridDecodePlan.h's leaf-selection order, where this row
+    //       is the reason step 3 must precede step 4.
+    //   (b) STORE CONSTANT. ggml ends `*s = 0.25f * sumf`, not 0.125f. Same fold SHAPE,
+    //       different constant -- which is now data (storeScaleLiteral) rather than a
+    //       second enum value named for a number.
+    //
+    // Its repack layout is this line's design and follows iq2_xxs's exactly except that
+    // the grid-index strip doubles: ggml's block_iq3_xxs is 98 B (fp16 d + qs[3*QK_K/8]
+    // = 96 B), where the qs region SPLITS at QK_K/4 = 64 (`gas = x[i].qs + QK_K/4`) into
+    // 64 raw u8 grid indices + 8 uint32 aux words, each aux word packing one sub-block's
+    // ls (bits 28-31) and its four 7-bit sign selectors (bits 0-27). The repack pulls
+    // those apart ONCE into flat strides so the kernel never touches an aux word:
+    //   d[16]           fp16 @ +0    (32 B)
+    //   ls[8][16]       int8 @ +32   (128 B)  2*(aux32>>28)+1, in [1,31]
+    //   gidx[8][8][16]  u8   @ +160  (1024 B) the raw q3 bytes, TWO per group
+    //   ssel[8][4][16]  u8   @ +1184 (512 B)  (aux32 >> 7*l) & 127, ONE per group
+    //   ------------------------------------- stride 1696
+    {
+        /*decodeModel=*/"iq3_xxs",
+        // REUSES iq2_xxs's DERIVED sign plane BY NAME: ggml's iq3_xxs sign mechanism is
+        // ksigns_iq2xs, the same table, so emitting a second identical 1024-byte array
+        // under an iq3 name would be a copy, not a fact.
+        /*gridArrayName=*/"weft_iq3xxs_grid",
+        /*signArrayName=*/"weft_iq2xxs_signs64",
+        /*gridEntryCount=*/256,
+        /*entryWidth=*/GridEntryWidth::I32x4,
+        /*signPlane=*/GridSignPlane::Signs64,
+        /*lsArity=*/GridLsArity::Single,
+        /*foldArith=*/GridFoldArith::SignScaleStore,
+        /*storeScaleLiteral=*/"0.25f", // ggml: *s = 0.25f * sumf (NOT 0.125f).
     },
 };
 
@@ -134,4 +202,16 @@ const GridDecodePlan *weft::lookupGridDecodePlan(llvm::StringRef decodeModel) {
 
 llvm::ArrayRef<GridDecodePlan> weft::getGridDecodePlans() {
   return llvm::ArrayRef<GridDecodePlan>(kGridDecodePlans);
+}
+
+llvm::StringRef weft::gridStoreScaleRole(llvm::StringRef storeScaleLiteral) {
+  // CLOSED by construction: every SignScaleStore row's literal must appear here or its
+  // leaf refuses to emit. "eighth_scale" is the marker the iq2 rows have always shipped
+  // and is kept EXACTLY so their emitted C stays byte-identical; "quarter_scale" is
+  // iq3_xxs's, and it exists because reusing "eighth_scale" for ggml's 0.25f store would
+  // have shipped a comment that names the wrong constant.
+  return llvm::StringSwitch<llvm::StringRef>(storeScaleLiteral)
+      .Case("0.125f", "eighth_scale")
+      .Case("0.25f", "quarter_scale")
+      .Default("");
 }

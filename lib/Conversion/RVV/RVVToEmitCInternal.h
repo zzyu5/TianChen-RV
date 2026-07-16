@@ -2034,6 +2034,7 @@ private:
   /// / ...Signs64TableDecl). RESULT-LESS (no monolith token).
   mlir::LogicalResult emitRepackGridGemvBodyIq2Xxs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan,
       mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
       mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
       llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
@@ -2054,6 +2055,7 @@ private:
   /// RESULT-LESS.
   mlir::LogicalResult emitRepackGridGemmBodyIq2Xxs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan,
       mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
       mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
       mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
@@ -2078,6 +2080,54 @@ private:
   /// layer (they are DERIVED static const, NEVER op attrs -- the signs64 op-attr blocker
   /// cannot recur). Fails for a plan whose tables have no decl emitter, so a registry row
   /// can never silently emit a reference to a table that was never declared.
+  /// Emit the COMPLETE ggml iq3_xxs x q8_K 16x1-REPACKED block-as-lane GEVM (decode) /
+  /// PREFILL GEMM bodies -- C4a-4, the FIRST leaves built around a grid entry that covers
+  /// only HALF an 8-element activation group.
+  ///
+  /// These are a LEAF, not a parameterization of the iq2_xxs leaves, and the reason is the
+  /// ONE axis iq3_xxs does not share with iq2_xxs. It shares GridLsArity::Single,
+  /// GridSignPlane::Signs64, GridFoldArith::SignScaleStore and gridEntryCount 256 -- but
+  /// its grid is `uint32_t iq3xxs_grid[256]`, so a 4-byte entry supplies only 4 of a
+  /// group's 8 grid bytes and ggml's ggml_vec_dot_iq3_xxs_q8_K reads TWO per group
+  /// (`grid1 = iq3xxs_grid + q3[2*l+0]`, `grid2 = iq3xxs_grid + q3[2*l+1]`, then
+  /// `for j<4: grid1[j]*q8[j+0]; grid2[j]*q8[j+4]`). The nest therefore hoists TWO gather
+  /// bases per group and SPLITS the activation range (lanes 0-3 -> base1 byte j, lanes 4-7
+  /// -> base2 byte j-4), where every I64x8 leaf hoists one and walks j = 0..7. Running this
+  /// row through the iq2_xxs leaf does not fail -- it reads the NEXT entry's bytes for the
+  /// upper half of every group. Hence the dispatcher tests entryWidth == I32x4 BEFORE ls
+  /// arity (see GridDecodePlan.h's leaf-selection order).
+  ///
+  /// Two further non-parametric consequences: the GRID and SIGN gather shifts DIFFER here
+  /// (2 for the uint32 entry, 3 for signs64's 8 +-1 bytes per selector -- one helper serves
+  /// both only when both are 3), and the grid-index strip indexes at TWICE the rate of the
+  /// sign-selector strip (8 vs 4 per sub-block; the selector is still one per 8-lane group
+  /// because kmask_iq2xs[j+0]/[j+4] split the SAME byte). The store constant is ggml's
+  /// 0.25f, carried as plan data with a DERIVED role marker. RESULT-LESS.
+  mlir::LogicalResult emitRepackGemvIq3XxsQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
+      int64_t lsOffset, int64_t signOffset, int64_t activationQuantOffset,
+      int64_t nSubblocks, int64_t weightInterleave, int64_t half) const;
+
+  /// The PREFILL GEMM sibling of emitRepackGemvIq3XxsQ8K: the SAME dual-entry grid decode
+  /// with the weight decode AMORTIZED across the 4 interleaved block_q8_Kx4 activation
+  /// columns. Ships PLAIN (untiled), like its iq2_xxs sibling.
+  mlir::LogicalResult emitRepackGemmIq3XxsQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
+      mlir::Value columnCount, mlir::Value outputRowStride, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+      int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
+      int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half,
+      bool colGroupOuter) const;
+
   mlir::LogicalResult
   emitGridDecodePlanTableDecls(mlir::ConversionPatternRewriter &rewriter,
                                mlir::Location loc,
@@ -2136,7 +2186,9 @@ private:
   ///     (ls*delta*(bsums[2ib]+bsums[2ib+1]) over the activation bsums at
   ///     `activationBsumsOffset`), folded per block as
   ///     sumf += (d_x*d_y) * (cvt(sumi) + 0.125f*cvt(sumi1)) -- NO trailing
-  ///     store-side 0.125 (that is the iq2 SignScaleEighth shape).
+  ///     store-side factor at all (that is the SignScaleStore shape, whose constant
+  ///     is plan data: 0.125f for the iq2 rows, 0.25f for iq3_xxs. C4a-4 renamed that
+  ///     value from `SignScaleEighth`, which this comment used to name).
   mlir::LogicalResult emitRepackGemvIq1SQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       const weft::GridDecodePlan &plan, mlir::Value weightBase,
