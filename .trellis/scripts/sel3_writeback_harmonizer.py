@@ -29,9 +29,15 @@
 # ------------------------------ INTERFACE ------------------------------------
 #   writeback     --job JOB.json [--apply]
 #         JOB.json describes ONE (declared_instance_hash, kernel, variant, board)
-#         cell + its REAL board cold samples + a path to the INDEPENDENT
+#         cell -- optionally + op/engine/regime to disambiguate sibling deployed_point
+#         rows on the COMPOSITE primary key (PR-16 [SEL-3-DPKEY]: key = hash, kernel,
+#         variant, op, engine, regime; needed when several 'deployed' rows share a
+#         board+kernel) + its REAL board cold samples + a path to the INDEPENDENT
 #         ZERO-MODEL byte-exact gate evidence (the oracle_repack_* board stdout).
 #         Default = DRY-RUN (prints the row diff, writes nothing). --apply commits.
+#         Hash promotion (real_capability_hash + promote_primary_hash) is now
+#         collision-safe for the FULL deployed_point table (was 3-cell under the old
+#         variant-only guard), because op/engine/regime make the composite key unique.
 #
 #   verify-selected --hash H --kernel K --axis {sp4_tiling|loop_order}
 #         Recomputes a group's argmin `selected` flags per the schema decision_rule
@@ -59,6 +65,31 @@ BOARD_INSTANCE_HASH = {
 }
 
 N_NOISE_FLOOR = 10  # T-N: >= 10 cold reps required before a median/IQR is trusted.
+
+# Coverage axes are NOT memoized-argmin axes: every row is a trivially-`selected`
+# single point (regret 0). deployed_point rows share variant=='deployed', so they
+# MUST be disambiguated by the composite key, never by variant alone.
+COVERAGE_AXES = ("deployed_point", "codegen_lmul")
+
+
+def composite_key(r, hash_override=None):
+    """[SEL-3-DPKEY] RESOLVED (PR-16): the ROW COMPOSITE PRIMARY KEY =
+    (declared_instance_hash, kernel, variant, op, engine, regime).
+
+    op/engine/regime are TOP-LEVEL fields on deployed_point rows (decoded from the
+    SEED sentinel at ingest; None on L2 paired-axis rows). This 6-tuple replaces the
+    old 3-tuple (hash, kernel, variant): because deployed_point.variant is always
+    'deployed', the 3-tuple forced row identity onto the SEED sentinel hash and made
+    promotion of that sentinel to the bare board capability hash collide sibling
+    deployed rows. With op/engine/regime in the key, all 168 deployed_point rows are
+    unique and hash promotion is collision-safe (unlocks full-table write-back).
+
+    hash_override lets a collision check ask "would this row collide IF its hash were
+    promoted to <override>?" without mutating the row.
+    """
+    h = r["declared_instance_hash"] if hash_override is None else hash_override
+    return (h, r["kernel"], r["variant"],
+            r.get("op"), r.get("engine"), r.get("regime"))
 
 
 def load():
@@ -151,11 +182,17 @@ def compute_selection_valid_input(variant_axis, ratio_semantics, snapshot):
 # ------------------------- group argmin (decision_rule) -----------------------
 def recompute_selected(rows, hash_, kernel, axis):
     """Recompute `selected` for a (hash, kernel, variant_axis) group per the
-    schema decision_rule. Returns {variant: selected_bool}.
+    schema decision_rule. Returns {composite_key(row): selected_bool}.
 
+    Keyed by the COMPOSITE key, not by variant: sibling deployed_point rows all
+    share variant=='deployed', so a variant-keyed dict would collapse them (the
+    exact ambiguity PR-16 fixes).
+
+    * COVERAGE axes (deployed_point / codegen_lmul) are NOT memoized-argmin axes:
+      every row is a trivially-`selected` single point (regret 0). Preserve the
+      stored flag per composite key -- no argmin, no flip.
     * candidates = rows with byte_exact_gate==pass AND selection_valid_input==true.
-      (Ineligible rows keep their stored flag untouched; single-candidate /
-      coverage groups are trivially `selected` per the schema.)
+      (Ineligible rows keep their stored flag untouched.)
     * best cold_median wins; on a tie the SIMPLER variant wins.
     * sp4_tiling: cold_median is a GROUP-SHARED A/B ratio, so it always ties ->
       the register_cliff_reached STRUCTURAL gate breaks the tie (s6_tiled iff the
@@ -168,15 +205,17 @@ def recompute_selected(rows, hash_, kernel, axis):
            and r["kernel"] == kernel and r["variant_axis"] == axis]
     if not grp:
         return {}
+    if axis in COVERAGE_AXES:
+        # Coverage: no argmin. Preserve stored `selected` per composite key
+        # (deployed_point rows are single-point, trivially selected, regret 0).
+        return {composite_key(r): r["selected"] for r in grp}
     eligible = [r for r in grp if r["byte_exact_gate"] == "pass"
                 and r["selection_valid_input"]]
-    out = {}
     if len(grp) == 1:
-        out[grp[0]["variant"]] = True  # single-candidate: trivially selected.
-        return out
+        return {composite_key(grp[0]): True}  # single-candidate: trivially selected.
     if not eligible:
         # No selection-eligible row: preserve stored flags (nothing to recompute).
-        return {r["variant"]: r["selected"] for r in grp}
+        return {composite_key(r): r["selected"] for r in grp}
 
     simpler = {"sp4_tiling": "plain", "loop_order": "row_outer"}.get(axis)
     if axis == "sp4_tiling":
@@ -191,18 +230,30 @@ def recompute_selected(rows, hash_, kernel, axis):
         # Generic: best (largest, ours-faster convention) cold_median; tie->simpler.
         best = max(eligible, key=lambda r: (float(r["cold_median"]), r["variant"] == simpler))
         winner = best["variant"]
-    for r in grp:
-        out[r["variant"]] = (r["variant"] == winner)
-    return out
+    return {composite_key(r): (r["variant"] == winner) for r in grp}
 
 
-def find_row(rows, hash_, kernel, variant, board_id):
+def find_row(rows, hash_, kernel, variant, board_id,
+             op=None, engine=None, regime=None):
+    """Locate the target write-back row. Matches (hash, kernel, variant, board_id);
+    when op/engine/regime are supplied they further disambiguate sibling
+    deployed_point rows (composite key, PR-16). Returns the row, None (no match),
+    or the list of matches when the request is ambiguous (caller reports & aborts).
+    """
+    want_ck = (op is not None) or (engine is not None) or (regime is not None)
+    matches = []
     for r in rows:
         if (r["declared_instance_hash"] == hash_ and r["kernel"] == kernel
                 and r["variant"] == variant
                 and r["snapshot"].get("board_id") == board_id):
-            return r
-    return None
+            if want_ck and (r.get("op"), r.get("engine"), r.get("regime")) != (op, engine, regime):
+                continue
+            matches.append(r)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        return None
+    return matches  # ambiguous -> caller must disambiguate via op/engine/regime.
 
 
 def utc_now():
@@ -222,10 +273,18 @@ def cmd_writeback(args):
     doc = load()
     rows = doc["rows"]
     row = find_row(rows, job["declared_instance_hash"], job["kernel"],
-                   job["variant"], board_id)
+                   job["variant"], board_id,
+                   job.get("op"), job.get("engine"), job.get("regime"))
     if row is None:
         print(f"!! target row not found: {job['declared_instance_hash']} / "
               f"{job['kernel']} / {job['variant']} @ {board_id}")
+        return 2
+    if isinstance(row, list):
+        print(f"!! AMBIGUOUS target: {len(row)} sibling deployed rows match "
+              f"{job['declared_instance_hash']} / {job['kernel']} / {job['variant']} "
+              f"@ {board_id}. Disambiguate the composite key by adding op/engine/regime "
+              f"to the job (PR-16). Candidates: "
+              f"{[(r.get('op'), r.get('engine'), r.get('regime')) for r in row]}")
         return 2
     before = json.loads(json.dumps(row))  # deep copy for diff
 
@@ -265,16 +324,15 @@ def cmd_writeback(args):
     if job.get("opponent_symbol"):
         row["opponent_symbol"] = job["opponent_symbol"]
 
-    # ---- instance-hash promotion (collision-guarded) ----
+    # ---- instance-hash promotion (composite-key collision check, PR-16) ----
     # The real declared_instance_hash is the BOARD capability-fact SHA (kernel-
-    # independent). For paired L2 axes it uniquely keys the row. For deployed_point
-    # rows the SEED sentinel ALSO encodes op/engine/regime -- the ONLY discriminator
-    # among sibling deployed rows (primary_key = hash+kernel+variant, and variant is
-    # always "deployed"). Promoting the sentinel to the bare board hash would risk a
-    # primary-key COLLISION with a sibling deployed row on the same board. So we
-    # promote ONLY when it is collision-safe; otherwise we KEEP the sentinel (it is
-    # the row's identity) and record the real capability hash in the breadcrumb.
-    # (deployed_point keying is registered as a PENDING ruling.)
+    # independent). [SEL-3-DPKEY] RESOLVED: the primary key is the COMPOSITE 6-tuple
+    # (hash, kernel, variant, op, engine, regime). deployed_point.variant is always
+    # "deployed", but op/engine/regime disambiguate sibling deployed rows -- so
+    # promoting a SEED sentinel to the bare board hash NO LONGER collides (the old
+    # variant-only guard limited write-back to the 3-cell no-sibling scope). We now
+    # promote whenever the composite key stays unique; we only refuse on a genuine
+    # composite duplicate (a real double-write, not the deployed-variant pseudo-clash).
     hash_promoted = False
     cap_hash = job.get("real_capability_hash")
     # Guard: a job's real_capability_hash must match the known board capability hash
@@ -285,13 +343,12 @@ def cmd_writeback(args):
               f"{known!r} -> refuse (fail-closed).")
         return 5
     if cap_hash and job.get("promote_primary_hash"):
-        collides = any(
-            r is not row and r["declared_instance_hash"] == cap_hash
-            and r["kernel"] == row["kernel"] and r["variant"] == row["variant"]
-            for r in rows)
-        if collides:
-            print(f"    [hash] promotion REFUSED (would collide with a sibling "
-                  f"{row['kernel']}/{row['variant']} row) -> keeping sentinel.")
+        new_ck = composite_key(row, cap_hash)  # key the row WOULD have post-promotion
+        clash = next((r for r in rows
+                      if r is not row and composite_key(r) == new_ck), None)
+        if clash is not None:
+            print(f"    [hash] promotion REFUSED: composite key {new_ck} already "
+                  f"exists (genuine duplicate row) -> keeping sentinel (fail-closed).")
         else:
             row["declared_instance_hash"] = cap_hash
             row["instance_hash_seed"] = False
@@ -314,9 +371,11 @@ def cmd_writeback(args):
         "real_capability_hash_promoted_to_primary_key": hash_promoted,
         "real_capability_hash_note": (
             "kernel-independent @-board capability-fact SHA (== the L2 @rvv rows' "
-            "3cd23a4e...). NOT promoted to the primary key for deployed_point rows: "
-            "the SEED sentinel additionally encodes op/engine/regime, the only "
-            "discriminator among sibling deployed rows (see PENDING [SEL-3-DPKEY])."),
+            "3cd23a4e...). [SEL-3-DPKEY] RESOLVED (PR-16): the primary key is the "
+            "COMPOSITE (hash, kernel, variant, op, engine, regime); op/engine/regime "
+            "(top-level, decoded from the SEED sentinel) disambiguate sibling deployed "
+            "rows, so promoting this sentinel to the bare board hash is collision-safe "
+            "and write-back generalizes to the full deployed_point table."),
         "protocol_note": job.get("protocol_note"),
         "ng1_note": "offline batch transcription of real board samples; no search, "
                     "no learned cost model, no external-tuner benchmark.",
@@ -329,11 +388,13 @@ def cmd_writeback(args):
     for r in rows:
         if (r["declared_instance_hash"] == row["declared_instance_hash"]
                 and r["kernel"] == row["kernel"]
-                and r["variant_axis"] == row["variant_axis"]
-                and r["variant"] in sel):
-            if r["selected"] != sel[r["variant"]]:
-                selected_changed.append((r["variant"], r["selected"], sel[r["variant"]]))
-            r["selected"] = sel[r["variant"]]
+                and r["variant_axis"] == row["variant_axis"]):
+            ck = composite_key(r)
+            if ck not in sel:
+                continue
+            if r["selected"] != sel[ck]:
+                selected_changed.append((r["variant"], r["selected"], sel[ck]))
+            r["selected"] = sel[ck]
     print(f"\n[3] GROUP ARGMIN RECOMPUTE (decision_rule): {sel}")
     print(f"    selected changed: {selected_changed if selected_changed else 'NONE (unchanged)'}")
 
@@ -371,11 +432,14 @@ def cmd_verify_selected(args):
     ok = True
     for r in rows:
         if (r["declared_instance_hash"] == args.hash and r["kernel"] == args.kernel
-                and r["variant_axis"] == args.axis and r["variant"] in sel):
-            match = (r["selected"] == sel[r["variant"]])
+                and r["variant_axis"] == args.axis):
+            ck = composite_key(r)
+            if ck not in sel:
+                continue
+            match = (r["selected"] == sel[ck])
             ok = ok and match
             print(f"    {r['variant']:10}  stored={r['selected']!s:5}  "
-                  f"recomputed={sel[r['variant']]!s:5}  {'OK' if match else 'MISMATCH!!'}")
+                  f"recomputed={sel[ck]!s:5}  {'OK' if match else 'MISMATCH!!'}")
     print(f"  => {'SELECTED UNCHANGED (recompute == stored)' if ok else 'SELECTED MISMATCH'}")
     return 0 if ok else 5
 
