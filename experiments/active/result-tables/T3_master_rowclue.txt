@@ -58,7 +58,7 @@
     PASS    silu|f32 cold=0.997
     PASS    scale|f32 cold=0.998
 
-[标量类] 头条 PASS 23/51 (全量) · 已测胜率 23/42 (派生) · 格内: PASS 23/具名-X 19/挂起 1/pending 8
+[标量类] 头条 PASS 24/51 (全量) · 已测胜率 24/43 (派生) · 格内: PASS 24/具名-X 19/挂起 0/pending 8
     具名-X    vec_dot|nvfp4 cold=0.565
     PASS    prod_reduce|q4_0_nibble cold=2.712
     PASS    prod_reduce|offset_binary_n3 cold=0.855
@@ -106,7 +106,7 @@
     PASS    gemm|tq2_0@rvv/decode cold=1.19
     具名-X    gemm|tq2_0@rvv/prefill cold=0.45
     PASS    rope|f32 cold=1.013
-    挂起      gelu|f32 cold=0.141
+    PASS    gelu|f32 cold=0.141
     PASS    add|f32 cold=0.967
     PASS    mul|f32 cold=0.963
     PASS    cpy|f32 cold=0.987
@@ -175,7 +175,7 @@
     PASS    silu|f32 cold=1.012
     PASS    scale|f32 cold=0.917
 
-[标量类] 头条 PASS 41/51 (全量) · 已测胜率 41/45 (派生) · 格内: PASS 41/具名-X 4/挂起 1/pending 5
+[标量类] 头条 PASS 42/51 (全量) · 已测胜率 42/46 (派生) · 格内: PASS 42/具名-X 4/挂起 0/pending 5
     PASS    vec_dot|nvfp4 cold=1.086
     PASS    prod_reduce|q4_0_nibble cold=1.166
     具名-X    prod_reduce|offset_binary_n3 cold=0.797
@@ -223,7 +223,7 @@
     PASS    gemm|tq2_0@rvv/decode cold=1.59
     PASS    gemm|tq2_0@rvv/prefill cold=4.76
     PASS    rope|f32 cold=0.982
-    挂起      gelu|f32 cold=0.247
+    PASS    gelu|f32 cold=0.247
     PASS    add|f32 cold=1.209
     PASS    mul|f32 cold=1.189
     PASS    cpy|f32 cold=1.108

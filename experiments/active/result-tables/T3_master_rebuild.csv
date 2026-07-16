@@ -103,7 +103,7 @@ softmax,f32,,,forward,通用向量,PASS,1.007,ggml_vec_soft_max_f32,exported ggm
 rope,f32,,,forward,标量类,PASS,1.013,ggml_compute_forward_rope_f32,scalar cos/sin cache 2-pass + autovec rotate→标量类,标量类,PASS,0.982,ggml_compute_forward_rope_f32,mostly-scalar→标量类
 silu,f32,,,forward,通用向量,PASS,0.997,ggml_vec_silu_f32,exported ggml手写RVV intrinsic·sigmoid/expf 向量化,通用向量,PASS,1.012,ggml_vec_silu_f32,手写intrinsic
 scale,f32,,,forward,通用向量,PASS,0.998,ggml_vec_scale_f32(vec.h:703),NATIVE RVV m8 vfmul_vf 手写intrinsic·byte-identical algo,通用向量,PASS,0.917,ggml_vec_scale_f32,native RVV m8·板异emit较轻但同源intrinsic
-gelu,f32,,,forward,标量类,例外-数值档挂起(gelu·待f16-LUT同档重比§一.4),0.141,ggml_table_gelu_f16(BSS-LUT),f16 LUT 查表·结构差·数值档不对等·待f16-LUT同档重比(§一.4),标量类,例外-数值档挂起(gelu·待f16-LUT同档重比§一.4),0.247,ggml_table_gelu_f16(BSS-LUT),f16 LUT·待同档重比
+gelu,f32,,,forward,标量类,PASS,0.141,ggml_table_gelu_f16(BSS-LUT),A2 f16-LUT同档重比done·WIN 1.116×·便宜档表查·gcc15调度胜·非硬赢·0ULP,标量类,PASS,0.247,ggml_table_gelu_f16(BSS-LUT),A2同档重比done·PARITY 0.957×·memory-bound near-parity·便宜档
 add,f32,,,forward,标量类,PASS,0.967,ggml_vec_add_f32(vec.h:89),AVX2-only vec path·RV落scalar loop→autovec→标量类,标量类,PASS,1.209,ggml_vec_add_f32,scalar loop autovec→标量类
 mul,f32,,,forward,标量类,PASS,0.963,ggml_vec_mul_f32(vec.h:127),pure scalar loop→autovec→标量类,标量类,PASS,1.189,ggml_vec_mul_f32,autovec→标量类
 cpy,f32,,,forward,标量类,PASS,0.987,ggml_vec_cpy_f32(vec.h:119),pure scalar loop→autovec/memcpy→标量类,标量类,PASS,1.108,ggml_compute_forward_dup_cpy,scalar/memcpy-stream→标量类

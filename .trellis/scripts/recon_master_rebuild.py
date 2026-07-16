@@ -147,7 +147,7 @@ TIER = {
  ("forward","rms_norm"):{"rvv":(V,"ggml_compute_forward_rms_norm_f32","native RVV m8 vec_scale + scalar-dbl reduce·HYBRID·BORDERLINE"),"k1":(V,"ggml_compute_forward_rms_norm_f32","HYBRID·native-vec-light")},
  ("forward","rope"):   {"rvv":(S,"ggml_compute_forward_rope_f32","scalar cos/sin cache 2-pass + autovec rotate→标量类"),"k1":(S,"ggml_compute_forward_rope_f32","mostly-scalar→标量类")},
  ("forward","silu"):   {"rvv":(V,"ggml_vec_silu_f32","exported ggml手写RVV intrinsic·sigmoid/expf 向量化"),"k1":(V,"ggml_vec_silu_f32","手写intrinsic")},
- ("forward","gelu"):   {"rvv":(S,"ggml_table_gelu_f16(BSS-LUT)","f16 LUT 查表·结构差·数值档不对等·待f16-LUT同档重比(§一.4)"),"k1":(S,"ggml_table_gelu_f16(BSS-LUT)","f16 LUT·待同档重比")},
+ ("forward","gelu"):   {"rvv":(S,"ggml_table_gelu_f16(BSS-LUT)","A2 f16-LUT同档重比done·WIN 1.116×·便宜档表查·gcc15调度胜·非硬赢·0ULP"),"k1":(S,"ggml_table_gelu_f16(BSS-LUT)","A2同档重比done·PARITY 0.957×·memory-bound near-parity·便宜档")},
  ("forward","add"):    {"rvv":(S,"ggml_vec_add_f32(vec.h:89)","AVX2-only vec path·RV落scalar loop→autovec→标量类"),"k1":(S,"ggml_vec_add_f32","scalar loop autovec→标量类")},
  ("forward","mul"):    {"rvv":(S,"ggml_vec_mul_f32(vec.h:127)","pure scalar loop→autovec→标量类"),"k1":(S,"ggml_vec_mul_f32","autovec→标量类")},
  ("forward","scale"):  {"rvv":(V,"ggml_vec_scale_f32(vec.h:703)","NATIVE RVV m8 vfmul_vf 手写intrinsic·byte-identical algo"),"k1":(V,"ggml_vec_scale_f32","native RVV m8·板异emit较轻但同源intrinsic")},
@@ -287,7 +287,10 @@ def main():
                     elif td=="DEQ-照测-not-in-denom": d="pending(照测未定verdict)"
                     else: d="pending(DEQ)"
                 elif td=="JUDGMENT-SUSPENDED":
-                    d = "例外-数值档挂起(gelu·待f16-LUT同档重比§一.4)"
+                    # ★A2 gelu f16-LUT 同档重比清偿(2026-07-16·JUDGMENT-SUSPENDED解除·evidence gelu-f16lut-rematch/·commit f9424d1cb)
+                    # rvv WIN 1.116×/k1 PARITY 0.957×·0ULP·便宜档表查·非硬赢(gcc-15调度胜/memory-bound near-parity)→终态 PASS(0.8门)
+                    # gelu 为唯一 JS 格·T3 opponent-reparse 行(数值档不对等)superseded by A2 同档重比·此 override 承 GEMM_DECODE/IME_KERNELSYM stale-source 更正范式
+                    d = "PASS"
                 elif td=="PASS": d="PASS"
                 elif td=="具名-X": d="具名-X"
                 elif td=="DEQ-照测-not-in-denom": d="DEQ照测(not-in-denom·标量仗)"
