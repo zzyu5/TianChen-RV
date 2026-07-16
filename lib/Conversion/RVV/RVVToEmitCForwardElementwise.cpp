@@ -2439,7 +2439,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitForwardVecMapStrip(
 mlir::LogicalResult VariantToEmitCFunc::emitForwardGeluScalarLoop(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, llvm::StringRef opName,
-    llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg) const {
+    llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg,
+    bool f16Lut) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
   mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
   mlir::Type constFloatPtrType =
@@ -2479,32 +2480,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitForwardGeluScalarLoop(
                                    xSub.getResult())
             .getResult();
 
-    // The ggml reference tanh gelu (ggml_gelu_f32):
-    //   0.5f*x*(1.0f + tanhf(SQRT_2_OVER_PI*x*(1.0f + GELU_COEF_A*x*x)))
-    mlir::Value oneF = rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
-    mlir::Value halfF =
-        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.5f");
-    mlir::Value coefA =
-        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.044715f");
-    mlir::Value sqrt2pi = rewriter.create<emitc::LiteralOp>(
-        loc, floatType, "0.79788456080286535587989211986876f");
-    mlir::Value x2 = rewriter.create<emitc::MulOp>(loc, floatType, xv, xv);
-    mlir::Value coefX2 =
-        rewriter.create<emitc::MulOp>(loc, floatType, coefA, x2);
-    mlir::Value innerA =
-        rewriter.create<emitc::AddOp>(loc, floatType, oneF, coefX2);
-    mlir::Value sqrtX =
-        rewriter.create<emitc::MulOp>(loc, floatType, sqrt2pi, xv);
-    mlir::Value inner =
-        rewriter.create<emitc::MulOp>(loc, floatType, sqrtX, innerA);
-    mlir::Value tanhV = emitOpaqueCall(rewriter, loc, floatType, "tanhf",
-                                       mlir::ValueRange{inner}, opName, role);
-    mlir::Value onePlusTanh =
-        rewriter.create<emitc::AddOp>(loc, floatType, oneF, tanhV);
-    mlir::Value halfX =
-        rewriter.create<emitc::MulOp>(loc, floatType, halfF, xv);
-    mlir::Value gv =
-        rewriter.create<emitc::MulOp>(loc, floatType, halfX, onePlusTanh);
+    // The per-element gelu value `gv`. Two precision tiers:
+    //  - default: the ggml reference EXACT tanh gelu (ggml_gelu_f32),
+    //      0.5f*x*(1.0f + tanhf(SQRT_2_OVER_PI*x*(1.0f + GELU_COEF_A*x*x)))
+    //  - f16Lut (G.0.3 same-precision-tier rematch): the SAME numeric contract as
+    //      ggml's as-shipped GGML_GELU_FP16 f16 lookup table, via the
+    //      `weft_gelu_f16lut_scalar` opaque seam (module preamble). The table is
+    //      pure memoization of that seam, so the tableless call is bit-identical to
+    //      the shipped LUT opponent (byte-exact same-tier oracle).
+    mlir::Value gv;
+    if (f16Lut) {
+      gv = emitOpaqueCall(rewriter, loc, floatType, "weft_gelu_f16lut_scalar",
+                          mlir::ValueRange{xv}, opName, role);
+    } else {
+      mlir::Value oneF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
+      mlir::Value halfF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.5f");
+      mlir::Value coefA =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.044715f");
+      mlir::Value sqrt2pi = rewriter.create<emitc::LiteralOp>(
+          loc, floatType, "0.79788456080286535587989211986876f");
+      mlir::Value x2 = rewriter.create<emitc::MulOp>(loc, floatType, xv, xv);
+      mlir::Value coefX2 =
+          rewriter.create<emitc::MulOp>(loc, floatType, coefA, x2);
+      mlir::Value innerA =
+          rewriter.create<emitc::AddOp>(loc, floatType, oneF, coefX2);
+      mlir::Value sqrtX =
+          rewriter.create<emitc::MulOp>(loc, floatType, sqrt2pi, xv);
+      mlir::Value inner =
+          rewriter.create<emitc::MulOp>(loc, floatType, sqrtX, innerA);
+      mlir::Value tanhV = emitOpaqueCall(rewriter, loc, floatType, "tanhf",
+                                         mlir::ValueRange{inner}, opName, role);
+      mlir::Value onePlusTanh =
+          rewriter.create<emitc::AddOp>(loc, floatType, oneF, tanhV);
+      mlir::Value halfX =
+          rewriter.create<emitc::MulOp>(loc, floatType, halfF, xv);
+      gv = rewriter.create<emitc::MulOp>(loc, floatType, halfX, onePlusTanh);
+    }
 
     // float *yp = (float *)(y + i);  yp[0] = gelu(x_i);
     mlir::Value ypRaw =
@@ -2598,10 +2611,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseGeluMapStrip(
   mlir::Value output = valueMap.lookup(geluOp.getOutput());
   if (!input || !output)
     return rewriter.notifyMatchFailure(geluOp, "gelu-map ABI operand unmapped");
+  // G.0.3 same-precision-tier variant: the optional discardable attr
+  // `gelu_precision = "f16lut"` selects the f16-LUT numeric tier (byte-exact to the
+  // as-shipped GGML_GELU_FP16 opponent) instead of the default exact-tanhf tier.
+  bool f16Lut = false;
+  if (auto prec = geluOp->getAttrOfType<mlir::StringAttr>("gelu_precision"))
+    f16Lut = prec.getValue() == "f16lut";
   return emitForwardGeluScalarLoop(
       rewriter, loc, input, output,
       geluOp.getWEFTEmitCLowerableSourceOpName(),
-      geluOp.getWEFTEmitCLowerableSourceRole(), sizeType, avlArg);
+      geluOp.getWEFTEmitCLowerableSourceRole(), sizeType, avlArg, f16Lut);
 }
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(

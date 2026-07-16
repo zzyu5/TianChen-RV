@@ -254,11 +254,81 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
     scope.getBody().walk([&](weftrvv::ElementwiseRopeRotateCoreOp) {
       hasRopeRotateCore = true;
     });
-    if (hasRmsNormReduceCore || hasRopeRotateCore || hasNvfp4CodebookCore)
+    // G.0.3 same-precision-tier gelu variant: the elementwise_gelu_map brick
+    // carrying `gelu_precision = "f16lut"` lowers its per-element body to the
+    // `weft_gelu_f16lut_scalar` opaque seam (byte-exact to ggml's as-shipped
+    // GGML_GELU_FP16 f16 lookup table). The seam calls tanhf => needs <math.h>, and
+    // its definition is emitted below as a module preamble.
+    bool hasGeluF16Lut = false;
+    scope.getBody().walk([&](weftrvv::ElementwiseGeluMapOp g) {
+      if (auto prec = g->getAttrOfType<mlir::StringAttr>("gelu_precision"))
+        if (prec.getValue() == "f16lut")
+          hasGeluF16Lut = true;
+    });
+    if (hasRmsNormReduceCore || hasRopeRotateCore || hasNvfp4CodebookCore ||
+        hasGeluF16Lut)
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
       rewriter.create<emitc::IncludeOp>(loc, header,
                                         /*is_standard_include=*/true);
+
+    // Emit the f16-LUT gelu seam as a module preamble (once), between the includes
+    // and the kernel func. This reproduces ggml's as-shipped GGML_GELU_FP16 path
+    // EXACTLY (vec.h:46/968/988): a 65536-entry f16 lookup table (built once by
+    // weft_gelu_f16lut_init, mirroring ggml_init's ggml_table_gelu_f16 build) + a
+    // per-element clamp/convert/gather/convert. The f16<->f32 conversions and
+    // ggml_gelu_f32 are a VERBATIM transcription of ggml's simd-mappings scalar
+    // path. Same numeric TIER *and* same runtime ALGORITHM (table gather, no
+    // per-element tanhf) as the opponent => a fair same-tier speed A/B, byte-exact.
+    // The table build lives OFF the timed path (weft_gelu_f16lut_init, called once
+    // by the harness -- symmetric to the opponent's opp_gelu_init).
+    if (hasGeluF16Lut) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc,
+          "/* G.0.3 f16-LUT gelu seam: byte-exact + same-algorithm to ggml "
+          "as-shipped GGML_GELU_FP16 (vec.h:46/968/988). Table gather, no runtime "
+          "tanhf. Call weft_gelu_f16lut_init() once before use (mirrors "
+          "ggml_init's ggml_table_gelu_f16 build). */\n"
+          "static unsigned short weft_gelu_f16_table[1<<16];\n"
+          "static int weft_gelu_f16_ready=0;\n"
+          "static inline unsigned short weft_f32_to_f16(float f){\n"
+          "  unsigned int x; __builtin_memcpy(&x,&f,4);\n"
+          "  unsigned int sign=(x>>16)&0x8000u; int e=(int)((x>>23)&0xff)-127+15; "
+          "unsigned int man=x&0x7fffffu;\n"
+          "  if(e<=0){ if(e<-10) return (unsigned short)sign; man|=0x800000u; "
+          "unsigned int sh=(unsigned int)(14-e);\n"
+          "    unsigned short r=(unsigned short)(man>>sh); if((man>>(sh-1))&1) r++; "
+          "return (unsigned short)(sign|r); }\n"
+          "  if(e>=31) return (unsigned short)(sign|0x7c00u);\n"
+          "  unsigned short r=(unsigned short)(sign|((unsigned int)e<<10)|"
+          "(man>>13)); if((man>>12)&1) r++; return r;\n"
+          "}\n"
+          "static inline float weft_f16_to_f32(unsigned short h){\n"
+          "  unsigned int sign=(unsigned int)(h&0x8000)<<16; unsigned int "
+          "e=(h>>10)&0x1f; unsigned int man=h&0x3ff; unsigned int o;\n"
+          "  if(e==0){ if(man==0){o=sign;} else { e=127-15+1; "
+          "while(!(man&0x400)){man<<=1;e--;} man&=0x3ff; o=sign|(e<<23)|(man<<13);} "
+          "}\n"
+          "  else if(e==31){ o=sign|0x7f800000u|(man<<13); }\n"
+          "  else { o=sign|((e+112)<<23)|(man<<13); }\n"
+          "  float f; __builtin_memcpy(&f,&o,4); return f;\n"
+          "}\n"
+          "static inline float weft_ggml_gelu_f32(float x){ return 0.5f*x*(1.0f + "
+          "tanhf(0.79788456080286535587989211986876f*x*(1.0f + "
+          "0.044715f*x*x))); }\n"
+          "extern \"C\" void weft_gelu_f16lut_init(void){\n"
+          "  for(int i=0;i<(1<<16);++i){ float f=weft_f16_to_f32((unsigned "
+          "short)i); weft_gelu_f16_table[i]=weft_f32_to_f16(weft_ggml_gelu_f32(f)); "
+          "}\n"
+          "  weft_gelu_f16_ready=1;\n"
+          "}\n"
+          "static inline float weft_gelu_f16lut_scalar(float x){\n"
+          "  if(x <= -10.0f) return 0.0f;\n"
+          "  if(x >=  10.0f) return x;\n"
+          "  unsigned short t = weft_f32_to_f16(x);\n"
+          "  return weft_f16_to_f32(weft_gelu_f16_table[t]);\n"
+          "}");
+    }
 
     rewriter.setInsertionPointToEnd(module.getBody());
 

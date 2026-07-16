@@ -160,13 +160,15 @@
 | rms_norm@k1 | B-fwd | emitElementwiseRmsNormReduceStrip | native-RVV m8 scale·**2-pass**(memcpy+scale) | **0 ULP** bit-exact | 1.177 | **1.335** | **WIN**(1-pass fusion) | ☐pending |
 | rope@k1 | B-fwd | emitElementwiseRopeRotateStrip | autovec-RVV+scalar sin/cos·2-pass cache | 0ULP-vs-opp(f32-θ drift) | 0.981 | 0.984 | PARITY 0.98 | ☐pending |
 | silu@k1 | B-fwd | emitElementwiseSiluMapStrip | native-RVV m2·EXPORTED .so·bit-identical | ULP 2·0ULP-vs-opp | 0.841 | 0.837 | LOSS(parity-by-adoption −16%) | ☐pending |
-| gelu@k1 | B-fwd | emitElementwiseGeluMapStrip | **scalar f16-LUT**(GGML_GELU_FP16) | maxrel 3.7e-7 ≤1.3e-6 | 0.239 | 0.247 | LOSS(STRUCTURAL LUT·ours +2500×acc) | ☐pending |
+| gelu@k1 | B-fwd | emitElementwiseGeluMapStrip | **scalar f16-LUT**(GGML_GELU_FP16) | maxrel 3.7e-7 ≤1.3e-6 | 0.239 | 0.247 | ~~LOSS(STRUCTURAL LUT·跨精度档·非公平)~~ → **G.0.3 挂起解除** | ✅resolved |
+| gelu@k1 (f16-LUT同档重比) | B-fwd | emitElementwiseGeluMapStrip + gelu_precision="f16lut" | **同档** scalar f16-LUT(GGML_GELU_FP16 表查) | **0 ULP** vs opp(same tier·rel~9e-4) | — | **0.957** | **PARITY**([GAP-GELU-K1-VLEN256-CLANG-SCHED]·内存墙near-parity) | ✅G.0.3 |
+| gelu@rvv (f16-LUT同档重比) | B-fwd | emitElementwiseGeluMapStrip + gelu_precision="f16lut" | **同档** scalar f16-LUT(GGML_GELU_FP16 表查) | **0 ULP** vs opp(same tier·rel~9e-4) | — | **1.116** | **WIN**(便宜档表查·gcc-15调度胜·非硬赢) | ✅G.0.3 |
 | add@k1 | B-fwd | emitElementwiseBinaryMapStrip | autovec-RVV **m2**(clang) | **0 ULP** bit-exact | 1.173 | **1.182** | **WIN**(our m8 vs opp m2) | ☐pending |
 | mul@k1 | B-fwd | emitElementwiseBinaryMapStrip | autovec-RVV **m2**(clang) | **0 ULP** bit-exact | 1.191 | **1.184** | **WIN**(our m8 vs opp m2) | ☐pending |
 | scale@k1 | B-fwd | emitForwardVecMapStrip(scale) | native-RVV m8·**byte-identical algo** | **0 ULP** bit-exact | 0.918 | 0.935 | LOSS 0.93(scheduling) | ☐pending |
 | cpy@k1 | B-fwd | emitElementwiseCopyMapStrip | autovec-RVV/memcpy | **0 ULP** bit-exact | 0.881 | 1.103 | WIN cold/LOSS hot(flip) | ☐pending |
 
-**k1 anchor cold tally**：4 WIN（add·mul·cpy·rms_norm）· 1 PARITY（rope）· 4 LOSS（scale·silu·softmax·gelu）。
+**k1 anchor cold tally**：4 WIN（add·mul·cpy·rms_norm）· 1 PARITY（rope）· 4 LOSS（scale·silu·softmax·gelu）。〔**注·G.0.3 更新**：gelu 的 0.247× 是**跨精度档**（我方 tanhf 全算 vs 对手 f16 表查·非公平）·已被 f16-LUT **同档重比**取代 → gelu@k1 同档 **PARITY 0.957×**（不再计 LOSS）· gelu@rvv 同档 **WIN 1.116×**（byte-exact 0 ULP·便宜档表查）· 见 `g7-census/gelu-f16lut-rematch/evidence.md`。softmax 亦已在 §7 vcpop 修复翻正·此 tally 为普查初测快照·终态以各专项为准。〕
 **★预判校准**：census「多数 parity/near-wall」= **部分证伪**。① 4 纯 elementwise（add/mul/cpy/scale）确 memory-bound（cold 2.3–5.6 GB/s），但**非齐一 parity**——我方 **wide-m8** emit 击败 clang **m2** autovec（add/mul cold ~1.18×·objdump 实证 `vsetvli e32,m8` vs `e32,m2`）。② **rms_norm 1.33× cold = 结构 WIN**（我方 1-pass read-scale-write vs ggml 2-pass memcpy+scale）·净新亮点。③ compute-bound 簇（silu/softmax/gelu/rope）cache-invariant·silu/softmax parity-by-adoption 但输 16–18% 调度·gelu 0.25× 是 LUT-vs-tanhf 结构差(非公平速度 A/B·我方胜精度)。④ **禁互推**：kernel-sym add/mul 1.18× ≠ census e2e 预判 add/mul deploy 0.76–0.83×（system 账·不同赛道）。
 
 ### Batch 3 — 码本/低比特余格（vec_dot + dequant + gemm cross-op）

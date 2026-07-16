@@ -13,7 +13,7 @@ dequantize_row|q5_1,(不在T3),,(不在T3),,base:黄-物理墙,base,DEQ-分账
 quantize_row|q8_0,(不在T3),,(不在T3),,base:黄-物理墙,base,非对局-quantize/product_reduce(perf账)
 quantize_row|q8_K,(不在T3),,(不在T3),,base:黄-物理墙,base,非对局-quantize/product_reduce(perf账)
 quantize_row|q8_1,(不在T3),,(不在T3),,base:黄-物理墙,base,非对局-quantize/product_reduce(perf账)
-gelu|f32,例外-数值档挂起,,例外-数值档挂起,,base:黄-物理墙,base,例外-数值档挂起
+gelu|f32,同档WIN-1.116x(kernel-sym·f16-LUT重比),rematch-G.0.3,同档PARITY-0.957x(kernel-sym·f16-LUT重比),rematch-G.0.3,base:黄-物理墙,base,G.0.3同档重比·JUDGMENT-SUSPENDED解除·终态PASS(byte-exact-0ULP·便宜档表查·rvv-WIN非硬赢/k1-PARITY[GAP-GELU-K1-VLEN256-CLANG-SCHED]·见gelu-f16lut-rematch/evidence.md)
 scale|f32,PASS,,PASS,,base:黄-物理墙,base,进硬门对局
 cpy|f32,PASS,,PASS,,base:黄-物理墙,base,进硬门对局
 silu|f32,PASS,,PASS,,base:黄-物理墙,base,进硬门对局

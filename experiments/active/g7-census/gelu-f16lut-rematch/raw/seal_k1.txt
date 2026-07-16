@@ -1,0 +1,16 @@
+# G.0.3 gelu-f16lut k1  CC=/usr/bin/clang-18 (Bianbu clang version 18.1.8 (11bb4))  march=rv64gcv_zfh_zvfh_zicbop_zihintpause
+# SRC_MD5 kernel=1870c9609f56a9e431144a6a0c0fba99 opp=4764def0696234941b4d8b72dfb8ce16 drv=3ac2f196ab8fea2c3d091a6a96b8d4ff
+# SINGLE_INSTANCE stray_pre_kill=0
+0 (expect 0)
+# BUILT /tmp/gelu_f16lut/gelu_f16lut_bin
+# OURS_OBJ tanh_calls=0 gather_hint=0
+# core0 idle_pct=96
+# core1 idle_pct=100
+# core2 idle_pct=100
+# core3 idle_pct=97
+# LOAD_GATE_OK pin core=1 idle=100% gov=performance freq=1600000
+# loadavg_begin=2.58 2.32 2.23 2/457 3774769
+# loadavg_end=2.61 2.33 2.23 1/456 3774785
+# STRAY_POST=0
+0
+# ALL_DONE k1

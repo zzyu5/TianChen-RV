@@ -1,0 +1,20 @@
+# G.0.3 gelu-f16lut rvv  CC=/opt/tcrv-toolchains/gcc-15.2.0/bin/riscv64-unknown-linux-gnu-g++ (riscv64-unknown-linux-gnu-g++ (GCC) 15.2.0)  march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause
+# SRC_MD5 kernel=1870c9609f56a9e431144a6a0c0fba99 opp=4764def0696234941b4d8b72dfb8ce16 drv=3ac2f196ab8fea2c3d091a6a96b8d4ff
+# SINGLE_INSTANCE stray_pre_kill=0
+0 (expect 0)
+# BUILT /tmp/gelu_f16lut/gelu_f16lut_bin
+# OURS_OBJ tanh_calls=0 gather_hint=1
+# core8 idle_pct=97
+# core9 idle_pct=97
+# core10 idle_pct=97
+# core11 idle_pct=97
+# core12 idle_pct=97
+# core13 idle_pct=100
+# core14 idle_pct=97
+# core15 idle_pct=97
+# LOAD_GATE_OK pin core=13 idle=100% gov=performance freq=2600000
+# loadavg_begin=2.18 2.14 2.44 1/1031 2468312
+# loadavg_end=2.18 2.14 2.44 2/1031 2468317
+# STRAY_POST=0
+0
+# ALL_DONE rvv

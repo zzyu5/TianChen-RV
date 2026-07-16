@@ -4460,10 +4460,15 @@ private:
   /// `for (i=0;i<n;++i) y[i] = 0.5f*x[i]*(1+tanhf(SQRT_2_OVER_PI*x[i]*(1+
   /// GELU_COEF_A*x[i]*x[i])))` reference tanh gelu with one `tanhf` opaque-seam
   /// call per element. ABI pointers arrive already valueMap-resolved.
+  /// `f16Lut` selects the G.0.3 same-precision-tier variant: instead of the exact
+  /// tanhf arithmetic the per-element body calls the `weft_gelu_f16lut_scalar`
+  /// opaque seam (byte-exact to ggml's as-shipped GGML_GELU_FP16 f16 lookup table).
+  /// The seam helper is emitted as a module preamble by the func builder.
   mlir::LogicalResult emitForwardGeluScalarLoop(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, llvm::StringRef opName,
-      llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg) const;
+      llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg,
+      bool f16Lut = false) const;
 
   /// Re-emit the CONSTRUCTED forward BINARY map (add/mul) from the region's
   /// weft_rvv.elementwise_binary_map brick: anti-bypass check the strip_index, look

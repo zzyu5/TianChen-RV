@@ -107,7 +107,7 @@
 | 桶 | 格数 | 说明 |
 |---|---:|---|
 | **★第二常驻计数「matmul kernel-sym ≥parity 格数」** | **12** | q4_K@k1 · q5_K@k1 · q4_0@k1-gemm-prefill · q8_0@k1 · ★FLAT@rvv: q4_0 · q4_1 · q5_0 · q5_1 · q8_0（f8da2f5c）· ★FLAT@k1: q4_1 · q5_0 · q5_1（abb26043）· **★成色分布 = 0 verified hand-brick + 2 better-vec block-dot（q5_0/q5_1@rvv）+ 10 block-dot/light（弱—中对手）**·〔B类前向不并入·见下独立桶〕 |
-| **★★forward-op kernel-sym（独立桶·2026-07-14·`27fdc898`·禁并入 matmul-12·禁混算 perf-covered）** | **双板 WIN 交集 = 1** | **rms_norm**（k1 1.335×/rvv 1.152×·VLEN-invariant 1-pass fusion vs ggml 2-pass·唯一双板确认 WIN·成色=结构融合非硬碰硬）｜双板 ≥parity 交集 = 5{add,mul,cpy,rms_norm,rope}（add/mul/cpy 的 k1 WIN=VLEN256-only·rvv PARITY 不得计双板赢）｜dual-LOSS 3{softmax −15~18% sched·silu·gelu LUT-vs-tanhf 结构}｜byte-exact/ULP 全硬门过·净新 territory |
+| **★★forward-op kernel-sym（独立桶·2026-07-14·`27fdc898`·禁并入 matmul-12·禁混算 perf-covered）** | **双板 WIN 交集 = 1** | **rms_norm**（k1 1.335×/rvv 1.152×·VLEN-invariant 1-pass fusion vs ggml 2-pass·唯一双板确认 WIN·成色=结构融合非硬碰硬）｜双板 ≥parity 交集 = 5{add,mul,cpy,rms_norm,rope}（add/mul/cpy 的 k1 WIN=VLEN256-only·rvv PARITY 不得计双板赢）｜dual-LOSS 3{softmax −15~18% sched·silu·~~gelu LUT-vs-tanhf 结构~~→**G.0.3 同档重比后 gelu 不再 dual-LOSS**：f16-LUT 同档 byte-exact 0 ULP → **rvv WIN 1.116×**(便宜档表查·gcc-15 调度·非硬赢)/**k1 PARITY 0.957×**([GAP-GELU-K1-VLEN256-CLANG-SCHED])·旧 LUT-vs-tanhf 系跨精度档非公平·见 `g7-census/gelu-f16lut-rematch/`}｜byte-exact/ULP 全硬门过·净新 territory |
 | ~~≥parity 待板批补测（FLAT 5 gemm@rvv）~~ | ✅ DONE | 2026-07-13 f8da2f5c·5 格全 ≥parity·4→9 上限达成 |
 | <parity candidate（对称 LOSS·不计 ≥parity） | 9 | §1.2·+ q2_K@rvv 系统账 fresh 0.857×(14f4631a·同向) |
 | 对手类单列（SELF/internal-A/B/CASE-COMPILER-ASYMMETRY） | 3 + N | §2·不入计数（含 IME 三格 SELF·但注：IME q4_0/q8_0@ime 已在 perf-covered 转绿=不同赛道·此处 SELF-account 仍单列） |

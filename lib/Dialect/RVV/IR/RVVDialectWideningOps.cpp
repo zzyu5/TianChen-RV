@@ -9855,11 +9855,17 @@ mlir::LogicalResult ElementwiseCopyMapOp::verify() {
 mlir::LogicalResult ElementwiseGeluMapOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // Bounded mirror attrs only (I4): the operation kind. Gelu's reference body is
-  // a SCALAR per-element tanhf loop (no vector strip), so there is NO
-  // resource/scheduling strip_lmul knob -- the ONLY allowed attr is "kind".
-  // Fail-closed (I7).
-  auto isAllowedGeluAttr = [](llvm::StringRef name) { return name == "kind"; };
+  // Bounded mirror attrs only (I4): the operation kind, plus the OPTIONAL
+  // precision-tier selector `gelu_precision`. Gelu's reference body is a SCALAR
+  // per-element loop (no vector strip), so there is NO resource/scheduling
+  // strip_lmul knob. The precision selector is a bounded numeric-contract knob
+  // (NOT a resource/scheduling knob): "f16lut" picks the same-precision-tier
+  // GGML_GELU_FP16 seam (byte-exact to the as-shipped f16 lookup table), absent =
+  // the exact-tanhf reference tier. Fail-closed (I7): only these two attrs, and
+  // gelu_precision may only carry the bounded value "f16lut".
+  auto isAllowedGeluAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "gelu_precision";
+  };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
@@ -9869,10 +9875,15 @@ mlir::LogicalResult ElementwiseGeluMapOp::verify() {
                 "setvl/with_vl and rejects deleted local element_count metadata";
     if (!isAllowedGeluAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded gelu-map attribute 'kind'; unexpected "
-                "attribute '"
+             << "only accepts the bounded gelu-map attributes 'kind' / "
+                "'gelu_precision'; unexpected attribute '"
              << attr.getName() << "'";
   }
+  if (auto prec = op->getAttrOfType<mlir::StringAttr>("gelu_precision"))
+    if (prec.getValue() != "f16lut")
+      return emitOpError() << "gelu_precision only accepts the bounded value "
+                              "\"f16lut\"; got '"
+                           << prec.getValue() << "'";
 
   if (getKind() != "elementwise_gelu_map")
     return emitOpError()
