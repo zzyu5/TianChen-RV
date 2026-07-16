@@ -1,0 +1,203 @@
+{
+  "pin_head": "5e0c6254",
+  "source": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+  "unit": "D1_raw_LOC = raw physical lines of constexpr k<Fmt>DecodeFacts initializer block, inclusive",
+  "stock_not_flow": true,
+  "descriptors": [
+    {
+      "symbol": "kTernaryTQ20DecodeFacts",
+      "family_struct": "TernaryDecodeFacts",
+      "line_start": 242,
+      "line_end": 252,
+      "D1_raw_LOC": 11,
+      "D1_code_LOC": 11,
+      "doc_comment_LOC": 0,
+      "D2_raw_LOC": 11,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kTernaryTQ10DecodeFacts",
+      "family_struct": "TernaryDecodeFacts",
+      "line_start": 254,
+      "line_end": 264,
+      "D1_raw_LOC": 11,
+      "D1_code_LOC": 11,
+      "doc_comment_LOC": 0,
+      "D2_raw_LOC": 11,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kQ4KDecodeFacts",
+      "family_struct": "KQuantDecodeFacts",
+      "line_start": 387,
+      "line_end": 404,
+      "D1_raw_LOC": 18,
+      "D1_code_LOC": 18,
+      "doc_comment_LOC": 0,
+      "D2_raw_LOC": 18,
+      "t2_scope_format": "q4_K vec_dot"
+    },
+    {
+      "symbol": "kQ6KDecodeFacts",
+      "family_struct": "KQuantDecodeFacts",
+      "line_start": 410,
+      "line_end": 427,
+      "D1_raw_LOC": 18,
+      "D1_code_LOC": 18,
+      "doc_comment_LOC": 4,
+      "D2_raw_LOC": 22,
+      "t2_scope_format": "q6_K vec_dot"
+    },
+    {
+      "symbol": "kQ2KDecodeFacts",
+      "family_struct": "KQuantDecodeFacts",
+      "line_start": 436,
+      "line_end": 453,
+      "D1_raw_LOC": 18,
+      "D1_code_LOC": 18,
+      "doc_comment_LOC": 7,
+      "D2_raw_LOC": 25,
+      "t2_scope_format": "q2_K vec_dot"
+    },
+    {
+      "symbol": "kQ3KDecodeFacts",
+      "family_struct": "KQuantDecodeFacts",
+      "line_start": 463,
+      "line_end": 480,
+      "D1_raw_LOC": 18,
+      "D1_code_LOC": 18,
+      "doc_comment_LOC": 8,
+      "D2_raw_LOC": 26,
+      "t2_scope_format": "q3_K vec_dot"
+    },
+    {
+      "symbol": "kQ5KDecodeFacts",
+      "family_struct": "KQuantDecodeFacts",
+      "line_start": 491,
+      "line_end": 508,
+      "D1_raw_LOC": 18,
+      "D1_code_LOC": 18,
+      "doc_comment_LOC": 9,
+      "D2_raw_LOC": 27,
+      "t2_scope_format": "q5_K vec_dot"
+    },
+    {
+      "symbol": "kIq4NlDecodeFacts",
+      "family_struct": "CodebookDecodeFacts",
+      "line_start": 822,
+      "line_end": 836,
+      "D1_raw_LOC": 15,
+      "D1_code_LOC": 15,
+      "doc_comment_LOC": 0,
+      "D2_raw_LOC": 15,
+      "t2_scope_format": "iq4_nl vec_dot"
+    },
+    {
+      "symbol": "kIq4XsDecodeFacts",
+      "family_struct": "CodebookDecodeFacts",
+      "line_start": 843,
+      "line_end": 857,
+      "D1_raw_LOC": 15,
+      "D1_code_LOC": 15,
+      "doc_comment_LOC": 5,
+      "D2_raw_LOC": 20,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kMxfp4DecodeFacts",
+      "family_struct": "CodebookDecodeFacts",
+      "line_start": 865,
+      "line_end": 879,
+      "D1_raw_LOC": 15,
+      "D1_code_LOC": 15,
+      "doc_comment_LOC": 6,
+      "D2_raw_LOC": 21,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kIq2XxsDecodeFacts",
+      "family_struct": "Iq2GridDecodeFacts",
+      "line_start": 916,
+      "line_end": 931,
+      "D1_raw_LOC": 16,
+      "D1_code_LOC": 16,
+      "doc_comment_LOC": 0,
+      "D2_raw_LOC": 16,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kIq2XsDecodeFacts",
+      "family_struct": "Iq2GridDecodeFacts",
+      "line_start": 942,
+      "line_end": 957,
+      "D1_raw_LOC": 16,
+      "D1_code_LOC": 16,
+      "doc_comment_LOC": 9,
+      "D2_raw_LOC": 25,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kIq2SDecodeFacts",
+      "family_struct": "Iq2GridDecodeFacts",
+      "line_start": 959,
+      "line_end": 974,
+      "D1_raw_LOC": 16,
+      "D1_code_LOC": 16,
+      "doc_comment_LOC": 0,
+      "D2_raw_LOC": 16,
+      "t2_scope_format": null
+    },
+    {
+      "symbol": "kIq1SDecodeFacts",
+      "family_struct": "Iq2GridDecodeFacts",
+      "line_start": 991,
+      "line_end": 1006,
+      "D1_raw_LOC": 16,
+      "D1_code_LOC": 16,
+      "doc_comment_LOC": 15,
+      "D2_raw_LOC": 31,
+      "t2_scope_format": "iq1_s vec_dot"
+    },
+    {
+      "symbol": "kIq1MDecodeFacts",
+      "family_struct": "Iq2GridDecodeFacts",
+      "line_start": 1033,
+      "line_end": 1048,
+      "D1_raw_LOC": 16,
+      "D1_code_LOC": 16,
+      "doc_comment_LOC": 25,
+      "D2_raw_LOC": 41,
+      "t2_scope_format": "iq1_m vec_dot"
+    }
+  ],
+  "shared_structs": [
+    {
+      "family_struct": "TernaryDecodeFacts",
+      "line_start": 230,
+      "line_end": 240,
+      "shared_raw_LOC": 11,
+      "shared_code_LOC": 11
+    },
+    {
+      "family_struct": "KQuantDecodeFacts",
+      "line_start": 368,
+      "line_end": 385,
+      "shared_raw_LOC": 18,
+      "shared_code_LOC": 18
+    },
+    {
+      "family_struct": "CodebookDecodeFacts",
+      "line_start": 802,
+      "line_end": 820,
+      "shared_raw_LOC": 19,
+      "shared_code_LOC": 15
+    },
+    {
+      "family_struct": "Iq2GridDecodeFacts",
+      "line_start": 891,
+      "line_end": 914,
+      "shared_raw_LOC": 24,
+      "shared_code_LOC": 16
+    }
+  ]
+}
