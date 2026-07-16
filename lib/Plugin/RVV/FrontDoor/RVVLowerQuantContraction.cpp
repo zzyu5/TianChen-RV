@@ -810,6 +810,43 @@ constexpr llvm::StringLiteral kGridIq3XxsScaleModel =
 constexpr llvm::StringLiteral kGridIq3XxsGemmScaleModel =
     "superblock-d.fp16-grid-sign-dual-entry-4bit-scale-4col-nomin-quarter";
 
+// The iq3_s DUAL-ENTRY + EXPLICIT-SIGN grid decode-FAMILY discriminator (C4a-5): the
+// SEVENTH and LAST grid sibling. Its interest is that it resembles iq3_xxs closely enough
+// to reuse that row's whole emitter leaf, yet on the two axes below it sides with a
+// DIFFERENT sibling -- so the family resemblance is not a decode fact and the WHAT has to
+// say which.
+//
+// Read off ggml_vec_dot_iq3_s_q8_K:
+//   * DUAL GRID ENTRY per group, like iq3_xxs: iq3s_grid is `uint32_t[512]`, so one entry
+//     covers 4 of a group's 8 lanes and the decode reads TWO
+//     (`grid1 = iq3s_grid + (qs[2*l+0] | ((qh[ib32] << (8-2*l)) & 256))`, likewise grid2
+//     with shift 7-2*l, then `for j<4: grid1[j]*q8[j+0]; grid2[j]*q8[j+4]`). Same nest,
+//     same leaf.
+//   * 9-BIT INDEX (0..511), unlike iq3_xxs's raw byte: the low 8 bits come from qs and bit
+//     8 from a qh bit (`(qh[ib32] >> e) & 1` for index slot e). Assembled ONCE at repack
+//     into a u16 strip, exactly as iq2_xs's 9-bit and iq1_s's 11-bit indices are.
+//   * EXPLICIT SIGNS, like iq2_s and NOT like iq3_xxs: block_iq3_s carries a real
+//     `uint8_t signs[QK_K/8]` plane (one byte per 8-lane group) and the decode tests it
+//     directly (`signs[l] & kmask_iq2xs[j]`). There is NO aux word and NO ksigns_iq2xs
+//     selector indirection -- hence "explicitsign" in the WHAT below, the same token
+//     iq2_s's WHAT carries, and hence the DERIVED signs256 plane rather than signs64.
+//   * SINGLE ls per 32-element sub-block, NOT dual: ggml names two scales ls1/ls2 per
+//     iteration but its loop steps `ib32 += 2` and spends one on EACH sub-block
+//     (`ls1 = 2*(scales[ib32/2] & 0xf) + 1` for sub-block ib32, the high nibble for
+//     ib32+1). Two sub-blocks share a scales byte; a sub-block has one scale.
+//   * NO STORE CONSTANT: ggml ends `*s = sumf`, not 0.25f * sumf (iq3_xxs) and not
+//     0.125f * sumf (every iq2 row). Carried as the plan's storeScaleLiteral "1.0f" --
+//     see weft::GridDecodePlan::storeScaleLiteral for why it is written that way.
+// The plain block_iq3_s is 110 B (fp16 d + qs[QK_K/4] + qh[QK_K/32] + signs[QK_K/8] +
+// scales[QK_K/64] = 2+64+8+32+4), and unlike iq3_xxs there is no double-duty region: each
+// plane is its own field. Byte-exact to ggml_vec_dot_iq3_s_q8_K. The FIXED 512-entry
+// uint32 grid + the DERIVED signs256 plane stay emit-period static const tables (NEVER op
+// attrs).
+constexpr llvm::StringLiteral kGridIq3SScaleModel =
+    "superblock-d.fp16-grid-explicitsign-dual-entry-4bit-scale-nomin-unit";
+constexpr llvm::StringLiteral kGridIq3SGemmScaleModel =
+    "superblock-d.fp16-grid-explicitsign-dual-entry-4bit-scale-4col-nomin-unit";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -1114,6 +1151,60 @@ constexpr Iq2GridDecodeFacts kIq3XxsDecodeFacts = {
     /*gevmActivationBlockStride=*/292,
     /*gevmActivationQuantByteOffset=*/4,
     /*gevmActivationBsumsByteOffset=*/0, // iq3_xxs reads no bsums (no delta term).
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
+    /*nSubblocks=*/8,
+};
+
+// iq3_s (C4a-5): the LAST grid sibling. It RECONSTRUCTS the block_iq3_sx16 x16 weight
+// facts -- a repack layout this line DESIGNED, and it is iq3_xxs's layout with ONE strip
+// widened. ggml's block_iq3_s is 110 B with FOUR separate weight planes (no double-duty
+// qs region, unlike iq3_xxs's aux-word split):
+//   d       fp16 @ +0    (2 B)
+//   qs[64]       @ +2            the low 8 bits of 64 grid indices (8 per sub-block)
+//   qh[8]        @ +66           bit 8 of each: index slot e of sub-block ib takes
+//                                (qh[ib] >> e) & 1
+//   signs[32]    @ +74           ONE explicit sign byte per 8-lane group
+//   scales[4]    @ +106          TWO sub-blocks' ls nibbles per byte
+// The repack assembles the 9-bit index and splits the scales byte ONCE into flat
+// per-column strips, so the kernel never sees a qh bit or a nibble:
+//
+//   d[16]            fp16 @ +0     (32 B)
+//   ls[8][16]        int8 @ +32    (128 B)  2*nibble + 1, in [1,31] -- SINGLE per
+//                                           sub-block (see the WHAT above; the byte
+//                                           holding two of them is packing, not arity)
+//   gidx[8][8][16]   u16  @ +160   (2048 B) the ASSEMBLED 9-bit index, EIGHT per
+//                                           sub-block (TWO per group). u16, not u8:
+//                                           this is the ONE strip that differs from
+//                                           iq3_xxs's layout, and it differs because
+//                                           511 does not fit a byte
+//   signs[8][4][16]  u8   @ +2208  (512 B)  the EXPLICIT sign byte -- FOUR per
+//                                           sub-block (ONE per group)
+//   ---------------------------------------- stride 2720
+//
+// plus the plain block_q8_K activation (292, quants @4) and the INTERLEAVED block_q8_Kx4
+// GEMM activation (1168, quants @16 as pos*4+c). The 2720 stride is iq3_xxs's 1696 plus
+// the extra 1024 B the index strip gains going u8 -> u16; every other strip is identical
+// in shape and offset.
+//
+// NOTE the bsums offsets are ZERO, and that is a FACT for the same reason iq3_xxs's are:
+// the fold is the single-accumulator SignScaleStore shape (`bsum += sumi*ls`,
+// `sumf += d*bsum`, `*s = sumf`) with no delta term, so there is no second accumulator to
+// feed and nothing reads a bsums plane. The loop-body verifier rejects
+// activation_bsums_byte_offset outside the two folds that READ it, so stamping one here
+// would be rejected -- correctly.
+constexpr Iq2GridDecodeFacts kIq3SDecodeFacts = {
+    /*decodeModel=*/"iq3_s",
+    /*gemmScaleModel=*/kGridIq3SGemmScaleModel,
+    /*foldModel=*/"grid_sign_dual_entry_single_scale_unit",
+    /*weightBlockStride=*/2720,
+    /*weightGridIdxByteOffset=*/160,
+    /*weightLsByteOffset=*/32,
+    /*weightSignByteOffset=*/2208, // a REAL explicit sign strip (not a delta slot).
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0, // iq3_s reads no bsums (no delta term).
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
     /*gemmActivationBsumsByteOffset=*/0,
@@ -1528,6 +1619,7 @@ private:
           : op.getScaleModel() == kGridIq1SScaleModel  ? &kIq1SDecodeFacts
           : op.getScaleModel() == kGridIq1MScaleModel  ? &kIq1MDecodeFacts
           : op.getScaleModel() == kGridIq3XxsScaleModel ? &kIq3XxsDecodeFacts
+          : op.getScaleModel() == kGridIq3SScaleModel  ? &kIq3SDecodeFacts
                                                        : nullptr;
       // The q4_1 family (unsigned nibble + single MIN fold) builds the SAME typed
       // q4_0 repack region via lowerToRepackGem{v,m}Q41 (the SHARED q4_0 core + fold
@@ -1603,6 +1695,7 @@ private:
         op.getScaleModel() == kGridIq1SScaleModel ||
         op.getScaleModel() == kGridIq1MScaleModel ||
         op.getScaleModel() == kGridIq3XxsScaleModel ||
+        op.getScaleModel() == kGridIq3SScaleModel ||
         op.getScaleModel() == kNibbleQ50ScaleModel ||
         op.getScaleModel() == kNibbleQ51ScaleModel ||
         op.getScaleModel() == kNibbleQ80ScaleModel)

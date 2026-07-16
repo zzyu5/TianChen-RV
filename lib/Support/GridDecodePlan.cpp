@@ -31,7 +31,10 @@ namespace {
 ///
 /// C4a-3 landed iq1_m the same four ways (row + front door + BOTH leaves + oracle),
 /// promoting GridFoldArith::DeltaGridGroupSum. C4a-4 landed iq3_xxs the same four ways,
-/// promoting GridEntryWidth::I32x4.
+/// promoting GridEntryWidth::I32x4. C4a-5 landed iq3_s the same four ways and promoted
+/// NOTHING -- the first row whose every axis value already existed. That is the whole
+/// point of the exercise arriving, not a shortcut taken: the row still had to land all
+/// four pieces, it just needed no new vocabulary to say what it is.
 ///
 /// This comment previously said iq3_xxs/iq3_s "remain NOT registered ... GridEntryWidth::
 /// I32x4 stays ABSENT from the enum until a row + front door + leaf + oracle land
@@ -189,6 +192,63 @@ constexpr GridDecodePlan kGridDecodePlans[] = {
         /*foldArith=*/GridFoldArith::SignScaleStore,
         /*storeScaleLiteral=*/"0.25f", // ggml: *s = 0.25f * sumf (NOT 0.125f).
     },
+    // iq3_s (C4a-5) -- the LAST grid sibling, and the only one that cost the enums
+    // NOTHING. Every axis value below already existed, put there by a DIFFERENT row:
+    //   * I32x4          from iq3_xxs (C4a-4) -- and with it that row's dual-entry LEAF,
+    //                    reused unchanged in shape.
+    //   * Signs256       from iq2_s.
+    //   * 512 entries    iq2_xs's count.
+    //   * Single         iq2_xxs's / iq3_xxs's.
+    //   * SignScaleStore iq2_xxs's / iq3_xxs's.
+    // Read off ggml_vec_dot_iq3_s_q8_K, axis by axis, rather than assumed from the family
+    // resemblance -- because on two of these axes the resemblance points the wrong way:
+    //
+    //   (a) SIGN PLANE = Signs256, NOT iq3_xxs's Signs64. This is the axis where iq3_s
+    //       breaks with its own xxs sibling and sides with iq2_s. iq3_xxs derives its
+    //       signs INDIRECTLY -- `ksigns_iq2xs[(aux32 >> 7*l) & 127]` unpacks a 7-bit
+    //       SELECTOR out of an aux word into an 8-bit mask. iq3_s has no aux word and no
+    //       selector: block_iq3_s carries an EXPLICIT `uint8_t signs[QK_K/8]` plane, and
+    //       the decode tests its raw byte directly (`signs[l] & kmask_iq2xs[j]`), which is
+    //       verbatim what ggml_vec_dot_iq2_s_q8_K does. So the DERIVED +-1 plane must be
+    //       indexed by all 256 byte values, not 128 selectors, and this row names iq2_s's
+    //       weft_iq2s_signs256 -- the SAME reuse-don't-clone judgment iq3_xxs made for
+    //       signs64, and legitimate for the same reason: the plane is a pure function of
+    //       (byte, j), so a second 2048-byte decl under an iq3 name would be a copy, not
+    //       a fact about iq3_s. NOTE the gather ARITHMETIC is identical either way
+    //       (`table[b*8 + j]`, shift 3) -- Signs64 vs Signs256 differ only in the table
+    //       NAMED and its size, which is exactly why the plan can carry this as data and
+    //       the leaf needs no branch on it.
+    //   (b) LS ARITY = Single, NOT Dual. ggml's loop reads `ls1`/`ls2` from the two
+    //       nibbles of `scales[ib32/2]` -- but it steps `ib32 += 2` and spends ls1 on all
+    //       4 groups of sub-block ib32 and ls2 on all 4 of ib32+1. One ls per 32-element
+    //       sub-block = Single; the byte just holds two sub-blocks' worth. (C4a-4's [D-1]
+    //       probe predicted Dual here. See GridLsArity.)
+    //
+    // Its 9-bit grid index (`qs[e] | (((qh[ib] >> e) & 1) << 8)`, 0..511) is assembled at
+    // REPACK time into a u16 strip, as iq2_xs's 9-bit and iq1_s's 11-bit indices already
+    // are; the leaf reads the strip width from gridIndexStripIsU16(gridEntryCount).
+    //
+    // Repack layout (this line's design, iq3_xxs's with the index strip widened to u16):
+    //   d[16]            fp16 @ +0     (32 B)
+    //   ls[8][16]        int8 @ +32    (128 B)  2*nibble+1, in [1,31]
+    //   gidx[8][8][16]   u16  @ +160   (2048 B) the 9-bit index, TWO per group
+    //   signs[8][4][16]  u8   @ +2208  (512 B)  the EXPLICIT sign byte, ONE per group
+    //   -------------------------------------- stride 2720
+    {
+        /*decodeModel=*/"iq3_s",
+        /*gridArrayName=*/"weft_iq3s_grid",
+        // REUSES iq2_s's DERIVED sign plane BY NAME -- see (a) above.
+        /*signArrayName=*/"weft_iq2s_signs256",
+        /*gridEntryCount=*/512,
+        /*entryWidth=*/GridEntryWidth::I32x4,
+        /*signPlane=*/GridSignPlane::Signs256,
+        /*lsArity=*/GridLsArity::Single,
+        /*foldArith=*/GridFoldArith::SignScaleStore,
+        // ggml: *s = sumf -- NO store constant. Carried as the literal 1.0f the emitter
+        // emits; see GridDecodePlan::storeScaleLiteral for why this is written as a
+        // multiply by one rather than as an empty field.
+        /*storeScaleLiteral=*/"1.0f",
+    },
 };
 
 } // namespace
@@ -209,9 +269,17 @@ llvm::StringRef weft::gridStoreScaleRole(llvm::StringRef storeScaleLiteral) {
   // leaf refuses to emit. "eighth_scale" is the marker the iq2 rows have always shipped
   // and is kept EXACTLY so their emitted C stays byte-identical; "quarter_scale" is
   // iq3_xxs's, and it exists because reusing "eighth_scale" for ggml's 0.25f store would
-  // have shipped a comment that names the wrong constant.
+  // have shipped a comment that names the wrong constant. "unit_scale" is iq3_s's, whose
+  // ggml store `*s = sumf` applies the constant 1.
+  //
+  // The EMPTY literal deliberately has NO case and therefore NO marker: that is what makes
+  // "a SignScaleStore row forgot its storeScaleLiteral" a REFUSAL rather than an unscaled
+  // store. iq3_s is the row that tested whether that gate would survive contact with a
+  // format that genuinely has no store constant -- it did, because the constant is written
+  // as 1.0f rather than as absence. See GridDecodePlan::storeScaleLiteral.
   return llvm::StringSwitch<llvm::StringRef>(storeScaleLiteral)
       .Case("0.125f", "eighth_scale")
       .Case("0.25f", "quarter_scale")
+      .Case("1.0f", "unit_scale")
       .Default("");
 }

@@ -2379,7 +2379,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
       loopBody.getFoldModel() == "grid_sign_dualscale_eighth" ||
       loopBody.getFoldModel() == "grid_ternary_delta_eighth" ||
       loopBody.getFoldModel() == "grid_ternary_delta_groupsum_eighth" ||
-      loopBody.getFoldModel() == "grid_sign_dual_entry_single_scale_quarter") {
+      loopBody.getFoldModel() == "grid_sign_dual_entry_single_scale_quarter" ||
+      // C4a-5: iq3_s. Same grid branch, same dual-entry leaf; its own fold_model only
+      // because its STORE constant differs (ggml: `*s = sumf`).
+      loopBody.getFoldModel() == "grid_sign_dual_entry_single_scale_unit") {
     weftrvv::RepackGemvGridCoreOp coreBrick;
     loopBody.getBody().walk(
         [&](weftrvv::RepackGemvGridCoreOp o) { coreBrick = o; });
@@ -2497,7 +2500,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
             loopBody, "iq3_xxs repack GEVM loop body must NOT carry "
                       "activation_bsums_byte_offset: its fold is the single-accumulator "
                       "SignScaleStore shape and reads no bsums plane");
-      return emitRepackGemvIq3XxsQ8K(
+      return emitRepackGemvGridDualEntryQ8K(
           rewriter, loc, *gridPlan, weightBase, activationBase, output,
           columnCount, avlArg, sizeType, opName, role, coreLmul,
           static_cast<int64_t>(loopBody.getQk()),
@@ -3509,7 +3512,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
       loopBody.getFoldModel() == "grid_sign_dualscale_eighth" ||
       loopBody.getFoldModel() == "grid_ternary_delta_eighth" ||
       loopBody.getFoldModel() == "grid_ternary_delta_groupsum_eighth" ||
-      loopBody.getFoldModel() == "grid_sign_dual_entry_single_scale_quarter") {
+      loopBody.getFoldModel() == "grid_sign_dual_entry_single_scale_quarter" ||
+      // C4a-5: iq3_s. Same grid branch, same dual-entry leaf; its own fold_model only
+      // because its STORE constant differs (ggml: `*s = sumf`).
+      loopBody.getFoldModel() == "grid_sign_dual_entry_single_scale_unit") {
     weftrvv::RepackGemmGridCoreOp coreBrick;
     loopBody.getBody().walk(
         [&](weftrvv::RepackGemmGridCoreOp o) { coreBrick = o; });
@@ -3617,7 +3623,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
             loopBody, "iq3_xxs repack GEMM loop body must NOT carry "
                       "activation_bsums_byte_offset: its fold is the single-accumulator "
                       "SignScaleStore shape and reads no bsums plane");
-      return emitRepackGemmIq3XxsQ8K(
+      return emitRepackGemmGridDualEntryQ8K(
           rewriter, loc, *gridPlan, weightBase, activationBase, output, rowCount,
           columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
           static_cast<int64_t>(loopBody.getQk()),
@@ -24445,7 +24451,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
 // grid bytes reach 62 < 128, so grid*sign still fits i8 exactly as iq2_xxs's <= 43 do),
 // the i32-accumulator dot, the ls vmacc, the fp16*fp32 no-min fold -- is iq2_xxs's,
 // unchanged. RESULT-LESS (no monolith token).
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
+mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvGridDualEntryQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     const weft::GridDecodePlan &plan, mlir::Value weightBase,
     mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
@@ -24462,11 +24468,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
     llvm::StringRef storeScaleRole = weft::gridStoreScaleRole(plan.storeScaleLiteral);
     if (plan.storeScaleLiteral.empty() || storeScaleRole.empty())
       return rewriter.notifyMatchFailure(
-          loc, "iq3_xxs repack GEVM requires a SignScaleStore plan whose "
+          loc, "the dual-entry repack GEVM leaf requires a SignScaleStore plan whose "
                "storeScaleLiteral has a registered store-scale role marker");
     if (plan.entryWidth != weft::GridEntryWidth::I32x4)
       return rewriter.notifyMatchFailure(
-          loc, "the iq3_xxs dual-entry repack GEVM leaf lowers ONLY I32x4 rows (a "
+          loc, "the dual-entry repack GEVM leaf lowers ONLY I32x4 rows (a "
                "4-byte grid entry covering half an 8-element group); an I64x8 row "
                "belongs on the single-base iq2_xxs leaf");
 
@@ -24497,17 +24503,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
     mlir::Type u8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
-    // The iq3_xxs grid is `static const uint32_t weft_iq3xxs_grid[256]` -- the ONLY
-    // registered row whose grid decl is NOT an int64 array.
+    // The I32x4 grids are `static const uint32_t weft_iq3xxs_grid[256]` /
+    // `weft_iq3s_grid[512]` -- the ONLY registered rows whose grid decl is NOT an int64
+    // array.
     mlir::Type u32PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint32_t"));
+    mlir::Type u16PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint16_t"));
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
-    // block_iq3_xxsx16 repack facts are PARAMETERS (the loop body op's pinned attrs + the
-    // grid core brick's grid/ls/sign byte offsets + n_subblocks): qk (256), weightStride
-    // (1696), activationStride (292), gridIdxOffset (160), lsOffset (32), signOffset
-    // (1184), activationQuantOffset (4), nSubblocks (8), weightInterleave (16), half.
+    // The repack facts are PARAMETERS (the loop body op's pinned attrs + the grid core
+    // brick's grid/ls/sign byte offsets + n_subblocks): qk (256), weightStride (1696
+    // iq3_xxs / 2720 iq3_s), activationStride (292), gridIdxOffset (160), lsOffset (32),
+    // signOffset (1184 / 2208), activationQuantOffset (4), nSubblocks (8),
+    // weightInterleave (16), half.
     int64_t numHalves = weightInterleave / half;
     int64_t subBlockSize = qk / nSubblocks;          // 32
     int64_t numGroups = subBlockSize / 8;            // 4 sign selectors / sub-block
@@ -24517,6 +24527,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
     int64_t gridIdxPerSubblock = numGroups * entriesPerGroup;
     int64_t gridShift = weft::gridEntryByteShift(plan.entryWidth);   // 2 (idx*4)
     int64_t lanesPerEntry = 8 / entriesPerGroup;                     // 4
+    // The grid-INDEX strip's lane width, DERIVED from the entry COUNT (C4a-5): iq3_xxs's
+    // 256-entry grid indexes with a byte, iq3_s's 512-entry grid needs a 9-bit index and
+    // therefore a u16 lane. This is a PARAMETER of this leaf, not a second leaf: it swaps
+    // the index LOAD (vle8+vzext vs vle16) and nothing else -- the dual-base nest, the
+    // activation split, the sign gather, the accumulator arity and the fold are identical
+    // for both rows. See weft::gridIndexStripIsU16.
+    bool gridIdxU16 = weft::gridIndexStripIsU16(plan.gridEntryCount);
+    int64_t gridIdxLaneBytes = gridIdxU16 ? 2 : 1;
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -24585,6 +24603,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
                             mlir::ValueRange{lsI8, vl8}, opName, role,
                             llvm::StringRef("subblock_scale_widen"));
     };
+    // u16 grid-index strip (C4a-5, the iq3_s path): a 9-bit index cannot live in a byte,
+    // so it is a uint16 lane loaded DIRECTLY (vle16 -- NO vzext). The SAME shape the
+    // iq2_xs / iq2_s / iq1_s leaves already use for their 9/10/11-bit indices; only the
+    // 256-entry rows (iq2_xxs, iq3_xxs) index with a byte. NOT emitted for a u8 row --
+    // gridIdxU16 gates every use, so iq3_xxs's emitted C is untouched.
+    std::string u16LoadCallee = riscvIntrinsicName("vle", 16, l16, "u16");
+    auto loadU16Strip = [&](mlir::Value base, int64_t byteOff) -> mlir::Value {
+      mlir::Value full = base;
+      if (byteOff != 0)
+        full = rewriter.create<emitc::AddOp>(loc, weightPtrType, base,
+                                             sizeLit(byteOff));
+      mlir::Value cast =
+          rewriter.create<emitc::CastOp>(loc, u16PtrType, full).getResult();
+      return emitOpaqueCall(rewriter, loc, u16m1Type, u16LoadCallee,
+                            mlir::ValueRange{cast, vl8}, opName, role,
+                            llvm::StringRef("grid_index_u16_strip"));
+    };
     // The per-(sub-block, group) gather base = vsll(vzext(idxU8), shift). The GRID and
     // SIGN shifts DIFFER on an I32x4 row -- 2 for the uint32 grid entry (idx*4), 3 for
     // the signs64 selector (sel*8, 8 +-1 bytes each). The I64x8 leaves use one helper for
@@ -24607,9 +24642,27 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
             return {w16, sh, vl8};
           });
     };
+    // The u16-index counterpart: the lane is ALREADY 16-bit, so the base is vsll ONLY
+    // (no vzext). Same shift, same result shape -- the two differ exactly in whether the
+    // index arrived widened. (C4a-5; the iq2_xs / iq2_s / iq1_s leaves have this same
+    // pair split the same way.)
+    auto gridBaseFromStrip = [&](mlir::Value idx, int64_t shift) -> mlir::Value {
+      if (!gridIdxU16)
+        return idxBaseU16(idx, shift);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, u16m1Type, vsllU16Callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sh =
+                rewriter.create<emitc::LiteralOp>(loc, immI32Type,
+                                                  std::to_string(shift))
+                    .getResult();
+            return {idx, sh, vl8};
+          });
+    };
     // The REAL per-lane vluxei16 GATHER: gather byte (base + j) per lane from the
     // int8 table. The fractional mf2 anchor forbids a register vrgather over the
-    // 1024-byte grid / 1024-byte sign plane.
+    // 1024-byte grid / 2048-byte grid / 1024- or 2048-byte sign plane.
     std::string gatherCallee =
         riscvIndexedMemoryIntrinsicName("vluxei", 16, "i8", l8);
     auto gatherByte = [&](mlir::Value tablePtr, mlir::Value base,
@@ -24804,12 +24857,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
             llvm::SmallVector<mlir::Value> signBase(numHalves);
             for (int64_t e = 0; e < entriesPerGroup; ++e)
               for (int64_t h = 0; h < numHalves; ++h) {
-                mlir::Value gidxU8 = loadU8Strip(
-                    bl, gridIdxOffset +
-                            (ib * gridIdxPerSubblock + grp * entriesPerGroup + e) *
-                                16 +
-                            h * half);
-                gridBase[e].push_back(idxBaseU16(gidxU8, gridShift));
+                // The strip's LANE WIDTH is the row's (u8 for a 256-entry grid, u16 for
+                // iq3_s's 512); the byte offset scales with it. Everything downstream --
+                // base shift, gather, split -- is identical for both.
+                int64_t gidxByteOff =
+                    gridIdxOffset +
+                    ((ib * gridIdxPerSubblock + grp * entriesPerGroup + e) * 16 +
+                     h * half) *
+                        gridIdxLaneBytes;
+                mlir::Value gidx = gridIdxU16 ? loadU16Strip(bl, gidxByteOff)
+                                              : loadU8Strip(bl, gidxByteOff);
+                gridBase[e].push_back(gridBaseFromStrip(gidx, gridShift));
               }
             for (int64_t h = 0; h < numHalves; ++h) {
               mlir::Value sselU8 = loadU8Strip(
@@ -24915,17 +24973,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq3XxsQ8K(
 
 
 // The ggml iq3_xxs x q8_K 16x1-REPACKED PREFILL GEMM (C4a-4). The iq3_xxs prefill sibling
-// of emitRepackGemvIq3XxsQ8K: the SAME DUAL-ENTRY grid GATHER (two uint32 gridBases per
+// of emitRepackGemvGridDualEntryQ8K: the SAME DUAL-ENTRY grid GATHER (two uint32 gridBases per
 // 8-lane group, activation range split 0-3 / 4-7) + single sign-plane GATHER per group +
 // ls scale + 0.25f store fold, with the grid+sign weight decode AMORTIZED across the 4
 // interleaved block_q8_Kx4 activation columns (4 fp32 d at +0, interleaved int8 quants at
 // +16 as pos*4+c). Every weight byte is read once per group.
 //
-// See emitRepackGemvIq3XxsQ8K for why the dual-entry nest is a LEAF rather than a
+// See emitRepackGemvGridDualEntryQ8K for why the dual-entry nest is a LEAF rather than a
 // parameter of the iq2_xxs leaves; this file is that argument's prefill half, and the
 // amortization does not change it -- the split is in the WEIGHT decode, which is exactly
 // the part the 4 columns share. Ships PLAIN (untiled), like its iq2_xxs sibling.
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
+mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmGridDualEntryQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     const weft::GridDecodePlan &plan, mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
     mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
@@ -24943,11 +25001,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
     llvm::StringRef storeScaleRole = weft::gridStoreScaleRole(plan.storeScaleLiteral);
     if (plan.storeScaleLiteral.empty() || storeScaleRole.empty())
       return rewriter.notifyMatchFailure(
-          loc, "iq3_xxs repack GEMM requires a SignScaleStore plan whose "
+          loc, "the dual-entry repack GEMM leaf requires a SignScaleStore plan whose "
                "storeScaleLiteral has a registered store-scale role marker");
     if (plan.entryWidth != weft::GridEntryWidth::I32x4)
       return rewriter.notifyMatchFailure(
-          loc, "the iq3_xxs dual-entry repack GEMM leaf lowers ONLY I32x4 rows");
+          loc, "the dual-entry repack GEMM leaf lowers ONLY I32x4 rows");
 
     llvm::StringRef l8 = coreLmul;
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";
@@ -24976,10 +25034,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
     mlir::Type u8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
-    // The iq3_xxs grid decl is `static const uint32_t weft_iq3xxs_grid[256]` -- the ONLY
-    // registered row whose grid is not an int64 array.
+    // The I32x4 grid decls are `static const uint32_t weft_iq3xxs_grid[256]` /
+    // `weft_iq3s_grid[512]` -- the ONLY registered rows whose grid is not an int64 array.
     mlir::Type u32PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint32_t"));
+    mlir::Type u16PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint16_t"));
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
@@ -25000,6 +25060,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
     int64_t gridIdxPerSubblock = numGroups * entriesPerGroup;
     int64_t gridShift = weft::gridEntryByteShift(plan.entryWidth);
     int64_t lanesPerEntry = 8 / entriesPerGroup;
+    // The grid-INDEX strip lane width, DERIVED from the entry COUNT (C4a-5): iq3_xxs's
+    // 256-entry grid indexes with a byte, iq3_s's 512-entry grid needs 9 bits => u16.
+    // A leaf PARAMETER (it swaps the index LOAD only), not a leaf key -- see
+    // weft::gridIndexStripIsU16 and the GEVM sibling.
+    bool gridIdxU16 = weft::gridIndexStripIsU16(plan.gridEntryCount);
+    int64_t gridIdxLaneBytes = gridIdxU16 ? 2 : 1;
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
@@ -25021,7 +25087,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
     // table is iq2_xxs's -- ggml's iq3_xxs vec_dot reads ksigns_iq2xs by that name).
     if (mlir::failed(emitGridDecodePlanTableDecls(rewriter, loc, plan)))
       return rewriter.notifyMatchFailure(
-          loc, "iq3_xxs repack GEMM: the plan names tables with no decl emitter");
+          loc, "dual-entry repack GEMM: the plan names tables with no decl emitter");
     mlir::Value gridArrName =
         rewriter.create<emitc::LiteralOp>(loc, u32PtrType, plan.gridArrayName);
     mlir::Value gridI8Ptr =
@@ -25068,6 +25134,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
                             mlir::ValueRange{lsI8, vl8}, opName, role,
                             llvm::StringRef("subblock_scale_widen"));
     };
+    // u16 grid-index strip (C4a-5, the iq3_s path): a 9-bit index cannot live in a byte,
+    // so it is a uint16 lane loaded DIRECTLY (vle16 -- NO vzext). gridIdxU16 gates every
+    // use, so iq3_xxs's emitted C is untouched.
+    std::string u16LoadCallee = riscvIntrinsicName("vle", 16, l16, "u16");
+    auto loadU16Strip = [&](mlir::Value base, int64_t byteOff) -> mlir::Value {
+      mlir::Value full = base;
+      if (byteOff != 0)
+        full = rewriter.create<emitc::AddOp>(loc, weightPtrType, base,
+                                             sizeLit(byteOff));
+      mlir::Value cast =
+          rewriter.create<emitc::CastOp>(loc, u16PtrType, full).getResult();
+      return emitOpaqueCall(rewriter, loc, u16m1Type, u16LoadCallee,
+                            mlir::ValueRange{cast, vl8}, opName, role,
+                            llvm::StringRef("grid_index_u16_strip"));
+    };
     std::string vzextCallee = ("__riscv_vzext_vf2_u16" + l16).str();
     std::string vsllU16Callee = ("__riscv_vsll_vx_u16" + l16).str();
     std::string vaddU16Callee = ("__riscv_vadd_vx_u16" + l16).str();
@@ -25087,6 +25168,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
                                                   std::to_string(shift))
                     .getResult();
             return {w16, sh, vl8};
+          });
+    };
+    // The u16-index counterpart: the lane is ALREADY 16-bit, so the base is vsll ONLY
+    // (no vzext). Same shift, same result shape -- the two differ exactly in whether the
+    // index arrived widened. (C4a-5; see the GEVM sibling.)
+    auto gridBaseFromStrip = [&](mlir::Value idx, int64_t shift) -> mlir::Value {
+      if (!gridIdxU16)
+        return idxBaseU16(idx, shift);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, u16m1Type, vsllU16Callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sh =
+                rewriter.create<emitc::LiteralOp>(loc, immI32Type,
+                                                  std::to_string(shift))
+                    .getResult();
+            return {idx, sh, vl8};
           });
     };
     std::string gatherCallee =
@@ -25321,12 +25419,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq3XxsQ8K(
                 llvm::SmallVector<mlir::Value> signBase(numHalves);
                 for (int64_t e = 0; e < entriesPerGroup; ++e)
                   for (int64_t h = 0; h < numHalves; ++h) {
-                    mlir::Value gidxU8 = loadU8Strip(
-                        bl, gridIdxOffset +
-                                (ib * gridIdxPerSubblock + grp * entriesPerGroup +
-                                 e) * 16 +
-                                h * half);
-                    gridBase[e].push_back(idxBaseU16(gidxU8, gridShift));
+                    // Strip LANE WIDTH is the row's (u8 for a 256-entry grid, u16 for
+                    // iq3_s's 512); the byte offset scales with it, everything
+                    // downstream is identical. See the GEVM sibling.
+                    int64_t gidxByteOff =
+                        gridIdxOffset +
+                        ((ib * gridIdxPerSubblock + grp * entriesPerGroup + e) * 16 +
+                         h * half) *
+                            gridIdxLaneBytes;
+                    mlir::Value gidx = gridIdxU16 ? loadU16Strip(bl, gidxByteOff)
+                                                  : loadU8Strip(bl, gidxByteOff);
+                    gridBase[e].push_back(gridBaseFromStrip(gidx, gridShift));
                   }
                 for (int64_t h = 0; h < numHalves; ++h) {
                   mlir::Value sselU8 = loadU8Strip(
@@ -25540,6 +25643,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitGridDecodePlanTableDecls(
   if (plan.decodeModel == "iq3_xxs") {
     emitIQ3XXSCanonicalGridTableDecl(rewriter, loc);
     emitIQ2XXSCanonicalSigns64TableDecl(rewriter, loc);
+    return mlir::success();
+  }
+  // iq3_s (C4a-5): the SECOND uint32-grid row (`static const uint32_t
+  // weft_iq3s_grid[512]`, ggml's iq3s_grid verbatim) -- reusing the SAME
+  // emitIQ3SCanonicalGridTableDecl the iq3_s BLOCK-DOT path already emits from the
+  // canonical kIQ3SGrid, so the repack and block-dot paths cannot disagree about the grid
+  // literals. (kIQ3SGrid was machine-checked equal to ggml's iq3s_grid when this row
+  // landed, all 512 entries.)
+  //
+  // Its sign plane is iq2_s's DERIVED signs256 plane, and -- unlike iq3_xxs, which reuses
+  // iq2_xxs's signs64 because ggml literally reads `ksigns_iq2xs` from BOTH -- the reuse
+  // here is by CONSTRUCTION rather than by shared table name: ggml's iq3_s reads no sign
+  // TABLE at all, it tests the block's own explicit `signs[l]` byte with kmask_iq2xs[j].
+  // The DERIVED +-1 plane that answers "byte b, lane j -> +-1" is a pure function of
+  // (b, j) with no format in it, so iq2_s's 2048-byte decl IS the plane iq3_s needs, and
+  // emitting a byte-identical second copy under an iq3 name would be a copy, not a fact.
+  if (plan.decodeModel == "iq3_s") {
+    emitIQ3SCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
     return mlir::success();
   }
   return mlir::failure();

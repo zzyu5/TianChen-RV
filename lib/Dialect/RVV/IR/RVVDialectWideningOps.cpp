@@ -2080,6 +2080,22 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // neither).
   bool isGridIq3XxsFamily =
       getScaleModel() == "superblock-d.fp16-grid-sign-dual-entry-4bit-scale-nomin-quarter";
+  // iq3_s (C4a-5) -- the LAST grid sibling, and the one that resembles iq3_xxs closely
+  // enough to share its whole emitter leaf while siding with DIFFERENT siblings on two
+  // axes. SAME QK_K=256 super-block, SAME single per-sub-block ls, SAME dual-entry gather
+  // (iq3s_grid is `uint32_t[512]`, so a 4-byte entry still covers only half a group). It
+  // differs from iq3_xxs in exactly three DATA facts, all read off ggml_vec_dot_iq3_s_q8_K:
+  // a 9-bit index assembled from qs plus a qh bit (=> a u16 index strip); an EXPLICIT
+  // per-group sign byte carried by the block and tested with kmask_iq2xs, with no
+  // ksigns_iq2xs selector (=> iq2_s's DERIVED signs256 plane, not signs64); and `*s = sumf`
+  // -- no store constant at all. Its repack-SELECTED lowering CONSTRUCTS the grid
+  // typed_repack region (fold_model "grid_sign_dual_entry_single_scale_unit") carrying the
+  // SAME repack_gem{v,m}_grid_core brick (decode_model "iq3_s"); the compiler RECONSTRUCTS
+  // the 512-entry uint32 grid + the DERIVED signs256 plane (the abstract request carries
+  // neither).
+  bool isGridIq3SFamily =
+      getScaleModel() ==
+      "superblock-d.fp16-grid-explicitsign-dual-entry-4bit-scale-nomin-unit";
   if (!isQ40Family && !isQ41Family && !isQ50Family && !isQ51Family &&
       !isQ80Family && !isTernaryTQ20Family &&
       !isTernaryTQ10Family && !isKQuantQ4KFamily && !isKQuantQ6KFamily &&
@@ -2087,7 +2103,7 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
       !isCodebookIq4NlFamily && !isCodebookIq4XsFamily &&
       !isCodebookMxfp4Family && !isGridIq2XxsFamily &&
       !isGridIq2XsFamily && !isGridIq2SFamily && !isGridIq1SFamily &&
-      !isGridIq1MFamily && !isGridIq3XxsFamily)
+      !isGridIq1MFamily && !isGridIq3XxsFamily && !isGridIq3SFamily)
     return emitOpError()
            << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" (the q4_0 "
               "flat dual-fp16 nibble family), "
@@ -2130,7 +2146,18 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
               "iq1_s signed-ternary grid-codebook + qh delta-bsum family), or "
               "\"superblock-d.fp16-grid-ternary-delta-groupsum-dualscale-nomin-eighth\" "
               "(the iq1_m signed-ternary grid-codebook + dual-ls + per-GROUP delta "
-              "in-kernel-group-sum family) "
+              "in-kernel-group-sum family), or "
+              // C4a-5: the two iq3 rows were MISSING from this list. iq3_xxs has been
+              // ACCEPTED since C4a-4 (isGridIq3XxsFamily above) but was never added to
+              // the text, so this diagnostic has been under-reporting the legal set --
+              // telling a caller with a valid iq3_xxs WHAT that it is illegal and listing
+              // an accepted set that does not contain it. Harmless to the GATE (the
+              // predicate, not the string, decides) and invisible to lit (no test pins
+              // this tail), which is presumably how it survived. Both are listed now.
+              "\"superblock-d.fp16-grid-sign-dual-entry-4bit-scale-nomin-quarter\" "
+              "(the iq3_xxs dual-entry uint32-grid + signs64 sign-plane family), or "
+              "\"superblock-d.fp16-grid-explicitsign-dual-entry-4bit-scale-nomin-unit\" "
+              "(the iq3_s dual-entry uint32-grid + explicit signs256 sign-plane family) "
               "for the abstract block-quantized contraction request; got \""
            << getScaleModel() << "\"";
   if (getMRegime() != "decode" && getMRegime() != "prefill")
@@ -2767,6 +2794,50 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
       return emitOpError()
              << "requires activation_high_byte_offset == 0 (block_q8_K carries no "
                 "packed high half; the 0 sentinel is unused) for the abstract iq3_xxs "
+                "grid block-quantized contraction request";
+  } else if (isGridIq3SFamily) {
+    // iq3_s (C4a-5) DUAL-ENTRY EXPLICIT-SIGN grid codebook: QK_K == 256, PLAIN block_iq3_s
+    // weight stride 110, PLAIN block_q8_K activation stride 292. ggml-common.h's
+    // static_assert spells the stride `sizeof(ggml_half) + 13*(QK_K/32) + IQ3S_N_SCALE`
+    // = 2 + 104 + 4; laid out, that is d fp16 @0, qs[QK_K/4 = 64] @2, qh[QK_K/32 = 8] @66,
+    // signs[QK_K/8 = 32] @74, scales[IQ3S_N_SCALE = QK_K/64 = 4] @106. Unlike iq3_xxs there
+    // is NO double-duty region: every plane is its own field, so the plain qs at +2 are
+    // purely the low 8 bits of the 64 grid indices and the 9th bit lives in qh. The
+    // repacked x16 weight (stride 2720, grid-index @160 -- 2048 B, since the 9-bit index
+    // needs a u16 lane where iq3_xxs's byte index needs 1024 B; ls @32, EXPLICIT sign
+    // @2208) / block_q8_K{,x4} activation (292/4 GEVM, 1168/16 GEMM -- NO bsums either
+    // side, since the single-accumulator SignScaleStore fold has no delta term to feed)
+    // facts + the FIXED 512-entry uint32 grid + the DERIVED signs256 plane are a stage-C
+    // materialization the grid lowering RECONSTRUCTS, never carried here. EXPLICIT for the
+    // same reason every grid arm above is: without it an iq3_s request falls into the
+    // trailing q5_K `else` and is rejected by that family's 176 stride pin -- which is
+    // exactly what happened when this arm was missing, and is the failure mode the iq3_xxs
+    // arm's comment predicted.
+    if (getQk() != 256)
+      return emitOpError() << "requires qk == 256 (QK_K) for the abstract iq3_s "
+                              "grid block-quantized contraction request";
+    if (getWeightBlockStride() != 110)
+      return emitOpError()
+             << "requires weight_block_stride == 110 (sizeof block_iq3_s: fp16 d + "
+                "qs[QK_K/4] + qh[QK_K/32] + signs[QK_K/8] + scales[QK_K/64] = "
+                "2+64+8+32+4, the PLAIN super-block dual-entry explicit-sign grid "
+                "weight layout) for the abstract iq3_s grid block-quantized "
+                "contraction request";
+    if (getActivationBlockStride() != 292)
+      return emitOpError()
+             << "requires activation_block_stride == 292 (sizeof block_q8_K: fp32 d + "
+                "256 int8 quants + 16 int16 bsums -- iq3_s does NOT read the bsums, "
+                "its single-accumulator fold has no delta term) for the abstract "
+                "iq3_s grid block-quantized contraction request";
+    if (getQuantByteOffset() != 2)
+      return emitOpError()
+             << "requires quant_byte_offset == 2 (the plain iq3_s qs follow the "
+                "inline fp16 d) for the abstract iq3_s grid block-quantized "
+                "contraction request";
+    if (getActivationHighByteOffset() != 0)
+      return emitOpError()
+             << "requires activation_high_byte_offset == 0 (block_q8_K carries no "
+                "packed high half; the 0 sentinel is unused) for the abstract iq3_s "
                 "grid block-quantized contraction request";
   } else {
     // K-quant q5_K: QK_K == 256, PLAIN block_q5_K weight stride 176 (fp16 d + fp16 dmin
@@ -13141,8 +13212,14 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
   // 0.125f store constant. It gets its own fold_model rather than riding iq2_xxs's
   // because it needs its own emitter leaf: nothing about "single scale" distinguishes
   // them, and a fold_model that admitted both would be a name for two different nests.
+  // C4a-5: iq3_s joins this fold. It is the SAME dual-entry nest (a uint32 entry covers
+  // half a group, so two bases per group with the activation range split) and the SAME
+  // single accumulator; the two fold_models are distinct because their STORE constants
+  // are (0.25f vs ggml iq3_s's `*s = sumf`), and a fold_model naming a constant it does
+  // not apply is the mislabel this family already shipped twice.
   bool isGridDualEntryFold =
-      getFoldModel() == "grid_sign_dual_entry_single_scale_quarter";
+      getFoldModel() == "grid_sign_dual_entry_single_scale_quarter" ||
+      getFoldModel() == "grid_sign_dual_entry_single_scale_unit";
   bool isGridFold = getFoldModel() == "grid_sign_single_scale_eighth" ||
                     getFoldModel() == "grid_sign_dualscale_eighth" ||
                     isGridDeltaFold || isGridGroupSumFold || isGridDualEntryFold;
@@ -13180,7 +13257,10 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
               "sums dual-accumulator 0.125 fold), or "
               "\"grid_sign_dual_entry_single_scale_quarter\" (the iq3_xxs grid + "
               "sign-plane single ls-scale fold with TWO uint32 grid entries per "
-              "8-element group and a 0.25 store)";
+              "8-element group and a 0.25 store), or "
+              "\"grid_sign_dual_entry_single_scale_unit\" (the iq3_s explicit-sign "
+              "grid + the SAME dual-entry nest and single ls-scale, with NO store "
+              "constant at all)";
   if (!isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min")
@@ -13808,8 +13888,14 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
   // 0.125f store constant. It gets its own fold_model rather than riding iq2_xxs's
   // because it needs its own emitter leaf: nothing about "single scale" distinguishes
   // them, and a fold_model that admitted both would be a name for two different nests.
+  // C4a-5: iq3_s joins this fold. It is the SAME dual-entry nest (a uint32 entry covers
+  // half a group, so two bases per group with the activation range split) and the SAME
+  // single accumulator; the two fold_models are distinct because their STORE constants
+  // are (0.25f vs ggml iq3_s's `*s = sumf`), and a fold_model naming a constant it does
+  // not apply is the mislabel this family already shipped twice.
   bool isGridDualEntryFold =
-      getFoldModel() == "grid_sign_dual_entry_single_scale_quarter";
+      getFoldModel() == "grid_sign_dual_entry_single_scale_quarter" ||
+      getFoldModel() == "grid_sign_dual_entry_single_scale_unit";
   bool isGridFold = getFoldModel() == "grid_sign_single_scale_eighth" ||
                     getFoldModel() == "grid_sign_dualscale_eighth" ||
                     isGridDeltaFold || isGridGroupSumFold || isGridDualEntryFold;
@@ -13847,7 +13933,10 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
               "sums dual-accumulator 0.125 fold), or "
               "\"grid_sign_dual_entry_single_scale_quarter\" (the iq3_xxs grid + "
               "sign-plane single ls-scale fold with TWO uint32 grid entries per "
-              "8-element group and a 0.25 store)";
+              "8-element group and a 0.25 store), or "
+              "\"grid_sign_dual_entry_single_scale_unit\" (the iq3_s explicit-sign "
+              "grid + the SAME dual-entry nest and single ls-scale, with NO store "
+              "constant at all)";
   if (!isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min" &&

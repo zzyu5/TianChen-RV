@@ -2103,7 +2103,7 @@ private:
   /// sign-selector strip (8 vs 4 per sub-block; the selector is still one per 8-lane group
   /// because kmask_iq2xs[j+0]/[j+4] split the SAME byte). The store constant is ggml's
   /// 0.25f, carried as plan data with a DERIVED role marker. RESULT-LESS.
-  mlir::LogicalResult emitRepackGemvIq3XxsQ8K(
+  mlir::LogicalResult emitRepackGemvGridDualEntryQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       const weft::GridDecodePlan &plan, mlir::Value weightBase,
       mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
@@ -2113,10 +2113,10 @@ private:
       int64_t lsOffset, int64_t signOffset, int64_t activationQuantOffset,
       int64_t nSubblocks, int64_t weightInterleave, int64_t half) const;
 
-  /// The PREFILL GEMM sibling of emitRepackGemvIq3XxsQ8K: the SAME dual-entry grid decode
+  /// The PREFILL GEMM sibling of emitRepackGemvGridDualEntryQ8K: the SAME dual-entry grid decode
   /// with the weight decode AMORTIZED across the 4 interleaved block_q8_Kx4 activation
   /// columns. Ships PLAIN (untiled), like its iq2_xxs sibling.
-  mlir::LogicalResult emitRepackGemmIq3XxsQ8K(
+  mlir::LogicalResult emitRepackGemmGridDualEntryQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       const weft::GridDecodePlan &plan, mlir::Value weightBase,
       mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,

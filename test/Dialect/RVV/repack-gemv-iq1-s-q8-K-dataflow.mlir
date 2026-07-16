@@ -50,31 +50,42 @@ module {
         weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.fp16-grid-ternary-delta-singlescale-nomin-eighth", qk = 256 : i64, weight_block_stride = 1312 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 288 : i64, activation_quant_byte_offset = 4 : i64, activation_bsums_byte_offset = 260 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "grid_ternary_delta_eighth"} {
         ^bb0(%block_index: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">):
           // [D-1]: adding a ROW does not open the registry. This probe has now been walked
-          // forward TWICE, by the two lines that registered the model it was naming:
+          // forward THREE times, each time by the line that registered the model it named
+          // -- which is itself the finding: a probe that names a real-but-unlanded format
+          // has a SHELF LIFE, and every landing spends it.
           //   * C4a-2 probed with "iq1_m" (then the most plausible "surely it works too"
           //     guess, since iq1_m rides the SAME 2048-entry iq1s_grid). C4a-3 REGISTERED
           //     iq1_m, so that example stopped testing anything.
-          //   * The probe moved to "iq3_xxs". C4a-4 has now REGISTERED iq3_xxs the same
-          //     four ways (row + front door + BOTH leaves + oracle), so it too retired.
-          // The probe is now "iq3_s", the LAST unregistered grid sibling. Facts, read off
-          // ggml_vec_dot_iq3_s_q8_K rather than guessed:
-          //   - iq3s_grid is `uint32_t[512]`, and its decode gathers TWO entries per
-          //     8-lane group exactly as iq3_xxs does, so it would REUSE the
-          //     GridEntryWidth::I32x4 axis value C4a-4 added AND its dual-entry leaf shape.
-          //   - It differs in at least three ways the registry would have to carry: a
-          //     9-bit index assembled from qs[l] plus a qh bit; DUAL ls (ls1/ls2 from the
-          //     scales nibbles); an EXPLICIT per-group sign byte taken from the block
-          //     (`signs = x[i].signs`), not the ksigns_iq2xs selector iq3_xxs uses; and
-          //     `*s = sumf` -- NO store-side constant at all.
-          // NOTE what is deliberately NOT asserted here: what "blocks" iq3_s, or what it
-          // would cost. This comment states only what ggml shows. Twice now this family
-          // shipped a confident causal claim about the next row ("iq3_xxs needs
-          // GridEntryWidth::I32x4"; "iq3_xxs needs GridSignPlane::Ksigns128") and twice it
-          // was wrong -- always in a COMMENT, never in the enum, which is where the rule
-          // was looking. iq3_s is unregistered because nobody has landed the four pieces,
-          // full stop. This test keeps that refusal honest.
+          //   * The probe moved to "iq3_xxs". C4a-4 REGISTERED iq3_xxs the same four ways
+          //     (row + front door + BOTH leaves + oracle), so it too retired.
+          //   * The probe moved to "iq3_s". C4a-5 has now REGISTERED iq3_s the same four
+          //     ways -- and iq3_s was the LAST ggml grid sibling.
+          // So this probe can no longer name a real format, and it does not pretend to:
+          // "iq3_zz" is SYNTHETIC and will never exist. The mechanism under test is
+          // unchanged and is the whole point: lookupGridDecodePlan() returns nullptr for
+          // any string not in the closed registry, and every caller treats nullptr as
+          // REJECT. Registering a 7th row did not open the gate.
+          //
+          // WHAT THIS PROBE CANNOT TEST -- stated so its green is not read as more than it
+          // is. Now that the grid family is complete, no real format sits unregistered, so
+          // this case can no longer show the registry refusing something a reader might
+          // PLAUSIBLY expect to work; a synthetic string is the EASY case, and this probe
+          // got strictly weaker the moment iq3_s landed. It does NOT test that a
+          // registered-but-unlowerable row is refused (the leaves' own entry-width and
+          // store-scale guards do that), nor that a registered row DECODES correctly (the
+          // oracles do), nor anything about the front door, which never sees this string.
+          //
+          // Note also what this comment does NOT say: nothing about what any future grid
+          // format "would need". Three times this family published a confident causal claim
+          // about an unlanded row -- "iq3_xxs needs GridEntryWidth::I32x4", "iq3_xxs needs
+          // GridSignPlane::Ksigns128", and (right here, in the text this replaces) "iq3_s
+          // needs DUAL ls". All three were wrong; all three were in a COMMENT, never in an
+          // enum, which is where the rule was looking. iq3_s is in fact SINGLE ls: ggml
+          // names two scales per loop iteration but steps ib32 += 2 and spends one on each
+          // 32-element sub-block. The prediction came from reading ggml's variable NAMES
+          // instead of its loop STRIDE. This probe now asserts a mechanism, not a forecast.
           // expected-error @+1 {{only accepts a decode_model registered in the closed grid decode plan registry}}
-          %sumi:2 = weft_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq3_s", weight_quant_byte_offset = 288 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 160 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
+          %sumi:2 = weft_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq3_zz", weight_quant_byte_offset = 288 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 160 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m2">, !weft_rvv.vector<i32, "m2">
           weft_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !weft_rvv.vector<f32, "m2">, !weft_rvv.vector<f32, "m2">
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index
       } : !weft_rvv.vl
