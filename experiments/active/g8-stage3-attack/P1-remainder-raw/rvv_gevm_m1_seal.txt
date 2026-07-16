@@ -1,0 +1,11 @@
+# BUILD gevm-M1-p1@rvv CC=clang version 18.1.8 march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause flush=224MiB
+# cpu_md5_before=e85fceda47606a115c5fbb0021817cdc base_md5_before=d9c07980cd3d6796e3e9750af7778140
+# leaf_md5=a911818ceb301d4858d9698153673d6d
+# linked OK md5=9f87fc7ddf3e61ddc6155599ae8619f1
+# OURS_gevm_leaf [ins=724 rvv=628 gather=64 vset=260] size=5776B
+# OPP ggml_vec_dot_iq4_nl_q8_0 @00000000000c1658 m1[ins=9 rvv=0 gather=0 vset=0] m2[ins=9 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq4_nl_q8_0_vl128 @00000000000c1670 m1[ins=76 rvv=29 gather=2 vset=11] m2[ins=76 rvv=29 gather=2 vset=11] DUAL-AGREE
+# OPP ggml_vec_dot_iq4_nl_q8_0_vl256 @00000000000c178a m1[ins=78 rvv=30 gather=4 vset=6] m2[ins=78 rvv=30 gather=4 vset=6] DUAL-AGREE
+# OPP ggml_gemv_iq4_nl_16x1_q8_0 @00000000000c3a84 m1[ins=291 rvv=205 gather=32 vset=51] m2[ins=291 rvv=205 gather=32 vset=51] DUAL-AGREE
+# OPP ggml_gemv_iq4_nl_16x1_q8_0_generic @00000000000444b8 m1[ins=192 rvv=35 gather=2 vset=11] m2[ins=192 rvv=35 gather=2 vset=11] DUAL-AGREE
+# thunk callees: <ggml_vec_dot_iq4_nl_q8_0> <ggml_vec_dot_iq4_nl_q8_0_vl128> <ggml_vec_dot_iq4_nl_q8_0_vl256>

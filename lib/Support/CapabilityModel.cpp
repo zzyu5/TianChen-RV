@@ -224,6 +224,85 @@ llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
   return it->second;
 }
 
+// --- [S-1]/[S-2] relation-type table (code-side landing of the schema's
+// per-relation semantic annotation; see CapabilityModel.h) -------------------
+
+llvm::ArrayRef<CapabilityRelationKind> getAllCapabilityRelationKinds() {
+  static constexpr CapabilityRelationKind kKinds[] = {
+      CapabilityRelationKind::Provides,
+      CapabilityRelationKind::Implies,
+      CapabilityRelationKind::Conflicts,
+  };
+  return kKinds;
+}
+
+llvm::StringRef getCapabilityRelationName(CapabilityRelationKind kind) {
+  switch (kind) {
+  case CapabilityRelationKind::Provides:
+    return "provides";
+  case CapabilityRelationKind::Implies:
+    return "implies";
+  case CapabilityRelationKind::Conflicts:
+    return "conflicts";
+  }
+  llvm_unreachable("unhandled CapabilityRelationKind");
+}
+
+CapabilityRelationSemantics
+getCapabilityRelationSemantics(CapabilityRelationKind kind) {
+  switch (kind) {
+  case CapabilityRelationKind::Provides:
+    return CapabilityRelationSemantics::SatisfiesByAlias;
+  case CapabilityRelationKind::Implies:
+    return CapabilityRelationSemantics::TransitiveSatisfiable;
+  case CapabilityRelationKind::Conflicts:
+    return CapabilityRelationSemantics::FailClosedMutualExclusion;
+  }
+  llvm_unreachable("unhandled CapabilityRelationKind");
+}
+
+llvm::StringRef
+getCapabilityRelationSemanticsName(CapabilityRelationSemantics semantics) {
+  switch (semantics) {
+  case CapabilityRelationSemantics::SatisfiesByAlias:
+    return "satisfies-by-alias";
+  case CapabilityRelationSemantics::TransitiveSatisfiable:
+    return "transitive-satisfiable";
+  case CapabilityRelationSemantics::FailClosedMutualExclusion:
+    return "fail-closed-mutual-exclusion";
+  }
+  llvm_unreachable("unhandled CapabilityRelationSemantics");
+}
+
+bool relationSemanticsParticipateInSatisfaction(
+    CapabilityRelationSemantics semantics) {
+  switch (semantics) {
+  case CapabilityRelationSemantics::SatisfiesByAlias:
+    // An alias IS the capability for satisfaction purposes.
+    return true;
+  case CapabilityRelationSemantics::TransitiveSatisfiable:
+    // One hop here; TargetCapabilitySet lifts this to the full closure.
+    return true;
+  case CapabilityRelationSemantics::FailClosedMutualExclusion:
+    // A conflict is the opposite of a satisfier and must never satisfy.
+    return false;
+  }
+  llvm_unreachable("unhandled CapabilityRelationSemantics");
+}
+
+llvm::ArrayRef<mlir::StringAttr>
+CapabilityDescriptor::getRelationIDs(CapabilityRelationKind kind) const {
+  switch (kind) {
+  case CapabilityRelationKind::Provides:
+    return getProvidedIDs();
+  case CapabilityRelationKind::Implies:
+    return getImpliedIDs();
+  case CapabilityRelationKind::Conflicts:
+    return getConflictingIDs();
+  }
+  llvm_unreachable("unhandled CapabilityRelationKind");
+}
+
 bool CapabilityDescriptor::providesID(llvm::StringRef capabilityID) const {
   return relationListContains(getProvidedIDs(), capabilityID);
 }
@@ -237,8 +316,21 @@ bool CapabilityDescriptor::conflictsWithID(llvm::StringRef capabilityID) const {
 }
 
 bool CapabilityDescriptor::satisfiesID(llvm::StringRef capabilityID) const {
-  return getID() == capabilityID || providesID(capabilityID) ||
-         impliesID(capabilityID);
+  if (getID() == capabilityID)
+    return true;
+  // Which relations may satisfy is decided BY the [S-2] semantic annotation,
+  // not by an open-coded `provides || implies` disjunction. Behavior is
+  // identical to that disjunction today (provides/implies participate,
+  // conflicts does not) — what changed is that the annotation is the thing
+  // consulted, so the table is load-bearing and a wrong entry is observable.
+  for (CapabilityRelationKind kind : getAllCapabilityRelationKinds()) {
+    if (!relationSemanticsParticipateInSatisfaction(
+            getCapabilityRelationSemantics(kind)))
+      continue;
+    if (relationListContains(getRelationIDs(kind), capabilityID))
+      return true;
+  }
+  return false;
 }
 
 llvm::Expected<TargetCapabilitySet>

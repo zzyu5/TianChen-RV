@@ -1075,19 +1075,15 @@ private:
   // (reusing the SAME support::computeDeclaredInstanceHash the exec/schedule sinks use)
   // rides an inert in-IR attr. A fold_model with NO output-tiling axis (ternary,
   // non-repack) classifies to std::nullopt and is a NO-OP (no stamp).
-  void stampTilingSelection(mlir::OpBuilder &builder,
-                            weftrvv::TypedRepackGemmLoopBodyOp loop,
-                            llvm::StringRef foldModel, llvm::StringRef kernel,
-                            weftrvv::GgmlQuantContractionOp op) {
-    std::optional<pluginrvv::RVVTilingBottleneckShape> shape =
-        pluginrvv::classifyTilingBottleneckShape(foldModel);
-    if (!shape)
-      return;
-
+  void stampScheduleSelections(mlir::OpBuilder &builder,
+                               weftrvv::TypedRepackGemmLoopBodyOp loop,
+                               llvm::StringRef foldModel, llvm::StringRef kernel,
+                               weftrvv::GgmlQuantContractionOp op) {
     // The declared-instance hash: the SAME [D-4](1)/[D-2a] hash the exec / schedule
     // sinks compute (support::computeDeclaredInstanceHash of the enclosing kernel's
     // expanded capability instance). Best-effort: an unbuildable / non-conforming
     // instance leaves it empty (the measurement key then simply MISSES => cold start).
+    // Shared by BOTH schedule axes below, so it is derived BEFORE either.
     std::string declaredInstanceHash;
     if (auto kernelOp = op->getParentOfType<weft::exec::KernelOp>()) {
       if (llvm::Expected<support::TargetCapabilitySet> capabilities =
@@ -1100,10 +1096,30 @@ private:
 
     // The DERIVED capability facts: the guaranteed minimum VLEN of the configured
     // target (the SAME authority lowerOne derives) + the HARD 32-vector-register ISA
-    // fact. Consult the offline-profile measurement cache FIRST (a HIT => memoized
-    // argmin, reason=measured), then the two-stage capability selection.
+    // fact. Shared by both axes.
     std::int64_t minVLEN =
         pluginrvv::deriveMinimumVLEN(march, isaVectorHints);
+
+    // ---- AXIS 1: the loop-order schedule axis. INDEPENDENT of the SP4 output-tiling
+    // bottleneck shape below: the outer group-loop order is afforded by the two-group
+    // PREFILL GEMM nest itself (a REGIME + layout-STRIDE fact), NOT by the fold's
+    // register-cliff shape. It is therefore stamped BEFORE the tiling classifier's
+    // fail-safe early return -- previously this axis sat AFTER that return and so was
+    // silently skipped for every fold_model with no output-tiling axis (ternary),
+    // leaving the ternary GEMM leaves un-stamped while their emitter DID read the
+    // attr. The two axes are orthogonal and must not share a gate.
+    stampLoopOrderSelection(builder, loop, kernel, op, declaredInstanceHash,
+                            minVLEN);
+
+    // ---- AXIS 2: the SP4 output-tiling axis. A fold_model with NO output-tiling
+    // axis (ternary, non-repack) classifies to std::nullopt and is a NO-OP here.
+    std::optional<pluginrvv::RVVTilingBottleneckShape> shape =
+        pluginrvv::classifyTilingBottleneckShape(foldModel);
+    if (!shape)
+      return;
+
+    // Consult the offline-profile measurement cache FIRST (a HIT => memoized
+    // argmin, reason=measured), then the two-stage capability selection.
     std::optional<pluginrvv::RVVTilingMeasurementHit> measurement =
         pluginrvv::lookupTilingMeasurement(declaredInstanceHash, kernel);
     pluginrvv::RVVRepackTilingChoice choice =
@@ -1112,7 +1128,7 @@ private:
                                              measurement);
 
     // [SEL-1-T5] PRODUCTION-PATH INVARIANT (生产 dispatch 路径零 static_order):
-    // stampTilingSelection is reached ONLY from the repack GEMM builders, and
+    // stampScheduleSelections is reached ONLY from the repack GEMM builders, and
     // lowerOne gates EVERY such builder behind `isRepack && halfLanes != 0`
     // (deriveRepackHalfLanes returns 0 for minVLEN < 128). So on every WIRED leaf
     // minVLEN >= 128 AND kRVVArchVectorRegisterCount == 32 > 0, hence the Stage-1
@@ -1125,7 +1141,7 @@ private:
     // measured / prior / only_feasible, never static_order.
     assert(choice.reason != pluginrvv::RVVTilingSelectionReason::StaticOrder &&
            "SEL-1 production repack leaf stamped the capability-blind static_order "
-           "fallback: a wired path reached stampTilingSelection with minVLEN < 128 "
+           "fallback: a wired path reached stampScheduleSelections with minVLEN < 128 "
            "(the isRepack && halfLanes != 0 gate should make this unreachable)");
 
     loop->setAttr(kTilingVariantAttr,
@@ -1142,24 +1158,35 @@ private:
                       pluginrvv::buildTilingSelectionAttributionRecord(
                           kernel, candidates, choice.variant, choice.reason,
                           declaredInstanceHash, /*noTimestamp=*/true)));
+  }
 
-    // [M1c / SEL-1] the SECOND SP schedule axis: the repack prefill-GEMM OUTER
-    // group-loop ORDER (col-outer / row-outer), lifted from the M1b emitter-inlined
-    // `weightStride >= activationStride` to this first-class capability-keyed
-    // selector axis. Keyed on the e2e REGIME (only the two-group PREFILL GEMM affords
-    // the interchange; the decode GEVM has a single row group) + the repack LAYOUT
-    // STRIDE fact (which repacked panel is the larger DRAM stream), NEVER the format
-    // name. q4_K carries the M1b-board offline A/B seed (reason=measured, col-outer
-    // 2.47x schedule); every other leaf cold-starts the layout prior (reason=prior).
-    // The stride key uses the loop op's OWN declared block strides (the x16-repacked
-    // weight panel vs the x4-repacked activation panel) -- so the key MIGRATES across
-    // formats with zero per-format entries. REALIZATION SCOPE: the EmitC emitter
-    // REALIZES weft_rvv.loop_order in the q4_K min-fold GEMM two-arm body (M1b); the
-    // sibling K-quant / flat / codebook GEMM emitters currently carry a single fixed
-    // nest and do NOT yet read it -- the stamp there is the capability-keyed SELECTION
-    // record (a burn-down pointer to the same latent H-B cold-stream gap), NOT an
-    // emission claim (mirroring the min-fold "plain" tiling body being fail-closed /
-    // deferred rather than emitted).
+  // [M1c / SEL-1] the SECOND SP schedule axis: the repack prefill-GEMM OUTER
+  // group-loop ORDER (col-outer / row-outer), lifted from the M1b emitter-inlined
+  // `weightStride >= activationStride` to this first-class capability-keyed
+  // selector axis. Keyed on the e2e REGIME (only the two-group PREFILL GEMM affords
+  // the interchange; the decode GEVM has a single row group) + the repack LAYOUT
+  // STRIDE fact (which repacked panel is the larger DRAM stream), NEVER the format
+  // name. q4_K carries the M1b-board offline A/B seed (reason=measured, col-outer
+  // 2.47x schedule); every other leaf cold-starts the layout prior (reason=prior).
+  // The stride key uses the loop op's OWN declared block strides (the x16-repacked
+  // weight panel vs the x4-repacked activation panel) -- so the key MIGRATES across
+  // formats with zero per-format entries.
+  //
+  // REALIZATION SCOPE (corrected 2026-07-17, machine-verified per format): EVERY
+  // live typed repack-GEMM emission path READS this stamp. emitTypedRepackGemmLoopBody
+  // resolves it at two sites -- the q4_K min-fold arm (its own M1b two-arm body) and
+  // `siblingColGroupOuter`, which feeds the 11 sibling K-quant / ternary / codebook /
+  // grid body emitters AND the inline flat (lane_wise_vector_scale) full body. The
+  // sibling arm honors ONLY a MEASURED col_outer; an unmeasured layout-prior stamp
+  // keeps the M1-committed row_outer nest and emits an override record, so the stamp
+  // is emission-NEUTRAL until a measurement is seeded. The prior claim that the
+  // siblings "carry a single fixed nest and do NOT read it" was STALE.
+  void stampLoopOrderSelection(mlir::OpBuilder &builder,
+                               weftrvv::TypedRepackGemmLoopBodyOp loop,
+                               llvm::StringRef kernel,
+                               weftrvv::GgmlQuantContractionOp op,
+                               llvm::StringRef declaredInstanceHash,
+                               std::int64_t minVLEN) {
     bool isPrefillGemm = op.getMRegime() == "prefill";
     std::int64_t weightStride =
         static_cast<std::int64_t>(loop.getWeightBlockStride());
@@ -1714,7 +1741,7 @@ private:
     // output tiling a structural no-op) => Plain; q4_0 carries NO offline seed, so it
     // resolves via the cold-start [XFER-1] prior (reason=prior). Byte-exact: the flat
     // q4_0 emitter does not read tiling_variant, so the stamp is inert to the body.
-    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q4_0", op);
+    stampScheduleSelections(builder, loop, "lane_wise_vector_scale", "q4_0", op);
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
     // by columnsPerPass loop-carried per-column f32 VECTOR accumulators.
@@ -2051,7 +2078,7 @@ private:
 
     // The q4_1 GEMM SP4 tiling selection (fold_model classifies AlreadyLean => Plain,
     // reason=prior; byte-exact: the flat emitter does not read tiling_variant).
-    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q4_1", op);
+    stampScheduleSelections(builder, loop, "lane_wise_vector_scale", "q4_1", op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -2376,7 +2403,7 @@ private:
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
-    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q5_0", op);
+    stampScheduleSelections(builder, loop, "lane_wise_vector_scale", "q5_0", op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -2713,7 +2740,7 @@ private:
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
-    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q5_1", op);
+    stampScheduleSelections(builder, loop, "lane_wise_vector_scale", "q5_1", op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -3030,7 +3057,7 @@ private:
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
-    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q8_0", op);
+    stampScheduleSelections(builder, loop, "lane_wise_vector_scale", "q8_0", op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -3368,6 +3395,18 @@ private:
                   builder.getStringAttr(accLmulChoice.reason));
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // The ternary GEMM schedule selections. This builder is the ONE typed repack-GEMM
+    // construction point that previously stamped NEITHER axis, so its leaves reached
+    // an emitter that DOES read weft_rvv.loop_order with the attr ABSENT (silently
+    // defaulting to row_outer). The SP4 tiling axis is a genuine no-op here
+    // (ternary_single_fp16_scale classifies to std::nullopt -- no output-tiling axis),
+    // but the loop-order axis IS afforded by the two-group nest and must be stamped.
+    // Emission-neutral today: both ternary leaves carry weightStride < activationStride
+    // (tq1_0 864, tq2_0 1056, vs the q8_K 1168 activation panel), so the layout prior
+    // resolves to row_outer -- the already-shipped nest -- with reason=prior.
+    stampScheduleSelections(builder, loop, "ternary_single_fp16_scale",
+                            facts.decodeModel, op);
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
     // by columnsPerPass loop-carried per-column f32 VECTOR accumulators.
@@ -3727,7 +3766,7 @@ private:
     // family memoized-argmins to S6Tiled, and q6_K/q3_K to Plain (the HONEST measured
     // weight-bound fallback -- measurement says S6 is a NULL lever there). The SP4
     // tiling axis is a GEMM-only leaf, so this stamp lives only on the prefill loop op.
-    stampTilingSelection(builder, loop, facts.foldModel, facts.decodeModel, op);
+    stampScheduleSelections(builder, loop, facts.foldModel, facts.decodeModel, op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -4057,7 +4096,7 @@ private:
     // tiling a structural no-op) => Plain; no offline seed => the cold-start [XFER-1]
     // prior (reason=prior). Byte-exact: the codebook emitter does not read
     // tiling_variant, so the stamp is inert to the untiled body.
-    stampTilingSelection(builder, loop, facts.foldModel, facts.decodeModel, op);
+    stampScheduleSelections(builder, loop, facts.foldModel, facts.decodeModel, op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -4363,7 +4402,7 @@ private:
     // already <= the 32-vreg cliff, output tiling a structural no-op) => Plain; no offline
     // seed => the cold-start [XFER-1] prior (reason=prior). Byte-exact: the grid emitter
     // does not read tiling_variant, so the stamp is inert to the untiled body.
-    stampTilingSelection(builder, loop, facts.foldModel, facts.decodeModel, op);
+    stampScheduleSelections(builder, loop, facts.foldModel, facts.decodeModel, op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);

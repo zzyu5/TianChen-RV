@@ -41,16 +41,24 @@ module {
 }
 
 // The front door fully lowers to emitc (no typed op left behind).
+// [hollow-gate fix] The bare stride literals below are NOT discriminating on their own:
+// both nests emit the same multiset of literals, so a forward CHECK scan matched the
+// row_outer output too. The UNIQUE discriminator is the group-base callee marker
+// pinned by CHECK-NEXT to each group loop header: col_outer => the WEIGHT group base
+// is computed in the OUTER loop, act group base INSIDE. Negative control: flipping
+// weft_rvv.loop_order to "row_outer" swaps the two markers and turns this RED.
 // CHECK-NOT: weft_rvv.typed_repack_gemm_loop_body
 // CHECK: emitc.func @
 // col_outer: the weight-column-GROUP loop is OUTER; its per-group weight base
 // (weight_block_stride 3360) is HOISTED above the row sweep.
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
+// CHECK-NEXT: verbatim "{{.*}}callee=weight_group_base"
 // CHECK: literal "3360"
 // the activation-row-GROUP loop sweeps INSIDE it (activation_block_stride
 // 1168), then the SAME hot core (contraction-block loop + per-column store)
 // follows -- byte-identical to the row_outer default.
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
+// CHECK-NEXT: verbatim "{{.*}}callee=act_group_base"
 // CHECK: literal "1168"
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
 // CHECK: return

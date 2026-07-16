@@ -1,0 +1,19 @@
+=== OURS gemm leaf (k1 build, this session) ===
+OURS_gemm_leaf [ins=1784 rvv=1458 gather=64 vset=656] true_sp_spill=16 size=9768B
+OURS top-mnemonics: vsetvli:655 vwmul.vx:256 vwadd.wv:256 lbu:128 addi:71 vzext.vf2:64 vluxei16.v:64 vsrl.vi:32 vle8.v:32 vand.vi:32 add:23 slli:19 
+=== OPP-S ggml_gemm_iq4_nl_16x1_q8_0 (as-shipped) ===
+OPP-S [ins=235 rvv=65 gather=2 vset=12] true_sp_spill=47
+OPP-S top-mnemonics: ld:25 add:23 sd:22 addi:19 slli:16 mul:12 li:12 vsetvli:11 vwmul.vx:8 vse32.v:8 vmv2r.v:8 lbu:8 
+=== OPP-X ggml_vec_dot_iq4_nl_q8_0_vl256 (as-shipped) ===
+OPP-X [ins=79 rvv=30 gather=4 vset=6] true_sp_spill=2
+OPP-X top-mnemonics: addi:15 vle8.v:7 vsetivli:5 vrgather.vv:4 li:4 flh:4 fcvt.s.h:4 vwredsum.vs:2 vwmul.vv:2 vwmacc.vv:2 vsrl.vi:2 vse32.v:2 
+# vl evidence (AVL-setting vset only; zero,zero = keep vl)
+--- OURS ---
+      1 vsetivli zero,8,e32,m2,ta,ma
+--- OPP-S ---
+      1 vsetivli zero,16,e32,m2,ta,ma
+--- OPP-X ---
+      1 vsetivli zero,16,e16,m1,ta,ma
+      1 vsetivli zero,16,e32,m2,ta,ma
+      1 vsetivli zero,16,e8,mf2,ta,ma
+      2 vsetivli zero,1,e32,m1,ta,ma

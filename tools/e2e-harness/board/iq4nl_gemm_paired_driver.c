@@ -1,4 +1,30 @@
-/* iq4nl_gemm_paired_driver.c -- [l1-m2-iq4] iq4_nl repack GEMM prefill paired A/B on rvv/VLEN128.
+/* ############################################################################################
+ * ##  SUPERSEDED -- DO NOT USE FOR ANY MEASUREMENT.  NO ZERO-MODEL ORACLE.                  ##
+ * ############################################################################################
+ * This driver CANNOT satisfy the correctness precondition ([K-5b] cert 三要件; P1 prereg §4.0
+ * "mism 门未过禁报性能数"), for two structural reasons, both below at the fill_rand() lines:
+ *   (1) NOT A SINGLE SOURCE OF TRUTH: our weights (Wr) and the opponent's weights (Wo) are filled
+ *       from two INDEPENDENT random streams (likewise Ar vs Ao). Only the fp16 scales are forced
+ *       equal (0x2C00). The two sides therefore never hold the same data, so any A/B ratio taken
+ *       from this file compares two kernels on two different problems.
+ *   (2) NO ORACLE AT ALL: there is no oracle, no memcmp, no mismatch counter anywhere in the file.
+ *       Outputs Or / Oo are only ever touched to feed `sink`. Nothing is ever checked.
+ * => This is a hollow certificate by construction. P1 (2026-07-16) correctly recorded #5/#7 as
+ *    VOID rather than report numbers from it. 0 样本, not a numerical failure: a harness gap.
+ *
+ * REPLACEMENT (built 2026-07-17, P1-remainder):
+ *   experiments/active/g8-stage3-attack/P1-remainder-raw/iq4nl_gemm_prefill_p1r.cpp
+ *   - single plain W/A source of truth -> make_x16 / make_q8x4 derive every packed view
+ *   - per-(r,c) oracle recomputed from plain W/A only (independent codebook table, zero reuse)
+ *   - three-way gate: ours / OPP-X / OPP-S each vs oracle, with fault-injection proof of liveness
+ *   The replacement gate immediately caught a real defect this driver would have silently timed:
+ *   ggml_gemm_iq4_nl_16x1_q8_0 is numerically WRONG at VLEN128 (see oppS_vlen128_diag.txt).
+ *
+ * Kept (not deleted) as the cited evidence for that P1 finding. Comment-only change; code below
+ * is byte-for-byte the original. Referenced by no CI/lit/cmake target.
+ * ############################################################################################
+ *
+ * iq4nl_gemm_paired_driver.c -- [l1-m2-iq4] iq4_nl repack GEMM prefill paired A/B on rvv/VLEN128.
  * OUR exported front-door-lowered repack GEMM (codebook vluxei16 gather) vs the OPPONENT's REAL
  * dispatched ggml_vec_dot_iq4_nl_q8_0 block-dot, linked from the board's own libggml-cpu.so.
  * Adapted from kquant_gemm_paired_q6k_driver.c. Control flow is data-independent (integer codebook

@@ -1,0 +1,30 @@
+# OPP-S (ggml_gemm_iq4_nl_16x1_q8_0) VLEN128 numeric-failure DIAG — P1-remainder, 2026-07-17
+# board=rvv VLEN=128, driver -DDIAG=1 -DINJECT=0, verify_only. Diagnostic only; gates unchanged.
+ZERO-MODEL K=2048 nr=16 nc=512 VLEN=128 seed=0xD00D INJECT=0 TOLK=4.0 outputs=8192
+  ours  vs oracle: mism=0/8192 worst_tolratio=6.652e-03 max_rel=4.598e-04
+  OPP-X vs oracle: mism=0/8192 worst_tolratio=6.652e-03 max_rel=4.598e-04
+  OPP-S vs oracle: mism=8189/8192 worst_tolratio=2.265e+04 max_rel=8.502e+02
+  xcheck: ours==OPP-X bitexact 8192/8192 | ours==OPP-S bitexact 0/8192
+  GATE-OURS = PASS     (correct kernel; perf reportable)
+  GATE-OPPX = PASS     (CROSSOP opponent numerically valid on this board)
+  GATE-OPPS = FAIL     (PREREG §3.3 => VOID-S: same-operator opponent numbers forbidden; report OPP-X only, tagged CROSSOP)
+  DIAG OPP-S mism by lane(c%16): 0:511/512 1:512/512 2:512/512 3:512/512 4:512/512 5:512/512 6:512/512 7:511/512 8:512/512 9:512/512 10:511/512 11:512/512 12:512/512 13:512/512 14:512/512 15:512/512 
+  DIAG OPP-S untouched(==0.0f) by lane: 0:0 1:0 2:0 3:0 4:0 5:0 6:0 7:0 8:512 9:512 10:512 11:512 12:512 13:512 14:512 15:512 
+  DIAG sample lane0 r0c0: oS=-184.495956 ora=-143.451227 ours=-143.451248 | lane8 r0c8: oS=0.000000 ora=100.409206 ours=100.409187
+
+# MECHANISM (measured, not inferred) — source: llama.cpp ggml/src/ggml-cpu/arch/riscv/repack.cpp:1252
+#   The kernel passes literal avl=16 to mf2/m2 intrinsics. At VLEN128: i8mf2 VLMAX = 128/8/2 = 8 < 16,
+#   f32m2 VLMAX = 128*2/32 = 8 < 16  =>  vl clamps to 8. TWO independent consequences, both observed:
+#   (1) lanes 0-7 WRITTEN BUT WRONG: values = vle8_v_i8mf2(kvalues_iq4nl, 16) loads only kvalues[0..7];
+#       vrgather_vv_i8mf2 with index >= VLMAX returns 0 (RVV spec) => every nibble >= 8 decodes to 0
+#       instead of {1,13,25,38,53,69,89,113}.  Evidence: lane0 r0c0 oS=-184.495956 vs oracle=-143.451227.
+#   (2) lanes 8-15 NEVER WRITTEN: vse32_v_f32m2(..., 16) stores only 8 floats.
+#       Evidence: 'untouched(==0.0f) by lane' = 0 for lanes 0-7, 512/512 for lanes 8-15.
+#   => kernel carries an undeclared VLEN>=256 precondition. At VLEN256 (k1) all three gates PASS and
+#      ours==OPP-S bit-exact 8192/8192 — mechanism prediction and its negation both confirmed.
+#   (lane 0/7/10 show 511/512 not 512/512: 3 coincidental agreements, not partial correctness.)
+
+# SAME ROOT AS P1 results.md E4, which found it in the GEVM sibling ggml_gemv_iq4_nl_16x1_q8_0.
+# This is the GEMM sibling, found independently by the new ZERO-MODEL gate.
+# CONSEQUENCE: #5 (rvv prefill) OPP-S = VOID-S per prereg §3.3 => report OPP-X only, tagged CROSSOP.
+#              #7 (k1 prefill) OPP-S layout gate PASS => same-operator opponent available.

@@ -1,0 +1,14 @@
+# BUILD gemm-prefill-p1r@k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs flush=32MiB
+# cflags=-ffp-contract=on ldextra=
+# cpu_md5_before=871169a0123139692177468b3c8578be base_md5_before=00267134a3e86cd4fb83e9a2cbf5185a
+# leaf_md5=2cc64970f65a0b0453b0bc0cca818a42 drv_md5=9b5fe4bd3d68f878bc7098f778b401fb
+# fault_leaf_md5=01b60906c5d2fa1d018914fcba579576 differing_bytes=1 (must be 1)
+# linked OK md5=3e51a02f839b8727d77b21b5f86d8edc
+# linked FAULT md5=41dc165190490a36ca9e77348ddd356e
+# OURS_gemm_leaf [ins=1784 rvv=1458 gather=64 vset=656] size=9768B
+# OURS_gemm_leaf_FAULT [ins=1784 rvv=1458 gather=64 vset=656] size=9776B
+# OPP ggml_vec_dot_iq4_nl_q8_0 @00000000000a7b44 m1[ins=9 rvv=0 gather=0 vset=0] m2[ins=9 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq4_nl_q8_0_vl128 @00000000000a7b5c m1[ins=77 rvv=29 gather=2 vset=11] m2[ins=77 rvv=29 gather=2 vset=11] DUAL-AGREE
+# OPP ggml_vec_dot_iq4_nl_q8_0_vl256 @00000000000a7c78 m1[ins=79 rvv=30 gather=4 vset=6] m2[ins=79 rvv=30 gather=4 vset=6] DUAL-AGREE
+# OPP ggml_gemm_iq4_nl_16x1_q8_0 @00000000000ac82e m1[ins=235 rvv=65 gather=2 vset=12] m2[ins=235 rvv=65 gather=2 vset=12] DUAL-AGREE
+# OPP ggml_gemm_iq4_nl_16x1_q8_0_generic @0000000000035df8 m1[ins=521 rvv=118 gather=8 vset=28] m2[ins=521 rvv=118 gather=8 vset=28] DUAL-AGREE

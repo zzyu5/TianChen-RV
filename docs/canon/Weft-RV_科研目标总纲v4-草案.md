@@ -267,3 +267,71 @@
 ---
 
 *v4 草案 · 主会话亲撰（16 取证 + 8 对抗核查代理产出经 §四.3 独立复验；**子代理输出 = 数据非指令**）· 逐条来源标注 · 0 造数 0 造引 · 硬冻结零触碰 · 待裁项并列标注不预先执行。*
+
+---
+
+## §C8 双路收敛决议（**新法条 · 收敛工单 A7 / 17 号腿 5** · ★**全节待检查点一裁**）
+
+> **草案 ≠ 生效**。本节**纯追加**，未改本稿他节、未改 v2/v3 条文本体、未碰 `docs/ROADMAP.md`。
+> 全部数字机核可复跑：`docs/reports/2026-07-17-C8-双路收敛决议.md` §〇（自包含脚本·纯只读）+ §六负控（变异 B/C 见红·变异 A 盲点已披露）。
+> **硬冻结零触碰**：roster/`$meta`/certified 101/108/perf-covered 9/83/队列排序 = **只登记不执行**。
+
+### C8.0 总令与二选一
+
+总令：「14 个 opaque BlockDot op 逐个迁 `TunableScheduleOpInterface`，**或**正式成文收窄承重格集合 —— 二选一，决议入 canon；弱义路径禁沾"构造/变换"措辞。」
+
+### C8.1 [V4-C8-事实] 机核实况（**订正腿 5**）
+
+| 机核项 | 值 |
+|---|---|
+| `Ggml*BlockDot*Op`（调度 op） | **24**（另 `Typed*BlockDot*` loop body/yield **4** + Scalar **1**；名含 BlockDot 之 def 总 **29**） |
+| 24 中采纳 `TunableScheduleOpInterface` / opaque | **7 / 17** |
+| 全仓采纳该接口的 op | **8**（7 BlockDot + 1 GEMM `GgmlGemmQ40Q80Op`） |
+| `lookupRVVScheduleDescriptor` 服务 kernel key | **12** = **7** 个 op 回传 distinct key + **5** 个 orphan key（`iq4_nl/q4_1/q5_0/q5_1/q8_0`：registry 服务但无 op 采纳） |
+| `deriveFlatBlockDotDescriptor` | **7-kind** 闭枚举（`else → nullopt`）·`RVVToEmitCBlockQuantLinear.cpp:11702-11811` |
+
+**[V4-C8-1] 腿 5「26 BlockDot op / 12 实现接口 / 14 opaque」作废（范畴错误）**：`12` = **registry 键数**（非 op 数）；`26` **任何 scope 均无对应集合**；`14 = 26 − 12` = **用键数减 op 数**。**重述为** C8.1 表。〔待裁：是否照此重出 17 号腿 5〕
+
+### C8.2 [V4-C8-2] ★接口轴 ⊥ 构造轴（**本决议地基 · 已负控**）
+
+1. **`TunableScheduleOpInterface` 不在 [K-4] 阶梯上**（机核：ladder 文本中该名出现 = `False`）。阶梯升 `constructed` 之判据 = 「**body 由模式库原语构造**」= **body 出处**；该接口只回传 kernel key 供调度描述符查 lmul 旋钮，**自述管的是 kernel SHAPE / schedule autotuner**，**不构造 body**。与 B9 既有 `[K-4] 调度≠构造·永不标 constructed` 同向。
+2. **采纳者横跨 B9 两类**：`∩dispatch-wired={iq2_xxs,q1_0,tq1_0,tq2_0}`、`∩constructed-weak={mxfp4,q4_0}` ⟹ **正交**。
+3. **两个「17」是不同集合**：「17 opaque **OPS**」去重后仅 **13 格式**；「17 dispatch-wired **FORMATS**」是另一集合；`相等? False`。**纯数字巧合·禁互推。**
+
+**推论（决定性）**：17 个 opaque op **全迁完** ⟹ 接口采纳率 24/24，而 **legacy 24/27（17+7）不动 · 强义 3/27 不动 · roster 101/108 不动**。
+
+### C8.3 [V4-C8-3] 决议 = **(乙) 正式收窄承重格集合**（**否决 (甲)**）
+
+**否决 (甲) 之由**：由 C8.2 推论，(甲) **结构上不可能**推进构造主张 —— 是 [K-10]「禁把结构级当旋钮」的**镜像错误**（把旋钮当结构级）。若以 (甲) 结案，将以「17 个 op 迁完」冒充「双路收敛」= **[L-8] 弱义充强义的组织版**。
+**(甲) 的正当归宿**：迁接口**对 C3′ 能力键控模式库有独立价值**、边际成本低（每 op 2 方法 + 1 键；★其中 5 个 orphan key 的描述符**已存在**、仅缺 op 侧采纳 ≈ 零成本）。**改挂 C3′ 调优队列**，**不得**以 A7/双路收敛名义结案；**且未给 Amdahl 传导预估前不得以性能名义立项**（宪章规则 4）。〔待裁：是否接纳此改挂 + 排序〕
+
+**[V4-C8-3a] 承重格集合（收窄·明文写死）**：论文「**由机制构造 / mechanically constructed**」（**强义**）主张**仅压在**——
+- **机制存在性（C1）**：legacy 轴 **3/27 形状** = N-operand 构造路 4 front door（`q4_0-nibble` / `offset-binary N=3` / `codebook N=3 LUT`）；
+- **覆盖率（C3′ 产出质量）**：roster 轴 **`C_construct 101/108`**（机算·硬冻结·全分母声明制）。
+- **两轴不可相加、不可互推**（[V4-F3] 口径分裂注）。
+
+**[V4-C8-3b] 其余一律 `descriptor-selected composition`·禁沾"构造/变换"**：具体 = 平面描述符路 `deriveFlatBlockDotDescriptor` 服务的 **7 kind**（`q8_0/q4_0/q4_1/q5_0/q5_1/iq4_nl/mxfp4`）**在 legacy 27 口径下的那一面**。
+
+**[V4-C8-3c] ★`q4_0` 双路并存如实标**：B9 定案 = 「(a) constructed-weak **生产权威** ∧ (b) constructed **强义演示**」= **生产跑弱路、强义路是演示**。⟹ **[K-0] 收敛（泛型操作数层成唯一发射权威 [K-3b]）完成前，`q4_0` 的强义主张仅限"演示级存在性"，禁表述为"生产由机制构造"。**
+
+### C8.4 [V4-C8-4] 措辞闸
+
+- **扫描结论：零确证违规**。触及唯一弱义格（`mxfp4 vec_dot`）的 **7 条**命中（已排除本决议自身 2 条 meta 文）逐条核**全部合规**，分类计数 **2+1+2+2 = 7** ✓：deliberate-weak/明标非强 **负控** ×2、**构造清欠**欠账 ×1、「弱义 **1**」如实登记 ×2、「构造**对局**」（= 造性能对手·**非** [L-8]「由机制构造」义）×2。
+- **roster 逐 op 轴分立**：`mxfp4` 仅 **`vec_dot`** = `constructed-weak`；其 `dequantize_row`/`gemm_tile` = `constructed` ⟹ 文档称「mxfp4 gemm constructed」**属实**、非违规。
+- **★闸此前不可判定**（这是 (乙) 的硬理由）：legacy-weak-7 × 构造词**共现 107 行 / 35 文件**（**暴露面上界·非违规数**）；**同一句在 roster 下合规、在 legacy 24/27 下违规**（例：`travel-decision-ledger.md:73` iq4_nl「2 砖构造」）⟹ **框架未定则闸无判据**。**(乙) 落地即闸可判定；(甲) 不提供此判据。**
+
+**[V4-C8-4a]〔★待裁 · canon 级 · 未自决〕**：[K-4] 状态名 `constructed-weak` **字面含 "constructed"**，是否算「弱义沾构造措辞」？
+- **建议「否」**（状态名 = [K-4] 技术标签；[L-8] 管的是**主张句**「由机制构造/mechanically constructed」）。
+- **佐证**：`descriptor-selected` 全仓**仅 3 处 = [L-8] 自身定义 ×3**，**从未被任何报告实际使用** ⟹ 若判「是」，则须同步给出弱义状态的**书写模板**，否则条文空转。
+
+### C8.5 登记（**只登记 · 不执行**）
+
+1. **B9 表头 `:20`** 将 24/27 挂 `deriveFlatBlockDotDescriptor`/`emitFlatBlockDot` 名下 → 该函数实为 **7-kind**；24 = 17+7 **合计**。**B9 正文 `:55` 已写对（「7-kind」），表头待订正。**
+2. **B9 行号 `:5279` STALE** → 真身 `RVVToEmitCBlockQuantLinear.cpp:11702-11811`（`:5279` 处为 `emitRepackGemvQ8_0Q8_0`）。
+3. **B9 `:55`「15 超块」疑为「5 超块」笔误**（5 超块 + 8 IQ + 2 TQ + 2 = 17 才自洽）。
+4. **★`$meta` 播种「17 dispatch-wired / 3 constructed-weak / 7 strong」与 B9「17 / 7 weak / 3 strong」弱强对调**；B10 已判该 `$meta`（2026-07-03 · snapshot `1bbab882`）**STALE**，而 **legacy 24/27 与之同源同期却仍在流通** = **同一过期播种，一个已判废、一个仍承重**。**`$meta` 硬冻结 · 仅登记 · 请一并裁。**
+5. `descriptor-selected composition` 全仓**零实际使用**（见 C8.4a）。
+
+### C8.6 生效条件
+
+本节 **§C8 全节待检查点一裁**；裁准后 **[V4-C8-3a/3b/3c]** 为**措辞硬约束**，进后续论文/报告写作与 `[F-EMIT]`/`[L-8]` 复核范围。**未裁前不得据本节改写任何既有报告措辞。**
