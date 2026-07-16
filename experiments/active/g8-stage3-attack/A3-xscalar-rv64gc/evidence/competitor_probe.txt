@@ -1,0 +1,33 @@
+# A3 channel-2: competitor codegen probe (measured absence + documented scope)
+# date: 2026-07-16  env: local dev host (TianchenRV working tree)
+# target under consideration: vector-absent rv64gc, ggml-format ternary tq2_0 x q8_K vec_dot
+
+## installation probe (empirical, this environment)
+  iree-compile   : NOT-INSTALLED
+  iree-opt       : NOT-INSTALLED
+  xdsl-opt       : NOT-INSTALLED
+  xdsl           : NOT-INSTALLED
+  heteromx       : NOT-INSTALLED
+  py:xdsl        : NOT-INSTALLED
+  py:iree        : NOT-INSTALLED
+
+## documented capability scope (from repo canon; basis for producible-kernel count)
+  heteroMx   : unified matrix-extension IR (SME/IME/AME), defers lowering; no access protocol,
+               no runtime/zero-branch. NO scalar rv64gc ggml-ternary codegen path.
+               ref: docs/canon/Weft-RV_科研目标总纲v2.md [C1-RW] face F; 定位-v2.md.
+  xDSL-RVV   : emits RVV VECTOR intrinsic EmitC with hardcoded fixed VLEN + fixed LMUL
+               (arXiv 2603.17800). A vector path -> not applicable to a vector-ABSENT rv64gc target.
+               ref: .trellis/tasks/.../trackB-auto-lowering-DESIGN.md.
+  10x-IREE   : IREE-on-RISC-V is RVV-only, no matrix; no ggml block-quant ternary tq2_0 kernel.
+               ref: 07-01 journal (IREE-on-RISC-V RVV-only).
+
+## RESULT (measured/attested)
+  producible-kernel count for vector-absent rv64gc ggml-ternary tq2_0xq8_K vec_dot:
+    heteroMx = 0 ; xDSL-RVV = 0 ; 10x-IREE = 0
+    basis: installation probe NOT-INSTALLED (all) + documented scope covers none of this target.
+  WORDING (fixed line): codegen 竞品产出为零 - 现存唯一替代 = 手写标量参考 (ggml scalar).
+  ggml scalar reference DISCLOSURE: RUNNABLE and RUN - it is the REF/oracle executed on the
+    rvv board (run.json result_ref = 3345.46533, byte-exact vs OURS).
+  LIMITATION (honest): a literal 'installed-and-invoked -> 0 kernels' artifact was NOT produced
+    (frameworks not installed; install+invoke is a heavier follow-up, out of rehearsal scope).
+    enablement domain: scalar-oracle is sanity only (L-6), never a contribution baseline -> NON-Win.

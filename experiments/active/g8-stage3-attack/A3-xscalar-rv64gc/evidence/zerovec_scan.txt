@@ -1,0 +1,50 @@
+# A3 zero-vector static machine-check (owned weft_scalar kernel .o)
+# artifact: kernel_clang.o  target: -march=rv64gc -mabi=lp64d  compiler: clang 17.0.6
+vector_mnemonic_lines: 0
+vset_lines:            0
+vector_load_store:     0
+cpop_clmul_lines:      0
+weft_rvv_symbols:      0
+__riscv_intrinsics:    0
+fp16_softfloat_call:   1  (scalar libcall, expected on rv64gc no-zfh)
+distinct_mnemonics:
+       57 add
+       43 a0
+       26 a2
+       18 a3
+       17 sd
+       17 mv
+       17 ld
+       17 a4
+       13 li
+       11 s5
+       11 a5
+       10 mul
+        8 lbu
+        8 lb
+        8 bnez
+        8 addw
+        7 srl
+        6 fs0
+        5 s0
+        4 sll
+        4 s9
+        4 s8
+        4 s7
+        4 s6
+        4 s4
+        4 s3
+        4 s2
+        4 s11
+        4 s10
+        4 s1
+        4 ra
+        4 a1
+        3 fs1
+        3 fmv.w.x
+        2 sp
+        2 fsd
+        2 fmul.s
+        2 fld
+        2 fa5
+        2 and

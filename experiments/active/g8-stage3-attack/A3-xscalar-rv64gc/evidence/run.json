@@ -1,0 +1,13 @@
+{
+  "target": "rvv-board run-as-noV (-march=rv64gc -mabi=lp64d), narrow-exempt V-board-run-as-noV",
+  "n_elements": 2097152, "nb_superblocks": 8192, "reps": 61,
+  "fp16_primitive_golden": "PASS (9/9 textbook IEEE)",
+  "result_ours": 3345.46533, "result_ref": 3345.46533, "result_int_oracle": 3345.46533,
+  "bits_ours": "0x45511772", "bits_ref": "0x45511772", "bits_int_oracle": "0x45511772",
+  "byte_exact_vs_ggml_ref": true, "byte_exact_vs_libcall_free_oracle": true,
+  "byte_exact": true,
+  "median_ns_ours": 4399941.0, "median_ns_ref": 4394521.0,
+  "ratio_ref_over_ours": 0.9988,
+  "pk_domain": "scalar-oracle sanity (Win-S), enablement, NON-Win",
+  "sink": 441602
+}

@@ -69,6 +69,8 @@
 
 **状态枚举沿用上节 §格 schema 二分** `{measured|stale|board-pending|open|n_a}`。铁律：列 3 静态机检板无关随时可产；列 4/5 无真板运行 = `board-pending`（不进正文，[L-5]）；列 5 永不升 Win（enablement 域）。T-X 是**定义**，不是活测量入口；活证据落 experiments/ 并按本 § 引用对齐。
 
+> **活证据指针（引用对齐·非定义变更）**：A3 rv64gc 双通道彩排（narrow-exempt `V-board-run-as-noV`）六列填表见 `experiments/active/g8-stage3-attack/A3-xscalar-rv64gc/TX-six-column-evidence.md`（+ `evidence/`）。摘要：列 3 zero-vector 机检 PASS（owned kernel `.o` 0 向量 opcode）；列 4 byte-exact vs 两独立 oracle（`0x45511772`）；列 5 竞品产出数 heteroMx/xDSL-RVV/10x-IREE = 0（enablement·NON-Win）。彩排级·narrow-exempt·无性能主张。
+
 ## 对手解析探针（vs-framework 证据的有效性门）
 
 对比框架（ggml/llama.cpp）的性能证据，必须在钉死的框架版本 + 该板默认构建下，探测每个 `(算子, 格式, 形状类)` **实际派发的 kernel**，产**对手探针工件**并写入测量格的对手指针。**vs-framework 测量格无探针工件 = CI 判 INVALID**（routing 随板/格式/版本变，手填必腐烂）。

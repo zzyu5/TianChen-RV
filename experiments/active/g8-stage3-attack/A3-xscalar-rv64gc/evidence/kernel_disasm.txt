@@ -1,0 +1,226 @@
+
+kernel_clang.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <weft_emitc_tq2_0_kernel_scalar_fallback_first_slice>:
+   0:	add	sp,sp,-160
+   2:	sd	ra,152(sp)
+   4:	sd	s0,144(sp)
+   6:	sd	s1,136(sp)
+   8:	sd	s2,128(sp)
+   a:	sd	s3,120(sp)
+   c:	sd	s4,112(sp)
+   e:	sd	s5,104(sp)
+  10:	sd	s6,96(sp)
+  12:	sd	s7,88(sp)
+  14:	sd	s8,80(sp)
+  16:	sd	s9,72(sp)
+  18:	sd	s10,64(sp)
+  1a:	sd	s11,56(sp)
+  1c:	fsd	fs0,48(sp)
+  1e:	fsd	fs1,40(sp)
+  20:	li	a4,256
+  24:	sd	a1,8(sp)
+  26:	bgeu	a0,a4,26 <weft_emitc_tq2_0_kernel_scalar_fallback_first_slice+0x26>
+  2a:	fmv.w.x	fs0,zero
+  2e:	j	2e <weft_emitc_tq2_0_kernel_scalar_fallback_first_slice+0x2e>
+
+0000000000000030 <.LBB0_2>:
+  30:	li	s0,0
+  32:	srl	a0,a0,0x8
+  34:	seqz	a1,a0
+  38:	add	a0,a0,a1
+  3a:	sd	a0,16(sp)
+  3c:	add	s6,a3,4
+  40:	add	s7,a3,36
+  44:	add	s8,a3,68
+  48:	add	s9,a3,100
+  4c:	add	s10,a3,132
+  50:	add	s1,a2,32
+  54:	add	s11,a3,164
+  58:	add	s2,a3,196
+  5c:	add	s3,a3,228
+  60:	fmv.w.x	fs0,zero
+  64:	mv	s4,a2
+  66:	sd	a3,32(sp)
+  68:	sd	a2,24(sp)
+
+000000000000006a <.LBB0_3>:
+  6a:	li	s5,0
+  6c:	li	a0,66
+  70:	mul	a0,s0,a0
+  74:	add	a6,a2,a0
+  78:	li	a0,292
+  7c:	mul	a1,s0,a0
+  80:	add	a1,a1,a3
+  82:	li	a2,32
+  86:	mv	a3,s4
+  88:	mv	a4,s6
+
+000000000000008a <.LBB0_4>:
+  8a:	lbu	a0,0(a3)
+  8e:	lb	a5,0(a4)
+  92:	and	a0,a0,3
+  94:	addw	a0,a0,-1
+  96:	mul	a0,a0,a5
+  9a:	add	s5,s5,a0
+  9c:	add	a4,a4,1
+  9e:	add	a2,a2,-1
+  a0:	add	a3,a3,1
+  a2:	bnez	a2,a2 <.LBB0_4+0x18>
+  a4:	li	a2,32
+  a8:	mv	a3,s7
+  aa:	mv	a4,s4
+
+00000000000000ac <.LBB0_6>:
+  ac:	lbu	a5,0(a4)
+  b0:	lb	a0,0(a3)
+  b4:	sll	a5,a5,0x3c
+  b6:	srl	a5,a5,0x3e
+  b8:	addw	a5,a5,-1
+  ba:	mul	a0,a5,a0
+  be:	add	s5,s5,a0
+  c0:	add	a4,a4,1
+  c2:	add	a2,a2,-1
+  c4:	add	a3,a3,1
+  c6:	bnez	a2,c6 <.LBB0_6+0x1a>
+  c8:	li	a2,32
+  cc:	mv	a3,s8
+  ce:	mv	a4,s4
+
+00000000000000d0 <.LBB0_8>:
+  d0:	lbu	a0,0(a4)
+  d4:	lb	a5,0(a3)
+  d8:	sll	a0,a0,0x3a
+  da:	srl	a0,a0,0x3e
+  dc:	addw	a0,a0,-1
+  de:	mul	a0,a0,a5
+  e2:	add	s5,s5,a0
+  e4:	add	a4,a4,1
+  e6:	add	a2,a2,-1
+  e8:	add	a3,a3,1
+  ea:	bnez	a2,ea <.LBB0_8+0x1a>
+  ec:	li	a2,32
+  f0:	mv	a3,s9
+  f2:	mv	a4,s4
+
+00000000000000f4 <.LBB0_10>:
+  f4:	lbu	a0,0(a4)
+  f8:	lb	a5,0(a3)
+  fc:	srl	a0,a0,0x6
+  fe:	addw	a0,a0,-1
+ 100:	mul	a0,a0,a5
+ 104:	add	s5,s5,a0
+ 106:	add	a4,a4,1
+ 108:	add	a2,a2,-1
+ 10a:	add	a3,a3,1
+ 10c:	bnez	a2,10c <.LBB0_10+0x18>
+ 10e:	li	a2,32
+ 112:	mv	a3,s1
+ 114:	mv	a4,s10
+
+0000000000000116 <.LBB0_12>:
+ 116:	lbu	a0,0(a3)
+ 11a:	lb	a5,0(a4)
+ 11e:	and	a0,a0,3
+ 120:	addw	a0,a0,-1
+ 122:	mul	a0,a0,a5
+ 126:	add	s5,s5,a0
+ 128:	add	a2,a2,-1
+ 12a:	add	a4,a4,1
+ 12c:	add	a3,a3,1
+ 12e:	bnez	a2,12e <.LBB0_12+0x18>
+ 130:	li	a2,32
+ 134:	mv	a3,s1
+ 136:	mv	a4,s11
+
+0000000000000138 <.LBB0_14>:
+ 138:	lbu	a0,0(a3)
+ 13c:	lb	a5,0(a4)
+ 140:	sll	a0,a0,0x3c
+ 142:	srl	a0,a0,0x3e
+ 144:	addw	a0,a0,-1
+ 146:	mul	a0,a0,a5
+ 14a:	add	s5,s5,a0
+ 14c:	add	a2,a2,-1
+ 14e:	add	a4,a4,1
+ 150:	add	a3,a3,1
+ 152:	bnez	a2,152 <.LBB0_14+0x1a>
+ 154:	li	a2,32
+ 158:	mv	a3,s1
+ 15a:	mv	a4,s2
+
+000000000000015c <.LBB0_16>:
+ 15c:	lbu	a0,0(a3)
+ 160:	lb	a5,0(a4)
+ 164:	sll	a0,a0,0x3a
+ 166:	srl	a0,a0,0x3e
+ 168:	addw	a0,a0,-1
+ 16a:	mul	a0,a0,a5
+ 16e:	add	s5,s5,a0
+ 170:	add	a2,a2,-1
+ 172:	add	a4,a4,1
+ 174:	add	a3,a3,1
+ 176:	bnez	a2,176 <.LBB0_16+0x1a>
+ 178:	li	a2,32
+ 17c:	mv	a3,s1
+ 17e:	mv	a4,s3
+
+0000000000000180 <.LBB0_18>:
+ 180:	lbu	a0,0(a3)
+ 184:	lb	a5,0(a4)
+ 188:	srl	a0,a0,0x6
+ 18a:	addw	a0,a0,-1
+ 18c:	mul	a0,a0,a5
+ 190:	add	s5,s5,a0
+ 192:	add	a2,a2,-1
+ 194:	add	a4,a4,1
+ 196:	add	a3,a3,1
+ 198:	bnez	a2,198 <.LBB0_18+0x18>
+ 19a:	flw	fs1,0(a1)
+ 19e:	lhu	a0,64(a6)
+ 1a2:	fmv.w.x	fa0,a0
+ 1a6:	auipc	ra,0x0
+ 1aa:	jalr	ra # 1a6 <.LBB0_18+0x26>
+ 1ae:	fmul.s	fa5,fs1,fa0
+ 1b2:	fcvt.s.w	fa4,s5
+ 1b6:	fmul.s	fa5,fa5,fa4
+ 1ba:	fadd.s	fs0,fs0,fa5
+ 1be:	add	s0,s0,1
+ 1c0:	add	s6,s6,292
+ 1c4:	add	s4,s4,66
+ 1c8:	add	s7,s7,292
+ 1cc:	add	s8,s8,292
+ 1d0:	add	s9,s9,292
+ 1d4:	add	s10,s10,292
+ 1d8:	add	s1,s1,66
+ 1dc:	add	s11,s11,292
+ 1e0:	add	s2,s2,292
+ 1e4:	add	s3,s3,292
+ 1e8:	ld	a3,32(sp)
+ 1ea:	ld	a2,24(sp)
+ 1ec:	ld	a0,16(sp)
+ 1ee:	bne	s0,a0,1ee <.LBB0_18+0x6e>
+
+00000000000001f2 <.LBB0_20>:
+ 1f2:	ld	a0,8(sp)
+ 1f4:	fsw	fs0,0(a0)
+ 1f8:	ld	ra,152(sp)
+ 1fa:	ld	s0,144(sp)
+ 1fc:	ld	s1,136(sp)
+ 1fe:	ld	s2,128(sp)
+ 200:	ld	s3,120(sp)
+ 202:	ld	s4,112(sp)
+ 204:	ld	s5,104(sp)
+ 206:	ld	s6,96(sp)
+ 208:	ld	s7,88(sp)
+ 20a:	ld	s8,80(sp)
+ 20c:	ld	s9,72(sp)
+ 20e:	ld	s10,64(sp)
+ 210:	ld	s11,56(sp)
+ 212:	fld	fs0,48(sp)
+ 214:	fld	fs1,40(sp)
+ 216:	add	sp,sp,160
+ 218:	ret
