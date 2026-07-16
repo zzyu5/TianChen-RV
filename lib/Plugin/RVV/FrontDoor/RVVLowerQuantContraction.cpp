@@ -748,6 +748,38 @@ constexpr llvm::StringLiteral kGridIq1SScaleModel =
 constexpr llvm::StringLiteral kGridIq1SGemmScaleModel =
     "superblock-d.fp16-grid-ternary-delta-singlescale-4col-nomin-eighth";
 
+// The iq1_m decode-FAMILY discriminator (the abstract request's committed scale_model
+// WHAT): iq1_s's TERNARY-DELTA sibling, and the C4a-3 row. It shares iq1_s's grid
+// (the SAME 2048 ternary literals -- ggml's ggml_vec_dot_iq1_m_q8_K indexes `iq1s_grid`
+// itself), its 8-byte entry, its "no sign plane, the gathered byte IS the weight" decode
+// and the 0.125 dual-accumulator fold expression; and it shares iq2_xs/iq2_s's DUAL ls
+// arity. Its THREE structural deltas vs iq1_s, all checkable against ggml:
+//   (a) NO inline d. block_iq1_m is 56 B of qs[32] + qh[16] + scales[8] with NO ggml_half
+//       member at all (ggml-common.h). The fp16 super-block d is ASSEMBLED from four
+//       nibbles scattered across the scales words: scale.u16 = (sc[0] >> 12) |
+//       ((sc[1] >> 8) & 0x00f0) | ((sc[2] >> 4) & 0x0f00) | (sc[3] & 0xf000). The repack
+//       does this ONCE, so the kernel sees an ordinary inline fp16 d strip.
+//   (b) DUAL ls. ls1 = 2*((sc[ib/2] >> (6*(ib%2)+0)) & 7)+1 over groups 0-1, ls2 =
+//       2*((sc[ib/2] >> (6*(ib%2)+3)) & 7)+1 over groups 2-3 -- the SAME shape as
+//       iq2_xs/iq2_s, so it REUSES the dual-ls strip layout (foldModel is dual, arity Dual).
+//   (c) PER-GROUP delta + NO bsums. iq1_s has ONE +-1 per sub-block and its delta term is
+//       exactly ls*delta*(bsums[2ib]+bsums[2ib+1]). iq1_m has FOUR INDEPENDENT +-1 per
+//       sub-block (delta[l] = qh[l/2] & (l%2 ? 0x80 : 0x08) ? -1 : 1) and its delta term
+//       needs the per-GROUP-of-8 activation sum. block_q8_K's bsums are sums over groups
+//       of SIXTEEN, and the two 8-groups inside one bsums entry carry INDEPENDENT delta
+//       signs, so a bsums entry CANNOT express it. iq1_m therefore stamps NO
+//       activation_bsums_byte_offset and accumulates the group sum IN-KERNEL from the same
+//       8 activation scalars the grid dot already reads. This is what makes the fold
+//       "grid_ternary_delta_groupsum_eighth" a leaf of its own rather than an ls-arity
+//       variant of iq1_s's.
+// The grid index is qs[l] | (((uint16_t)qh[l/2] << (8 - 4*(l%2))) & 0x700), assembled at
+// repack time into a u16 strip. Byte-exact to ggml_vec_dot_iq1_m_q8_K. The FIXED 2048-entry
+// grid stays a DERIVED emit-period static const table (NEVER an op attr).
+constexpr llvm::StringLiteral kGridIq1MScaleModel =
+    "superblock-d.fp16-grid-ternary-delta-groupsum-dualscale-nomin-eighth";
+constexpr llvm::StringLiteral kGridIq1MGemmScaleModel =
+    "superblock-d.fp16-grid-ternary-delta-groupsum-dualscale-4col-nomin-eighth";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -970,6 +1002,48 @@ constexpr Iq2GridDecodeFacts kIq1SDecodeFacts = {
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
     /*gemmActivationBsumsByteOffset=*/1040,
+    /*nSubblocks=*/8,
+};
+
+// iq1_m (C4a-3): iq1_s's DUAL-ls, PER-GROUP-delta ternary sibling. It RECONSTRUCTS the
+// block_iq1_mx16 x16 weight facts -- again a repack layout this line DESIGNED (ggml's
+// block_iq1_m is 56 B of PACKED qs/qh/scales with NO inline d; the repack ASSEMBLES the
+// scattered fp16 d nibbles and DECODES the qh/scales bits once, at repack time, into four
+// flat per-column strips so the kernel never re-derives them):
+//
+//   d[16]           fp16 @ +0     (32 B)   the ASSEMBLED iq1m_scale_t fp16 (see (a) above)
+//   ls[8][2][16]    int8 @ +32    (256 B)  ls1/ls2 per sub-block, in [1,15] -- the SAME
+//                                          (ib*2 + gh)*16 dual-ls strip shape iq2_xs uses
+//   delta[8][4][16] int8 @ +288   (512 B)  PER-GROUP 1-2*bit, in {-1,+1} (FOUR per
+//                                          sub-block, vs iq1_s's one)
+//   gidx[8][4][16]  u16  @ +800   (1024 B) qs[l] | ((qh[l/2] << (8-4*(l%2))) & 0x700),
+//                                          in [0,2047]
+//   ---------------------------------------- stride 1824
+//
+// plus the plain block_q8_K activation (292, quants @4) and the INTERLEAVED block_q8_Kx4
+// GEMM activation (1168, quants @16 as pos*4+c). The delta strip rides the
+// weightSignByteOffset slot (as it does for iq1_s -- a TernaryDelta row has no sign plane
+// to put there).
+//
+// NOTE the bsums offsets are ZERO, and that is a FACT, not an omission: iq1_m's delta term
+// needs per-GROUP-of-8 activation sums and block_q8_K's bsums are per-SIXTEEN, so the bsums
+// plane is INEXPRESSIVE for it (see (c) above). The loop-body verifier rejects
+// activation_bsums_byte_offset outside the two folds that READ it, so stamping one here
+// would be rejected -- correctly.
+constexpr Iq2GridDecodeFacts kIq1MDecodeFacts = {
+    /*decodeModel=*/"iq1_m",
+    /*gemmScaleModel=*/kGridIq1MGemmScaleModel,
+    /*foldModel=*/"grid_ternary_delta_groupsum_eighth",
+    /*weightBlockStride=*/1824,
+    /*weightGridIdxByteOffset=*/800,
+    /*weightLsByteOffset=*/32,
+    /*weightSignByteOffset=*/288, // the PER-GROUP +-1 DELTA strip (no sign plane exists).
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0, // per-16 bsums CANNOT express a per-8 group sum.
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
     /*nSubblocks=*/8,
 };
 
@@ -1379,6 +1453,7 @@ private:
           : op.getScaleModel() == kGridIq2XsScaleModel ? &kIq2XsDecodeFacts
           : op.getScaleModel() == kGridIq2SScaleModel  ? &kIq2SDecodeFacts
           : op.getScaleModel() == kGridIq1SScaleModel  ? &kIq1SDecodeFacts
+          : op.getScaleModel() == kGridIq1MScaleModel  ? &kIq1MDecodeFacts
                                                        : nullptr;
       // The q4_1 family (unsigned nibble + single MIN fold) builds the SAME typed
       // q4_0 repack region via lowerToRepackGem{v,m}Q41 (the SHARED q4_0 core + fold
@@ -1452,6 +1527,7 @@ private:
         op.getScaleModel() == kGridIq2XsScaleModel ||
         op.getScaleModel() == kGridIq2SScaleModel ||
         op.getScaleModel() == kGridIq1SScaleModel ||
+        op.getScaleModel() == kGridIq1MScaleModel ||
         op.getScaleModel() == kNibbleQ50ScaleModel ||
         op.getScaleModel() == kNibbleQ51ScaleModel ||
         op.getScaleModel() == kNibbleQ80ScaleModel)

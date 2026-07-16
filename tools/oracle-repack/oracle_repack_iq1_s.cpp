@@ -256,9 +256,19 @@ static void build_q8_K_block(block_q8_K *a, std::mt19937 &rng, int blk) {
 // ARRAY INDEX, so it validates the layout's SEMANTICS + the arithmetic, NOT the
 // emitter's byte arithmetic (its `float d[16]` is 64 B where the kernel's fp16 d[16]
 // is 32 B -- the same modelling shortcut the 11 sibling oracles take). These pins
-// therefore cover the remaining axis: that the layout this oracle models is the one
-// the compiler actually emits offsets for. If someone re-lays-out the strip in the
-// front door without re-laying-out this oracle, THIS is what goes red.
+// therefore cover ONLY this oracle's internal self-consistency: that its formula-
+// derived offsets match its own hand-transcribed shipped column.
+//
+// CORRECTION (2026-07-17, verified by test, not by reasoning): an earlier version of
+// this comment claimed that a front-door re-layout "is what goes red" here. That is
+// FALSE. This file includes nothing from the front door -- the shipped column is a
+// hand-transcribed literal. A reviewer re-laid-out the front door (weightBlockStride
+// 1824 -> 1840 in the iq1_m sibling), left the oracle untouched, rebuilt, and the pins
+// stayed GREEN. The real coupling to the front door lives in the lit CHECKs
+// (`CHECK: literal "1312"` / `"292"`), not here.
+//
+// Keep this pin for what it is (a transcription guard) and do not let it be cited as
+// front-door coverage.
 static bool check_layout_pins() {
     const int kInterleave = 16;
     int off_d     = 0;

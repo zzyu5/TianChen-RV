@@ -2167,6 +2167,62 @@ private:
       int64_t weightInterleave, int64_t activationInterleave, int64_t half,
       bool colGroupOuter) const;
 
+  /// Emit the COMPLETE ggml iq1_m x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// body leaf (C4a-3), byte-exact to ggml_vec_dot_iq1_m_q8_K's arithmetic. Called
+  /// ONLY from emitTypedRepackGemvLoopBody's grid branch, gated on the in-region
+  /// weft_rvv.repack_gemv_grid_core anti-bypass brick + plan.foldArith ==
+  /// DeltaGridGroupSum.
+  ///
+  /// It shares iq1_s's ternary decode WHOLE (no sign gather, the gathered
+  /// already-signed grid byte IS the weight; `deltaOffset` = the sign-plane offset
+  /// SLOT addresses a DELTA strip; two i32 accumulators folded as sumf +=
+  /// (d_x*d_y) * (cvt(accA) + 0.125f*cvt(accB)) with NO trailing store-side 0.125).
+  /// The TWO deltas from the iq1_s leaf -- the reason this is a leaf and not a
+  /// parameter of that one:
+  ///   * DUAL ls (plan.lsArity == Dual): ls1 folds groups 0-1, ls2 groups 2-3, off
+  ///     the SAME (ib*2 + gh)*16 dual-ls strip shape the iq2_xs/iq2_s leaf uses.
+  ///   * PER-GROUP delta + NO bsums: the DELTA strip carries FOUR +-1 per sub-block
+  ///     (one per 8-element group, from INDEPENDENT qh bits), and the delta term's
+  ///     activation factor is the per-GROUP-of-8 quant sum accumulated IN-KERNEL from
+  ///     the same 8 activation scalars the grid dot already reads. It is NOT read
+  ///     from the bsums plane, and this leaf takes NO bsums offset at all:
+  ///     block_q8_K's bsums are sums over groups of SIXTEEN and the two 8-groups
+  ///     inside one bsums entry carry independent delta signs, so a bsums entry
+  ///     cannot express it. (That inexpressivity -- not a schedule preference -- is
+  ///     why iq1_m does not ride emitRepackGemvIq1SQ8K.)
+  ///
+  /// The repack has already ASSEMBLED the fp16 super-block d (ggml's block_iq1_m has
+  /// no inline d; its fp16 is scattered as four nibbles across the scales words), so
+  /// this leaf loads an ordinary inline fp16 d strip like every other row.
+  mlir::LogicalResult emitRepackGemvIq1MQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
+      int64_t lsOffset, int64_t deltaOffset, int64_t activationQuantOffset,
+      int64_t nSubblocks, int64_t weightInterleave, int64_t half) const;
+
+  /// The PREFILL GEMM sibling of emitRepackGemvIq1MQ8K (C4a-3): the SAME ternary
+  /// grid decode + dual-ls + per-group-delta group-sum dual accumulator, with the
+  /// weight decode AMORTIZED across the 4 interleaved block_q8_Kx4 activation columns
+  /// (4 fp32 d at +0, int8 quants at +16 as pos*4+c). Reads NO bsums (see above), so
+  /// unlike the iq1_s GEMM leaf it takes no bsums offset. Ships PLAIN (untiled) --
+  /// C4a-3 built no tiled iq1_m variant and makes no perf claim.
+  /// RESULT-LESS; called ONLY from emitTypedRepackGemmLoopBody's grid branch.
+  mlir::LogicalResult emitRepackGemmIq1MQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
+      mlir::Value columnCount, mlir::Value outputRowStride, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+      int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
+      int64_t deltaOffset, int64_t activationQuantOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half,
+      bool colGroupOuter) const;
+
   // NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the four thin direct-emit
   // dispatch entry points emitRepackGem{v,m}Iq2{Xs,S}Q8K are RETIRED with the iq2_xs /
   // iq2_s monolith ops -- the dual-ls repack GEVM/GEMM now flow through the grid branch of

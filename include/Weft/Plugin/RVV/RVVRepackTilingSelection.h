@@ -96,13 +96,16 @@ enum class RVVTilingBottleneckShape {
 
 // Map a loop-body fold_model to its bottleneck shape (the selection KEY). Returns
 // std::nullopt when the fold_model has NO SP4 output-tiling GEMM axis (a non-repack
-// fold, the ternary trit folds, or the iq1_s "grid_ternary_delta_eighth" fold --
-// C4a-2 built ONLY a PLAIN untiled iq1_s GEMM leaf, so there is no tiled variant to
-// choose BETWEEN. iq1_s is deliberately NOT classified AlreadyLean: that verdict
-// asserts "the body already sits <= the 32-vreg cliff", a SHAPE claim C4a-2 has not
-// measured, and the C4a-2 line makes NO performance claim of any kind and never
-// touched a board. Classifying it would stamp an unmeasured prior; nullopt stamps
-// nothing and is inert -- the grid GEMM emitter reads no tiling attr either way).
+// fold, the ternary trit folds, the iq1_s "grid_ternary_delta_eighth" fold, or the
+// iq1_m "grid_ternary_delta_groupsum_eighth" fold -- C4a-2/C4a-3 built ONLY PLAIN
+// untiled iq1_s / iq1_m GEMM leaves, so there is no tiled variant to choose BETWEEN.
+// Neither is classified AlreadyLean: that verdict asserts "the body already sits <=
+// the 32-vreg cliff", a SHAPE claim neither line has measured, and both lines make NO
+// performance claim of any kind and never touched a board. Classifying them would
+// stamp an unmeasured prior; nullopt stamps nothing and is inert -- the grid GEMM
+// emitter reads no tiling attr either way. Both folds reach the nullopt fall-through
+// by NOT being listed below; that is intended, and the iq1_m oracle + the emitted-C
+// zero-regression snapshot are what keep it honest.)
 // The flat q4_0 "lane_wise_vector_scale" GEMM leaf
 // DOES classify now (AlreadyLean): it is a wired SP4 leaf whose prior is Plain
 // (already <= the 32-vreg cliff), so the tiled-vs-plain choice for EVERY repack GEMM

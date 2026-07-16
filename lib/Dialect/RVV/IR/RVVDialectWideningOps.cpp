@@ -2055,13 +2055,27 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   bool isGridIq1SFamily =
       getScaleModel() ==
       "superblock-d.fp16-grid-ternary-delta-singlescale-nomin-eighth";
+  // iq1_m (C4a-3) -- iq1_s's ternary-grid sibling: the SAME 2048-entry already-signed
+  // ternary grid + 8-byte entry gather + no sign plane, but DUAL ls (the iq2_xs shape)
+  // and a PER-GROUP-of-8 +-1 delta (four INDEPENDENT bits per sub-block) whose delta
+  // term needs per-8 activation sums -- which block_q8_K's per-SIXTEEN bsums cannot
+  // express, so unlike iq1_s it reads NO bsums and sums the group IN-KERNEL. It also
+  // carries NO inline d: the fp16 is ASSEMBLED from four nibbles scattered across the
+  // scales words at repack time. Its repack-SELECTED lowering CONSTRUCTS the grid
+  // typed_repack region (fold_model "grid_ternary_delta_groupsum_eighth") carrying the
+  // SAME repack_gem{v,m}_grid_core brick (decode_model "iq1_m"); the compiler
+  // RECONSTRUCTS the 2048-entry grid (the abstract request carries none).
+  bool isGridIq1MFamily =
+      getScaleModel() ==
+      "superblock-d.fp16-grid-ternary-delta-groupsum-dualscale-nomin-eighth";
   if (!isQ40Family && !isQ41Family && !isQ50Family && !isQ51Family &&
       !isQ80Family && !isTernaryTQ20Family &&
       !isTernaryTQ10Family && !isKQuantQ4KFamily && !isKQuantQ6KFamily &&
       !isKQuantQ2KFamily && !isKQuantQ3KFamily && !isKQuantQ5KFamily &&
       !isCodebookIq4NlFamily && !isCodebookIq4XsFamily &&
       !isCodebookMxfp4Family && !isGridIq2XxsFamily &&
-      !isGridIq2XsFamily && !isGridIq2SFamily && !isGridIq1SFamily)
+      !isGridIq2XsFamily && !isGridIq2SFamily && !isGridIq1SFamily &&
+      !isGridIq1MFamily)
     return emitOpError()
            << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" (the q4_0 "
               "flat dual-fp16 nibble family), "
@@ -2101,7 +2115,10 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
               "\"superblock-d.fp16-grid-explicitsign-dualscale-nomin-eighth\" (the "
               "iq2_s dual-scale grid-codebook + explicit signs256 sign-plane family), or "
               "\"superblock-d.fp16-grid-ternary-delta-singlescale-nomin-eighth\" (the "
-              "iq1_s signed-ternary grid-codebook + qh delta-bsum family) "
+              "iq1_s signed-ternary grid-codebook + qh delta-bsum family), or "
+              "\"superblock-d.fp16-grid-ternary-delta-groupsum-dualscale-nomin-eighth\" "
+              "(the iq1_m signed-ternary grid-codebook + dual-ls + per-GROUP delta "
+              "in-kernel-group-sum family) "
               "for the abstract block-quantized contraction request; got \""
            << getScaleModel() << "\"";
   if (getMRegime() != "decode" && getMRegime() != "prefill")
@@ -2655,6 +2672,47 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
       return emitOpError()
              << "requires activation_high_byte_offset == 0 (block_q8_K carries no "
                 "packed high half; the 0 sentinel is unused) for the abstract iq1_s "
+                "grid block-quantized contraction request";
+  } else if (isGridIq1MFamily) {
+    // iq1_m (C4a-3) TERNARY-DELTA GROUP-SUM grid codebook: QK_K == 256, PLAIN
+    // block_iq1_m weight stride 56 (qs[32] + qh[16] + scales[8] = QK_K/8 + QK_K/16 +
+    // QK_K/32) -- note there is NO ggml_half member at all, so unlike EVERY other grid
+    // sibling the plain quants start at +0, not +2: the fp16 super-block d is ASSEMBLED
+    // from four nibbles scattered across the scales words. PLAIN block_q8_K activation
+    // stride 292; block_q8_K carries no packed high half (activation_high_byte_offset
+    // == 0 sentinel, unused). The repacked x16 weight (stride 1824, grid-index @800,
+    // dual ls @32, PER-GROUP DELTA @288) / block_q8_K{,x4} activation (292/4 GEVM,
+    // 1168/16 GEMM -- NO bsums either side, since a per-16 bsums entry cannot express
+    // iq1_m's per-8 group sum) facts + the FIXED 2048-entry ternary grid are a stage-C
+    // materialization the grid lowering RECONSTRUCTS, never carried here. Like the
+    // iq1_s arm this one is EXPLICIT rather than falling into the trailing q5_K `else`:
+    // without it an iq1_m request is rejected by the q5_K stride pin (176), which is
+    // what a fall-through would silently mean.
+    if (getQk() != 256)
+      return emitOpError() << "requires qk == 256 (QK_K) for the abstract iq1_m "
+                              "grid block-quantized contraction request";
+    if (getWeightBlockStride() != 56)
+      return emitOpError()
+             << "requires weight_block_stride == 56 (sizeof block_iq1_m: 32 uint8 qs "
+                "+ 16 uint8 qh + 8 uint8 scales, the PLAIN super-block ternary-grid "
+                "weight layout -- block_iq1_m has NO inline fp16 d) for the abstract "
+                "iq1_m grid block-quantized contraction request";
+    if (getActivationBlockStride() != 292)
+      return emitOpError()
+             << "requires activation_block_stride == 292 (sizeof block_q8_K: fp32 d + "
+                "256 int8 quants + 16 int16 bsums -- iq1_m does NOT read the bsums, "
+                "whose per-16 grouping cannot express its per-8 delta group sum) for "
+                "the abstract iq1_m grid block-quantized contraction request";
+    if (getQuantByteOffset() != 0)
+      return emitOpError()
+             << "requires quant_byte_offset == 0 (block_q1_m has NO inline fp16 d: "
+                "the plain iq1_m qs start at byte 0 and the fp16 super-block d is "
+                "ASSEMBLED from nibbles scattered across the scales words) for the "
+                "abstract iq1_m grid block-quantized contraction request";
+    if (getActivationHighByteOffset() != 0)
+      return emitOpError()
+             << "requires activation_high_byte_offset == 0 (block_q8_K carries no "
+                "packed high half; the 0 sentinel is unused) for the abstract iq1_m "
                 "grid block-quantized contraction request";
   } else {
     // K-quant q5_K: QK_K == 256, PLAIN block_q5_K weight stride 176 (fp16 d + fp16 dmin
@@ -13010,9 +13068,21 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
   // riding the sign-plane offset slot as a DELTA strip. Its fold is the ONLY grid
   // fold that reads the activation bsums: sumf += d*(sumi + 0.125f*sumi1).
   bool isGridDeltaFold = getFoldModel() == "grid_ternary_delta_eighth";
+  // The iq1_m TERNARY-DELTA GROUP-SUM grid fold (C4a-3): iq1_s's sibling -- same
+  // already-signed ternary grid and same sumf += d*(accA + 0.125f*accB) expression, but
+  // DUAL ls, a PER-GROUP-of-8 +-1 delta (four INDEPENDENT bits per sub-block), and a
+  // delta term built from IN-KERNEL group-of-8 activation sums. It is deliberately kept
+  // OUT of isGridDeltaFold: that bool is what admits activation_bsums_byte_offset, and
+  // iq1_m must NOT be able to stamp one -- block_q8_K's bsums are sums over groups of
+  // SIXTEEN, so they cannot express iq1_m's per-8 group sum (the two 8-groups inside one
+  // bsums entry carry independent delta signs). An iq1_m loop body carrying a bsums
+  // offset is therefore REJECTED here, which is the fail-closed reading of "iq1_m does
+  // not read bsums".
+  bool isGridGroupSumFold =
+      getFoldModel() == "grid_ternary_delta_groupsum_eighth";
   bool isGridFold = getFoldModel() == "grid_sign_single_scale_eighth" ||
                     getFoldModel() == "grid_sign_dualscale_eighth" ||
-                    isGridDeltaFold;
+                    isGridDeltaFold || isGridGroupSumFold;
   // The q4_1 UNSIGNED-nibble dual-fp16 + single MIN fold: the SAME per-strip
   // lane-wise vfwmul/vfcvt/vfmacc scale tree as q4_0 PLUS the lane-wise `acc +=
   // m_x*s_y` min correction. It rides the SHARED q4_0 core + fold bricks (the core
@@ -13041,7 +13111,10 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
               "\"grid_sign_dualscale_eighth\" (the iq2_xs / iq2_s grid + sign-plane "
               "dual ls-scale 0.125 fold), or "
               "\"grid_ternary_delta_eighth\" (the iq1_s signed-ternary grid + "
-              "per-sub-block +-1 delta-bsum dual-accumulator 0.125 fold)";
+              "per-sub-block +-1 delta-bsum dual-accumulator 0.125 fold), or "
+              "\"grid_ternary_delta_groupsum_eighth\" (the iq1_m signed-ternary grid "
+              "+ dual ls + per-GROUP +-1 delta with IN-KERNEL group-of-8 activation "
+              "sums dual-accumulator 0.125 fold)";
   if (!isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min")
@@ -13650,9 +13723,21 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
   // riding the sign-plane offset slot as a DELTA strip. Its fold is the ONLY grid
   // fold that reads the activation bsums: sumf += d*(sumi + 0.125f*sumi1).
   bool isGridDeltaFold = getFoldModel() == "grid_ternary_delta_eighth";
+  // The iq1_m TERNARY-DELTA GROUP-SUM grid fold (C4a-3): iq1_s's sibling -- same
+  // already-signed ternary grid and same sumf += d*(accA + 0.125f*accB) expression, but
+  // DUAL ls, a PER-GROUP-of-8 +-1 delta (four INDEPENDENT bits per sub-block), and a
+  // delta term built from IN-KERNEL group-of-8 activation sums. It is deliberately kept
+  // OUT of isGridDeltaFold: that bool is what admits activation_bsums_byte_offset, and
+  // iq1_m must NOT be able to stamp one -- block_q8_K's bsums are sums over groups of
+  // SIXTEEN, so they cannot express iq1_m's per-8 group sum (the two 8-groups inside one
+  // bsums entry carry independent delta signs). An iq1_m loop body carrying a bsums
+  // offset is therefore REJECTED here, which is the fail-closed reading of "iq1_m does
+  // not read bsums".
+  bool isGridGroupSumFold =
+      getFoldModel() == "grid_ternary_delta_groupsum_eighth";
   bool isGridFold = getFoldModel() == "grid_sign_single_scale_eighth" ||
                     getFoldModel() == "grid_sign_dualscale_eighth" ||
-                    isGridDeltaFold;
+                    isGridDeltaFold || isGridGroupSumFold;
   // The q4_1 UNSIGNED-nibble dual-fp16 + single MIN fold (the GEMM sibling of the
   // GEVM q4_1 fold): the SAME per-column lane-wise scale tree as q4_0 PLUS the
   // per-column `acc += m_x*s_y[c]` min correction, riding the SHARED q4_0 GEMM core
@@ -13681,7 +13766,10 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
               "\"grid_sign_dualscale_eighth\" (the iq2_xs / iq2_s grid + sign-plane "
               "dual ls-scale 0.125 fold), or "
               "\"grid_ternary_delta_eighth\" (the iq1_s signed-ternary grid + "
-              "per-sub-block +-1 delta-bsum dual-accumulator 0.125 fold)";
+              "per-sub-block +-1 delta-bsum dual-accumulator 0.125 fold), or "
+              "\"grid_ternary_delta_groupsum_eighth\" (the iq1_m signed-ternary grid "
+              "+ dual ls + per-GROUP +-1 delta with IN-KERNEL group-of-8 activation "
+              "sums dual-accumulator 0.125 fold)";
   if (!isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min" &&
