@@ -36,6 +36,8 @@
 **B1 ★★ T-X 向量缺席真板(最高优先,全轮唯一必须新做的实验)**
 目标态:论文 E5 六列全绿。动作:rv64gc 无 V 真板——构建、objdump 全扫描零向量指令(机检脚本)、e2e byte-correct、逐竞品(heteroMx 已除名后的现存 codegen 竞品逐一)指向同目标记录可执行 kernel 产出数、ggml 手写标量参考路径如实披露。验收:六列各有机检产物或脚本输出;结论措辞权归论文侧既定法条。
 
+> **〔订正注 · 2026-07-16 S2 · 本条前提已 superseded，工单本体不改〕** 本条写的「rv64gc 无 V **真板**」= (a) 类**物理 no-V 真硅**，该前提**已被终裁推翻**：**PR-1 RESOLVED = 采购否决**（板支出硬冻结）；手头 rvv/k1 **均带 V**，无物理 no-V 真硅 → **(a) 类归 future work，本条不再是"必须新做的实验"**。**在飞路径唯 (b) 窄豁免**（带 V 板 `-march=rv64gc` run-as-noV·须标 `narrow-exempt: V-board-run-as-noV`），已由 **A3 彩排**兑现（`f84119ff6`：列 3 零向量机检 PASS · 列 4 byte-exact 双 oracle `0x45511772` · 列 5 竞品产出数 0/0/0 NON-Win）；**(b) ⇏ (a)**，六列"全绿"须标彩排级+窄豁免。**T-X 六列 + 措辞铁线权威定义**已落 `.trellis/spec/testing/mlir-testing-contract.md` §T-X（**非**论文侧独有）。措辞：「targeting rv64gc, validated on silicon」·**禁「竞品跑不了」**·**QEMU 永久销案**。
+
 **B2 ★ G8 对称重测(三阶段)**
 目标态:E11–E15 全部性能空格。动作:①杠杆键控归位→②clang-18 双板对称冷启动全量重测(预飞断言强制)→③0.8 硬门+逐指令解剖。验收:预飞断言日志 + 双账本 + 每 headline 数绑板×相×格式×对手身份。
 

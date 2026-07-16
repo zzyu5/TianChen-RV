@@ -69,7 +69,17 @@
 
 **状态枚举沿用上节 §格 schema 二分** `{measured|stale|board-pending|open|n_a}`。铁律：列 3 静态机检板无关随时可产；列 4/5 无真板运行 = `board-pending`（不进正文，[L-5]）；列 5 永不升 Win（enablement 域）。T-X 是**定义**，不是活测量入口；活证据落 experiments/ 并按本 § 引用对齐。
 
+**措辞铁线（用户终裁 · PR-1 + canon v4 草案 [V4-B11]/[V4-B12] · 四条闭合 · 引用对齐非定义变更）：**
+
+1. **目标锁 `rv64gc`**（向量缺席 profile）。凡 T-X/[X-SCALAR] 的真硅主张，行文**恒为**「**targeting rv64gc, validated on silicon**」（逗号在内，逐字）。**禁**无 `rv64gc` 限定的裸「向量缺席真硅」主张。
+2. **禁写「竞品跑不了」**（及其一切变体：无法运行/不能跑/跑不起来）。列 5 只允许**产出数**表述——「codegen 竞品**产出为零**」+ 现存手写标量参考「**runnable and run**」。竞品未安装/文档范围不覆盖 ⇏ 竞品不可运行；把"我没跑"写成"它跑不了"是造数（[V4-B17] 0 样本不造数）。
+3. **QEMU 永久销案**（[V4-B11]）——**任何清单不得再现**：T-X 无「QEMU 通道」，不作可选加固项、不作 `NOT-RUN` 条目、不作未来工作。真硅原生执行（列 1 (a)/(b)）是**唯一**执行通道。
+4. **采购 = 否决**（PR-1 RESOLVED·板支出硬冻结）：手头**无物理 no-V 真硅**（rvv/k1 均带 V），故 (a) 类完整证词**归 future work**、不作在飞欠账；在飞路径**只有** (b) 窄豁免，且**每次**须显式标 `narrow-exempt: V-board-run-as-noV`（列 1）并披露"**加强而非替换** committed 合成实例"（列 6）。**(b) ⇏ (a)**：窄豁免证词不得行文成物理 no-V 板证词。
+
+> **[F-6] 合成实例 ≠ T-X 真硅目标（防混淆）**：[F-6] 独立性判据里的「向量缺席实例」是**能力 schema 实例**（`only_feasible` 真实选中·脚本化闭包·**不需要板**）；T-X 列 1 的「向量缺席实例」是**真硅执行目标**（rv64gc 二进制）。两者同名不同物，**不得互相顶替**：F-6 已 CI 常绿 ⇏ T-X 列 4/5 有数；T-X 真硅证词 ⇏ 可省 F-6 机检。
+
 > **活证据指针（引用对齐·非定义变更）**：A3 rv64gc 双通道彩排（narrow-exempt `V-board-run-as-noV`）六列填表见 `experiments/active/g8-stage3-attack/A3-xscalar-rv64gc/TX-six-column-evidence.md`（+ `evidence/`）。摘要：列 3 zero-vector 机检 PASS（owned kernel `.o` 0 向量 opcode）；列 4 byte-exact vs 两独立 oracle（`0x45511772`）；列 5 竞品产出数 heteroMx/xDSL-RVV/10x-IREE = 0（enablement·NON-Win）。彩排级·narrow-exempt·无性能主张。
+
 
 ## 对手解析探针（vs-framework 证据的有效性门）
 
