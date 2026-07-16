@@ -9,6 +9,8 @@
 - **C3′** = 能力键控优化模式库 → 带实测与迁移的模板（含 front-door 构造协议 + 前门化边际成本谱系）。
 - （+ 工程面「成熟编译器」= 覆盖率/正确性门，进 CI 不作 slide 卖点。）
 
+> **★本轮 G8 净新增证据冻结（2026-07-16 · 本轮定格 · paper-ready）** → 一页式 campaign-freeze `docs/reports/2026-07-16-G8-paper-evidence-freeze.md`（C1/C2/C3′ 各贡献净新增证据 + commit 指针 + 成色 + 诚实状态）。下方 C1/C2/C3′ 分节各含标注「**本轮 G8 冻结**」的证据行，与该 freeze doc 交叉引用；**未改任何既有数字/成色/排序/canon 分母/perf-covered 计数**——只加行。
+
 ---
 
 ## 模板叙事主视图（2026-07-10 定位升级 · 挂载顺序：可扩展性主证 → 性能证词 → 元证据）
@@ -56,6 +58,8 @@
 | 跨计算范式（向量 SIMD → 整矩阵 MAC）× 跨独立家族（向量缺席标量家族）同 schema 复用 | N1/N2 bridge `.trellis/spec/index.md`；N2 已证 memory `[[k1-ime-n2-hardware-candidate]]`（IME plugin 同 common pipeline、零-core-branch、K1 bit-exact） | proven（N2 结构主张 DONE，commit 2eeabff9） |
 | 六态 ladder 自动读出 + [F-EMIT] 旁路护栏（constructed=STRONG 才计 C_construct） | `schema/coverage-sixstate.v1.json`（`$meta.g3_bypass_provenance` + states）；`.trellis/scripts/e5_strong_readout.py`；`tools/lint/check_frontdoor_provenance.py` | machine-checked（fail-closed） |
 | 覆盖率现值 | **C_construct 66/93 = 71.0%**（过 M3 70% 门，commit `0e39f60a` 60→66；schema snapshot 停 42 未 regen，见 T7 对账） | machine-anchored |
+| **[SEL-3] 测量记忆层 LANDED**（能力键控 **authority 层** = 版本化 schema + 字节精确门 fail-closed + 冷启动 `lookupMeasurement` reason=measured + 离线写回谐调器；驱动 fail-closed 运行期调度守卫属 C1 协议本体）— **本轮 G8 冻结** | `schema/measurement-memory.v1.json` v1.0.0（`$meta` authority order = 硬件实测 > 缓存 > 静态先验；12 selection_valid=true L2 行）；`include/Weft/Plugin/RVV/RVVRepackTilingSelection.h`（`lookupMeasurement`/`RVVMeasurementAxis`/`priorTilingVariantForShape`）；`experiments/active/result-tables/T4b_selector_ablation.md` §2.1b；commits `26b875ac1`/`513b464d6`/`0b8abb239`/`0eb8a4543` | **mechanism proven·[NG-4] 诚实边界（T4b §2.1b 命门）= 6 格记忆 verdict **与能力先验一致**（先验已良设计·冷启动即对）→ 价值 = 测量 argmin **AUTHORITY** + fail-closed-revalidate + byte-exact provenance·**非**翻正错先验（**禁夸"记忆翻盘"**）** |
+| regime-split 结构判据（roster 93→110·certified 101/108·recon 机算）— **本轮 G8 冻结** | `docs/reports/2026-07-16-G8-全量攻坚收口报告.md` §五（四裁决落地·`recon_master_rebuild.py` snapshot `g8-master-rebuild-v2-single-denom`·Σ=分母✓） | machine-anchored（recon 机算） |
 
 ## C2 — 泛化代价 → 边际成本规律（独立 extension family 接入成本）
 
@@ -66,6 +70,7 @@
 | [C2-1] 逐 extension family 接入代价 = **两 regime 成本分解**（〇.2 定案 2026-07-15·废"统一 <300"）：轨一 integrated 子扩展 <100（zvfh≈70 pin @`95f1a482`）/ 轨二 independent 家族如实报 pin-verified 实测（IME 2484 pin @`54465ee7` → X-SCALAR 1501 pin @`2dd654d8`·**成本高即论点本身、非缺陷**） | 科研目标总纲v2 [C2-1]+[C2-1′] 订正注 / [LED-1..3]；执行总纲v2 [LED-1] L93 | canon（权威口径） |
 | C2 首点可复算锚 = IME 家族 raw wc-l **2484** | `experiments/active/visibility/T2-ledger-anchor.md`；`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` **seq 0**（axis=C2-extension-family） | machine-anchored（recompute PASS 2484==2484） |
 | **曲线现状 = 2/≥3 点（未成完整曲线）** | 轨二 independent：IME 2484 + X-SCALAR 1501（家族#3·已 landed·pin @`2dd654d8`）两点·仍缺第 3 独立家族点；轨一 integrated 子扩展 zvfh≈70（pin @`95f1a482`·<100 坐实）粒度点已落 | **honest-missing**（[LED-2] 缺失级；诚实标·2/≥3 不得省略） |
+| **[SEL-3] 灌库 = 零新机制复用存量**（12 L2 migrate + 168 T3 seed 只读转录·**0 造数**·copy-transform migration·live `tiling-measurements.v1.json` UNCHANGED）= 泛化代价证据（沉淀既有实测入库·非重造新机制）— **本轮 G8 冻结** | `schema/measurement-memory.v1.json` `$meta.provenance`+`$meta.honesty_boundary_L2_only.count`（12 selection_valid=true + 168 coverage seeds·ZERO new timing）；commit `26b875ac1` | machine-anchored（转录·0 造数）·**诚实边界：这是"复用存量零新机制"的边际成本证据·**不**新增 C2 extension-family 曲线点**（曲线仍 2/≥3·honest-missing 不变） |
 
 ## C3′ — 能力键控优化模式库（带实测与迁移的模板）
 
@@ -83,6 +88,11 @@
 | 「换键不改条目」机制证明（q4_0 `lane_wise_vector_scale` 与 iq4 码本 co-map `AlreadyLean`） | C3 doc §3a；`RVVRepackTilingSelection.h` `classifyTilingBottleneckShape` | structural |
 | L1 路径赢 / L2 调度赢 / L3 字节轴（正反双证 + 缺口闭环两案例 + 家族双向） | `docs/reports/2026-07-07-paper-material-inventory.md`（L1/L2/L3 全表 + [GAP-SB]/[GAP-P1]/[GAP-RP] + 家族机理双向） | 逐行标 board-proven/kernel-only/pending/structural-block/e2e-diluted-Amdahl |
 | q4_K 吞吐兑现（S1→S6 把结构 opening 转 kernel-轴吞吐） | `T8:q4_K-repack-gemm-tile-S1-hstrip-…` + `…-tile-S6-minfold-stackpanel-…`；设计尺子 `docs/reports/2026-07-08-G3-L1-tiling-schemes.md` | **★重读（CASE-COMPILER-ASYMMETRY）**：rvv 1.884× kernel-轴数**撤回**（编译器不对称 artifact）；**internal-A/B（+52.4%/+27.9% register-cliff，均 ours-clang）+ objdump 封 = 幸存**（构造/成熟度轴，compiler-symmetric）；vs-opponent 吞吐兑现仅 **k1/VLEN256 对称-clang 3.106×**（micro，非 e2e、非 beat） |
+| **★[DISCRIMINATOR-OPPONENT-BOUND-TYPE]**（新 C3′ 机制·**正判据**）= kernel 算力赢**传导 e2e IFF 对手 compute-bound·washes IFF memory-bound**·判别键 = **对手 bound-type**（相 M×板×出货编译器 对该 kernel 计算路 autovec 质量共定·**非格式名·非 kernel 倍数大小**）·**正交** gcc-death 编译器轴 — **本轮 G8 冻结** | `experiments/active/result-tables/T6_e2e_transduction_ledger.md`（四列会计主表·三点隔离 CONFIRMED：同板同编译器单变量=格式 / 同格式跨板 / 相轴）；`experiments/active/g8-stage3-attack/e2e-transduction-batch1.md`；commit `d50b09a66` | **机制级正结果 = [[kernel-wins-dont-transplant-to-e2e]] 的正判据形式（何时传导·非仅何时 wash）·[NG-4] **非 perf-beat 声明·非 e2e 系统账绿格新增**（perf-covered 9/83 硬冻结） |
+| **q4_K@k1 e2e prefill 1.101× = 首个 e2e beat-hand-brick**（compute-bound 手调 GEMM 对手 `ggml_gemm_q4_K_16x1_q8_K`·byte-verified drop-in nbad=0·deployed==proven md5 9e057adb HEAD-live）+ **q5@k1 e2e 2×**（C1 selector deployed·弱对手 block-dot compute-bound·q5_0 decode 1.966×/prefill 2.213×·q5_1 2.073×/2.344×） — **本轮 G8 冻结** | `T6_e2e_transduction_ledger.md` §1；`e2e-transduction-batch1.md` §1（q4_K）+ §3（q5·.so df88afa3/43569a46 = sealed byte-id）；commits `972ab5c2a`/`195b11910` | **2 genuine 强传导·成色分层诚实**：q4_K = **beat-hand-tuned**（最强对手类·倍数中等 Amdahl 稀释 1.187→1.101）；q5 = **beat-weak-baseline**（弱对手·clang-18 弱 5th-bit autovec·合法赢非稻草人）·**deployed==proven·相×板×编译器域锁·[NG-4] 禁与 kernel-sym / perf-covered 9/83 / certified / e2e 系统账 / [SEL-3] 记忆 互推** |
+| **★5 个教科书级 C3′ 负结果 = 能力键控适用边界诚实映射**（负结果 = 边界 = 知识）：① [C3′-KQUANT-DECODE-BOUNDARY]（fold@M=1 不 amortize·判别键=sub-block 数 16 vs 8·front-door 应 DECLINE K-quant repack@decode）② **[IME-VENDOR-NEGATIVE]（最锋利）**（2/2 输 vendor 手调 IME·q4_0 5×/q4_K 20×·gap 随格式复杂度扩张=[PAT-1] 最锋利·q8_0@ime 结构 void）③ iq/tq gemm gcc-death（rvv-gcc deploy 7/7 输标量 ref·[CASE-KQUANT-GCC-CODEGEN]）④ [GAP-IQ1S] holistic micro-scheduling（三 byte-exact 杠杆逐一追平·翻正需结构级重写超单旋钮·真-fixable≠保证翻正）⑤ dequant/product_reduce emitter-maturity 墙 — **本轮 G8 冻结** | `docs/reports/2026-07-16-G8-全量攻坚收口报告.md` §四 | **如实标负（边界 = 知识·不粉饰成正）·[PAT-1] format-keyed 适用边界 C3′ 负结果·部署级洞察 = front-door 应 DECLINE {K-quant repack@decode · IME@复杂格式 · gcc-death 路}·[NG-4]** |
+
+> **★成色诚实（计数≠强赢·永久纪律·[NG-4] 命门·全 C3′ 行同锁）**：本役（G8）真硬赢强手调 = **2 hand-brick**（q4_K/q2_K@k1 GEMM prefill·byte-verified）+ **q5@k1 C1**（selector deployed）+ **q4_K@k1 e2e**（首个 e2e beat-hand-brick）。**余多 vs 弱对手 / parity-by-roofline / opp-immaturity / compiler-artifact**·大量 PASS **非 vector-superiority**。**计数 ≠ 强赢**——引用任何 PASS/绿格数前必分层标成色。见 `2026-07-16-G8-全量攻坚收口报告.md` §三。
 
 ---
 
