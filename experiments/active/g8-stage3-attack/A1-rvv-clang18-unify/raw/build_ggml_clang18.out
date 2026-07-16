@@ -1,0 +1,13 @@
+# git pin: f3e182816421c648188b5eab269853bf1531d950
+# CONFIGURE exit=0
+# BUILD exit=0
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml.so.0
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-cpu.so
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-base.so.0
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-base.so
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml.so
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-cpu.so.0.15.1
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/llama-cli
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-base.so.0.15.1
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml.so.0.15.1
+/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-cpu.so.0

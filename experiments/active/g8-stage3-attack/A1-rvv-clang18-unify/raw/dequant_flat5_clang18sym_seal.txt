@@ -1,0 +1,16 @@
+# BUILD dq-flat5 clang18-SYM CC=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs 2026年 07月 16日 星期四 07:58:46 UTC
+# base_md5=d9c07980cd3d6796e3e9750af7778140 cpu_md5=e85fceda47606a115c5fbb0021817cdc
+=== [A] compile OURS dequant kernels (clang-18) ===
+# OURS_dequant_q4_0: vsetvl=0 rvv_ins=0 comment=clang version 18.1.8
+# OURS_dequant_q4_1: vsetvl=0 rvv_ins=0 comment=clang version 18.1.8
+# OURS_dequant_q5_0: vsetvl=1 rvv_ins=25 comment=clang version 18.1.8
+# OURS_dequant_q5_1: vsetvl=1 rvv_ins=25 comment=clang version 18.1.8
+# OURS_dequant_q8_0: vsetvl=0 rvv_ins=0 comment=clang version 18.1.8
+=== [B] opponent clang-18 dequantize_row_* codegen probe ===
+# OPP dequantize_row_q4_0: ins=365 rvv=232 => TRUE-VEC
+# OPP dequantize_row_q4_1: ins=496 rvv=314 => TRUE-VEC
+# OPP dequantize_row_q5_0: ins=154 rvv=27 => TRUE-VEC
+# OPP dequantize_row_q5_1: ins=180 rvv=27 => TRUE-VEC
+# OPP dequantize_row_q8_0: ins=419 rvv=268 => TRUE-VEC
+=== [C] driver + link ===
+# linked OK

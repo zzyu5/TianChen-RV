@@ -1,0 +1,61 @@
+# A2b6 iqtq-GEMM-scalar @rvv DOMAIN=clang CXX=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs 2026年 07月 16日 星期四 07:52:33 UTC
+# stock_so=/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin md5=e85fceda47606a115c5fbb0021817cdc
+# OPP-generic ggml_vec_dot_iq4_xs_q8_K_generic @0x000000000007b900
+# OPP-generic ggml_vec_dot_iq2_xxs_q8_K_generic @0x00000000000740d2
+# OPP-generic ggml_vec_dot_iq2_xs_q8_K_generic @0x000000000007452a
+# OPP-generic ggml_vec_dot_iq2_s_q8_K_generic @0x00000000000758ee
+# OPP-generic ggml_vec_dot_mxfp4_q8_0_generic @0x000000000006cfbe
+# OPP-generic ggml_vec_dot_tq1_0_q8_K_generic @0x000000000006dc48
+# OPP-generic ggml_vec_dot_tq2_0_q8_K_generic @0x000000000006e444
+# OURS_iq4_xs: vsetvl=5162 comment=clang version 18.1.8
+# OURS_iq2_xxs: vsetvl=5461 comment=clang version 18.1.8
+# OURS_iq2_xs: vsetvl=5477 comment=clang version 18.1.8
+# OURS_iq2_s: vsetvl=5477 comment=clang version 18.1.8
+# OURS_mxfp4: vsetvl=643 comment=clang version 18.1.8
+# OURS_tq1_0: vsetvl=1034 comment=clang version 18.1.8
+# OURS_tq2_0: vsetvl=8 comment=clang version 18.1.8
+# LINK OK -> /tmp/g8_a2b6_rvv_sym_clang/bench
+# PIN core=8 idle=100% gov=performance
+# loadavg_begin=3.14 5.20 5.08 2/1027 2466789
+=== VERIFY (K=2048 nr=4 nc=64) DOMAIN=clang ===
+[iq4_xs.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=1.763e-05 nbad=0/256 sample ours=-13.53572 gen=-13.53550 => OK
+[iq2_xxs.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=0.000e+00 nbad=0/256 sample ours=-43.73505 gen=-43.73505 => OK
+[iq2_xs.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=0.000e+00 nbad=0/256 sample ours=-168.61667 gen=-168.61667 => OK
+[iq2_s.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=0.000e+00 nbad=0/256 sample ours=67.72037 gen=67.72037 => OK
+[mxfp4.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=0.000e+00 nbad=0/256 sample ours=104.56371 gen=104.56371 => OK
+[tq1_0.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=0.000e+00 nbad=0/256 sample ours=1.55018 gen=1.55018 => OK
+[tq2_0.gemm] GATE K=2048 nr=4 nc=64 seed=0x1357 | ours vs generic: maxrel=0.000e+00 nbad=0/256 sample ours=-0.75030 gen=-0.75030 => OK
+=== COLD K=2048 nr=16 nc=512 reps=25 seedA ===
+[iq4_xs.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=1.748e-04 nbad=0/8192 sample ours=-1301.51672 gen=-1301.51660 => OK
+[iq4_xs.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=9.3217(iqr0.99) opp_ms=29.3290(iqr0.14) | ratio_cold=3.1463 PASS
+[iq2_xxs.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=185.68585 gen=185.68585 => OK
+[iq2_xxs.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=10.6827(iqr0.14) opp_ms=24.8349(iqr0.09) | ratio_cold=2.3248 PASS
+[iq2_xs.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=102.97764 gen=102.97764 => OK
+[iq2_xs.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=12.9994(iqr0.23) opp_ms=160.1116(iqr0.03) | ratio_cold=12.3168 PASS
+[iq2_s.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=192.55241 gen=192.55241 => OK
+[iq2_s.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=13.0417(iqr0.22) opp_ms=149.7936(iqr0.03) | ratio_cold=11.4857 PASS
+[mxfp4.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=90.56758 gen=90.56758 => OK
+[mxfp4.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=7.2619(iqr0.26) opp_ms=26.4755(iqr0.11) | ratio_cold=3.6458 PASS
+[tq1_0.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=-1.44904 gen=-1.44904 => OK
+[tq1_0.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=3.0779(iqr0.89) opp_ms=24.3017(iqr0.12) | ratio_cold=7.8955 PASS
+[tq2_0.gemm] GATE K=2048 nr=16 nc=512 seed=0xc0ffee1 | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=-1.08041 gen=-1.08041 => OK
+[tq2_0.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0xc0ffee1 | ours_ms=2.0517(iqr1.43) opp_ms=20.3342(iqr0.26) | ratio_cold=9.9109 PASS
+=== COLD 2nd-seed seedB ===
+[iq4_xs.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=4.866e-04 nbad=0/8192 sample ours=-12979.82812 gen=-12979.82617 => OK
+[iq4_xs.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=9.1123(iqr0.82) opp_ms=28.3252(iqr0.13) | ratio_cold=3.1085 PASS
+[iq2_xxs.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=-204.93619 gen=-204.93619 => OK
+[iq2_xxs.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=10.6810(iqr0.28) opp_ms=25.0414(iqr0.18) | ratio_cold=2.3445 PASS
+[iq2_xs.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=105.89400 gen=105.89400 => OK
+[iq2_xs.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=12.9563(iqr0.18) opp_ms=159.2116(iqr0.04) | ratio_cold=12.2884 PASS
+[iq2_s.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=301.43341 gen=301.43341 => OK
+[iq2_s.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=13.0461(iqr0.16) opp_ms=149.4996(iqr0.02) | ratio_cold=11.4594 PASS
+[mxfp4.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=-89.51732 gen=-89.51732 => OK
+[mxfp4.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=7.2385(iqr0.46) opp_ms=26.4967(iqr0.08) | ratio_cold=3.6605 PASS
+[tq1_0.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=-1.40937 gen=-1.40937 => OK
+[tq1_0.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=3.0863(iqr0.99) opp_ms=24.4861(iqr0.08) | ratio_cold=7.9339 PASS
+[tq2_0.gemm] GATE K=2048 nr=16 nc=512 seed=0x1357ace | ours vs generic: maxrel=0.000e+00 nbad=0/8192 sample ours=2.48252 gen=2.48252 => OK
+[tq2_0.gemm] COLD K=2048 nr=16 nc=512 reps=25 seed=0x1357ace | ours_ms=2.0250(iqr1.69) opp_ms=20.4532(iqr0.33) | ratio_cold=10.1004 PASS
+# loadavg_end=3.08 4.99 5.02 1/1027 2466852
+# STRAY=0
+0
+# ALL_DONE DOMAIN=clang

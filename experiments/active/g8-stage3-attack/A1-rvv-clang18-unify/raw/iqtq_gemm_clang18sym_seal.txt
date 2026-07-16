@@ -1,0 +1,17 @@
+# A2b6 iqtq-GEMM-scalar @rvv DOMAIN=clang CXX=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs 2026年 07月 16日 星期四 07:52:33 UTC
+# stock_so=/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin md5=e85fceda47606a115c5fbb0021817cdc
+# OPP-generic ggml_vec_dot_iq4_xs_q8_K_generic @0x000000000007b900
+# OPP-generic ggml_vec_dot_iq2_xxs_q8_K_generic @0x00000000000740d2
+# OPP-generic ggml_vec_dot_iq2_xs_q8_K_generic @0x000000000007452a
+# OPP-generic ggml_vec_dot_iq2_s_q8_K_generic @0x00000000000758ee
+# OPP-generic ggml_vec_dot_mxfp4_q8_0_generic @0x000000000006cfbe
+# OPP-generic ggml_vec_dot_tq1_0_q8_K_generic @0x000000000006dc48
+# OPP-generic ggml_vec_dot_tq2_0_q8_K_generic @0x000000000006e444
+# OURS_iq4_xs: vsetvl=5162 comment=clang version 18.1.8
+# OURS_iq2_xxs: vsetvl=5461 comment=clang version 18.1.8
+# OURS_iq2_xs: vsetvl=5477 comment=clang version 18.1.8
+# OURS_iq2_s: vsetvl=5477 comment=clang version 18.1.8
+# OURS_mxfp4: vsetvl=643 comment=clang version 18.1.8
+# OURS_tq1_0: vsetvl=1034 comment=clang version 18.1.8
+# OURS_tq2_0: vsetvl=8 comment=clang version 18.1.8
+# LINK OK -> /tmp/g8_a2b6_rvv_sym_clang/bench
