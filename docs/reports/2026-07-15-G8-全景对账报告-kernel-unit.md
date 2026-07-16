@@ -1,5 +1,7 @@
 # G8 全景对账报告 · kernel-unit 口径（2026-07-15）
 
+> **★本报告为历史快照·口径已 superseded（全表清净 §二.3 头注 2026-07-16）**：本报告的 **kernel-unit 计数口径**（46 对局·29/42·20/27·kernel-sym 12 board-pt·30/28·19+17·"板×格"折算系）为 **2026-07-15 当轮快照**。现行 = **单分母四档 clang 世界终版**（rvv 29/43[matmul-clang18 20/28 + dequant-gcc15.2 9/15]·k1 20/28·统一 clang-18 双板·四档穷尽互斥·gcc 归部署附注不作头条）·snapshot 见 `docs/reports/2026-07-16-*` 与最终 recon。**原文数字为历史事实·不改·仅加本头注。**
+
 > **▸ 镜头指引（二次整顿令补）**：本报告是 **全 COV-1 系统账镜头（80 distinct kernel，含 dequant/quantize/forward/product_reduce）**。二次整顿令要的 **46 真 matmul 对局 kernel 聚焦镜头** 在姊妹报告 [`2026-07-15-G8-全景报告-v2.md`](2026-07-15-G8-全景报告-v2.md)（46 = 24 vec_dot + 22 gemm-with-opponent，含 12 项清账逐项病因+处置）。两者 **不同 scope、非废除关系**：v1 = 全 COV 面板；v2 = matmul-对局战斗分母。数字互洽（46 ⊂ 80，见 v2 item 1/3 的桥）。
 >
 > **口径**：唯一计数单位 = **kernel（算子×格式）**，板是属性列（冻结整顿令一）。全部数字 recon 机算可溯源（`recon_kernel_unit.py` join `[COV-1] 83` + `T3_A(rvv)` + `T3_B(k1)`），禁手写小计。**80 个 distinct kernel**（[COV-1] 83 cell = 80 op×format + 3 个 engine 变体折叠）。
