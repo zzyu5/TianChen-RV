@@ -153,60 +153,140 @@ struct RVVRepackTilingChoice {
   RVVTilingSelectionReason reason = RVVTilingSelectionReason::Prior;
 };
 
-// A single offline-profile measurement-library HIT: the memoized argmin winner for a
-// (declared_instance_hash, kernel) key. std::nullopt at the call site => cold start.
+// A single offline-profile measurement-library HIT for the SP4 output-tiling axis: the
+// memoized argmin winner for a (declared_instance_hash, kernel) key. std::nullopt at the
+// call site => cold start. (selectRepackTilingVariant consumes this typed hit; it is now
+// PRODUCED by the axis-parameterized lookupMeasurement view below via a thin wrapper, so
+// this type -- and the selector's signature -- are UNCHANGED.)
 struct RVVTilingMeasurementHit {
   RVVRepackTilingVariant winner;
 };
 
-// Consult the offline-profile measurement cache for the memoized argmin winner of the
-// (declared_instance_hash, kernel) key. The versioned schema/tiling-measurements.v1
-// JSON is the OFFLINE authority (a harness on `ssh rvv` fills it past the byte-exact
-// gate); the compiler holds this in-memory VIEW of it and consults it BEFORE the
-// cold-start prior. Kept a pure lookup (never parses JSON in-tree, [NG-3]/I4: a
-// measured timing is a cache fact, never a correctness/cost authority in `lib/`).
+// [SEL-3 T-SEL3-3] The bounded set of measurement SELECTION AXES the unified offline-
+// profile view generalizes over (mirrors schema/measurement-memory.v1.json's
+// variant_axis_registry). `SP4Tiling` = the tiled-vs-plain OUTPUT-TILING axis;
+// `LoopOrder` = the prefill-GEMM outer group-loop order (col/row-outer) axis;
+// `StripWidth` = a RESERVED extension slot (vl8/vl16) with NO live seed today (the
+// schema's strip_width axis is a future T-SEL3-4 writeback). This is the axis parameter
+// of the single lookupMeasurement that generalizes the two former per-axis lookups
+// (lookupTilingMeasurement / lookupLoopOrderMeasurement), carrying the SP4 范式 forward.
+enum class RVVMeasurementAxis { SP4Tiling, LoopOrder, StripWidth };
+
+inline llvm::StringRef stringifyRVVMeasurementAxis(RVVMeasurementAxis axis) {
+  switch (axis) {
+  case RVVMeasurementAxis::SP4Tiling:
+    return "sp4_tiling";
+  case RVVMeasurementAxis::LoopOrder:
+    return "loop_order";
+  case RVVMeasurementAxis::StripWidth:
+    return "strip_width";
+  }
+  return "";
+}
+
+// A single UNIFIED offline-profile measurement HIT: the memoized argmin winner for a
+// (declared_instance_hash, kernel, axis) key, carried as a BOUNDED variant TOKEN (the
+// stringify* output of the axis's variant enum). std::nullopt at the lookup site => a
+// MISS => cold start. The thin typed wrappers (lookupTilingMeasurement /
+// lookupLoopOrderMeasurement) map `winner` back to their axis's typed variant enum, so
+// each selector's signature stays byte-identical.
+struct RVVMeasurementHit {
+  RVVMeasurementAxis axis;
+  llvm::StringRef winner; // a bounded variant token (the schema `selected` variant).
+};
+
+// [SEL-3 T-SEL3-3] Consult the offline-profile measurement cache for the memoized argmin
+// winner of the (declared_instance_hash, kernel, variant_axis) key -- the SINGLE axis-
+// parameterized generalization of the former per-axis lookups. The versioned
+// schema/measurement-memory.v1 JSON is the OFFLINE authority (a harness on `ssh rvv` /
+// `ssh k1` fills it past the byte-exact gate); the compiler holds this in-memory VIEW of
+// it and consults it BEFORE the cold-start prior. Kept a PURE in-tree lookup (never
+// parses JSON in-tree, [NG-3]/I4: a measured timing is a cache fact, never a
+// correctness/cost authority in `lib/`).
 //
-// [SEL-1] T3 SEED: the view is seeded from the REAL T8 rvv/VLEN128 board (the
-// experiments .../T8_winloss_gap_ledger.csv [XFER-1] rows), keyed on the @rvv
-// declared-instance hash (3cd23a4e...) the fixture kernels expand to. The 5 K-quant
-// GEMM leaves were byte-exact-gated + A/B profiled; their memoized argmin winner:
-//   - min-fold register-cliff family q4_K / q2_K / q5_K => S6Tiled (S6 reaches the
-//     <=32-vreg cliff [spill->0], 1.884 / 1.413 / 2.193x vs the ggml block-dot).
-//   - weight-reconstruction-bound no-min family q6_K / q3_K => Plain: S6 is a NULL
-//     lever (the <=32-vreg cliff is NEVER reached; the two-plane weight rebuild
-//     dominates), so the HONEST measured winner is the untiled body -- a MEASURED
-//     weight-bound fallback, NOT a blind default (this is the [XFER-1] transfer-
-//     boundary claim: measurement itself says "do not tile here").
-// Every OTHER (hash, kernel) -- q4_0, iq4_nl/iq4_xs, or any un-profiled board -- is a
-// MISS => nullopt => the caller's cold-start [XFER-1] prior (reason=prior). So the
-// selector demonstrates BOTH paths: measured argmin (the 5 seeded K-quant) and prior
-// cold-start (q4_0 + the codebook pair).
-inline std::optional<RVVTilingMeasurementHit>
-lookupTilingMeasurement(llvm::StringRef declaredInstanceHash,
-                        llvm::StringRef kernel) {
+// ★★ BYTE-EXACT CAVEAT (选择回归命门): this view returns the PRE-COMPUTED argmin winner
+// -- the schema `selected==true` variant, MIRRORED here as the hardcoded seed token --
+// and NEVER re-derives the argmin from `cold_median` at compile time. The schema's
+// `cold_median` is a per-GROUP A/B ratio (e.g. q4_K's two sp4 rows SHARE 1.96), so a
+// naive "best cold_median among candidates" recompute would TIE and fall to the
+// decision_rule's "更简单者胜 = plain", REGRESSING q4_K/q2_K/q5_K from S6Tiled to Plain
+// (a severe selection regression). The winner mapping is FIXED and mirrors the retired
+// per-axis kSeeded[] hardcode + the schema `selected` flag: q4_K/q2_K/q5_K -> s6_tiled,
+// q6_K/q3_K -> plain (SP4); q4_K -> col_outer (loop-order). The decision_rule's "best
+// cold_median" is an OFFLINE-derived narrative (it folds the register_cliff_reached
+// STRUCTURAL gate + the marginal-non-cliff no-flip rule, e.g. q3_K tiled +8% is
+// non-cliff so plain still wins) -- it is NOT a runtime recompute.
+//
+// [SEL-1] T3 SEED: seeded from the REAL T8 rvv/VLEN128 board (the
+// experiments .../T8_winloss_gap_ledger.csv [XFER-1] rows, migrated into
+// schema/measurement-memory.v1.json), keyed on the @rvv declared-instance hash
+// (3cd23a4e...) the fixture kernels expand to.
+//   - SP4 axis (byte-exact-gated + A/B profiled): min-fold register-cliff family
+//     q4_K / q2_K / q5_K => s6_tiled (S6 reaches the <=32-vreg cliff [spill->0],
+//     1.884 / 1.413 / 2.193x vs the ggml block-dot); weight-reconstruction-bound
+//     no-min family q6_K / q3_K => plain (S6 is a NULL lever -- the MEASURED weight-
+//     bound fallback, NOT a blind default; measurement itself says "do not tile here").
+//   - LoopOrder axis: q4_K => col_outer (the M1b-board paired-cold A/B 2.47x, both legs
+//     ours-clang, byte-exact hot core => compiler-SYMMETRIC, SURVIVES [CASE-COMPILER-
+//     ASYMMETRY]; NEVER the vs-gcc-shipped absolutes 1.87 / 1.33, disclosure-only).
+// Every OTHER (hash, kernel, axis) -- q4_0, iq4_nl/iq4_xs, an un-profiled board, or the
+// un-seeded loop-order / strip-width slots -- is a MISS => nullopt => the caller's
+// cold-start [XFER-1] prior (reason=prior).
+inline std::optional<RVVMeasurementHit>
+lookupMeasurement(llvm::StringRef declaredInstanceHash, llvm::StringRef kernel,
+                  RVVMeasurementAxis axis) {
   struct SeededMeasurement {
     llvm::StringRef declaredInstanceHash;
     llvm::StringRef kernel;
-    RVVRepackTilingVariant winner;
+    RVVMeasurementAxis axis;
+    llvm::StringRef winner; // the schema `selected` variant token (NOT recomputed).
   };
   // The rvv/VLEN128 declared-instance hash the @rvv fixture kernels expand to (the
   // SAME support::computeDeclaredInstanceHash the exec/schedule attribution sinks
   // compute). A different board => a different hash => a MISS => the prior.
   static constexpr llvm::StringLiteral kBoardInstanceHash =
       "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7";
+  // ONE axis-tagged seed table (the unified store). Winners MIRROR the schema
+  // `selected` flag -- they are NOT re-derived from cold_median (see the CAVEAT above).
   const SeededMeasurement kSeeded[] = {
-      {kBoardInstanceHash, "q4_K", RVVRepackTilingVariant::S6Tiled},
-      {kBoardInstanceHash, "q2_K", RVVRepackTilingVariant::S6Tiled},
-      {kBoardInstanceHash, "q5_K", RVVRepackTilingVariant::S6Tiled},
-      {kBoardInstanceHash, "q6_K", RVVRepackTilingVariant::Plain},
-      {kBoardInstanceHash, "q3_K", RVVRepackTilingVariant::Plain},
+      // SP4 output-tiling axis (5 K-quant): the min-fold register-cliff winners + the
+      // weight-bound measured NULL fallbacks.
+      {kBoardInstanceHash, "q4_K", RVVMeasurementAxis::SP4Tiling, "s6_tiled"},
+      {kBoardInstanceHash, "q2_K", RVVMeasurementAxis::SP4Tiling, "s6_tiled"},
+      {kBoardInstanceHash, "q5_K", RVVMeasurementAxis::SP4Tiling, "s6_tiled"},
+      {kBoardInstanceHash, "q6_K", RVVMeasurementAxis::SP4Tiling, "plain"},
+      {kBoardInstanceHash, "q3_K", RVVMeasurementAxis::SP4Tiling, "plain"},
+      // Loop-order axis (q4_K col-outer 2.47x A/B, compiler-symmetric).
+      {kBoardInstanceHash, "q4_K", RVVMeasurementAxis::LoopOrder, "col_outer"},
   };
   if (declaredInstanceHash.empty())
     return std::nullopt;
   for (const SeededMeasurement &row : kSeeded)
-    if (row.declaredInstanceHash == declaredInstanceHash && row.kernel == kernel)
-      return RVVTilingMeasurementHit{row.winner};
+    if (row.axis == axis && row.declaredInstanceHash == declaredInstanceHash &&
+        row.kernel == kernel)
+      return RVVMeasurementHit{row.axis, row.winner};
   return std::nullopt;
+}
+
+// [SEL-3 T-SEL3-3] Thin typed WRAPPER over the axis-parameterized lookupMeasurement for
+// the SP4 output-tiling axis: maps the unified variant TOKEN back to the typed
+// RVVRepackTilingVariant so selectRepackTilingVariant's signature is UNCHANGED (and the
+// production call site RVVLowerQuantContraction stampTilingSelection needs no change).
+// The token is the schema `selected` variant (byte-exact mirror of the retired SP4
+// kSeeded[]); the only SP4 tokens are {plain, s6_tiled}, so a non-"s6_tiled" token maps
+// to Plain. The selector then demonstrates BOTH paths: measured argmin (the 5 seeded
+// K-quant) and prior cold-start (q4_0 + the codebook pair, which MISS => nullopt).
+inline std::optional<RVVTilingMeasurementHit>
+lookupTilingMeasurement(llvm::StringRef declaredInstanceHash,
+                        llvm::StringRef kernel) {
+  std::optional<RVVMeasurementHit> hit = lookupMeasurement(
+      declaredInstanceHash, kernel, RVVMeasurementAxis::SP4Tiling);
+  if (!hit)
+    return std::nullopt;
+  RVVRepackTilingVariant winner = hit->winner == "s6_tiled"
+                                      ? RVVRepackTilingVariant::S6Tiled
+                                      : RVVRepackTilingVariant::Plain;
+  return RVVTilingMeasurementHit{winner};
 }
 
 // The two-stage [SEL-1] SP4 selection (see the file block comment). PURE + COST-
@@ -379,22 +459,20 @@ struct RVVLoopOrderMeasurementHit {
 inline std::optional<RVVLoopOrderMeasurementHit>
 lookupLoopOrderMeasurement(llvm::StringRef declaredInstanceHash,
                            llvm::StringRef kernel) {
-  struct SeededLoopOrder {
-    llvm::StringRef declaredInstanceHash;
-    llvm::StringRef kernel;
-    RVVRepackLoopOrder winner;
-  };
-  static constexpr llvm::StringLiteral kBoardInstanceHash =
-      "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7";
-  const SeededLoopOrder kSeeded[] = {
-      {kBoardInstanceHash, "q4_K", RVVRepackLoopOrder::ColOuter},
-  };
-  if (declaredInstanceHash.empty())
+  // [SEL-3 T-SEL3-3] Thin typed WRAPPER over the axis-parameterized lookupMeasurement
+  // for the loop-order axis: maps the unified variant TOKEN back to the typed
+  // RVVRepackLoopOrder so selectRepackLoopOrder's signature is UNCHANGED (and the
+  // production call site needs no change). The token is the schema `selected` variant
+  // (byte-exact mirror of the retired loop-order kSeeded[]); the only seeded loop-order
+  // token is "col_outer" (q4_K), so a non-"col_outer" token maps to RowOuter.
+  std::optional<RVVMeasurementHit> hit = lookupMeasurement(
+      declaredInstanceHash, kernel, RVVMeasurementAxis::LoopOrder);
+  if (!hit)
     return std::nullopt;
-  for (const SeededLoopOrder &row : kSeeded)
-    if (row.declaredInstanceHash == declaredInstanceHash && row.kernel == kernel)
-      return RVVLoopOrderMeasurementHit{row.winner};
-  return std::nullopt;
+  RVVRepackLoopOrder winner = hit->winner == "col_outer"
+                                  ? RVVRepackLoopOrder::ColOuter
+                                  : RVVRepackLoopOrder::RowOuter;
+  return RVVLoopOrderMeasurementHit{winner};
 }
 
 // The two-stage [SEL-1] loop-order selection (parallel to selectRepackTilingVariant).
