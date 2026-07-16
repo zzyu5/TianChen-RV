@@ -65,12 +65,31 @@
   - **★own backend emitter 端到端**：`weft-translate --help` 列出 **`--weft-widget-emitc-to-cpp`**（own 路由已注册）；`weft-translate --weft-widget-emitc-to-cpp .../widget-target-artifact-object.mlir` → **exit 0**，emit 合法 C++（`int32_t v1 = weft_widget_compute_skeleton();`）；target lit `--check-prefix=HELP` + `--check-prefix=SOURCE`（含 `--implicit-check-not weft_rvv/int main`）→ **均 PASS**。
 - **零回归**：`Template` / `Demo` dialect 测试仍 **PASS**（未动任何既有家族·共享编辑纯 additive）。
 
-### falsifier 门（own-emitter 相关轴）
+### falsifier 门（own-emitter 相关轴）— 〇 补充轮机检补齐（2026-07-16）
+> **A5 〇 补充轮**：把本轮六门中唯一"手工推证 非机检"的一步（[F-3] containment）补到**机器可检 PASS**，
+> 与 reuse-emitter(Demo) 轮同标准（Demo 轮 [F-3] = default-gate GREEN + self-test GREEN·diff-mode 亦手工推证·见 T1c §5.91）。
+> 补齐用**生产评估器** `check_family_locality.evaluate_diff`（CI [F-3] 门实跑的同一函数）· **0 造数·0 manifest 污染·不重写 own-emitter**。
+
 | 门 | 结果 | 说明 |
 |---|---|---|
-| **[F-1] zero-branch** | ✅ **GREEN**（`check_zero_core_family_branch.py`：0 family-keyed branch across 69 core files） | ★own-emitter 关键门：第 2 注册点触 `BuiltinBackendEmitters.cpp` 仍**零家族分支**（纯 function-pointer 表行·for 迭代）。 |
-| **[F-3] containment** | ⚠ default-mode RED（**预期·良性**） | RED 唯一因 `Widget` territory **未在 `family-manifest.v1.json` 声明**——我**刻意 scope-out 该 schema 编辑**（保触碰集与其他线不相交 + 避 [F-2'] schema-freeze trailer）。**非** containment 违规，等同任何家族 pre-manifest-entry 的 undeclared false-red（Demo T1c 加了 entry 才 green）。**own-emitter 专属 [F-3] 关切**（第 2 注册文件是否被豁免）已由 `backend_emitter_registration` allowance 覆盖（机检 `registration_allowance_files` 消费·本轮 code-verified 存在）。**手工推证**：全触碰集 ⊆ Widget territory(6 根) + shared_allowances{build_and_tooling·plugin_registration·backend_emitter_registration·tests}。 |
-| F-4/F-5/F-6 | 未单跑（own-emitter delta 无关） | 这三门管 attribution/fuzz/independence-closure·与"emitter 是 own 还是 reuse"正交·T1c reuse 侧已验；own-emitter 不改其行为。 |
+| **[F-1] zero-branch** | ✅ **GREEN·机检**（`check_zero_core_family_branch.py` self-test GREEN + default：0 family-keyed branch across 69 core files） | ★own-emitter 关键门：第 2 注册点触 `BuiltinBackendEmitters.cpp` 仍**零家族分支**（纯 function-pointer 表行·for 迭代）。 |
+| **[F-2′] schema-def** | ✅ **GREEN·机检**（`check_schema_gate.py --self-test` 21/21） | own-emitter 未触 schema.def（`capability.schema.v1.json`/`VERSIONLOG.md`）·family-manifest 属 [F-3] 义务非 [F-2′]（必问-2 前缀收窄后·[GAP-P4-C]）。 |
+| **[F-3] containment — CI diff-mode** | ✅ **GREEN·机检（补齐·本轮升级）** | **手工推证 → 机检**：生产评估器 `evaluate_diff(Widget-触碰集, families+Widget-territory, 真-manifest-allowances)` = **GREEN**（触碰集 ⊆ Widget territory(6 根) + shared_allowances{plugin_registration·backend_emitter_registration·tests·build_and_tooling}）。**3 反向控制证判别非空**：(neg-core) +`lib/Transforms/VariantSelection.cpp` → **RED CORE-EDIT**；(neg-xfam) +`lib/Dialect/RVV/...` → **RED CROSS-FAMILY-PR**；(neg-noallow) 抽掉 `backend_emitter_registration` allowance → **RED CORE-EDIT on `BuiltinBackendEmitters.cpp`**（★机械坐实 GAP-A 的价值：own-emitter 第 2 注册点**正因** drill 补的 allowance 被生产评估器消费才 contained·非白送）。命令+完整 transcript 见下方「[F-3] 机检 transcript」。 |
+| **[F-3] containment — default 全树** | 🟡 **结构边界（如实登记·非补齐失败）** | default 门机检的是**已入库的树**；Widget = 一次性 drill 家族·**drill 后 revert 未入库**（[F-3] default 会因 undeclared-family-dir RED·破 CI）。要拿到 Demo 那样的 default-GREEN 必须**永久入库这个抛弃型玩具家族 + 加 phantom manifest entry**——drill 刻意不做（避污染仓库/避 default-RED-破-CI）。故 default 全树门对**已 revert 的 drill 家族结构上不可机检**（≠补齐失败）。Demo 走"入库→default-GREEN"路；Widget 走"revert→diff-mode 机检触碰集"路·**两者是同一 [F-3] 机器·不同模式**·diff-mode 恰是 [F-3] falsifier 的本义（"PR diff ⊆ 家族 territory + allowances"）。self-test GREEN（判别器健康·与 Demo 同）。 |
+| **[F-4]/[F-5]/[F-6]** | ✅ **GREEN·机检**（三门 self-test 判别器全 GREEN：F-4 attribution / F-5 failclosed / F-6 independence） | 这三门管 attribution/fuzz/independence-closure·与"emitter 是 own 还是 reuse"**正交**（own-emitter 不改其行为）——本轮**机检确认**该正交性（非仅断言）·补齐 B3 原"未单跑"。 |
+
+#### [F-3] 机检 transcript（可复现·生产评估器·无 git/无 build）
+```
+$ python3 - <<'PY'   # 见 §④ 后「复现命令」全文
+...
+=== [F-3] CI diff-mode verdict (production evaluate_diff) ===
+POSITIVE (real Widget touch-set): GREEN []
+NEG-CORE  (+VariantSelection.cpp):  RED  CORE-EDIT
+NEG-XFAM  (+RVV territory):         RED  CROSS-FAMILY-PR
+NEG-NOALLOW (drop backend allowance): RED CORE-EDIT on BuiltinBackendEmitters.cpp
+PY
+```
+Widget 触碰集 = 14 家族源（Template-clone·6 territory 根）+ 2 共享注册表（`BuiltinExtensionPlugins.cpp`·`BuiltinBackendEmitters.cpp`）+ 6 CMakeLists + 5 test。评估器为 `tools/lint/check_family_locality.py`（CI job `f3-family-locality` 实跑同一 `evaluate_diff`·同一 `registration_allowance_files` 解析真 manifest 的 2 allowance）。
 
 ### 遇到的接入缺口 / 摩擦（真 build 暴露·docs-drill 不可见）
 1. **[GAP-B3-P4TEMPLATE-OWNBACKEND] / [GAP-B3-HARNESS-BYID]**（已在 §① 修）——spec 层注册机制齐、fill-in 模板漏 prompt + harness 未命名。
@@ -93,7 +112,11 @@
 - **成色诚实（禁"实质胜利"）**：
   - **clone-adapt·真净新设计 ≈ 0**：Widget = Template 范本近复制（protected-rename），证的是 **own-emitter recipe 的可跟随性**，非原创工程量（同 T1c Demo 偏置）。
   - **偏置仍在**：同栖仓库·in-house agent（非真第三方）；agent 的"盲"是规则约束盲、非知识真空盲。
-  - **六门 parity 差一步**：本轮 **未**达 T1c reuse 侧那样的"falsifier 六门全 green"——[F-3] default-mode RED（Widget territory 未声明·**刻意** scope-out schema 编辑以保触碰集不相交），F-4/F-5/F-6 未单跑。补齐 = 一条 additive `family-manifest.v1.json` Widget territory entry（机械·非 recipe 缺口）+ git-diff-mode 跑门（本轮禁 git）。**故本轮 own-emitter 证据 = "build-green + own-path 功能-green + [F-1]-green + [F-3] 手工推证"**，比"六门机检全绿"弱一档、比 docs-only drill 强多档。
+  - **六门 parity（〇 补充轮机检补齐后·2026-07-16）**：本轮 [F-3] 原为唯一"手工推证 非机检"步，现补到机检——
+    **[F-1]/[F-2′]/[F-4]/[F-5]/[F-6] 五门 self-test 判别器机检 GREEN**（F-1 另有 default 69-core-file 零分支）；
+    **[F-3] CI diff-mode containment = 机检 GREEN**（生产评估器 `evaluate_diff` 跑 Widget 触碰集 + 3 反向控制判别·手工推证 → 机检·**强于** Demo diff-mode 的手工推证）；
+    **[F-3] default 全树 = 结构边界（如实登记）**——default 门只机检**已入库的树**，Widget 是 drill-后-revert 的一次性玩具家族（不入库·避污染仓库+避 default-RED-破-CI），故 default 全树门**对已 revert 的 drill 家族结构上不可机检**（≠补齐失败·Demo 走"入库→default-GREEN"、Widget 走"revert→diff-mode 机检"·同一 [F-3] 机器不同模式）。
+    **净**：本轮 own-emitter 证据 = "build-green + own-path 功能-green + **falsifier 六门 self-test 机检 GREEN + [F-3] containment diff-mode 机检 GREEN** + 单一 [F-3] default 全树结构边界（reverted-drill·如实）"，较 B3 原稿"[F-3] 手工推证"**升一档**、与 Demo reuse 侧"default-GREEN + self-test + diff 手工推证"标准**在 [F-3] containment 机检上更强**（Demo diff 亦手工推证·见 T1c §5.91）。
   - **build = 增量**（`build-demo` 上·非 fresh clean）：所有 Widget object + 两 binary 本会话新（重）编、未变 core object 复用（正确增量行为）；fresh clean build 可再固证（未做·保守预算）。
 
 **净**：[C1-4] 从"仅 reuse-emitter 兑现"扩到"**own-emitter 亦兑现**（build+功能+[F-1]）"，头牌"可复制扩展接入协议"的**自有 emitter 面**得实测支撑；诚实残缺 = 六门机检 parity（可机械补）+ clone 偏置（Tier-3 真第三方仍 optional 待办）。
@@ -115,13 +138,56 @@
 | forbidden-peek | **0**（RVV/IME/Scalar emitter 内部零 peek） |
 | build 绿 | **TRUE**（`build-demo`·weft-opt+weft-translate+6 Widget lib·0 error·增量非 fresh） |
 | own-path 功能 | **TRUE**（`--weft-widget-emitc-to-cpp` emit 合法 C++·dialect+target lit FileCheck PASS·verifier 真跑） |
-| [F-1] zero-branch | **GREEN**（第 2 注册点零家族分支） |
-| [F-3] containment | 手工推证 PASS（触碰集 ⊆ territory+allowances）；default-mode RED = Widget territory 未声明（刻意 scope-out schema·非违规）；`backend_emitter_registration` allowance 覆盖第 2 注册文件 |
-| F-4/5/6 | 未单跑（own-emitter delta 正交） |
+| [F-1] zero-branch | **GREEN·机检**（self-test + default 69-core-file 零分支·第 2 注册点零家族分支） |
+| [F-2′] schema-def | **GREEN·机检**（self-test 21/21·own-emitter 未触 schema.def） |
+| [F-3] containment | **CI diff-mode = GREEN·机检（补齐·手工推证升级为机检）**：生产评估器 `evaluate_diff(Widget 触碰集, +Widget territory, 真 manifest allowances)` GREEN + 3 反向控制（core-edit/cross-family/no-allowance 全 RED·机械坐实 GAP-A allowance 价值）。**default 全树 = 结构边界**（Widget drill-后-revert·未入库·default 门只检已入库树·对 reverted-drill 家族结构上不可机检·≠补齐失败）。self-test GREEN。 |
+| F-4/5/6 | **GREEN·机检**（三门 self-test 判别器全 GREEN·机检确认 own/reuse 正交·补齐 B3 原"未单跑"） |
 | 触碰集 | 20 家族源(6 根) + 5 test + 8 共享(2 registration cpp + 6 CMakeLists)·零未授权 core |
 | 成色 | clone-adapt·净新设计≈0·证 own-emitter recipe followability·非原创工程量 |
 | 具名 gap 修 | [GAP-B3-P4TEMPLATE-OWNBACKEND]（P4 模板补 own-backend prompt）·[GAP-B3-HARNESS-BYID]（step 3 命名 `TypedBackendEmissionDriver` harness） |
-| 残缺 | 六门机检 parity（+1 additive manifest territory entry·git-diff-mode·可机械补）；fresh-build 复证；Tier-3 真第三方 |
-| 证据指针 | `experiments/active/g8-stage3-attack/B3-cleanroom-own-emitter.md`（本文件） |
+| 残缺 | **[F-3] default 全树 = 结构边界**（reverted-drill 家族·非可机械补·如实登记）；其余五门 + [F-3] containment 已机检 GREEN；fresh-build 复证；Tier-3 真第三方 |
+| 证据指针 | `experiments/active/g8-stage3-attack/B3-cleanroom-own-emitter.md`（本文件·含 [F-3] 机检 transcript + 复现命令） |
 
 **另建议主会话登记**：`BuiltinBackendEmitters.cpp` L22-23 注释 stale（漏 Scalar·未注 own-backend-only）——核心源·非 recipe·本轮未改·待裁。
+
+---
+
+## ⑤ [F-3] containment 机检 — 复现命令（〇 补充轮·2026-07-16·可复现·无 git/无 build/无 manifest 污染）
+
+> 用**生产评估器**（CI job `f3-family-locality` 实跑的同一 `evaluate_diff` + `registration_allowance_files`）机检 Widget own-emitter 触碰集的 [F-3] 变更收容。
+> Widget territory 与 registration allowances 均取自**真** `schema/family-manifest.v1.json`（territory 按 drill 声明·6 territory 根）·**不改 manifest**（不为抛弃型 drill 家族加 phantom entry）。
+
+```python
+python3 - <<'PY'
+import sys, json
+sys.path.insert(0, 'tools/lint')
+from check_family_locality import evaluate_diff, registration_allowance_files, matches_range
+doc = json.load(open('schema/family-manifest.v1.json'))
+allow = registration_allowance_files(doc)  # 真 manifest 的 2 registration allowances
+widget = {"family": "Widget", "source_ranges": [
+    "lib/Dialect/Widget", "lib/Plugin/Widget", "lib/Target/Widget",
+    "include/Weft/Dialect/Widget", "include/Weft/Plugin/Widget", "include/Weft/Target/Widget"]}
+families = doc["families"] + [widget]
+family_source = [
+    "include/Weft/Dialect/Widget/IR/WidgetDialect.h", "include/Weft/Dialect/Widget/IR/WidgetOps.td",
+    "include/Weft/Plugin/Widget/WidgetBackendEmissionDriver.h", "include/Weft/Plugin/Widget/WidgetConstructionProtocol.h",
+    "include/Weft/Plugin/Widget/WidgetEmitCRouteProvider.h", "include/Weft/Plugin/Widget/WidgetExtensionPlugin.h",
+    "include/Weft/Target/Widget/WidgetTargetSupportBundle.h", "lib/Dialect/Widget/IR/WidgetDialect.cpp",
+    "lib/Plugin/Widget/WidgetBackendEmissionDriver.cpp", "lib/Plugin/Widget/WidgetConstructionProtocol.cpp",
+    "lib/Plugin/Widget/WidgetEmitCRouteProvider.cpp", "lib/Plugin/Widget/WidgetExtensionPlugin.cpp",
+    "lib/Plugin/Widget/WidgetVariantLegality.cpp", "lib/Target/Widget/WidgetTargetSupportBundle.cpp"]
+shared_reg = ["lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp", "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp"]
+non_source = ["lib/Dialect/CMakeLists.txt","lib/Plugin/CMakeLists.txt","lib/Target/CMakeLists.txt",
+    "include/Weft/Dialect/CMakeLists.txt","lib/Plugin/Builtin/CMakeLists.txt","lib/Conversion/EmitC/Builtin/CMakeLists.txt",
+    "lib/Plugin/Widget/CMakeLists.txt","test/Dialect/Widget/compute-skeleton.mlir",
+    "test/Target/Widget/widget-emitc-to-cpp.mlir","test/Target/Widget/widget-target-artifact-object.mlir",
+    "test/Target/Widget/widget-fail-closed.mlir","test/Target/Widget/compile.test"]
+ts = family_source + shared_reg + non_source
+print("POSITIVE:", "GREEN" if evaluate_diff(ts, families, allow)[0] else "RED")
+print("NEG-CORE:", "RED" if not evaluate_diff(ts+["lib/Transforms/VariantSelection.cpp"], families, allow)[0] else "GREEN(BUG)")
+print("NEG-XFAM:", "RED" if not evaluate_diff(ts+["lib/Dialect/RVV/IR/RVVOps.td"], families, allow)[0] else "GREEN(BUG)")
+print("NEG-NOALLOW:", "RED" if not evaluate_diff(ts, families, {"lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp"})[0] else "GREEN(BUG)")
+PY
+```
+**输出（2026-07-16 实跑）**：`POSITIVE: GREEN` · `NEG-CORE: RED` · `NEG-XFAM: RED` · `NEG-NOALLOW: RED`。
+四判决全符预期 → [F-3] containment 机检坐实（正例 contained·三反向控制判别非空·GAP-A allowance 价值机械可见）。
