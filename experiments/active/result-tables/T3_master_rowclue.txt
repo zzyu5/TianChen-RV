@@ -148,7 +148,7 @@
     pending gemm|q8_0@ime
     具名-X    gemm|q4_K@ime cold=0.049
 
-[通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/22 (派生) · 格内: PASS 21/具名-X 1/挂起 0/pending 3
+[通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/23 (派生) · 格内: PASS 21/具名-X 2/挂起 0/pending 2
     PASS    vec_dot|q4_0 cold=0.986
     PASS    vec_dot|q4_1 cold=1.008
     PASS    vec_dot|q5_0 cold=0.384
@@ -169,7 +169,7 @@
     pending gemm|q8_0@rvv/decode
     PASS    gemm|q8_0@rvv/prefill cold=1.48
     具名-X    gemm|iq4_nl@rvv/decode cold=0.2493
-    pending gemm|iq4_nl@rvv/prefill
+    具名-X    gemm|iq4_nl@rvv/prefill cold=0.6025
     PASS    rms_norm|f32 cold=1.336
     PASS    softmax|f32 cold=1.004
     PASS    silu|f32 cold=1.012
