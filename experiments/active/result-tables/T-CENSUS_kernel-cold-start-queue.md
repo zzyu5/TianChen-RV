@@ -305,6 +305,7 @@
 | **forward-op 桶**（独立） | 双板 WIN **2**（rms_norm 1-pass fusion + **softmax vcpop 短路复位 FIXED** `9a0b5fa4`）· silu@k1 WIN / silu@rvv 近-parity（`[GAP-SILU-RVV-VLEN128-GCC-SCHED]`）· ≥parity 交集扩（+add/mul/scale/cpy/rope 部分板） |
 | **DEQ-AXIS**（较弱赢类·独立子账） | k1 **13/18** WIN · rvv **9/18** WIN（rvv `to_float` gcc-15.2 autovec 更强·k1 scalar-ref 更弱） |
 | perf-covered / certified | 9/83 · 84/91（**不动**·本表第二赛道·非系统账/认证账） |
+| ★旁注(C4 2026-07-16·防读者误读) | 本表 **84/91 = M4 认证轴历史 dated 快照(2026-07-14)**·**≠ 构造轴 certified 101/108**〔regime-split 后·`coverage_metrics.py` 机算·活值·四账禁互推·非活矛盾〕 |
 
 ### 6.2 攻坚 disposition（输格逐族→三出口·反汇编归因已在各 batch casefile）
 | 家族 | 冷启动 | 出口 | 具名 GAP / 归因 |
