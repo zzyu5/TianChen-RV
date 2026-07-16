@@ -1,0 +1,23 @@
+
+Authorized users only. All activities may be monitored and reported.
+# q3_K x q8_K 16x1-REPACKED oracle (independent scalar).
+# BYTE-EXACT integer isum: reference (original q3_K) vs emitter-model (repacked block_q3_Kx16).
+
+  shape nr=1   nc=16   n=256    : int-mismatch=0       maxAbsPartial=1514   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=1   nc=16   n=4096   : int-mismatch=0       maxAbsPartial=1785   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=4   nc=32   n=256    : int-mismatch=0       maxAbsPartial=2082   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=4   nc=32   n=2560   : int-mismatch=0       maxAbsPartial=1830   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=1   nc=256  n=256    : int-mismatch=0       maxAbsPartial=1846   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=8   nc=256  n=4096   : int-mismatch=0       maxAbsPartial=2444   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=4   nc=160  n=2560   : int-mismatch=0       maxAbsPartial=2047   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+
+# GEMM interleaved block_q8_Kx4 (qs @+16, pos*4+c): int-mismatch = 0 / 1280  BYTE-EXACT
+
+# negative controls (perturb the REFERENCE; a large integer-mismatch
+# fraction proves the q3_K feature is genuinely exercised):
+  HMASK-OFF (force high bit CLEAR)         : perturbed-ref vs emitter int-mismatch = 1280 / 1280 (100%)  EXERCISED
+  HMASK-INV (invert subtractive polarity)  : perturbed-ref vs emitter int-mismatch = 1280 / 1280 (100%)  EXERCISED
+  SCALE-ROT (rotate signed scales +1)      : perturbed-ref vs emitter int-mismatch = 1280 / 1280 (100%)  EXERCISED
+  BIAS-OFF  (drop -4 subtractive bias)     : perturbed-ref vs emitter int-mismatch = 1280 / 1280 (100%)  EXERCISED
+
+WORST_FP_NORM 0.000e+00   GLOBAL_MAX_i16_PARTIAL 2444 (bound 32767)   VERDICT BYTE-EXACT-INTEGER

@@ -1,0 +1,19 @@
+{
+  "declared_instance_hash": "SEED-rvv-gemm_tile-q2_K-rvv-decode",
+  "kernel": "q2_K",
+  "variant": "deployed",
+  "board": "rvv",
+  "variant_axis": "deployed_point",
+  "samples": [0.3316, 0.4042, 0.4222, 0.3968, 0.4405, 0.4199, 0.3916, 0.4543, 0.3730, 0.3868, 0.3713, 0.4431],
+  "sample_semantics": "ratio_repack = opp_ms / ours_repack_leaf_ms (>1 = ours faster); q2_K repack GEVM leaf (decode M=1, front-door --weft-rvv-lower-quant-contraction product) vs stock ggml_vec_dot_q2_K_q8_K block-dot @rvv, ours-clang-17 domain, pinned core 32, DVFS-locked performance gov, K=2048 N=512 reps=25 x 12 independent seeds.",
+  "ratio_semantics": "vs_shipped_opp",
+  "gate_evidence_path": "experiments/active/g8-stage3-attack/SEL3-writeback-q2k-rvv/raw/gate_oracle_repack_q2K_rvv.txt",
+  "real_capability_hash": "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7",
+  "promote_primary_hash": false,
+  "opponent_symbol": {
+    "symbol": "ggml_vec_dot_q2_K_q8_K (stock gcc-15.2 libggml-cpu.so, block-dot @ M=1)",
+    "caliber": "block-dot"
+  },
+  "source": "SEL3 T-SEL3-4 writeback: board rvv(openEuler-VLEN128) 2026-07-16; gate=tools/oracle-repack/oracle_repack_q2K.cpp ZERO-MODEL byte-exact (board build+run); cold=A2-batch5 kquant_gevm_m1_driver_b5 repack-GEVM leaf vs stock ggml block-dot, N=12. raw: experiments/active/g8-stage3-attack/SEL3-writeback-q2k-rvv/raw/{gate_oracle_repack_q2K_rvv.txt,cold_q2k_rvv_clang.log}",
+  "protocol_note": "PROOF-OF-MECHANISM cell. cold_median REPLACES the opaque T3 decode placeholder (0.0685; prev_placeholder_cold preserved) with a fresh gated board re-measure in the deployed_point speedup convention (>1=ours faster). Value 0.40 = ours ~2.5x SLOWER than stock block-dot -- consistent with the seed t3_note 'clang也输0.36' (q2_K decode-M1 cross-op loss, rvv zero K-quant repack). selection_valid_input stays FALSE (vs_shipped_opp cross-compiler clang-ours-vs-gcc-shipped + single-point no sibling)."
+}

@@ -1,0 +1,32 @@
+{
+  "declared_instance_hash": "SEED-rvv-gemm_tile-q3_K-rvv-decode",
+  "kernel": "q3_K",
+  "variant": "deployed",
+  "board": "rvv",
+  "variant_axis": "deployed_point",
+  "samples": [
+    0.209,
+    0.2191,
+    0.2151,
+    0.2277,
+    0.2167,
+    0.22,
+    0.2149,
+    0.2251,
+    0.2186,
+    0.2162,
+    0.2146,
+    0.2237
+  ],
+  "sample_semantics": "ratio_repack = opp_ms / ours_repack_leaf_ms (>1 = ours faster); q3_K repack GEVM leaf (decode M=1, front-door product) vs stock ggml_vec_dot_q3_K_q8_K block-dot @rvv, ours-clang-17 domain, pinned core 32, DVFS-locked, K=2048 N=512 reps=25 x 12 seeds.",
+  "ratio_semantics": "vs_shipped_opp",
+  "gate_evidence_path": "experiments/active/g8-stage3-attack/SEL3-writeback-q2k-rvv/raw/gate_oracle_repack_q3K_rvv.txt",
+  "real_capability_hash": "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7",
+  "promote_primary_hash": false,
+  "opponent_symbol": {
+    "symbol": "ggml_vec_dot_q3_K_q8_K (stock gcc-15.2 libggml-cpu.so, block-dot @ M=1)",
+    "caliber": "block-dot"
+  },
+  "source": "SEL3 T-SEL3-4 writeback: board rvv 2026-07-16; gate=tools/oracle-repack/oracle_repack_q3K.cpp ZERO-MODEL byte-exact (board); cold=A2-batch5 repack-GEVM leaf vs stock block-dot N=12. raw: experiments/active/g8-stage3-attack/SEL3-writeback-q2k-rvv/raw/{gate_oracle_repack_q3K_rvv.txt,cold_q3q6_rvv_clang.log}",
+  "protocol_note": "PROOF-OF-MECHANISM bonus cell (pending seed upgrade). cold_median REPLACES opaque T3 decode placeholder with fresh gated board re-measure (deployed convention >1=ours faster). q3_K decode-M1 cross-op LOSS (rvv zero K-quant repack). selection_valid_input stays FALSE (vs_shipped_opp cross-compiler + single-point)."
+}

@@ -1,0 +1,23 @@
+
+Authorized users only. All activities may be monitored and reported.
+# q2_K x q8_K 16x1-REPACKED oracle (independent scalar).
+# BYTE-EXACT integer certificates isum (scale main) + summs (bsums-min):
+#   reference (original q2_K) vs emitter-model (repacked block_q2_Kx16).
+
+  shape nr=1   nc=16   n=256    : int-mismatch=0       maxAbsPartial=1067   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=1   nc=16   n=4096   : int-mismatch=0       maxAbsPartial=1589   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=4   nc=32   n=256    : int-mismatch=0       maxAbsPartial=1473   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=4   nc=32   n=2560   : int-mismatch=0       maxAbsPartial=1818   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=1   nc=256  n=256    : int-mismatch=0       maxAbsPartial=1324   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=8   nc=256  n=4096   : int-mismatch=0       maxAbsPartial=1947   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+  shape nr=4   nc=160  n=2560   : int-mismatch=0       maxAbsPartial=1718   (i16 ok<=32767)  fp-norm=0.000e+00  BYTE-EXACT
+
+# GEMM interleaved block_q8_Kx4 (qs @+16 pos*4+c, bsums @+1040 g16*4+c): int-mismatch = 0 / 2560  BYTE-EXACT
+
+# negative controls (perturb the REFERENCE; a large mismatch fraction
+# proves the q2_K feature is genuinely exercised by the emitter-model):
+  2BIT     (mask weight to low bit)  [isum]  : perturbed-ref vs emitter mismatch = 1280 / 1280 (100%)  EXERCISED
+  SCALE-ROT(rotate 4-bit scale +1)   [isum]  : perturbed-ref vs emitter mismatch = 1280 / 1280 (100%)  EXERCISED
+  MIN-ROT  (rotate 4-bit min +1)     [summs] : perturbed-ref vs emitter mismatch = 1280 / 1280 (100%)  EXERCISED
+
+WORST_FP_NORM 0.000e+00   GLOBAL_MAX_i16_PARTIAL 1947 (bound 32767)   VERDICT BYTE-EXACT-INTEGER
