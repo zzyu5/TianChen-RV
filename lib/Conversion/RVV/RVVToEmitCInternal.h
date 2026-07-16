@@ -2121,6 +2121,52 @@ private:
       int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
       int64_t weightInterleave, int64_t activationInterleave, int64_t half, bool colGroupOuter) const;
 
+  /// Emit the COMPLETE ggml iq1_s x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// body leaf (C4a-2), byte-exact to ggml_vec_dot_iq1_s_q8_K's arithmetic. Called
+  /// ONLY from emitTypedRepackGemvLoopBody's grid branch, gated on the in-region
+  /// weft_rvv.repack_gemv_grid_core anti-bypass brick + plan.foldArith == DeltaGrid.
+  ///
+  /// The THREE structural deltas from the iq2 leaves, all carried by the plan:
+  ///   * NO sign gather / NO vmul sign fold -- the gathered iq1s_grid bytes are
+  ///     ALREADY signed ternary, so the grid byte IS the weight (plan.signPlane ==
+  ///     TernaryDelta, plan.signArrayName empty, no sign table emitted).
+  ///   * `deltaOffset` (the sign-plane offset SLOT) addresses the per-sub-block +-1
+  ///     DELTA strip, not a sign selector strip.
+  ///   * TWO i32 accumulators per strip: sumi (ls-weighted grid dot) and sumi1
+  ///     (ls*delta*(bsums[2ib]+bsums[2ib+1]) over the activation bsums at
+  ///     `activationBsumsOffset`), folded per block as
+  ///     sumf += (d_x*d_y) * (cvt(sumi) + 0.125f*cvt(sumi1)) -- NO trailing
+  ///     store-side 0.125 (that is the iq2 SignScaleEighth shape).
+  mlir::LogicalResult emitRepackGemvIq1SQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
+      int64_t lsOffset, int64_t deltaOffset, int64_t activationQuantOffset,
+      int64_t activationBsumsOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t half) const;
+
+  /// The PREFILL GEMM sibling of emitRepackGemvIq1SQ8K (C4a-2): the SAME ternary
+  /// grid decode + delta-bsum dual accumulator, with the weight decode AMORTIZED
+  /// across the 4 interleaved block_q8_Kx4 activation columns (4 fp32 d at +0, int8
+  /// quants at +16 as pos*4+c, int16 bsums at +1040 as g16*4+c). Ships PLAIN
+  /// (untiled) -- C4a-2 built no tiled iq1_s variant and makes no perf claim.
+  /// RESULT-LESS; called ONLY from emitTypedRepackGemmLoopBody's grid branch.
+  mlir::LogicalResult emitRepackGemmIq1SQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const weft::GridDecodePlan &plan, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
+      mlir::Value columnCount, mlir::Value outputRowStride, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+      int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
+      int64_t deltaOffset, int64_t activationQuantOffset,
+      int64_t activationBsumsOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half,
+      bool colGroupOuter) const;
+
   // NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the four thin direct-emit
   // dispatch entry points emitRepackGem{v,m}Iq2{Xs,S}Q8K are RETIRED with the iq2_xs /
   // iq2_s monolith ops -- the dual-ls repack GEVM/GEMM now flow through the grid branch of

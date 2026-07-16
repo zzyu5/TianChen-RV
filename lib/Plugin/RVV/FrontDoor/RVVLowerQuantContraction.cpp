@@ -728,6 +728,26 @@ constexpr llvm::StringLiteral kGridIq2SScaleModel =
 constexpr llvm::StringLiteral kGridIq2SGemmScaleModel =
     "superblock-d.fp16-grid-explicitsign-dualscale-4col-nomin-eighth";
 
+// The iq1_s TERNARY-DELTA GRID decode-FAMILY discriminator (C4a-2): the FOURTH grid
+// sibling and the first NON-iq2 one. Same QK_K=256 super-block / 8-byte grid ENTRY
+// gather as the iq2 rows (which is why it was the lowest-risk 4th row), with FOUR
+// structural deltas: (a) the grid is the 2048-entry TERNARY iq1s_grid and its bytes are
+// ALREADY signed {-1,0,+1}, so there is NO sign plane and NO sign fold -- the gathered
+// grid byte IS the weight; (b) the 11-bit grid index is ASSEMBLED at repack time from
+// qs[l] | (((qh[ib] >> 3l) & 7) << 8) and lands as a u16 strip; (c) the SINGLE ls per
+// sub-block is DERIVED at repack time as 2*((qh[ib] >> 12) & 7) + 1 (8 values, [1,15]);
+// (d) a per-sub-block +-1 DELTA (1 - 2*((qh[ib] >> 15) & 1)) rides the sign-plane byte
+// offset slot as a DELTA strip and feeds a SECOND integer accumulator sumi1 = sum_ib
+// ls*delta*(bsums[2ib]+bsums[2ib+1]) over the ACTIVATION bsums -- the ONLY grid row that
+// reads them. The fold is therefore NOT the iq2 store-side 0.125: it is the per-block
+// dual-accumulator sumf += d*(sumi + 0.125f*sumi1) (fold_model
+// "grid_ternary_delta_eighth"), byte-exact to ggml_vec_dot_iq1_s_q8_K. The FIXED
+// 2048-entry grid stays a DERIVED emit-period static const table (NEVER an op attr).
+constexpr llvm::StringLiteral kGridIq1SScaleModel =
+    "superblock-d.fp16-grid-ternary-delta-singlescale-nomin-eighth";
+constexpr llvm::StringLiteral kGridIq1SGemmScaleModel =
+    "superblock-d.fp16-grid-ternary-delta-singlescale-4col-nomin-eighth";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -843,11 +863,21 @@ struct Iq2GridDecodeFacts {
   std::int64_t weightBlockStride;           // 1184
   std::int64_t weightGridIdxByteOffset;     // 160 (grid-index plane)
   std::int64_t weightLsByteOffset;          // 32 (per-sub-block int8 ls plane)
-  std::int64_t weightSignByteOffset;        // 672 (sign-selector plane)
+  // The sign-plane byte offset. For the iq2 rows this addresses the sign SELECTOR
+  // strip (672 / 1312). For the iq1_s TernaryDelta row there is no sign plane, so
+  // this SAME slot addresses the per-sub-block +-1 DELTA strip (160) instead.
+  std::int64_t weightSignByteOffset;
   std::int64_t gevmActivationBlockStride;   // 292 (plain block_q8_K)
   std::int64_t gevmActivationQuantByteOffset;    // 4
+  // The activation int16 bsums byte offsets. NON-ZERO ONLY for the iq1_s delta fold
+  // (260 plain block_q8_K / 1040 interleaved block_q8_Kx4, group16-major /
+  // column-minor); 0 for the iq2 rows, which never read bsums and therefore must
+  // NOT stamp the attr (the loop-body verifier rejects it outside the two folds
+  // that read it).
+  std::int64_t gevmActivationBsumsByteOffset;
   std::int64_t gemmActivationBlockStride;   // 1168 (block_q8_Kx4)
   std::int64_t gemmActivationQuantByteOffset;    // 16
+  std::int64_t gemmActivationBsumsByteOffset;
   std::int64_t nSubblocks;                  // 8
 };
 
@@ -861,8 +891,10 @@ constexpr Iq2GridDecodeFacts kIq2XxsDecodeFacts = {
     /*weightSignByteOffset=*/672,
     /*gevmActivationBlockStride=*/292,
     /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0, // iq2_xxs reads no bsums.
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
     /*nSubblocks=*/8,
 };
 
@@ -885,8 +917,10 @@ constexpr Iq2GridDecodeFacts kIq2XsDecodeFacts = {
     /*weightSignByteOffset=*/1312,
     /*gevmActivationBlockStride=*/292,
     /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0, // iq2_xs reads no bsums.
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
     /*nSubblocks=*/8,
 };
 
@@ -900,8 +934,42 @@ constexpr Iq2GridDecodeFacts kIq2SDecodeFacts = {
     /*weightSignByteOffset=*/1312,
     /*gevmActivationBlockStride=*/292,
     /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0, // iq2_s reads no bsums.
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
+    /*nSubblocks=*/8,
+};
+
+// iq1_s (C4a-2): the TERNARY-DELTA grid sibling. It RECONSTRUCTS the block_iq1_sx16 x16
+// weight facts -- a repack layout this line DESIGNED (ggml's block_iq1_s is 50 B of
+// PACKED qs/qh; the repack DECODES the qh word once, at repack time, into three flat
+// per-column strips so the kernel never re-derives it):
+//
+//   d[16]         fp16 @ +0     (32 B)
+//   ls[8][16]     int8 @ +32    (128 B)  2*((qh>>12)&7)+1, in [1,15]
+//   delta[8][16]  int8 @ +160   (128 B)  1-2*((qh>>15)&1), in {-1,+1}
+//   gidx[8][4][16] u16 @ +288   (1024 B) qs[l] | (((qh>>3l)&7)<<8), in [0,2047]
+//   ------------------------------------ stride 1312
+//
+// plus the plain block_q8_K activation (292, quants @4, bsums @260) and the INTERLEAVED
+// block_q8_Kx4 GEMM activation (1168, quants @16 as pos*4+c, bsums @1040 as g16*4+c).
+// The delta strip rides the weightSignByteOffset slot; iq1_s is the ONLY grid row with
+// non-zero bsums offsets.
+constexpr Iq2GridDecodeFacts kIq1SDecodeFacts = {
+    /*decodeModel=*/"iq1_s",
+    /*gemmScaleModel=*/kGridIq1SGemmScaleModel,
+    /*foldModel=*/"grid_ternary_delta_eighth",
+    /*weightBlockStride=*/1312,
+    /*weightGridIdxByteOffset=*/288,
+    /*weightLsByteOffset=*/32,
+    /*weightSignByteOffset=*/160, // the +-1 DELTA strip (no sign plane exists).
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/260,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/1040,
     /*nSubblocks=*/8,
 };
 
@@ -1310,6 +1378,7 @@ private:
           op.getScaleModel() == kGridIq2XxsScaleModel ? &kIq2XxsDecodeFacts
           : op.getScaleModel() == kGridIq2XsScaleModel ? &kIq2XsDecodeFacts
           : op.getScaleModel() == kGridIq2SScaleModel  ? &kIq2SDecodeFacts
+          : op.getScaleModel() == kGridIq1SScaleModel  ? &kIq1SDecodeFacts
                                                        : nullptr;
       // The q4_1 family (unsigned nibble + single MIN fold) builds the SAME typed
       // q4_0 repack region via lowerToRepackGem{v,m}Q41 (the SHARED q4_0 core + fold
@@ -1382,6 +1451,7 @@ private:
         op.getScaleModel() == kGridIq2XxsScaleModel ||
         op.getScaleModel() == kGridIq2XsScaleModel ||
         op.getScaleModel() == kGridIq2SScaleModel ||
+        op.getScaleModel() == kGridIq1SScaleModel ||
         op.getScaleModel() == kNibbleQ50ScaleModel ||
         op.getScaleModel() == kNibbleQ51ScaleModel ||
         op.getScaleModel() == kNibbleQ80ScaleModel)
@@ -4211,6 +4281,13 @@ private:
     loopState.addAttribute(
         "activation_quant_byte_offset",
         builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
+    // The activation int16 bsums offset: stamped ONLY by the iq1_s delta fold, the
+    // only grid row that reads them (the iq2 rows carry 0 and MUST NOT stamp it --
+    // the loop-body verifier rejects the attr outside the two folds that read it).
+    if (facts.gevmActivationBsumsByteOffset != 0)
+      loopState.addAttribute(
+          "activation_bsums_byte_offset",
+          builder.getI64IntegerAttr(facts.gevmActivationBsumsByteOffset));
     loopState.addAttribute("weight_interleave",
                            builder.getI64IntegerAttr(kWeightInterleave));
     loopState.addAttribute("half_lanes",
@@ -4376,6 +4453,12 @@ private:
     loopState.addAttribute(
         "activation_quant_byte_offset",
         builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
+    // The INTERLEAVED block_q8_Kx4 bsums offset (group16-major / column-minor):
+    // stamped ONLY by the iq1_s delta fold. See the GEVM sibling.
+    if (facts.gemmActivationBsumsByteOffset != 0)
+      loopState.addAttribute(
+          "activation_bsums_byte_offset",
+          builder.getI64IntegerAttr(facts.gemmActivationBsumsByteOffset));
     loopState.addAttribute("weight_interleave",
                            builder.getI64IntegerAttr(kWeightInterleave));
     loopState.addAttribute("activation_interleave",
@@ -4397,11 +4480,16 @@ private:
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
-    // [SEL-1] the grid GEMM SP4 tiling selection. The grid fold_model
-    // ("grid_sign_single_scale_eighth") classifies AlreadyLean (a memory-gather grid decode
-    // already <= the 32-vreg cliff, output tiling a structural no-op) => Plain; no offline
-    // seed => the cold-start [XFER-1] prior (reason=prior). Byte-exact: the grid emitter
-    // does not read tiling_variant, so the stamp is inert to the untiled body.
+    // [SEL-1] the grid GEMM SP4 tiling selection. The iq2 grid fold_models
+    // ("grid_sign_single_scale_eighth" / "grid_sign_dualscale_eighth") classify
+    // AlreadyLean (a memory-gather grid decode already <= the 32-vreg cliff, output tiling
+    // a structural no-op) => Plain; no offline seed => the cold-start [XFER-1] prior
+    // (reason=prior). The iq1_s fold ("grid_ternary_delta_eighth") classifies to
+    // std::nullopt and is a NO-OP here: C4a-2 built only a PLAIN untiled iq1_s leaf, so
+    // there is no tiled variant to choose between, and asserting AlreadyLean would stamp
+    // an unmeasured shape claim on a line that makes NO performance claim. Byte-exact
+    // either way: the grid emitter does not read tiling_variant, so the stamp is inert to
+    // the untiled body.
     stampScheduleSelections(builder, loop, facts.foldModel, facts.decodeModel, op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();

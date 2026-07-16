@@ -96,7 +96,14 @@ enum class RVVTilingBottleneckShape {
 
 // Map a loop-body fold_model to its bottleneck shape (the selection KEY). Returns
 // std::nullopt when the fold_model has NO SP4 output-tiling GEMM axis (a non-repack
-// fold, or the ternary trit folds). The flat q4_0 "lane_wise_vector_scale" GEMM leaf
+// fold, the ternary trit folds, or the iq1_s "grid_ternary_delta_eighth" fold --
+// C4a-2 built ONLY a PLAIN untiled iq1_s GEMM leaf, so there is no tiled variant to
+// choose BETWEEN. iq1_s is deliberately NOT classified AlreadyLean: that verdict
+// asserts "the body already sits <= the 32-vreg cliff", a SHAPE claim C4a-2 has not
+// measured, and the C4a-2 line makes NO performance claim of any kind and never
+// touched a board. Classifying it would stamp an unmeasured prior; nullopt stamps
+// nothing and is inert -- the grid GEMM emitter reads no tiling attr either way).
+// The flat q4_0 "lane_wise_vector_scale" GEMM leaf
 // DOES classify now (AlreadyLean): it is a wired SP4 leaf whose prior is Plain
 // (already <= the 32-vreg cliff), so the tiled-vs-plain choice for EVERY repack GEMM
 // leaf -- q4_0 flat, K-quant min-fold + no-min, codebook -- flows through this KEY.
