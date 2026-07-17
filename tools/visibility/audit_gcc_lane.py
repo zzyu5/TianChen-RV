@@ -258,21 +258,36 @@ def main():
         "%s=%d" % (k, v) for k, v in sorted(mcross.items())))
 
     # ── 表 4: 头条影响 · 污染格按 verdict 状态分组 ──
-    print("\n[表4] 头条影响 · 污染格现计入的状态 (从 master 机读·禁预测重测结果)")
+    #
+    # ★零预处理机算 (2026-07-17 用户裁 · measurement §3.6 值域登记铁律):
+    #     「值域登记只许机算枚举, 禁任何预处理归并; 归并即判据, 判据即裁.」
+    # 本行原为 `st = m["rvv_disp"].split("(")[0]` —— 那句剥括注, 把 `PASS(decode-M1-GEVM)`
+    # 无声并进 `PASS`, 于是这张【自称"从 master 机读"】的表其实报的是归并后的产物.
+    # 用户裁: 括注是【判定谱系】(decode-M1 等), 不是噪音 ⟹ 原样取值, 一个字都不剥.
+    # 合法值域 = measurement §3.3.1.1 的 12 值 (∪ VOID 四值); 本工具只读不判.
+    print("\n[表4] 头条影响 · 污染格现计入的状态 (从 master 机读·零预处理·禁预测重测结果)")
     print("-" * 100)
     bucket = {}
     for r in contaminated:
         for m in master_state(r["op"], r["fmt"]):
             if r["board"] == "rvv":
-                st = m["rvv_disp"].split("(")[0]
+                st = m["rvv_disp"]  # 原样 · 不 split · 不剥括注 · 不归并
                 bucket.setdefault((grp(r["op"]), st), []).append(
                     r["op"] + "|" + r["fmt"] + (("@" + m["regime"]) if m["regime"] else ""))
     for k in sorted(bucket):
         items = sorted(set(bucket[k]))
-        print("  %-14s %-12s %2d 格: %s" % (k[0], k[1], len(items), ", ".join(items)))
+        print("  %-14s %-26s %2d 格: %s" % (k[0], k[1], len(items), ", ".join(items)))
+    print("  ※ 状态列 = rvv_disp 原样值(含括注). 括注 = 判定谱系, 不是噪音 —— 禁剥.")
 
     # ── 表 4b: 按【四档】归口 = 头条口径 ──
+    #
+    # ★本表的三桶塌缩(PASS / 具名-X / pending)是【本工具做的一次归并】= 判据, 不是实况:
+    # 它把 §3.3.1.1 的 12 个 raw 值按 startswith 压成 3 个, 只为对上 recon 头条的 tier×PASS 口径.
+    # 按 measurement §3.6「归并即判据」—— 故此处【明标为投影】, 实况值域一律以上面的表4(零预处理)为准.
+    # 该归并是否该留 = 用户裁的面, 本工具不自行扩大也不自行取消.
     print("\n[表4b] ★按四档归口(= recon 头条口径 tier×PASS/全档量) · rvv 板")
+    print("  ※ 【投影·非实况】下面的 PASS/具名-X/pending 三桶 = 本工具按 startswith 归并出来的,")
+    print("     只为对上 recon 头条口径. 实况值域(12 raw 值·含括注谱系)见上面的[表4]. 归并即判据.")
     print("-" * 100)
     tb = {}
     for r in contaminated:

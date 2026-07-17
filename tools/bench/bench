@@ -40,7 +40,13 @@ ROSTER = os.path.join(ROOT, "schema", "coverage-roster.v1.json")
 
 # ───────────────────────────────────────────────────────── §3.3.1 行 schema（绑定 spec）
 # 本元组 = 对 spec §3.3.1 字段表的【复制】，其正确性由 spec_row_schema() 每次运行时机核。
+# 前 4 个 = 行键四元组（2026-07-17 用户裁：(op, format, engine, regime) 唯一定位物理行；
+# 三元组 (op, format, engine) 口径【作废】—— 在现役主表切不出唯一行）。
 ROW_SCHEMA = (
+    "op",
+    "format",
+    "engine",
+    "regime",
     "cold",
     "判定",
     "对手符号",
@@ -51,6 +57,7 @@ ROW_SCHEMA = (
     "run-id",
     "噪声标",
 )
+ROW_KEY = ("op", "format", "engine", "regime")
 
 _SPEC_FIELD_RE = re.compile(r"^\|\s*\*\*(?P<field>[^*|]+)\*\*\s*\|.*\|\s*(?P<step>[^|]*?)\s*\|\s*$")
 
@@ -361,9 +368,12 @@ def step3_crosscheck(fmt, board, cfg, execute):
         return plan, None
     raise CellRecipeMissing(
         f"格 {fmt} @ 板 {board} 无可寻址的对拍配方（driver + oracle + 对手符号表）。\n"
-        "  §3.3 第 3/4 步假定每格存在 harness，但【无 spec 层规定其住址与契约】；\n"
-        "  而 tools/gates/check_experiments_layout.py 判 experiments/ 为数据格、禁 harness 入内。\n"
-        "  ⟹ 结构缺口，登记 = ISSUE-090。禁伪装可用（§3.0：agent 可提案，不可自改）。"
+        "  §3.3 第 3/4 步假定每格存在 harness。layout 门已裁【负向】：experiments/ 是数据格、\n"
+        "  禁 harness 入内（'harness lives under tools/, never in the data cell'）；但\n"
+        "  【选址未钦定】（tools/bench/cells/<格>/ 与 tools/e2e-harness/ 同样满足该门）\n"
+        "  且【调用契约全缺】（以什么接口被 bench 调 —— 门与 spec 皆无字）。\n"
+        "  ⟹ 结构缺口，登记 = ISSUE-090。禁伪装可用、禁 runner 自行发明配方住址\n"
+        "  （§3.0：agent 可提案，不可自改）。"
     )
 
 
@@ -395,9 +405,20 @@ def step5_row(run_id, execute):
 
 
 # ───────────────────────────────────────────────────────── 演示行（0 造数）
-def dry_run_row(run_id):
-    """干跑演示行：除 run-id 外每个字段都显式标 DRY-RUN，零数字 ⟹ 无任何看起来像测量结果的数。"""
+def dry_run_row(run_id, fmt):
+    """干跑演示行：除 run-id 与 format（= 入参回显）外每个字段都显式标 DRY-RUN。
+
+    行键四元（§3.3.1）里只有 `format` 是 `bench <格>` 真给的；`op` / `engine` / `regime`
+    **干跑不填** —— 一个格跨多 op，且 `--board` 推不出 `engine`（k1 上可为 rvv|ime）。
+    命令签名要不要带全行键 = ISSUE-091 未裁的那一半 ⟹ 保守默认【不选行、不猜键】。
+    """
     return {
+        # 三个占位刻意【不含数字】：0 造数检查覆盖全体非 run-id 字段，含行键（连"ISSUE-〇九一"
+        # 这样的编号都会被它咬 —— 故此处以「命令签名未裁」指代，编号写在 spec 与 docstring 里）。
+        "op": f"{DRY_RUN_MARK}(未定位·roster 命中多 op·命令签名未裁)",
+        "format": fmt,
+        "engine": f"{DRY_RUN_MARK}(未定位·板推不出 engine·命令签名未裁)",
+        "regime": f"{DRY_RUN_MARK}(未定位·命令签名未裁)",
         "cold": f"{DRY_RUN_MARK}(未计时)",
         "判定": f"{DRY_RUN_MARK}(未判定)",
         "对手符号": f"{DRY_RUN_MARK}(未探针)",
@@ -421,13 +442,23 @@ def self_test():
     ok = []
 
     assert_schema_bound()
-    ok.append(f"schema 绑定：runner 9 字段 == spec §3.3.1 字段表 {spec_row_schema()}")
+    ok.append(f"schema 绑定：runner {len(ROW_SCHEMA)} 字段 == spec §3.3.1 字段表 {spec_row_schema()}")
 
-    row = dry_run_row("RID")
+    # 行键四元（§3.3.1 前 4 字段）—— 三元组口径已作废，四元组才唯一定位物理行。
+    assert spec_row_schema()[:4] == ROW_KEY, f"spec 行键前四字段 != {ROW_KEY}"
+    ok.append(f"行键 == {ROW_KEY} 四元组（spec §3.3.1 机核 · 三元组口径作废）")
+
+    # 入参回显 sentinel：刻意【不含数字】，使下面的 0 造数检查对全体非 run-id 字段保持满强度。
+    row = dry_run_row("RID", "FMT-SENTINEL")
     assert tuple(row) == ROW_SCHEMA, "演示行字段序与 ROW_SCHEMA 不一致"
     ok.append("演示行字段序 == ROW_SCHEMA（逐项一一对应，不增不删）")
 
-    # 0 造数：除 run-id 外，演示行不得含任何数字。
+    assert row["format"] == "FMT-SENTINEL", "format 非入参回显（被改写 = 造键嫌疑）"
+    assert all(row[k].startswith(DRY_RUN_MARK) for k in ("op", "engine", "regime")), \
+        "干跑填了 op/engine/regime（= 猜行键；ISSUE-091 保守默认 = 不选行、不猜键）"
+    ok.append("行键：format = 入参回显不改写 · op/engine/regime 干跑不猜（ISSUE-091 保守默认）")
+
+    # 0 造数：除 run-id 外，演示行不得含任何数字（format 走 sentinel ⟹ 覆盖面不缩）。
     digits = {k: v for k, v in row.items() if k != "run-id" and re.search(r"\d", v)}
     assert not digits, f"演示行含数字（造数嫌疑）：{digits}"
     ok.append("0 造数：演示行除 run-id 外零数字")
@@ -511,7 +542,11 @@ def main(argv=None):
     print(f"  板      = {cfg['identity']} · {cfg['vector']} · {cfg['pmu']}")
     print(f"  格      = {fmt} —— roster 命中 {len(rows)} 条 op：{' '.join(r['op'] for r in rows)}")
     if len(rows) > 1:
-        print("            ★ 格单独不定位行（主表行键 = op×format×engine）—— ISSUE-091")
+        # 行键 = (op, format, engine, regime) 四元组（2026-07-17 用户裁 · §3.3.1）。三元组口径作废。
+        # `bench <格> --board <板>` 只给得出 format 一个分量 ⟹ 仍不定位行；签名要不要带全行键
+        # = ISSUE-091 未裁的那一半（保守默认：不选行、不猜键、不写主表）。
+        print("            ★ 格单独不定位行 —— 行键 = (op, format, engine, regime) 四元组（§3.3.1）；")
+        print(f"              `bench <格> --board <板>` 只给出 format 一个分量 ⟹ 命令签名 = ISSUE-091 未裁的那一半")
     print()
 
     if execute and cfg["block"]:
@@ -535,8 +570,8 @@ def main(argv=None):
                 if k != "步":
                     print(f"      {k:<12}{v}")
         print()
-        header, values = render_row(dry_run_row(run_id))
-        print("  ── 演示行（§3.3.1 九字段 · 逐字对齐 spec · 零正式数字）──")
+        header, values = render_row(dry_run_row(run_id, fmt))
+        print(f"  ── 演示行（§3.3.1 {len(ROW_SCHEMA)} 字段 · 逐字对齐 spec · 零正式数字）──")
         print(f"  {header}")
         print(f"  {values}")
         print()

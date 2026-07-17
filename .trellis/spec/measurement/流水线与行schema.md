@@ -26,10 +26,20 @@
 
 **本表 = 主表行权威字段集的唯一定义处。** 字段名以本表为准；runner 建设时的列标识须与本表**逐项一一对应，不得增删**。增删字段 = [3.5](./门体系.md#35-门体系清算三硬点其余皆工具) 第 4 条途径（提案入 ISSUES → 用户裁 → 本层版本化）。
 
+**行键 = `(op, format, engine, regime)` 四元组**（2026-07-17 用户裁 · 前置裁定）。**三元组 `(op, format, engine)` 口径作废** —— 它在现役主表**不唯一**（`gemm_tile × engine=rvv` 的 `regime=decode` 与 `prefill` 相撞）；四元组**唯一**。**板不是键**：板以 `<板>_*` 属性列前缀与 run-id 承载，且 **`--board` 结构上推不出 `engine`**（同一块 k1 板上 `engine` 可为 `rvv` 或 `ime`）。**谓词**（可复跑 · 本层不转抄读数）：
+
+```
+python3 -c "import csv;r=list(csv.DictReader(open('experiments/active/result-tables/T3_master_rebuild.csv')));print(len(r), len({(x['op'],x['format'],x['engine']) for x in r}), len({(x['op'],x['format'],x['engine'],x['regime']) for x in r}))"
+```
+
 | 字段 | 内容 | 产出步 |
 |---|---|---|
+| **op** | **行键①** —— 算子 | 入参（预注册） |
+| **format** | **行键②** —— 量化格式，即 `bench <格>` 的「格」 | 入参（预注册） |
+| **engine** | **行键③** —— 执行范式（≠ 板） | 入参（预注册） |
+| **regime** | **行键④** —— 相（`decode` / `prefill`；[K-10] 结构分立） | 入参（预注册） |
 | **cold** | 冷启动计时结果；重复数预注册 | 第 4 步 |
-| **判定** | 该格结论 | 第 4 步 |
+| **判定** | 该格结论；**值域 = [3.3.1.1](#3311-判定-的值域规范性--零预处理机算枚举)**，禁在本栏另立 | 第 4 步 |
 | **对手符号** | 该板实际部署派发函数的符号名 | 第 3 步 |
 | **对手档** | `{手调 \| 通用向量 \| 标量类}` 之一，逐格证据判定（[3.4](./对手法.md#34-对手法)） | 第 3 步 |
 | **对手证据引用** | 证成"部署事实"与档位的证据指针（反汇编 dispatch / 类型注册表） | 第 3 步 |
@@ -40,6 +50,31 @@
 
 **VOID 的行不存在**：VOID 只在运行台账留一行（[术语](./index.md#术语)），不入主表。
 
+#### 3.3.1.1 `判定` 的值域（规范性 · 零预处理机算枚举）
+
+**值域 = 下列 12 值 ∪ VOID 四值**（VOID 四值住 [3.3](#33-一条流水线) 第 1/3 步，本节不重抄）。**12 值 = 现役主表 `rvv_disp` / `k1_disp` 两列的 raw distinct 全录**（2026-07-17 用户裁：**原样收，不归并**）—— **逐字，禁归并 / 禁改名 / 禁精简**。**括注是判定谱系**（`decode-M1` 等）**，不是噪音**：`PASS(decode-M1-GEVM)` 与 `PASS` 是**两个值**。
+
+- `PASS`
+- `具名-X`
+- `PASS(decode-M1-GEVM)`
+- `具名-X(decode-M1)`
+- `pending-真(待补标量仗)`
+- `pending-fold`
+- `域外-永久(q1_0)`
+- `N/A-hw`
+- `PASS-DEPLOYED(decode-GEVM·C1)`
+- `具名-X(IME-kernel-sym·vendor手调IME)`
+- `pending(照测未定verdict)`
+- `pending(IME结构·该板无合法对手·q8_0落RVV-repack回退·缺vendor-IME对手·探针证据)`
+
+**谓词**（可复跑 · **零预处理**：不 `split`、不剥括注、不 `startswith` 归口）：
+
+```
+python3 -c "import csv,collections;r=list(csv.DictReader(open('experiments/active/result-tables/T3_master_rebuild.csv')));c=collections.Counter();[(c.update([x['rvv_disp']]),c.update([x['k1_disp']])) for x in r];print(len(c), sum(c.values()));print(c.most_common())"
+```
+
+**取值一致性** = [3.6](#36-其余铁律) 的值域登记铁律：本节是**枚举**，不是模板 —— 新值只能经 [3.5](./门体系.md#35-门体系清算三硬点其余皆工具) 第 4 条途径进来。
+
 ## 3.6 其余铁律
 
 （保留为流水线规则，非仪式。）
@@ -48,5 +83,6 @@
 - **VOID 三出口限期清偿** `{重测 | 降档对局 | 环后具名}`，**禁躺平**。
 - **板忙只延后验证，不延后施工**——"constructed·待板端门"是**合法状态**。
 - **"某物不存在"的断言禁用 `head` / 固定窗口命令作依据。**
+- **★值域登记只许机算枚举，禁任何预处理归并；归并即判据，判据即裁。**（2026-07-17 用户裁 · 通用法 · **本条即正本**，[governance · 决策权限卡](../governance/决策权限卡.md) 的「★本判别式的来历」节指来。**病理**：一句 `.split('(')` 就能把 `PASS(decode-M1-GEVM)` 无声并进 `PASS`，raw distinct 被压低，**再戴着"实况"的帽子出场** —— 归并动作**可以完全无意识地混进"机算"里**。故：登记值域时**先出 raw distinct 全表**；要归并 = 先答"哪种算对" = 判据级 = 用户裁。）
 - **预注册先于测量。**
 - **gcc 不存在**：不作为构建链或对局链；仅作为历史素材与链接运行库存在。本地 clang-20 **仅限不碰代码生成的辅助**；**二进制级数字零证据地位**。

@@ -1,30 +1,54 @@
 # CLAUDE.md — Weft-RV
 
-本项目用 **Trellis** 管理，开发者身份 `claude`。改设计 / 代码 / 任务前，按序读：
+本项目用 **Trellis** 管理，开发者身份 `claude`。**Trellis（`.trellis/`）是唯一权威**：队列、任务、spec、issues、报告交付全在其中。
 
-1. [`.trellis/spec/index.md`](.trellis/spec/index.md) — 项目定位 + 三贡献 C1/C2/C3′ 表（含 N1/N2/N3 ↔ C 的唯一 bridge）+ spec 层地图。
-2. [`.trellis/spec/architecture/core-invariants.md`](.trellis/spec/architecture/core-invariants.md) — I1–I9 硬规则（其他 spec 引用它，不重抄）。
-3. 选下一步做什么时读 [`.trellis/spec/guides/trunk-discipline.md`](.trellis/spec/guides/trunk-discipline.md) — 单一尺子 = distance to C1/C2/C3′，别挑相邻枝节。
+## 上岗：只读 `.trellis/`
 
-**项目（定位 · 2026-07-10 升级）**：基于 MLIR 的能力驱动可扩展执行层软件栈之**参考模板（reference template）**；RISC-V 量化 LLM 推理为其**首个高性能实例**（主角 = 可扩展性、性能 = 证明书；定位权威 [`docs/canon/Weft-RV_定位-v2.md`](docs/canon/Weft-RV_定位-v2.md)，边界见 [AGENTS.md](AGENTS.md) 的 Project Scope）。**模板 ≠ 通用编译器**（[NG-2] 输入止于 kernel 级接口、负载域锁 ggml 型量化推理 kernel 不变）。主栈 C++/MLIR/LLVM/TableGen/CMake/lit；Python 只做 tooling。RVV 是当前真实硬件 family（`ssh rvv`）。
+**进入点 = [`.trellis/spec/index.md`](.trellis/spec/index.md)**（根地图：项目定位 + 六层表 + 上岗顺序 + N↔C bridge 正本）。**读序、何时可动手，以该文件的「新 agent 上岗顺序」节为准**，本文件不重抄（禁副本）。
 
-**论文贡献（headline，三条 · 同一"可扩展软件栈参考模板"的三面）**：**C1（头牌）模板协议本体** = 合取存在性 → 可复制扩展接入协议；**C2 模板经济学** = 泛化代价 → 边际成本规律；**C3′ 模板产出质量** = 能力键控优化模式库 → 带实测与迁移的模板（性能数字是 C3′ 证词、不另立贡献）。终态定义与证据门见 [`.trellis/spec/index.md`](.trellis/spec/index.md) 的三贡献表。N1/N2/N3 是命名的机制子主张，映射进 C1/C2/C3′（唯一 bridge 在 index.md），**不得再当三个并列贡献**。
+摘要（细节回根地图）：
 
-**关键纪律**：
-- spec 是给 agent 的**稳定契约 + 判断依据，不是状态机/门禁**。当前进度/状态属于 `tasks/` 和 `workspace/` journal，不写进 spec。
-- 改代码前先确认推进的是哪条贡献 C1/C2/C3′，否则可能是枝节。
-- 硬件/性能主张要真 `ssh rvv` 证据。
+1. [`.trellis/spec/index.md`](.trellis/spec/index.md) —— 根地图。
+2. [`.trellis/spec/governance/index.md`](.trellis/spec/governance/index.md) → [决策权限卡](.trellis/spec/governance/决策权限卡.md) —— **什么能自决、什么必问、什么禁停**。
+3. [`.trellis/spec/canon/index.md`](.trellis/spec/canon/index.md) → [核心不变量](.trellis/spec/canon/核心不变量.md) I1–I9 —— **法源**。
+4. [`.trellis/spec/issues/index.md`](.trellis/spec/issues/index.md) —— 唯一问题登记簿；开工前查号，「待裁」条目的**保守默认就是现行法**。
+5. 按任务性质取一层：[architecture](.trellis/spec/architecture/index.md)（动代码）/ [measurement](.trellis/spec/measurement/index.md)（跑数字）/ [evidence](.trellis/spec/evidence/index.md)（引工件）。
 
-**性能常驻判断规则（G3 裁决植入，仅三条；历史结论住 T8/canon，不在此重复）**：
-1. **修性能前先反汇编认瓶颈**：放大倍数由瓶颈形状决定，未击中关键路径 = 小改善（K-quant repack 5× 慢 = 全展开 regfile spill，非指令微质量）。
-2. **一切选择键值 per-format 板测定**：直觉投影（如"更宽=更快"/"回卷省 vsetvli"）不可信，[GAP-P1] widen-to-m1 与 re-roll 两次证伪为证。
-3. **性能主张绑 相×板×格式×对手身份（探针）×八门状态×账本(kernel/system)×双方编译器身份×板 shipped-baseline 编译器**：**kernel-axis vs-opponent 数【仅编译器对称时有效】**（[CASE-COMPILER-ASYMMETRY] 2026-07-10：rvv S6 1.884× = clang-ours-vs-gcc-shipped artifact、对称 gcc 0.272× 撤回；判别键 = 板出货编译器 rvv=gcc-15 / k1=clang-18）。修法失败先查 T8 是否已证伪，别重试已证伪的偏方。
-4. **性能立项前先给 Amdahl 传导预估**（目标占相内时间比例 × 预期改善 = e2e 上限）：上限低于噪声地板的项**只能以机制/方法学名义立项，不得以性能名义**（G3 四问定性：G2 融合 e2e null = norm 占 decode 0.05% × 融合改善 → e2e 上限 +0.05% < 噪声，是 micro↛e2e 档案级正面教材、非失败）。★**Amdahl 传导估算的 kernel 因子输入必须与目标部署【同域】（同编译器 / 同 deployed variant / 同输入路径）**——1.59× projection 喂 clang-micro 1.884 而非部署 gcc 0.334 = garbage-in（[CASE-COMPILER-ASYMMETRY]）；出货 = clang .o 正门。
+**动手前**：过该层 Pre-Development Checklist + **挂 Trellis 任务并预注册范围**。收工过该层 Quality Check。
 
-**决策权限卡（2026-07-09 用户裁定植入，替代此前散落的自决条款；每次压缩恢复后先读）**：
-- **【自决直行，不问】**（做完日志记一行：决定+依据+可逆性）：① 已立项战役内的里程碑推进与排序（立项即授权全程，除非撞停机规则或触碰下方"必问"）；② 队列内工作的执行细节/测量/入表/triage 归类；③ 预注册判读的执行（判据已写，结果落地照判照走，含"成功→自动进下一步"类条款）；④ 公开可得、仅为复现/测量所需的模型/数据获取（自行下载+校验+登记；仅付费/许可证存疑/超大占用 >板剩余 1/3 才升级）；⑤ 可逆工程决策（分支/worktree/build 配置/测试增补）；⑥ 两条已立项线之间的资源微调（以触碰集 diff 为证）；**⑦ 预注册判读的【全部后续动作】——判据满足即直接执行预注册结果动作（登记/升格/翻正/降级/进下一里程碑），事后报备一行、不回门（反面教材：FU-2 正→升双板已预注册却回门=违例）；⑧ 措辞预注册制——凡预注册判读涉登记/升格类，写判读时必同时预注册措辞模板（留数字空位），结果落地填数即用、措辞不再构成回门理由；仅模板空缺处标待裁、只问空缺不问整体去向**。
-- **【必问，等裁决】**：① 新战役/新立项——**收窄定义（2026-07-11）：仅指 ROADMAP 队列【外】的全新战役；既定裁决的执行/合并/分批 = 自决直行、【非】必问**（反面教材：用户已裁"T6 合并立项"，我包装成必问 = 违例记一次）；② canon/红线级变更（数值政策/工具链/措辞宪法/NG 条款/八门定义）——**canon 级 = 改定义/改红线/改既有条文；按预注册模板填数登记【不是】canon 级（走 ⑦⑧ 自决）**；③ 不可逆动作（删 sealed 证据/改历史基线/覆盖 Win 登记/上游 pin bump）；④ 停机规则触发后的去向（两次超时/预注册判读失败无预案）；⑤ 花钱/许可证存疑/板硬件之外的外部世界动作。
-- **【★禁停机制（2026-07-11 用户裁·权限卡永久增补·即刻生效）】**：① **"暂停/等你审视/会话已长/里程碑达成"永不作为选项出现在任何裁决请求中**——到达里程碑的正确动作 = 报备一行 + 按 ROADMAP 队列取下一项继续；② **队列永远非空（欠账表就是队列）**；若真队列空，正确动作 = 列欠账表剩余项【请求排序】，而非提议暂停；③ **会话长度/上下文压缩/里程碑达成均不构成回门理由**——压缩后恢复动作 = 读 ROADMAP 快照 + 本权限卡 + 继续队首，不请示。
-- **【灰区】**：不确定属哪类 → 选可逆路径先行 + 标记决策点入日志 + 继续，不 idle 等待；用户回归批量追认或翻案。**禁止把"自决直行"类事项打包成选择题回门**（那是转嫁决策，不是谨慎）。
+## 项目
+
+基于 MLIR 的能力驱动可扩展执行层软件栈之**参考模板**；RISC-V 量化 LLM 推理为其**首个高性能实例**（主角 = 可扩展性、性能 = 证明书）。**模板 ≠ 通用编译器**（输入止于 kernel 级接口、负载域锁 ggml 型量化推理 kernel）。主栈 C++/MLIR/LLVM/TableGen/CMake/lit；Python 只做 tooling。
+
+**定位与三贡献 C1/C2/C3′ 的条文正本** = 根地图 + [canon · 暂定-科研主张](.trellis/spec/canon/暂定-科研主张.md)（【暂定·随论文侧更新·非定论】）。**agent 只做降级与标注，不得发明、替换或"改进"科研主张。** 本文件不复述主张（禁副本）。
+
+## 三条本文件级纪律
+
+- spec 是**稳定契约 + 判断依据，不是状态机/门禁**。当前进度/状态属 `.trellis/tasks/` 与 workspace journal，不写进 spec。
+- **spec 只写现行法**：零历史叙事、零编号考古。教训压缩成规则本身。
+- 改代码前先确认推进的是哪条贡献 C1/C2/C3′，否则可能是枝节（[思维准则](.trellis/spec/governance/思维准则.md)）。
+
+## 硬件与测量
+
+真实硬件 family 走板（板册与板别约束 = [measurement · 板册](.trellis/spec/measurement/板册.md)，现役 `rvv` / `k1` / `scalar`）。硬件/性能主张要真板证据；本地 build/lit 只是编译器/工具链证据。
+
+**★测量现状（如实）**：measurement 层立 `bench <格> --board <板>` 为**唯一合法测量动作**。**runner 已建**（`tools/bench/bench`·`--self-test` 11/11·干跑验收达成），**但仍无合法的正式测量通道**——两条硬前置待裁：**ISSUE-090**（每格 harness 的落点与被调契约）+ **ISSUE-091**（命令签名**不定位主表行**：行键 = 四元组 `(op,format,engine,regime)`，而 `--board` 推不出 `engine`、格名命中多 op）。三目的地中 `experiments/runs.log` 已在，`master/`·`runs/<run-id>/` 未建。**⟹ 重启测量前须先落这两裁。** 详见 [issues](.trellis/spec/issues/index.md)。测量法（板、对手、门、行 schema、目的地）一律以 [measurement](.trellis/spec/measurement/index.md) 为准，本文件不重抄。
+
+**性能判断规则**（[canon · 测量判据](.trellis/spec/canon/测量判据.md) / [对手与档位](.trellis/spec/canon/对手与档位.md) / [成色与措辞](.trellis/spec/canon/成色与措辞.md)）—— 正本在 canon，此处只列**入口提示**：
+
+1. 修性能前**先反汇编认瓶颈**：未击中关键路径 = 小改善。
+2. 一切选择键值 **per-format 板测定**：直觉投影不可信。
+3. 性能主张绑 **相×板×格式×对手身份×门状态×账本(kernel/system)×双方编译器身份**；**kernel-axis vs-opponent 数仅编译器对称时有效**（[CASE-COMPILER-ASYMMETRY]）。
+4. 性能立项前先给 **Amdahl 同域传导预估**；上限低于噪声地板者只能以机制/方法学名义立项。
+
+## 决策权限
+
+**[决策权限卡](.trellis/spec/governance/决策权限卡.md) 是正本**（四类穷尽：自决直行 / 必问 / 禁停 / 灰区 + 延后裁决制）。**每次压缩恢复后先读它**，本文件不重抄。
+
+三条最易违反的（提示，非正本）：
+
+- **判为「必问」≠ 停下**：正确动作 = **登记 + 采保守默认 + 续推**。**停下等裁决 = 违例。**
+- **禁停机制**：「暂停/等你审视/会话已长/里程碑达成」**永不作为选项**出现在裁决请求中。压缩后恢复动作 = 读根地图 + 权限卡 + 继续队首，不请示。
+- **禁把自决直行事项包装成选择题回门**（那是转嫁决策，不是谨慎）。
 
 **工作流**：[`.trellis/workflow.md`](.trellis/workflow.md)（task 生命周期、spec 注入、check loop）。跨会话记忆见项目 memory（已开启）。
