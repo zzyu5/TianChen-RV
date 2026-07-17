@@ -8,15 +8,23 @@
 // dequantize_row_decode_core (decode_model "iq3_xxs", qk=256, stride=98);
 // typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the typed
 // region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
-// string). The emitted C is BYTE-IDENTICAL to the dispatch-wired iq3_xxs monolith modulo
-// ONLY the source-op provenance token (the SHARED grid decode emitGgmlDequantizeRowExtended,
-// reached via emitDequantizeRowIQGridBodyShared, is the SAME code both paths run) -- the
-// grid-of-4 (uint32) codebook + the ksigns selector plane (per-lane bit-tested), the
-// per-ib32 aux scale d*(0.5+(aux>>28))*0.5, and the fp16 d via the (float)*(const _Float16 *)
-// seam. The grid + ksigns tables are DERIVED at emit as function-local statics (NO ksigns
-// op-attr; that blocker is block-dot-repack-only, not this streaming dequant path). REUSES
-// the iq3_xxs block-dot vec_dot grid decl. Byte-exact-vs-ggml-reference dequantize_row_iq3_xxs
-// (a scalar AoS super-block loop; no reduction).
+// string).
+//
+// PR-31 (the dequant true-vector emitter, first cell): iq3_xxs is the FIRST IQ grid
+// format lowered to the OWNED REAL-VECTOR body (emitDequantizeRowIQ3XXSVectorBody) --
+// NOT the shared scalar dispatch-wired monolith the other IQ formats still forward to.
+// The leaf now emits OWNED __riscv_v intrinsics (the ISSUE-001 reverse: the vector
+// content is the emitter's, not host-autovec codegen-lottery): the SAME vluxei16 grid
+// gather + sign fold (vmv/vand/vmsne/vneg/vmerge) idiom the iq3_xxs block-dot vec_dot
+// body renders, but with the widening-dot tail replaced by an int->float convert
+// (vsext_vf4 + vfcvt_f_x_v) + a runtime `db` scale (vfmul_vf) + a unit store (vse32).
+// The 8-lane group geometry is the fixed iq3_xxs grid-of-4 x 2 structure (NOT a tunable
+// knob). The grid-of-4 (uint32) codebook + the ksigns selector plane + the {1<<j} kmask
+// are DERIVED at emit as function-local statics (NO ksigns op-attr; that blocker is
+// block-dot-repack-only). Byte-exact-vs-ggml-reference dequantize_row_iq3_xxs by
+// construction: the only rounding is db*(float)grid and the sign fold multiplies by an
+// EXACT +-1.0f (a float sign flip is bitwise-exact); all grid bytes are < 128 so the
+// signed i8 view == ggml's (const uint8_t *) read.
 
 module {
   weft.exec.kernel @dequant_iq3_xxs_kernel {
@@ -43,6 +51,19 @@ module {
 // CHECK: weft_iq3xxs_grid
 // The ksigns selector plane decl, emitted once above the super-block loop.
 // CHECK: weft_iq3xxs_ksigns
+// The {1<<j} sign-bit selector, broadcast-loaded ONCE above the loop.
+// CHECK: weft_iq3xxs_kmask
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
 // The super-block loop, then the fp16 block-scale seam inside it.
 // CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"
+// The OWNED real-vector decode (PR-31): the vluxei16 grid gather, the sign fold, then
+// the int->float convert + runtime db scale + unit store -- the ISSUE-001 reverse.
+// CHECK: call_opaque "__riscv_vle16_v_u16mf2"
+// CHECK: call_opaque "__riscv_vluxei16_v_i32m1"
+// CHECK: call_opaque "__riscv_vreinterpret_v_i32m1_i8m1"
+// CHECK: call_opaque "__riscv_vmerge_vvm_i8m1"
+// CHECK: call_opaque "__riscv_vsext_vf4_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

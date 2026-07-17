@@ -3161,6 +3161,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
     llvm::StringRef format) const {
+  // iq3_xxs is the FIRST cell of the dequant true-vector emitter (PR-31): it lowers
+  // to the OWNED real-vector body (vluxei16 grid gather + sign fold + vfcvt + vfmul
+  // + vse32), NOT the shared scalar dispatch-wired decode. The other IQ grid formats
+  // (iq2_xxs/iq2_xs/iq2_s/iq3_s) stay on the scalar forwarder until they fan out.
+  if (format == "iq3_xxs")
+    return emitDequantizeRowIQ3XXSVectorBody(rewriter, loc, input, output, avlArg,
+                                             sizeType, opName, role);
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
 }

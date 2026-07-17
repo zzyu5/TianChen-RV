@@ -265,6 +265,9 @@ CLANG_WORLD = {
  ("dequantize_row","q4_0",""): (2.51,"clang世界(单一编译器世界)·opp=dequantize_row autovec(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§2·s1 2.51/s2 2.90)"),
  ("dequantize_row","q5_0",""): (1.007,"clang世界·opp=autovec·具名-X→PASS·★parity 编译器中性真结果(双方 memory-bound 0.60GB/s·qh5bit DRAM墙)(A1§2·s1/s2 1.007)"),
  ("dequantize_row","q5_1",""): (1.02,"clang世界·opp=autovec·具名-X→PASS·★parity 编译器中性真结果(双方 memory-bound 0.60GB/s·qh5bit DRAM墙)(A1§2·s1/s2 1.02)"),
+ # ── R线 §四.1 de-lottery: iq3_xxs@rvv 从 autovec-lottery-PASS 升为 owned 真向量真测(具名-X)──
+ # owned emit(非 autovec)·byte-exact GREEN·ISSUE-001 反转+ISSUE-002[L-8]满足·naive first-cut cold 0.18×(比 lottery 慢·perf 优化=批量宽gather pending)·opp=部署 dequantize_row_iq3_xxs(标量类)·trellis-check 复现 s1 0.1825/s2 0.1812·勿称 perf 赢(真测 LOSS 如实)
+ ("dequantize_row","iq3_xxs",""): (0.181,"★R线§四.1 de-lottery·owned 真向量 emit(非autovec·ISSUE-001 反转·[L-8]由机制构造满足)·byte-exact GREEN·naive first-cut 0.181×真测 LOSS(退役 autovec-lottery interim)·perf pending 批量宽gather·具名-X·勿称赢·§四.1 机制证毕收口未达"),
 }
 
 def disp(op, fmt, engine, board, tier, cold, na):

@@ -1,0 +1,19 @@
+# r-dequant GEN_SEAL (front-door live export)
+# date_utc=2026-07-18T00:00:00Z
+# HEAD=6a2a18f789e9a278faac902d37e73e522d7b8e43 (+ uncommitted PR-31 emit)
+# weft_opt_md5=783f4d6245aa8501eb4e14f80205ec71
+# mlir_translate=Ubuntu LLVM version 20.1.8
+
+iq3_xxs (dequantize_row · PR-31 OWNED REAL-VECTOR emit · owned __riscv_ true vector):
+  leaf_md5=f2563d9b40528321534ccf53125a1e51  lines=1592
+  owned_riscv_intrinsics=13 distinct / 771 calls (excludes vsetvl · grep leaf .c)
+    { vle8 vle16 vluxei16 vreinterpret vmv_v_x vand vmsne vneg vmerge vsext_vf4
+      vfcvt_f_x_v vfmul_vf vse32 } -- the ISSUE-001 reverse (was 2, both dead vsetvl)
+  cmd: build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-xxs.mlir \
+         --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
+         > experiments/active/r-dequant/kernels/iq3_xxs_dequant.c
+  emit owner: emitDequantizeRowIQ3XXSVectorBody (lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp),
+        routed from emitDequantizeRowIQGridBodyShared (RVVToEmitCForwardElementwise.cpp).
+  NOTE: byte-exact to dequantize_row_iq3_xxs by construction (only rounding = db*(float)grid;
+        sign fold multiplies by EXACT +-1.0f; all grid bytes < 128 so signed i8 view ==
+        ggml's (uint8_t) read). The harness proves it (ZERO-MODEL + 3-arm anti-hollow).

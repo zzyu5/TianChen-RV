@@ -4844,6 +4844,30 @@ private:
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
       llvm::StringRef format) const;
 
+  /// The OWNED REAL-VECTOR iq3_xxs dequantize_row block-decode body (PR-31, the
+  /// dequant true-vector emitter first cell): the AoS `nb = k / 256` super-block
+  /// loop, the fp16 d seam + per-ib32 aux scale, and the per-8-lane sign group
+  /// decoded with the SAME vluxei16 grid gather + sign-fold idiom the iq3_xxs
+  /// block-dot vec_dot lowering (emitIQ3XXSSuperBlockGridBody) renders -- but with
+  /// the widening-dot tail replaced by an int->float convert (vsext_vf4 + vfcvt) +
+  /// a runtime `db` scale (vfmul_vf) + a unit store (vse32). Byte-exact to ggml's
+  /// reference dequantize_row_iq3_xxs by CONSTRUCTION: the only rounding is
+  /// `db * (float)grid` and the sign fold multiplies by an EXACT +-1.0f (a float
+  /// sign flip is bitwise-exact under round-to-nearest-even), so any correct
+  /// gather -> sign-fold -> convert -> scale -> store vectorization equals the
+  /// scalar reference bit-for-bit. All grid bytes are < 128 (canonical
+  /// kIQ3XXSGrid max = 62), so the signed i8 view is byte-identical to ggml's
+  /// `(const uint8_t *)` read. Unlike the scalar dispatch-wired monolith this leaf
+  /// emits OWNED __riscv_v intrinsics (the ISSUE-001 reverse: the vector content is
+  /// the emitter's, not host-autovec codegen-lottery). The 8-lane group geometry is
+  /// the fixed iq3_xxs grid-of-4 x 2 structure (NOT a tunable knob), so the core i8
+  /// LMUL m1 + its derived i32m4/f32m4 widenings are self-consistent literals, not
+  /// the ISSUE-031/033 fake-width hazard.
+  mlir::LogicalResult emitDequantizeRowIQ3XXSVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// The SHARED codebook / ternary-grid super-block dequantize_row block-decode body
   /// for the remaining extended formats (iq1_s/iq1_m ternary iq1s_grid + delta,
   /// iq4_nl/iq4_xs 16-entry non-linear codebook, mxfp4/nvfp4 FP4 e2m1 codebook with
