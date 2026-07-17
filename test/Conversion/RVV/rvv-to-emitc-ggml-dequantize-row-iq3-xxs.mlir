@@ -51,19 +51,26 @@ module {
 // CHECK: weft_iq3xxs_grid
 // The ksigns selector plane decl, emitted once above the super-block loop.
 // CHECK: weft_iq3xxs_ksigns
-// The {1<<j} sign-bit selector, broadcast-loaded ONCE above the loop.
-// CHECK: weft_iq3xxs_kmask
-// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// The wide sign-fold statics (the {1<<j} pattern replicated across the sub-block's 4
+// groups + the per-group broadcast index), each loaded ONCE above the loop at vl=32.
+// CHECK: weft_iq3xxs_kmask32
+// CHECK: weft_iq3xxs_sigspread
+// CHECK: call_opaque "__riscv_vle8_v_u8m2"
 // The super-block loop, then the fp16 block-scale seam inside it.
 // CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The OWNED real-vector decode (PR-31): the vluxei16 grid gather, the sign fold, then
-// the int->float convert + runtime db scale + unit store -- the ISSUE-001 reverse.
-// CHECK: call_opaque "__riscv_vle16_v_u16mf2"
-// CHECK: call_opaque "__riscv_vluxei16_v_i32m1"
-// CHECK: call_opaque "__riscv_vreinterpret_v_i32m1_i8m1"
-// CHECK: call_opaque "__riscv_vmerge_vvm_i8m1"
-// CHECK: call_opaque "__riscv_vsext_vf4_i32m4"
-// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
-// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
-// CHECK: call_opaque "__riscv_vse32_v_f32m4"
+// The OWNED real-vector decode (PR-31 + the batch-wide-gather opt): ONE wide vl=8
+// vluxei16 grid gather per sub-block + ONE wide vl=32 sign fold (the 4 per-group sign
+// bytes broadcast to their 8-lane windows by a vluxei8 spread gather over sigspread,
+// then vand+vmsne) + the int->float convert + runtime db scale + full-LMUL store --
+// the ISSUE-001 reverse, the fractional-LMUL vl=2 gather storm hoisted.
+// CHECK: call_opaque "__riscv_vle16_v_u16m1"
+// CHECK: call_opaque "__riscv_vluxei16_v_i32m2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_i32m2_i8m2"
+// CHECK: call_opaque "__riscv_vluxei8_v_u8m2"
+// CHECK: call_opaque "__riscv_vand_vv_u8m2"
+// CHECK: call_opaque "__riscv_vmerge_vvm_i8m2"
+// CHECK: call_opaque "__riscv_vsext_vf4_i32m8"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m8"
+// CHECK: call_opaque "__riscv_vse32_v_f32m8"

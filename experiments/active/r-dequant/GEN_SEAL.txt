@@ -1,19 +1,32 @@
 # r-dequant GEN_SEAL (front-door live export)
 # date_utc=2026-07-18T00:00:00Z
-# HEAD=6a2a18f789e9a278faac902d37e73e522d7b8e43 (+ uncommitted PR-31 emit)
-# weft_opt_md5=783f4d6245aa8501eb4e14f80205ec71
+# HEAD=6b534c15a (+ uncommitted R-line dequant iq3_xxs BATCH-WIDE-GATHER opt)
+# weft_opt_md5=aaa4bfd165a92fb408ad302b7146225b
 # mlir_translate=Ubuntu LLVM version 20.1.8
 
-iq3_xxs (dequantize_row · PR-31 OWNED REAL-VECTOR emit · owned __riscv_ true vector):
-  leaf_md5=f2563d9b40528321534ccf53125a1e51  lines=1592
-  owned_riscv_intrinsics=13 distinct / 771 calls (excludes vsetvl · grep leaf .c)
-    { vle8 vle16 vluxei16 vreinterpret vmv_v_x vand vmsne vneg vmerge vsext_vf4
+iq3_xxs (dequantize_row · OWNED REAL-VECTOR emit · BATCH-WIDE-GATHER opt over PR-31 naive):
+  leaf_md5=589b756a362a33b1f8f437f8aae13365  lines=979
+  owned_riscv_intrinsics=13 distinct / 196 calls (excludes vsetvl · grep leaf .c)
+    { vle8 vle16 vluxei16 vluxei8 vreinterpret vand vmsne vneg vmerge vsext_vf4
       vfcvt_f_x_v vfmul_vf vse32 } -- the ISSUE-001 reverse (was 2, both dead vsetvl)
   cmd: build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-xxs.mlir \
          --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
          > experiments/active/r-dequant/kernels/iq3_xxs_dequant.c
   emit owner: emitDequantizeRowIQ3XXSVectorBody (lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp),
         routed from emitDequantizeRowIQGridBodyShared (RVVToEmitCForwardElementwise.cpp).
+  OPT: the naive body's 32 per-group vl=2 __riscv_vluxei16 grid gathers (fractional-LMUL
+       2-element scalarization storm) + 32 per-group vl=8-of-32 float pipelines are HOISTED
+       to 8 wide vl=8 (i32m2) grid gathers + 8 full-LMUL vl=32 sign-fold/int->float/db-scale
+       passes (i8m2/i32m8/f32m8). Per-group sign bytes fanned to their 8-lane windows by a
+       vluxei8 spread gather over a sub-block sigspread index. Same HOIST idiom
+       emitIQ3XXSSuperBlockGridBody applies to the vec_dot body. objdump storm (leaf.o):
+       vset 129->33, vl=2 grid gathers 32->8 (wide), vfp 64->16, vector_mnemonic 578->147.
   NOTE: byte-exact to dequantize_row_iq3_xxs by construction (only rounding = db*(float)grid;
         sign fold multiplies by EXACT +-1.0f; all grid bytes < 128 so signed i8 view ==
-        ggml's (uint8_t) read). The harness proves it (ZERO-MODEL + 3-arm anti-hollow).
+        ggml's (uint8_t) read). The harness proves it (ZERO-MODEL + 3-arm anti-hollow, GREEN).
+  PERF: rvv cold ratio_cold=0.360 (2-seed, ours_med_ns~1019044 vs deployed autovec
+        ggml_med_ns~367221). ~2x over PR-31 naive 0.181, but < 0.8 -> still 具名-X.
+        Wall = vluxei indexed-gather throughput inherent to a vector grid-codebook decode;
+        the scalar-source autovec opponent pipelines indexed SCALAR loads (no HW gather).
+        A register-only sign fan-out (vmv/vmseq/vmerge, no signs gather) was measured
+        SLOWER (0.312) -> the single wide vluxei8 signs gather is the cheaper spread here.

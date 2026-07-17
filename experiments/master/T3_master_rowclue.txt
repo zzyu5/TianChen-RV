@@ -78,7 +78,7 @@
     PASS    dequantize|iq2_xxs
     pending dequantize|iq2_xs
     PASS    dequantize|iq2_s cold=1.7534
-    具名-X    dequantize|iq3_xxs cold=0.181
+    具名-X    dequantize|iq3_xxs cold=0.36
     具名-X    dequantize|iq3_s
     PASS    dequantize|iq4_nl
     具名-X    dequantize|iq4_xs
