@@ -4,7 +4,7 @@
 
 不含技术判据——测量法见 [measurement](../measurement/index.md)，已定法条与硬冻结四类见 [canon](../canon/index.md)，架构定法与不变量见 [architecture](../architecture/index.md)，贡献→证据指针见 [evidence](../evidence/index.md)，问题与待裁登记见 [issues](../issues/index.md)。
 
-> **版本**：v4
+> **版本**：v5
 > **修改途径**：本层版本化，**修改唯一途径 = 用户裁决**；agent 可提案（入 [issues](../issues/index.md)），不可自改。
 > 稳定性条款本体（禁热改流水线 / 禁临时加门 / 禁战役中途换判据）见 [measurement](../measurement/index.md) §3.0 哲学与稳定性条款，本层不重抄。
 
