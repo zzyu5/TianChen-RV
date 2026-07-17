@@ -126,9 +126,7 @@ void VariantToEmitCFunc::emitIQ1SSuperBlockGridBody(
   mlir::Type constFloatPtrType = emitc::PointerType::get(constFloatType);
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto intLit = [&](int64_t v) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
   };
@@ -883,9 +881,7 @@ void VariantToEmitCFunc::emitIQ1MSuperBlockGridBody(
   mlir::Type i64PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int64_t"));
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto intLit = [&](int64_t v) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
   };
@@ -1630,9 +1626,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
       mlir::Value full = base;
@@ -2101,9 +2095,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
       mlir::Value full = base;

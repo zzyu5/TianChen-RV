@@ -336,6 +336,18 @@ mlir::Value emitLoadByteAsInt(mlir::PatternRewriter &rewriter,
                               mlir::Location loc, mlir::Type constU8Type,
                               mlir::Type intType, mlir::Value ptr, int64_t i);
 
+// Single-source integer size/offset literal: emits one emitc::LiteralOp holding
+// the decimal spelling of `v` typed as `sizeType`. Consolidates the ~100
+// byte-identical `sizeLit` lambdas that lived inline across the block-quant /
+// K-quant / codebook emitters (each an `[&](int64_t v){ return
+// create<LiteralOp>(loc, <sizeType>, std::to_string(v)); }`). The size type is
+// passed explicitly because different call scopes source it from a local
+// (`sizeType`) or a context struct member (`cx.sizeType` / `mx.sizeType` /
+// `sx.sizeType` / `hx.sizeType`); every one is the same `mlir::Type` a caller
+// hands in, so the emitted C is byte-identical to the inline lambdas.
+mlir::Value emitSizeLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                        mlir::Type sizeType, int64_t v);
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation.
 //===----------------------------------------------------------------------===//

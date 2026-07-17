@@ -134,9 +134,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     int64_t numSubBlocks = qk / subBlock;                           //   8
     int64_t halfBlock = subBlock / 2; // 16 nibble bytes / q8 half lanes per sub-block
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto intLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
     };
@@ -768,9 +766,7 @@ mlir::Value VariantToEmitCFunc::emitNVFP4BlockDotBodyShared(
     int64_t subHalf = qkSub / 2;             // 8 lanes per strip
     int64_t weightSubStride = qkSub / 2;     // 8 nibble bytes per sub-block
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 

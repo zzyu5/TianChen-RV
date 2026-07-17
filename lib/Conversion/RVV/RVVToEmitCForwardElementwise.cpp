@@ -1142,9 +1142,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ80BodyShared(
     // amax/scale/narrow body's remaining types live in emitQuantizeQ80BlockBody.
     mlir::Type f32m8Type = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto vcall = [&](mlir::Type resultType, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
       return emitOpaqueCall(rewriter, loc, resultType, callee, args, opName,
@@ -1234,9 +1232,7 @@ void VariantToEmitCFunc::emitQuantizeQ80BlockBody(
     mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
     mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto vcall = [&](mlir::Type resultType, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
       return emitOpaqueCall(rewriter, loc, resultType, callee, args, opName,
@@ -1398,9 +1394,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ81BodyShared(
     mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
     mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto vcall = [&](mlir::Type resultType, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
       return emitOpaqueCall(rewriter, loc, resultType, callee, args, opName,
@@ -1648,9 +1642,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ8KBodyShared(
     mlir::Type i8m1Type = emitc::OpaqueType::get(ctx, "vint8m1_t");
     mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto vcall = [&](mlir::Type resultType, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
       return emitOpaqueCall(rewriter, loc, resultType, callee, args, opName,
@@ -2191,9 +2183,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
     mlir::Type indexType = rewriter.getIndexType();
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -2730,9 +2720,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleBodyShared(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto intLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
     };
@@ -2988,9 +2976,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ8_0BodyShared(
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto idxLit = [&](int64_t v) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, indexType,
                                              std::to_string(v));
@@ -3461,9 +3447,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
   mlir::Type outputPtrType = output.getType(); // float *
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto intLit = [&](int64_t v) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
   };

@@ -34,10 +34,7 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ6_KSuperBlockAux32C
     mlir::MLIRContext *ctx = rewriter.getContext();
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
     // base + fixed byte offset, cast to a typed (const uint8_t* / const int8_t*).
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
@@ -392,10 +389,7 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ3_KSuperBlockAux32C
     int64_t q8Offset = cx.q8Offset;             //  4
     int64_t qk = subBlock * numSubBlocks;       // 256
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
       mlir::Value full = base;
@@ -810,9 +804,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial(
     mlir::Type u8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -936,10 +928,7 @@ void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
     int64_t qk = cx.subBlock * cx.numSubBlocks; // 256
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
       mlir::Value full = base;
@@ -1061,10 +1050,7 @@ mlir::Value VariantToEmitCFunc::emitQ4_KScaleMinBitDanceCore(
     mlir::TypedValue<emitc::ArrayType> utmpArray) const {
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
     auto u32Lit = [&](llvm::StringRef v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, cx.u32Type, v.str());
     };
@@ -1192,10 +1178,7 @@ VariantToEmitCFunc::emitQ4_KScaledDotIntoAux32(
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
       mlir::Value full = base;
@@ -1407,10 +1390,7 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ4_KMinTermBsumsDot(
     llvm::StringRef opName = mx.opName;
     llvm::StringRef role = mx.role;
     mlir::Type activationPtrType = yb.getType();
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, mx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, mx.sizeType, v); };
 
     // const int16_t *bsums = (const int16_t *)(yb + 260);  -- the q8_K block
     // bsums, int16 (SIGN-extended on load).
@@ -1493,10 +1473,7 @@ void VariantToEmitCFunc::emitQ4_KMinTermSubtract(
     llvm::StringRef opName = mx.opName;
     llvm::StringRef role = mx.role;
     mlir::Type weightPtrType = xb.getType();
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, mx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, mx.sizeType, v); };
 
     // float dmin = (float)*(const _Float16 *)(xb + 2) * dy;  -- the fp16 weight
     // min scale (byte 2) times the SAME fp32 activation scale.
@@ -1564,10 +1541,7 @@ void VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
     llvm::StringRef opName = sx.opName;
     llvm::StringRef role = sx.role;
     mlir::Type weightPtrType = xb.getType();
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sx.sizeType, v); };
 
     // float d = (float)*(const _Float16 *)(xb + 0) * dy;  -- the fp16 weight
     // super-block scale (byte 0) times the fp32 activation scale (loaded once).
@@ -1646,10 +1620,7 @@ mlir::Value VariantToEmitCFunc::emitQ4_KHorizontalFold(
     mlir::Type floatType = hx.floatType;
     mlir::Type f32m2Type = hx.f32m2Type;
     int64_t numLanes = hx.numLanes;
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, hx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, hx.sizeType, v); };
 
     // vse32_v_f32m2(&sums8[0], sums, 8);  -- materialize lane l at sums8[l].
     rewriter.create<emitc::VerbatimOp>(
@@ -1713,10 +1684,7 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
     // The super-block element count `qk` (== cx.subBlock * cx.numSubBlocks) is
     // now consumed inside the Region-A unpack helper, not here.
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
     // NB: the byteOffsetPtr lambda that used to live here is now inside the
     // shared Track B brick-3 helper emitQ4_KScaledDotIntoAux32 (the only Region
     // that used it -- the q8 base derivation); sizeLit stays for the K4a-only
@@ -1836,9 +1804,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
     mlir::Type u32PtrType =
         emitc::PointerType::get(constU32Type);
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     // The integer-core context shared with K4b (identical unpack + bit-dance +
     // per-sub-block-loop nodes).
@@ -2124,9 +2090,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
     cx.numSubBlocks = numSubBlocks;
     cx.quarter = 8;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -2282,9 +2246,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
     mlir::Type constU32Type = emitc::OpaqueType::get(ctx, "const uint32_t");
     mlir::Type u32PtrType = emitc::PointerType::get(constU32Type);
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     // The integer-core context: the SAME shape the monolithic q4_K core builds,
     // with the Region-C LMUL chain plumbed in. DESIGNATED (explicit field
@@ -2431,9 +2393,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KMinTerm(
     int64_t numBsums = qk / 16;                   //  16
     int64_t activationDOffset = 0;                //   0
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     // The MIN-term context: the SAME facts/types the monolithic q4_K block dot
     // builds, plumbed into the two shared MIN-term helpers (byte-identity by
@@ -2576,9 +2536,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
     int64_t activationDOffset = 0;                        // 0
     int64_t numLanes = 8;                                // canonical aux32/sums lanes
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -2736,9 +2694,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
     // The canonical fp32 lane count comes straight off the typed attr (I4).
     int64_t numLanes = fold.getNumLanes(); // 8
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -3036,9 +2992,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     mlir::Type constI16PtrType = emitc::PointerType::get(constI16Type);
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -3447,9 +3401,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalesTimesSumiLoopBody(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -3889,9 +3841,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
                               weightDminOffset,
                               activationDOffset};
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -4251,9 +4201,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     int64_t numSubBlocks = qk / subBlock;                       //   8
     int64_t groupsPerSub = 4;  // 4 grid groups per sub-block (l=0..3)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -4466,9 +4414,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
     int64_t numSubBlocks = qk / subBlock;                       //   8
     int64_t groupsPerSub = 4;  // 4 grid groups per sub-block (l=0..3)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -4675,9 +4621,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
     int64_t indicesPerSubBlock = 8; // 8 grid index bytes per sub-block (2 per group)
     int64_t groupLanes = 8;     // 8 grid lanes per sign group
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -4925,9 +4869,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
     int64_t signsPerSubBlock = 4;   // 4 explicit sign bytes per sub-block
     int64_t groupLanes = 8;     // 8 grid lanes per sign group
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -5167,9 +5109,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
     int64_t numGroups = 4;      // 4 grid/sign groups per sub-block
     llvm::StringRef coreLmul = coreOp.getIntegerCoreLmul().value_or("m2");
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -5397,9 +5337,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
     int64_t numSubBlocks = qk / subBlock;                       //   8
     int64_t numGroupsPerHalf = 2;      // 2 grid/sign groups per 16-lane half
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -5629,9 +5567,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
     int64_t groupsPerSub = 4;          // 4 grid groups per sub-block (l=0..3)
     int64_t numGroupsPerHalf = 2;      // 2 grid/sign groups per 16-lane half
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -5807,9 +5743,7 @@ VariantToEmitCFunc::emitQ2_KSuperBlockIntegerCore(
     int64_t q8Offset = cx.q8Offset;
     int64_t bsumsOffset = cx.bsumsOffset;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
       mlir::Value full = base;
@@ -6062,9 +5996,7 @@ void VariantToEmitCFunc::emitQ2_KScalarFold(
     int64_t weightDminOffset = cx.weightDminOffset;
     int64_t activationDOffset = cx.activationDOffset;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     // ---- (C) the SCALAR fp32 fold: sumf += dall*isum - dmin*summs ----
     // float dy = *(const float *)(yb + 0);  -- the fp32 activation scale,

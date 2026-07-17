@@ -113,9 +113,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0GemmTile(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -405,9 +403,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0Gemm(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -811,9 +807,7 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
   mlir::Type weightPtrType = bl.getType();
   mlir::Type activationPtrType = al.getType();
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto step = [&](llvm::StringRef s) {
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
@@ -1224,9 +1218,7 @@ void VariantToEmitCFunc::emitRepackGemmDualFp16ScaleFold(
   mlir::Type f16PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto step = [&](llvm::StringRef s) {
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
@@ -1352,9 +1344,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackQ4_0ToX16(
     int64_t nibbleBytes = qk / 2;                          // 16 (qs bytes/block)
     int64_t scaleBytes = srcQuantOff;                      // 2 (fp16 d bytes)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -1549,9 +1539,7 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
   mlir::Type weightPtrType = bl.getType();
   mlir::Type activationPtrType = al.getType();
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto step = [&](llvm::StringRef s) {
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
@@ -2011,9 +1999,7 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
   mlir::Type weightPtrType = bl.getType();
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto step = [&](llvm::StringRef s) {
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
@@ -2969,9 +2955,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   mlir::Type weightPtrType = weightBase.getType();
   mlir::Type activationPtrType = activationBase.getType();
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto step = [&](llvm::StringRef s) {
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
@@ -4180,9 +4164,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   mlir::Type activationPtrType = activationBase.getType();
   mlir::Type floatPtrType = output.getType();
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
   auto step = [&](llvm::StringRef s) {
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
@@ -4493,9 +4475,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0(
     int64_t nibbleBytes = qk / 2;                            // 16 nibble bytes
     int64_t activationHighRow = nibbleBytes;                 // 16
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -5015,9 +4995,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1(
     int64_t nibbleBytes = qk / 2;                            // 16 nibble bytes
     int64_t activationHighRow = nibbleBytes;                 // 16
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -5552,9 +5530,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0(
     // i*16 + h*half), so all 512 weight bytes are read exactly once.
     int64_t contractionPositions = qk;                       // 32
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -5964,9 +5940,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
     int64_t nibbleBytes = qk / 2;                            // 16 nibble bytes
     int64_t activationHighRow = nibbleBytes;                 // 16
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -6437,9 +6411,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ4K(
     int64_t subPerSuper = nSubblocks / nSuperHalves; // 4 sub-blocks / super-half
     (void)subBlockSize;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -7071,9 +7043,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvColgroupTiledBodyQ4K
     int64_t subPerSuper = nSubblocks / nSuperHalves; // 4 sub-blocks / super-half
     (void)subBlockSize;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -7773,9 +7743,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
     // columns x 16 lanes the low half consumes per nibble step). qs[16 + 64 + i*4 + c].
     int64_t activationHighRow = activationInterleave * nibbleBytes; // 64
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -8306,9 +8274,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     int64_t columnsPerPass =
         (coreLmul == "m1") ? 1 : activationInterleave;  // 1 @rvv07; 4 @rvv1.0
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -9162,9 +9128,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ5K(
     int64_t subPerSuper = nSubblocks / nSuperHalves; // 4 sub-blocks / super-half
     (void)subBlockSize;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -9863,9 +9827,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ5K(
     int64_t columnsPerPass =
         (coreLmul == "m1") ? 1 : activationInterleave;  // 1 @rvv07; 4 @rvv1.0
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -10745,9 +10707,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ6K(
         {1, 1, 6}, // quad 3: ql[l+32] high nibble | (qh>>6 & 3)<<4 -> elems +96
     };
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -11305,9 +11265,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
     const QuadInfo quads[4] = {
         {0, 0, 0}, {1, 0, 2}, {0, 1, 4}, {1, 1, 6}};
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -12073,9 +12031,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ2K(
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
     int64_t subPerSuper = nSubblocks / nSuperHalves; // 8 sub-blocks / super-half
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -12657,9 +12613,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
     int64_t columnsPerPass =
         (coreLmul == "m1") ? 1 : activationInterleave;  // 1 @rvv07; 4 @rvv1.0
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -13359,9 +13313,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
   int64_t multiBlockFactor = facts.multiBlockFactor;
   int64_t qk = descriptor.qk;
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
   rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -13577,9 +13529,7 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitFlatIntegerCore(
   mlir::Type i8PtrType = st.i8PtrType;
   mlir::Type u8PtrType = st.u8PtrType;
   mlir::Value codebookValues = st.codebookValues;
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     // The decode+product for ONE strip -- the ONLY arithmetic divergence, a
     // switch over the EXISTING factored decode helpers -- followed by the SHARED
@@ -13961,9 +13911,7 @@ mlir::FailureOr<FlatBlockCore> VariantToEmitCFunc::emitFlatBlockCore(
   int64_t activationStride = descriptor.activationStride;
   llvm::StringRef fp16ReadCallee = st.fp16ReadCallee;
   llvm::StringRef u16ReadCallee = st.u16ReadCallee;
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     // Per-block address arithmetic: const uint8_t *xb = vx + (ib+blockOffset)*Sw;
     // const uint8_t *yb = vy + (ib+blockOffset)*Sa.
@@ -14099,9 +14047,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
   int64_t qk = loopBody.getQk();
 
-  auto sizeLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-  };
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
   // ===================================================================
   // q1_0 (flat_binary_two_level) BINARY-sign full-body emit. The q1_0
@@ -17314,9 +17260,7 @@ mlir::Value VariantToEmitCFunc::emitQ1_0BlockDotBodyShared(
     int64_t subBlockElems = qk / q8PerWeight;            // 32 (q8 block lanes)
     int64_t bytesPerSubBlock = subBlockElems / 8;        // 4 bit bytes per q8 block
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
@@ -17655,10 +17599,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
       return rewriter.notifyMatchFailure(
           scaleProduct, "block_fp16_scale_product block_index unmapped");
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     // const uint8_t *xb = base + ib*stride;  -- byte-exact to blockBaseValue
     // (blockOffset 0): a size_t emitc.mul then a pointer emitc.add.
     auto perBlockBase = [&](mlir::Value base, int64_t stride,
@@ -17974,9 +17915,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ3K(
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
     (void)nSubblocks;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -18512,9 +18451,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
     int64_t columnsPerPass =
         (coreLmul == "m1") ? 1 : activationInterleave; // 1 @rvv07; 4 @rvv1.0
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -19139,9 +19076,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemvBodyTQ20(
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -19507,9 +19442,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
     int64_t columnsPerPass =
         (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -19966,9 +19899,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemvBodyTQ10(
     int64_t numHalves = weightInterleave / half;
     const int64_t pow3[5] = {1, 3, 9, 27, 81};
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -20359,9 +20290,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
         (coreLmul == "m1") ? 1 : activationInterleave;
     const int64_t pow3[5] = {1, 3, 9, 27, 81};
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -20839,9 +20768,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemvBodyIq4Nl(
     int64_t nibbleBytes = qk / 2;                    // 16 nibble bytes
     int64_t activationHighRow = nibbleBytes;         // 16 (high nibble -> pos i+16)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -21182,9 +21109,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Nl(
     int64_t activationHighRow = nibbleBytes;         // 16
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -21620,9 +21545,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemvBodyMxfp4(
     int64_t nibbleBytes = qk / 2;                    // 16 nibble bytes
     int64_t activationHighRow = nibbleBytes;         // 16 (high nibble -> pos i+16)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -22038,9 +21961,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyMxfp4(
     int64_t activationHighRow = nibbleBytes;         // 16
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -22536,9 +22457,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemvBodyIq4Xs(
     int64_t subBlockSize = qk / nSubblocks;          // 32
     int64_t nibblesPerSub = subBlockSize / 2;        // 16
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -22962,9 +22881,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Xs(
     int64_t nibblesPerSub = subBlockSize / 2;        // 16
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -23496,9 +23413,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemvBodyIq2Xxs(
     int64_t subBlockSize = qk / nSubblocks;          // 32
     int64_t numGroups = subBlockSize / 8;            // 4 grid entries / sub-block
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -23931,9 +23846,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
     int64_t numGroups = subBlockSize / 8;            // 4
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -24536,9 +24449,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvGridDualEntryQ8K(
     bool gridIdxU16 = weft::gridIndexStripIsU16(plan.gridEntryCount);
     int64_t gridIdxLaneBytes = gridIdxU16 ? 2 : 1;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -25068,9 +24979,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmGridDualEntryQ8K(
     int64_t gridIdxLaneBytes = gridIdxU16 ? 2 : 1;
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -25715,9 +25624,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
     int64_t groupsPerHalf = numGroups / 2;           // 2
     int64_t numHalves = weightInterleave / half;     // strip halves (VLEN split)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -26168,9 +26075,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     int64_t numHalves = weightInterleave / half;
     int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -26739,9 +26644,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq1SQ8K(
     int64_t numGroups = subBlockSize / 8;        // 4 grid entries / sub-block
     int64_t numHalves = weightInterleave / half; // strip halves (VLEN split)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -27221,9 +27124,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq1SQ8K(
     int64_t numHalves = weightInterleave / half;
     int64_t columnsPerPass = coreLmul == "m1" ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -27793,9 +27694,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq1MQ8K(
     int64_t numGroups = subBlockSize / 8;        // 4 grid entries / sub-block
     int64_t numHalves = weightInterleave / half; // strip halves (VLEN split)
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };
@@ -28281,9 +28180,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq1MQ8K(
     int64_t numHalves = weightInterleave / half;
     int64_t columnsPerPass = coreLmul == "m1" ? 1 : activationInterleave;
 
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     auto step = [&](llvm::StringRef s) {
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
     };

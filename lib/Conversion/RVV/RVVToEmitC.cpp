@@ -3510,10 +3510,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitFiveBitOffsetBinaryXI8Product(
     mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
     mlir::Type weightPtrType = qhBase.getType();
     llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType,
-                                               std::to_string(v));
-    };
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
     // Two aligned 16-bit halves off qh_base + qh_byte_offset (LE low @ off, high @
     // off+2), byte-exact to the monolith qhRead's `(uint16_t)*(const uint16_t *)`.
     int64_t qhByteOffset =
