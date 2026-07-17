@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and plugin-owned semantics for this extraction."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "RVV+scalar dispatch and scalar fallback boundary constraints."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin integration contracts and generic core boundary rules."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Rules for keeping extension-specific behavior local to the plugin."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission, runtime ABI, and artifact ownership layering."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation, legality, selection, dispatch, and tuning boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit validation expectations for compiler behavior."}

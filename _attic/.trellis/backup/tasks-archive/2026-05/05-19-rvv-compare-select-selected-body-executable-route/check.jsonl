@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack and red-line compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed selected-body route authority and fail-closed compare/select behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and target artifact handoff invariants."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI evidence and deleted source-authority boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/script/ssh rvv evidence policy."}

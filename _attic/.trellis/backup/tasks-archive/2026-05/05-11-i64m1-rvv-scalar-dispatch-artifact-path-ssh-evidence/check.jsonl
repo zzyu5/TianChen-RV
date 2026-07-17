@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants to verify no stack or source-of-truth boundary was violated."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check finite RVV/i64m1 and ssh evidence claims stay within plugin-owned scope."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback route remains plugin-local and finite-family descriptor-owned."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact/bundle/ABI metadata and plugin-owned exporter registration semantics."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check frontend route remains bounded marked-linalg RVV binary lowering."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required focused validation and evidence interpretation."}

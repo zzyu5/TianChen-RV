@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Verify implementation remains C++/MLIR/CMake/lit."}
-{"file": ".trellis/spec/architecture/system-positioning.md", "reason": "Verify no new high-level tensor/tile IR is added."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify generated exec surfaces are within the core dialect contract."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify capability facts are copied by reference and not invented as strings."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Verify plugin locality and frontend input boundary remain aligned."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify the lowered exec kernel feeds the existing plugin planning pipeline."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify ABI parameter layering remains correct."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/FileCheck coverage."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Verify no forbidden core compute shape appears."}

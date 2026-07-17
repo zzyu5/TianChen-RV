@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and implementation stack boundaries."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Runtime_param, dispatch, fallback, and compute-free core dialect contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "RVV+scalar dispatch export, runtime ABI, header/object, and evidence boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and C++ test coverage expectations."}

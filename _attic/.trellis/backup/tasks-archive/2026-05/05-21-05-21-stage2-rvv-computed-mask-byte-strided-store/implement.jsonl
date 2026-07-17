@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 ordering, and source-of-truth rules for this RVV implementation task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body, selected-body realization, route provider, Stage1 legacy fail-close, and ssh-rvv evidence requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route boundary: RVV provider owns semantics, common EmitC only materializes provider-built routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/runtime evidence and RVV positive/negative testing boundaries."}

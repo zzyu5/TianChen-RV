@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, and descriptor/direct-C prohibition invariants."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware truth, unified RISC-V boundary, and ssh rvv evidence requirements."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Source-to-selected-boundary ownership, deleted core frontend constraints, and current RVV source seed scenario to update."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected i32m1 route, explicit typed body legality, and target artifact boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned source seed pass registration boundary and common registry locality rules."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission ownership, no descriptor/direct-C/source-export route, and selected emission-plan constraints."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Materialized EmitC route and selected emission-plan to target artifact handoff rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, C++ checks, and RVV evidence policy for changed compiler behavior."}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler-stack and invalid architecture red lines"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check source-seed pass registration is plugin-owned and registry-routed"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check bounded RVV seed remains plugin-owned and does not restore deleted core source frontend"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV first-slice semantics and route ownership remain unchanged"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++ coverage and evidence policy"}

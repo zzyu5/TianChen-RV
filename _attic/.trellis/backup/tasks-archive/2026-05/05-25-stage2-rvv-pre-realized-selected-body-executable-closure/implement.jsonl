@@ -1,5 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global RVV-first authority chain, Stage 2 selected-body realization scope, and ssh rvv evidence rule."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV selected-body route-entry realization bridge, provider ownership, artifact handoff, runtime ABI, and fail-closed contracts."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC and target artifact neutrality; provider-built TCRVEmitCLowerableRoute authority."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Direct pre-realized route-entry generated-bundle evidence and runtime/hardware evidence policy."}
-{"file":".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-pre-realized-selected-body-artifact-abi-integration/prd.md","reason":"Previous direct route-entry artifact ABI integration scope and dry-run evidence baseline."}

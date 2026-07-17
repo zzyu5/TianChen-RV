@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and boundary invariants for this compiler task."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Defines extension/plugin integration flow, locality expectations, and optional target artifact route ownership."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines ExtensionPlugin/ExtensionPluginRegistry routing contracts and built-in plugin registration shape."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Constrains plugin-owned emission/runtime/export responsibilities and prevents concrete extension branches in core."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact front-door routing, exporter registry validation, duplicate route failure, and built-in exporter registration boundary."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for keeping new plugin-owned registration local and generic."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist to keep tcrv.exec compute-free while changing registration/export surfaces."}
-{"file": ".trellis/tasks/archive/2026-05/05-11-toy-plugin-target-artifact-route/prd.md", "reason": "Prior Toy metadata artifact route contract that this task must preserve while migrating registration ownership."}

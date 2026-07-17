@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global stack and boundary invariants for verification"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains execution/capability/dispatch only"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify bundle evidence bridge honors target artifact and parameter layering contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify required lit and evidence bridge coverage"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV evidence claim scope and plugin-local ownership"}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first verification guide"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality verification guide"}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary verification guide"}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check must preserve RVV-first route authority and Stage2 scope boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify provider-owned RVV mapping and no common EmitC semantic drift."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must ensure route materialization still consumes provider-built lowerable route facts."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify focused compiler tests and real ssh-rvv evidence for runtime claims."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Final check must keep selected-path metadata and emission-plan fields as mirrors only."}

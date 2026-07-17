@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check no forbidden legacy/source-front-door route authority or Python compiler-core drift was introduced."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV strided memory-form support remains plugin-owned and typed-body-derived."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider-built route payload only."}
-{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check selected-body Stage2 route support is not metadata/artifact authority."}

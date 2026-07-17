@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "grep required long-term terminology and anti-drift rules"}
-{"file": "scripts/codex_serial_supervisor.py", "reason": "syntax check if Python prompt string changes"}
-{"file": "scripts/codex_serial_supervisor_prompt.md", "reason": "manual review of concise Codex red lines"}

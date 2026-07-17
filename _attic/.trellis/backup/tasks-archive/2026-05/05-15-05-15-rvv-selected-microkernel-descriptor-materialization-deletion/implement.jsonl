@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, stack, and descriptor-erasure invariants."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Boundary against descriptor-driven microkernel/exporter frameworks."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Future accepted route after deletion: extension family ops to EmitC."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Fail-closed contract for deleted direct descriptor/source/export routes."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local ownership and current stale descriptor authority wording."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Policy for deleting or rewriting descriptor-positive tests."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-core-rvv-source-to-exec-erasure/prd.md", "reason": "Previous deletion owner; core source-to-exec path is already removed."}

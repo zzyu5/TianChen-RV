@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global authority-chain and forbidden legacy/source-front-door constraints."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization remains plugin-owned and typed-body-authoritative."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-built route ownership."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Check focused MLIR/C++/script/runtime evidence requirements."}
-{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-selected-body-generic-add/prd.md", "reason": "Regression check for existing pre-realized add/sub/mul handoff."}
-{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-typed-strided-memory-route/prd.md", "reason": "Regression check for existing explicit strided add route evidence."}

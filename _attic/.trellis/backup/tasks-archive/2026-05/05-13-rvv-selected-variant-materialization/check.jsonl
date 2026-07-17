@@ -1,5 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Verify implementation stayed inside C++/MLIR/plugin-local architecture boundaries."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check selected RVV materialization, policy, setvl/with_vl, and metadata fail-closed behavior."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check generated source still follows extension op -> EmitC -> RVV intrinsic route."}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Check selected-path, emission-plan, generic export, and runtime ABI surfaces agree."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused evidence scope and no unsupported runtime/performance claims."}

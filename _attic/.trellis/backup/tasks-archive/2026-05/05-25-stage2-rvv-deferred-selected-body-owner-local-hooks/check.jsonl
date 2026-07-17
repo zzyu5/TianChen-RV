@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "quality gate for owner-local realization hooks, fail-closed diagnostics, and no authority leaks"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify common EmitC remains neutral and route authority stays provider-owned"}
-{"file": ".trellis/spec/index.md", "reason": "verify changes stay within current RVV-first Stage 2 architecture boundary"}

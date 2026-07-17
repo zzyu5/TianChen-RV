@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack, compute-boundary, and testing invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local ownership after extraction."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check no RVV-specific behavior leaked into generic core."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI/artifact parameter layering is preserved."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected variant and dispatch planning boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit validation coverage."}

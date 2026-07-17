@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified TCRV RISC-V MLIR positioning and boundary rules"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec execution envelope and kernel-name clarification"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "extension family template, manifest, interfaces, and common pass rules"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "unified EmitC route and descriptor-debt boundary"}
-{"file": "scripts/codex_serial_supervisor.py", "reason": "Hermes review prompt supervision rules"}
-{"file": "scripts/codex_serial_supervisor_prompt.md", "reason": "Codex base prompt concise red lines"}

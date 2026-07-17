@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture and implementation stack invariants"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route and descriptor boundary for production source authority"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed family/body and legacy lowering_descriptor mirror contract"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin interface boundary and common family-neutral orchestration rules"}
-{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-typed-family-emitc-artifact-authority/prd.md", "reason": "previous RVV typed EmitC authority task context and completed regression"}
-{"file": "include/TianChenRV/Target/RVV/RVVMicrokernel.h", "reason": "exact RVV binary-family artifact export API boundary"}
-{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "per-family RVV artifact exporter registration and descriptor-authority quarantine"}
-{"file": "lib/Target/Builtin/RVVScalarDispatch.cpp", "reason": "dispatch embedded RVV source export now uses selected exact family"}

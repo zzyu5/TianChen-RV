@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify selected capability metadata stays in plugin/target export preflight and not generic routing."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/FileCheck and target artifact bundle metadata coverage match project policy."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected RVV vector-shape capability id metadata matches the RVV plugin contract."}

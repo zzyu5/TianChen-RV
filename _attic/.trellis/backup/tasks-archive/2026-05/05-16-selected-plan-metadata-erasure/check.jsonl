@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the implementation stays inside the C++/MLIR stack and deletion-only boundary."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify remaining diagnostic fields are typed generic fields, not arbitrary selected-plan metadata."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin emission-plan API validation no longer carries selected-plan metadata dictionaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-path/emission-plan pipeline wording remains fail-closed and target-neutral."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify specs no longer protect selected-plan metadata as active route authority."}

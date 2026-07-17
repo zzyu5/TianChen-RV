@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify work remains inside TianChen-RV compiler stack and project source of truth"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check no runtime/correctness claims without ssh rvv evidence and no descriptor architecture drift"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains execution envelope only"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected RVV family/config/runtime AVL/VL and descriptor quarantine behavior"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check shared orchestration remains registry/interface routed"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-boundary and execution-planning semantics"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact, bundle, runtime ABI, and dynamic vector source evidence"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check EmitC route authority and descriptor-only rejection"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused build/lit/C++/e2e/ssh evidence plan"}

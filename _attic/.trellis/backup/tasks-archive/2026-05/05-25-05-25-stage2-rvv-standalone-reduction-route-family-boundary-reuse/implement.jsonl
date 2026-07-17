@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage 2 boundaries, and descriptor/source-front-door prohibitions."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned route family, selected-body realization, provider, reduction/accumulation, statement-plan, mirror, dispatch/fallback, and artifact rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary, provider-built TCRVEmitCLowerableRoute contract, and mirror-only artifact metadata rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck, generated artifact, and ssh rvv evidence expectations for executable RVV behavior."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-family-boundary/prd.md", "reason": "Immediate previous scalar_broadcast_macc_add route-family boundary pattern to reuse."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-reduction-accumulation-route-closure/prd.md", "reason": "Prior standalone_reduce_add reduction/accumulation closure and statement-plan evidence baseline."}
-{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-standalone-reduction-provider-validation/prd.md", "reason": "Standalone reduction provider validation depth and fail-closed diagnostics baseline."}

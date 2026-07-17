@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants and RVV-first Stage2 route-authority compliance for final review."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed route authority, source-front-door fail-closed, and evidence checklist for final review."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and mirror-only EmitC/export boundary checks."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused compiler/runtime checks and ssh rvv evidence requirements."}
-{"file": ".trellis/tasks/05-23-stage2-rvv-plain-compare-select-runtime-binding-closure/prd.md", "reason": "Task-specific acceptance criteria and non-goal compliance for final verification."}

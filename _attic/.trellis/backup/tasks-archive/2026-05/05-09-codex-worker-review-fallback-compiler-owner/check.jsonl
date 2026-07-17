@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check that capability facts remain structured and parameter layering is preserved."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV capacity interpretation remains plugin-local and bounded to the first slice."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check execution-planning semantics and module target-profile scope."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emission metadata does not claim runtime/correctness/performance evidence."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check validation uses focused lit/FileCheck/build tests."}

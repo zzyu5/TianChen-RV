@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global architecture, stack, no-Python-core, no descriptor-driven computation, and ssh rvv evidence invariants."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected RVV EmitC target artifact handoff, object/header bundle, and common declaration header contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime artifact route boundaries, deleted descriptor/direct-C source authority, and target artifact bundle constraints."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first executable plugin path, materialized EmitC object/header/bundle boundary, and ssh rvv evidence rule."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing and evidence expectations for target artifact bundle consumption and real ssh rvv runtime claims."}
-{"file": ".trellis/tasks/archive/2026-05/05-17-rvv-generated-artifact-bundle-link-run-abi-proof/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, evidence plan, and non-goals."}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundary for compiler stack and RVV hardware evidence."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export route, bundle route, runtime ABI parameter boundary, dispatch runtime guard, and parameter claim layering."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, Python runner, target-artifact bundle, and real ssh rvv evidence policy."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin/export ownership, selected vector-shape metadata, and bounded RVV executable evidence constraints."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin/export ownership and bounded i32/i64 add/sub/mul fallback contract."}

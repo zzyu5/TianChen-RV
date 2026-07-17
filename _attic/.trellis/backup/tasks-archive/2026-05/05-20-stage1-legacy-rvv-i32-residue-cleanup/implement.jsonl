@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1 reset boundary, and stack rules for this cleanup."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, legacy i32 fail-closed policy, and generic typed body authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and invalid RVV route inputs for legacy i32/source-front-door residue."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission authority chain, metadata mirror boundary, and target export fail-closed rules."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin route-provider ownership and fail-closed legacy inventory."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-path metadata as mirrors and RVV Stage1 versus Stage2 stage gates."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for positive generic typed RVV routes and negative legacy i32/source-front-door cases."}

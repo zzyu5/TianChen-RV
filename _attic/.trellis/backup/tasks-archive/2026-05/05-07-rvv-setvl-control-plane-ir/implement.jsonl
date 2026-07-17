@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and dialect boundary invariants"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "parameter layering: VLEN/vlenb capability facts, SEW/LMUL config, AVL/vl runtime SSA"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "plugin-local RVV dialect surface and first-slice RVV boundaries"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant config and parameter flow boundary for SEW/LMUL/AVL/vl"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/runtime claim boundary for setvl and generated artifacts"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck requirements for dialect parse, print, verifier diagnostics"}

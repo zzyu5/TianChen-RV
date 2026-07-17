@@ -1,7 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/tasks/07-02-e4-attribution-jsonl/research/attribution-current-state.md", "reason": "当前三级归因 HEAD 锚点(VariantSelection.cpp:326-358 addPreferenceMetadata + sink 处 candidates/keys 可得)"}
-{"file": ".trellis/tasks/07-02-e4-attribution-jsonl/research/jsonl-export-design.md", "reason": "JSONL sink 机制 + 确切 JSON schema + reason remap + lit 确定性(--no-timestamp)"}
-{"file": ".trellis/tasks/07-02-e4-attribution-jsonl/research/d2a-resolution-record-design.md", "reason": "declared_instance_hash 计算(sorted 事实集→SHA256)+ D-2a stamp 点 + NG-3 合规"}
-{"file": ".trellis/tasks/07-02-e4-attribution-jsonl/research/e4-scope-summary.md", "reason": "MVP + 落地序 + byte-exact/lit 门 + scope 边界"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "选择/归因契约(D-4 三级 + 附加式纪律)"}
-{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "D-4/D-2a/NG-3 per-dispatch 永禁/mirror 纪律/fail-closed"}

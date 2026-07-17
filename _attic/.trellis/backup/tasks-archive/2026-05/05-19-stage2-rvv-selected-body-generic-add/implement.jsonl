@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage1/Stage2 order, and no descriptor/source-front-door authority"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization, typed body authority, Stage1 guardrails"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC/export boundary"}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "tcrv.exec envelope and ABI-role boundary constraints"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality and no core family-specific semantic branching"}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/runtime evidence requirements for RVV claims"}
-{"file": ".trellis/tasks/archive/2026-05/05-19-stage1-residue-source-front-door-hardening/prd.md", "reason": "Stage1 residue and source-front-door fail-closed guardrails"}
-{"file": ".trellis/tasks/archive/2026-05/05-19-rvv-arithmetic-pre-realized-realization-closure/prd.md", "reason": "Prior pre-realized selected-body realization behavior and validation expectations"}
-{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-typed-strided-memory-route/prd.md", "reason": "Most recent Stage2 route-supported behavior and active-authority evidence standard"}

@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines extension plugin registry, proposal validation, routing, and target-neutral core boundaries."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Requires extension-specific evidence interpretation to stay plugin-local."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines variant generation, fallback roles, selection, and materialization expectations."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability descriptors and availability semantics consumed by proposal generation."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Guards tcrv.exec as compute-free execution/capability/variant/dispatch/fallback IR."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local property evidence and non-runtime first-slice behavior."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback proposal gating and conservative fallback role semantics."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/C++ coverage and RVV evidence boundaries."}

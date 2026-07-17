@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "core exec mem_window/runtime_param contract"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "parameter layering and capability boundary"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected path and parameter flow boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local microkernel boundary"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback microkernel boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "callable and dispatch export runtime boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit FileCheck evidence requirements"}

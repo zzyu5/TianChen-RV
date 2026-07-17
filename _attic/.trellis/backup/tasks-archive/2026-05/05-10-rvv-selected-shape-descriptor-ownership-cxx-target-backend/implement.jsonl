@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundaries for compiler ownership."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality, finite i32m1/i32m2 selected-shape and capability semantics."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback role and selected dispatch fallback boundary for RVV+scalar exports."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Source/header/object/bundle artifact export and evidence claim boundaries."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-owned C++ compiler behavior and core/plugin separation."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant selection, selected metadata, and fail-closed selected-path contracts."}

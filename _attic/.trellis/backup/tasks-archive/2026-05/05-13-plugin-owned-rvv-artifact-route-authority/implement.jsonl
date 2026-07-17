@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and architecture boundary for this task"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and bounded binary family route constraints"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Extension-family op to EmitC route boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact route registration, plugin-owned exporter bundles, and bundle front-door contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck evidence requirements for target artifact routes"}

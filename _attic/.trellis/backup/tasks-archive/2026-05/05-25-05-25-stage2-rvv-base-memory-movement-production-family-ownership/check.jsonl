@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final global invariant check for C++/MLIR stack, RVV authority chain, and non-authority metadata/script artifacts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final RVV route-family owner, base memory statement-plan, and fail-closed diagnostics compliance check."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final common EmitC neutrality and target artifact mirror-only check."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-base-memory-movement-route-family-boundary/prd.md", "reason": "Ensure this round improves production ownership rather than duplicating previous evidence-only closure."}

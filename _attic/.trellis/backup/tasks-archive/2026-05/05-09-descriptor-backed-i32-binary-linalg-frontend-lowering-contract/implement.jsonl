@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary for this frontend lowering task."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Confirms this task must stay an execution layer after high-level MLIR and must not make RVV runtime claims without ssh rvv evidence."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines the plan-and-export frontend step, execution-plan/export coherence, and descriptor-backed i32 binary ABI boundary consumed after lowering."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines the bounded linalg frontend lowering contract and execution planning pipeline that this task is renaming to an i32 binary family surface."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV finite i32 add/sub/mul descriptor selection from frontend family metadata."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar finite i32 add/sub/mul descriptor selection from frontend family metadata."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck, script, bundle, and CMake validation forms for frontend lowering and artifact paths."}

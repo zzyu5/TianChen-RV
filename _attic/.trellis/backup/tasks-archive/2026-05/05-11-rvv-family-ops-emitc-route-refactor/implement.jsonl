@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global unified TCRV and descriptor invalid rules"}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified TCRV extension-family architecture"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "new extension-family template and common interfaces"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "registry and common interface boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "current extension-family ops to EmitC route"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission route and descriptor debt boundaries"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV family finite slice and hardware evidence boundaries"}

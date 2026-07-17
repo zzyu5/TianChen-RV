@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check against global authority, Stage2 scope, source-front-door, descriptor, metadata, and common EmitC boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for RVV selected-body route-entry owner, computed-mask segment2 store facts, segment2 statement-plan, route-control, operand-binding, provider mirror, and diagnostics requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC only consumes provider-built routes and does not infer RVV semantics."}
-{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-computed-mask-segment2-memory-route-entry-owner/prd.md", "reason": "Regression and validation comparison against the immediate prior computed-mask segment2 load route-entry owner."}
-{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-segment2-deinterleave-route-entry-owner/prd.md", "reason": "Regression and validation comparison against the latest plain deinterleave route-entry owner."}
-{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-segment2-interleave-memory-route-family-owner/prd.md", "reason": "Regression and validation comparison against the latest plain interleave route-entry owner."}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for compiler stack, capability model, extension-family ownership, and descriptor/direct-C deletion boundaries."}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Capability profile boundaries and target evidence rules relevant to probe facts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership boundary and rules for RVV-specific capability evidence."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface and registry locality rules that prevent core route/config authority leakage."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for updating lit/C++ tests after deletion of obsolete authority."}

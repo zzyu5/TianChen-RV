@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check changes against global TianChen-RV stack and architecture boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify deleted source front-door authority is not preserved as an active route contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify active tests cover surviving fail-closed commands without old source-option fixtures."}

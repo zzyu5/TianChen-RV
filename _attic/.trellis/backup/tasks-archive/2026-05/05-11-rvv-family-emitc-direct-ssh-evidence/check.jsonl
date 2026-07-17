@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global architecture and evidence boundaries are preserved."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify the direct i32-vmul evidence remains bounded to RVV plugin-owned family-op EmitC route."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify generated C is tied to EmitC route metadata, not descriptor-driven computation."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runner evidence, command summaries, target artifacts, and ssh status stay within contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/self-test coverage and fail-closed behavior."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify final claim is bounded correctness only, not performance or generic RVV support."}

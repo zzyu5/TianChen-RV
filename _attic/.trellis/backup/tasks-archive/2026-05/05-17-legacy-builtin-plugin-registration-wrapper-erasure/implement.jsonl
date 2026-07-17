@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for deletion-only plugin-boundary work"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol checklist and registry boundary for built-in extension registration"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Canonical extension bundle/plugin integration route and core/plugin boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry/interface rules and source-front-door fail-closed behavior"}

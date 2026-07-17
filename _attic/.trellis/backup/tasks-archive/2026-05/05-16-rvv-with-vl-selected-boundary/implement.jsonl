@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR architectural invariants and source-of-truth rules."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary, i32m1 config/VL contract, and selected EmitC route ownership."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and selected emission-plan to target artifact handoff contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/lit/FileCheck and target artifact coverage expectations."}

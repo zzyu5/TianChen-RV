@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Top-level project boundary and spec routing for TianChen-RV."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability/provider relation and parameter-layering constraints used by proposal selection."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality, control-plane ownership, and i32-vadd microkernel constraints."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback behavior must remain deterministic while RVV path changes."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Plugin proposal, legality, selection, and lowering-boundary responsibilities."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target-owned emission and runtime ABI layering requirements."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and focused test requirements for compiler behavior."}

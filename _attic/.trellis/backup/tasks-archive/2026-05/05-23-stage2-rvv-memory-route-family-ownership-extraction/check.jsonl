@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check final diff against global architecture and source-of-truth constraints."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV route authority remains typed-body and plugin-owned."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export did not gain RVV semantic authority."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin boundary and provider ownership remain localized."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check evidence and tests match touched route behavior."}

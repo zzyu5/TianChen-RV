@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global invariants remain satisfied."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check support-layer runtime ABI contract text matches implementation."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Check focused tests are appropriate for support-layer API deletion."}

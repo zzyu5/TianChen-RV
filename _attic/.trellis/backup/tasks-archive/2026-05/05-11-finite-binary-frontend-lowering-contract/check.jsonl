@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that frontend changes keep tcrv.exec compute-free."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check bounded linalg frontend behavior, pass aliases, and fail-closed diagnostics."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/plugin ownership is preserved."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite family planning and selected vector-shape behavior is preserved."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar finite descriptor and fallback behavior is preserved."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI/export claims remain bounded and IR-backed."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation is sufficient and claims stay evidence-scoped."}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for capability-driven MLIR compiler work"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability relation, query, property, and compiler-decision requirements"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin capability provider and variant proposal protocol constraints"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant materialization and selection requirements affected by relation-aware capability lookup"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin proposal and legality requirements for relation-aware RVV capability satisfaction"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation policy"}

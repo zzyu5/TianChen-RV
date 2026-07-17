@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project boundary and compiler stack constraints for review"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Validate dispatch/runtime ABI role boundaries remain generic and explicit"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Validate target artifact bundle, route, and ABI preflight behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Validate required focused checks and ssh rvv evidence standards"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Validate runtime evidence claim scope and forbidden interpretations"}

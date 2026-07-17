@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR project invariants and source-of-truth rules for this implementation round."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin capability/profile, finite i64m1 route, and real ssh rvv evidence boundaries."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin finite i64 add/sub/mul descriptor and callable export contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan, target artifact, bundle, RVV+scalar dispatch route, and ABI layering contract."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded marked-linalg RVV binary frontend and execution planning pipeline contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/ssh evidence requirements for RVV+scalar dispatch artifacts."}

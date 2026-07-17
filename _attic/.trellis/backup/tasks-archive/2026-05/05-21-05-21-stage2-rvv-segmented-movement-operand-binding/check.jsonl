@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check implementation still follows current RVV-first authority chain and no source-of-truth drift."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segmented route operand binding remains RVV-plugin-owned and typed-body-driven."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral and consume provider-built route payloads only."}
-{"file": ".trellis/tasks/05-21-05-21-stage2-rvv-segmented-movement-operand-binding/prd.md", "reason": "Bounded task scope, acceptance criteria, non-goals, and validation plan for segmented movement operand binding adoption."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-indexed-movement-operand-binding/prd.md", "reason": "Movement-route validation pattern for binding plan mirrors, dry-runs, ssh rvv, and authority scan."}

@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project constraints for review and quality verification."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check registry-owned RVV route-control behavior against plugin contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider-built route authority is preserved."}

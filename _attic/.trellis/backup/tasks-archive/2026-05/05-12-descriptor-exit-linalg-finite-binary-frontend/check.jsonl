@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack and descriptor-exit invariants."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check frontend migration preserves unified TCRV architecture and compute-free exec core."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check bounded linalg frontend semantics, diagnostics, and planning pipeline compatibility."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check downstream typed op plus common EmitC route boundary remains intact."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI layering and target artifact metadata compatibility."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check no core/plugin boundary regression or family-specific orchestration branch."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused compiler validation covers frontend positive and mismatch-negative behavior."}

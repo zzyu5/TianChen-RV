@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage constraints."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, route-family ownership, route-control registry, and mirror-only metadata contracts."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization hook and registry boundary rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Selected-body artifact and direct pre-realized route-entry evidence requirements."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-control-registry-consolidation/prd.md", "reason": "Immediate predecessor task and route-control owner registry pattern."}

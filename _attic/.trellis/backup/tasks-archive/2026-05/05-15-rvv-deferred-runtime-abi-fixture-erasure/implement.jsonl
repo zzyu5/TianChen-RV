@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for deletion-only compiler cleanup"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin metadata boundary and unsupported emission-plan contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime/emission unsupported contract and deleted direct-route rules"}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++ testing and evidence expectations"}

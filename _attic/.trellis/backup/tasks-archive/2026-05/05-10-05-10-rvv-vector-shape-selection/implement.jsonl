@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project boundaries and compiler stack constraints for this task."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability objects must drive proposal, legality, selection, and lowering decisions."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin first-slice config ids, selected vector-shape metadata, and i32 binary microkernel contract."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin proposal, legality, cost, and selected lowering-boundary interfaces must stay generic at the core boundary."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Execution planning pipeline and variant materialization/selection ordering."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering-boundary and target artifact export metadata coherence rules."}
-{"file": ".trellis/tasks/archive/2026-05/05-10-rvv-i32-binary-descriptor-registry/prd.md", "reason": "Previous completed descriptor module and regression evidence context; not an active task."}

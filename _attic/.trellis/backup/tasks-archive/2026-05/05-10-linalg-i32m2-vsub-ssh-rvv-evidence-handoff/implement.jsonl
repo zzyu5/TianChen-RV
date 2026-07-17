@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Defines mandatory C++/MLIR compiler stack and Python tooling-only boundary for this evidence-runner task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV i32m2 config, plugin-local microkernel export, parameter layering, and ssh evidence boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact export, bundle, runtime ABI, and evidence boundary contracts consumed by the runner."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck/script/ssh validation for RVV microkernel evidence helpers."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines bounded linalg i32 binary frontend and plan-and-export bundle front-door contract."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Defines RVV hardware evidence interpretation and forbidden validation claims."}

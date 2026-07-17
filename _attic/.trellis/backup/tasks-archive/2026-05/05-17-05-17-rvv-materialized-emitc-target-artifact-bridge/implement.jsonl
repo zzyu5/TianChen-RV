@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "materialized EmitC route contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "metadata-driven exporter deletion boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "bounded RVV executable slice contract"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-rvv-target-descriptor-route-erasure/prd.md", "reason": "previous descriptor erasure boundary"}

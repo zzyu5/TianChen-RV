@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundaries for TianChen-RV MLIR."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite i32-vmul descriptor, selected vector-shape metadata, and plugin-owned RVV boundaries."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar finite i32-vmul fallback descriptor, runtime ABI metadata, and plugin-owned fallback boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Dispatch export route, runtime ABI/control layering, bundle/export preflight, and RVV+scalar manifest contracts."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded frontend, execution planning pipeline, selection, dispatch, and runtime guard contracts."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, Python tooling, and real ssh rvv evidence requirements."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Validation evidence interpretation and RVV hardware claim boundaries."}

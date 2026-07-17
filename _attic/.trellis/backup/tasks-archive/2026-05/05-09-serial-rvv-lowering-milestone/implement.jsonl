@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and primary implementation stack boundary"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability object semantics, relations, and pass decision requirements"}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "RVV probe-derived capability profile and hart count fact boundary"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec hart_parallel contract and core execution organization boundary"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Execution planning pipeline and capability-aware parameter layering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and toolchain validation policy"}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first review checklist for target fact decisions"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality guard against RVV-specific core branches"}

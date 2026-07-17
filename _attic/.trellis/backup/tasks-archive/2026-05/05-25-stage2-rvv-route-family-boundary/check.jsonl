@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global architecture and evidence boundaries for final verification"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-family owner registry, fail-closed diagnostics, and mirror-only metadata compliance"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC and target artifact neutrality"}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-selected-dispatch-fallback-envelope/prd.md", "reason": "Regression evidence and prior accepted behavior for scalar_broadcast_macc_add"}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify diagnostic marker syntax and core compute-free boundary"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify selection marker and emission readiness behavior match pipeline contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify emission readiness remains target-neutral and readiness-only"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify plugin routing stays generic and extension-local"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify appropriate C++/lit/build checks were run"}

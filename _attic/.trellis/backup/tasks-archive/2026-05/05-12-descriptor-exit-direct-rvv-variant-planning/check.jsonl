@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack, descriptor-debt, and Python tooling-only invariants."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check unified TCRV and compute-free exec architecture are preserved."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check typed RVV family ops still flow through common EmitC/lowerable route evidence."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected config, runtime ABI, and artifact-export layering remain coherent."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed microkernel body authority and descriptor cross-check behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck coverage for positive and fail-closed cases."}
-{"file": ".trellis/tasks/archive/2026-05/05-12-descriptor-exit-direct-rvv-variant-planning/prd.md", "reason": "Check implementation satisfies this task's acceptance criteria."}

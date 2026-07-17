@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for review"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Artifact export and runtime glue review contract"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Dispatch/fallback selected-path review contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-locality and evidence review contract"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin-locality review contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required test and evidence review contract"}

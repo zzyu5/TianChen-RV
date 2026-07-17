@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global architecture boundaries, RVV-first authority chain, and Stage1/Stage2 scope."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local legality, realization, route support, and fail-closed behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check RVV provider vs common EmitC ownership and descriptor/direct-C exclusion."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required MLIR, generated artifact, and ssh rvv evidence for executable RVV claims."}

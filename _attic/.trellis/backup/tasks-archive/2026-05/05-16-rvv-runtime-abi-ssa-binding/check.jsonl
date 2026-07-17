@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify stack, core/plugin, and descriptor boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify EmitC route remains plugin-owned and common front door remains generic"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV-specific ABI binding stays inside RVV ownership"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused MLIR and target artifact evidence"}

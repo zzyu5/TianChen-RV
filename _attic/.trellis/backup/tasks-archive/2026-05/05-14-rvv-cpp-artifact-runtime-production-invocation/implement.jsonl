@@ -1,6 +1,0 @@
-{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-cpp-artifact-runtime-production-invocation/prd.md", "reason": "Current task goal, scope, acceptance criteria, and evidence plan"}
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and spec routing"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture red lines, RVV hardware evidence requirement, and descriptor boundary"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current extension-family ops to EmitC route contract and descriptor quarantine"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, bundle, RuntimeABI, and RVV dispatch artifact contracts"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and ssh rvv evidence requirements for generated artifacts"}

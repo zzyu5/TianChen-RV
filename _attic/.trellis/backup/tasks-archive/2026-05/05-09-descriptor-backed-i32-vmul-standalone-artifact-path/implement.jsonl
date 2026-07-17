@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and boundary invariants for this compiler task"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "keep i32-vmul compute semantics out of tcrv.exec and preserve execution-only core dialect boundaries"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local finite i32 microkernel descriptor/materialization/export contract"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin-local finite i32 microkernel descriptor/materialization/export contract"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin-owned lowering and target/export integration flow"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "variant proposal, legality, readiness, emission plan, and lowering-boundary interface contracts"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "prevent extension-specific logic from leaking into generic core passes"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI parameter layering, emission-plan ownership, and target artifact export preflight rules"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and C++ test expectations for dialect, plugin, frontend lowering, and target export changes"}

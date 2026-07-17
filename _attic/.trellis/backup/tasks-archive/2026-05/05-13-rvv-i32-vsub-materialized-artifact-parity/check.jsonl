@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check that implementation stays inside the TianChen-RV stack and unified extension-family boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV family-owned selected-body and config/ABI authority for i32-vsub parity."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that emitted computation derives from typed family ops and the EmitC route, not descriptors."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check source/header/object/bundle artifact and runtime ABI role preflight behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build/evidence coverage and ssh rvv claim boundaries."}

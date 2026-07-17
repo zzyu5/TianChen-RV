@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "module-level target profiles are capability decision objects and must preserve parameter layering"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec kernel/target contract and compute-free core boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin proposal and legality consume generic TargetCapabilitySet through the registry"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant materialization must map required capability ids through target providers"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ validation policy for compiler behavior changes"}

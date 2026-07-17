@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundaries for this compiler-owner round"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Parameter layering contract for runtime n versus descriptor-local element_count"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local microkernel dataflow and evidence boundary contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Direct RVV microkernel C export and self-check harness contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and ssh rvv evidence policy"}

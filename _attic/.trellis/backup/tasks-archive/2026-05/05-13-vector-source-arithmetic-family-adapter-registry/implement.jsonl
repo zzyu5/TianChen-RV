@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, capability, plugin, and descriptor-boundary invariants for this source-frontdoor change."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "Keeps tcrv.exec limited to execution, ABI, target, capability, dispatch, and fallback envelopes while source arithmetic remains outside core compute semantics."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Ensures shared orchestration stays target-neutral and RVV family behavior remains plugin/target-owned."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines the bounded RVV finite binary family, selected vector-shape metadata, frontend family markers, and typed i32-vsub body authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Requires extension-family ops to flow through the common EmitC route and forbids descriptor strings as computation authority."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines runtime ABI ownership, dynamic vector source-tail authority, target artifact export preflight, and selected-plan metadata coherence."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/build/export/ssh-rvv evidence boundaries for dynamic vector source and RVV finite binary artifacts."}

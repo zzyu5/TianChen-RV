@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify no Python compiler-core behavior, descriptor-driven computation, or independent backend route was introduced"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify generated object/header bundle remains materialized-EmitC-owned and fail-closed"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV runtime correctness claims are backed by real ssh rvv evidence and stay in plugin-owned ABI scope"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused test scope and no broad smoke-only evidence inflation"}
-{"file": ".trellis/tasks/05-17-rvv-generated-bundle-abi-execution-proof/prd.md", "reason": "Verify the task acceptance criteria are actually met or blockers are recorded truthfully"}

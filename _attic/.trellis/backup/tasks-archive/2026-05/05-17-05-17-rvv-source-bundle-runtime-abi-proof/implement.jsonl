@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "selected emission-plan to target artifact handoff and materialized EmitC object/header bundle contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "descriptor/direct-C/source-export routes are invalid authority; evidence must consume materialized EmitC bundle artifacts"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV i32m1 executable slice, runtime AVL/VL contract, and ssh rvv evidence boundary"}
-{"file": ".trellis/spec/testing/index.md", "reason": "RVV runtime claims require real ssh rvv evidence and focused tests"}
-{"file": ".trellis/tasks/05-17-05-17-rvv-source-bundle-runtime-abi-proof/prd.md", "reason": "task requirements, boundaries, and acceptance criteria"}

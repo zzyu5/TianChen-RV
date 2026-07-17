@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global TianChen-RV architecture and deletion-campaign stack boundaries."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback remains metadata-only without exact legacy microkernel anchors."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify deleted scalar direct exporter wording does not preserve active route authority."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify active tests cover scalar metadata-only behavior without deleted-op syntax fixtures."}

@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, unified extension-family boundary, and no descriptor-driven computation invariants."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality and common orchestration through plugin interfaces."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifacts must use materialized EmitC route evidence instead of descriptors or direct C source authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff, runtime ABI checks, and materialized EmitC provenance contract."}
-{"file": ".trellis/tasks/archive/2026-05/05-17-extension-bundle-registry-default-plugin-front-door/prd.md", "reason": "Previous task that made ExtensionBundleRegistry the default built-in front door."}
-{"file": ".trellis/tasks/archive/2026-05/05-17-toy-extension-bundle-target-artifact-bridge/prd.md", "reason": "Previous task that bridged Toy into the extension-bundle target artifact route."}
-{"file": ".trellis/tasks/archive/2026-05/05-17-common-materialized-emitc-header-foundation/prd.md", "reason": "Current task requirements, acceptance criteria, and evidence plan."}

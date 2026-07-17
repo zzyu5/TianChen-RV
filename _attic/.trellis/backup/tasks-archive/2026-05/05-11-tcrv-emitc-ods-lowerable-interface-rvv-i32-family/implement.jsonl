@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project boundaries: C++/MLIR/TableGen stack, unified TCRV extension architecture, descriptor-driven computation prohibition."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines the common EmitC lowering route and required EmitC lowerable interface boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines bounded RVV i32 add/sub/mul descriptor, selected config, and target-owned emission semantics."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Requires common passes to consume TCRV interfaces rather than family-specific core branches."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused MLIR/FileCheck and C++ validation expectations for RVV target/export behavior."}
-{"file": ".trellis/tasks/archive/2026-05/05-11-tcrv-emitc-lowerable-interface-rvv-i32-add/prd.md", "reason": "Completed previous slice context: hand-written C++ route payload and follow-up ODS interface decision."}

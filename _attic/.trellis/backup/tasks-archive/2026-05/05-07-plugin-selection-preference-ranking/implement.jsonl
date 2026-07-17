@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "core selection must remain target-neutral and compute-free"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability facts and requires gate decisions before preference"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "exec dialect must stay execution metadata focused and compute-free"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin preference interface and registry dependency direction"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "extension-specific interpretation must remain plugin-local"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selection ordering and preference semantics"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local preference behavior"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback preference behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and pass coverage requirements"}

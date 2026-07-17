@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth, stack boundary, RVV-first authority chain, and Stage 2 route-supported coverage rules."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, runtime ABI, and common EmitC/export neutrality rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC materialization boundary for RVV routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck/C++/ssh evidence expectations and metadata-mirror constraints for RVV route changes."}

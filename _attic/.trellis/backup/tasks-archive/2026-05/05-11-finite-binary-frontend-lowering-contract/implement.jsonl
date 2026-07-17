@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec compute-free and limited to kernel/target/capability/variant/dispatch/runtime ABI structure."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines the bounded linalg RVV binary frontend slice, marker names, pass aliases, validation matrix, and pipeline order."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Preserve plugin-owned RVV/scalar proposal, legality, lowering-boundary, and emission-plan routing."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Preserve RVV finite binary family ownership, selected vector-shape metadata, and i64m1 config facts."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Preserve scalar fallback finite i32/i64 add/sub/mul descriptor and callable export ownership."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Preserve IR-backed runtime ABI and target artifact export evidence boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Drive focused lit/FileCheck, C++ plugin, script, and evidence-scope validation."}
-{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-i64m1-frontdoor-dispatch-runtime-abi/prd.md", "reason": "Prior i64-vadd dispatch ABI route context; read-only archive, do not reopen."}
-{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-finite-binary-descriptor-planning-contract/prd.md", "reason": "Prior RVV finite descriptor planning contract context; read-only archive, do not reopen."}

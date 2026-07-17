@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify C++/MLIR/TableGen/CMake/lit ownership and project boundary"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no compute semantics or RVV branches enter core exec"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected config and finite RVV dataflow remain plugin/dialect-owned"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify frontend/selection/descriptor layering remains intact"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI/control values are not conflated with compile-time config"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused positive and fail-closed tests cover the changed behavior"}

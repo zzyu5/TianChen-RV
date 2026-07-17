@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check that descriptor-driven computation is not retained as production authority."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected emission stays plugin/target-owned and bounded to finite binary families."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated RVV source/header/object routes continue to use typed family ops and common EmitC authority."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected emission plans and runtime ABI metadata remain IR-backed and fail closed on stale mirrors."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation uses C++ tests, lit/FileCheck, diff check, and check-tianchenrv."}

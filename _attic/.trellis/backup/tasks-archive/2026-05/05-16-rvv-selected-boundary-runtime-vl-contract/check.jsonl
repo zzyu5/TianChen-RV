@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific config/runtime-VL logic stays inside RVV ownership and fails closed."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check EmitC and target artifact handoff remain selected-plan driven and extension-neutral in common code."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check source-seed front door still routes through plugin-owned seed materialization and existing artifact preflight."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required focused lit, C++ tests, artifact metadata, and ssh rvv evidence coverage."}

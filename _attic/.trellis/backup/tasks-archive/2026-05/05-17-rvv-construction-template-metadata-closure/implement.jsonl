@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned interfaces, source front door boundaries, and registry locality for RVV construction-template closure"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "bounded RVV i32m1 materialized EmitC object/header/bundle contract and ssh rvv evidence boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "materialized EmitC artifact authority and descriptor/direct-C/source-export fail-closed constraints"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-05-17-tensorextlite-executable-plugin-construction-template-closure/prd.md", "reason": "copyable TensorExtLite construction-template closure pattern for emission/header/bundle metadata"}

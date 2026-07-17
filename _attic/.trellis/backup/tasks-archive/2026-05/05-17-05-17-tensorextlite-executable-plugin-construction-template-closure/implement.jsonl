@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "construction protocol, executable EmitC template, object/header/bundle packaging bridge, and descriptor boundary"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin-owned selected boundary, EmitC route, target artifact integration, and core/plugin locality boundary"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "locality checklist and red flags for extension-specific core branches"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "materialized EmitC object/header/bundle authority and fail-closed descriptor/direct-C/source-export constraints"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-05-17-tensorextlite-executable-plugin-construction-template-closure/prd.md", "reason": "current task requirements, boundaries, acceptance criteria, and non-goals"}

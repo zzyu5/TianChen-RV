@@ -1,9 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/index.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Required RVV artifact emission boundary spec"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required RVV artifact emission boundary spec"}

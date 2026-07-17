@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler and evidence invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin contract and non-claim boundaries"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "review plugin-locality and core-boundary invariants"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review target artifact route and runtime ABI layering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review required MLIR, C++ and artifact export test coverage"}

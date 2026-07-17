@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and runtime ABI preflight invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local callable artifact ownership and RVV claim boundaries"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback callable route ownership and ABI behavior"}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Existing offload descriptor ABI preflight parity behavior"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant and dispatch artifact route pipeline constraints"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit and C++ test coverage for target artifact export"}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first target/export boundary review"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep route-specific behavior plugin-local or target-export-local"}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Preserve compute-free core execution dialect boundary"}

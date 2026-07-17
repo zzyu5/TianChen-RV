@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundaries, RVV-first authority chain, and Stage2 scope."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, materialization facts, math operand-binding facts, and statement-plan boundary contracts."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit testing rules and RVV evidence boundaries."}

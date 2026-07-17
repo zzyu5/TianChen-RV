@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global compiler-stack and project-boundary invariants to verify after implementation."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check plugin-local behavior and core/plugin boundary preservation."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check proposal, legality, readiness, plan, and selected-boundary API behavior."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check that registry consumption did not flatten plugin-specific semantics."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV add/sub descriptor, policy, capability, and materialization behavior."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar add/sub fallback descriptor, role, ABI, and materialization behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check route/runtime ABI metadata and parameter-layering preservation."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation scope and required MLIR/lit/C++ coverage."}
-{"file": ".trellis/tasks/archive/2026-05/05-09-rvv-i32-binary-family-descriptor-registry/prd.md", "reason": "Check that this task follows the prior registry continuation boundary."}

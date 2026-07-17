@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Review global invariants and forbidden architecture regressions"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Review registry/front-door behavior and plugin locality"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Review no common target-code extension semantic branch rule"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review target artifact route authority and fail-closed diagnostics"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review materialized EmitC target artifact boundaries"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the implementation preserves the global stack and Python/tooling boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check retained RVV probe text is evidence-only and does not preserve replay route authority."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check active tests no longer protect Python replay MLIR as compiler-path evidence."}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Check profile/probe facts no longer authorize Python-generated tcrv.exec fixtures."}

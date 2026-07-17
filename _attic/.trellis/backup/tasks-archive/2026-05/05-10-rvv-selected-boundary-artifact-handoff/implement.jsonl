@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for C++/MLIR stack, compute-free tcrv.exec, and source-of-truth boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected boundary, finite family, parameter layering, and RVV target export contracts."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan, target artifact route, manifest, and exporter validation contracts."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Frontend-to-exec, planning pipeline, selected boundary, and coherence gate behavior."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin locality and generic core versus target-owned route boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit/FileCheck and RVV evidence interpretation for this compiler handoff."}

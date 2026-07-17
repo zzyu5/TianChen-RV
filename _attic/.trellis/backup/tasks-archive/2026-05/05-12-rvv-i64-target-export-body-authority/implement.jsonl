@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary, descriptor debt, and compiler stack invariants for this task."}
-{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Worker prompt and evidence discipline; confirms compiler changes remain in C++/MLIR stack."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and finite i64 RVV family route constraints."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Extension family op to EmitC route authority and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export route, callable ABI, and descriptor-mirror validation boundary."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Typed source/body authority and bounded RVV binary family planning constraints."}
-{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-i64-binary-descriptor-exit-closure/prd.md", "reason": "Previous completed descriptor-exit closure and current continuation boundary."}

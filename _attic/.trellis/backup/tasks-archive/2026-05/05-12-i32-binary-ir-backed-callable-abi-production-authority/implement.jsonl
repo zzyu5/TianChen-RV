@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission-plan runtime_abi_parameters authority, target artifact preflight, and i32 binary callable ABI mirror requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Keeps source body authority on typed extension family ops through the common EmitC route while ABI boundary ownership changes."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec as compute-free execution envelope and the mem_window/runtime_param boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV bounded i32 binary microkernel route, runtime ABI role boundary, and descriptor limitations."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback callable source/header/object route and IR-backed callable ABI requirement."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/C++ coverage required for MLIR emission/runtime ABI changes."}

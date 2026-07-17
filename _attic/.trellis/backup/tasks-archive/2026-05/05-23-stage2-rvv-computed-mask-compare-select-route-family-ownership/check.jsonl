@@ -1,6 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "focused provider predicate and stale-plan tests"}
-{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-mask-select-sle.mlir", "reason": "explicit vector computed-mask select evidence"}
-{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-select.mlir", "reason": "explicit runtime-scalar select evidence"}
-{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir", "reason": "explicit dual-mask select evidence"}
-{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "generated bundle evidence driver"}

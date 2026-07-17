@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that exec remains dispatch/fallback focused and compute-free."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check target-independent availability diagnostics and verifier boundaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check that dispatch-aware legality does not become selection, tuning, or lowering."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/FileCheck and local compiler evidence."}

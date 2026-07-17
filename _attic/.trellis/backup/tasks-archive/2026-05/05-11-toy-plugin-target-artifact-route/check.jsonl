@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays in C++/MLIR/TableGen/CMake/lit/FileCheck and preserves global boundaries."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Verify Toy target/export addition follows plugin integration layout and registration-only central change rule."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify Toy emission-plan and lowering-boundary metadata satisfy registry contracts."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check that generic core/export logic did not gain Toy semantic branches."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact candidate validation, front-door coherence, and evidence boundary."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify no runtime, correctness, performance, or RVV evidence claim was introduced."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review Toy exporter locality and core modified surface."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review that Toy artifact export remains metadata-only and compute-free."}
-{"file": ".trellis/tasks/archive/2026-05/05-11-toy-plugin-target-artifact-route/prd.md", "reason": "Check implementation and tests against current task acceptance criteria."}

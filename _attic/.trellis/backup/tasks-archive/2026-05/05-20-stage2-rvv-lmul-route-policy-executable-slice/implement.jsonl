@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 ordering, and descriptor/source-front-door red lines."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body, selected-body realization, route provider, and fail-closed legacy inventory."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope responsibilities and non-compute boundary."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Layering of capability facts, compile-time config, runtime SSA/ABI values, and legacy fixture metadata."}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "RVV main hardware profile and ssh rvv evidence requirement for executable correctness claims."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, typed body, realization, provider route, and metadata mirror rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/script/runtime evidence expectations and legacy RVV positive-test prohibitions."}

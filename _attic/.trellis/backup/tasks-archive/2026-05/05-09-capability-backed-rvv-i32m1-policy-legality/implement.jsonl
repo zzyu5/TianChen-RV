@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability ids, provider relations, availability, and parameter layering contract for RVV legality."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first-slice plugin, policy, probe, capability profile, and i32m1 boundary requirements."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Plugin proposal, materialization, legality, and selected pipeline boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering-boundary, emission-readiness, and artifact preflight contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit, FileCheck, C++ test, configure, and build validation forms."}

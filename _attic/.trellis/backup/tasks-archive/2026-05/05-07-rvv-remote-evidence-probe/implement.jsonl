@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants and Python boundary"}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "compiler stack and Python tooling constraints"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin unsupported first-slice boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/runtime evidence boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin registry target-neutrality constraints"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "local lit and Python tooling test policy"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV hardware evidence interpretation"}

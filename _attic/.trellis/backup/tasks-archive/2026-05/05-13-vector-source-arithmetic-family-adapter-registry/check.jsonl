@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Review global architecture red lines, implementation stack, and evidence scope before accepting the round."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check that core/shared orchestration does not gain family-specific semantic branches outside plugin/target boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite binary family, selected config, body authority, and vsub/vadd marker semantics."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifacts remain extension-op-to-EmitC/intrinsic route and not descriptor-driven source emission."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check dynamic source-tail metadata, runtime ABI, selected-plan coherence, and target artifact front-door behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build/artifact/ssh-rvv evidence expectations and no overclaiming."}

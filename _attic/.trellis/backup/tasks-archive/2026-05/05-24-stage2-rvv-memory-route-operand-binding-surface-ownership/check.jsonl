@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV architecture and source-of-truth invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, selected-body route, and operand-binding boundary compliance."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-built route compliance."}
-{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-elementwise-select-operand-binding-surface-ownership/prd.md", "reason": "Check consistency with the previously completed operand-binding facts boundary pattern."}

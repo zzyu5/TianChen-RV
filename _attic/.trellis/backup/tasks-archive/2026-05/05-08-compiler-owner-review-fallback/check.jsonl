@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Verify compiler internals stayed in C++/MLIR and Python remained tooling only."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify capability object and parameter-layering invariants for vlenb/lane facts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific logic stays plugin-local and probe/replay boundaries are preserved."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify proposal/cost/selection metadata remains plugin-owned and generic materialization stays target-neutral."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify local and optional ssh rvv evidence are interpreted with the right scope."}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global descriptor-boundary and stack invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-local finite i64 route behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify typed family body remains the authority for EmitC-backed export."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export and ABI mirror checks fail closed."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected typed RVV binary source/body authority is preserved."}

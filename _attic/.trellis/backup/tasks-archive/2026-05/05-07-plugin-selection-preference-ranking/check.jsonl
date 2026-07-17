@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "verify target-neutral compute-free core boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify plugin interface and registry contracts"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify plugin-local extension interpretation"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify selection and tie-break semantics"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV behavior remains plugin-local"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar fallback behavior remains conservative"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify lit/FileCheck coverage and test wiring"}

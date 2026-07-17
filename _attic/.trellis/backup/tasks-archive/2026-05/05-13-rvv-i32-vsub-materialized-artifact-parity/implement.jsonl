@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation stack invariants for this task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary family, selected config, materialized microkernel, and plugin-local ownership contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current extension family op to EmitC/RVV intrinsic route and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact source/header/object emission and runtime ABI preflight contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/build/bundle and ssh rvv evidence policy for RVV artifact claims."}

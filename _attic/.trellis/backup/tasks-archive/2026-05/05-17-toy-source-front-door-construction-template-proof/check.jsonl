@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundary and source-of-truth invariants for final review."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Review SourceFrontDoorPassRegistration and registry fail-closed behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review Toy selected-boundary, runtime ABI, EmitC route, and target artifact handoff evidence."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review that the implementation does not restore deleted core source-front-end semantics."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused lit/FileCheck and C++ coverage for changed behavior."}

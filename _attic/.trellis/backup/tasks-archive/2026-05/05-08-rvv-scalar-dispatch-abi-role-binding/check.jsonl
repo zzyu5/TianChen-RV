@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide invariants to verify after implementation"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV behavior remains plugin-local and role-bound"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback behavior remains plugin-local and bounded"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI and emission ownership boundaries"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused MLIR/lit/FileCheck evidence discipline"}

@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Hardware evidence rules and forbidden high-level compute IR boundaries"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Compute-free exec dialect dispatch, fallback, mem_window, and runtime_param contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality, selected variant metadata, and bounded RVV binary microkernel rules"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin ownership, lowering boundary, and scalar microkernel contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan, target artifact, runtime ABI, dispatch source/header/object, and evidence boundaries"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal, selection, runtime dispatch materialization, and target-neutral planning rules"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/ssh evidence requirements for RVV and RVV+scalar dispatch paths"}

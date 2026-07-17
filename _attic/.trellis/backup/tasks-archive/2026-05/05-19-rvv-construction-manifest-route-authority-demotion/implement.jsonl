@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants for TianChen-RV MLIR and source-of-truth boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected typed-body route-authority replacement and metadata mirror contract"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route boundary and selected emission-plan to target artifact handoff"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "descriptor/direct-C/source-export prohibition and runtime metadata boundary"}
-{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-rvv-selected-body-target-artifact-export-gate/prd.md", "reason": "previous completed target/export gate that this construction metadata task builds on"}

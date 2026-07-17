@@ -1,6 +1,0 @@
-{"file": "artifacts/grill-rvv-maturity-ladder-20260518.md", "reason": "Verify the new note records the RVV maturity ladder consensus without acting as spec."}
-{"file": ".trellis/tasks/archive/2026-05/05-18-05-18-rvv-maturity-ladder-grill-document/prd.md", "reason": "Verify the document task records the authorized scope expansion."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV route-authority replacement and selected-body realization wording."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-body realization pipeline placement."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify EmitC remains faithful emission, not RVV semantic authority."}
-{"file": "scripts/codex_serial_supervisor_prompt.md", "reason": "Verify supervisor prompt points next loop to Stage 1."}

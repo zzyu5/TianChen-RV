@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global architecture and stack invariants remain intact"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check supported artifact authority does not reintroduce metadata-only routes"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check spec wording no longer protects metadata-diagnostic as supported artifact authority"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check generic emission-plan validation rejects invalid supported artifact kinds"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check construction protocol tests remain non-source and non-artifact-authority declarations"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-toy-template-target-artifact-route-erasure/prd.md", "reason": "Check this deletion does not undo the prior Toy route erasure"}

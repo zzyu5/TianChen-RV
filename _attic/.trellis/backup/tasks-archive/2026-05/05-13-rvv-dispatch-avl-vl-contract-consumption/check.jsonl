@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global project invariants after implementation."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify dispatch source/header/object and bundle preflight and metadata behavior."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV contract consumption stays plugin/target-owned and bounded."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability-first boundaries and absence/fail-closed behavior."}

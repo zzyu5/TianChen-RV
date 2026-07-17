@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global architecture and implementation-stack invariants."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check deletion removes hard-coded core RVV source semantic branches."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check no replacement non-EmitC source route was introduced."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check stale source-frontdoor wording is no longer active production guidance."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check old source-lowering lit obligations are removed or fail-closed."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check pipeline/frontdoor text no longer requires deleted source passes."}

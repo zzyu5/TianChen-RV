@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary and source-of-truth constraints for this RVV source-shape task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected boundary, and extension-family locality rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Existing extension-family ops to EmitC to target artifact route that the positive path must preserve."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Source-seed artifact front-door and selected-variant pipeline constraints."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/lit and runtime evidence requirements for compiler behavior changes."}

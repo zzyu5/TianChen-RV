@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check implementation stayed in C++/MLIR stack and did not add Python compiler-core behavior"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check TensorExtLite bundle stays plugin-owned and source-front-door metadata is not artifact authority"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check bundle index remains build handoff metadata without runtime/correctness/performance claims"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check object/header bundle is derived from one selected materialized EmitC candidate"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/FileCheck coverage matches changed target artifact bundle behavior"}

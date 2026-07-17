@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check changed behavior against global architecture and stack invariants."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify deleted profile facts do not leave capability authority residue."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific evidence remains plugin-local and non-semantic."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused scans and RVV checks match project evidence policy."}

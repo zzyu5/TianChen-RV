@@ -1,4 +1,0 @@
-{"file": ".trellis/tasks/07-03-e5-provenance-sixstate/research/emission-paths-map.md", "reason": "强/弱发射路权威地图:强构造4前门+typed原语ID链、弱路emitFlatBlockDot 7格式、机器判别式(本PRD锚点全部来源)"}
-{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "I1–I9 硬规则(能力事实dispatch、零core-branch、构造纪律的上位约束)"}
-{"file": "docs/TianChen-RV_实验总纲v1.md", "reason": "§1.6 强/弱构造纪律[L-8]=六态判强的权威定义(强⟺无不透明helper∧完整role-step序列)"}
-{"file": "schema/coverage-sixstate.v1.json", "reason": "起跑六态:vec_dot/q8_0=constructed-weak(燃减目标行);翻转后改此行为constructed"}

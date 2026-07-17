@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check against global RVV-first and Stage2 typed-route invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for segment2 selected-body route-entry ownership, provider-owned facts, and fail-closed diagnostics"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export remain neutral and consume provider-built routes only"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check for generated-bundle ssh rvv evidence and sentinel correctness"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Final check that selected-body/emission-plan mirrors remain non-authoritative"}

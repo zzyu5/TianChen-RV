@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "review compiler stack and Python boundary"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "review selected shape layering"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review RVV plugin-local family and selected-shape contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review emission source claim boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review focused validation coverage"}

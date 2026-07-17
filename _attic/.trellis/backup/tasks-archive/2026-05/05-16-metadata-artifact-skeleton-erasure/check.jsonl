@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify changes stay in C++/MLIR/CMake stack and do not rebuild deleted routes"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin public surface no longer advertises metadata-artifact route APIs"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export behavior remains fail-closed without metadata skeletons"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify affected tests assert route absence or generic diagnostics, not no-op metadata route success"}

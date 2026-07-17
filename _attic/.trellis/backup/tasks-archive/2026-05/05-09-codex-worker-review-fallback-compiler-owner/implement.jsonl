@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines structured capability/profile facts, relation-provider lookup, and parameter layering for VLEN and descriptor-local values."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin capacity facts, proposal metadata, cost metadata, and bounded i32-vadd microkernel semantics."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines execution-planning pipeline consumption of explicit kernel capability-provider scope and selection metadata."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines selected lowering-boundary, emission-plan metadata, target artifact, and parameter claim boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines minimal lit/FileCheck and compiler behavior validation expectations."}

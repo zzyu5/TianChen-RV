@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target-owned artifact export, runtime invocation, and evidence boundaries for this dispatch harness slice."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV microkernel and ssh rvv evidence interpretation boundaries."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback callable microkernel and conservative fallback boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin-local ownership and generic registry routing boundaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines planning pipeline and selected dispatch semantics consumed by the exporter."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck and ssh rvv evidence discipline."}

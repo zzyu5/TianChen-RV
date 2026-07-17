@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project invariants and spec routing for TianChen-RV"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV ssh evidence boundary and forbidden interpretations"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact bundle and RVV+scalar dispatch export contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin finite family and hardware boundary"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback finite family and ABI boundary"}

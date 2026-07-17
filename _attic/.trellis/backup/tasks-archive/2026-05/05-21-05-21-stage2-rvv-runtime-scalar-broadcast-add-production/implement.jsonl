@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first authority chain for the task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, selected-body realization, and Stage2 coverage rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route boundary for RVV scalar-broadcast emission."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Required lit/FileCheck and ssh rvv evidence expectations for RVV runtime/correctness claims."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-runtime-scalar-broadcast-add-executable-slice/prd.md", "reason": "Prior stale scalar-broadcast validation record and evidence gap to avoid duplicating route implementation."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-computed-mask-vector-select-executable-slice/prd.md", "reason": "Recent Stage2 executable-slice PRD structure and validation bar."}

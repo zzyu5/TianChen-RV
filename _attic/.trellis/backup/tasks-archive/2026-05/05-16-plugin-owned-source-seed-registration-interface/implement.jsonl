@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global compiler-stack, tcrv.exec boundary, plugin ownership, and descriptor/direct-C/Python red lines"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "ExtensionPluginRegistry ownership, enabled-plugin routing, and generic tool/front-door registry rules"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension family construction protocol and common interface locality rules"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Deleted core RVV source frontend boundary and allowed bounded RVV-owned seed scenario"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin first-slice ownership and selected i32m1 route constraints"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and C++ registry/API coverage expectations"}

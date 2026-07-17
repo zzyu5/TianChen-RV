@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project boundary and spec routing for final review."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review planned guarded dispatch and selection behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review target artifact export and runtime ABI layering."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Review capability availability/conflict handling."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Review compute-free tcrv.exec boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV target-owned emission locality."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Review scalar fallback behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused lit/FileCheck coverage."}

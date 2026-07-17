@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, unified extension family, and descriptor-erasure invariants for this deletion-only task."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture boundary: descriptor-driven exporter frameworks and independent backend dialect framing are forbidden."}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Offload first-slice contract: metadata-only selected boundary plus unsupported emission planning with no route ids or artifact contributions."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan/runtime contract for plugin-owned unsupported paths and future extension-family ops to EmitC route."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry and emission interfaces; core must route through plugin-owned metadata instead of family-specific branches."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin locality and ownership boundaries for unsupported Offload emission metadata."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++/lit testing expectations for deletion-campaign fail-closed behavior."}

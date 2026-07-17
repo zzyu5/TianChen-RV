@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the change keeps the unified RISC-V MLIR boundary, C++/MLIR stack, and descriptor-ban intact."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target artifact export still follows selected candidate, materialized EmitC, header/object bundle, and runtime ABI contracts."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify TensorExtLite plugin-local source-front-door, role-sequence, and target artifact ownership boundaries."}

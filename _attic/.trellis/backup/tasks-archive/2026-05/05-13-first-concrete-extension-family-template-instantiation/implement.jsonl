@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for the new Toy extension-family consumer"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin-protocol checklist and extension-family construction requirements"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol, manifest, role graph, common interfaces, EmitC mapping, and evidence profile contract"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin/core boundary and standard integration flow for new extension families"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry hooks, common interfaces, selected-boundary, readiness, and emission-plan contracts"}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "tcrv.exec boundary: execution envelope only, no extension compute semantics"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route and generated lowerable op-interface boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission readiness, emission plan, and target artifact export boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck evidence requirements"}

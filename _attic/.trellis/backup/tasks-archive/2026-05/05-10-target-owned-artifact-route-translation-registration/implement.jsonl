@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project stack and boundary invariants for C++/MLIR target-support work."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin and target-owned route locality constraints for extension integration."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry and built-in registration API shape; public tool front-door ownership boundary."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Core/tool code must not acquire concrete target-family branches."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact route and RVV+scalar dispatch route manifest contracts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route, microkernel, and smoke/self-check boundary constraints."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation requirements for route and artifact behavior."}

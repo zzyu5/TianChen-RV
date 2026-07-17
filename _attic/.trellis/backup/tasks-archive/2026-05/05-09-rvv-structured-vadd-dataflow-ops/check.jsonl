@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global invariant review"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "core/extension compute boundary review"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local behavior and claim discipline review"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "exporter/runtime ABI contract review"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "test and RVV evidence review"}

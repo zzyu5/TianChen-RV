@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage authority boundaries"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, route-family owner registry, materialization facts, and statement-plan contracts"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract"}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-selected-dispatch-fallback-envelope/prd.md", "reason": "Prior scalar_broadcast_macc_add selected dispatch/fallback envelope and evidence"}

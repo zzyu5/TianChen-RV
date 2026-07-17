@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide TianChen-RV stack and boundary invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local i64m1 direct microkernel body/export/evidence boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact source/header/object runtime ABI and route ownership contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++/script and ssh evidence expectations"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV hardware evidence interpretation and no-overclaiming rules"}

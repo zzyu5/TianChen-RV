@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global route-authority and Stage boundary compliance checks"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and typed-body authority checks"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC/export neutrality checks"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck, generated-bundle, fail-closed, and ssh rvv validation checks"}
-{"file": ".trellis/tasks/05-21-stage2-rvv-indexed-movement-operand-binding/prd.md", "reason": "task acceptance criteria and non-goal compliance checks"}

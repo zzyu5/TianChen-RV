@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler-stack and descriptor-boundary invariants."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check unified RISC-V extension-family architecture boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-family authority and legacy mirror semantics."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check default route remains typed family ops through common EmitC/body authority."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected emission/export/runtime ABI layering and fail-closed behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck coverage expectations."}

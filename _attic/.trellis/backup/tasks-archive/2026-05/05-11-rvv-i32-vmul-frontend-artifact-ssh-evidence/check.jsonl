@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack and no-Python-compiler-internals boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin/target-owned finite i32-vmul metadata and emission semantics."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected boundary, emission-plan, route metadata, artifact, and runtime evidence layering."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check bounded linalg RVV binary frontend acceptance and rejection behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused local tests, runner evidence, and runtime correctness claim discipline."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check ssh rvv evidence scope and hardware claim wording."}

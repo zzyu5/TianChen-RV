@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global stack, project boundary, and RVV evidence invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin profile/replay, finite i64m1 facts, and remote evidence boundaries"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability object, relation-provider, and parameter layering contract"}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "RVV main profile and replay evidence interpretation"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Execution planning, target artifact export, runtime ABI, and evidence bridge contracts"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR, Python-tooling, and RVV evidence validation requirements"}
-{"file": ".trellis/tasks/archive/2026-05/05-10-rvv-i64-profile-replay-parity/prd.md", "reason": "Immediate predecessor contract and completed i64 profile/replay parity boundary"}

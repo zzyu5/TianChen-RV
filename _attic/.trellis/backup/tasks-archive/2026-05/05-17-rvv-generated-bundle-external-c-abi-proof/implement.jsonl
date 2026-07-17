@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "source-artifact bundle front door, selected EmitC object/header bundle, and runtime-callable C ABI contracts"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "generated-bundle ABI proof requirements, deleted self-check/direct bridge boundary, and ssh rvv evidence policy"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "descriptor/direct-C/source-export/self-check routes are invalid or deleted authority"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "bounded RVV i32m1 add/sub/mul materialized EmitC route and ssh rvv boundary"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-rvv-generated-bundle-external-c-abi-proof/prd.md", "reason": "task requirements, boundaries, and acceptance criteria"}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, descriptor deletion, and unified TCRV architecture invariants."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing contract for deleting stale lit coverage and avoiding stale positive direct-route fixtures."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission boundary and descriptor/direct-export deletion constraints for this cleanup."}
-{"file": "test/lit.cfg.py", "reason": "Lit tool substitutions that still register deleted legacy executables."}
-{"file": "test/CMakeLists.txt", "reason": "Confirm active CMake test target registration does not own the deleted executable tests."}
-{"file": "test/Transforms/LoweringBoundary/rvv-lowering-boundary-missing-selection.mlir", "reason": "Active lowering-boundary lit coverage that must remain after deleting the standalone compatibility executable test."}

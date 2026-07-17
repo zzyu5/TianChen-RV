@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, stack, and deletion-campaign invariants."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry, selected-path, lowering-boundary, and emission-plan ownership contracts."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime route, artifact export, metadata-only, and fail-closed contract."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant selection pipeline and selected emission-plan coherence constraints."}

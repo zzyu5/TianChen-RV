@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, implementation stack, and evidence boundaries for this task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin direct i32 binary family-op EmitC route and ssh evidence contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified extension-family-op -> EmitC -> intrinsic C/C++ lowering route and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, manifest, direct helper, external ABI, and ssh evidence boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and fail-closed testing requirements for RVV artifact evidence."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV hardware evidence interpretation and non-performance claim boundary."}

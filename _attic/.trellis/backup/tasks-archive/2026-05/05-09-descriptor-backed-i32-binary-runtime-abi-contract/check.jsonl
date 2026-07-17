@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global TianChen-RV red lines are preserved."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI, emission-plan, artifact export, dispatch, and manifest behavior."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV descriptor-backed add/sub/mul ABI behavior."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar descriptor-backed add/sub/mul ABI behavior."}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify offload descriptor ABI role mirror behavior."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify parameter layering is not weakened."}

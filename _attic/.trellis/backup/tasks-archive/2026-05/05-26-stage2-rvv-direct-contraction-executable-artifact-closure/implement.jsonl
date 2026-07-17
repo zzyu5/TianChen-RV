@@ -1,6 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global stack boundary, RVV-first authority chain, Stage1/Stage2 constraints, and runtime evidence rule."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Direct contraction route-provider owner boundary, selected-body realization, route-control provider-plan, runtime AVL/VL, ABI/mem_window, mirror metadata, and fail-closed diagnostic contracts."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute handoff contract."}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Plugin-local route-provider ownership and metadata/source-front-door/descriptor/route-id fail-closed boundaries."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Generated-bundle evidence, ssh rvv correctness evidence, and mirror-only metadata testing requirements."}
-{"file":".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-direct-provider-contraction-route-provider-owner/prd.md","reason":"Predecessor direct contraction route-provider owner completion and dry-run-only continuation point."}

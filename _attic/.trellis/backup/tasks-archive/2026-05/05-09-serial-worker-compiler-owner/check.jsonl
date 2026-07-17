@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused validation should prove scalar header/object routes, bundle metadata, and ABI preflight without broad smoke matrices."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Checks must preserve generic front-door behavior and fail closed when artifact metadata is stale or unsupported."}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Scalar object tests should use structured rv64 and RISC-V toolchain capability facts rather than untracked comments."}

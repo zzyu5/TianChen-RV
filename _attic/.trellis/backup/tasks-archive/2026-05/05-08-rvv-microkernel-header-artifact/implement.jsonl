@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project spec index and boundary for TianChen-RV work"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime emission and artifact contract for generated source/header/object paths"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and target-owned microkernel export requirements"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and evidence contract for compiler-facing tests"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Compute-free tcrv.exec boundary to preserve while adding artifact routes"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability metadata layering and validation requirements for exporter decisions"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain, Stage2 RVV scope, and stack red lines"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, route-family boundaries, and selected-body realization rules"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and common EmitC neutrality contract"}
-{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-memory-route-operand-binding-surface-ownership/prd.md", "reason": "immediate prior operand-binding facts pattern and validation precedent"}

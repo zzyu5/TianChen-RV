@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check that the implementation preserves global TianChen-RV boundaries and C++/MLIR/TableGen stack discipline."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that route construction consumes the generated EmitC lowerable op-interface boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV-specific intrinsic names and finite i32 family rules stay plugin/target-owned."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check that common code uses interfaces rather than RVV family semantic branches."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck evidence against project testing policy."}

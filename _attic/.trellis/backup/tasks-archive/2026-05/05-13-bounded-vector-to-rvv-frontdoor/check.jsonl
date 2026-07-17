@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants for final review"}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "verify implementation stayed in C++/MLIR stack"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV selected/materialized/export evidence boundaries"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "verify no core family-specific semantic branch was added"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify generated source uses common EmitC route authority"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify runtime ABI and artifact fail-closed behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused lit/build/ssh evidence matches testing policy"}

@@ -1,7 +1,0 @@
-{"file":".trellis/spec/architecture/design-boundaries.md","reason":"Review that core pass remains target-neutral and no runtime/evidence claim is introduced"}
-{"file":".trellis/spec/capability-model/capability-contract.md","reason":"Review TargetCapabilitySet participation and generic requires behavior"}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Review plugin-local legality routing, diagnostics, and registry injection"}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Review pipeline order and pre-selection legality contract"}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Review RVV-specific legality stays plugin-local"}
-{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Review scalar fallback remains available and plugin-local"}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Review required lit/FileCheck and check-tianchenrv coverage"}

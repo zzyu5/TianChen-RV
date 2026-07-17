@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, Stage1/Stage2 RVV boundary, source-of-truth, and evidence requirements."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, typed body route authority, Stage2 coverage, source-front-door fail-closed boundary, and ssh rvv evidence requirement."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC lowerable-route boundary, provider-built route authority, mirror-only diagnostics, and target artifact handoff rules."}
-{"file": ".trellis/tasks/05-23-05-23-stage2-rvv-widening-conversion-runtime-binding-closure/prd.md", "reason": "Task-specific goal, boundaries, acceptance criteria, and validation plan for widening conversion runtime/binding closure."}

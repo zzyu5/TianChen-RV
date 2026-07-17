@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global architecture, Stage1/Stage2 boundaries, and no descriptor/source-front-door authority drift."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, typed body authority, fail-closed diagnostics, and ssh rvv evidence claims."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-owned route payload semantics."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "Compare against the original binding contract and negative/positive evidence expectations."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-operand-binding-coverage-closure/prd.md", "reason": "Compare against the current binding coverage closure and remaining route inventory."}

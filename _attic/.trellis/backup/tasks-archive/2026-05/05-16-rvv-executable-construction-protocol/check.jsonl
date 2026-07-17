@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final review against global stack and architecture red lines."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check construction protocol consumption and plugin-locality expectations."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check manifest, typed role realization, route mapping, and evidence-profile fail-closed behavior."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV i32m1 add/sub/mul route and with_vl boundary ownership."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check route IDs, runtime ABI fields, and common EmitC boundary remain coherent."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation and no descriptor/direct-C route revival."}

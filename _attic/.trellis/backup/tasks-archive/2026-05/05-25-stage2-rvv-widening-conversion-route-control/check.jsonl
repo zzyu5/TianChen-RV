@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays within TianChen-RV/RVV-first boundaries and primary compiler stack."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-control consumer behavior, widening conversion ownership, and mirror-only artifact constraints."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes only."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused conversion/SEW and provider-boundary evidence requirements."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check Stage2 realization and metadata non-authority boundaries."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-segment2-route-control/prd.md", "reason": "Compare against previous route-control integration validation pattern."}
-{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-widening-conversion-route-family-ownership/prd.md", "reason": "Ensure active widening conversion family ownership is preserved while adding route-control consumption."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-conversion-sew-policy-route-closure/prd.md", "reason": "Ensure conversion/SEW statement-plan and evidence contract is not weakened."}

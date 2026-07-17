@@ -1,7 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global TianChen-RV authority chain, Stage order, implementation-stack boundary, and descriptor/source-front-door constraints for the bounded reduce-add slice."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin ownership, typed tcrv_rvv body authority, selected-body realization, reduction/accumulation Stage2 scope, and legacy i32 fail-closed constraints."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Provider-built TCRVEmitCLowerableRoute and common EmitC/export neutrality for reduction route materialization."}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Plugin locality and registry/interface boundaries; core/common code must not branch on RVV reduction semantics."}
-{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"tcrv.exec mem_window/runtime_param ABI roles are envelope bindings only, not reduction compute or dtype/config authority."}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Selected-body realization and route-supported versus executable evidence separation."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused lit/C++/script checks, ssh rvv evidence requirement, and active-authority scan expectations."}

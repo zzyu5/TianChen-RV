@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global RVV-first authority chain and project red lines"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed-config artifact closure against plugin contract"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral consumers"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact authority and mirror-only metadata boundaries"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle and ssh rvv correctness evidence quality"}
-{"file": ".trellis/spec/validation/index.md", "reason": "Check evidence claims are tied to the right proof type"}
-{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify root evidence summary does not become route authority and real ssh evidence is captured"}
-{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-i64-add-dry-run.test", "reason": "Verify focused dry-run companion still covers typed i64 bundle facts"}

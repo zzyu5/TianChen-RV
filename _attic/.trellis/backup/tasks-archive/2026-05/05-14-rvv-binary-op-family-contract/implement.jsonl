@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV MLIR invariants and source-of-truth boundary"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "architecture red lines and ssh-rvv evidence discipline"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin finite binary family and selected-path contract"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned interface and registry locality rules"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact, ABI, and runtime emission ownership boundary"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "extension-family ops to EmitC route contract"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant proposal, selection, and selected-boundary constraints"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck/runtime evidence requirements"}
-{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-ssh-rvv-generated-artifact-execution-closure/prd.md", "reason": "previous vadd/vsub generated-artifact and ssh-rvv closure context"}

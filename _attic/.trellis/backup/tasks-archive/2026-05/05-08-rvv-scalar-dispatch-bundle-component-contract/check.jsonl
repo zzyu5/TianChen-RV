@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global compiler stack and boundary invariants for verification"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact bundle contract and validation behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify expected C++/lit/script checks"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV locality and evidence claims remain bounded"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback locality and ABI boundaries remain bounded"}

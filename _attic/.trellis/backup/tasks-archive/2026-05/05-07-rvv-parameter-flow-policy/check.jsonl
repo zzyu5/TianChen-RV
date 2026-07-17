@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/index.md", "reason": "Verify capability/profile parameter boundaries stay capability-owned."}
-{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Verify variant config boundaries and selection legality wording."}
-{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Verify RVV plugin-local parameter semantics."}
-{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Verify runtime ABI and manifest claims match real IR/ABI surfaces."}
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Verify supervisor review policy covers the new parameter-layer checks."}

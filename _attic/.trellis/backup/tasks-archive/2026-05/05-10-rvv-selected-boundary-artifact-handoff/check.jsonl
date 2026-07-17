@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global project invariants after implementation."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite-family, selected-boundary, parameter layering, and evidence boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emission-plan and target artifact exporter route validation behavior."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check planning pipeline and selected-path metadata coherence."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check plugin-locality and core target-neutrality."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required focused build, C++ tests, lit coverage, and evidence wording."}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariant review for final quality check"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify runtime n, AVL/VL, and descriptor-local metadata layering"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV microkernel export remains plugin-local and bounded"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emitted self-check harness matches durable target/export contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and evidence claims follow project policy"}

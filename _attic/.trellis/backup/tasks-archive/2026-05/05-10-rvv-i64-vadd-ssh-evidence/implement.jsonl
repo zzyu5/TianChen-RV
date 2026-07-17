@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and source-of-truth rules for this runtime-evidence task."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Defines RVV hardware evidence interpretation and ssh rvv validation boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck, Python tooling, RVV evidence, and direct microkernel evidence contracts."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission/runtime artifact ownership, manifest handoff, ABI parameter, and generic export boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin locality, descriptor/shape/capability boundaries, and remote evidence contracts."}

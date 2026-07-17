@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage2 typed route constraints"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, segment2 memory planning/provider, route-control, and mirror-only authority rules"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv evidence requirements for runtime correctness claims"}
-{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-masked-elementwise-route-family-owner/prd.md", "reason": "Recent route-entry owner pattern, validation scope, and final evidence style"}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-segment2-route-control/prd.md", "reason": "Existing segment2 route-control provider-plan boundary and diagnostics"}
-{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-segment2-memory-statement-plan-ownership/prd.md", "reason": "Existing RVV-owned segment2 statement-plan boundary"}
-{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-plain-segment2-memory-route-family/prd.md", "reason": "Plain segment2 family-plan authority and prior ssh rvv segment2 evidence"}
-{"file": ".trellis/tasks/archive/2026-05/05-20-05-20-stage2-rvv-segment2-interleave-memory-executable-slice/prd.md", "reason": "Original bounded segment2_interleave executable slice and oracle requirements"}

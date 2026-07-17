@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify no architecture boundary drift"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV spec no longer preserves stale deferred ABI/glue authority"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify tests align with generic unsupported/no-runtime metadata"}
-{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused checks match touched behavior"}

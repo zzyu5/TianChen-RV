@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check against global authority and RVV Stage 2 boundaries"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check against RVV route-control and computed-mask accumulation provider-plan contracts"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export remain neutral mirror consumers"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check that evidence and tests match compiler behavior changes"}

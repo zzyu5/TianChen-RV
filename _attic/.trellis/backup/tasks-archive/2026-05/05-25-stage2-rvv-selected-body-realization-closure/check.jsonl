@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check that the work remains RVV Stage 2 selected-body realization and does not revive legacy route authority."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for plugin-owned realization, route-entry bridge, provider route support, runtime VL, and mirror-only evidence boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export remains neutral and only consumes provider-built routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check for focused lit/FileCheck, script evidence, ssh rvv evidence, and check-tianchenrv expectations."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final check that RVV-specific realization semantics did not move into core/common orchestration."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Final check that the task did not add high-level compute frontend semantics or dtype-prefixed helper routes."}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "root spec index for final verification"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec boundary stayed compute-free"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV descriptor metadata boundary and plugin locality"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify runtime ABI/export contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify lit/FileCheck evidence shape"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "verify bounded RVV evidence claims"}

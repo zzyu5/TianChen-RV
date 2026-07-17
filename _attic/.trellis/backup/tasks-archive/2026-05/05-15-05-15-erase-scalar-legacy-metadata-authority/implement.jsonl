@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project spec root for the scalar deletion round."}
-{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension plugin boundary checklist for scalar fallback cleanup."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Direct scalar fallback contract to rewrite away deleted marker authority."}
-{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime boundary index for metadata-only scalar emission wording."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission contract text that still mentions scalar legacy metadata."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant-pipeline wording still mentions frontend-lowering markers."}

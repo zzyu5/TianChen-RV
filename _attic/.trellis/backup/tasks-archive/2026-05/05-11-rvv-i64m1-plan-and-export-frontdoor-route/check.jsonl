@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants for final review."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV ownership/locality remains plugin-owned."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check capability/config/runtime/descriptor layering."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check proposal/selection route semantics."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check export/emission boundary behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check test evidence scope and claims."}

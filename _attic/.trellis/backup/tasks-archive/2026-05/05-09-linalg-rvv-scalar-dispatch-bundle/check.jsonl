@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check plugin integration remains interface-local and target-owned"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/interface usage remains durable and generic"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check extension semantics remain plugin-local"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check variant dispatch/fallback planning behavior"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emitted artifact and runtime ABI contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation and evidence shape"}

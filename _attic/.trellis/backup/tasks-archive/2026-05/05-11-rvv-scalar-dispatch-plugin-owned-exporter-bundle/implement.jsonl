@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and source of truth"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin-owned lowering/emission and target artifact locality rules"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Extension plugin registry and active-plugin routing contracts"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "No extension-specific semantic branches in shared core/export orchestration"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact exporter bundle, dispatch bundle, runtime ABI, and bundle index contracts"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected binary microkernel and selected vector-shape metadata contracts"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback finite family and source/header/object route contracts"}

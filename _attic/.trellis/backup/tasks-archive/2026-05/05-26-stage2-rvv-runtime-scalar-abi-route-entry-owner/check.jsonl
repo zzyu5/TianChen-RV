@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route-entry owner, provider validation, runtime-scalar ABI, and computed-mask MAcc boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC stays neutral and consumes provider-built routes only."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests/evidence match runtime-scalar computed-mask MAcc requirements."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Verify no common/core RVV semantic drift."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Verify compute/runtime-scalar semantics remain in RVV extension body and provider facts."}

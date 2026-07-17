@@ -1,4 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin owns bounded i32-vadd microkernel structure and emission readiness"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target-owned RVV C intrinsic export and runtime ABI boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Generic plugin/exporter interface boundary without RVV core branches"}

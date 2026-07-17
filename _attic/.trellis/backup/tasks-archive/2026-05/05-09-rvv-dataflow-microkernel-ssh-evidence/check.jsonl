@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global boundary and stack compliance checks"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin and remote evidence compliance checks"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact/export and parameter layering compliance checks"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/build/runtime evidence checks"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "correct interpretation of ssh rvv results and non-claims"}

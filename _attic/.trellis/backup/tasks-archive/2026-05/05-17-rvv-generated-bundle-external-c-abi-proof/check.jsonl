@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify proof stays on the existing source-artifact bundle front door and materialized EmitC C ABI route"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify local tests and ssh rvv evidence satisfy generated-bundle ABI correctness requirements"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify no descriptor/direct-C/source-export/self-check authority was restored"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV proof remains bounded to i32m1 add/sub/mul executable slice"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-rvv-generated-bundle-external-c-abi-proof/prd.md", "reason": "check implementation and evidence against task acceptance criteria"}

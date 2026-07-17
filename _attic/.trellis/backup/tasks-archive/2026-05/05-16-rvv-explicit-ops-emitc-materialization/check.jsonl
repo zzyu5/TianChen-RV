@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check implementation remains in the C++/MLIR stack and does not restore invalid architecture."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific logic stays plugin/dialect-owned and bounded to the first slice."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check produced route and provenance obey the common EmitC contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence is MLIR/lit/C++ and claims do not exceed local materialization."}

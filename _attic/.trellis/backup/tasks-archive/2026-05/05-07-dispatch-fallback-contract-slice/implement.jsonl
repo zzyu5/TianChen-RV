@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines core tcrv.exec dispatch/fallback boundaries and compute-free dialect scope."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines dispatch/fallback completeness requirements without implementing selection or cost modeling."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Constrains capability references and forbids target-family hard-coded core logic."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Keeps extension-specific generation, legality, lowering, and emission behind plugin interfaces."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Separates core dispatch/fallback structure from plugin-owned extension details."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Requires lit/FileCheck coverage for dialect verification and dispatch/fallback IR structure."}

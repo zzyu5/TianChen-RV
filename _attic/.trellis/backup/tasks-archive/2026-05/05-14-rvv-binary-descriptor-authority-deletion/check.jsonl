@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project boundary check."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Descriptor-driven framework is a non-goal."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Descriptor boundary and correct route."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Export/runtime authority boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused check policy for deletion and fail-closed tests."}
-{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-binary-descriptor-authority-deletion/prd.md", "reason": "Archived deletion-only acceptance criteria."}

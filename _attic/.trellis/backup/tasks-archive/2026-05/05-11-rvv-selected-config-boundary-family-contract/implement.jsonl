@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary and source-of-truth rules"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec compute-free while preserving execution metadata"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector-shape and finite binary plugin boundary"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin ownership and finite descriptor layering"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal/selection and bounded linalg frontend contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Lowering-boundary, emission-plan, runtime ABI, and target artifact layering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation expectations"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV evidence interpretation and no unsupported runtime/performance claims"}

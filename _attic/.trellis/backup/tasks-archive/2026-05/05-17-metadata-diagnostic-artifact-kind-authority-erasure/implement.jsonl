@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global stack, unified RISC-V MLIR boundary, and descriptor/direct-C deletion invariants"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan and target artifact authority rules; current supported route set excludes Toy/TensorExtLite metadata exporters"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Materialized EmitC handoff contract and stale metadata-diagnostic wording to repair"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Generic plugin emission-plan validation rules for supported artifact kind metadata"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol manifest rules forbidding generated-output/source-like authority from metadata"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-toy-template-target-artifact-route-erasure/prd.md", "reason": "Previous deletion boundary for Toy template target artifact route"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and source-of-truth invariants for RVV-first work."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed-body route, route-family ownership, and operand-binding boundary rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
-{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-elementwise-select-operand-binding-surface-ownership/prd.md", "reason": "Previous completed operand-binding boundary pattern to mirror for memory routes."}

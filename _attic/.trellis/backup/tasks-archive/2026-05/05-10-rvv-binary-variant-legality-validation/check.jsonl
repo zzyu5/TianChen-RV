@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global stack and architectural boundary compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV finite first-slice behavior and evidence claims stay within contract."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify extracted legality remains plugin-local and generic core stays extension-free."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify selected emission and boundary behavior stay coherent after legality extraction."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused validation commands match changed behavior."}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify final changes preserve global TianChen-RV/RVV authority chain"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify typed RVV body authority, plugin-owned route support, fail-closed legacy behavior, and ssh evidence"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify common EmitC consumes provider-built route without RVV semantic inference"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "review plugin locality and common/core semantic boundary"}
-{"file": ".trellis/spec/testing/index.md", "reason": "verify focused tests and runtime evidence match changed behavior"}
-{"file": ".trellis/tasks/05-20-stage2-rvv-computed-mask-strided-store/prd.md", "reason": "verify task-specific acceptance criteria and non-goals"}

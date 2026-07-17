@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV stack, family-neutral orchestration, and residue constraints."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check construction protocol, role graph, interface, EmitC route, and evidence profile conformance."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check TensorExtLite source-front-door and registry behavior stays plugin-owned."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected EmitC artifact handoff and bundle coherence behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no descriptor/direct-C/source-export authority is introduced."}

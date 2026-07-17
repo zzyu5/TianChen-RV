@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global invariant checks for compiler stack and project boundaries"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify public pass follows proposal/materialization pipeline contract"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify registry routing and diagnostics remain generic"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify no target-specific core transform branches are introduced"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify capability properties stay structured and compiler-visible"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains compute-free"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV property semantics remain plugin-local"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar fallback remains capability-driven"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify test evidence matches project policy"}

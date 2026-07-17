@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review selected-shape layering and RVV locality"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review dispatch artifact and bundle evidence contracts"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review local and remote evidence scope"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review dispatch/runtime guard consistency"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Review hardware/config/runtime parameter layering"}

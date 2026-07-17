@@ -1,9 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global compiler stack and architecture invariants for this task"}
-{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"Ensures tcrv.exec remains compute-free and dispatch/fallback focused"}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-local dialect, unsupported emission, and evidence boundaries"}
-{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Preserves scalar fallback explicit capability gating and metadata-only behavior"}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Registry/interface routing requirements for plugin-aware passes"}
-{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Keeps extension details plugin-local behind generic interfaces"}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Selected variant, dispatch, fallback, and cost metadata contract"}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Non-executable lowering/emission boundary and unsupported evidence rules"}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Required lit/C++/CMake testing evidence"}

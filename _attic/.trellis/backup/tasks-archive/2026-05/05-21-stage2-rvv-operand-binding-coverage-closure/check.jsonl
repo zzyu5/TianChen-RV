@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global Stage1/Stage2, stack, and source/descriptor authority invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV route operand binding remains plugin-owned and typed-body-driven."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC materializer stays neutral and only consumes provider-built route payload."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI roles remain declarations and selected RVV body consumes them explicitly."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check provider/mirror boundaries and fail-closed metadata-only cases."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected variant and emission-plan metadata are mirrors only."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check positive/negative tests and ssh rvv evidence match touched behavior."}
-{"file": ".trellis/tasks/05-21-stage2-rvv-operand-binding-coverage-closure/prd.md", "reason": "Check implementation against this task's bounded acceptance criteria."}

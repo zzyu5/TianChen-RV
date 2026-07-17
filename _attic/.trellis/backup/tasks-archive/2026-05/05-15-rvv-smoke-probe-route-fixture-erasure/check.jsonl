@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global deletion-before-rebuild and compiler-stack invariants."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check active emission/runtime text no longer preserves deleted RVV smoke-probe route fixtures."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin spec no longer names old standalone smoke-probe route fixtures."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check testing contract no longer authorizes active route-name fixture coverage for the deleted smoke-probe path."}

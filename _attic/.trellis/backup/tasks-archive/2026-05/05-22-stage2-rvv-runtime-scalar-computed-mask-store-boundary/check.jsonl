@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check against global authority and Stage2 boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that RVV semantics remain plugin-owned and typed-body-derived"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export remains neutral"}
-{"file": ".trellis/tasks/05-22-stage2-rvv-runtime-scalar-computed-mask-store-boundary/prd.md", "reason": "Task-specific acceptance criteria and validation plan"}
-{"file": "test/Dialect/RVV/runtime-scalar-computed-mask-store-dataflow.mlir", "reason": "Verifier-valid and fail-closed negative coverage for missing operands/runtime facts, wrong predicate/config, stale route id, mirror mismatch, and fallback authority"}
-{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-store.mlir", "reason": "Explicit selected-body PLAN/HEADER proof for typed facts, RouteOperandBindingPlan mirror, target leaf, and runtime ABI"}
-{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store.mlir", "reason": "Pre-realized selected-body realization plus PLAN/HEADER proof"}
-{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed manual FileCheck RUN lines, generated-bundle dry-runs, real ssh rvv explicit/pre-realized counts 7/16/23 rhs -37/91, active-authority scan, git diff --check, and ninja -C build check-tianchenrv 337/337"}

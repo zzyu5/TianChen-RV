@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV boundaries and prohibited implementation directions."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV bounded i32m1 source-front-door family behavior and hardware-evidence expectations."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common source-artifact bundle front door and selected EmitC target artifact handoff invariants."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no descriptor/direct-C/source-export authority is restored."}

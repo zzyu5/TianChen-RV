@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the implementation respects global architecture and RVV-first Stage ordering."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify legacy RVV surfaces remain negative/fail-closed and generic typed routes remain authoritative."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export does not gain source-front-door or RVV semantic authority."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify source-front-door registration defaults and explicit plugin opt-in behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests are focused on production compiler behavior and fail-closed source-front-door paths."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify variant/source-front-door metadata stays mirror-only and fail-closed by default."}

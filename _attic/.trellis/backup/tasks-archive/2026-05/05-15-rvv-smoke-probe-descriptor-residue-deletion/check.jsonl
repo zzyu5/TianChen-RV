@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check that code remains in C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck and does not reintroduce descriptor-driven compiler authority."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check that deletion preserves architecture non-goals and RVV evidence boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin docs and behavior no longer preserve the smoke-probe descriptor active surface."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check direct smoke-probe descriptor/export residues are removed without adding rebuild routes."}

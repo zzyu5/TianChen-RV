@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global project boundaries and compiler-stack rules."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check descriptor-driven computation was not retained as production authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check default source routes still follow extension family ops to common EmitC."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI callable planning and target artifact export contracts."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains compute-free."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed authority and legacy descriptor mirror quarantine."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar typed authority and legacy descriptor mirror quarantine."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check extension-family locality and no family-specific core branches."}

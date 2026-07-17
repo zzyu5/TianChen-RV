@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "runtime_param and runtime_guard core dialect contract"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "generic capability availability and conflict rules for guarded dispatch"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selection pipeline order and dispatch-case guard materialization expectations"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission runtime ABI and bundle/export guard boundary"}

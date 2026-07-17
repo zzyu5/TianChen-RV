@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, local generated-artifact, and ssh rvv evidence expectations."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI invocation, generated artifact, and dispatch validation closure requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Checks for EmitC route ownership and descriptor-only rejection."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Final evidence classification and hardware claim boundary."}
-{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-binary-op-family-contract/prd.md", "reason": "Regression baseline for vadd/vsub/vmul source-frontdoor and bundle evidence."}
-{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-ssh-rvv-generated-artifact-execution-closure/prd.md", "reason": "Regression baseline for generated artifact local and ssh-rvv execution closure."}

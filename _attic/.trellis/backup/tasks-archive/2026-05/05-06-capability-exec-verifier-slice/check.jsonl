@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/index.md", "reason": "Capability model quality gate"}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "Core dialect quality gate"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality quality gate"}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Compiler stack quality gate"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR testing quality gate"}

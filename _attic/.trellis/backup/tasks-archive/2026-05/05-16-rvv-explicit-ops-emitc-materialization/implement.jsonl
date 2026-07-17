@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global stack, extension-family, descriptor/direct-C, and main lowering route invariants for implementation."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first-slice op boundaries, explicit typed body rules, and future EmitC route contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC lowerable interface and route materialization contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++ evidence and RVV runtime evidence boundaries."}

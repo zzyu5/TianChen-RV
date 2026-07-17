@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global project invariants remain satisfied."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check the implementation does not move compute semantics into the wrong layer."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check core dialect neutrality and absence of RVV semantic branches in generic orchestration."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-owned EmitC body ownership and RVV-specific locality."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin/common interface boundary compliance."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected config and runtime-role data are consumed fail-closed."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact/source/header/object export handoff behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check EmitC route and descriptor-driven exporter quarantine."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence, lit/FileCheck, C++ tests, and remote evidence claims."}

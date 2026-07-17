@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check the skeleton against global TianChen-RV invariants."}
-{"file": ".trellis/spec/architecture/index.md", "reason": "Verify the result remains a capability-driven execution layer, not a high-level compute IR."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "Verify the first dialect slice stays within tcrv.exec scope."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no concrete computation leaks into tcrv.exec."}
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Verify the implementation uses C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck rather than Python compiler-core structures."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Verify tests and toolchain diagnostics follow project testing expectations."}
-{"file": ".trellis/spec/validation/index.md", "reason": "Verify claims and final evidence do not overstate local checks as RVV hardware evidence."}

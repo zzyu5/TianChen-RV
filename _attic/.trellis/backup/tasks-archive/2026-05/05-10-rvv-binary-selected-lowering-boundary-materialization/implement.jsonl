@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and compute-boundary invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected-boundary, finite binary, capability, and evidence contract"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin-local selected-boundary and extension integration boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "SelectedLoweringBoundaryMaterializer and registry routing contract"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin locality and no core RVV semantic branch rule"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime ABI layering and selected-boundary coherence rules"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Finite RVV binary selected family and frontend-to-exec boundaries"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit validation and RVV evidence policy"}

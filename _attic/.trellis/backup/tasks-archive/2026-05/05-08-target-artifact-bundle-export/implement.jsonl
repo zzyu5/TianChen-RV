@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler stack and boundary invariants"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "preserve tcrv.exec execution/capability/dispatch/fallback boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export and runtime ABI handoff contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and C++ test coverage for artifact exports"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "bounded RVV microkernel artifact and evidence boundary"}

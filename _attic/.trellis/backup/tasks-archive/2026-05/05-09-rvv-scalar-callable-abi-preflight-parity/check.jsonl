@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact ABI preflight behavior"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV route locality and evidence wording"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback callable route behavior"}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify offload descriptor behavior stays intact"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify required test coverage and no unsupported evidence claims"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review generic-vs-route-local ownership"}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review core dialect remains compute-free"}

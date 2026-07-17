@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check that deleted direct-C source/header/object routes are absent and not replaced by stubs."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that no descriptor-to-C or replacement direct-C route was added."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback target/export deletion boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality and hardware-claim boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check generic registry behavior remains intact without deleted shells."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests assert route absence without protecting old shell APIs."}

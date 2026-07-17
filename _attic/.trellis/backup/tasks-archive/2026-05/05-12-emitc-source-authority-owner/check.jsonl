@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler-stack and source-authority invariants"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check old direct C renderer is not left as a reusable source authority"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit validation are appropriate"}

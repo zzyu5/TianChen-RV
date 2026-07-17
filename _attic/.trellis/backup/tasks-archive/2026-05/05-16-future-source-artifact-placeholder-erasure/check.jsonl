@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify no compiler-core/Python or rebuild-scope drift in the deletion round."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify artifact route fail-closed behavior still matches the lowering/runtime contract."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify construction-protocol tests do not preserve source skeleton authority."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin emission-plan validation remains generic and registry-owned."}

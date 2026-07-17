@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check source ownership and compute-free exec boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check generated manifest/artifact authority and runtime ABI layering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/self-test/dry-run/ssh validation requirements"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check bounded ssh evidence claim wording"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected vector config and descriptor facts stay plugin-owned"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback descriptor facts stay plugin-owned"}

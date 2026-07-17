@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check that the implementation stays inside the C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck stack and unified TCRV scope."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "Check that tcrv.exec carries only execution/ABI/control metadata and not high-level vector compute semantics."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected RVV policy/config metadata remains plugin-owned and distinct from source active-lane authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check the route remains extension ops to common EmitC artifacts without descriptor-driven computation."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime n/AVL, selected vector config, descriptor element_count, and artifact metadata remain layered and fail closed."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build/artifact/RVV evidence is sufficient and does not overclaim performance or generic vector support."}

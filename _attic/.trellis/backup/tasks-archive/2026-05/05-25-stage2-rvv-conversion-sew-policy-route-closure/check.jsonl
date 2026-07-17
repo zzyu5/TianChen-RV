@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation preserves global RVV authority and Stage 2 scope."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check conversion/SEW policy realization, planning/provider facts, fail-closed behavior, statement-plan consumption, and mirror-only artifacts."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes only."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, generated-bundle evidence, and ssh rvv claim discipline."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-compare-select-predicate-route-closure/prd.md", "reason": "Compare final evidence shape with the previous completed route-boundary closure."}

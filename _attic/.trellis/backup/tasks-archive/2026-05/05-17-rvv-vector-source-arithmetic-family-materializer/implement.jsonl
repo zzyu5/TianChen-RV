@@ -1,7 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/index.md", "reason": "Global stack, unified extension-family boundary, Python tooling-only boundary, and descriptor prohibition"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, bounded i32m1 arithmetic family, selected route, and ssh rvv evidence scope"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Plugin-owned emission/runtime glue and no descriptor/direct-C authority"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Materialized EmitC route, selected artifact handoff, and add/sub/mul interface route contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck and generated bundle evidence policy"}
-{"file": ".trellis/tasks/05-17-rvv-vector-source-arithmetic-family-materializer/prd.md", "reason": "Round-specific goal, boundaries, and acceptance criteria"}

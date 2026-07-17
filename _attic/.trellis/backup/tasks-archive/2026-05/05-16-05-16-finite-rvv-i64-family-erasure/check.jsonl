@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Confirm implementation stayed in C++/MLIR/TableGen/CMake/lit boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check active RVV current-slice text no longer protects i64m1."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check profile/capability text no longer protects rvv.i64_m1 facts."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Confirm focused lit and build validation match testing contract."}

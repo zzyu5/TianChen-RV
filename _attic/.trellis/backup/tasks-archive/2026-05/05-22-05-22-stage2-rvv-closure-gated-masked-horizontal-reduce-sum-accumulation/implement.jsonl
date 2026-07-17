@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, Stage1/Stage2 order, RVV-first authority chain, descriptor/source-front-door prohibitions."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned selected-body realization/route provider, common EmitC neutrality, fail-closed legacy/source boundary."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership and common EmitC materialization boundary for RVV routes."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-closure-gated-reduction-accumulation/prd.md", "reason": "Current-head predecessor for computed-mask standalone reduce-add route inventory and acceptance boundaries."}
-{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-masked-macc-accumulation/prd.md", "reason": "Latest sibling masked macc owner and post-macc confusion boundary for this stale-brief validation round."}

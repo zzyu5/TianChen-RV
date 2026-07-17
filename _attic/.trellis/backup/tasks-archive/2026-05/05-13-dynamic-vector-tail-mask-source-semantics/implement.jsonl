@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project boundaries for TianChen-RV MLIR, compiler stack, unified RISC-V extension families, and no descriptor-driven computation."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "tcrv.exec remains an execution/ABI/control envelope; source active-lane authority must not become compute semantics in core."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector shape and tail/mask policy metadata are plugin-owned compile-time config, distinct from runtime active lanes."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Generated artifacts must continue through extension family ops to the common EmitC route rather than descriptor-driven export."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Parameter layering and artifact export must preserve IR-backed runtime n/AVL separately from selected vector config and descriptor element_count."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, build, artifact, bundle, and RVV evidence expectations for source-fronted RVV routes."}
-{"file": ".trellis/tasks/archive/2026-05/05-13-05-13-source-frontend-lowering-ownership-split/prd.md", "reason": "Prior neutral source-frontdoor ownership split that this task must preserve."}
-{"file": ".trellis/tasks/archive/2026-05/05-13-dynamic-vector-i32-vadd-runtime-avl-front-door/prd.md", "reason": "Prior dynamic vector runtime AVL route and evidence baseline for counts 7, 16, and 23."}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global no-Python/no-descriptor boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin registry front-door ownership and disabled-plugin behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target export/translate consumers remain route/export consumers only."}
-{"file": ".trellis/tasks/archive/2026-05/05-17-extension-bundle-registry-default-plugin-front-door/prd.md", "reason": "Check implementation against this round's acceptance criteria."}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and source-of-truth constraints"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV bounded i32m1 selected EmitC artifact and AVL/VL contract constraints"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "selected emission-plan to target artifact handoff and materialized EmitC authority"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI layering, descriptor/direct-C deletion boundary, and target export preflight rules"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays on the RVV-first typed-body route authority chain."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify segment2 memory statement-plan ownership, fail-closed behavior, and no provider-local semantic assembly drift."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and only consumes provider-built routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and evidence claims match project policy."}

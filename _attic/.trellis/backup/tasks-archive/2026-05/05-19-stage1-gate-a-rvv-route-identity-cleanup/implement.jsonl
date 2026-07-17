@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global architecture and RVV Stage order"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage1 Gate A authority rules"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built route and mirror boundaries"}
-{"file": ".trellis/spec/testing/index.md", "reason": "focused lit/FileCheck evidence policy"}

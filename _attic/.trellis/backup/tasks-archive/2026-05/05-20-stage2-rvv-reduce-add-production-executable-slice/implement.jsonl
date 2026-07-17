@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, and RVV Stage1/Stage2 invariants for this reduce-add production slice."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, fail-closed legacy/source/descriptor rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin route provider and selected-body realization ownership boundaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage2 typed-body coverage and selected-body realization requirements."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/script/runtime evidence policy for RVV executable claims."}
-{"file": ".trellis/tasks/05-20-stage2-rvv-reduce-add-production-executable-slice/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and validation plan."}

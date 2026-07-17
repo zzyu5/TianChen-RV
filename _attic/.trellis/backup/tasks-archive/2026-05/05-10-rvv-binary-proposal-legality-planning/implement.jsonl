@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, capability, plugin, and compute-boundary invariants for the task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin finite binary family, selected vector-shape, parameter layering, and runtime evidence boundaries."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin-local implementation and core/plugin separation rules for extension planning."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Variant proposal and legality interface contracts consumed by the RVV plugin."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-locality constraints and prohibition on generic core RVV branches."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal pipeline and bounded finite RVV binary frontend family scope."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Route ownership, runtime ABI, artifact, and parameter-layering boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required focused C++/lit validation expectations for RVV planning changes."}

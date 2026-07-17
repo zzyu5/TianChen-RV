@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR architecture and stack invariants for deletion-only Support refactor"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime/emission boundary, deleted direct C route constraints, and Support runtime ABI ownership correction"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned extension/runtime route authority and no core family-specific branches"}

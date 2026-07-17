@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants, RVV-first authority chain, and Stage1/Stage2 boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, selected-body realization, runtime ABI value consumption, and legacy i32 fail-closed constraints."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "mem_window/runtime_param ABI role boundaries and explicit selected-body consumption requirements."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI and target export boundaries for generated artifacts."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Executable selected variant requirements and selected-body realization scope."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Lit/FileCheck, generated artifact, fail-closed, and ssh rvv evidence requirements."}

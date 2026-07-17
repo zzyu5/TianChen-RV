@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected boundary and i32m1 config/VL contract"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "selected emission-plan to target artifact handoff"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and RVV artifact evidence expectations"}

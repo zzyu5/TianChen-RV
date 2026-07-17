@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and descriptor boundary invariants"}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "Keep tcrv.exec compute-free while changing artifact authority"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed family-op authority and legacy descriptor mirror contract"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and runtime ABI authority rules"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ evidence requirements for artifact routes"}
-{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-op-owned-emitc-artifact-route/prd.md", "reason": "Immediate previous task and evidence for typed EmitC authority"}
-{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-extension-op-emitc-source-authority/prd.md", "reason": "Prior descriptor mirror diagnostics and source authority baseline"}

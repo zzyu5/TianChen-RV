@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify descriptor exit remains aligned with global architecture invariants."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify default i32 add export uses typed lowerable ops and common EmitC materialization."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific metadata remains plugin-local and bounded."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify no new core target-family semantic branch was introduced."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused lit/C++ coverage matches the changed compiler behavior."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality and common route usage."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review that compute authority lives in typed extension family ops, not descriptors."}

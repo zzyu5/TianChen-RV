@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Primary compiler implementation stack and Python boundary."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "Keep tcrv.exec execution-only and compute-free."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local i32-vadd dataflow and microkernel export contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target-owned emission, ABI, and artifact route boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ validation policy for compiler behavior."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure RVV-specific behavior stays plugin/target local."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure finite dataflow emission does not become core compute IR."}

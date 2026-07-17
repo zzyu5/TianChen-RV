@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Prompt and runner workflow changes must preserve implementation-stack boundaries"}
-{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Defines Hermes/Codex supervision prompt and runner invariants"}
-{"file": ".trellis/workflow.md", "reason": "Defines Trellis task lifecycle and one-round execution phases"}

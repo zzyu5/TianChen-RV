@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide spec index and boundary reminders for this bounded compiler/runtime task"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local ownership and runtime ABI role binding expectations"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin ownership and callable export constraints"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime ABI role metadata and target-owned export contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck testing contract for MLIR compiler changes"}

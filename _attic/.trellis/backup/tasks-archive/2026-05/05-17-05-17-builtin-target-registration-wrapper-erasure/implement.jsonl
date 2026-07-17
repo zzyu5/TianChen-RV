@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for TianChen-RV, implementation stack boundary, unified RISC-V plugin architecture, and descriptor/direct-C deletion constraints."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Built-in registration front-door rule: aggregate registration must preserve extension bundle identity and avoid hidden plugin-only wrappers."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "ExtensionBundleRegistry and ExtensionPluginRegistry ownership contract plus built-in registration API rules for explicit bundle-aware construction."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact exporter and target translate route registration contracts that must be updated away from hidden aggregate target wrappers."}

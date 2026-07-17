@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV materialized EmitC executable slice and deleted route boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "no descriptor-driven or metadata-driven C/header/object/bundle exporter"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "selected emission-plan to target artifact handoff and bundle contracts"}
-{"file": ".trellis/spec/testing/index.md", "reason": "focused test and RVV evidence policy"}
-{"file": ".trellis/tasks/archive/2026-05/05-17-05-17-rvv-materialized-emitc-target-artifact-bridge/prd.md", "reason": "previous object bridge authority and validation record"}

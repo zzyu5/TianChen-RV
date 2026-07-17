@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check against global no-descriptor/no-legacy-authority rules."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that RVV scalar broadcast remains plugin-owned and typed-body driven."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export stays neutral and consumes provider-built route payloads."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Final check that focused tests, generated-bundle dry-run, and ssh rvv evidence satisfy runtime claim policy."}

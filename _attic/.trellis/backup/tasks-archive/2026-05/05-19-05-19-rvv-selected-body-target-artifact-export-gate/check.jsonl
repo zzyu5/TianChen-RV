@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check changed behavior against global stack, descriptor-residue, and plugin-boundary invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV route support remains provider/selected-body-owned."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC mechanics stay neutral and do not authorize RVV semantics."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target/export gate and emission claims remain bounded."}

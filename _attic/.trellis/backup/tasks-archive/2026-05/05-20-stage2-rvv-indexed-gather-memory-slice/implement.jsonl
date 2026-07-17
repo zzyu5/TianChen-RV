@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, and RVV Stage1/Stage2 invariants for this indexed gather executable slice."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, memory-form, and fail-closed legacy/source/descriptor rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
-{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 typed-body coverage and selected-body realization requirements for code-affecting indexed memory facts."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/script/runtime evidence policy for RVV executable claims."}
-{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-indexed-gather-memory-slice/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and validation plan."}
