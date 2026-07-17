@@ -18,7 +18,7 @@ namespace {
 
 // The built-in typed-emission backend table. Mirrors the plugin
 // `kBuiltinExtensionBundles` registry (zero-core-branch): RVV, Toy, Template,
-// TensorExtLite and IME are registered today; a future family is a ONE-LINE add
+// TensorExtLite, IME and Scalar are registered today; a future family is a ONE-LINE add
 // here (registerXBackendEmitter) with no edit to any core materialization call
 // site.
 using BackendEmitterRegistrationFn = void (*)(BackendEmissionRegistry &);
