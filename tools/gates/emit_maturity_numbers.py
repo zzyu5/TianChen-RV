@@ -27,13 +27,16 @@
 #   emit_maturity_numbers.py --json          # machine-readable snapshot (stdout)
 #   emit_maturity_numbers.py --ref <rev>     # a different committed snapshot
 #   emit_maturity_numbers.py --worktree      # read the working-tree schema (may be mid-edit)
-#   emit_maturity_numbers.py --drift         # compare doc-cited numbers vs machine; exit 1 on drift
 #   emit_maturity_numbers.py --self-test     # exercise the pure aggregator
+#
+# ★ `--drift` 已退役（2026-07-17 用户裁 · ISSUE-094）。它比对「文档里手抄的 C_construct N/M」
+#   与机算值，但新法（evidence 层「数字不住地图 · 人工转抄数字非法」）已废除其守护对象：
+#   数字只活在主表行 + run-id。**守护对象已不存在的门一律退役，不许改造续命。**
+#   死因与判例住 `_attic/ATTIC_INDEX.md`「门清算」。
 
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -42,16 +45,6 @@ import check_construction_manifest_regex as cert  # noqa: E402  (the ONE certifi
 
 SCHEMA_REL = "schema/coverage-sixstate.v1.json"
 BYPASS_REL = "schema/emit-bypass-whitelist.v1.json"
-
-# Doc anchors scanned by --drift. Each pattern captures the doc's *labeled* C_construct numerator
-# (and, where present, the denominator). We compare the numerator against the machine `labeled`.
-# A doc that no longer matches its pattern is reported as a reworded/stale anchor (not silently OK).
-DOC_CCONSTRUCT_ANCHORS = [
-    "docs/ROADMAP.md",
-    "docs/reports/2026-07-10-paper-evidence-index.md",
-]
-# Any "<num>/<den>" or "C_construct ... <num>/<den>" where den is the roster total.
-CCONSTRUCT_RE = re.compile(r"C_construct[^0-9]{0,40}?(\d+)\s*/\s*(\d+)")
 
 
 # ------------------------------------------------------------ pure aggregator
@@ -175,39 +168,6 @@ def render_human(nums, ref_label):
     return "\n".join(lines)
 
 
-def run_drift(root, ref, nums):
-    """Compare doc-cited C_construct numerators vs machine `labeled`. Exit 1 on any mismatch."""
-    labeled = nums["C_construct"]["labeled"]
-    certified = nums["C_construct"]["certified"]
-    total = nums["roster_total"]
-    print(f"-- drift check: machine labeled={labeled}/{total}, certified={certified}/{total} "
-          f"@ {short_ref(root, ref)} --")
-    drift = 0
-    for rel in DOC_CCONSTRUCT_ANCHORS:
-        path = os.path.join(root, rel)
-        if not os.path.exists(path):
-            print(f"  [SKIP] {rel} (not found)")
-            continue
-        text = open(path, encoding="utf-8").read()
-        hits = CCONSTRUCT_RE.findall(text)
-        if not hits:
-            print(f"  [WARN] {rel}: no 'C_construct N/M' anchor found (reworded?)")
-            drift += 1
-            continue
-        for num, den in hits:
-            num, den = int(num), int(den)
-            tag = "OK " if (num == labeled and den == total) else "DRIFT"
-            if tag == "DRIFT":
-                drift += 1
-            print(f"  [{tag}] {rel}: doc cites {num}/{den}, machine labeled {labeled}/{total}")
-    if drift:
-        print(f"RED: {drift} doc anchor(s) drift from the machine C_construct. "
-              "Regenerate the cited numbers from emit_maturity_numbers.py.")
-    else:
-        print("OK: no C_construct drift in scanned doc anchors.")
-    return 1 if drift else 0
-
-
 # ------------------------------------------------------------------ self-test
 def self_test():
     doc = {"states": [
@@ -254,7 +214,6 @@ def main(argv):
     ap.add_argument("--worktree", action="store_true",
                     help="read the working-tree schema instead of a committed ref")
     ap.add_argument("--json", action="store_true", help="emit machine-readable JSON snapshot")
-    ap.add_argument("--drift", action="store_true", help="compare doc-cited numbers vs machine")
     ap.add_argument("--self-test", action="store_true", help="exercise the pure aggregator")
     args = ap.parse_args(argv)
 
@@ -279,8 +238,6 @@ def main(argv):
 
     nums = compute(doc, bypass)
 
-    if args.drift:
-        return run_drift(root, args.ref, nums)
     if args.json:
         print(json.dumps({"ref": ref_label, **nums}, ensure_ascii=False, indent=2))
         return 0

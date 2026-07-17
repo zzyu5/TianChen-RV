@@ -72,7 +72,7 @@
 | 原路径 | → attic 路径 | 一句话原因 | 日期 |
 |---|---|---|---|
 | `docs/canon/` (5) | `_attic/docs/canon/` | §一.1 明令「ROADMAP.md 与 docs/ 全体（**含 canon**）不再使用」。**现行法已在六层**（逐条抽验：`双账本`/`[L-9]`/`[L-10]` 均命中 spec）。**非事故档案**——体裁 = 法条，其教训按 §二 铁律已压缩成 canon 规则本身。 | 2026-07-17 |
-| `docs/files (2)/` (4) | `_attic/docs/files (2)/` | 同上（pre-rename v3 canon 家族）。**PR-29 已登记其为「两 canon 家族问题」同源**（v3 实体在 `files (2)/`、非 `canon/`）。零根引用（引用者仅 `v4-草案` 与 `E5-T1d`，两者本身亦已离开 docs/）。 | 2026-07-17 |
+| `docs/files (2)/` (4) | `_attic/docs/files (2)/` | **★ PR-29「浏览器残留目录」= 2026-07-17 用户裁【attic】· 本行即其销案记录。** 该目录名 `files (2)` 系**浏览器下载残留**（非人取名），内含 **pre-rename 的旧 canon v3 家族**（`TianChen-RV_科研目标总纲v3.md` 311 行 · 交接 v2 · 实验方案与结果表集 v2 · 性能宪法与测量司法）。PR-29 曾登记其为**「两 canon 家族问题」同源**（「v3 实体在 `docs/files (2)/`，**非** `docs/canon/`」—— 正是它让 `[PAT-3]` 出处被引成不解析的「v3:127」）。**归档消灭该病根**：全仓自此**只剩一个 canon 家族入口 = `.trellis/spec/canon/`**。零根引用（引用者仅 `v4-草案:4,48` 的「导入制前身」与 `E5-T1d:96`，两者本身亦已离开 `docs/`）。**PR-29 销案。** | 2026-07-17 |
 | `docs/design/` (1) | `_attic/docs/design/` | 零根引用。iq2 grid repack GEMM 设计稿；其「signs64 blocker 已解」属**陈旧事实随时间被解决**、非我方判断有错 ⟹ 不入事故区。 | 2026-07-17 |
 | `docs/method/` (6/10) | `_attic/docs/method/` | 归档 6：`FALSIFIER-INDEX.md`（**evidence 层 G-3 ★已出本条范围**明列「[F-1..F-6] → 工件映射 + [C1-SHAPE] 命名碰撞 → §2.2/§2.1」结论正本已迁，原件「降为可选参考·随 docs/ 归档即可」；且 **G-8③ 已核实不破门**——`check_family_locality.py` 对 `docs/**` 走前缀豁免、不校验存在性，default 门实跑 GREEN，**本轮复跑仍 exit=0**）· `REPOSITORY-MAP-五大件.md`（地图）· `CADENCE-LAW.md` · `LAW-FIRST-EMISSION.md` · `P4-family-integration-doc-TEMPLATE.md` · `x-scalar-ternary-vec-dot-construction.md`。**留 1**（`C2_marginal_cost_ledger.md`·见「查证后保留」）+ **入事故区 3**。 | 2026-07-17 |
 | `docs/reports/` (56/102) | `_attic/docs/reports/` | 零根引用且非事故档案者。含全部 `perf-covered-*-green-*` 绿格登记（体裁 = 转绿记账）· 侦察报告（`gap-grid-decode-scout` / `small-m-decode-reuse` / `decode-cost-scout`：**假说被实测证伪 = 正常科学，非事故**）· T3/T6 报告模板 · `paper-material-inventory`（清单）· RENAME 台账 · M4 三件套。 | 2026-07-17 |
@@ -102,7 +102,7 @@
 | **事故区文件的内部自述指针** | 令文 §4.2.7 **明令「原样……不改写」**。判读法住 `.trellis/事故档案/README.md` §四。 |
 | **自测 fixture 里的合成路径**（`docs/x.md` · `docs/foo.md` · `docs/policy.md` · `docs/other.md` · `docs/note.md` · `check_family_locality.py:474` 的 `docs/method/FALSIFIER-INDEX.md`） | 是**门自测的合成输入串**，**从来不指真实文件**（`check_commit_touchset.py:345` 当场 `mkdir` 临时 `docs/`）。改它们 = 改测试语义。 |
 | **`docs/Weft-RV_科研目标总纲v2.md` 这条【从来不存在】的路径**：现存于 `schema/tiling-measurements.v1.json`（`$meta.authority`）· `schema/pattern-registry.v1.json`（`$meta` note + authority）· `schema/VERSIONLOG.md` · `issues/spec树与治理.md`（= ISSUE-089 自己的裁决材料表，**记录该事实者，非受害者**） | **本轮归档【未】使其悬空 —— 它在 `pre-restructure-snapshot` 标签里就是死的**（真路径缺 `/canon/`；真身 = `docs/canon/Weft-RV_科研目标总纲v2.md`）⟹ 按本索引既立先例「**先前即悬空、非本次归档所致，不在触碰集**」。**⟹ 它不在本轮「零悬空」门的标的内**（该门只管「**我归档的文件**是否还有活引用」，而这条从未指向任何存在过的文件）。<br>★**同轮进展（非本役所为·2026-07-17 交叉记录）**：`capability.schema.v1.json` 的**同名第 4 条** `$meta.authority[3]` 已随 **ISSUE-089 用户裁① 落地**（`08da5e3b3`：改锚六层 + `[S-6]` bump v1.2.0 + VERSIONLOG 记笔）—— 该文件现 4 条 authority **全指 `.trellis/spec/`**，`report --check` 复跑 **exit=0**。**故本行原写的「已登记 ISSUE-089·待用户裁」已过时、就地订正**。**残留**：上列 `tiling-measurements` / `pattern-registry` / `VERSIONLOG` 三处**同名旧路径未随该裁清除**（与 `08da5e3b3` 的「悬空清零」措辞有出入）；三者均属 **[F-3] 领地（非 `[S-6]` 哈希域，`SCHEMA_JSON` 只含 `capability.schema.v1.json` 一件）**，可无风险改锚，**但不在本役触碰集**（先前即悬空 + 属 ISSUE-089 的执行面）⟹ **点名登记、不吞**。 |
-| **`tools/gates/emit_maturity_numbers.py:50-51` 的 `DOC_CCONSTRUCT_ANCHORS`** | **全仓唯一在【运行期真读】`docs/` 的消费者**。改门语义 = 门清算（§六.4）职责 + 撞「禁碰代码」⟹ **只登记不自改**。**★ 见 ISSUE-094**（归档使其从**诚实红**退化为**空心绿**）。 |
+| ~~**`tools/gates/emit_maturity_numbers.py` 的 `DOC_CCONSTRUCT_ANCHORS`**~~ | ~~只登记不自改~~ → **已被用户裁翻：该门【退役】，见下「门清算」段**（2026-07-17 回批①）。 |
 
 ### 三.3 `ISSUE-070` 裁定件（2026-07-17 用户裁 · **晚于上列各轮·独立动作**）
 
@@ -113,6 +113,17 @@
 | `.trellis/spec/architecture/core-invariants.md`（**原全文 · 145 行**） | `_attic/.trellis/spec/architecture/core-invariants.md` | **`ISSUE-070` 裁定件**。归档的是**重复本**：其 I1–I9 与 [`canon/核心不变量.md`](../.trellis/spec/canon/核心不变量.md) **逐字一致**（谓词复跑 `diff` → 唯一差异 = 两侧各自的 range 终止标题行本身，条文零差异）。**权威本 = canon 本**，判据 = **上岗级引用四处全指它**（`CLAUDE.md` 法源入口 · `README.md` · `AGENTS.md` · `schema/family-regex.v1.json` 的 `$meta.invariant`）+ canon = 法源层 + 原 `canon/待裁.md` 4b 行自载「本层 I1–I9 已按『只留规则、删历史外壳』洗净并落此」。**★零法条损失（归档前逐条机核，非推定）**：12 条附加硬规则在 canon 均有**完整**家 —— [L-6]/[NG-4]→`成色与措辞` · [L-8]/[K-10]→`部署与构造语义` · [K-4]/[SEL-2]→`覆盖状态机与选择归因` · [S-5]/[F-2′]/[F-6]/[NG-3]→`能力模型与插件协议` · [VERIFY-LADDER]→`测量判据` · 对手类机判→`对手与档位`。本件同时是**铁律 1 违规载体**（`d0826caa` commit 号 · 「G7 全量令」体 · 「q4_K 稻草人事故」叙事 = **4 命中**）⟹ **外壳随载体离场**，非逐句删改（守「条文本体零改」）。★**原路径保留指针文件（非删除）**：`schema/capability.schema.v1.json` 的 `$meta.authority` 钉其 `[S-5]`/`[F-2′]`（v1.2.0 sealed），而 `ISSUE-072` 裁决材料 (b) **实测**改锚 = `breaking` + 新 RFC；用户令明禁「touching sealed 资产」⟹ **指针 = 唯一同时满足「单一权威本」与「不动 sealed 资产」的形态**。指针内含 `[S-5]`/`[F-2′]` 去向（两者正本 **已在 `$meta.authority` 之内**，v1.2.0 一并锚定 `canon/能力模型与插件协议.md` 与 `architecture/能力模型.md`）⟹ **schema 零改、`[S-6]` 零 bump**（实测 `report --check` exit=0 · redteam 8/8）。 | 2026-07-17 |
 
 **移入计量**：**1 文件**（累计 attic = 67 + 41 + 3 + 1）。**跟踪已断**：`git ls-files _attic` = **1**（仅本索引）—— plain `mv`，非 `git mv`。
+
+### 三.3 门清算 —— `--drift` 漂移门【退役】（§六.4 · 2026-07-17 用户裁「归档收官三件回批」①）
+
+> **★ 判例（立此存照 · 一般原则）**：**凡守护对象已不存在的门，一律退役，不许改造续命 —— 旧世界的检查不迁入新世界。**
+> 判别式 = 先问「**这门守的那个东西还在不在**」，再问「它绿不绿」。守护对象已被新法废除 ⟹ **改锚 / 改判据 / fail-closed 化 全部禁止**（那是给尸体续命，会把一个已绝育的病种伪装成活的防线）。
+
+| 被杀的检查 | 死因（一行） | 处置与实测 | 日期 |
+|---|---|---|---|
+| `emit_maturity_numbers.py --drift`（`DOC_CCONSTRUCT_ANCHORS` + `CCONSTRUCT_RE` + `run_drift()`） | **「数字只活在主表行 + run-id，地图漂移病种已绝育」** —— 该门比对「**文档里手抄的 `C_construct N/M`**」与机算值；而新法（[evidence · index](../.trellis/spec/evidence/index.md) 规则 2「**数字不住地图 · 人工转抄数字非法**」）**已废除其守护对象**：新世界里根本不该存在被对账的转抄数（实测 `grep -rn "C_construct" .trellis/spec/` = 9 命中，**全是定义与口径、零个 `N/M` 数值**）。 | **代码移除**（292 → **249 行**）：切 `DOC_CCONSTRUCT_ANCHORS` / `CCONSTRUCT_RE` / `run_drift()` / `--drift` 参数与派发 / 随之无用的 `import re`；原址留**墓碑注释**。**负控实测**：`--drift` → **exit=2**（argparse 拒绝已退役旗标，**非静默绿**）。**存活 lane 全绿**：默认人读 / `--json` / `--self-test` 各 **exit=0**。**机算数字零漂移**：`C_construct labeled 101/110 = 91.8%` **@ 快照 `3bbd58459`**（[G-1] 快照纪律：本数 = 死亡时点的冻结观测、**非现值**；现值一律由 `emit_maturity_numbers.py` 现算）—— 与切除前**逐字相同** ⟹ **杀的只是 lane，不是计数器**。`check-weft` **954/951/3** 不变。**登记** = ISSUE-094（状态 **已退役**）。 | 2026-07-17 |
+
+> **它归档【前】是诚实的红**（实测在报 3 处真漂移：ROADMAP 自称 84/91 · paper-evidence-index 自称 66/93 · 机算 101/110），**归档后会变无声的绿**（缺锚 → `[SKIP]` → `return 0`）。**但退役理由不是「它会变空心」，而是「它守的东西已经不存在」** —— 前者会诱人去改成 fail-closed（= 续命），后者才导出正确处置。**两者别混。**
 
 **条文搬迁（唯一一件真条文·非指路牌）**
 
