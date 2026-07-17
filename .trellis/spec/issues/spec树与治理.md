@@ -176,3 +176,44 @@
 - **相邻事实**：本条与 [ISSUE-070]（I1–I9 双本）、[ISSUE-071]（[PERF-1] 门数称谓）同属
   「六层收口显形的 canon 级待裁」，建议一并裁。
 
+#### ★裁决材料（2026-07-17 实测 · 三条推翻了「bump 一下就了断」的直觉）
+
+**(a) `$meta.authority` 四条中【两条】悬空，且其一【早于本次重构】**（判决性：读 `pre-restructure-snapshot` 标签）：
+
+| 条目 | 快照里 | 现在 |
+|---|---|---|
+| `capability-model/capability-contract.md#S-5` | ✓存活 | ★悬空（**本次重构归档所致**） |
+| `architecture/core-invariants.md#S-5` | ✓存活 | **✓存活** |
+| `architecture/core-invariants.md#F-2prime` | ✓存活 | **✓存活** |
+| `docs/Weft-RV_科研目标总纲v2.md#S-5` | **★快照里就是死的** | ★悬空（真路径缺 `/canon/`） |
+
+⟹ **悬空条件不是重构回归**：该 schema **本来就带着一条死指针在出货**，无人发现。
+⟹ **S-5 仍有活权威**（`core-invariants.md` 在六层内）⟹ **保守默认（不动）不丢失任何东西**。
+
+**(b) ★「改锚 + 版本 +1」会被分类器判 `breaking`，不是 minor**（实测 `classify_schema_change(旧,新) = breaking`）：
+`$meta.authority` 是**标量字符串列表**，分类器按「SCALAR list-member (enum) add/remove → breaking」处理
+⟹ 改任一条字符串即触发。而 VERSIONLOG 定义 `breaking` = 「major · **requires a new RFC**」。
+**⟹ 代价 = breaking 评级 + 新 RFC，且审计链留下「v2: breaking」一行 —— 外部读者会读成
+「schema 形态发生过破坏性变更」，而真相只是挪了个文档指针。这【反噬】C1 叙事，与改锚的初衷相反。**
+
+**(c) VERSIONLOG 自身的设计文档区分了两类门**（这条支持"不伤 C1"，但不解决 (b)）：
+> *Not to be confused with the per-PR operation gate ([F-2′])：a **family-onboarding** PR whose diff
+> intersects `schema/` is the falsifier firing. This log grades **core-author evolution** PRs,
+> which are a different PR class.*
+
+⟹ C1 的承重证据是 **[F-2′] 操作门**（家族接入 PR），**[S-6] 报告门**管的是 core-author 演进 = 另一类。
+文档指针迁移属后者 ⟹ **bump 本身不伤 C1 的"家族接入未触 schema"主张**；伤的是 (b) 的**评级措辞**。
+
+**(d) ★★真缺陷可能不是「指针错了」，是「没有门检查指针活没活」**：
+一条死指针（`docs/Weft-RV_...` 缺 `/canon/`）在库里躺到今天无人知，**因为没有任何检查验证
+`$meta.authority` 的存活性**。若立此门，(a) 的两条会当场现形，且此后不再复发。
+**但新增检查的唯一途径 = 提案入 ISSUES → 用户裁**（measurement 层「门体系」§3.5.4 自己的法）⟹ **本条即该提案**。
+
+**⟹ 修订后的候选去向（供裁 · agent 不自裁）**：
+- **①′ 改锚 + bump + 承受 `breaking` 评级 + 出新 RFC** —— 一次性了断，但审计链留「breaking」一行（措辞反噬）
+- **①″ 改锚 + bump + 评级另立 `editorial` 档** —— 需先改 VERSIONLOG 的评级口径（canon 级）
+- **② 把 `$meta` 排出哈希域** —— 一劳永逸，但**给未来的静默改动开口子**（`authority` 可被悄悄重定向而封条不响）
+- **③ 维持悬空 + 立【authority 存活性门】** —— 承认 (a)(d)：悬空非本次所致、S-5 仍有活权威；
+  把力气花在**让这类病以后能被机器抓到**，而非追指针
+- **④ 保守默认（现行）**：不动，`capability.schema.v1.json` 与 HEAD 字节相同
+
