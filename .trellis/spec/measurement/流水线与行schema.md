@@ -4,7 +4,8 @@
 
 ## 3.3 一条流水线
 
-**唯一合法测量动作：`bench <格> --board <板>`。**
+**唯一合法测量动作：`bench <op> <format> --board <板> [--engine E] [--regime R]`。**
+> **签名带全四元行键**（[ISSUE-091]·《开测篇》§〇.1）：签名必须**结构上唯一定位主表一行** `(op, format, engine, regime)`。**可无歧义推定时允许省参**（如 `--board` 唯一确定 engine）；**歧义即 fail-closed 拒绝，禁猜行**（`--board` 在 k1 上推不出 engine∈{rvv,ime}、格名跨多 op ⟹ 必须显式给）。runner `ROW_KEY = (op,format,engine,regime)` 已就绪并 self-test 机核。
 
 > **【runner 已建 · 真实路径仍阻塞】**（2026-07-17 实况订正；此前本注记写"该命令当前不存在"，谓词已为假）**runner 现址 = `tools/bench/bench`**（谓词：`test -x tools/bench/bench` 为真；`grep -rnE 'runs\.log|run-id|run_id' tools .trellis/scripts` 命中 **32**，非 0）。**已达 = 干跑路径**（`--dry-run`：零 ssh · 零计时 · 零主表写，只产台账一行 + 演示行）与 `--self-test`。**未达 = 真实测量路径**：第 3/4 步抛 `CellRecipeMissing` 硬错，**禁伪装可用**——阻塞于 [ISSUE-090](../issues/门与工具.md#issue-090--每格对拍计时-harness-的住址与契约未定义33-第-34-步无可寻址被调物)（每格 harness 住址与契约）+ [ISSUE-091](../issues/门与工具.md#issue-091--bench-格-单独不定位主表行行键不在-331-字段表内--与现役表结构无映射)（行键）+ [ISSUE-073](../issues/index.md)（主表住址）。总账挂 [ISSUE-067](../issues/index.md)。
 >
@@ -41,7 +42,7 @@ python3 -c "import csv;r=list(csv.DictReader(open('experiments/active/result-tab
 | **cold** | 冷启动计时结果；重复数预注册 | 第 4 步 |
 | **判定** | 该格结论；**值域 = [3.3.1.1](#3311-判定-的值域规范性--零预处理机算枚举)**，禁在本栏另立 | 第 4 步 |
 | **对手符号** | 该板实际部署派发函数的符号名 | 第 3 步 |
-| **对手档** | `{手调 \| 通用向量 \| 标量类}` 之一，逐格证据判定（[3.4](./对手法.md#34-对手法)） | 第 3 步 |
+| **对手档** | `{手调 \| 通用向量 \| 标量类 \| 域外 \| N/A-hw}` 之一，逐格证据判定（[3.4](./对手法.md#34-对手法)） | 第 3 步 |
 | **对手证据引用** | 证成"部署事实"与档位的证据指针（反汇编 dispatch / 类型注册表） | 第 3 步 |
 | **我方向量指令数** | 我方产物的真实向量运算指令数（配置指令与死值不计）；**记录不拦截** | 第 3 步 |
 | **世系** | 编译器身份三元 `{板·链·批次}`，自动写入；**验收查世系不查字样** | 第 2 步 |

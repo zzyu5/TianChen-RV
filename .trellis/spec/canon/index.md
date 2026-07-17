@@ -4,6 +4,8 @@
 > **修改途径**：本层版本化，**修改唯一途径 = 用户裁决**；agent 可提案（入 [issues](../issues/index.md)），不可自改。
 > （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = **卫生欠账**，非「本层此前无条文」。**v1 = 建载体时的在册状态**，**不追溯编号历史修改**。）
 
+> **★定稿基线（2026-07-18·《测试与收尾总令-开测篇》§〇.6）**：六 spec 现行版即**定稿基线**，旧「canon v4 定稿」检查点**就此关闭**。此后 spec 仅经用户裁决版本化演进（稳定性条款照旧）。
+
 本层是本项目**全部已定法条与终裁的唯一合订**：判断"某主张能不能立、某数字能不能报、某格算不算赢"时的**法源**。
 
 其他层各有分工，本层**不复述**它们：测量的执行程序住 [measurement](../measurement/index.md)、系统结构住 [architecture](../architecture/index.md)、证据工件指针住 [evidence](../evidence/index.md)、队列与流程纪律住 [governance](../governance/index.md)、未决问题住 [issues](../issues/index.md)。
