@@ -149,8 +149,8 @@
 
 | ISSUE | 一句话裁点 | 文件 |
 |---|---|---|
-| **ISSUE-070** | **★`core-invariants.md` 违反「只写现行法」，而它被两处 spec 判为必读权威全文 = 上岗阻塞**；连带：既有 spec 树与新六层的归并/归档关系 | [spec树与治理](./spec树与治理.md#issue-070--architecturecore-invariantsmd-违反spec-只写现行法且它被判为必读权威全文) |
-| ISSUE-071 | [PERF-1] 简称「八门」vs 门体「十项」（正文按十项执行，简称归属待裁） | [spec树与治理](./spec树与治理.md) |
+| ~~ISSUE-070~~ | **已裁 · 已落地**（2026-07-17 用户裁）：I1–I9 唯一权威本 = [canon · 核心不变量](../canon/核心不变量.md)；重复本已归档 `_attic/`，原路径留指针（sealed `$meta.authority` 所迫）。**连带第 2 问（既有 spec 树与六层归并）未随本裁了结**，仍在 [architecture](../architecture/index.md) 未决项表 B 行 | [spec树与治理](./spec树与治理.md) |
+| ~~ISSUE-071~~ | **已裁 · 已落地**（2026-07-17 用户裁）：按实况订正 —— 门体 = **十项**（v2 ①–⑧ → v3 增补 ⑨⑩ 前置；「八门」= v2 化石简称）。一处定义 = [canon · 测量判据](../canon/测量判据.md) §一.2，全树引用一律 `[PERF-1]` 禁带门数 | [spec树与治理](./spec树与治理.md) |
 | ISSUE-072 | evidence 层三处「唯一权威」锚在 `docs/`（G-1 性能证词根悬空 / G-3 承重论证载体） | [spec树与治理](./spec树与治理.md) |
 | ISSUE-073 | 主表住址两层 spec 打架（`experiments/master/` vs `experiments/active/result-tables/`） | [spec树与治理](./spec树与治理.md) |
 | ISSUE-074 | 「五层机器」所指未定（**禁 agent 发明**）+ 裸 `L<数字>` 全局处置 | [spec树与治理](./spec树与治理.md) |
@@ -260,8 +260,8 @@
 | 067 | ★bench runner 未建 · 三目的地均不存在（**runner 已建 + 干跑验收已达 2026-07-17**；真实路径仍阻塞） | 阻塞 | 门与工具 |
 | 068 | `perf_covered_metrics.py` 成孤儿（无编排者） | 已就绪 | 门与工具 |
 | 069 | `experiments/` layout 510 + index 1061 条 findings | 阻塞 | 门与工具 |
-| 070 | ★`core-invariants.md` 违「只写现行法」= 上岗阻塞 | 待裁 | spec树与治理 |
-| 071 | [PERF-1] 门项数：「八门」vs「十项」 | 待裁 | spec树与治理 |
+| 070 | ★`core-invariants.md` 违「只写现行法」= 上岗阻塞 | **已裁**（2026-07-17；连带第 2 问移交 architecture 未决项 B 行） | spec树与治理 |
+| 071 | [PERF-1] 门项数：「八门」vs「十项」 | **已裁**（2026-07-17；实况 = 十项） | spec树与治理 |
 | 072 | evidence 三处「唯一权威」锚在 `docs/`（根悬空） | 待裁 | spec树与治理 |
 | 073 | 主表住址：两层 spec 正面打架 | 待裁 | spec树与治理 |
 | 074 | 「五层机器」所指未定（禁 agent 发明） | 待裁 | spec树与治理 |
@@ -290,20 +290,20 @@
 
 ## 四、姊妹层的「待裁 / 缺口」自设表 → 本层编号
 
-其他层各自带有「待裁」或「缺口」表。**它们是本层的上游来源，不是第二登记簿** —— 本层给号，姊妹层按编号引用。副本张力本身 = ISSUE-071（须一并裁定那些表的去留）。
+其他层各自带有「待裁」或「缺口」表。**它们是本层的上游来源，不是第二登记簿** —— 本层给号，姊妹层按编号引用。副本张力的**首两例已按 `ISSUE-070`/`ISSUE-071` 裁定消解**（同事项的 canon「待裁」行随裁移除，只留本层一处）；其余行的去留仍按各自条目走。
 
 | 来源 | 本层编号 |
 |---|---|
 | [canon](../canon/index.md)「待裁」表 · C3′ vs C3 三贡献命名 | ISSUE-051 |
-| [canon](../canon/index.md)「待裁」表 · [PERF-1] 门数称谓 | ISSUE-071 |
-| [canon](../canon/index.md)「待裁」表 · `core-invariants.md` 违「只写现行法」 | ISSUE-070 |
+| ~~[canon]「待裁」表 · [PERF-1] 门数称谓~~ | ISSUE-071 —— **已裁**；该行已从 canon「待裁」表移除（副本消解） |
+| ~~[canon]「待裁」表 · `core-invariants.md` 违「只写现行法」~~ | ISSUE-070 —— **已裁**；该行已从 canon「待裁」表移除（副本消解） |
 | [canon](../canon/index.md)「待裁」表 · [S-4] uarch vs schema 准入 | ISSUE-045 |
 | [canon](../canon/index.md)「待裁」表 · [PAT-3] 迁移判据可执行形态 | ISSUE-046 |
 | [canon](../canon/index.md)「待裁」表 · 探针 DUAL-AGREE 归属 | ISSUE-047 |
 | [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **A**（「五层」所指） | ISSUE-074 |
-| [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **B**（既有 spec 树与新六层归并） | ISSUE-070（第 2 问） |
-| [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **C**（core-invariants 夹带叙事/commit 号） | ISSUE-070（第 1 问） |
-| [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **D**（[PERF-1] 门项数） | ISSUE-071 |
+| [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **B**（既有 spec 树与新六层归并） | ISSUE-070（第 2 问）—— **未随 070 裁定了结，仍活** |
+| ~~未决项 **C**（core-invariants 夹带叙事/commit 号）~~ | ISSUE-070（第 1 问）—— **已裁**：载体已归档，外壳随件离场 |
+| ~~未决项 **D**（[PERF-1] 门项数）~~ | ISSUE-071 —— **已裁**：门体 = 十项 |
 | [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **E**（N-operand route identity） | ISSUE-081 |
 | [evidence](../evidence/index.md) §六 **G-1**（性能证词根悬空） | ISSUE-072 |
 | [evidence](../evidence/index.md) §六 **G-2**（「CI 常绿」措辞失锚） | ISSUE-082 |

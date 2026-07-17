@@ -200,11 +200,12 @@ def get_context_packages_text(repo_root: Path | None = None) -> str:
             lines.append("Spec: not configured")
         lines.append("")
 
-    # Also show shared guides
-    guides_dir = repo_root / DIR_WORKFLOW / DIR_SPEC / "guides"
+    # Also show shared guides. The eight former spec/guides/*.md were merged
+    # into the governance layer (single file) by the six-layer spec migration.
+    guides_dir = repo_root / DIR_WORKFLOW / DIR_SPEC / "governance"
     if guides_dir.is_dir():
         lines.append("### Shared Guides (always included)")
-        lines.append("Path: .trellis/spec/guides/index.md")
+        lines.append("Path: .trellis/spec/governance/\u601d\u7ef4\u51c6\u5219.md")
         lines.append("")
 
     return "\n".join(lines)

@@ -22,7 +22,7 @@
 ## 二、spec 树自身的缺口
 
 ### ISSUE-070 · `architecture/core-invariants.md` 违反「spec 只写现行法」，且它被判为必读权威全文
-- **实质**：现行铁律 = **spec 只写现行法，零历史叙事、零编号考古**（教训压缩成规则本身）。[architecture/core-invariants.md](../architecture/core-invariants.md) **正面违反**，三类物证（**谓词复跑**：`grep -n 'd0826caa\|G7 全量令\|稻草人' .trellis/spec/architecture/core-invariants.md` → 本轮实测 **4 命中**；**禁用有界窗口命令核此类断言**）：
+- **实质（裁定前状态 · 存证）**：现行铁律 = **spec 只写现行法，零历史叙事、零编号考古**（教训压缩成规则本身）。`architecture/core-invariants.md` 原全文**正面违反**，三类物证（**谓词复跑**：`grep -c 'd0826caa\|G7 全量令\|稻草人' _attic/.trellis/spec/architecture/core-invariants.md` → **4 命中**。★**谓词已随裁定改指归档件**：活树同名路径现为**指针文件**、该 grep 恒 0；**禁用有界窗口命令核此类断言**）：
   - **编号考古 +「某年某月某人裁定」体**：`[K-10]` 的节标题即 `— 结构级 / 参数级判据（canon · G7 全量令 2026-07-13 用户裁 · [GOV-9] 提案+批准一体）`。
   - **commit hash 入正文**：`★G1 精化①/②（d0826caa · L2 实证…）` 两处 —— 规则本身（「绝对 spill 必须以部署编译器测」/「指令数子门是 regime-keyed」）是好规则，但被绑在一个 commit 号上。
   - **战役事故叙事**：`对手类机判（重编令二.2 · q4_K 稻草人事故制度化修复）` + 整段 `b29c269c 证伪` /「测错核之戒」/「双核分立限定（27658b8a · 五复核）」叙事。
@@ -212,6 +212,8 @@
 
 ⟹ **悬空条件不是重构回归**：该 schema **本来就带着一条死指针在出货**，无人发现。
 ⟹ **S-5 仍有活权威**（`core-invariants.md` 在六层内）⟹ **保守默认（不动）不丢失任何东西**。
+
+> **★ `ISSUE-070` 裁定后的交叉订正（2026-07-17 · 本表结论不变、更强）**：`core-invariants.md` 现为**指针文件**（原全文已归档 `_attic/`），其 `[S-5]`/`[F-2′]` 条目**仍在、仍解析**（故上表两行「✓存活」**不变**），只是内容改为**去向**。而 `[S-5]` / `[F-2′]` 的**法条正本** `canon/能力模型与插件协议.md` 与**字段级全文** `architecture/能力模型.md` **本就已在 `$meta.authority` 之内**（v1.2.0 由 ISSUE-089 一并锚定）⟹ **「不动 schema」的保守默认在 070 落地后依然成立且更稳**：即便将来把这两条指针条目删掉，S-5 的活权威仍有两条独立在案。**070 落地实测：`report --check` exit=0 · redteam 8/8 · `[S-6]` 零 bump。**
 
 **(b) ★「改锚 + 版本 +1」会被分类器判 `breaking`，不是 minor**（实测 `classify_schema_change(旧,新) = breaking`）：
 `$meta.authority` 是**标量字符串列表**，分类器按「SCALAR list-member (enum) add/remove → breaking」处理

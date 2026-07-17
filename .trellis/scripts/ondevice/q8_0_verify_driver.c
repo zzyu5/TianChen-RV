@@ -7,7 +7,7 @@
 //  --weft-export-target-artifact), calls it on hardware, and:
 //   1. VERIFY: quantizes random data to q8_0, compares the kernel result
 //      bit-for-bit against the PINNED fp-fold oracle
-//      [testing/flat-block-dot-fp-fold-oracle.md §1]: t=(float)sumi*d_x; t=t*d_y;
+//      [measurement/浮点折叠oracle.md §1]: t=(float)sumi*d_x; t=t*d_y;
 //      sumf=sumf+t (strict left-assoc, ordered, NO d_x*d_y premultiply, NO FMA).
 //      That pinned oracle is THE correctness gate. Two old-ggml fold variants
 //      (premultiply, and premultiply+fmaf) are ALSO computed but ONLY as
@@ -164,7 +164,7 @@ static int32_t ref_block_sumi(const block_q8_0 *x, const block_q8_0 *y) {
 
 // The fold form the scalar reference computes.
 //   FOLD_PINNED       -- THE correctness gate: the pinned fp-fold oracle
-//     [testing/flat-block-dot-fp-fold-oracle.md §1]: t=(float)sumi*d_x;
+//     [measurement/浮点折叠oracle.md §1]: t=(float)sumi*d_x;
 //     t=t*d_y; sumf=sumf+t. Strict left-assoc, ordered, NO d_x*d_y premultiply,
 //     NO FMA. Written as SEPARATE statements with a named intermediate so clang's
 //     default -ffp-contract=on cannot fuse (t*d_y)+sumf into fmaf -- this mirrors

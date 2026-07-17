@@ -41,7 +41,7 @@
 ## Pre-Development Checklist（判断提示，不是 gate）
 
 - [ ] 这项工作仍把 Weft-RV 描述为 high-level MLIR 之后的 RISC-V execution layer 吗？（[系统定位与边界](./系统定位与边界.md)）
-- [ ] 避免了新增核心 `weft.matmul`/`weft.softmax`/`weft.reduce`/`weft.generic_tile` 这类高层计算 op 吗？（[core-invariants](./core-invariants.md) I2）
+- [ ] 避免了新增核心 `weft.matmul`/`weft.softmax`/`weft.reduce`/`weft.generic_tile` 这类高层计算 op 吗？（[canon · 核心不变量](../canon/核心不变量.md) I2）
 - [ ] capability object 在 pass 决策路径上，而不是注释吗？（I1）
 - [ ] core/common 没有按 family 名分支吗？（I3）
 - [ ] dtype/config/operation 来自 typed body，而不是 route id/ABI string/artifact name 吗？（I5）
@@ -56,7 +56,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| [core-invariants](./core-invariants.md) | **硬规则全文**：I1–I9 + 附加硬规则（[L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2]/[NG-3]/[NG-4]/[K-10]/[VERIFY-LADDER]）。<br>★**"声明一次"在 I1–I9 上当前不成立**：I1–I9 与 [canon · 核心不变量](../canon/核心不变量.md) **双本逐字并存**（`ISSUE-070` · canon 级 · 待裁 · **本层不代裁**）。**待裁前以哪处为准 = 任一处**（两处 I1–I9 零差异，谓词见该两文件抬头的「双本在册」注）。附加硬规则的正文只住本文件，对侧只留去向表 |
+| [core-invariants](./core-invariants.md) | **指针文件**（`ISSUE-070` 已裁 · 2026-07-17 用户裁）：I1–I9 的**唯一权威本** = [canon · 核心不变量](../canon/核心不变量.md)；附加硬规则（[L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2]/[NG-3]/[NG-4]/[K-10]/[VERIFY-LADDER]）各住其 canon 家，去向表同址。<br>本文件**不再承载条文正文**，只保留去向 + schema `$meta.authority` 所钉 `[S-5]`/`[F-2′]` 的指针。原全文（含 commit 号与战役叙事）已归档 `_attic/` |
 | [系统定位与边界](./系统定位与边界.md) | 定位、dataflow spine、机器全图（工位 ↔ 代码根）、统一系统而非 per-backend 集合、模块图、禁区（Non-Goals） |
 | [能力模型](./能力模型.md) | capability 的来源 / 形态 / 关系 / verifier 职责（[S-1]~[S-5]/[S-8]）、参数分层律、profile 事实 |
 | [核心方言](./核心方言.md) | `weft.exec` execution envelope 的长期契约：core ops、类型、verifier 规则 |
@@ -66,7 +66,7 @@
 | [变体流水线](./变体流水线.md) | legality / selection / dispatch / tuning（Gearbox）、选择器与归因契约（[SEL-*]/[D-*]） |
 | [实现栈](./实现栈.md) | C++/MLIR/LLVM/TableGen/CMake/lit 主栈边界（I6 的正文）、Python 边界、缺工具链律 |
 
-**上岗顺序**：本文（读法口径）→ [core-invariants](./core-invariants.md)（硬规则）→ [系统定位与边界](./系统定位与边界.md)（机器全图）→ 按手头工位取对应文件。
+**上岗顺序**：本文（读法口径）→ [canon · 核心不变量](../canon/核心不变量.md)（硬规则 I1–I9 · 唯一权威本）→ [系统定位与边界](./系统定位与边界.md)（机器全图）→ 按手头工位取对应文件。
 
 ---
 
@@ -86,8 +86,8 @@
 | 未决项 | 编号 / 处置 |
 |---|---|
 | **「五层」命名的所指** | **[ISSUE-074]** —— 待用户裁，**禁 agent 发明**。裁定前本层**不定义、不使用**「五层」，也不承认它是既立术语（见下「命名未决」节） |
-| **`core-invariants.md` 夹带 commit 号与战役叙事**（与「spec 只写现行法」相抵），而它被判为必读权威全文 | **[ISSUE-070]** —— 待裁。其**保守默认 = 只登记、条文本体零改**，故本轮重组**不动该文件正文**（唯一例外：随本次目录重组做的相对链接路径修复，非条文改动） |
-| **[PERF-1] 门项数自相抵**（简称「八门」vs 门体「十项」） | **[ISSUE-071]** —— 待裁。**本层引用 [PERF-1] 一律不带项数** |
+| ~~**`core-invariants.md` 夹带 commit 号与战役叙事**，而它被判为必读权威全文~~ | **[ISSUE-070] 已裁**（2026-07-17 用户裁）：I1–I9 唯一权威本 = [canon · 核心不变量](../canon/核心不变量.md)；原全文（含外壳）已归档 `_attic/`，本层留指针。**必读集合内的铁律 1 违规就此清零** |
+| ~~**[PERF-1] 门项数自相抵**（简称「八门」vs 门体「十项」）~~ | **[ISSUE-071] 已裁**（2026-07-17 用户裁）：门体 = **十项**，唯一定义处 = [canon · 测量判据](../canon/测量判据.md) §一.2。**本层引用 [PERF-1] 一律不带项数** |
 | **N-operand route identity 的完成度自相抵** | **待建号**。SPEC 前版称 route identity 今日为 2-operand；实核 `include/Weft/Plugin/RVV/RVVContractionRouteIdentity.h` 自题 *N-operand contraction route ID*、identity 持 `SmallVector<ContractionSourceSpec, 4> sources`、注释述及 `N=3+` 与 `"w,qlo,qhi"` 三因子实例。**如实标注冲突，本层不自裁**；该项维持【目标】栏、现状不予断言（见 [发射与降级](./发射与降级.md#目标--n-operand-route-identity-重设计)） |
 | **家族准入边界在 canon 与本层各有一份** | **待建号**。同一条 [F-*] 级判据两处成文 = 副本。本层留一份于 [家族现状](./家族现状.md#定法家族准入边界)，canon 侧的重述去留待裁 |
 | **论文侧原文暂存于本层** | **待建号**。前端/后端判别 + 论文语言用/避清单在新六份 spec 中无第二落点，按原样暂存于 [系统定位与边界](./系统定位与边界.md#论文侧原文暂存待迁-canon)，**待迁 canon【暂定】节** |

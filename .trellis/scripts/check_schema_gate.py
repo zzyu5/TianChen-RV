@@ -57,7 +57,7 @@ VERSIONLOG = REPO_ROOT / "schema" / "VERSIONLOG.md"
 # [F-EMIT] whitelist). They are exactly the "+ 表行" allowance an onboarding PR MUST touch
 # (adding its family block + a baseline bump). Gating the whole schema/ prefix would
 # false-trigger [F-2'] on that mandatory family-manifest edit -- a direct collision with
-# [F-3] (spec locality-contract.md prescribes this narrowing). Gate the EXACT contract
+# [F-3] (spec architecture/插件协议.md prescribes this narrowing). Gate the EXACT contract
 # files only. Derived from the single-source-of-truth SCHEMA_JSON / VERSIONLOG constants.
 SCHEMA_DEF_PATHS = (
     SCHEMA_JSON.relative_to(REPO_ROOT).as_posix(),   # schema.def -- the [S-5] shape artifact

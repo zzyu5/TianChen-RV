@@ -6,9 +6,9 @@
 
 **唯一合法测量动作：`bench <格> --board <板>`。**
 
-> **【runner 未建】** 该命令**当前不存在**（谓词：`tools/bench/` 下仅 4 个 shell 辅助件 `_build-common.sh` / `byte-exact-baseline.sh` / `configure-line-build.sh` / `new-line-worktree.sh`；`grep -rnE 'runs\.log|run-id|run_id' tools .trellis/scripts` 命中 0）。建设 runner 是随令工项，挂 [ISSUE-067](../issues/index.md)（bench runner 未建 · 三目的地均不存在）。
+> **【runner 已建 · 真实路径仍阻塞】**（2026-07-17 实况订正；此前本注记写"该命令当前不存在"，谓词已为假）**runner 现址 = `tools/bench/bench`**（谓词：`test -x tools/bench/bench` 为真；`grep -rnE 'runs\.log|run-id|run_id' tools .trellis/scripts` 命中 **32**，非 0）。**已达 = 干跑路径**（`--dry-run`：零 ssh · 零计时 · 零主表写，只产台账一行 + 演示行）与 `--self-test`。**未达 = 真实测量路径**：第 3/4 步抛 `CellRecipeMissing` 硬错，**禁伪装可用**——阻塞于 [ISSUE-090](../issues/门与工具.md#issue-090--每格对拍计时-harness-的住址与契约未定义33-第-34-步无可寻址被调物)（每格 harness 住址与契约）+ [ISSUE-091](../issues/门与工具.md#issue-091--bench-格-单独不定位主表行行键不在-331-字段表内--与现役表结构无映射)（行键）+ [ISSUE-073](../issues/index.md)（主表住址）。总账挂 [ISSUE-067](../issues/index.md)。
 >
-> **本节是规范，不是对现有实现的描述**：runner 建成前，本节的五步与 [3.3.1](#331-行-schema规范性) 行 schema 是**待实现的验收标准**；建成后，runner 与本节不符 = **runner 的缺陷**。**本层是权威，runner 是实现**——任何"schema 以 runner 实现为准"的读法都非法。
+> **本节是规范，不是对现有实现的描述**：本节的五步与 [3.3.1](#331-行-schema规范性) 行 schema 是**验收标准**；runner 与本节不符 = **runner 的缺陷**。**本层是权威，runner 是实现**——任何"schema 以 runner 实现为准"的读法都非法。（runner 侧已把本节 [3.3.1](#331-行-schema规范性) 的字段表做成**每次出行前机核比对**、不等即 fail-closed 中止；故"改本节而不改 runner"会当场变红，此为设计。）
 
 每格测量 = 固定五步，由**单一 runner** 执行，步内自动留痕，**步外无合法动作**：
 
