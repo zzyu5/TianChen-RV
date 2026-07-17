@@ -26,7 +26,7 @@ Execute these steps:
 
 5. **Always read shared guides**:
    ```bash
-   cat .trellis/spec/guides/index.md
+   cat .trellis/spec/governance/思维准则.md
    ```
 
 6. Understand the coding standards and patterns you need to follow, then proceed with your development plan.

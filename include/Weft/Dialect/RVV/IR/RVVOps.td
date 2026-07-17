@@ -10303,7 +10303,7 @@ def TypedFlatBlockDotLoopBodyOp : WEFTRVV_Op<"typed_flat_block_dot_loop_body",
     the monolithic body (the *how* -- LMUL / unroll / elision / fold-scheduling --
     never the *what*). fold_model fixes the ARITHMETIC fold tree (region-invariant);
     fold_structure is the orthogonal SCHEDULE knob for HOW that same pinned fold
-    (testing/flat-block-dot-fp-fold-oracle.md §1) is issued -- "per-block" (default)
+    (measurement/浮点折叠oracle.md §1) is issued -- "per-block" (default)
     folds each block's scalar term into the running f32 sum as it is produced;
     "deferred-ordered" (P2c, q8_0 only) batches multi_block_factor blocks, packs
     their integer sumi into one vector, strided-loads the fp16 scales, and issues
@@ -10314,7 +10314,7 @@ def TypedFlatBlockDotLoopBodyOp : WEFTRVV_Op<"typed_flat_block_dot_loop_body",
     numerics_tier is a THIRD, ORTHOGONAL scheduling axis (distinct from fold_model
     = the *what*, and fold_structure = *how the STRICT fold is issued*): it selects
     WHICH numeric oracle governs the fp fold. "strict" (default; absent = strict,
-    fail-closed I7) pins the [testing/flat-block-dot-fp-fold-oracle.md §1] fold
+    fail-closed I7) pins the [measurement/浮点折叠oracle.md §1] fold
     (no-FMA, strict left-assoc, ordered, no d_x*d_y premultiply) -- BOTH per-block
     and deferred-ordered strict variants verify byte-exact against §1, and the paper
     headline number is ALWAYS strict. "relaxed" is the policy-gated reassociation

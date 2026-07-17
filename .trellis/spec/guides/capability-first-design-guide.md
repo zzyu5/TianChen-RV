@@ -1,6 +1,0 @@
-# Capability-First Design Guide（条文已并入 governance layer · 本文只是指路牌）
-
-> **本文的条文已整体并入 [../governance/思维准则.md](../governance/思维准则.md) §二 能力优先设计。**
-> 此处**不再有条文**——只保留路径以免既有引用腐坏成假引文。
-> **禁在本文添加或修改任何规则**：改规则去目标文件；此指路牌随 spec 树归并收口一并移除（去向属 `ISSUE-070`，见 [issues](../issues/index.md)）。
-> 条文本体 → [canon · 核心不变量](../canon/核心不变量.md) I1 / I3 / I5、[canon · 能力模型与插件协议](../canon/能力模型与插件协议.md)（S-\*）。

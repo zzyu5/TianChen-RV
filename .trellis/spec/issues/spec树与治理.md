@@ -155,3 +155,24 @@
 - **保守默认**：**按固定节拍人工核对**（每次简报的队列快照即核对点，见 governance §四），**不新增脚本、不改 `task.py`**。
 - **状态**：待裁
 - **出处**：仓内 —— [governance](../governance/index.md) §六 [GOV-2] 行下的【待裁 · 现行保守默认】注 = 本条的承接来源。
+
+---
+
+### ISSUE-089 · `schema.def` 的 `$meta.authority` 指针已悬空，但改它会撞 [S-6] 形态哈希
+
+- **状态**：**待裁**（canon 级 · 禁 agent 自裁）
+- **实质**：`schema/capability.schema.v1.json` **就是 `schema.def` 本体**。其 `$meta.authority`
+  指向的 spec 路径在六层收口后**已不存在**（旧 `capability-model/` 层已归档）⟹ **悬空锚**。
+  但 **[S-6] 的冻结哈希 = `sha256(json.dumps(obj, sort_keys=True))` 覆盖【整个对象，含 `$meta`】**
+  ⟹ **仅改这个文档指针就会让形态哈希漂移**，`schema-def-f2prime-gate-redteam` 当场变红（实测 950/4）。
+- **为何不能自决**：修复须**同时 bump [S-6] 版本 + 更新 VERSIONLOG** = **canon 级动作**。
+  且 `schema.def` 自第二家族起未被接入触及是 **C1 的承重证据**（[F-2′] 逐 PR 审计）——
+  动它的哈希需要用户明示。
+- **保守默认（现行）**：**指针保持悬空**，`capability.schema.v1.json` 与 HEAD **字节相同**
+  （施工代理已回退其 2 处编辑并自证）。**这是全树【唯一】残留的悬空路径**，其余 39 处已改锚。
+- **两个候选去向（供裁）**：
+  ① 改锚 + bump [S-6] + 更新 VERSIONLOG（一次性，之后哈希稳定）
+  ② 把 `$meta.authority` 移出哈希域（改 [S-6] 哈希口径 = 更深的 canon 变更）
+- **相邻事实**：本条与 [ISSUE-070]（I1–I9 双本）、[ISSUE-071]（[PERF-1] 门数称谓）同属
+  「六层收口显形的 canon 级待裁」，建议一并裁。
+

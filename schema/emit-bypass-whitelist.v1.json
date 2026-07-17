@@ -16,7 +16,7 @@
    "front_door_authority": "lib/Conversion/RVV/RVVLowerQuantContraction.cpp lowerToRepackGemv/lowerToRepackGemm -> weft_rvv.typed_repack_gem{v,m}_loop_body ([K-3b] sole emission authority)",
    "front_door_emitters": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp emitTypedRepackGemvLoopBody / emitTypedRepackGemmLoopBody (the NON-bypass typed-region path -- q4_0 only)",
    "sixstate": "schema/coverage-sixstate.v1.json (each whitelisted format's gemm_tile rvv cell carries provenance='direct-emitter (transitional scaffolding)' + retirement_batch; state must be dispatch-wired, never constructed)",
-   "checker": "tools/lint/check_frontdoor_provenance.py",
+   "checker": "tools/gates/check_frontdoor_provenance.py",
    "ci": ".github/workflows/falsifier-gate.yml (job: frontdoor-provenance-gate)"
   },
   "shrink_only": true,

@@ -81,22 +81,21 @@ Weft-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行�
 | [governance](./governance/index.md) | **怎么做事**：决策权限卡（自决 / 必问 / 禁停 / 灰区）、延后裁决制、队列与简报、Trellis 卫生、思维准则 | **必读**。开工前 |
 | [issues](./issues/index.md) | **唯一问题登记簿**：全部已知缺口、待裁事项、被证伪的在册结论、未清欠账，以 `ISSUE-NNN` 在此**且仅在此**登记 | **必读**。开工前查号 + 收工前登记 |
 
-**六层之外**：`.trellis/spec/` 下仍存在旧层目录（`capability-model/` · `core-dialect/` · `plugin-protocol/` · `extension-plugins/` · `variant-pipeline/` · `lowering-runtime/` · `implementation-stack/` · `testing/` · `validation/` · `guides/`）与平铺 `SPEC-*.md` / `ISSUES.md`。**它们不是第七层，也不再有任何条文**：条文已**全部**并入上表六层，这 **41 份文件现在全部是指路牌**——每份只声明"条文迁去哪了"，**零规则、零副本**。
+**六层之外：没有了。** `.trellis/spec/` 顶层**只有本文 + 上表六个目录**。旧层目录（`capability-model/` · `core-dialect/` · `plugin-protocol/` · `extension-plugins/` · `variant-pipeline/` · `lowering-runtime/` · `implementation-stack/` · `testing/` · `validation/` · `guides/`）与平铺 `SPEC-*.md` / `ISSUES.md` **共 41 份，已于 2026-07-17 整体移入 `_attic/`**（用户明令：「记得最后要清理干净，而不是留下一堆指路牌」「总之要是新状态」）。移入前它们已全部化为指路牌（条文早已并入上表六层），且**全仓活引用已逐处改锚** ⟹ 今天**零指路牌、零悬空**。原件按原路径结构完整保留在 `_attic/.trellis/spec/`（git-ignored 归档区 · 与归档前字节相同 · 逐条原因见 [`_attic/ATTIC_INDEX.md`](../../_attic/ATTIC_INDEX.md) §三.1）。
 
 > **谓词（可复跑）**：
 > ```bash
 > cd .trellis/spec
-> ls capability-model/*.md core-dialect/*.md plugin-protocol/*.md extension-plugins/*.md \
->    variant-pipeline/*.md lowering-runtime/*.md implementation-stack/*.md \
->    testing/*.md validation/*.md guides/*.md SPEC-*.md ISSUES.md | wc -l          # → 41
-> for f in capability-model/*.md core-dialect/*.md plugin-protocol/*.md extension-plugins/*.md \
->          variant-pipeline/*.md lowering-runtime/*.md implementation-stack/*.md \
->          testing/*.md validation/*.md guides/*.md SPEC-*.md ISSUES.md; do
->   awk 'NR==1 && !/指路牌|已迁出/ {print FILENAME}' "$f"; done | wc -l              # → 0（零反例）
+> ls -1 | wc -l                                                                    # → 7（index.md + 六目录）
+> ls -d canon measurement architecture evidence governance issues 2>/dev/null | wc -l   # → 6（六层俱在）
+> ls -d capability-model core-dialect plugin-protocol extension-plugins variant-pipeline \
+>       lowering-runtime implementation-stack testing validation guides \
+>       SPEC-*.md ISSUES.md 2>/dev/null | wc -l                                    # → 0（旧世界一份不剩）
 > ```
-> 反例数 = 0 ⟺ 41 份**全部**是指路牌。**这是全量谓词，不是抽样**——若将来有人往旧层塞回条文，反例数会立刻 > 0。
+> 第三条 = 0 ⟺ 旧层与平铺件**全部清空**（不是"变成指路牌"，是**不在树里**）。**这是全量谓词，不是抽样**——若将来有人把旧层塞回来，它会立刻 > 0。
 
-**禁在旧层新增或修改规则**——旧层是路径兼容层（防既有引用腐坏成假引文），不是可写面。其**整体删除**的去向属 [ISSUE-070](./issues/spec树与治理.md)（canon 级 · 待裁）：删了对不上外部引用，留着又长期是死路径，故不自裁。
+**没有"旧层"可写了**：需要改规则，去上表六层里的目标文件；需要查旧条文的原文，去 `_attic/.trellis/spec/<原路径>`（**只读考古用，不是可引用的现行法**）。
+本次移入是**执行用户明令**，**不是** agent 自裁 [ISSUE-070](./issues/spec树与治理.md)（canon 级 · 待裁）；该 issue 条文本身未改，其"归并 / 归档"半的**收口措辞仍挂账待裁**。
 
 ## 新 agent 上岗顺序
 

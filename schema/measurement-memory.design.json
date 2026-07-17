@@ -12,7 +12,7 @@
       "docs/reports/2026-07-09-SEL-1-design.md (② measurement library schema blueprint)",
       "schema/tiling-measurements.v1.json (the live SEL-1 schedule-axis instance this generalizes)",
       "docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3]",
-      ".trellis/spec/variant-pipeline/generation-selection-tuning.md (two-stage selector, authority order)",
+      ".trellis/spec/architecture/变体流水线.md (two-stage selector, authority order)",
       ".trellis/spec/architecture/core-invariants.md#I4",
       "experiments/active/g8-stage3-attack/SEL3-measurement-memory-design.md (companion design draft)"
     ],

@@ -64,7 +64,7 @@ module {
 // CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // --- THEN the single fold, the PINNED SeparatedLeftAssoc oracle
-// --- [testing/flat-block-dot-fp-fold-oracle.md §1]: SEPARATE cast/mul/mul/add emitc
+// --- [measurement/浮点折叠oracle.md §1]: SEPARATE cast/mul/mul/add emitc
 // --- statements, NOT a fused emitc.expression, so clang cannot contract
 // --- (t*d_y)+sumf into fmaf; ((sumi*d_x)*d_y) with NO d_x*d_y premultiply. ---
 // CHECK: %[[C0:.*]] = cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">

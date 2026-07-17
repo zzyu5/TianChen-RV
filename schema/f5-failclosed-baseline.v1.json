@@ -2,7 +2,7 @@
   "$meta": {
     "manifest_version": "v1",
     "gate": "f5-failclosed-fuzz",
-    "checker": "tools/lint/check_f5_failclosed_fingerprint.py",
+    "checker": "tools/gates/check_f5_failclosed_fingerprint.py",
     "harness": "tools/fuzz/f5_failclosed_fuzz.sh",
     "falsifier": "[F-5] fail-closed fuzz (docs/method/FALSIFIER-INDEX.md §1)",
     "purpose": "Fingerprint baseline for the [F-5] fail-closed fuzz. The gate this manifest backs is a NON-REGRESSION ratchet: it locks that fail-closed COVERAGE does not degrade -- NOT a hard '20/20' requirement. Each fuzz scenario is pinned to its expected verdict class; the gate is RED iff a scenario that is expected fail-closed is observed FAIL (fail-open silent-pass / crash / non-diagnostic), or the scenario corpus drifts (a pinned scenario vanished, or an undeclared scenario appeared). A scenario legitimately KNOWN to fail-open may be declared expected='known-fail-open' -- it is then TOLERATED (not RED) and only flagged advisory if it later starts passing (baseline should tighten). The corpus-pin clause exists so nobody can delete a fuzz scenario to green the gate.",

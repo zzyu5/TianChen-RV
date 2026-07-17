@@ -60,7 +60,7 @@ What broader problems does this bug reveal?
 
 Solidify insights into the system:
 
-- [ ] Update `.trellis/spec/guides/` thinking guides
+- [ ] Update `.trellis/spec/governance/思维准则.md` thinking guides
 - [ ] Update relevant `.trellis/spec/` docs
 - [ ] Create issue record (if applicable)
 - [ ] Create feature ticket for root fix
@@ -117,10 +117,10 @@ Three levels of insight:
 
 **IMPORTANT**: After completing the analysis above, you MUST immediately:
 
-1. **Update spec/guides** - Don't just list TODOs, actually update the relevant files:
+1. **Update spec/governance** - Don't just list TODOs, actually update the relevant files:
    - If it's a cross-platform issue → update `cross-platform-thinking-guide.md`
-   - If it's a cross-layer issue → update `cross-layer-thinking-guide.md`
-   - If it's a code reuse issue → update `code-reuse-thinking-guide.md`
+   - If it's a cross-layer issue → update `.trellis/spec/governance/思维准则.md`（四、跨层数据流）
+   - If it's a code reuse issue → update `.trellis/spec/governance/思维准则.md`（三、复用优先）
    - If it's domain-specific → update `backend/*.md` or `frontend/*.md`
 
 2. **Sync templates** - After updating `.trellis/spec/`, sync to `src/templates/markdown/spec/`

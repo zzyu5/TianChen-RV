@@ -74,7 +74,7 @@ module {
 // CHECK: %[[SUMI1:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int32_t">>
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // --- THEN the two folds in STRICT ascending block order, each the PINNED
-// --- SeparatedLeftAssoc oracle [testing/flat-block-dot-fp-fold-oracle.md §1]:
+// --- SeparatedLeftAssoc oracle [measurement/浮点折叠oracle.md §1]:
 // --- SEPARATE cast/mul/mul/add emitc statements, NOT a fused emitc.expression,
 // --- so clang cannot contract (t*d_y)+sumf into fmaf; ((sumi*d_x)*d_y) with NO
 // --- d_x*d_y premultiply. The assign takes the ADD result directly (in a fused

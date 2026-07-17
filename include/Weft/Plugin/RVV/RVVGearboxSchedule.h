@@ -2739,7 +2739,7 @@ chooseFillOptimalLMUL(unsigned vlenBits, unsigned sew, unsigned blockLen,
 // attribution reason, and NEVER touches a cost model, measured_ns, or a vreg
 // budget -- the tier is a policy gate, not a performance pick.
 //
-// FAIL-CLOSED CRUX ([K-5] / flat-block-dot-fp-fold-oracle.md §5): the DEFAULT is
+// FAIL-CLOSED CRUX ([K-5] / measurement/浮点折叠oracle.md §5): the DEFAULT is
 // always Strict. Relaxed (the §5 reassociation variant -- premultiplied scales,
 // vfmacc lane-wise accumulation, one deferred unordered vfredusum) is admitted
 // ONLY when the policy fact is present AND the kernel is fp-order-sensitive. A

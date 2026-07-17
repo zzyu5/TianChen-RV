@@ -14,7 +14,7 @@
 // hints): a full-V (rv64gcv) profile advertises supported_sew up to 64, while a
 // constrained embedded zve32x profile advertises supported_sew={8,16,32} only
 // (no 64). That is target-capability provenance, not probe-fabricated selected
-// config (core-invariants I5; capability-model/profiles.md: the probe must not
+// config (core-invariants I5; architecture/能力模型.md: the probe must not
 // fabricate the SELECTED sew/lmul/tail/mask -- the support allow-list a target
 // configuration provides is a different, legitimate target-capability fact, and
 // it is filled by this plugin-local C++ authority).

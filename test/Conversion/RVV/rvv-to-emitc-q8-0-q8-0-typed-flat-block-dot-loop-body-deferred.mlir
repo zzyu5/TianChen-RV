@@ -8,7 +8,7 @@
 // M-FLAT P2c: the q8_0 (sumi_times_scales) typed flat block-dot LOOP body with
 // fold_structure = "deferred-ordered" -- the batched-vector cross-block fold
 // schedule for the SAME pinned §1 oracle
-// (testing/flat-block-dot-fp-fold-oracle.md). fold_structure is ORTHOGONAL to
+// (measurement/浮点折叠oracle.md). fold_structure is ORTHOGONAL to
 // fold_model (which fixes the arithmetic tree) + multi_block_factor / strip_elision
 // (which drive the integer-core schedule): it selects HOW the fold is issued.
 // For B = multi_block_factor = 4 blocks: PHASE A runs the four region-sourced

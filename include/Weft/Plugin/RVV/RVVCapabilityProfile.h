@@ -18,7 +18,7 @@ namespace weft::plugin::rvv {
 // a ratified-only feature (e.g. the tail/mask-agnostic policy) is legal on one
 // generation and illegal on the other. The version is a TARGET-CAPABILITY fact
 // derived from the validated ISA evidence (the selected -march / probed
-// isa/vector-hint string), NOT a plugin-selected config (I5; profiles.md).
+// isa/vector-hint string), NOT a plugin-selected config (I5; architecture/能力模型.md).
 //   * RVV1p0 -- the ratified RISC-V "V" 1.0 extension (rv64gcv / a bare "v"
 //     token / an embedded zve* tier). Has the ratified tail/mask-agnostic
 //     (ta/ma) vector policy.
@@ -109,7 +109,7 @@ llvm::Error validateRVVProbeCapabilityFacts(
 // evidence (selected -march plus the probed isa/vector hint string). This is a
 // TARGET-CAPABILITY fact ("what element widths this configured target supports"),
 // NOT a plugin-selected compile-time config (the typed body owns its single
-// chosen SEW; see core-invariants I5 and capability-model/profiles.md: the probe
+// chosen SEW; see core-invariants I5 and architecture/能力模型.md: the probe
 // must not fabricate the SELECTED sew/lmul/tail/mask). Returns a comma-separated
 // allow-list ("8,16,32,64" for a full-V / zve64* / xtheadvector tier; "8,16,32"
 // for an embedded zve32* tier) or "" when the evidence names no concrete RVV
@@ -147,7 +147,7 @@ std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
 // vector length (VLEN >= 128) as a hard ISA fact, from the selected -march plus
 // the probed isa/vector hint string. This is a TARGET-CAPABILITY fact ("does
 // this configured target guarantee VLEN >= 128"), NOT a plugin-selected config
-// (I5; profiles.md). The ratified RISC-V "V" extension MANDATES Zvl128b, so any
+// (I5; architecture/能力模型.md). The ratified RISC-V "V" extension MANDATES Zvl128b, so any
 // full-V configuration (rv64gcv, a bare "v" token) guarantees VLEN >= 128. The
 // embedded vector tiers (zve32x / zve64x) mandate only Zvl32b / Zvl64b
 // respectively, so they do NOT guarantee VLEN >= 128 unless an explicit
@@ -163,7 +163,7 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
 // Derives the GUARANTEED minimum vector length in BITS from the selected -march
 // plus the probed isa/vector hint string. This is a TARGET-CAPABILITY fact ("what
 // VLEN does this configured target guarantee at minimum"), NOT a plugin-selected
-// config (I5; profiles.md). It is the quantitative generalization of
+// config (I5; architecture/能力模型.md). It is the quantitative generalization of
 // deriveHasZvl128b: an explicit Zvl{N}b token (zvl128b / zvl256b / zvl512b / ...)
 // raises the floor to N; full "V" (rv64gcv, a bare "v" token) mandates Zvl128b so
 // it floors at 128; an embedded tier (zve32x / zve64x) with no explicit Zvl token
@@ -178,7 +178,7 @@ std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
 // Derives whether the configured target implements the SpacemiT IME matrix
 // extension, from the selected -march plus the probed isa/vector-hint string.
 // This is a TARGET-CAPABILITY fact ("does this target assemble `vmadot`"), NOT a
-// plugin-selected config (I5; profiles.md). The load-bearing IME1 march token is
+// plugin-selected config (I5; architecture/能力模型.md). The load-bearing IME1 march token is
 // `xsmtvdotii` -- the SINGLE canonical spelling the IME plugin's march gate
 // requires to assemble `vmadot` (kIMEMarchToken in IMEExtensionPlugin.cpp; the
 // gate there is `march.contains(kIMEMarchToken)`). Its presence in the march (or

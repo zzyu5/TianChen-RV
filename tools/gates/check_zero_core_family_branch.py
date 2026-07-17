@@ -4,10 +4,10 @@
 Machine-checks the I3 invariant "零 family-name 分支": the core / common dispatch path
 reaches plugins ONLY through the capability registry + plugin interface, NEVER via an
 `if RVV` / `if IME` / `if Sophgo` family-name branch. This scriptifies the [F-1] falsifier
-that canon (科研目标总纲v2:105) specifies as a CI gate but which had no manifest / checker
+that canon ([F-1], .trellis/spec/canon/能力模型与插件协议.md §二) specifies as a CI gate but which had no manifest / checker
 until now (the invariant itself was already green -- this gate LOCKS it).
 
-Mechanism (faithful to the judgment protocol at mlir-testing-contract.md:72-82):
+Mechanism (faithful to the [F-1] judgment protocol at .trellis/spec/canon/能力模型与插件协议.md §二):
   1. Enumerate the CORE control-flow file scope from schema/family-regex.v1.json
      (recursive/depth1/single roots, minus each family's own directory).
   2. For each core line, strip comments (// , /* */ , TableGen // , leading-* doc lines),

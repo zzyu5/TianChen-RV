@@ -44,7 +44,7 @@ PROBES (each one is a real weft-opt invocation; nothing here is hand-written):
                              SAME declared_instance_hash (see channel note above).
 
 CORE DIFF = 0 MACHINE CHECK (three independent legs, all mechanized):
-  C1 f1-zero-branch  -- tools/lint/check_zero_core_family_branch.py: zero
+  C1 f1-zero-branch  -- tools/gates/check_zero_core_family_branch.py: zero
                         family-name-keyed branch across the core scope (I3/[F-1]).
   C2 fact-confined   -- every diff hunk between the two instance files lands
                         INSIDE a weft.exec.capability fact region; the non-fact
@@ -75,7 +75,7 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CSV_PATH = os.path.join(REPO, "experiments/active/result-tables/T1d_dual_instance.csv")
-F1_CHECKER = os.path.join(REPO, "tools/lint/check_zero_core_family_branch.py")
+F1_CHECKER = os.path.join(REPO, "tools/gates/check_zero_core_family_branch.py")
 SCHEMA = "schema/capability.schema.v1.json"
 SEL1_FIXTURE = os.path.join(
     REPO, "test/Conversion/RVV/rvv-q8-0-front-door-sel1-march-vlen-lmul-flip.mlir"
@@ -245,10 +245,10 @@ def core_diff_checks(weft_opt, files):
     f1_msg = (proc.stdout + proc.stderr).strip().splitlines()
     rows.append(dict(
         check_id="C1-f1-zero-branch",
-        mechanism="tools/lint/check_zero_core_family_branch.py (I3/[F-1] core scope)",
+        mechanism="tools/gates/check_zero_core_family_branch.py (I3/[F-1] core scope)",
         verdict="PASS" if f1_ok else "FAIL",
         evidence=f1_msg[-1] if f1_msg else "(no output)",
-        repro="python3 tools/lint/check_zero_core_family_branch.py"))
+        repro="python3 tools/gates/check_zero_core_family_branch.py"))
     green &= f1_ok
 
     # C2 -- the two instances differ ONLY inside capability fact regions.

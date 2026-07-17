@@ -2,7 +2,7 @@
 """check_family_locality.py -- [F-3] family change-containment gate (M1 evidence line).
 
 Machine-checks the [F-3] falsifier "变更收容" (canon 科研目标总纲v2:107 ·
-.trellis/spec/plugin-protocol/locality-contract.md:76). Per the 2026-07-12 user ruling
+.trellis/spec/architecture/插件协议.md「[F-3] 变更收敛」). Per the 2026-07-12 user ruling
 「MLIR 分层为主 + family 清单机检」, containment is asserted by a per-family MANIFEST
 (schema/family-manifest.v1.json), NOT by a cross-root physical directory move: the repo
 keeps the idiomatic MLIR layered layout (lib/{Dialect,Conversion,Plugin,Target}/<Fam>/ +

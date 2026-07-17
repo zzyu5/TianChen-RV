@@ -11,7 +11,7 @@
 // [GAP-NUM] the q8_0 (sumi_times_scales) typed flat block-dot LOOP body with
 // fold_structure = "deferred-ordered" AND numerics_tier = "relaxed" -- the §5
 // policy-gated REASSOCIATION variant of the deferred-ordered schedule
-// (testing/flat-block-dot-fp-fold-oracle.md §5). numerics_tier is ORTHOGONAL to
+// (measurement/浮点折叠oracle.md §5). numerics_tier is ORTHOGONAL to
 // fold_model (the arithmetic tree) and fold_structure (how the STRICT fold is
 // issued): it selects WHICH numeric oracle governs the fp fold. "relaxed" is
 // admitted ONLY behind the numerics.reassoc_ok (kind=policy) capability fact

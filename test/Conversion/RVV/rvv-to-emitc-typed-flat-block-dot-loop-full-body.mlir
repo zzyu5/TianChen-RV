@@ -23,7 +23,7 @@
 // (loop skeleton + the plain i8xi8 widening-product/reduce integer core + the
 // pinned fp32 fold `t=(float)sumi*d_x; t=t*d_y; sumf=sumf+t`) is SOURCED from the
 // region ops, not re-derived from the loop-body attrs. The fold conforms to
-// [testing/flat-block-dot-fp-fold-oracle.md §1] (separate statements, no
+// [measurement/浮点折叠oracle.md §1] (separate statements, no
 // premultiply, no FMA) and is therefore INTENTIONALLY no longer byte-exact vs
 // the monolith's fused `sumf + (float)sumi*(d_x*d_y)` (the sanctioned gate
 // migration, q8_0 only; the monolith retires later).
@@ -132,7 +132,7 @@ module {
 // CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[XB]])
 // CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[YB]])
 
-// The PINNED SeparatedLeftAssoc fp32 fold [testing/flat-block-dot-fp-fold-oracle.md
+// The PINNED SeparatedLeftAssoc fp32 fold [measurement/浮点折叠oracle.md
 // §1]: sumi loaded, sumf loaded AFTER the core, then SEPARATE cast/mul/mul/add
 // emitc statements (NOT a fused emitc.expression) so clang cannot contract
 // (t*d_y)+sumf into fmaf. The tree is ((sumi*d_x)*d_y) -- NO d_x*d_y premultiply

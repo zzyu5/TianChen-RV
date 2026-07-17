@@ -2,9 +2,9 @@
   "$meta": {
     "manifest_version": "v1",
     "gate": "f1-zero-branch-gate",
-    "checker": "tools/lint/check_zero_core_family_branch.py",
-    "falsifier": "[F-1] 零核心分支 (docs/canon/Weft-RV_科研目标总纲v2.md:105 · .trellis/spec/testing/mlir-testing-contract.md:72)",
-    "invariant": "I3 零 family-name 分支 (.trellis/spec/architecture/core-invariants.md:13)",
+    "checker": "tools/gates/check_zero_core_family_branch.py",
+    "falsifier": "[F-1] 零核心分支 (authority: .trellis/spec/canon/能力模型与插件协议.md \u00a7\u4e8c [F-1])",
+    "invariant": "I3 零 family-name 分支 (.trellis/spec/canon/核心不变量.md \u00a7I3 · 双本在册 ISSUE-070 · 两处 I1-I9 逐字一致)",
     "purpose": "Family-regex manifest + core-scope + judgment protocol for the [F-1] zero-core-branch falsifier. The core / common dispatch path must reach plugins ONLY through the capability registry + plugin interface, NEVER via an `if RVV` / `if IME` / `if Sophgo` family-name branch. This manifest lists each family's dispatch-key tokens and pins the CORE control-flow file scope; the checker greps the family keys over that scope and, per the judgment protocol below, flags a hit RED iff it is a family-name-keyed control-flow DECISION (if / switch / StringSwitch / starts_with / == on a family key). Declared false-positive classes (comments, mnemonics, dialect-type refs, registration tables, identity comparisons) are NOT branches and are NOT RED.",
     "gate_semantics": "RED iff any core line is a family-name-keyed control-flow/dispatch decision (a real I3 violation) that is not an allow-listed declared false-positive. GREEN == zero family-keyed branch in core (the invariant holds).",
     "head_snapshot": "1bb06375",
@@ -50,7 +50,7 @@
   ],
 
   "judgment_protocol": {
-    "authority": ".trellis/spec/testing/mlir-testing-contract.md:72-82",
+    "authority": ".trellis/spec/canon/能力模型与插件协议.md \u00a7\u4e8c [F-1] (\u5224\u8bfb\u89c4\u7a0b)",
     "red_condition": "A core line is RED iff it is a family-name-keyed control-flow / dispatch DECISION: a family dispatch-key used as the discriminator of if / switch / StringSwitch(.Case) / starts_with / consume_front / contains / equals / == / != (string-literal family key), OR a bareword family enum in a switch/case/comparison (case RVV: / == Family::IME).",
     "declared_false_positive_classes": [
       "1. string literal in a data/table/registration line (family name as data, not a branch) — e.g. the kBuiltinBackendEmitters[] registration table entries.",

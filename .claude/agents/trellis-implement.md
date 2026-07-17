@@ -41,7 +41,7 @@ Before implementing, read:
 Read relevant specs based on task type:
 
 - Spec layers: `.trellis/spec/<package>/<layer>/`
-- Shared guides: `.trellis/spec/guides/`
+- Shared guides: `.trellis/spec/governance/思维准则.md`
 
 ### 2. Understand Requirements
 

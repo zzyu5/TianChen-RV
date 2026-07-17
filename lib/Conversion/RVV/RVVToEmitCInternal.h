@@ -116,8 +116,8 @@ enum class FlatWeightScaleSource {
 //   ScalesTimesSumi -> sumf + (d_x * d_y) * (float)sumi    (q5_0)
 //   ScalePlusMin    -> sumf + ((d_x*d_y)*sumi + m_x*s_y)   (q4_1 / q5_1)
 //   SeparatedLeftAssoc -> t = (float)sumi * d_x; t = t * d_y; sumf = sumf + t;
-//     (the pinned flat-block-dot fp-fold oracle [K-5]/[testing/
-//     flat-block-dot-fp-fold-oracle.md §1]: strict left-assoc, ordered, NO
+//     (the pinned flat-block-dot fp-fold oracle [K-5]/[measurement/
+//     浮点折叠oracle.md §1]: strict left-assoc, ordered, NO
 //     dx*dy premultiply, NO FMA contraction. Emitted as SEPARATE emitc
 //     statements -- standalone mul/mul/add, NOT one emitc.expression -- so
 //     clang's default -ffp-contract=on cannot fuse (t*dy)+sumf into fmaf.

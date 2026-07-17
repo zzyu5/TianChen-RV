@@ -101,7 +101,7 @@ module attributes {weft_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // placement). Values byte-identical; only the fcvt.s.h code position moved.
 // CORE: call_opaque "(float)*(const _Float16 *)"
 // CORE: call_opaque "(float)*(const _Float16 *)"
-// The q8_0 PINNED SeparatedLeftAssoc fold [testing/flat-block-dot-fp-fold-oracle.md
+// The q8_0 PINNED SeparatedLeftAssoc fold [measurement/浮点折叠oracle.md
 // §1]: (float)sumi cast, then t=(float)sumi*d_x, then t=t*d_y, then sumf=sumf+t --
 // SEPARATE cast/mul/mul/add statements (NO d_x*d_y premultiply, NO fused
 // emitc.expression, so clang cannot contract into fmaf). The assign takes the ADD

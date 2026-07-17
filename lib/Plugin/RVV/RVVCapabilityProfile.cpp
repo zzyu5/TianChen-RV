@@ -206,7 +206,7 @@ llvm::Error addAvailableCapability(mlir::MLIRContext &context,
 // evidence (selected -march plus the probed isa/vector hint string). This is a
 // TARGET-CAPABILITY fact ("what element widths this configured target supports"),
 // NOT a plugin-selected compile-time config (the typed body owns its single
-// chosen SEW; see core-invariants I5 and capability-model/profiles.md: the probe
+// chosen SEW; see core-invariants I5 and architecture/能力模型.md: the probe
 // must not fabricate the SELECTED sew/lmul/tail/mask). The allow-list is the set
 // the legality gate (verifyRVVSelectedTargetCapabilityForTypedConfig /
 // checkCapabilityConfigGate) queries against the typed body's SEW. Mapping per
@@ -497,7 +497,7 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   // a real probed RVV capability carries the divergence axes the legality gate
   // queries (supported_sew / supported_lmul). These are target-capability facts
   // (what the configured target supports), derived in this plugin-local C++
-  // authority -- not probe-fabricated selected config (I5; profiles.md). An
+  // authority -- not probe-fabricated selected config (I5; architecture/能力模型.md). An
   // embedded zve32* tier narrows supported_sew to 8,16,32 (no 64) so a SEW=64
   // body is gated out, while a full-V tier admits it: that is the capability-
   // driven divergence on real ISA semantics.

@@ -16,7 +16,7 @@
       "verifier_impl": "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp",
       "front_door_gate": "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp",
       "family_registry": "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h",
-      "checker": "tools/lint/check_monolith_retire.py",
+      "checker": "tools/gates/check_monolith_retire.py",
       "ci": ".github/workflows/falsifier-gate.yml (job: monolith-retire-gate)"
     },
     "generated_survey": "As of 裁决九.4: 8 vec_dot monolith op-defs survive in ODS (2 deliberately_retained + 6 pending_retirement). All other flat/K/IQ/TQ vec_dot monoliths (q8_0, q4_1, q5_0, q5_1, iq4_nl, nvfp4, iq1_s, iq1_m, iq3_xxs, iq4_xs, iq2_xxs, iq2_xs, iq2_s, iq3_s, tq1_0, tq2_0) are ALREADY op-def-retired (front door keys off string literals; see the RETIRED NOTE markers in RVVOps.td).",

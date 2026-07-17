@@ -13836,7 +13836,7 @@ void VariantToEmitCFunc::emitFlatFold(
       mlir::Value sumfCur =
           rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
 
-      // Pinned fp-fold oracle [K-5]/[testing/flat-block-dot-fp-fold-oracle.md §1]:
+      // Pinned fp-fold oracle [K-5]/[measurement/浮点折叠oracle.md §1]:
       // strict left-assoc, ordered, NO dx*dy premultiply, NO FMA contraction.
       // Emitted as SEPARATE emitc statements (standalone cast/mul/mul/add, NOT
       // inside one emitc.expression) so clang's default -ffp-contract=on cannot
@@ -14873,7 +14873,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
 
     // ---- The pinned-oracle SeparatedLeftAssoc fold descriptor + shared emit
     // state (fold only; the integer core is emitted op-by-op below). The q8_0
-    // TYPED body conforms to [testing/flat-block-dot-fp-fold-oracle.md §1]:
+    // TYPED body conforms to [measurement/浮点折叠oracle.md §1]:
     // ((sumi*d_x)*d_y) as SEPARATE emitc statements (no dx*dy premultiply, no FMA
     // contraction). The MONOLITH keeps SumiTimesScales (`sumi*(d_x*d_y)`), so the
     // typed emit is INTENTIONALLY no longer byte-exact vs monolith here -- the
@@ -15093,7 +15093,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     };
 
     // ---- M-FLAT P2c: the deferred-ordered fold_structure. SAME pinned §1 oracle
-    // (testing/flat-block-dot-fp-fold-oracle.md), issued as a batched VECTOR
+    // (measurement/浮点折叠oracle.md), issued as a batched VECTOR
     // reduction instead of the per-block scalar fold. For a batch of B =
     // multi_block_factor blocks: PHASE A (out-of-order free) runs the B per-block
     // integer cores (region-sourced vwmul -> vwredsum -> lane0 extract -> scalar
