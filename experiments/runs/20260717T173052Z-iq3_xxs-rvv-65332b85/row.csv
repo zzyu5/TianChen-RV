@@ -1,0 +1,2 @@
+op,format,engine,regime,cold,判定,对手符号,对手档,对手证据引用,我方向量指令数,世系,run-id,噪声标
+gemm_tile,iq3_xxs,rvv,prefill,0.9542,near-parity,ggml_vec_dot_iq3_xxs_q8_K(→vl128·CROSSOP),手调,objdump dispatch: ggml_vec_dot_iq3_xxs_q8_K_vl128@00000000000c08ee rvv113/vset42/gather12,7422,riscv64/6.12.66-0.0.0.0.riscv64·clang version 18.1.8·e85fceda47606a115c5fbb0021817cdc,20260717T173052Z-iq3_xxs-rvv-65332b85,近门·2seed一致(Δ=0.0021)

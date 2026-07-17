@@ -1,0 +1,47 @@
+# HARNESS gemm_tile board=rvv mode=measure fmt=iq3_xxs assets=/home/kingdom/phdworks/TianchenRV/experiments/active/g8-stage3-attack/P2-grid4-raw
+# BUILD gemm_tile fmt=iq3_xxs board=rvv CC=clang version 18.1.8 march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause flush=224MiB
+# cpu_md5_before=e85fceda47606a115c5fbb0021817cdc
+# leaf_md5=619f0a13385deb565cff40a15a34303d drv_md5=1cfea6e8554e3d43dda0109e35053744
+# fault_leaf differing_bytes=1 (must be exactly 1)
+# linked OK md5=d53f888eff9ed5e110a957384ece3e62 FAULTbin md5=1d98d6e656b599105a8e0967612bed23
+# OURS_leaf [ins=15238 rvv=12819 gather=1024 vset=5397] size=65344B fp16_libcall=0
+# OPP ggml_vec_dot_iq3_xxs_q8_K_generic PRESENT @0000000000076bb8 m1[ins=365 rvv=82 gather=4 vset=23] m2[ins=365 rvv=82 gather=4 vset=23] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_xxs_q8_K PRESENT @00000000000c08b8 m1[ins=18 rvv=0 gather=0 vset=0] m2[ins=18 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_xxs_q8_K_vl128 PRESENT @00000000000c08ee m1[ins=310 rvv=113 gather=12 vset=42] m2[ins=310 rvv=113 gather=12 vset=42] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_xxs_q8_K_vl256 PRESENT @00000000000c0d36 m1[ins=313 rvv=112 gather=12 vset=41] m2[ins=313 rvv=112 gather=12 vset=41] DUAL-AGREE
+# OPP ggml_gemm_iq3_xxs_16x1_q8_K ABSENT @ m1[ins=0 rvv=0 gather=0 vset=0] m2[ins=0 rvv=0 gather=0 vset=0] DUAL-AGREE
+# same-operator probe: 0 symbols matching ggml_gemm_iq3_xxs (0 = OPP-S structurally absent)
+# PRE_STRAY=0
+# loadavg_begin=3.05 2.64 2.35 1/1017 2511395
+# LOAD_GATE_OK core=8 idle=100% gov=performance
+=== S1 seed=0x1357 ===
+=== iq3_xxs gemm_tile PREFILL | K=2048 nr=16 nc=512 VLEN=128 seed=0x1357 INJECT=0 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T2 ours  vs oracle: mism=0/8192 worst_tolratio=4.397e-02
+  T2 OPP-G vs oracle: mism=0/8192 worst_tolratio=4.397e-02
+  T2 OPP-X vs oracle: mism=0/8192 worst_tolratio=4.397e-02
+  GATE-OURS = PASS | GATE-OPPG = PASS | GATE-OPPX = PASS
+REPS_OURS seed=0x1357 : 12057750 12199811 12192830 12249831 12159610 12220991 12128530 12201490 12200311 12168010 12180891 12140110 12176410 12213991 12258391 12182490 12148430 12056810 12254130 12339431 12587672 12195230 12257311 12229350 12226430
+REPS_OPPG seed=0x1357 : 33241937 33247958 33214057 33113217 33300698 33115357 33226397 33294998 33144937 33165337 33140097 33105137 33189878 33231038 33541659 33169877 33185078 33228858 33488439 33349598 33267917 33130858 33194258 33130397 33223617
+REPS_OPPX seed=0x1357 : 11740908 11704009 11600768 11661108 11534508 11768108 11628468 11648129 11641148 11702668 11562488 11687448 11630008 11622888 11734308 11569248 11674848 11613708 11705689 11601208 11620228 11663428 11571687 11582768 11658228
+GEMM_PREFILL fmt=iq3_xxs K=2048 nr=16 nc=512 reps=25 VLEN=128 seed=0x1357 | ours_med_ns=12199811(iqr0.50%) oppG_med_ns=33214057(iqr0.31%) oppX_med_ns=11641148(iqr0.74%) | ratio_cold_G=2.7225 ratio_cold_X=0.9542 sink=10734796800
+=== S2 seed=0xACE2 ===
+=== iq3_xxs gemm_tile PREFILL | K=2048 nr=16 nc=512 VLEN=128 seed=0xACE2 INJECT=0 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T2 ours  vs oracle: mism=0/8192 worst_tolratio=3.984e-02
+  T2 OPP-G vs oracle: mism=0/8192 worst_tolratio=3.984e-02
+  T2 OPP-X vs oracle: mism=0/8192 worst_tolratio=3.984e-02
+  GATE-OURS = PASS | GATE-OPPG = PASS | GATE-OPPX = PASS
+REPS_OURS seed=0xACE2 : 12024090 12189270 12251771 12255530 12067510 12193930 12252151 12182010 12213451 12682492 12161690 12190670 12191951 12184250 12223650 12285930 12107570 12210670 12267791 12229911 12211831 12221271 12191870 12204731 12210350
+REPS_OPPG seed=0xACE2 : 33137418 33294798 33170437 33139438 33291238 33133597 33115517 33136717 33139057 33133177 33295997 33177117 33190677 33127717 33195078 33132578 33240197 33123297 33198277 33140157 33162077 33223157 33117837 33137037 33122038
+REPS_OPPX seed=0xACE2 : 11594768 11630549 11657309 11717809 11639948 11644908 11627988 11559728 11591728 11599628 11600048 11574687 11634808 11651049 11625868 11582568 11601308 11598148 11592708 11581788 11737909 11695989 11783389 11588468 11675909
+GEMM_PREFILL fmt=iq3_xxs K=2048 nr=16 nc=512 reps=25 VLEN=128 seed=0xACE2 | ours_med_ns=12210350(iqr0.33%) oppG_med_ns=33139438(iqr0.19%) oppX_med_ns=11625868(iqr0.50%) | ratio_cold_G=2.7140 ratio_cold_X=0.9521 sink=10734796800
+# loadavg_end=3.04 2.66 2.36 1/1017 2511429
+# cpu_md5_after=e85fceda47606a115c5fbb0021817cdc
+# STRAY=0
+# ALL_DONE
+# HARNESS_RC=0
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
