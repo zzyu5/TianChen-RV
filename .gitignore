@@ -40,3 +40,7 @@ scratch/
 # touch-set active-line marker — per-worktree, not shared (see .touch-set/README.md)
 .touch-set/ACTIVE
 build-demo/
+
+# 大重构 §4.1: 归档区(移入而非删除);索引 _attic/ATTIC_INDEX.md 本身在库内
+_attic/*
+!_attic/ATTIC_INDEX.md
