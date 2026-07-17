@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/archive/2026-07/07-18-07-18-r-dequant-iq3xxs/prd.md", "reason": "predecessor task (a186 emit + aa84 check): established the naive owned true-vector emit + dequantize_row.sh harness + de-lottery entry (0.181x named-X); this opt task builds directly on it"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "[K-5] byte-exact ZERO-MODEL invariant — the hard gate the optimized wide-gather body must still pass (harness-proven GREEN, not assumed)"}
+{"file": ".trellis/spec/canon/成色与措辞.md", "reason": "成色/wording discipline — opponent is the deployed scalar-source autovec dequantize_row_iq3_xxs; report the real ratio, no cheap-win framing, name the per-instruction wall honestly"}
+{"file": ".trellis/spec/measurement/index.md", "reason": "measurement law: bench <格> --board rvv as the only legal measurement action; recon-dict entry stays in main session, no direct master write"}
