@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tools/lint/check_opponent_facts_pin.sh -- opponent-fact provenance <-> ggml-pin gate.
+# tools/gates/check_opponent_facts_pin.sh -- opponent-fact provenance <-> ggml-pin gate.
 #
 # The structured opponent facts the weft_rvv.quant_contraction op carries
 # (opponent_vlen_native_floor / block_dot_compute_heavy) are VALUES read off a
@@ -16,7 +16,7 @@
 # This is the opponent-fact landing of the ggml-pin constitution ("switching the
 # pin to a DIFFERENT tree => re-run the opponent-resolution probe; old cells STALE").
 #
-# Usage:  bash tools/lint/check_opponent_facts_pin.sh [--self-test]
+# Usage:  bash tools/gates/check_opponent_facts_pin.sh [--self-test]
 # Exit:   0 GREEN ; 1 STALE/RED ; 2 setup error (missing file / unparseable).
 
 set -u

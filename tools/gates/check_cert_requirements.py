@@ -41,7 +41,7 @@ This gate changes NO kernel and NO numerics; it is a prevention framework (rule 
 The full back-fill of the registry is done by the parallel accounting line; this gate
 validates whatever is declared (it does NOT scan the tree for un-declared certs).
 
-Usage:  python3 tools/lint/check_cert_requirements.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_cert_requirements.py [--self-test] [-v]
 Exit:   0 GREEN ; 1 RED (requirement / declaration violation) ; 2 setup error.
 """
 import json

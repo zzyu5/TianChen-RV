@@ -32,11 +32,11 @@ directories are clean):
 
 This gate touches NO kernel / NO selection logic / NO numerics -- it greps paths and is
 build-free (pure filesystem walk + manifest read). Maintained SAME-ADDRESS as the [F-EMIT]
-emit-bypass whitelist and the [F-1] family-regex manifest (schema/ + tools/lint/ +
+emit-bypass whitelist and the [F-1] family-regex manifest (schema/ + tools/gates/ +
 falsifier-gate.yml), same shrink-only ratchet idiom.
 
-Usage:  python3 tools/lint/check_family_locality.py [--self-test] [-v]
-        python3 tools/lint/check_family_locality.py --base <sha> --head <sha> [-v]
+Usage:  python3 tools/gates/check_family_locality.py [--self-test] [-v]
+        python3 tools/gates/check_family_locality.py --base <sha> --head <sha> [-v]
 Exit:   0 GREEN ; 1 RED (containment / orphan / pollution / anti-widen / ratchet) ; 2 setup.
 """
 import fnmatch

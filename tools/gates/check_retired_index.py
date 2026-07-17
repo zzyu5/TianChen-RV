@@ -20,7 +20,7 @@ The coverage source (coverage-sixstate) is INDEPENDENT of the index's own source
 future monolith retired without being indexed is caught (its coverage row survives the
 retirement; the diff flags it). Stdlib-Python only.
 
-Usage:  python3 tools/lint/check_retired_index.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_retired_index.py [--self-test] [-v]
 Exit:   0 GREEN ; 1 RED (drift / four-req / coverage) ; 2 setup error.
 """
 import json
@@ -50,16 +50,16 @@ def check_freshness(committed, regenerated):
     re_ = {(e["axis"], e["format"]): e for e in regenerated.get("entries", [])}
     for k in sorted(set(re_) - set(ce)):
         errs.append(f"STALE-INDEX: entry {k} present in the rebuild but MISSING from the "
-                    f"committed index -> regenerate (python3 tools/lint/gen_retired_index.py).")
+                    f"committed index -> regenerate (python3 tools/gates/gen_retired_index.py).")
     for k in sorted(set(ce) - set(re_)):
         errs.append(f"STALE-INDEX: entry {k} committed but GONE from the rebuild -> "
-                    f"regenerate (python3 tools/lint/gen_retired_index.py).")
+                    f"regenerate (python3 tools/gates/gen_retired_index.py).")
     for k in sorted(set(ce) & set(re_)):
         if ce[k] != re_[k]:
             errs.append(f"STALE-INDEX: entry {k} differs from the rebuild -> regenerate.")
     if not errs:  # $meta differs
         errs.append("STALE-INDEX: $meta differs from the rebuild -> regenerate "
-                    "(python3 tools/lint/gen_retired_index.py).")
+                    "(python3 tools/gates/gen_retired_index.py).")
     return errs
 
 

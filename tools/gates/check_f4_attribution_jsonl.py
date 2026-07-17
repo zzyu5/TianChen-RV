@@ -30,13 +30,13 @@ Two modes (sibling idiom of the falsifier-gate.yml gates):
   --self-test : hermetic classifier discrimination on synthetic JSONL records. Proves the validator
      FIRES (missing key / bad reason token / reason-not-supported-by-candidates / dropped kernel /
      M1 branch never emitted -> RED) and STAYS GREEN on a compliant corpus. No compiler needed.
-  (default)   : locates weft-opt (build/bin, $WEFT_BUILD/bin, or --opt), runs the pass pipeline
+  (default)   : locates weft-opt (build/weft/bin, $WEFT_BUILD/bin, or --opt), runs the pass pipeline
      parsed from each corpus file's own `// RUN:` line (single source of truth), parses the emitted
      JSONL, classifies. If weft-opt is absent the build-free lane SKIPs (exit 0) so binary-free CI
      stays green; pass --require-binaries to make the absence itself RED.
 
 Stdlib-only.
-Usage:  python3 tools/lint/check_f4_attribution_jsonl.py [--self-test] [-v] [--opt PATH]
+Usage:  python3 tools/gates/check_f4_attribution_jsonl.py [--self-test] [-v] [--opt PATH]
                  [--require-binaries]
 Exit:   0 GREEN ; 1 RED (validation failure) ; 2 setup error.
 """
@@ -164,8 +164,8 @@ def locate_opt(override):
     env = os.environ.get("WEFT_BUILD")
     if env:
         candidates.append(os.path.join(env, "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build", "weft", "bin", "weft-opt"))
     candidates.append(os.path.join(REPO, "build", "bin", "weft-opt"))
-    candidates.append(os.path.join(REPO, "build-weft", "bin", "weft-opt"))
     for c in candidates:
         if os.path.isfile(c):
             return c
@@ -226,7 +226,7 @@ def run_real(verbose, opt_override, require_binaries):
     opt = locate_opt(opt_override)
     if not opt:
         msg = ("[f4-attribution] weft-opt not built "
-               "(looked under $WEFT_BUILD/bin and build/bin)")
+               "(looked under $WEFT_BUILD/bin and build/weft/bin)")
         if require_binaries:
             print(msg + " -- RED (--require-binaries)")
             return 2

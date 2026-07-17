@@ -65,7 +65,7 @@ a board. It does not prove the runtime consumption path emits identical entries 
 silicon. Board execution is out of this gate's scope (board time is owned elsewhere).
 Claiming "dual-board verified" from this gate alone would overstate it.
 
-Usage:  python3 tools/lint/check_pat3_registry_diff.py [--self-test] [--registry PATH] [-v]
+Usage:  python3 tools/gates/check_pat3_registry_diff.py [--self-test] [--registry PATH] [-v]
         --self-test : hermetic negative controls on synthetic registries. Proves each
                       check DISCRIMINATES (goes red on a planted violation) rather than
                       being green-always.

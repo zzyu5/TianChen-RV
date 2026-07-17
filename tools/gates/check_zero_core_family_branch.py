@@ -36,7 +36,7 @@ Two modes (sibling idiom of the falsifier-gate.yml gates):
      RED branch with file:line, and returns the count.
 
 Stdlib-only.
-Usage:  python3 tools/lint/check_zero_core_family_branch.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_zero_core_family_branch.py [--self-test] [-v]
 Exit:   0 GREEN (zero family branch) ; 1 RED (real family branch found) ; 2 setup error.
 """
 import fnmatch

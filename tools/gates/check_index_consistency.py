@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lint/check_index_consistency.py — org STAGE2 Lint ③ (CI, fail-closed).
+# tools/gates/check_index_consistency.py — org STAGE2 Lint ③ (CI, fail-closed).
 #
 # Bidirectional consistency between the per-cell MANIFESTs, the tree, and INDEX.md, plus the
 # tracking invariants that keep sealed evidence durable and interim scratch out of history.
@@ -150,7 +150,7 @@ def main(argv):
         with open(index_path, encoding="utf-8") as f:
             have = f.read()
     if have != want:
-        viol.append((gen.INDEX_REL, "STALE vs generator — run tools/lint/gen_experiments_index.py"))
+        viol.append((gen.INDEX_REL, "STALE vs generator — run tools/gates/gen_experiments_index.py"))
 
     # setup for (2)/(3)
     manifests = [mc.parse_manifest(m, root) for m in mc.cell_manifests(root)]

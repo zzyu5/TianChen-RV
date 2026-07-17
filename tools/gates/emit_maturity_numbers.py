@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# tools/lint/emit_maturity_numbers.py — [DEBT-VIS] single source of truth for maturity numbers.
+# tools/gates/emit_maturity_numbers.py — [DEBT-VIS] single source of truth for maturity numbers.
 #
 # Auto-DERIVES the coverage-maturity numbers that ROADMAP / briefs / the paper cite, so they stop
 # drifting apart by hand. Everything here is a pure function of three committed machine sources:
 #
 #   1. schema/coverage-sixstate.v1.json   — the six-state roster (labeled counts).
-#   2. tools/lint/check_construction_manifest_regex.py — the STRICT realized-body manifest
+#   2. tools/gates/check_construction_manifest_regex.py — the STRICT realized-body manifest
 #      classifier (the CERTIFICATION件). We IMPORT its classify_auto_readout so `certified` is the
 #      SAME predicate the [DEBT-CERT] gate enforces — one cert logic, not two.
 #   3. schema/emit-bypass-whitelist.v1.json — the [F-EMIT] direct-emitter bypass allow-list.

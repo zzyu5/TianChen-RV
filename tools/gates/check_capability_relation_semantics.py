@@ -40,7 +40,7 @@ declares. Behavior is the unit test's job.
 inputs and asserts it discriminates. A gate that cannot go red is worse than no
 gate, so the negative control is part of the gate itself.
 
-Usage:  python3 tools/lint/check_capability_relation_semantics.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_capability_relation_semantics.py [--self-test] [-v]
 Exit:   0 = GREEN, 1 = RED (conformance violation), 2 = setup error.
 """
 

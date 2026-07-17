@@ -32,13 +32,13 @@ Two modes (sibling idiom):
      classifier (rvv-machinery / xor-popcount). Proves the classifier FIRES before it
      judges the real tree, and that `rvvish` (bare-prefix lookalike) stays independent.
   (default)  : drives the committed F-6 lit instance through weft-opt + weft-translate
-     (auto-located under build/bin, or --opt/--translate, or $WEFT_BUILD), classifies
+     (auto-located under build/weft/bin, or --opt/--translate, or $WEFT_BUILD), classifies
      the produced attribution record + emitted C. If the built binaries are absent it
      SKIPs (exit 0) so build-free lanes stay green; pass --require-binaries to make the
      absence itself RED.
 
 Stdlib-only.
-Usage:  python3 tools/lint/check_f6_scalar_family_independence.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_f6_scalar_family_independence.py [--self-test] [-v]
                  [--opt PATH] [--translate PATH] [--require-binaries]
 Exit:   0 GREEN ; 1 RED (independence violated) ; 2 setup error.
 """
@@ -123,8 +123,8 @@ def locate_binary(name, override):
     env = os.environ.get("WEFT_BUILD")
     if env:
         candidates.append(os.path.join(env, "bin", name))
+    candidates.append(os.path.join(REPO, "build", "weft", "bin", name))
     candidates.append(os.path.join(REPO, "build", "bin", name))
-    candidates.append(os.path.join(REPO, "build-weft", "bin", name))
     for c in candidates:
         if os.path.isfile(c):
             return c
@@ -179,7 +179,7 @@ def run_real(verbose, opt_override, translate_override, require_binaries):
     translate = locate_binary("weft-translate", translate_override)
     if not opt or not translate:
         msg = ("[f6-independence] weft-opt/weft-translate not built "
-               "(looked under $WEFT_BUILD/bin and build/bin)")
+               "(looked under $WEFT_BUILD/bin and build/weft/bin)")
         if require_binaries:
             print(msg + " -- RED (--require-binaries)")
             return 2

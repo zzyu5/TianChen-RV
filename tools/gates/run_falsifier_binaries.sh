@@ -17,11 +17,11 @@
 #   * NO SKIP branch exists in this script.
 #
 # Usage:  export WEFT_BUILD=/path/to/built/tree   # bin/weft-opt[, bin/weft-translate]
-#         bash tools/lint/run_falsifier_binaries.sh
+#         bash tools/gates/run_falsifier_binaries.sh
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LINT="${REPO}/tools/lint"
+LINT="${REPO}/tools/gates"
 
 # --- setup门: WEFT_BUILD must be a non-empty, existing build tree with weft-opt --------
 if [[ -z "${WEFT_BUILD:-}" ]]; then

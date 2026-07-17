@@ -30,13 +30,13 @@ Two modes (sibling idiom of the falsifier-gate.yml gates):
      classifier FIRES (regression -> RED, corpus drift -> RED) and TOLERATES declared gaps
      (known-fail-open observed FAIL -> GREEN; observed PASS -> GREEN + advisory) before it
      judges the real tree. No compiler needed.
-  (default)  : locates weft-opt (build/bin, $WEFT_BUILD/bin, or --opt), runs the fuzz
+  (default)  : locates weft-opt (build/weft/bin, $WEFT_BUILD/bin, or --opt), runs the fuzz
      harness with --csv, parses the per-scenario verdicts, classifies against the baseline.
      If weft-opt is absent the build-free lane SKIPs (exit 0) so binary-free CI stays green;
      pass --require-binaries to make the absence itself RED.
 
 Stdlib-only.
-Usage:  python3 tools/lint/check_f5_failclosed_fingerprint.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_f5_failclosed_fingerprint.py [--self-test] [-v]
                  [--opt PATH] [--require-binaries]
 Exit:   0 GREEN ; 1 RED (regression / corpus drift) ; 2 setup error.
 """
@@ -114,8 +114,8 @@ def locate_opt(override):
     env = os.environ.get("WEFT_BUILD")
     if env:
         candidates.append(os.path.join(env, "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build", "weft", "bin", "weft-opt"))
     candidates.append(os.path.join(REPO, "build", "bin", "weft-opt"))
-    candidates.append(os.path.join(REPO, "build-weft", "bin", "weft-opt"))
     for c in candidates:
         if os.path.isfile(c):
             return c
@@ -162,7 +162,7 @@ def run_real(verbose, opt_override, require_binaries):
     opt = locate_opt(opt_override)
     if not opt:
         msg = ("[f5-fingerprint] weft-opt not built "
-               "(looked under $WEFT_BUILD/bin and build/bin)")
+               "(looked under $WEFT_BUILD/bin and build/weft/bin)")
         if require_binaries:
             print(msg + " -- RED (--require-binaries)")
             return 2

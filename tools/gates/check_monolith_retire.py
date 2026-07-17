@@ -19,7 +19,7 @@ Fail-closed in BOTH directions:
   * an ODS monolith absent from the whitelist  -> RED (unnamed dead tail);
   * a whitelist entry whose op-def is gone      -> RED (stale — move it to retired_ledger).
 
-Usage:  python3 tools/lint/check_monolith_retire.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_monolith_retire.py [--self-test] [-v]
 Exit:   0 GREEN ; 1 RED (residual / whitelist violation) ; 2 setup error.
 """
 import json

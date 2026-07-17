@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lint/_manifest_common.py — shared helpers for the org STAGE2 lints
+# tools/gates/_manifest_common.py — shared helpers for the org STAGE2 lints
 # (experiments/ + docs/ reorg, 2026-07-06). No side effects on import.
 #
 # org STAGE1 split the former single-body experiments/MANIFEST.md REGISTRY into

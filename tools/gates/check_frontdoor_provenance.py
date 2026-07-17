@@ -24,7 +24,7 @@ This gate asserts, over the ACTUAL production dispatch path:
 The typed-region front-door path (isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}
 LoopBody, q4_0 only) is NOT a bypass and is deliberately absent from the whitelist.
 
-Usage:  python3 tools/lint/check_frontdoor_provenance.py [--self-test] [-v]
+Usage:  python3 tools/gates/check_frontdoor_provenance.py [--self-test] [-v]
 Exit:   0 GREEN ; 1 RED (bypass / provenance / ratchet violation) ; 2 setup error.
 """
 import json
