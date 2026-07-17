@@ -1,0 +1,12 @@
+# BUILD p2-grid4 fmt=iq1_s board=rvv CC=clang version 18.1.8 march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause flush=224MiB
+# cpu_md5_before=e85fceda47606a115c5fbb0021817cdc
+# leaf_md5=501c28e0dbc25e8b016c327ee3b21bc6 drv_md5=1cfea6e8554e3d43dda0109e35053744
+# fault_leaf differing_bytes=1 (must be exactly 1)
+# linked OK md5=0a765ed8b2ae6d3716631bb3f296504f FAULTbin md5=cf6b68557b8847e9664b0b6fa1b850e8
+# OURS_leaf [ins=13109 rvv=10345 gather=512 vset=4565] size=71000B fp16_libcall=0
+# OPP ggml_vec_dot_iq1_s_q8_K_generic PRESENT @0000000000078d08 m1[ins=1295 rvv=515 gather=68 vset=149] m2[ins=1295 rvv=515 gather=68 vset=149] DUAL-AGREE
+# OPP ggml_vec_dot_iq1_s_q8_K PRESENT @00000000000bc7c0 m1[ins=26 rvv=0 gather=0 vset=0] m2[ins=26 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq1_s_q8_K_vl128 PRESENT @00000000000bc806 m1[ins=201 rvv=109 gather=5 vset=41] m2[ins=201 rvv=109 gather=5 vset=41] DUAL-AGREE
+# OPP ggml_vec_dot_iq1_s_q8_K_vl256 PRESENT @00000000000bcae2 m1[ins=150 rvv=89 gather=3 vset=33] m2[ins=150 rvv=89 gather=3 vset=33] DUAL-AGREE
+# OPP ggml_gemm_iq1_s_16x1_q8_K ABSENT @ m1[ins=0 rvv=0 gather=0 vset=0] m2[ins=0 rvv=0 gather=0 vset=0] DUAL-AGREE
+# same-operator probe: 0 symbols matching ggml_gemm_iq1_s (0 = OPP-S structurally absent)

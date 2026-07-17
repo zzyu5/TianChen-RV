@@ -1,0 +1,12 @@
+# BUILD p2-grid4 fmt=iq3_s board=k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs flush=32MiB
+# cpu_md5_before=871169a0123139692177468b3c8578be
+# leaf_md5=69f99098769ebb65a61fbc11b8963fac drv_md5=1cfea6e8554e3d43dda0109e35053744
+# fault_leaf differing_bytes=1 (must be exactly 1)
+# linked OK md5=1b30e8cb72e1b9627a4d38e9f485c533 FAULTbin md5=1a2469163f6ecf401184f846913c0bef
+# OURS_leaf [ins=15144 rvv=12702 gather=1024 vset=5397] size=66824B fp16_libcall=0
+# OPP ggml_vec_dot_iq3_s_q8_K_generic PRESENT @000000000005c022 m1[ins=1906 rvv=1327 gather=152 vset=309] m2[ins=1906 rvv=1327 gather=152 vset=309] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_s_q8_K PRESENT @00000000000a665c m1[ins=14 rvv=0 gather=0 vset=0] m2[ins=14 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_s_q8_K_vl128 PRESENT @00000000000a6682 m1[ins=103 rvv=39 gather=2 vset=13] m2[ins=103 rvv=39 gather=2 vset=13] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_s_q8_K_vl256 PRESENT @00000000000a67ea m1[ins=232 rvv=126 gather=8 vset=42] m2[ins=232 rvv=126 gather=8 vset=42] DUAL-AGREE
+# OPP ggml_gemm_iq3_s_16x1_q8_K ABSENT @ m1[ins=0 rvv=0 gather=0 vset=0] m2[ins=0 rvv=0 gather=0 vset=0] DUAL-AGREE
+# same-operator probe: 0 symbols matching ggml_gemm_iq3_s (0 = OPP-S structurally absent)

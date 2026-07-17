@@ -1,0 +1,16 @@
+# P2-grid4 GEN_SEAL  (front-door live export; forced clean rebuild of weft-opt)
+# date_utc=2026-07-17T01:07:32Z
+# HEAD=94a6898cc70fdfccf6f1346dbbc0c040507c1c00
+# lib_include_dirty=0 (0 = clean)
+# weft_opt_md5=9491ff22640ab1f5a3aa8114a336c8e8
+# weft_opt_forced_rebuild=YES (all 290 lib/ include/ sources touched; ninja weft-opt 259/259)
+# mlir_translate=Ubuntu LLVM version 20.1.8
+
+iq1_s: OK lines=21536 md5=501c28e0dbc25e8b016c327ee3b21bc6 quant_contraction_left=0
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq1-s-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > experiments/active/g8-stage3-attack/P2-grid4-raw/kernels_grid4/iq1_s_gemm.c
+iq1_m: OK lines=25168 md5=69145c5ee9028ca9664f77cba5742736 quant_contraction_left=0
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq1-m-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > experiments/active/g8-stage3-attack/P2-grid4-raw/kernels_grid4/iq1_m_gemm.c
+iq3_xxs: OK lines=24745 md5=619f0a13385deb565cff40a15a34303d quant_contraction_left=0
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq3-xxs-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > experiments/active/g8-stage3-attack/P2-grid4-raw/kernels_grid4/iq3_xxs_gemm.c
+iq3_s: OK lines=24489 md5=69f99098769ebb65a61fbc11b8963fac quant_contraction_left=0
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq3-s-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > experiments/active/g8-stage3-attack/P2-grid4-raw/kernels_grid4/iq3_s_gemm.c
