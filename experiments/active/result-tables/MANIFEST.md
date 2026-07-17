@@ -2,7 +2,7 @@
 
 - **campaign**: cross-cutting result tables
 - **status**: ACTIVE (filled measurement tables; CI-refreshed)
-- **role**: T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curve + T1b F-5 fail-closed verifier-fuzz runtime evidence. T1/T2 are HEAD-derived (six-state schema read via `git show HEAD:…` — never the working tree — + docs/method/C2 ledger + git-log diffstat); the F-1 machine-check is `tools/lint/check_construction_manifest_regex.py`. T1b is machine-derived at runtime by the F-5 fuzzer `tools/fuzz/f5_failclosed_fuzz.sh` (re-runnable; deterministic per-scenario fingerprints). Empty zero-value template CSVs live in experiments/_templates/.
+- **role**: T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curve + T1b F-5 fail-closed verifier-fuzz runtime evidence. T1/T2 are HEAD-derived (six-state schema read via `git show HEAD:…` — never the working tree — + docs/method/C2 ledger + git-log diffstat); the **[C1-SHAPE]** machine-check is `tools/gates/check_construction_manifest_regex.py`. T1b is machine-derived at runtime by the F-5 fuzzer `tools/fuzz/f5_failclosed_fuzz.sh` (re-runnable; deterministic per-scenario fingerprints). Empty zero-value template CSVs live in experiments/_templates/.
 - **layout**: org STAGE1 (2026-07-06). See experiments/archive/MOVES.md for old→new path map.
 
 ## durable files (git-tracked + untracked-not-ignored in this cell)

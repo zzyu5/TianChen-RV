@@ -34,7 +34,7 @@ campaign level because its one cell dir is gitignored.
 
 experiments/ stays a **data cell**: data/evidence (`*.json`/`*.csv`/`*.txt`/`*.md`/`*.objdump`/
 `*.log`/`*.err`/`.gitignore`) + in-cell evidence-pointer code (`*.kernel.c`/`*.emitc.mlir`/sealed `*.o`).
-All harness/protocol/driver/CI scripts live under `tools/` (`tools/e2e-harness/`, `tools/lint/`, `tools/visibility/`).
+All harness/protocol/driver/gate scripts live under `tools/` (`tools/e2e-harness/`, `tools/gates/`, `tools/visibility/`); the per-tool `{用途 + 被谁调用}` register is `tools/TOOLS.md`.
 
 ## CI gate wiring (STAGE2 — 裁决九, RESOLVED)
 

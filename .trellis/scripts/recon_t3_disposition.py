@@ -39,7 +39,7 @@ from pathlib import Path
 
 # This file lives at <repo>/.trellis/scripts/recon_t3_disposition.py; the T3
 # tables live under experiments/active/result-tables/ (data cell — a .py recon
-# may NOT live inside experiments/ per tools/lint/check_experiments_layout.py,
+# may NOT live inside experiments/ per tools/gates/check_experiments_layout.py,
 # so tooling stays here and reaches into the data cell).
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TABLES_DIR = REPO_ROOT / "experiments" / "active" / "result-tables"

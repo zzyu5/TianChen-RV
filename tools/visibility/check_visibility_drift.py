@@ -3,7 +3,9 @@
 
 Regenerates the three visibility artifacts and compares each against the
 committed copy; exits non-zero (RED) on any drift, mirroring
-tools/lint/check_manifest.py. Governance / workflow tooling, stdlib-only.
+(归档·git show pre-restructure-snapshot:tools/lint/check_manifest.py) — 该门本体已判死入 attic
+(死因见 _attic/ATTIC_INDEX.md; 其活着的继任 = tools/gates/check_index_consistency.py)。
+Governance / workflow tooling, stdlib-only.
 
   T0  experiments/active/visibility/T0-sixstate.md      <- gen_sixstate_table.py --check
   T7  experiments/active/visibility/T7-burndown.md       <- gen_burndown_curve.py --check

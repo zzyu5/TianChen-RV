@@ -92,9 +92,17 @@ FRONTDOOR_PASS = (
 
 
 def find_weft_opt():
-    for candidate in ("build-weft/bin/weft-opt", "build-demo/bin/weft-opt",
-                      "build/bin/weft-opt"):
-        path = os.path.join(REPO, candidate)
+    # 总令 §4.2.4：唯一布局 = `build/<target>/` ⟹ `build/weft/bin/weft-opt`。
+    # ★原候选表 ("build-weft/bin", "build-demo/bin", "build/bin") **三者今皆不存在** ⟹ 本器恒 SETUP ERROR、
+    # T1d 表恒不可重生。此为 `_attic/ATTIC_INDEX.md` §二「`build/bin` 发现路径（3 门）」所记
+    # **同一病种的漏网第 4 例**（该条修了 f4/f5/f6 三门，漏了本器）。
+    # 与三门同法：`$WEFT_BUILD/bin` 优先，其次唯一布局 `build/weft/bin`。
+    env_build = os.environ.get("WEFT_BUILD")
+    candidates = []
+    if env_build:
+        candidates.append(os.path.join(env_build, "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build/weft/bin/weft-opt"))
+    for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
     return None

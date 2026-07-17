@@ -4,7 +4,7 @@
 - **status**: ACTIVE
 - **role**: labeled-vs-certified C_construct account + RED per-cell cause roster + repair queue
   (`DEBT-CERT_certification_status.md`), plus a one-run canonical maturity-numbers snapshot
-  (`maturity-numbers.snapshot.json`). The generator/checker live under `tools/lint/`
+  (`maturity-numbers.snapshot.json`). The generator/checker live under `tools/gates/`
   (`emit_maturity_numbers.py`, `check_construction_manifest_regex.py`) — hardcode that path.
 
 ## durable files (git-tracked + untracked-not-ignored in this cell)
@@ -44,5 +44,5 @@
 - `repack-probes/tq2_0-repack-gevm-cert-probe.mlir`
 
 > Data/evidence only. The auto-count harness (`emit_maturity_numbers.py`) and the strict cert
-> checker (`check_construction_manifest_regex.py`) are code and live under `tools/lint/`, not here.
-> Regenerate the snapshot with `python3 tools/lint/emit_maturity_numbers.py --json`.
+> checker (`check_construction_manifest_regex.py`) are code and live under `tools/gates/`, not here.
+> Regenerate the snapshot with `python3 tools/gates/emit_maturity_numbers.py --json`.

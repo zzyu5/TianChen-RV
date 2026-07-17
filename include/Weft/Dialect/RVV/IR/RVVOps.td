@@ -4314,8 +4314,9 @@ def GgmlQuantContractionOp
     I64Attr:$activation_high_byte_offset,
     // PROVENANCE: these two fact VALUES are read off a PINNED ggml tree and provenance-
     // bound at experiments/sealed/c1-cleanliness/opponent-facts-provenance/opponent-facts.pin.json
-    // (line anchors + pin_sha). STALE gate tools/lint/check_opponent_facts_pin.sh (CI:
-    // .github/workflows/falsifier-gate.yml) fails closed if schema/ggml-pin.lock.json is
+    // (line anchors + pin_sha). STALE gate tools/gates/check_opponent_facts_pin.sh (按需门;
+    // 其原 CI lane .github/workflows/falsifier-gate.yml 已随编排层删除 — 见 evidence 层 G-2)
+    // fails closed if schema/ggml-pin.lock.json is
     // bumped away from that sha — re-verify the anchors before trusting these facts.
     OptionalAttr<I64Attr>:$opponent_vlen_native_floor,
     OptionalAttr<BoolAttr>:$block_dot_compute_heavy,

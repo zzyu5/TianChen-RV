@@ -1,6 +1,7 @@
 # experiments/.gitignore — INTERIM / P3-parked artifacts (not certified content)
 #
-# tools/lint/check_manifest.py 校验【耐久内容】= git 跟踪 + 未跟踪未忽略。此处忽略的目录 = 尚未完成、
+# tools/gates/check_index_consistency.py 校验【耐久内容】= git 跟踪 + 未跟踪未忽略
+# （原 tools/lint/check_manifest.py 已判死入 attic，本条继任者即上者）。此处忽略的目录 = 尚未完成、
 # 不入 MANIFEST REGISTRY 的 INTERIM cell(P3 board-recovery 阻塞);其部署工件留在磁盘、
 # 未跟踪,board 恢复后由 P3 重测完成再 `git add -f` 提升为合规格 cell。
 # 见 MANIFEST.md 文末 "PENDING / INTERIM(P3 board-recovery 阻塞)" 区。
