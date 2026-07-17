@@ -1,0 +1,7 @@
+# BUILD p2-decode fmt=q4_1 board=rvv CC=clang version 18.1.8 flush=224MiB
+# cpu_md5_before=e85fceda47606a115c5fbb0021817cdc
+# leaf_md5=9771846b42a5619ec050f1cc1aeb8734 drv_md5=4b66df5ce878b45817414fb7308db95a
+# linked OK md5=8203f850847868dda2781446aa14c656
+# OURS_leaf [ins=301 vec=199 csrr=0] size=3792B fp16_libcall=0
+# OPP ggml_vec_dot_q4_1_q8_1 PRESENT @00000000000b92a4 [ins=44 vec=14 csrr=0] REAL-KERNEL jump_tail=''
+# OPP ggml_vec_dot_q4_1_q8_1_generic PRESENT @000000000006ca58 [ins=367 vec=211 csrr=10] REAL-KERNEL jump_tail=''

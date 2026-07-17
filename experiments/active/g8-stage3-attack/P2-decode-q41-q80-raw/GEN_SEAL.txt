@@ -1,0 +1,19 @@
+# P2 decode-debt leaf GEN_SEAL — FRONT-DOOR LIVE EXPORTS (no retired emitter, no archived .inc)
+# generated: 2026-07-17T11:19:41+08:00  host=aiiworks-MS73-HB1-000
+# weft-opt: 2026-07-17 09:57:41.448652608 +0800 md5=9491ff22640ab1f5a3aa8114a336c8e8
+# build: ninja -C build-weft weft-opt => EXIT=0, up-to-date (ODS .inc regenerate every run; binary not relinked because NO compiler source changed this session)
+# git HEAD=554b47649  branch=refactor/full-refactor-m1
+# mlir-translate: /usr/lib/llvm-20/bin/mlir-translate (Ubuntu LLVM version 20.1.8)
+# NOTE: this session did NOT modify any lib/ or include/ source; the two .mlir front-door
+#       inputs below are NET-NEW test/Conversion/RVV files (lit: 2/2 PASS).
+
+[q4_1] src=test/Conversion/RVV/rvv-lower-quant-contraction-q4-1-decode-repack-gevm.mlir  src_md5=45aad5a314881769b23669a2d5b6575d
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-lower-quant-contraction-q4-1-decode-repack-gevm.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > experiments/active/g8-stage3-attack/P2-decode-q41-q80-raw/kernels/q4_1_gevm.c
+   leaf_md5=9771846b42a5619ec050f1cc1aeb8734  lines=182
+   entry=weft_emitc_ggml_vec_dot_q4_1_q8_1_kernel_ggml_vec_dot_q4_1_q8_1
+
+[q8_0] src=test/Conversion/RVV/rvv-lower-quant-contraction-q8-0-decode-repack-gevm.mlir  src_md5=d1b161a933b314b92def5bada26dbd12
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-lower-quant-contraction-q8-0-decode-repack-gevm.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > experiments/active/g8-stage3-attack/P2-decode-q41-q80-raw/kernels/q8_0_gevm.c
+   leaf_md5=2b4cacd77c13743ee1c0998e105bb404  lines=121
+   entry=weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0
+

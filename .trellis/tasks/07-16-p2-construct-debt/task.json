@@ -3,7 +3,7 @@
   "name": "p2-construct-debt",
   "title": "[P2] 构造清欠（8 distinct 缺口→16 board-cells）",
   "description": "ROADMAP=收尾大战役/P2。总令原文：5 iq gemm repack export + q4_1/q8_0 decode leaf + mxfp4 vec_dot leaf（8 distinct 缺口，清完 pending 仅剩结构-blocked 1）。5 iq = iq1_s/iq1_m/iq3_xxs/iq3_s/nvfp4，前置 = C4 码本参数化。核销依据（交接v3 D2①）：真需构造 dequant emitter = 0（nvfp4/iq2_xs/iq2_s dequant rvv kernel 已 GEN_SEAL sealed = 可补测非需构造）。q8_0@ime = 结构-blocked 无对手，非欠账。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
