@@ -444,4 +444,4 @@ for f in "${FMTS[@]}"; do
     "$RATIO(median-ns/block;factory/ours;N=$ROUNDS;$STRAT)" \
     "$RFC" "$ST" "$BOARD_FP" "$FPO"
 done
-echo "== DONE (paste T3_ROW lines into experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv) =="
+echo "== DONE (paste T3_ROW lines into experiments/master/T3_A_board_A_rvv1.0_vlen128.csv) =="

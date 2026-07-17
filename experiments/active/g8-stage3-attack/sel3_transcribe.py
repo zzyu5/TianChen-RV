@@ -6,7 +6,7 @@
 #
 # Sources:
 #   - schema/tiling-measurements.v1.json  (12 live L2 rows: 10 sp4_tiling + 2 loop_order)  -> MIGRATE
-#   - experiments/active/result-tables/T3_master_rebuild.csv                                -> INGEST (deployed_point seeds)
+#   - experiments/master/T3_master_rebuild.csv                                -> INGEST (deployed_point seeds)
 #   - T9_kernel_sym_ledger.md  (opponent caliber classes; consulted for classifier, not re-parsed row-by-row)
 #   - onw2 raw: SKIPPED (single aggregate e2e profile, no per-sample distribution => no IQR without new measurement)
 import csv, json, os, re
@@ -210,7 +210,7 @@ meta = {
         "schema/tiling-measurements.v1.json (the live SEL-1 schedule-axis instance this generalizes; UNCHANGED)",
         "docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3]",
         ".trellis/spec/architecture/core-invariants.md#I4",
-        "experiments/active/result-tables/T3_master_rebuild.csv (T3 ingest source)",
+        "experiments/master/T3_master_rebuild.csv (T3 ingest source)",
         "experiments/active/result-tables/T9_kernel_sym_ledger.md (opponent caliber classes)"
     ],
     "primary_key": ["declared_instance_hash", "kernel", "variant"],
@@ -266,7 +266,7 @@ meta = {
     },
     "ingest_sources": {
         "T8_via_tiling_measurements": {"file": "schema/tiling-measurements.v1.json", "provides": "12 SP4 + loop-order ab_paired L2 seed rows", "action": "MIGRATED verbatim (copy-transform) into rows[] with variant_axis in {sp4_tiling, loop_order}; register_cliff_reached/weight_panel_larger_stream/vs_* -> axis_extras. Live schema UNCHANGED."},
-        "T3": {"file": "experiments/active/result-tables/T3_master_rebuild.csv", "provides": "dual-board single-point cold speedups + opponent symbols + board identity", "action": "INGESTED as deployed_point coverage seeds; cold_median<-{board}_cold; opponent_symbol<-{board}_opp_sym + T9-style caliber; snapshot<-board lock. IQR absent => sentinel null. selection_valid_input=false, byte_exact_gate=pending.", "skipped": "empty-cold cells (pending-fold / N/A-hw) and Weft-internal q1_0 (域外, non-denominator) are NOT ingested (0 fabricated numbers)."},
+        "T3": {"file": "experiments/master/T3_master_rebuild.csv", "provides": "dual-board single-point cold speedups + opponent symbols + board identity", "action": "INGESTED as deployed_point coverage seeds; cold_median<-{board}_cold; opponent_symbol<-{board}_opp_sym + T9-style caliber; snapshot<-board lock. IQR absent => sentinel null. selection_valid_input=false, byte_exact_gate=pending.", "skipped": "empty-cold cells (pending-fold / N/A-hw) and Weft-internal q1_0 (域外, non-denominator) are NOT ingested (0 fabricated numbers)."},
         "T9": {"file": "experiments/active/result-tables/T9_kernel_sym_ledger.md", "provides": "opponent caliber classes (hand-brick / block-dot / better-vec / light-vec / native-vec / generic-scalar-ref / vendor)", "action": "consulted for the caliber classifier; applied per-row from the T3 opponent symbol + note text."},
         "onw2": {"file": "tools/e2e-harness/board/g6-m7-ime-vmadot-tiling/raw/{prof_onw2_full.err,c_onw2.out}", "provides": "a SINGLE aggregate e2e IME profile (total ns per phase), NOT a per-sample distribution", "action": "SKIPPED -- no IQR is computable without new measurement (vacation iron line: no new timing). The two k1 IME cold points enter instead via T3 (q4_0@ime 0.196, q4_K@ime 0.049) as vendor-caliber coverage seeds without IQR."}
     },

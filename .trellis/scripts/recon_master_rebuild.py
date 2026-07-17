@@ -18,10 +18,10 @@ from collections import OrderedDict, Counter
 
 ROOT = "/home/kingdom/phdworks/TianchenRV"
 ROSTER = ROOT + "/schema/coverage-roster.v1.json"
-T3A = ROOT + "/experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv"
-T3B = ROOT + "/experiments/active/result-tables/T3_B_board_B_rvv1.0_vlen256.csv"
-OUT = ROOT + "/experiments/active/result-tables/T3_master_rebuild.csv"
-CLUE = ROOT + "/experiments/active/result-tables/T3_master_rowclue.txt"
+T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"
+T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"
+OUT = ROOT + "/experiments/master/T3_master_rebuild.csv"
+CLUE = ROOT + "/experiments/master/T3_master_rowclue.txt"
 SNAPSHOT = "g8-master-final-clang-world"
 FWD_OPS = {"add","cpy","gelu","mul","rms_norm","rope","scale","silu","softmax"}
 

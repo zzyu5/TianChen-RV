@@ -7,9 +7,9 @@ from collections import Counter, OrderedDict
 
 ROOT = "/home/kingdom/phdworks/TianchenRV"
 COV = ROOT + "/schema/perf-covered-category.v1.json"
-T3A = ROOT + "/experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv"
-T3B = ROOT + "/experiments/active/result-tables/T3_B_board_B_rvv1.0_vlen256.csv"
-OUT = ROOT + "/experiments/active/result-tables/T3_kernel_unit.csv"
+T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"
+T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"
+OUT = ROOT + "/experiments/master/T3_kernel_unit.csv"
 
 # op-name map: T3 op -> [COV-1] op
 OPMAP = {"gemm": "gemm_tile", "dequant": "dequantize_row", "vec_dot": "vec_dot",

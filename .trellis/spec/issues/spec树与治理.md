@@ -95,7 +95,7 @@
 - **影响面**：主表的读写方向 —— 本册凡引用主表的条目（ISSUE-008 / 009 / 011 / 013 / 014 …）全体。
 - **卡在**：与 ISSUE-067（三目的地未落地）同源；改锚须在 runner 落地后一次性做。
 - **保守默认**：**过渡期以现路径 `experiments/active/result-tables/` 为读写权威**（它是唯一存在的那个，且两层注记一致）；`experiments/master/` 视为目标态、**禁预先写入**；runner 落地（ISSUE-067）后整体改锚。
-- **状态**：待裁
+- **状态**：**RESOLVED（2026-07-18·开测篇 §〇.3 迁移落地·master CSV byte-exact 守恒 `1a50018c7ce104c3`）**
 - **出处**：仓内谓词（`grep -rn 'result-tables\|experiments/master' .trellis/spec/` + `[ -e experiments/master ]` 为假 · `[ -e experiments/active/result-tables/T3_master_rebuild.csv ]` 为真），可复跑；承接来源 = [evidence](../evidence/index.md) §六 缺口表 G-4 行。
 
 ### ISSUE-074 · 「五层机器」所指未定（**禁 agent 发明**）
@@ -246,7 +246,7 @@
 
 ### ISSUE-095 · 旧战役 goal（P/C/S/E 五线 + 性能验收门六条）退役无成文站点
 
-- **状态**：**待裁**（canon 级 —— 涉「哪份令是现行法」）
+- **状态**：**RESOLVED（2026-07-18·《测试与收尾总令-开测篇》§〇.5 明裁）** —— 旧 P/C/S/E goal 及验收门六条**正式退役**，其未竟目标已并入开测篇五线（K/S/R/E + 终审）。本条留档为「令冲突解析法」（[决策权限卡](../governance/决策权限卡.md) §〇·补）的判例锚。
 - **实质**：一份**旧战役 goal**（"canon v4 双流合订 → P 性能收尾 / C 能力发射重构 / S 标量收口 / E 论文证据工件"
   + "性能总验收门六条"）仍被 Stop hook 逐轮引用作停止条件。但它**与现行令直接冲突**：
   《大重构总令-最终版》§开篇明写「**纯结构与工具轮：零正式测量、零 kernel/发射器功能改动**」「**测量在重构收口、

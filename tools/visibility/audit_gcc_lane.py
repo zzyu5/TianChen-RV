@@ -22,9 +22,9 @@ import re
 import sys
 
 ROOT = "/home/kingdom/phdworks/TianchenRV"
-T3A = ROOT + "/experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv"
-T3B = ROOT + "/experiments/active/result-tables/T3_B_board_B_rvv1.0_vlen256.csv"
-MASTER = ROOT + "/experiments/active/result-tables/T3_master_rebuild.csv"
+T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"
+T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"
+MASTER = ROOT + "/experiments/master/T3_master_rebuild.csv"
 RECON = ROOT + "/.trellis/scripts/recon_master_rebuild.py"
 
 FWD_OPS = {"add", "cpy", "gelu", "mul", "rms_norm", "rope", "scale", "silu", "softmax"}
@@ -349,8 +349,8 @@ def hollow_test():
     # ── 对照组 A: 现状 ──
     print("  [对照组 A · 现状]")
     outs = {
-        "T3_master_rebuild.csv": ROOT + "/experiments/active/result-tables/T3_master_rebuild.csv",
-        "T3_master_rowclue.txt": ROOT + "/experiments/active/result-tables/T3_master_rowclue.txt",
+        "T3_master_rebuild.csv": ROOT + "/experiments/master/T3_master_rebuild.csv",
+        "T3_master_rowclue.txt": ROOT + "/experiments/master/T3_master_rowclue.txt",
     }
     for name, p in outs.items():
         n = subprocess.run(["grep", "-ci", "gcc", p], capture_output=True, text=True).stdout.strip()
@@ -380,13 +380,13 @@ def hollow_test():
         open(dst, "w").write("".join(lines))
     # 打补丁的 recon 副本: 只改 4 个路径常量 → 绝不写真仓库
     src = open(RECON).read()
-    src = src.replace('T3A = ROOT + "/experiments/active/result-tables/T3_A_board_A_rvv1.0_vlen128.csv"',
+    src = src.replace('T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"',
                       'T3A = "%s/T3_A.csv"' % MUT_DIR)
-    src = src.replace('T3B = ROOT + "/experiments/active/result-tables/T3_B_board_B_rvv1.0_vlen256.csv"',
+    src = src.replace('T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"',
                       'T3B = "%s/T3_B.csv"' % MUT_DIR)
-    src = src.replace('OUT = ROOT + "/experiments/active/result-tables/T3_master_rebuild.csv"',
+    src = src.replace('OUT = ROOT + "/experiments/master/T3_master_rebuild.csv"',
                       'OUT = "%s/master_MUT.csv"' % MUT_DIR)
-    src = src.replace('CLUE = ROOT + "/experiments/active/result-tables/T3_master_rowclue.txt"',
+    src = src.replace('CLUE = ROOT + "/experiments/master/T3_master_rowclue.txt"',
                       'CLUE = "%s/rowclue_MUT.txt"' % MUT_DIR)
     open(MUT_DIR + "/recon_MUT.py", "w").write(src)
 

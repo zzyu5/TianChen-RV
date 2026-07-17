@@ -8,7 +8,7 @@ P5 — 输局桶因果化 + M=1 fold 摊销 roofline 判定 (机算·可复跑·
     python3 tools/visibility/p5_loss_causal.py --write    # additionally 写 T8_P5_loss_causal.csv
 
 只读输入 (不改任何硬冻结):
-  - experiments/active/result-tables/T3_master_rebuild.csv      (verdict 硬冻结·只读)
+  - experiments/master/T3_master_rebuild.csv      (verdict 硬冻结·只读)
   - tools/e2e-harness/board/kquant_repack_verify_q{2,3,4,6}K.c  (格式 struct 真源)
   - experiments/active/g8-stage3-attack/A2-batch{4,5}-*-raw/leaves/*.c   (发射 leaf 真源)
   - experiments/active/g8-stage3-attack/A2-batch8-k1-dequant-raw/kernels_dequant/*.dq.c
@@ -30,7 +30,7 @@ import sys
 from collections import Counter, OrderedDict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-T3 = os.path.join(ROOT, "experiments/active/result-tables/T3_master_rebuild.csv")
+T3 = os.path.join(ROOT, "experiments/master/T3_master_rebuild.csv")
 OUT = os.path.join(ROOT, "experiments/active/result-tables/T8_P5_loss_causal.csv")
 B4L = os.path.join(ROOT, "experiments/active/g8-stage3-attack/A2-batch4-gemm-decode-M1-raw/leaves")
 B5L = os.path.join(ROOT, "experiments/active/g8-stage3-attack/A2-batch5-kquant-decode-M1-raw/leaves")
