@@ -2744,16 +2744,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleBodyShared(
           rewriter.create<emitc::LoadOp>(loc, elemType, elem).getResult();
       return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
     };
-    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr),
-                  idxLit(i))
-              .getResult();
-      mlir::Value v =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, uintType, v).getResult();
+    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
+      return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
     };
     // *elemPtr = value  (store one f32 through an ALREADY pointer-advanced float*).
     auto storeF32 = [&](mlir::Value elemPtr, mlir::Value value) {
@@ -3663,20 +3655,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
     return rewriter.create<emitc::AddOp>(loc, floatType, a, b).getResult();
   };
   auto uLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
-  auto uAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b).getResult();
-  };
-  auto uOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
-  };
-  auto uShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
-        .getResult();
-  };
-  auto uShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
-        .getResult();
-  };
+  auto uAnd = [&](mlir::Value a, mlir::Value b) { return emitBitAnd(rewriter, loc, uintType, a, b); };
+  auto uOr = [&](mlir::Value a, mlir::Value b) { return emitBitOr(rewriter, loc, uintType, a, b); };
+  auto uShl = [&](mlir::Value a, mlir::Value b) { return emitBitShl(rewriter, loc, uintType, a, b); };
+  auto uShr = [&](mlir::Value a, mlir::Value b) { return emitBitShr(rewriter, loc, uintType, a, b); };
   auto u2i = [&](mlir::Value v) -> mlir::Value {
     return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
   };

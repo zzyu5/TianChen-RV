@@ -977,6 +977,43 @@ mlir::Value emitUintLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
                                            std::to_string(v) + "u");
 }
 
+mlir::Value emitBitAnd(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                       mlir::Type uintType, mlir::Value a, mlir::Value b) {
+  return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b).getResult();
+}
+
+mlir::Value emitBitOr(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                      mlir::Type uintType, mlir::Value a, mlir::Value b) {
+  return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
+}
+
+mlir::Value emitBitShr(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                       mlir::Type uintType, mlir::Value a, mlir::Value b) {
+  return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
+      .getResult();
+}
+
+mlir::Value emitBitShl(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                       mlir::Type uintType, mlir::Value a, mlir::Value b) {
+  return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
+      .getResult();
+}
+
+mlir::Value emitLoadByteAsUint(mlir::PatternRewriter &rewriter,
+                               mlir::Location loc, mlir::Type constU8Type,
+                               mlir::Type uintType, mlir::Value ptr, int64_t i) {
+  mlir::Value idx = rewriter.create<emitc::LiteralOp>(
+      loc, rewriter.getIndexType(), std::to_string(i));
+  mlir::Value elem =
+      rewriter
+          .create<emitc::SubscriptOp>(
+              loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
+          .getResult();
+  mlir::Value u8 =
+      rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+  return rewriter.create<emitc::CastOp>(loc, uintType, u8).getResult();
+}
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation. The one place
 // the q4_K/q6_K integer cores + the FP4 codebook emitters resolve their widened

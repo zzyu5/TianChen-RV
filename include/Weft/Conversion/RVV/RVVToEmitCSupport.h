@@ -359,6 +359,37 @@ mlir::Value emitSizeLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
 mlir::Value emitUintLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
                         mlir::Type uintType, int64_t v);
 
+// Single-source UNSIGNED-domain bitwise sub-primitives. Each emits ONE emitc
+// bitwise op typed as `uintType` (the aux32 / index / sign-selector words the
+// codebook + dequant decode leaves reassemble run in the uint32_t domain so the
+// `>>` is a LOGICAL shift -- a signed `>>` would corrupt a bit-31-set scale, the
+// iq2_xxs hardware-bisected bug). Consolidate the byte-identical `uAnd/uOr/uShr/
+// uShl` lambdas that lived inline across the grid-codebook / forward-elementwise
+// decode leaves (each a `[&](Value a, Value b){ return create<Bitwise*Op>(loc,
+// uintType, a, b).getResult(); }`); the emitted C is byte-identical.
+mlir::Value emitBitAnd(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                       mlir::Type uintType, mlir::Value a, mlir::Value b);
+
+mlir::Value emitBitOr(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                      mlir::Type uintType, mlir::Value a, mlir::Value b);
+
+mlir::Value emitBitShr(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                       mlir::Type uintType, mlir::Value a, mlir::Value b);
+
+mlir::Value emitBitShl(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                       mlir::Type uintType, mlir::Value a, mlir::Value b);
+
+// The UNSIGNED sibling of emitLoadByteAsInt: the SAME structured byte load
+// (LiteralOp index -> SubscriptOp(ptr, idx) -> LoadOp(constU8Type)) but the
+// trailing cast targets `uintType` (uint32_t) instead of `int`, for the decode
+// leaves that reassemble an aux32 / uint16 weight word alignment-safely (NO
+// `*(uint32_t*)`). Consolidates the byte-identical `loadByteAsUint` lambdas that
+// lived inline across the grid-codebook / forward-elementwise decode leaves; the
+// emitted C is byte-identical.
+mlir::Value emitLoadByteAsUint(mlir::PatternRewriter &rewriter,
+                               mlir::Location loc, mlir::Type constU8Type,
+                               mlir::Type uintType, mlir::Value ptr, int64_t i);
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation.
 //===----------------------------------------------------------------------===//

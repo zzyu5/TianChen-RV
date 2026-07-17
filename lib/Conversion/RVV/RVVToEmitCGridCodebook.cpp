@@ -96,33 +96,13 @@ void VariantToEmitCFunc::emitIQ2XXSSuperBlockGridBody(
 
     // The aux1 / scale / sign-selector bitwise ops run in the UNSIGNED domain (uint32_t)
     // so the >> is a LOGICAL shift (ggml's aux32[1] is uint32_t).
-    auto uAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b)
-          .getResult();
-    };
-    auto uOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
-    };
-    auto uShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
-          .getResult();
-    };
-    auto uShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
-          .getResult();
-    };
+    auto uAnd = [&](mlir::Value a, mlir::Value b) { return emitBitAnd(rewriter, loc, uintType, a, b); };
+    auto uOr = [&](mlir::Value a, mlir::Value b) { return emitBitOr(rewriter, loc, uintType, a, b); };
+    auto uShr = [&](mlir::Value a, mlir::Value b) { return emitBitShr(rewriter, loc, uintType, a, b); };
+    auto uShl = [&](mlir::Value a, mlir::Value b) { return emitBitShl(rewriter, loc, uintType, a, b); };
     auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
-    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, uintType, u8).getResult();
+    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
+      return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
     };
     // int x = (int)a[i];  -- alignment-safe byte load then cast to int, emitted by
     // the shared emitLoadByteAsInt(constU8Type, intType) helper.
@@ -540,36 +520,16 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
 
     // The aux32 / scale / sign-selector bitwise ops run in the UNSIGNED domain
     // (uint32_t) so the >> is a LOGICAL shift (ggml's aux32 is uint32_t).
-    auto uAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b)
-          .getResult();
-    };
-    auto uOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
-    };
-    auto uShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
-          .getResult();
-    };
-    auto uShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
-          .getResult();
-    };
+    auto uAnd = [&](mlir::Value a, mlir::Value b) { return emitBitAnd(rewriter, loc, uintType, a, b); };
+    auto uOr = [&](mlir::Value a, mlir::Value b) { return emitBitOr(rewriter, loc, uintType, a, b); };
+    auto uShr = [&](mlir::Value a, mlir::Value b) { return emitBitShr(rewriter, loc, uintType, a, b); };
+    auto uShl = [&](mlir::Value a, mlir::Value b) { return emitBitShl(rewriter, loc, uintType, a, b); };
     auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
     // uint32_t x = (uint32_t)a[i];  -- a structured byte load from a `const uint8_t
     // *` then a cast to uint32_t (used to reassemble aux32 from the 2-aligned gas
     // stream alignment-safely; NO `*(uint32_t*)`).
-    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, uintType, u8).getResult();
+    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
+      return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
     };
     // int x = (int)a[i];  -- a structured byte load from a `const uint8_t *` then a
     // cast to int (used to read each grid index from the q3 stream alignment-safely).
@@ -1578,36 +1538,16 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
 
     // The 9-bit index / sign-selector bitwise ops run in the UNSIGNED domain
     // (uint32_t) so the >> is a LOGICAL shift (ggml's q2[l] is uint16_t).
-    auto uAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b)
-          .getResult();
-    };
-    auto uOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
-    };
-    auto uShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
-          .getResult();
-    };
-    auto uShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-      return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
-          .getResult();
-    };
+    auto uAnd = [&](mlir::Value a, mlir::Value b) { return emitBitAnd(rewriter, loc, uintType, a, b); };
+    auto uOr = [&](mlir::Value a, mlir::Value b) { return emitBitOr(rewriter, loc, uintType, a, b); };
+    auto uShr = [&](mlir::Value a, mlir::Value b) { return emitBitShr(rewriter, loc, uintType, a, b); };
+    auto uShl = [&](mlir::Value a, mlir::Value b) { return emitBitShl(rewriter, loc, uintType, a, b); };
     auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
     // uint32_t x = (uint32_t)a[i];  -- a structured byte load from a `const uint8_t
     // *` then a cast to uint32_t (used to reassemble the uint16 weight word from the
     // 2-aligned qs stream alignment-safely; NO `*(uint16_t*)`).
-    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, uintType, u8).getResult();
+    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
+      return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
     };
     // int x = (int)a[i];  -- a structured byte load from a `const uint8_t *` then a
     // cast to int (used to read the explicit scale byte sc[ib32] from the scales[]
@@ -2542,32 +2482,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   // The aux32 / scale / sign-selector bit ops run in the UNSIGNED domain so the >>
   // is a LOGICAL shift (ggml's aux32 is uint32_t -- a signed >> with bit 31 set
   // would corrupt the scale/selector, the iq2_xxs hardware-bisected bug).
-  auto uAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b).getResult();
-  };
-  auto uOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
-  };
-  auto uShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
-        .getResult();
-  };
-  auto uShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
-    return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
-        .getResult();
-  };
+  auto uAnd = [&](mlir::Value a, mlir::Value b) { return emitBitAnd(rewriter, loc, uintType, a, b); };
+  auto uOr = [&](mlir::Value a, mlir::Value b) { return emitBitOr(rewriter, loc, uintType, a, b); };
+  auto uShr = [&](mlir::Value a, mlir::Value b) { return emitBitShr(rewriter, loc, uintType, a, b); };
+  auto uShl = [&](mlir::Value a, mlir::Value b) { return emitBitShl(rewriter, loc, uintType, a, b); };
   // uint32_t x = (uint32_t)a[i];  -- alignment-safe byte load (NO *(uint32_t*)).
-  auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-    mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-        loc, rewriter.getIndexType(), std::to_string(i));
-    mlir::Value elem =
-        rewriter
-            .create<emitc::SubscriptOp>(
-                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-            .getResult();
-    mlir::Value u8 =
-        rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-    return rewriter.create<emitc::CastOp>(loc, uintType, u8).getResult();
+  auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
+    return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
   };
 
   // The route-source provenance token (the emit is DRIVEN by the typed region
