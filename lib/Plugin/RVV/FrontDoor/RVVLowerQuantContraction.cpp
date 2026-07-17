@@ -1732,8 +1732,11 @@ private:
   // is the bridge's ASSERTION that some later layer (C3-C4) hands it x16 bytes.
   // On RVV0.7.1 the whole-LMUL core anchor (integer_core_lmul = "m1") with its
   // mandatory ONE 16-lane strip (half_lanes = 16, numHalves 1, f32m4 accumulator)
-  // is pinned; on RVV1.0 integer_core_lmul is left unset (the fractional mf2
-  // default: half_lanes 8 -> two 8-lane strips at VLEN128, f32m2 accumulators).
+  // is pinned; on RVV1.0 integer_core_lmul is stamped EXPLICITLY as "mf2" (the
+  // fractional chain: half_lanes 8 -> two 8-lane strips at VLEN128, f32m2
+  // accumulators). ISSUE-033: the front door no longer uses attr-ABSENCE to mean
+  // "mf2" -- the width decision is spoken outright so the attr can become required
+  // downstream (absence is no longer a silent signal).
   //
   // SAFETY (NOT a latent miscompile): the emitted kernel reads x16 weights but
   // the abstract op carries PLAIN weights, so this emit is correct ONLY when the
@@ -1753,7 +1756,8 @@ private:
     // On RVV0.7.1 the repack core is the WHOLE-LMUL chain (i8m1 -> i16m2 ->
     // i32m4 -> f32m4): no fractional LMUL, so the 16-block-as-lane group is ONE
     // 16-lane strip (half_lanes 16, integer_core_lmul "m1", f32m4 accumulator).
-    // RVV1.0 leaves integer_core_lmul unset (the fractional mf2 default), with the
+    // RVV1.0 stamps integer_core_lmul EXPLICITLY as "mf2" (ISSUE-033: no silent
+    // absence), the fractional default, with the
     // capability-derived strip width (8 @VLEN128 -> two strips, 16 @VLEN256 ->
     // one). numHalves == weight_interleave / half_lanes is the disjoint-strip
     // count, and the region carries ONE per-strip vector accumulator per strip.
@@ -1771,7 +1775,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     std::int64_t weightQuantByteOffset = 32;
     std::int64_t activationQuantByteOffset =
@@ -1945,8 +1949,8 @@ private:
 
     // On RVV0.7.1 the repack core is the WHOLE-LMUL chain (no fractional LMUL), so
     // the 16-block-as-lane group is ONE 16-lane strip (half_lanes 16,
-    // integer_core_lmul "m1", f32m4 accumulator, columnsPerPass 1). RVV1.0 leaves
-    // integer_core_lmul unset (the fractional mf2 default) with the
+    // integer_core_lmul "m1", f32m4 accumulator, columnsPerPass 1). RVV1.0 stamps
+    // integer_core_lmul EXPLICITLY as "mf2" (ISSUE-033: no silent absence) with the
     // capability-derived strip width and folds all activation_interleave columns in
     // ONE pass (columnsPerPass 4). numHalves == weight_interleave / half_lanes.
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
@@ -1959,7 +1963,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // The repacked GEMM ABI byte facts the verifier pins (the x16 weight + x4
@@ -2170,7 +2174,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The block_q4_1x16 x16 weight facts (stride 320, weight nibble quant offset 64,
     // per-row fp16 MIN strip @32) + the single-block s_y activation scaled-sum @2.
@@ -2315,7 +2319,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // The block_q4_1x16 weight facts + block_q8_1x4 interleaved activation facts.
@@ -2497,7 +2501,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The block_q5_0x16 x16 weight facts (stride 352, weight nibble quant offset 32,
     // transposed qh 5th-bit plane @288) + the plain block_q8_0 activation quant @2.
@@ -2642,7 +2646,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // The block_q5_0x16 weight facts + block_q8_0x4 interleaved activation facts.
@@ -2825,7 +2829,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The block_q5_1x16 x16 weight facts (stride 384, weight nibble quant offset 64,
     // per-row fp16 MIN strip @32, transposed qh 5th-bit plane @320) + the plain
@@ -2978,7 +2982,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // The block_q5_1x16 weight facts + block_q8_1x4 interleaved activation facts.
@@ -3161,7 +3165,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The block_q8_0x16 x16 weight facts (stride 544 = 16 fp16 d + 512 int8 quants,
     // FULL int8 quants @32) + the plain block_q8_0 activation quant @2.
@@ -3298,7 +3302,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // The block_q8_0x16 weight facts + block_q8_0x4 interleaved activation facts.
@@ -3477,7 +3481,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation
     // base, output, element count n, column count nc), NO vl operand and NO result.
@@ -3624,7 +3628,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest
@@ -3818,7 +3822,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
     // output, element count n, column count nc), NO vl operand and NO result.
@@ -3972,7 +3976,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest
@@ -4169,7 +4173,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
     // output, element count n, column count nc), NO vl operand and NO result. The
@@ -4313,7 +4317,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest needs but
@@ -4497,7 +4501,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
     // output, element count n, column count nc), NO vl operand and NO result. The grid
@@ -4641,7 +4645,7 @@ private:
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
     std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest needs but
