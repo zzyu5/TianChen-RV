@@ -1,33 +1,6 @@
-# Core Dialect Specs
+# Core Dialect Specs（已并入 architecture layer · 本文只是指路牌）
 
-This layer defines `weft.exec`, the stable core dialect for execution organization.
+> **本文的条文已整体并入 [../architecture/核心方言.md](../architecture/核心方言.md)。**
+> 此处**不再有条文**——只保留路径以免既有引用腐坏成假引文。
+> **禁在本文添加或修改任何规则**：改规则去目标文件；此指路牌随 spec 树归并收口一并移除（去向属 `ISSUE-070`，见 [issues](../issues/index.md)）。
 
-## Pre-Development Checklist
-
-- [ ] Does every new core op organize execution rather than express high-level computation?
-- [ ] Are extension-family types and ops kept out of `weft.exec` unless they
-      are generic envelope surfaces?
-- [ ] Does each variant declare `requires` and `origin`?
-- [ ] Is fallback or an explicit external fallback declaration present?
-- [ ] Is runtime dispatch represented structurally when multiple conditions are valid?
-- [ ] Do `mem_window` / `runtime_param` only declare ABI/runtime roles, with selected typed body importing and consuming those values explicitly?
-- [ ] Are C ABI strings treated as export spelling only, never dtype or compute authority?
-- [ ] Is the core dialect implemented in C++/MLIR/TableGen rather than Python?
-
-## Guidelines Index
-
-| Spec | Description |
-|---|---|
-| [weft.exec Contract](./weft-exec-contract.md) | Core ops/types, verifier rules, relation to high-level MLIR |
-
-## Quality Check
-
-- `weft.exec` must be readable as an execution envelope for variants, ABI
-  boundaries, dispatch, and fallback.
-- `weft.exec.kernel` must not be interpreted as a mathematical kernel, high-level
-  operator IR, or hardware IR body.
-- If a proposed core op includes algorithm-specific semantics, move it to a
-  WEFT extension family or reject it.
-- Verifier behavior must catch missing capabilities, missing fallback, illegal extension ops, and incomplete offload ABI.
-- Core verification checks generic structure and delegates extension legality to plugin hooks. It must not hard-code RVV/IME/offload semantics.
-- Dialect syntax, parsing, verification, and pass-facing behavior require lit/FileCheck coverage.

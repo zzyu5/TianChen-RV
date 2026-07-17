@@ -1,34 +1,6 @@
-# Lowering Runtime Specs
+# Lowering Runtime Specs（已并入 architecture layer · 本文只是指路牌）
 
-This layer defines lowering, emission, runtime glue, and toolchain boundaries.
+> **本文的条文已整体并入 [../architecture/发射与降级.md](../architecture/发射与降级.md)。**
+> 此处**不再有条文**——只保留路径以免既有引用腐坏成假引文。
+> **禁在本文添加或修改任何规则**：改规则去目标文件；此指路牌随 spec 树归并收口一并移除（去向属 `ISSUE-070`，见 [issues](../issues/index.md)）。
 
-## Pre-Development Checklist
-
-- [ ] Is extension-specific emission implemented by the plugin emission provider?
-- [ ] Does the route lower extension family ops through the common EmitC route?
-- [ ] Does executable RVV lowering consume typed/realized `weft_rvv` body through an RVV plugin-built `WEFTEmitCLowerableRoute`?
-- [ ] Are emission-plan diagnostics, status fields, route ids, and artifact metadata mirrors only, never route/dtype/compute authority?
-- [ ] Is clang/LLVM the default native compiler, with GCC only a compatibility path?
-- [ ] Are compiler flags, headers, libraries, runtime handles, and ABI needs recorded in capability/plugin metadata?
-- [ ] Does verifier reject unavailable toolchain/runtime paths before emission?
-- [ ] Does dispatch lower to diagnosable host-side decision logic?
-- [ ] Does fallback remain available for unsupported capability/runtime/shape cases?
-- [ ] Does the work avoid descriptor-to-C emission as a long-term architecture?
-
-## Guidelines Index
-
-| Spec | Description |
-|---|---|
-| [Unified EmitC Route](./emitc-route.md) | Common extension-family ops -> EmitC -> C/C++ route, compiler defaults, descriptor boundary |
-| [Emission Runtime Contract](./emission-runtime-contract.md) | RVV、IME、offload emission and runtime boundaries |
-
-## Quality Check
-
-- Core passes must not call vendor-specific compiler or runtime paths directly.
-- Toolchain patch/workaround belongs in plugin adapter.
-- Direct descriptor-to-C string export is deleted-route residue or fail-closed
-  implementation debt, not a transition lowering route or production system
-  path.
-- Common EmitC/export materializes provider-built routes. It must not choose
-  RVV intrinsics, infer dtype, create RVV schedules, or invent body shape.
-- Emission output must be reproducible enough for experiments: selected variant, capabilities, flags, libraries, path, fallback status, and failure reason.

@@ -1,43 +1,6 @@
-# Target Profiles
+# Target Profiles（已并入 architecture layer · 本文只是指路牌）
 
-Profiles 是 capability fixture：描述可被 pass 查询/验证的具体目标事实。它们是 capability 输入，**永远不**创造 `weft_rvv` body、dtype authority、route id、source-front-door route 或 intrinsic 选择（见 [core-invariants](../architecture/core-invariants.md) I5）。
-
-具体的 VLEN/VLENB/dtype 支持等应**探测或带 provenance 声明，不靠猜**——它们是 target capability 事实，不是 runtime SSA/control 值，也不是 per-variant 常量。每条 profile 事实按 [S-1] 携带 `provenance ∈ {hwprobe,cpuinfo,vendor_table,manual}` 与 `trust ∈ {measured,declared}`；探针只写事实、不写路由（[S-3]）。
-
-## rvv-main（当前主真实硬件）
-
-```text
-access:     ssh rvv
-hardware:   RISC-V CPU, 64 cores（实测值，以 probe 为准）
-vector:     RVV 1.0
-permission: sudo available
-role:       primary development / correctness / performance
-```
-
-capability 示例：`rv64`、`rvv`、`zvl128b`（或实测最小 VLEN / raw VLENB）、fp32/fp64（依硬件）、thread-runtime（OpenMP/pthread）、native compile 支持。
-
-稳定的 profile capability id 保持 plugin-local 且通用：`rv64`、`rvv`、`rvv.hart_count`、`riscv.toolchain.march`/`mabi`、`rvv.toolchain.clang`/`cmake`、`rvv.probe.compile_run`。provider 身份、benchmark 名、日志、性能测量值**不得**变成 capability id（I9）。`rvv.hart_count` 可 `provides = ["target.hart_count"]`，其 `count` 是 uarch 事实，不是 runtime thread 数、dispatch guard、tensor shape、AVL/VL。
-
-证据规则：RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据并命名本 profile（或派生 probed profile）；本地 compile-only / smoke / 文档改动都不是 runtime 证据（I8）。Python probe 可暴露 sanitized `capability_facts`，但**不得**把它翻译成 `weft.exec` capability/target/route mirror/typed body/route 输入/fallback 建模（I6）；从 probe 证据到 compiler-visible capability 的权威转换是 plugin-local C++ RVV capability profile 校验 + `TargetCapabilitySet` 填充。probe 也不得伪造 SEW/LMUL/tail/mask 这类 plugin-selected 编译期 config 事实。
-
-## k1-ime（IME 接入 —— N2 的关键证据点）
-
-```text
-hardware: SpacemiT K1 RISC-V board (VLEN256, RVV1.0, spacemit.ime via march xsmtvdotii)
-role:     IME extension plugin validation（第二个非-RVV family）
-```
-
-capability 示例：`rvv`、`spacemit.ime`、vector-register-backed matrix capability、vendor intrinsic / inline asm path。
-
-这是验证"新增 matrix-like 扩展能否经 IME 插件局部接入"的环境——**它是第二个非-RVV family 经 IME 插件局部接入的 capability fixture（N2 的关键证据点）**。IME runtime/performance 主张要真 K1/IME 硬件与 toolchain 证据（I8）。
-
-## riscv-sophgo-offload（runtime-offload case）
-
-```text
-hardware: RISC-V host + Sophgo accelerator
-role:     runtime-offload capability case
-```
-
-capability 示例：`rvv` 或 scalar CPU fallback、sophgo runtime available、C ABI call path、PCIe/SoC mode、async（若有）。
-
-建模为 `kind = "policy"`（`subclass = "runtime-offload"`，即 accelerator 可用性 / 权限 / build 门，见 [S-1]）——runtime-offload **不是** `kind` 值。accelerator 的**计算所有权**（支持的 offload op 集、compute 语义）归 offload 插件（I2），**不**进 kind；也**不**归类成 RISC-V custom ISA。cost/dispatch 必须含 runtime launch、transfer、sync、fallback 行为。
+> **本文的条文已整体并入 [../architecture/能力模型.md](../architecture/能力模型.md)。**
+> 此处**不再有条文**——只保留路径以免既有引用腐坏成假引文。
+> **禁在本文添加或修改任何规则**：改规则去目标文件；此指路牌随 spec 树归并收口一并移除（去向属 `ISSUE-070`，见 [issues](../issues/index.md)）。
+> profile 的形态与职责见该文 §【定法】Target Profiles；具体板册住 [measurement](../measurement/index.md)。

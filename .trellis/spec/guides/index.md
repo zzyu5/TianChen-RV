@@ -1,29 +1,26 @@
-# Thinking Guides
+# Thinking Guides（本层条文已并入 governance layer · 本文只是指路牌）
 
-这些 guides 是开发和审查前的检查清单，不替代各层 specs。
+> **本层不是第七层。** 八份 guide 的条文已整体并入 [governance · 思维准则](../governance/思维准则.md)，此处**不再有条文**；只保留路径以免既有引用腐坏成假引文。
+> **禁在本层新增或修改任何规则**：改规则去 [思维准则](../governance/思维准则.md)。本层的归并 / 归档去向属 `ISSUE-070`（canon 级 · 待裁），见 [issues](../issues/index.md)。
 
-## Available Guides
+## 条文新住址（逐份）
 
-| Guide | Purpose |
+| 原 guide | 新住址 |
 |---|---|
-| [Trunk Discipline](./trunk-discipline.md) | 怎么选下一步该做什么——对齐主干，抵抗挑小问题的引力 |
-| [Capability-First Design Guide](./capability-first-design-guide.md) | 检查设计是否真的由 capability 驱动 |
-| [Plugin Locality Review Guide](./plugin-locality-review-guide.md) | 检查新增扩展是否局部封装 |
-| [Compute Boundary Review Guide](./compute-boundary-review-guide.md) | 检查是否误把 Weft-RV 写成高层 compute IR |
-| [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | 写新代码前先查：是不是已经有了（本项目曾有大量重复模板）|
-| [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | 实现前先想清楚跨层数据流 |
-| [Dead-Mirror Removal Guide](./dead-mirror-removal-guide.md) | 去伪删死码前：分清活发射器 vs 死 metadata-mirror 脚手架，closed-graph+full-link 安全删 |
+| [Trunk Discipline](./trunk-discipline.md) —— 怎么选下一步该做什么 | [思维准则](../governance/思维准则.md) §一 主干纪律 |
+| [Capability-First Design Guide](./capability-first-design-guide.md) | [思维准则](../governance/思维准则.md) §二 能力优先设计 |
+| [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | [思维准则](../governance/思维准则.md) §三 复用优先 |
+| [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | [思维准则](../governance/思维准则.md) §四 跨层数据流 |
+| [Compute Boundary Review Guide](./compute-boundary-review-guide.md) | [思维准则](../governance/思维准则.md) §五 计算边界审查 |
+| [Plugin Locality Review Guide](./plugin-locality-review-guide.md) | [思维准则](../governance/思维准则.md) §六 插件局部性审查 |
+| [Dead-Mirror Removal Guide](./dead-mirror-removal-guide.md) | [思维准则](../governance/思维准则.md) §七 去死镜像 + §八 重链纪律 |
+| （原 testing 层的测试形态指引） | [思维准则](../governance/思维准则.md) §九 测试形态 |
 
-## Quick Routing
+## Quick Routing（**去 [思维准则 §十 Quick Routing](../governance/思维准则.md#十quick-routing)**）
 
-- **选下一个 task / 怀疑自己在做枝节：先读 trunk-discipline。**
-- 修改 target、profile、variant legality、dispatch、emission path：读 capability-first guide。
-- 新增 RVV/IME/offload/future extension：读 plugin-locality guide。
-- 新增 op/dialect/pass 表达：读 compute-boundary guide。
-- 准备新增一个 contract/owner/route：先读 code-reuse guide（确认不是又一份重复模板）。
-- 删除 RVV 字符串机器 / route-validation / metadata-mirror 脚手架：读 dead-mirror-removal guide。
-- 修改 RVV route、lowering、artifact、测试或 performance layer：读 RVV plugin spec、variant pipeline、EmitC route、testing contract，并确认 typed body authority、selected-body realization、no legacy i32 positive route、no source-front-door current route、no status/artifact authority。
+- **选下一个 task / 怀疑自己在做枝节：先读 [思维准则 §一 主干纪律](../governance/思维准则.md#一主干纪律)。**
+- 其余路由（能力 / 复用 / 跨层 / 计算边界 / 插件局部性 / 删死码 / 重链 / 测试形态）全在 [思维准则](../governance/思维准则.md) §十。
 
 ## Rule
 
-如果 guide 与具体 spec 冲突，以具体 spec 为准；如果具体 spec 与 source design docs 冲突，先报告冲突。
+> guide 与具体 spec 冲突，**以具体 spec 为准**（该规则已随条文迁入 [思维准则](../governance/思维准则.md) 抬头）。六层地图见 [spec 根 index](../index.md)。

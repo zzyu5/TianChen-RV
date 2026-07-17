@@ -1,41 +1,6 @@
-# Plugin Locality Review Guide
+# Plugin Locality Review Guide（条文已并入 governance layer · 本文只是指路牌）
 
-Use before adding or reviewing an extension plugin.
-
-## Checklist
-
-- [ ] What capability does this plugin provide?
-- [ ] What dialect, ops, types, and attrs does it register?
-- [ ] What high-level op classes can it propose variants for?
-- [ ] What legality rules are plugin-owned?
-- [ ] What tuning parameters and cost inputs are plugin-owned?
-- [ ] What emission/runtime/toolchain path is plugin-owned?
-- [ ] Does the plugin own selected-body realization such as `realizeSelectedVariantBody` when performance/config needs concrete body structure?
-- [ ] Does the plugin own route provider output and extension-specific type/intrinsic/ABI mapping?
-- [ ] What core APIs does it use?
-- [ ] Did any core pass gain extension-specific branches?
-- [ ] If core changed, is the change a generic interface extension or a concrete-extension workaround?
-
-## Locality Evidence
-
-When evaluating plugin integration, record:
-
-- core pass modified LOC;
-- plugin LOC;
-- new capabilities;
-- new ops/types;
-- new variant generators;
-- selection/dispatch reuse;
-- verifier orchestration reuse;
-- emission provider reuse.
-- selected-body realization provider reuse;
-- provider-built `WEFTEmitCLowerableRoute` reuse.
-
-## Red Flags
-
-- `if hasRVV`, `if hasIME`, or `if hasSophgo` appears in core orchestration code.
-- New extension lowering lives outside plugin adapter.
-- Future extensions are forced into RVV or IME dialect for convenience.
-- Pluginization is described as zero-work hardware support.
-- Common/core code chooses RVV scheduling, intrinsic names, C vector types, dtype, or route ids.
-- Emission-plan/status/artifact metadata is treated as route authority rather than plugin-owned route output mirrors.
+> **本文的条文已整体并入 [../governance/思维准则.md](../governance/思维准则.md) §六 插件局部性审查。**
+> 此处**不再有条文**——只保留路径以免既有引用腐坏成假引文。
+> **禁在本文添加或修改任何规则**：改规则去目标文件；此指路牌随 spec 树归并收口一并移除（去向属 `ISSUE-070`，见 [issues](../issues/index.md)）。
+> 条文本体 → [canon · 核心不变量](../canon/核心不变量.md) I3 / I4、[canon · 能力模型与插件协议](../canon/能力模型与插件协议.md)（F-\* / P-\* / X-\*）。局部性证据的消费方与边际成本 ledger → [evidence](../evidence/index.md)。

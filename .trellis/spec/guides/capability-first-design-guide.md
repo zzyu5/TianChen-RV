@@ -1,24 +1,6 @@
-# Capability-First Design Guide
+# Capability-First Design Guide（条文已并入 governance layer · 本文只是指路牌）
 
-Use before adding target features, variant generation, legality checks, dispatch, tuning, or emission logic.
-
-## Checklist
-
-- [ ] What target fact is being modeled: ISA, uarch, runtime/offload, toolchain, memory, or thread runtime?
-- [ ] Where is the fact represented in `#weft.target`, `#weft.ext`, `#weft.accel`, or equivalent structured object?
-- [ ] Which pass decision changes because this capability exists or is absent?
-- [ ] Does a variant declare this capability in `requires`?
-- [ ] Is absence handled by verifier failure, runtime dispatch, or fallback?
-- [ ] Does the diagnostic explain missing capability and unavailable emission/runtime path?
-- [ ] Is any extension-specific check delegated to plugin verifier?
-- [ ] Are hardware/profile facts only constraining plugin legality/realization, not defining RVV dtype/config/route?
-- [ ] For RVV, are dtype, config, and operation kind structural in typed `weft_rvv` body or consumed into realized body?
-
-## Red Flags
-
-- Capability appears only as a comment or string metadata.
-- Core pass branches directly on a concrete extension name.
-- Variant can reach emission even when required toolchain/runtime is absent.
-- Fallback exists in prose but not in IR/metadata.
-- Profile facts such as VLEN, dtype support, or runtime availability are guessed.
-- Capability/profile facts are used to invent route ids, artifact names, intrinsic spellings, or RVV dtype authority.
+> **本文的条文已整体并入 [../governance/思维准则.md](../governance/思维准则.md) §二 能力优先设计。**
+> 此处**不再有条文**——只保留路径以免既有引用腐坏成假引文。
+> **禁在本文添加或修改任何规则**：改规则去目标文件；此指路牌随 spec 树归并收口一并移除（去向属 `ISSUE-070`，见 [issues](../issues/index.md)）。
+> 条文本体 → [canon · 核心不变量](../canon/核心不变量.md) I1 / I3 / I5、[canon · 能力模型与插件协议](../canon/能力模型与插件协议.md)（S-\*）。

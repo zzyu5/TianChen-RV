@@ -1,32 +1,17 @@
-# Testing Specs
+# Testing Specs（本层条文已分迁六层 · 本文只是指路牌）
 
-This layer defines required tests and evidence for Weft-RV MLIR.
+> **本层不是第七层。** 条文已全部迁入六层，此处**不再有条文**；只保留路径以免既有引用腐坏成假引文。
+> **禁在本层新增或修改任何规则**：改规则去目标文件。本层的归并 / 归档去向属 `ISSUE-070`（canon 级 · 待裁），见 [issues](../issues/index.md)。
 
-## Pre-Development Checklist
+## 去哪里
 
-- [ ] Does MLIR syntax, parsing, printing, verification, or pass behavior have lit/FileCheck coverage?
-- [ ] Are C++ tests added for registry, capability helper, or non-textual compiler APIs when lit/FileCheck is insufficient?
-- [ ] Does CMake configure/build include the relevant compiler libraries, dialects, passes, tools, and tests?
-- [ ] Does any RVV runtime/correctness/performance claim include `ssh rvv` probe or run output?
-- [ ] If local MLIR tools are unavailable, is the missing toolchain reported explicitly?
-- [ ] Does RVV testing avoid positive legacy `i32m1` route-table artifacts?
-- [ ] Does RVV testing fail-close source-front-door/source-artifact positive routes? (见 core-invariants I7)
-- [ ] Are tests attached to production-path compiler changes rather than dashboards or report-only surfaces?
-- [ ] Does every evidence cell land as a measurement lattice or structural-proof lattice with a state ∈ `{measured|stale|board-pending|open|n_a}`? (见 mlir-testing-contract 格 schema 二分)
-- [ ] Is any effect/Δ claim gated on a T-N noise floor (`|Δ|>2×地板` 且 bootstrap CI 不含 0)?
-- [ ] Does any vs-framework performance cell carry an adversary resolution probe artifact? (无探针工件 = INVALID)
-- [ ] Does the correctness gate declare byte-exact for integer paths and a ULP upper bound for float paths ([K-5])?
-- [ ] Are beat claims withheld until [PERF-1] 八门 全绿 (byte-exact + VLEN-flip lit + 双板 objdump + micro∧e2e + selector-attribution)?
-
-## Guidelines Index
-
-| Spec | Description |
-|---|---|
-| [MLIR Testing Contract](./mlir-testing-contract.md) | lit/FileCheck, C++ tests, CMake checks, RVV evidence, 格 schema 二分 + 状态枚举, T-N 噪声地板, 对手解析探针, byte-exact/ULP 门, [PERF-1] 八门 |
-
-## Quality Check
-
-- Dialect syntax, parser/printer, verifier, pass rewrite, and diagnostics need lit/FileCheck tests.
-- C++ tests are appropriate for compiler APIs that are not naturally visible in textual MLIR.
-- Python tests may validate tooling scripts, but they do not replace MLIR behavior tests.
-- Positive generated artifact tests are allowed only for corrected generic typed `weft_rvv` routes, not old `RVVI32M1*` / `rvv-i32m1-*` paths.
+- **逐节新住址表** → [MLIR Testing Contract 指路牌](./mlir-testing-contract.md)。
+- **要加测试 / 选 lit 还是 C++ / 什么算 runtime 证据** → [governance · 思维准则](../governance/思维准则.md) §九 测试形态。
+- **硬件证据通用契约 · 性能对比证据的更高门槛 · 断言来源区分（`HARNESS` 源级 vs 运行期）** → [canon · 正确性与证书](../canon/正确性与证书.md)。
+- **证据格 schema 与状态枚举 · T-N 噪声地板 · T-X · [PERF-1] 门体** → [canon · 测量判据](../canon/测量判据.md)。
+  （**门数称谓待裁 = `ISSUE-071`；引用一律用 `[PERF-1]`、禁带门数。**）
+- **对手类词表（**角色**）与三档法（**档位**）· 探针取证要件** → [canon · 对手与档位](../canon/对手与档位.md)、[canon · 测量判据](../canon/测量判据.md) §二.8。
+- **[F-1] 判读规程与 manifest 形态** → [canon · 能力模型与插件协议](../canon/能力模型与插件协议.md)。
+- **正确性门 [K-5]** → [measurement · 正确性门](../measurement/正确性门.md)。
+- **legacy `RVVI32M1*` / `rvv-i32m1-*` 正例禁令 · source-front-door fail-closed** → [architecture · 发射与降级](../architecture/发射与降级.md) §Legacy i32m1 Route-Table Policy、[canon · 核心不变量](../canon/核心不变量.md) I7。
+- **Python 只做 tooling、不替代 MLIR 行为测试** → [canon · 核心不变量](../canon/核心不变量.md) I6。

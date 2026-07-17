@@ -1,28 +1,132 @@
-# Architecture Specs
+# 架构（Architecture）
 
-本层定义 Weft-RV MLIR 的系统定位和长期边界。进入任何实现或实验解释前，先确认这里的 invariants。
+**本层的适用范围**：Weft-RV 这台机器的**结构定法**——它由哪些工位组成、每个工位今天在代码里**实际是什么**、设计上**要成为什么**、各工位受哪些硬规则约束、以及哪些结构是明令禁区。
+
+不在本层：测量法（[measurement](../measurement/index.md)）· 已定法条与论文侧思想（[canon](../canon/index.md)）· 证据工件指针（[evidence](../evidence/index.md)）· 队列与治理（[governance](../governance/index.md)）· 问题登记（[issues](../issues/index.md)）。
+
+---
+
+## 读法口径（落笔前必读 · 四条）
+
+### 一、每条必属【现状】/【目标】/【定法】之一，禁混写
+
+| 标 | 含义 | 判定基准 |
+|---|---|---|
+| **【现状】** | 今天代码里实际如此 | **代码实核**可复现。**文档自述不构成现状** |
+| **【目标】** | 设计意图，代码中尚不可见 | 文件缺席 / 查询面零消费 → 一律记此栏，无论它在哪份文档里被写成什么语气 |
+| **【定法】** | 现行有效的规则本身 | 既非"已实现"也非"待实现"——它是判据。规则不因载体状态而失效 |
+
+一个工位的【现状】与【目标】**各自成段，不交叉引用对方作证**。
+
+### 二、缺席断言的核法
+
+本层所有「X 不存在 / X 零消费」类断言均附**精确谓词**（`find` / 词界 `grep` / 语义枚举值计数），可原样复跑。**禁用 `head` / `grep -A<N>` 等有界窗口命令作缺席依据。**
+
+★ **同名异指陷阱**：核一个字段「是否被代码消费」必须按**语义**（其枚举值 / 真实标识符）核，**禁按裸 token 核**——同一 token 在本仓多处同名异指。实例见 [能力模型 §provenance 同名异指](./能力模型.md#-provenance-同名异指判读铁律)。
+
+★ **计数口径同样是判据的一部分**：同一 token 在「行数 / 出现数 / 文件数」「含 / 不含 `.td`」等口径下得数不同。**引用计数必附产生它的完整命令**；只写数字不写命令 = 不可复跑。
+
+### 三、跨文件引用禁行号
+
+引用一律用**相对链接 + 标题锚**或**条目编号**（`ISSUE-070`、`[K-10]`、`I3`）。**禁写行号**——被引文件一改，行号即腐坏成假引文。
+
+### 四、科研表述不在本层展开
+
+解耦 / 界面命题 / 三贡献 C1/C2/C3′ / N1·N2·N3 等**科研表述属论文侧**，见 [canon](../canon/index.md) 的【暂定·随论文侧更新】节。本层只写架构定法，不以科研主张作论证结构，也不裁其去向。
+
+> **例外（登记在案）**：[系统定位与边界](./系统定位与边界.md#论文侧原文暂存待迁-canon) 内暂存了一段论文侧原文（前端/后端判别 + 论文语言用/避清单）。它在新六份 spec 中**无第二处落点**（复核谓词见该节），删则丢失，故按**原样**暂存并标注待迁，**不在本层充作论证依据**。
+
+---
 
 ## Pre-Development Checklist（判断提示，不是 gate）
 
-- [ ] 这项工作仍把 Weft-RV 描述为 high-level MLIR 之后的 RISC-V execution layer 吗？
+- [ ] 这项工作仍把 Weft-RV 描述为 high-level MLIR 之后的 RISC-V execution layer 吗？（[系统定位与边界](./系统定位与边界.md)）
 - [ ] 避免了新增核心 `weft.matmul`/`weft.softmax`/`weft.reduce`/`weft.generic_tile` 这类高层计算 op 吗？（[core-invariants](./core-invariants.md) I2）
 - [ ] capability object 在 pass 决策路径上，而不是注释吗？（I1）
 - [ ] core/common 没有按 family 名分支吗？（I3）
-- [ ] RVV dtype/config/operation 来自 typed body，而不是 route id/ABI string/artifact name/旧 `i32m1` helper 吗？（I5）
+- [ ] dtype/config/operation 来自 typed body，而不是 route id/ABI string/artifact name 吗？（I5）
 - [ ] 没有把 emission-plan status/dashboard/manifest/artifact metadata 当 route 或进度 authority 吗？（I4）
-- [ ] 这一步推进的是哪条贡献 C1/C2/C3′？还是相邻枝节？（[trunk-discipline](../guides/trunk-discipline.md)）
+- [ ] 新写的每一条，标了【现状】还是【目标】？【现状】那条有可复跑的谓词吗？（读法口径一 / 二）
+- [ ] 引用别的文件时，用的是标题锚或条目编号，不是行号吗？（读法口径三）
+- [ ] 这一步推进的是哪条贡献？还是相邻枝节？（[governance · 思维准则](../governance/思维准则.md#一主干纪律) §一 主干纪律）
 
-## Guidelines Index
+---
 
-| Spec | Description |
+## 本层地图
+
+| 文件 | 内容 |
 |---|---|
-| [Core Invariants](./core-invariants.md) | 全项目复用的硬规则：I1–I9 + 附加硬规则（锚总纲 [L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2]/[NG-3]/[NG-4]），其他文件引用它 |
-| [System Positioning](./system-positioning.md) | 系统定位、统一系统/family 责任、N1/N2/N3 机制子主张边界（映射 C1/C2/C3′）、模块边界 |
-| [Design Boundaries](./design-boundaries.md) | 禁止方向、硬件路线口径、论文表述边界 |
+| [core-invariants](./core-invariants.md) | **硬规则全文**：I1–I9 + 附加硬规则（[L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2]/[NG-3]/[NG-4]/[K-10]/[VERIFY-LADDER]）。<br>★**"声明一次"在 I1–I9 上当前不成立**：I1–I9 与 [canon · 核心不变量](../canon/核心不变量.md) **双本逐字并存**（`ISSUE-070` · canon 级 · 待裁 · **本层不代裁**）。**待裁前以哪处为准 = 任一处**（两处 I1–I9 零差异，谓词见该两文件抬头的「双本在册」注）。附加硬规则的正文只住本文件，对侧只留去向表 |
+| [系统定位与边界](./系统定位与边界.md) | 定位、dataflow spine、机器全图（工位 ↔ 代码根）、统一系统而非 per-backend 集合、模块图、禁区（Non-Goals） |
+| [能力模型](./能力模型.md) | capability 的来源 / 形态 / 关系 / verifier 职责（[S-1]~[S-5]/[S-8]）、参数分层律、profile 事实 |
+| [核心方言](./核心方言.md) | `weft.exec` execution envelope 的长期契约：core ops、类型、verifier 规则 |
+| [发射与降级](./发射与降级.md) | selected body → plugin route provider → 公共 EmitC → artifact；non-authority 律；发射与构造纪律 |
+| [插件协议](./插件协议.md) | **C1 的实体**：接口冻结 [P-1]、注册表、locality [F-3]、接入五件套 [P-2]、家族模板与真实触碰集 |
+| [家族现状](./家族现状.md) | 家族册（实核三根表）、准入边界、RVV / IME / Offload / Scalar / Future 各家族边界 |
+| [变体流水线](./变体流水线.md) | legality / selection / dispatch / tuning（Gearbox）、选择器与归因契约（[SEL-*]/[D-*]） |
+| [实现栈](./实现栈.md) | C++/MLIR/LLVM/TableGen/CMake/lit 主栈边界（I6 的正文）、Python 边界、缺工具链律 |
+
+**上岗顺序**：本文（读法口径）→ [core-invariants](./core-invariants.md)（硬规则）→ [系统定位与边界](./系统定位与边界.md)（机器全图）→ 按手头工位取对应文件。
+
+---
 
 ## Quality Check
 
-- 系统叙事必须能一句话复述为：unified WEFT RISC-V MLIR for capability-scoped extension execution。
-- 任何新增核心概念必须说明它属于 capability/variant/plugin/dispatch/fallback 之一，或解释为何需要扩展核心 interface。
+- 系统叙事必须能一句话复述为：**unified WEFT RISC-V MLIR for capability-scoped extension execution**。
+- 任何新增核心概念必须说明它属于 capability / variant / plugin / dispatch / fallback 之一，或解释为何需要扩展核心 interface。
 - 出现 high-level compute core op 时视为 architecture violation，除非它明确属于某 extension family 内部执行 op。
-- IME / Offload 是 **N2 的关键证据点**（第二个非-RVV family 走通 common 路径），不是"禁止"项；但也别让它们把 RVV 主线晾在半路——取舍读 [trunk-discipline](../guides/trunk-discipline.md)。
+- core pass diff 应呈现通用编排，不是 extension-specific lowering 逻辑；**任何提及具体扩展名的新 core 分支按疑似违规复核**（I3）。
+- 【现状】栏的每一条都能被它自带的谓词复跑出来；跑不出 = 该条应降到【目标】栏。
+- **结构事实的计数**（几个桶 / 几个家族根 / 几个 pass）附谓词可实核，**入【现状】栏**；**进度 / 覆盖度状态的计数**（几格达标 / 还缺几个 plan）会随工作漂移，**不入 spec**——住 [issues](../issues/index.md) 与 `tasks/`、`workspace/` journal。
+
+---
+
+## 本层登记的未决项（**只登记，不代裁、不代改**）
+
+| 未决项 | 编号 / 处置 |
+|---|---|
+| **「五层」命名的所指** | **[ISSUE-074]** —— 待用户裁，**禁 agent 发明**。裁定前本层**不定义、不使用**「五层」，也不承认它是既立术语（见下「命名未决」节） |
+| **`core-invariants.md` 夹带 commit 号与战役叙事**（与「spec 只写现行法」相抵），而它被判为必读权威全文 | **[ISSUE-070]** —— 待裁。其**保守默认 = 只登记、条文本体零改**，故本轮重组**不动该文件正文**（唯一例外：随本次目录重组做的相对链接路径修复，非条文改动） |
+| **[PERF-1] 门项数自相抵**（简称「八门」vs 门体「十项」） | **[ISSUE-071]** —— 待裁。**本层引用 [PERF-1] 一律不带项数** |
+| **N-operand route identity 的完成度自相抵** | **待建号**。SPEC 前版称 route identity 今日为 2-operand；实核 `include/Weft/Plugin/RVV/RVVContractionRouteIdentity.h` 自题 *N-operand contraction route ID*、identity 持 `SmallVector<ContractionSourceSpec, 4> sources`、注释述及 `N=3+` 与 `"w,qlo,qhi"` 三因子实例。**如实标注冲突，本层不自裁**；该项维持【目标】栏、现状不予断言（见 [发射与降级](./发射与降级.md#目标--n-operand-route-identity-重设计)） |
+| **家族准入边界在 canon 与本层各有一份** | **待建号**。同一条 [F-*] 级判据两处成文 = 副本。本层留一份于 [家族现状](./家族现状.md#定法家族准入边界)，canon 侧的重述去留待裁 |
+| **论文侧原文暂存于本层** | **待建号**。前端/后端判别 + 论文语言用/避清单在新六份 spec 中无第二落点，按原样暂存于 [系统定位与边界](./系统定位与边界.md#论文侧原文暂存待迁-canon)，**待迁 canon【暂定】节** |
+
+---
+
+## 命名未决（**落笔前必读**）
+
+### 「五层」的所指未裁（[ISSUE-074]）
+
+**规则（不依赖任何文件的当前状态）**：
+
+1. **本层不定义「五层」，也不承认它是既立术语。** 本层按**实际代码层次**组织。
+2. **本层内禁用「五层」指代架构**（除本节这样的元讨论）。
+3. **该命名的所指须用户裁，禁 agent 发明。** 裁定前，任何 spec 把「五层」当既立术语使用**都属越权发明**。
+4. **不存在 L0–L4 五级阶梯**：本层未定义任何 `L<数字>` 架构阶梯，也不认可他处的裸 `L<数字>` 为架构层。
+
+**★ 供其他 spec 引用的正确说法（本节是被引用方，此处即准绳）**：
+
+| 场合 | ✗ 禁用 | ✓ 用 |
+|---|---|---|
+| 泛指本机器的结构定法 | 「五层机器」 | **「架构定法见 [architecture](./index.md)」** |
+| 指代某个具体位置 | 「第 N 层」 | **工位名**（能力基座 / 前门 / 核心信封 / 变体流水线 / 降级与发射 / 证据）或**代码根路径** |
+| 描述本层的组织方式 | 「分五层」 | **「按实际代码层次组织」** |
+
+引用本层时**禁止**附带任何层数计数。[系统定位与边界](./系统定位与边界.md#现状机器全图工位--代码根) 的工位计数是**该文切分的产物**，不可外推为架构层数。
+
+> **本节禁写「某某文件目前有没有『五层』」类断言**——那是时点敏感的，写下即开始腐坏，且把本层的正确性绑上兄弟文件的编辑状态。裁的是**词的所指**，不是**词的出现次数**。
+
+### 「五」已有既存所指 —— 禁再造第三个
+
+「五件套」是**已被 codify 的消歧对象**，权威原文住 [插件协议 §[P-2] 接入五件套](./插件协议.md#p-2-接入五件套定法)（三轴交叉表：交付轴 / 文件轴 / 仓库轴）。
+
+要点：模板级的「五大件」与单家族级的「五件套」**不是同一个「五」**，且前者口语称「五」实为 6 件。**再造第三个「五」（如把架构说成「五层」）直接撞上既有消歧纪律。**
+
+### 裸 `L<数字>` 编号禁用
+
+裸 `L<数字>` 是**已知的多义标签**：同一形状的标签在本项目被用于至少四条互不相关的轴（性能轴 / IR-后端轴 / 战役里程碑 / 战役队列优先级），且 IR 轴的档位**被使用但从未定义**——不存在可供对照的完整阶梯。
+
+**本层规则：禁用裸 `L<数字>` 指代任何架构层。** 需要指代时用**工位名**或**代码根路径**。
+
+**引用外部条文时的处理**：若被引条文原文含裸 `L<数字>`（如 [K-10] 原文的「独立 typed region」档位标注），本层引用时**略去该标签、保留语义**，不代裁其所指。裸标签的全局处置属 [issues](../issues/index.md)。

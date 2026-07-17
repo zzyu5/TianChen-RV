@@ -2,6 +2,22 @@
 
 这些是 Weft-RV 全项目复用的硬规则。**在这里声明一次**；其他 spec 文件引用 `core-invariants I#`，不重复抄写。早期 spec 把这些规则在 8–22 个文件里反复粘贴——那是冗余，按引用收敛。
 
+> ## ★双本在册（`ISSUE-070` · canon 级 · 待裁 · **本文件不代裁**）
+>
+> **I1–I9 的正文同时存在于两处**：本文件 与 [canon/核心不变量.md](../canon/核心不变量.md)。两处**均自称"在这里声明一次"** —— 该自述在双本状态下**两处都不完全为真**，是 `ISSUE-070` 的实体（见 [issues](../issues/index.md)），**不是可由 agent 自行消除的笔误**。
+>
+> **待裁前以哪处为准 = 任一处（两处等效）。** 依据 = **两处 I1–I9 逐字一致**，**谓词（可复跑）**：
+> ```bash
+> cd .trellis/spec && diff \
+>   <(awk '/^## I1 /,/^# 附加硬规则/'  architecture/core-invariants.md) \
+>   <(awk '/^## I1 /,/^## 附加硬规则/' canon/核心不变量.md)
+> ```
+> 唯一差异 = 两侧各自的 **range 终止标题行本身**；**I1–I9 全部条文零差异** ⟹ 读任一处得到的规则相同。
+>
+> **两处的差别只在"附加硬规则"之后**（非 I1–I9）：本文件其后是**附加硬规则的正文**；对侧其后是**去向表**（各条各自在 canon 层已有唯一的家，不重抄）。
+>
+> **`ISSUE-070` 的另一半**：本文件正文夹带 commit 号 / 署名日期式裁决记述 / 战役事故叙事，与「spec 只写现行法」相抵，而本文件被判为新 agent 必读的权威全文。**保守默认 = 只登记、条文本体零改**（正文是现行法，不因载体有病而失效）；**禁 agent 自行删改条文、发明替代表述、或代为指定正本。**
+
 ## I1 — Capability 是第一系统对象
 
 target capability（ISA 扩展、VLEN/uarch、toolchain、runtime/offload）是 first-class、可被 C++ MLIR pass 和插件查询的对象，带 `provides` / `implies` / `conflicts` 关系。它不是 prose、不是裸字符串、不是 JSON-only 记录、不是 Python dict。它必须能影响：启用哪些插件、variant 提议 / 合法性 / 选择、tuning 空间、cost 输入、dispatch、emission 路径、fallback 需求。
@@ -74,7 +90,7 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 
 能力 schema 的**声明形态**冻结为一个可规范序列化、可哈希的工件 `schema.def`，其 shape 恰含六项、不多不少：
 ① 事实记录字段与类型（含 `subclass`、`provenance`/`trust` 枚举）；② `kind` 闭合枚举；③ 关系类型表（`implies`/`conflicts` 及其语义标注）；④ `params` 命名空间声明；⑤ 插件接口签名的可序列化形态；⑥ 路由描述符操作数角色词表。
-（**六项字段级细节声明一次**、以 [capability-model/capability-contract.md](../capability-model/capability-contract.md) 的 [S-5] 为准；本处为不变量摘要，勿在两处重写字段列表以免漂移。）
+（**六项字段级细节声明一次**、以 [能力模型](./能力模型.md#定法s-5-schemadef-声明工件) 的 [S-5] 为准；本处为不变量摘要，勿在两处重写字段列表以免漂移。）
 **不入 shape**（因此改它们不触 schema.def）：具体事实行、`params` 取值、插件内部代码、测量库、模式注册表条目。schema 只答"能不能/是什么"，**不内置成本模型**（成本住测量库，按 instance-hash 键控）。
 
 ## [F-2′] — 家族接入操作门（diff ∩ schema.def = ∅）
