@@ -1,5 +1,9 @@
 # 架构（Architecture）
 
+> **版本**：v1
+> **修改途径**：本层版本化，**修改唯一途径 = 用户裁决**；agent 可提案（入 [issues](../issues/index.md)），不可自改。
+> （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = **卫生欠账**，非「本层此前无条文」。**v1 = 建载体时的在册状态**，**不追溯编号历史修改**。）
+
 **本层的适用范围**：Weft-RV 这台机器的**结构定法**——它由哪些工位组成、每个工位今天在代码里**实际是什么**、设计上**要成为什么**、各工位受哪些硬规则约束、以及哪些结构是明令禁区。
 
 不在本层：测量法（[measurement](../measurement/index.md)）· 已定法条与论文侧思想（[canon](../canon/index.md)）· 证据工件指针（[evidence](../evidence/index.md)）· 队列与治理（[governance](../governance/index.md)）· 问题登记（[issues](../issues/index.md)）。

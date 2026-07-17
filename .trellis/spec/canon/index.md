@@ -1,5 +1,9 @@
 # Canon Specs — 已定法条
 
+> **版本**：v1
+> **修改途径**：本层版本化，**修改唯一途径 = 用户裁决**；agent 可提案（入 [issues](../issues/index.md)），不可自改。
+> （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = **卫生欠账**，非「本层此前无条文」。**v1 = 建载体时的在册状态**，**不追溯编号历史修改**。）
+
 本层是本项目**全部已定法条与终裁的唯一合订**：判断"某主张能不能立、某数字能不能报、某格算不算赢"时的**法源**。
 
 其他层各有分工，本层**不复述**它们：测量的执行程序住 [measurement](../measurement/index.md)、系统结构住 [architecture](../architecture/index.md)、证据工件指针住 [evidence](../evidence/index.md)、队列与流程纪律住 [governance](../governance/index.md)、未决问题住 [issues](../issues/index.md)。
