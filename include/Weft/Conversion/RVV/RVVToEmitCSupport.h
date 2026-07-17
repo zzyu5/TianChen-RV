@@ -348,6 +348,17 @@ mlir::Value emitLoadByteAsInt(mlir::PatternRewriter &rewriter,
 mlir::Value emitSizeLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
                         mlir::Type sizeType, int64_t v);
 
+// Single-source UNSIGNED integer literal: emits one emitc::LiteralOp holding the
+// decimal spelling of `v` with a trailing "u" suffix, typed as `uintType`.
+// Consolidates the 5 byte-identical `uintLit` lambdas that lived inline across
+// the grid-codebook / forward-elementwise decode leaves (each an
+// `[&](int64_t v){ return create<LiteralOp>(loc, uintType, std::to_string(v) +
+// "u"); }`). Distinct from emitSizeLit only in the "u" suffix (unsigned-typed
+// bit-manipulation shift/mask operands); the emitted C is byte-identical to the
+// inline lambdas.
+mlir::Value emitUintLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                        mlir::Type uintType, int64_t v);
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation.
 //===----------------------------------------------------------------------===//

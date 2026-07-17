@@ -111,10 +111,7 @@ void VariantToEmitCFunc::emitIQ2XXSSuperBlockGridBody(
       return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
           .getResult();
     };
-    auto uintLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, uintType,
-                                               std::to_string(v) + "u");
-    };
+    auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
     auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
       mlir::Value idx = rewriter.create<emitc::LiteralOp>(
           loc, rewriter.getIndexType(), std::to_string(i));
@@ -558,10 +555,7 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
       return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
           .getResult();
     };
-    auto uintLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, uintType,
-                                               std::to_string(v) + "u");
-    };
+    auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
     // uint32_t x = (uint32_t)a[i];  -- a structured byte load from a `const uint8_t
     // *` then a cast to uint32_t (used to reassemble aux32 from the 2-aligned gas
     // stream alignment-safely; NO `*(uint32_t*)`).
@@ -1599,10 +1593,7 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
       return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
           .getResult();
     };
-    auto uintLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, uintType,
-                                               std::to_string(v) + "u");
-    };
+    auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
     // uint32_t x = (uint32_t)a[i];  -- a structured byte load from a `const uint8_t
     // *` then a cast to uint32_t (used to reassemble the uint16 weight word from the
     // 2-aligned qs stream alignment-safely; NO `*(uint16_t*)`).
@@ -2547,10 +2538,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   auto floatLit = [&](llvm::StringRef s) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, floatType, s);
   };
-  auto uintLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, uintType,
-                                             std::to_string(v) + "u");
-  };
+  auto uintLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
   // The aux32 / scale / sign-selector bit ops run in the UNSIGNED domain so the >>
   // is a LOGICAL shift (ggml's aux32 is uint32_t -- a signed >> with bit 31 set
   // would corrupt the scale/selector, the iq2_xxs hardware-bisected bug).

@@ -971,6 +971,12 @@ mlir::Value emitSizeLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
   return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
 }
 
+mlir::Value emitUintLit(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                        mlir::Type uintType, int64_t v) {
+  return rewriter.create<emitc::LiteralOp>(loc, uintType,
+                                           std::to_string(v) + "u");
+}
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation. The one place
 // the q4_K/q6_K integer cores + the FP4 codebook emitters resolve their widened
