@@ -9,3 +9,4 @@
 20260717T172907Z-iq3_xxs-rvv-67bc1c5d·2026-07-17T17:29:08+00:00·iq3_xxs·VOID-脏板
 20260717T173052Z-iq3_xxs-rvv-65332b85·2026-07-17T17:33:15+00:00·iq3_xxs·near-parity·cold_X=0.9542·master-updated
 20260717T180839Z-q4_0-rvv-5ce3a139·2026-07-17T18:08:39+00:00·q4_0·DRY-RUN(演示·未测量·无行更新)
+20260717T193812Z-iq3_xxs-k1-a4db452a·2026-07-17T19:48:02+00:00·iq3_xxs·WIN·cold_X=1.3838(k1·VLEN256宽化half_lanes=16·flip 0.65→1.38)·PROVEN·NOT-deployed(deployed叶仍VLEN128=0.65)·master不变·deploy gated ISSUE-105

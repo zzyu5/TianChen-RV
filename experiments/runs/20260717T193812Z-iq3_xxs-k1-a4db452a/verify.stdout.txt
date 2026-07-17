@@ -1,0 +1,72 @@
+# HARNESS gemm_tile board=k1 mode=verify fmt=iq3_xxs assets=/tmp/claude-1006/-home-kingdom-phdworks-TianchenRV/d3e66624-0ee9-47b9-a28f-6e19468d8e17/scratchpad/assets_vlen256
+# BUILD gemm_tile fmt=iq3_xxs board=k1 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs flush=32MiB
+# cpu_md5_before=871169a0123139692177468b3c8578be
+# leaf_md5=4e917c3b1ec94f483f4110e08f46d870 drv_md5=1cfea6e8554e3d43dda0109e35053744
+# fault_leaf differing_bytes=1 (must be exactly 1)
+# linked OK md5=852be9e4b0bcecb0f8fa8e42df9e78ad FAULTbin md5=95c80e1a44c046b2f5cb222c7bc5e5fa
+# OURS_leaf [ins=7380 rvv=6122 gather=512 vset=2515] size=34488B fp16_libcall=0
+# OPP ggml_vec_dot_iq3_xxs_q8_K_generic PRESENT @000000000005bb82 m1[ins=348 rvv=82 gather=4 vset=23] m2[ins=348 rvv=82 gather=4 vset=23] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_xxs_q8_K PRESENT @00000000000a6d94 m1[ins=18 rvv=0 gather=0 vset=0] m2[ins=18 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_xxs_q8_K_vl128 PRESENT @00000000000a6dca m1[ins=311 rvv=113 gather=12 vset=42] m2[ins=311 rvv=113 gather=12 vset=42] DUAL-AGREE
+# OPP ggml_vec_dot_iq3_xxs_q8_K_vl256 PRESENT @00000000000a7216 m1[ins=314 rvv=112 gather=12 vset=41] m2[ins=314 rvv=112 gather=12 vset=41] DUAL-AGREE
+# OPP ggml_gemm_iq3_xxs_16x1_q8_K ABSENT @ m1[ins=0 rvv=0 gather=0 vset=0] m2[ins=0 rvv=0 gather=0 vset=0] DUAL-AGREE
+# same-operator probe: 0 symbols matching ggml_gemm_iq3_xxs (0 = OPP-S structurally absent)
+# PRE_STRAY=0
+# loadavg_begin=2.84 2.64 2.42 2/454 3955734
+# core=0 (verify-only: correctness, no timing => no load-gate needed)
+=== [A] CLEAN INJECT=0, T1 EXACT shape (K=256, nb=1) — expect ABI PASS + T1 mism=0 + CORPUS COMPLETE ===
+=== iq3_xxs gemm_tile PREFILL | K=256 nr=16 nc=512 VLEN=256 seed=0xD00D INJECT=0 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T1-PRECOND fold_C=0.2500 power_of_two=yes inv=4 worst|m|=551482 limit=2^24=16777216 violations=0 -> PASS
+  T1 BOARD-BYTE-EXACT (criterion: f32 == , nb=1, d_x*d_y=1.0): mism=0/8192 -> PASS
+  CORPUS grid_idx=256 ls_steps=16 polarity=[0,0] sel=128
+  CORPUS-GATE idx 256/256 ls 16/16 sign_sel 128/128 -> COMPLETE
+  T2 ours  vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  T2 OPP-G vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  T2 OPP-X vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  GATE-OURS = PASS | GATE-OPPG = PASS | GATE-OPPX = PASS
+=== [B] ANTI-HOLLOW #1 oracle-constant fault (INJECT=1, grid idx rotated in ref_block) — expect ALL THREE RED ===
+=== iq3_xxs gemm_tile PREFILL | K=256 nr=16 nc=512 VLEN=256 seed=0xD00D INJECT=1 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T1-PRECOND fold_C=0.2500 power_of_two=yes inv=4 worst|m|=489978 limit=2^24=16777216 violations=0 -> PASS
+  T1 BOARD-BYTE-EXACT (criterion: f32 == , nb=1, d_x*d_y=1.0): mism=8192/8192 -> VOID-CORRECTNESS
+  CORPUS grid_idx=256 ls_steps=16 polarity=[0,0] sel=128
+  CORPUS-GATE idx 256/256 ls 16/16 sign_sel 128/128 -> COMPLETE
+  T2 ours  vs oracle: mism=8192/8192 worst_tolratio=1.345e+08
+  T2 OPP-G vs oracle: mism=8192/8192 worst_tolratio=1.345e+08
+  T2 OPP-X vs oracle: mism=8192/8192 worst_tolratio=1.345e+08
+  GATE-OURS = FAIL | GATE-OPPG = FAIL | GATE-OPPX = FAIL
+=== [C] ANTI-HOLLOW #2 DUT-output fault (INJECT=2, ours[mid]+=1.0f) — expect OURS RED ONLY ===
+=== iq3_xxs gemm_tile PREFILL | K=256 nr=16 nc=512 VLEN=256 seed=0xD00D INJECT=2 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T1-PRECOND fold_C=0.2500 power_of_two=yes inv=4 worst|m|=551482 limit=2^24=16777216 violations=0 -> PASS
+  T1 BOARD-BYTE-EXACT (criterion: f32 == , nb=1, d_x*d_y=1.0): mism=1/8192 -> VOID-CORRECTNESS
+  CORPUS grid_idx=256 ls_steps=16 polarity=[0,0] sel=128
+  CORPUS-GATE idx 256/256 ls 16/16 sign_sel 128/128 -> COMPLETE
+  T2 ours  vs oracle: mism=1/8192 worst_tolratio=3.423e+01
+  T2 OPP-G vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  T2 OPP-X vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  GATE-OURS = FAIL | GATE-OPPG = PASS | GATE-OPPX = PASS
+=== [D] ANTI-HOLLOW #3 LEAF single-byte grid fault — expect OURS RED ONLY (proves the gate bites the EMITTED RISC-V) ===
+=== iq3_xxs gemm_tile PREFILL | K=256 nr=16 nc=512 VLEN=256 seed=0xD00D INJECT=0 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T1-PRECOND fold_C=0.2500 power_of_two=yes inv=4 worst|m|=551482 limit=2^24=16777216 violations=0 -> PASS
+  T1 BOARD-BYTE-EXACT (criterion: f32 == , nb=1, d_x*d_y=1.0): mism=2048/8192 -> VOID-CORRECTNESS
+  CORPUS grid_idx=256 ls_steps=16 polarity=[0,0] sel=128
+  CORPUS-GATE idx 256/256 ls 16/16 sign_sel 128/128 -> COMPLETE
+  T2 ours  vs oracle: mism=2048/8192 worst_tolratio=1.108e+04
+  T2 OPP-G vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  T2 OPP-X vs oracle: mism=0/8192 worst_tolratio=0.000e+00
+  GATE-OURS = FAIL | GATE-OPPG = PASS | GATE-OPPX = PASS
+=== [E] CLEAN INJECT=0, T2 MEASURE shape (K=2048, nb=64, real random d) — expect GATE-OURS PASS ===
+=== iq3_xxs gemm_tile PREFILL | K=2048 nr=16 nc=512 VLEN=256 seed=0xD00D INJECT=0 TOLK=4.0 ACT_MAX=30
+  ABI-GATE nr=8 nc=32 bs=48(!=nc) K=256 : wrote_in=256/256 miss_in=0 clobber_out=0 -> PASS
+  T2 ours  vs oracle: mism=0/8192 worst_tolratio=5.020e-02
+  T2 OPP-G vs oracle: mism=0/8192 worst_tolratio=5.020e-02
+  T2 OPP-X vs oracle: mism=0/8192 worst_tolratio=5.020e-02
+  GATE-OURS = PASS | GATE-OPPG = PASS | GATE-OPPX = PASS
+# loadavg_end=2.84 2.64 2.42 2/454 3955762
+# cpu_md5_after=871169a0123139692177468b3c8578be
+# STRAY=0
+# ALL_DONE
+# HARNESS_RC=0

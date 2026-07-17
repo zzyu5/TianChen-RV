@@ -1,0 +1,2 @@
+op,format,engine,regime,cold,判定,对手符号,对手档,对手证据引用,我方向量指令数,世系,run-id,噪声标
+gemm_tile,iq3_xxs,rvv,prefill,1.3838,WIN,ggml_vec_dot_iq3_xxs_q8_K(→vl256·CROSSOP),手调,objdump dispatch: ggml_vec_dot_iq3_xxs_q8_K_vl256@00000000000a7216 rvv112/vset41/gather12,6122,board=k1·riscv64/6.6.63·Bianbu clang 18.1.8·emit march=rv64gcv_zvl256b(half_lanes=16)·leaf_md5=4e917c3b1ec94f483f4110e08f46d870,20260717T193812Z-iq3_xxs-k1-a4db452a,WIN明确(非近门)·2seed一致(1.3838/1.3782)·CROSSOP(我方repackGEMM vs 对手dispatched vec_dot)
