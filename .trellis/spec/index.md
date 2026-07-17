@@ -81,7 +81,7 @@ Weft-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行�
 | [governance](./governance/index.md) | **怎么做事**：决策权限卡（自决 / 必问 / 禁停 / 灰区）、延后裁决制、队列与简报、Trellis 卫生、思维准则 | **必读**。开工前 |
 | [issues](./issues/index.md) | **唯一问题登记簿**：全部已知缺口、待裁事项、被证伪的在册结论、未清欠账，以 `ISSUE-NNN` 在此**且仅在此**登记 | **必读**。开工前查号 + 收工前登记 |
 
-**六层之外：没有了。** `.trellis/spec/` 顶层**只有本文 + 上表六个目录**。旧层目录（`capability-model/` · `core-dialect/` · `plugin-protocol/` · `extension-plugins/` · `variant-pipeline/` · `lowering-runtime/` · `implementation-stack/` · `testing/` · `validation/` · `guides/`）与平铺 `SPEC-*.md` / `ISSUES.md` **共 41 份，已于 2026-07-17 整体移入 `_attic/`**（用户明令：「记得最后要清理干净，而不是留下一堆指路牌」「总之要是新状态」）。移入前它们已全部化为指路牌（条文早已并入上表六层），且**全仓活引用已逐处改锚** ⟹ 今天**零指路牌、零悬空**。原件按原路径结构完整保留在 `_attic/.trellis/spec/`（git-ignored 归档区 · 与归档前字节相同 · 逐条原因见 [`_attic/ATTIC_INDEX.md`](../../_attic/ATTIC_INDEX.md) §三.1）。
+**六层之外：没有了。** `.trellis/spec/` 顶层**只有本文 + 上表六个目录**。旧层目录（`capability-model/` · `core-dialect/` · `plugin-protocol/` · `extension-plugins/` · `variant-pipeline/` · `lowering-runtime/` · `implementation-stack/` · `testing/` · `validation/` · `guides/`）与平铺 `SPEC-*.md` / `ISSUES.md` **共 41 份，已于 2026-07-17 整体移入 `_attic/`**（用户明令：「记得最后要清理干净，而不是留下一堆指路牌」「总之要是新状态」）。移入前它们已全部化为指路牌（条文早已并入上表六层），且**全仓活引用已逐处改锚** ⟹ 今天**零指路牌、零悬空**。原件按原路径结构完整保留在 `(归档·git show pre-restructure-snapshot:.trellis/spec/`（git-ignored) 归档区 · 与归档前字节相同 · 逐条原因见 [`_attic/ATTIC_INDEX.md`](../../_attic/ATTIC_INDEX.md) §三.1）。
 
 > **谓词（可复跑）**：
 > ```bash
@@ -94,7 +94,7 @@ Weft-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行�
 > ```
 > 第三条 = 0 ⟺ 旧层与平铺件**全部清空**（不是"变成指路牌"，是**不在树里**）。**这是全量谓词，不是抽样**——若将来有人把旧层塞回来，它会立刻 > 0。
 
-**没有"旧层"可写了**：需要改规则，去上表六层里的目标文件；需要查旧条文的原文，去 `_attic/.trellis/spec/<原路径>`（**只读考古用，不是可引用的现行法**）。
+**没有"旧层"可写了**：需要改规则，去上表六层里的目标文件；需要查旧条文的原文，去 `(归档·git show pre-restructure-snapshot:.trellis/spec/<原路径>`（**只读考古用，不是可引用的现行法**）。)
 本次移入是**执行用户明令**，**不是** agent 自裁 [ISSUE-070](./issues/spec树与治理.md)（canon 级 · 待裁）；该 issue 条文本身未改，其"归并 / 归档"半的**收口措辞仍挂账待裁**。
 
 ## 新 agent 上岗顺序

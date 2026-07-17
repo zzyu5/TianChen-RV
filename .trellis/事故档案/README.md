@@ -69,10 +69,10 @@
 ## 四、内部指针的已知状态（**刻意未改** · 防后人当遗漏重查）
 
 本区文件**按令原样移入**（`不去重不改写`）⟹ 其**正文内的相对指针仍写作 `docs/reports/...` 等旧路径**，
-其中多数目标现已在 `_attic/docs/`（git-ignored）或本区。**这些是刻意未改的**：
+其中多数目标现已在 `(归档·git show pre-restructure-snapshot:docs/`（git-ignored）或本区。**这些是刻意未改的**：)
 
 - **改写正文 = 违令**（§4.2.7「原样……不改写」）。
-- 判读旧指针：`docs/reports/<名>.md` → 若 `<名>` 在本区即读本区同名文件；否则读 `_attic/docs/reports/<名>.md`。
+- 判读旧指针：`docs/reports/<名>.md` → 若 `<名>` 在本区即读本区同名文件；否则读 `(归档·git show pre-restructure-snapshot:docs/reports/<名>.md`。)
 - **全仓活消费者（schema / 门 / 代码 / spec）的反向指针已改锚到本区新址**，故本区**对外可达、零悬空**；
   未改的只有本区**文件内部**的自述指针。
 

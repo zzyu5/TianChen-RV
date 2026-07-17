@@ -23,8 +23,8 @@
 #       Any content modification (M, or R/C <100%), any newly-added non-MANIFEST evidence, and any
 #       deletion under sealed/ -> RED.
 #
-# SUPERSEDES _attic/tools/lint/check_experiments_data_only.py (judged dead 2026-07-17) (whole whitelist half) and the durable-vs-
-# REGISTRY drift half of _attic/tools/lint/check_manifest.py (judged dead 2026-07-17), now that registration is per-cell.
+# SUPERSEDES (归档·git show pre-restructure-snapshot:tools/lint/check_experiments_data_only.py) (judged dead 2026-07-17) (whole whitelist half) and the durable-vs-
+# REGISTRY drift half of (归档·git show pre-restructure-snapshot:tools/lint/check_manifest.py) (judged dead 2026-07-17), now that registration is per-cell.
 #
 #   check_experiments_layout.py             # audit the tree
 #   check_experiments_layout.py --self-test # exercise the pure classifiers

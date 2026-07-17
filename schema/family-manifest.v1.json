@@ -5,7 +5,7 @@
     "gate": "f3-family-locality",
     "checker": "tools/gates/check_family_locality.py",
     "ci": ".github/workflows/falsifier-gate.yml (job: f3-family-locality)",
-    "falsifier": "[F-3] 变更收容 (_attic/docs/canon/Weft-RV_科研目标总纲v2.md:107 · .trellis/spec/architecture/插件协议.md「[F-3] 变更收敛」)",
+    "falsifier": "[F-3] 变更收容 ((归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_科研目标总纲v2.md:107) · .trellis/spec/architecture/插件协议.md「[F-3] 变更收敛」)",
     "invariant": "Change containment: a family-integration PR is contained to that family's declared territory + capability/coverage TABLE ROWS + DOCS (the containment form of [P-1] no-core-edit, spatial counterpart of the [P-2] five-piece set). Combined with I3 zero family-name branches ([F-1]) this is the auditable evidence for C2 marginal-cost generalization.",
     "ruling": "2026-07-12 用户裁「MLIR 分层为主 + family 清单机检」: DO NOT do a cross-Dialect/Conversion/Target family-root 大搬迁 (violates MLIR-ecosystem convention; the reference-template must look like an MLIR project, not a bespoke layout). INSTEAD each family keeps this manifest listing its files/symbols across the layers, and the falsifier machine-checks CONTAINMENT off the manifest -- containment is asserted by the manifest, NOT by a physical directory move. This REPLACES the earlier F-3 premise ('gated on 跨根目录归拢') which is now WITHDRAWN as the mechanism.",
     "purpose": "Per-family address book across the MLIR layers + the CONTAINMENT machine-check source of truth. Each family declares its OWNED source territory (source_ranges: lib/{Dialect,Conversion,Plugin,Target}/<Fam>/ + include/ mirrors -- the enforced containment scope), plus an informational inventory of its test/schema-table/docs footprint. The [F-3] gate asserts: (default) every family-territory source file is claimed by exactly one manifest (no orphan, no cross-family pollution) and no family range escapes into the family-AGNOSTIC core scope; (CI) a family-integration PR's diff touches ONLY that one family's territory plus the shared allowances (TABLE ROWS + DOCS + [P-2] tests). A cross-family or core-source file touched by a family PR is a containment violation (RED).",
@@ -76,7 +76,7 @@
         "schema/family-regex.v1.json (RVV family entry)"
       ],
       "docs": [
-        "_attic/docs/method/FALSIFIER-INDEX.md",
+        "(归档·git show pre-restructure-snapshot:docs/method/FALSIFIER-INDEX.md)",
         ".trellis/spec/architecture/插件协议.md",
         "docs/method/C2_marginal_cost_ledger.md"
       ]
@@ -105,7 +105,7 @@
         "schema/family-dirs.v1.json (IME family entry)"
       ],
       "docs": [
-        "_attic/docs/method/FALSIFIER-INDEX.md",
+        "(归档·git show pre-restructure-snapshot:docs/method/FALSIFIER-INDEX.md)",
         ".trellis/spec/architecture/插件协议.md"
       ]
     },
@@ -137,7 +137,7 @@
         "schema/family-dirs.v1.json (Scalar family entry)"
       ],
       "docs": [
-        "_attic/docs/method/FALSIFIER-INDEX.md",
+        "(归档·git show pre-restructure-snapshot:docs/method/FALSIFIER-INDEX.md)",
         ".trellis/spec/architecture/插件协议.md",
         "docs/method/C2_marginal_cost_ledger.md"
       ]
@@ -189,7 +189,7 @@
         "schema/family-manifest.v1.json (Demo family entry)"
       ],
       "docs": [
-        "_attic/docs/reports/2026-07-12-P4-Tier-2-cleanroom-接入演练-T1c.md",
+        "(归档·git show pre-restructure-snapshot:docs/reports/2026-07-12-P4-Tier-2-cleanroom-接入演练-T1c.md)",
         "docs/method/C2_marginal_cost_ledger.md"
       ]
     },

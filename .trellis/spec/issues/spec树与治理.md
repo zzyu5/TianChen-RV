@@ -22,7 +22,7 @@
 ## 二、spec 树自身的缺口
 
 ### ISSUE-070 · `architecture/core-invariants.md` 违反「spec 只写现行法」，且它被判为必读权威全文
-- **实质（裁定前状态 · 存证）**：现行铁律 = **spec 只写现行法，零历史叙事、零编号考古**（教训压缩成规则本身）。`architecture/core-invariants.md` 原全文**正面违反**，三类物证（**谓词复跑**：`grep -c 'd0826caa\|G7 全量令\|稻草人' _attic/.trellis/spec/architecture/core-invariants.md` → **4 命中**。★**谓词已随裁定改指归档件**：活树同名路径现为**指针文件**、该 grep 恒 0；**禁用有界窗口命令核此类断言**）：
+- **实质（裁定前状态 · 存证）**：现行铁律 = **spec 只写现行法，零历史叙事、零编号考古**（教训压缩成规则本身）。`architecture/core-invariants.md` 原全文**正面违反**，三类物证（**谓词复跑**：`grep -c 'd0826caa\|G7 全量令\|稻草人' (归档·git show pre-restructure-snapshot:.trellis/spec/architecture/core-invariants.md`) → **4 命中**。★**谓词已随裁定改指归档件**：活树同名路径现为**指针文件**、该 grep 恒 0；**禁用有界窗口命令核此类断言**）：
   - **编号考古 +「某年某月某人裁定」体**：`[K-10]` 的节标题即 `— 结构级 / 参数级判据（canon · G7 全量令 2026-07-13 用户裁 · [GOV-9] 提案+批准一体）`。
   - **commit hash 入正文**：`★G1 精化①/②（d0826caa · L2 实证…）` 两处 —— 规则本身（「绝对 spill 必须以部署编译器测」/「指令数子门是 regime-keyed」）是好规则，但被绑在一个 commit 号上。
   - **战役事故叙事**：`对手类机判（重编令二.2 · q4_K 稻草人事故制度化修复）` + 整段 `b29c269c 证伪` /「测错核之戒」/「双核分立限定（27658b8a · 五复核）」叙事。
@@ -46,8 +46,8 @@
 - **★实况 = 十项（数门体本身得出，非两处文本互猜——互猜正是本 bug 的成因）**。**门体演进史**（谓词：读归档的三代总纲门体，逐项数）：
   | 载体 | 门体实列 | 自述称谓 |
   |---|---|---|
-  | 总纲 v2 §4.4（`_attic/docs/canon/Weft-RV_科研目标总纲v2.md`） | **①–⑧**（8 项） | 「**八项**全绿前」——**当时属实** |
-  | 总纲 v3 §4.4（`_attic/docs/files (2)/TianChen-RV_科研目标总纲v3.md`） | **①–⑧ + v3 增补两项前置 ⑨⑩** = **10 项** | 自相抵三称谓：「八项（十项）」· [L-1] 称「八门」· 附 B 称「**十门**」 |
+  | 总纲 v2 §4.4（`(归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_科研目标总纲v2.md`）) | **①–⑧**（8 项） | 「**八项**全绿前」——**当时属实** |
+  | 总纲 v3 §4.4（`(归档·git show pre-restructure-snapshot:docs/files) (2)/TianChen-RV_科研目标总纲v3.md`） | **①–⑧ + v3 增补两项前置 ⑨⑩** = **10 项** | 自相抵三称谓：「八项（十项）」· [L-1] 称「八门」· 附 B 称「**十门**」 |
   | **活 canon**（[测量判据](../canon/测量判据.md) §一.2） | **①–⑩**（10 项） | 现「门体 = 十项」 |
   ⟹ **门体从来只有一个**；「**八门**」= **v2 期化石简称**，在 v3 增补 ⑨（账本合规 [L-9]）/ ⑩（部署身份五验 [L-10]）**两条前置**后即失效，而 v3 未订正自身摘要行 ⟹ 三称谓并存。**v4 草案 §6.1 第 5 条已把「门数三称谓」登记为 v3 自身缺陷**（独立佐证：非本轮新说）。
 - **落地**：
@@ -64,7 +64,7 @@
   - **G-1 · 性能证词的根悬空**：`docs/reports/SEALED-WIN-REGISTRY.md` 是 **C3′ 性能证词的唯一权威登记**（Win #1 Win-K1-VLEN · Win #2 q4_K@k1 e2e prefill，逐字锁定措辞），且被列为**可达性根集合成员**、被判「留仓库」；但它**现住 `docs/` 下**，且**零脚本消费** —— 曾唯一与之接触的 `check_docs_canon.py` 也仅做文件名命名豁免、不读其内容，且该脚本**现已入 attic**（见 ISSUE-054⑥）⟹ 此刻全仓**无任何脚本引用它**。⟹「被脚本消费的数据」这条留仓理由**不被事实支撑**，**新家未定 → 整张地图的性能证词根悬空**。
   - **G-3 · 承重论证载体去向**：三贡献的承重**论证**主体住 `docs/reports/` 与 `docs/method/`（构造协议 + 摊销曲线 · 模式库综合 · 五负结果 · regime-split · 两 casefile · 三份接入实录 · C2 口径 · 归因锁 · ZERO-MODEL 法）。它们是**论证/报告**、非「被脚本消费的数据」→ 按可达性判据应归档；但**归档后本地图大半指针指向 `_attic`**。
     **★已出 G-3 范围（结论已迁入 evidence 层正文、不再依赖 docs 可达）**：五条 C3′ 负结果 → §4.7 · [F-1..F-6] → 工件映射 + [C1-SHAPE] 命名碰撞 → §2.2 / §2.1 · 相邻门 → §5.8。docs 侧原件**降为可选参考**（**禁再在 docs 留同内容副本**）。
-  - 另 evidence 层 §2.1 / §2.2 把 **[C1-SHAPE] ↔ [F-1] 命名碰撞的唯一权威记录**与 **F → 工件的唯一映射索引**都锚在 `_attic/docs/method/FALSIFIER-INDEX.md`（同样归档去向未定）—— 惟此两项的**结论正本已迁入 evidence 层**（见上）。
+  - 另 evidence 层 §2.1 / §2.2 把 **[C1-SHAPE] ↔ [F-1] 命名碰撞的唯一权威记录**与 **F → 工件的唯一映射索引**都锚在 `(归档·git show pre-restructure-snapshot:docs/method/FALSIFIER-INDEX.md`（同样归档去向未定）——) 惟此两项的**结论正本已迁入 evidence 层**（见上）。
 - **须裁**：「迁入六层 / 事故区」vs「破例留仓」。
 - **影响面**：evidence 全图的可用性 = C1/C2/C3′ 三贡献证据链能否被只读 `.trellis/` 的 agent 走通。
 - **卡在**：与归档令的可达性判据正面耦合 = canon 级。
@@ -110,12 +110,12 @@
 - **出处**：仓内 —— [architecture](../architecture/index.md) 「命名未决」节 / 「命名未决 · 「五层」的所指未裁」节 / 「「五」已有既存所指」节 / 「裸 `L<数字>` 编号禁用」节 与 「本层登记的未决项」表 A 行（该层在 `.trellis/` 内，可直接读到）。
 
 ### ISSUE-086 · 前身证据索引含已验证死指针 + T2 口径 stale
-- **实质**：evidence 层的迁移底本（`_attic/docs/reports/2026-07-10-paper-evidence-index.md`）内 **4 处路径经核实不存在**，且其 T2 口径已 stale（按 `seq` 区间描述，与现行单分母制口径不符）⟹ **禁照抄该底本**。已核实的死指针 → 正解对照（**结论已迁入本条，不依赖底本可达**）：
+- **实质**：evidence 层的迁移底本（`(归档·git show pre-restructure-snapshot:docs/reports/2026-07-10-paper-evidence-index.md`）内) **4 处路径经核实不存在**，且其 T2 口径已 stale（按 `seq` 区间描述，与现行单分母制口径不符）⟹ **禁照抄该底本**。已核实的死指针 → 正解对照（**结论已迁入本条，不依赖底本可达**）：
   | 死指针 | 正解 |
   |---|---|
   | `include/TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h` | `include/Weft/Plugin/RVV/RVVRepackTilingSelection.h`（改名后） |
-  | `docs/canon/TianChen-RV_定位-v2.md` | `_attic/docs/canon/Weft-RV_定位-v2.md` |
-  | `docs/canon/TianChen-RV_执行总纲v2.md` | `_attic/docs/canon/Weft-RV_执行总纲v2.md` |
+  | `docs/canon/TianChen-RV_定位-v2.md` | `(归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_定位-v2.md`) |
+  | `docs/canon/TianChen-RV_执行总纲v2.md` | `(归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_执行总纲v2.md`) |
   | `experiments/active/kquant-family-closure/transmission_account.md` | `experiments/archive/l1-kquant/kquant-family-closure/transmission_account.md`（已归档） |
   **阅读纪律（承接改名事实）**：改名前的历史记载用旧名 = 当时准确，**勿改**；改名后一律 `weft` / `Weft`。
 - **影响面**：凡以该底本为源起草的证据表述。

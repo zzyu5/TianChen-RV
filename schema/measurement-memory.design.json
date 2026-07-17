@@ -8,10 +8,10 @@
     "author": "案头执行员 (度假自治)",
     "declares": "[SEL-3] measurement-memory layer superschema: the general offline-profile argmin cache the capability-keyed selector consults BEFORE its [SEL-1] cold-start prior. Generalizes schema/tiling-measurements.v1.json (SP schedule axis only) to a single rows[] table keyed by variant_axis, covering all bounded variant axes (SP4 tiling, M1c loop-order, strip-width, future axes). Evidence-axis mirror data (core-invariants I4): NEVER chooses route/compute/dtype, NEVER a correctness or cost authority in lib/. Authority order: hardware measurement > this cache > static prior.",
     "authority": [
-      "_attic/docs/ROADMAP.md#〇.4 (SEL-3 formal立项: offline-profile argmin + byte-exact gate)",
-      "_attic/docs/reports/2026-07-09-SEL-1-design.md (② measurement library schema blueprint)",
+      "(归档·git show pre-restructure-snapshot:docs/ROADMAP.md#〇.4) (SEL-3 formal立项: offline-profile argmin + byte-exact gate)",
+      "(归档·git show pre-restructure-snapshot:docs/reports/2026-07-09-SEL-1-design.md) (② measurement library schema blueprint)",
       "schema/tiling-measurements.v1.json (the live SEL-1 schedule-axis instance this generalizes)",
-      "_attic/docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3]",
+      "(归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3)]",
       ".trellis/spec/architecture/变体流水线.md (two-stage selector, authority order)",
       ".trellis/spec/architecture/core-invariants.md#I4",
       "experiments/active/g8-stage3-attack/SEL3-measurement-memory-design.md (companion design draft)"
@@ -19,7 +19,7 @@
     "primary_key": ["declared_instance_hash", "kernel", "variant"],
     "pending_ruling": {
       "id": "[SEL-3-KEY]",
-      "issue": "_attic/docs/canon/Weft-RV_执行总纲v2.md:69 states key = kernel+march (NOT instance-hash); ROADMAP令〇.4 + this schema + tiling-measurements.v1.json use (declared_instance_hash, kernel, variant). Semantically reconcilable (instance-hash SUBSUMES march/vlen/vreg) but canon wording conflicts (headline-caliber). This draft designs to the operative directive (instance-hash); canon wording unification needs user ruling. NOT executed here -- registered only.",
+      "issue": "(归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_执行总纲v2.md:69) states key = kernel+march (NOT instance-hash); ROADMAP令〇.4 + this schema + tiling-measurements.v1.json use (declared_instance_hash, kernel, variant). Semantically reconcilable (instance-hash SUBSUMES march/vlen/vreg) but canon wording conflicts (headline-caliber). This draft designs to the operative directive (instance-hash); canon wording unification needs user ruling. NOT executed here -- registered only.",
       "suggested_resolution": "amend 执行总纲v2:69 to 'key = declared_instance_hash (subsumes march/vlen/vreg) + kernel + variant'."
     },
     "key_semantics": {

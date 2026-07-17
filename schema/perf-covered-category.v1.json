@@ -29,7 +29,7 @@
     "sources": [
       ".trellis/事故档案/2026-07-12-perf-covered-零未定义格分类.md",
       ".trellis/事故档案/2026-07-12-三具名GAP修复评估.md",
-      "_attic/docs/reports/2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md",
+      "(归档·git show pre-restructure-snapshot:docs/reports/2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md)",
       "experiments/active/covering-batch3-stream-rvv/"
     ],
     "recon_tool": ".trellis/scripts/perf_covered_metrics.py",

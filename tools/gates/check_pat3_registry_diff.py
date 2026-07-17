@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_pat3_registry_diff.py — [PAT-3] dual-board registry-diff=0 gate.
 
-[PAT-3] canon (_attic/docs/canon/Weft-RV_科研目标总纲v2.md:122):
+[PAT-3] canon ((归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_科研目标总纲v2.md:122)):
     「同一注册表在双板（VLEN128/VLEN256）**零条目改写、仅键值不同**即通过（diff 注册表 = 0）」
     (the same registry, on both boards, rewrites ZERO entries and differs only in KEY VALUES)
 

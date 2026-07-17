@@ -4,10 +4,10 @@
 
 ## Two numbers, two口径 (RESOLVED 2026-07-11 user ruling)
 
-- **C2 founding-slice anchor = raw wc-l 2484** (历史 slice 口径; FROZEN, reproduced @git `54465ee7` / 2026-07-03 -- the commit that pinned the [LED-1] first data point). This is the **C2 marginal-cost curve anchor** (apples-to-apples with X-SCALAR's founding cost) and never changes. `docs/canon/TianChen-RV_执行总纲v2.md` §8 recompute table = this slice.
-- **LIVE `--family IME` raw wc-l = 5153** (current family size; the authoritative recompute of the live tree). The SAME 7 files that summed to 2484 @`54465ee7` now sum to 5153 (delta **+2669**) because the IME family GREW -- more MMA op variants + emit paths. This is **NOT a counting-口径 difference** (same tool, same raw-wc-l method); it is temporal family growth = **C3' op-extension (family-internal), NOT C2 onboarding cost**. cloc-approx = 3858.
+- **C2 founding-slice anchor = raw wc-l 2484** (历史 slice 口径; FROZEN, reproduced @git `54465ee7` / 2026-07-03 -- the commit that pinned the [LED-1] first data point). This is the **C2 marginal-cost curve anchor** (apples-to-apples with X-SCALAR's founding cost) and never changes. `(归档·git show pre-restructure-snapshot:docs/canon/Weft-RV_执行总纲v2.md`) §8 recompute table = this slice.
+- **LIVE `--family IME` raw wc-l = 5799** (current family size; the authoritative recompute of the live tree). The SAME 7 files that summed to 2484 @`54465ee7` now sum to 5799 (delta **+3315**) because the IME family GREW -- more MMA op variants + emit paths. This is **NOT a counting-口径 difference** (same tool, same raw-wc-l method); it is temporal family growth = **C3' op-extension (family-internal), NOT C2 onboarding cost**. cloc-approx = 4262.
 
-**禁静默替换 2484**: the founding-slice anchor stays the C2 data point; the live 5153 is the informational current size. When quoting the C2 marginal-cost curve, use the founding slice (2484 raw). When quoting current family size, use the live recompute (5153 raw).
+**禁静默替换 2484**: the founding-slice anchor stays the C2 data point; the live 5799 is the informational current size. When quoting the C2 marginal-cost curve, use the founding slice (2484 raw). When quoting current family size, use the live recompute (5799 raw).
 
 ## Recompute command
 
@@ -19,13 +19,13 @@ python3 .trellis/scripts/family_ledger.py report --family IME
 
 ## Result
 
-- **verdict            : RECORDED** (live raw wc-l 5153; C2 founding-slice anchor 2484 frozen @54465ee7; delta +2669 = C3' family extension, expected)
-- code_LOC raw wc-l   : 5153  (files: 7; LIVE current family size)
+- **verdict            : RECORDED** (live raw wc-l 5799; C2 founding-slice anchor 2484 frozen @54465ee7; delta +3315 = C3' family extension, expected)
+- code_LOC raw wc-l   : 5799  (files: 7; LIVE current family size)
 - C2 founding anchor  : 2484  (历史 slice 口径, frozen @54465ee7)
-- code_LOC cloc-approx: 3858  (secondary [LED-1]-口径; cloc absent)
+- code_LOC cloc-approx: 4262  (secondary [LED-1]-口径; cloc absent)
 - test_LOC raw wc-l   : 1003  (files: 14; FULL footprint, uniform口径)
 - test_LOC by segment : dialect_verification 659 / lowering 344 / e2e 0  (C2 cost-住址 split)
-- family-dirs sha256  : 4fee1d3042c4c51e92625083ca3c37c9ebcab40677a6556b58062556d8c2b6ba
+- family-dirs sha256  : 98c5ccbaae45ad42e8996560d8ef7b13f4b3e23b5b6a579643ecc407e3c02861
 
 ## Notes
 
