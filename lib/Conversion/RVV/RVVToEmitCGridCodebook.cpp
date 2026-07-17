@@ -83,9 +83,7 @@ void VariantToEmitCFunc::emitIQ2XXSSuperBlockGridBody(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "uint16_t"));
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
+    auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
@@ -532,9 +530,7 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "uint16_t"));
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
+    auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
@@ -1055,9 +1051,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "uint16_t"));
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
+    auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
@@ -1577,9 +1571,7 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
     mlir::Type u16IdxPairType = emitc::OpaqueType::get(ctx, "vuint16m1_t");
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
+    auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
@@ -2074,9 +2066,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
     mlir::Type u16IdxPairType = emitc::OpaqueType::get(ctx, "vuint16m1_t");
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
+    auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
@@ -2553,9 +2543,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
   auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-  auto intLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-  };
+  auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
   auto floatLit = [&](llvm::StringRef s) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, floatType, s);
   };

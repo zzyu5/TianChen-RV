@@ -2721,9 +2721,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleBodyShared(
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
+    auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
     auto uintLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, uintType,
                                                std::to_string(v) + "u");
@@ -3455,9 +3453,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
   auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
-  auto intLit = [&](int64_t v) -> mlir::Value {
-    return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-  };
+  auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
   auto idxLit = [&](int64_t v) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, indexType, std::to_string(v));
   };
