@@ -951,6 +951,21 @@ mlir::Value emitOpaqueCallBuilt(
       .getResult(0);
 }
 
+mlir::Value emitLoadByteAsInt(mlir::PatternRewriter &rewriter,
+                              mlir::Location loc, mlir::Type constU8Type,
+                              mlir::Type intType, mlir::Value ptr, int64_t i) {
+  mlir::Value idx = rewriter.create<emitc::LiteralOp>(
+      loc, rewriter.getIndexType(), std::to_string(i));
+  mlir::Value elem =
+      rewriter
+          .create<emitc::SubscriptOp>(
+              loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
+          .getResult();
+  mlir::Value u8 =
+      rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+  return rewriter.create<emitc::CastOp>(loc, intType, u8).getResult();
+}
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation. The one place
 // the q4_K/q6_K integer cores + the FP4 codebook emitters resolve their widened

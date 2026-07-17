@@ -324,6 +324,18 @@ mlir::Value emitOpaqueCallBuilt(
         buildOperands,
     std::optional<llvm::StringRef> commentOverride = std::nullopt);
 
+// Single-source `int x = (int)a[i];` structured byte load: a LiteralOp index ->
+// SubscriptOp(ptr, idx) -> LoadOp(constU8Type) -> CastOp(intType). An
+// alignment-safe read of one small/positive byte (grid index, qh byte, sign
+// byte, or scale byte) from a `const uint8_t *` stream. Consolidates five
+// byte-identical `loadByteAsInt` lambdas that lived inline in
+// RVVToEmitCGridCodebook.cpp; the two opaque types are passed explicitly (they
+// are the SAME "const uint8_t"/"int" constants at every former site) so the
+// emitted C is byte-identical to the inline lambdas.
+mlir::Value emitLoadByteAsInt(mlir::PatternRewriter &rewriter,
+                              mlir::Location loc, mlir::Type constU8Type,
+                              mlir::Type intType, mlir::Value ptr, int64_t i);
+
 //===----------------------------------------------------------------------===//
 // Single-source i8 -> i16 -> i32 widening-chain LMUL derivation.
 //===----------------------------------------------------------------------===//

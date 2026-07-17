@@ -131,18 +131,8 @@ void VariantToEmitCFunc::emitIQ2XXSSuperBlockGridBody(
           rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
       return rewriter.create<emitc::CastOp>(loc, uintType, u8).getResult();
     };
-    auto loadByteAsInt = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, intType, u8).getResult();
-    };
+    // int x = (int)a[i];  -- alignment-safe byte load then cast to int, emitted by
+    // the shared emitLoadByteAsInt(constU8Type, intType) helper.
 
     // d = (float)*(const _Float16 *)(xb + 0) * *(const float *)(yb + 0);  (ONCE per
     // super-block; the fp16 weight scale times the fp32 q8_K scale).
@@ -291,7 +281,7 @@ void VariantToEmitCFunc::emitIQ2XXSSuperBlockGridBody(
         // Fill slots [half*4 + l]: 4 grid byte-offsets a[l]*8 + 4 sign byte-offsets
         // ((aux1>>7l)&127)*8 (the shift is logical in the uint32 domain).
         for (int64_t l = 0; l < numGroups; ++l) {
-          mlir::Value idx = loadByteAsInt(aBase, l);
+          mlir::Value idx = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, aBase, l);
           mlir::Value gridByteOff =
               rewriter.create<emitc::MulOp>(loc, intType, idx, intLit(8))
                   .getResult();
@@ -597,18 +587,7 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
     };
     // int x = (int)a[i];  -- a structured byte load from a `const uint8_t *` then a
     // cast to int (used to read each grid index from the q3 stream alignment-safely).
-    auto loadByteAsInt = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, intType, u8).getResult();
-    };
+    // Emitted by the shared emitLoadByteAsInt(constU8Type, intType) helper.
 
     // ONE grid-of-4 DOT: the per-group sign-fold + signed widening dot, fed a
     // PRE-GATHERED gridV (this group's 8 signed grid bytes in lanes 0..7, recovered by a
@@ -861,8 +840,8 @@ void VariantToEmitCFunc::emitIQ3XXSSuperBlockGridBody(
                       .getResult();
         for (int64_t l = 0; l < numGroups; ++l) {
           int64_t g = half * numGroups + l;
-          mlir::Value idx1 = loadByteAsInt(qgBase, 2 * l + 0);
-          mlir::Value idx2 = loadByteAsInt(qgBase, 2 * l + 1);
+          mlir::Value idx1 = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qgBase, 2 * l + 0);
+          mlir::Value idx2 = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qgBase, 2 * l + 1);
           storeIdxOff(g * 4 + 0, idx1);
           storeIdxOff(g * 4 + 1, idx2);
           storeU16(g * 4 + 2, u16Zero);
@@ -1098,18 +1077,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
     // int x = (int)a[i];  -- a structured byte load from a `const uint8_t *` then a
     // cast to int (used for each grid index byte, qh byte, sign byte, and scale byte;
     // alignment-safe and the values are small/positive so no sign-extension hazard).
-    auto loadByteAsInt = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, intType, u8).getResult();
-    };
+    // Emitted by the shared emitLoadByteAsInt(constU8Type, intType) helper.
 
     // ONE grid-of-4 DOT: the per-group sign-fold + signed widening dot, fed a
     // PRE-GATHERED gridV (this group's 8 signed grid bytes in lanes 0..7, recovered by a
@@ -1339,7 +1307,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
           rewriter.create<emitc::VerbatimOp>(
               loc, stepComment(opName, role, "sub_block_explicit_scale"));
           // int sc = sc_base[ib32/2];  ls = ib32 even ? 2*(sc&0xf)+1 : 2*(sc>>4)+1.
-          mlir::Value scByte = loadByteAsInt(scBase, ib32 / 2);
+          mlir::Value scByte = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, scBase, ib32 / 2);
           mlir::Value nibble =
               (ib32 % 2 == 0)
                   ? rewriter
@@ -1364,7 +1332,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
           // bit 8 of each of the 8 grid indices in this sub-block).
           rewriter.create<emitc::VerbatimOp>(
               loc, stepComment(opName, role, "qh_plane_byte"));
-          mlir::Value qhByte = loadByteAsInt(qhBase, ib32);
+          mlir::Value qhByte = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qhBase, ib32);
 
           // Fill slots [g*4+{0,1}] with the two qh-injected idx*4 byte-offsets,
           // [g*4+{2,3}] with zero pads (g = half*numGroups + l):
@@ -1373,7 +1341,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
           for (int64_t l = 0; l < numGroups; ++l) {
             int64_t g = half * numGroups + l;
             mlir::Value qsByte1 =
-                loadByteAsInt(qsBase, ib32 * indicesPerSubBlock + 2 * l + 0);
+                emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qsBase, ib32 * indicesPerSubBlock + 2 * l + 0);
             mlir::Value qhShift1 =
                 rewriter
                     .create<emitc::BitwiseLeftShiftOp>(loc, intType, qhByte,
@@ -1390,7 +1358,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
                     .getResult();
 
             mlir::Value qsByte2 =
-                loadByteAsInt(qsBase, ib32 * indicesPerSubBlock + 2 * l + 1);
+                emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qsBase, ib32 * indicesPerSubBlock + 2 * l + 1);
             mlir::Value qhShift2 =
                 rewriter
                     .create<emitc::BitwiseLeftShiftOp>(loc, intType, qhByte,
@@ -1476,7 +1444,7 @@ void VariantToEmitCFunc::emitIQ3SSuperBlockGridBody(
             // int signs = sgn[ib32*4 + l];  (the EXPLICIT sign byte read DIRECTLY
             // from the signs region at xb+74 -- NO ksigns lookup).
             mlir::Value signs =
-                loadByteAsInt(sgnBase, ib32 * signsPerSubBlock + l);
+                emitLoadByteAsInt(rewriter, loc, constU8Type, intType, sgnBase, ib32 * signsPerSubBlock + l);
 
             // gridV = vget(gridPairV, g)  -- this group's 8 signed grid bytes in
             // lanes 0..7 (byte-identical to the old per-group vl=2 gather + reinterpret).
@@ -1669,18 +1637,7 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
     // int x = (int)a[i];  -- a structured byte load from a `const uint8_t *` then a
     // cast to int (used to read the explicit scale byte sc[ib32] from the scales[]
     // stream alignment-safely).
-    auto loadByteAsInt = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, intType, u8).getResult();
-    };
+    // Emitted by the shared emitLoadByteAsInt(constU8Type, intType) helper.
 
     // d = (float)*(const _Float16 *)(xb + 0) * *(const float *)(yb + 0);  (ONCE
     // per super-block; the fp16 weight scale times the fp32 q8_K scale).
@@ -1822,7 +1779,7 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
                                             sizeLit(ib32 * 8))
                       .getResult();
         // DELTA(c): int sc = sc_base[ib32];  ls1 = 2*(sc & 0xf)+1;  ls2 = 2*(sc>>4)+1.
-        mlir::Value scByte = loadByteAsInt(scBase, ib32);
+        mlir::Value scByte = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, scBase, ib32);
         mlir::Value scLow =
             rewriter
                 .create<emitc::BitwiseAndOp>(loc, intType, scByte, intLit(15))
@@ -2143,18 +2100,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
     // int x = (int)a[i];  -- a structured byte load from a `const uint8_t *` then a
     // cast to int (used to read the single qs index byte, the explicit sign byte,
     // the qh-plane byte, and the explicit scale byte alignment-safely).
-    auto loadByteAsInt = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(i));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr), idx)
-              .getResult();
-      mlir::Value u8 =
-          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
-      return rewriter.create<emitc::CastOp>(loc, intType, u8).getResult();
-    };
+    // Emitted by the shared emitLoadByteAsInt(constU8Type, intType) helper.
 
     // d = (float)*(const _Float16 *)(xb + 0) * *(const float *)(yb + 0);  (ONCE
     // per super-block; the fp16 weight scale times the fp32 q8_K scale).
@@ -2301,7 +2247,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
       for (int64_t s = 0; s < 2; ++s) {
         int64_t ib32 = 2 * pair + s;
         // int sc = sc_base[ib32];  ls1 = 2*(sc & 0xf)+1;  ls2 = 2*(sc>>4)+1.
-        mlir::Value scByte = loadByteAsInt(scBase, ib32);
+        mlir::Value scByte = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, scBase, ib32);
         mlir::Value scLow =
             rewriter
                 .create<emitc::BitwiseAndOp>(loc, intType, scByte, intLit(15))
@@ -2318,7 +2264,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
         // 2-bit fields inject the high bits of each group's 10-bit grid index).
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, "qh_plane_byte"));
-        mlir::Value qhByte = loadByteAsInt(qhBase, ib32);
+        mlir::Value qhByte = emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qhBase, ib32);
 
         // Two halves per sub-block (ph = 2*s + hh): h=0 -> groups l=0,1 scaled by ls1;
         // h=1 -> groups l=2,3 by ls2. Each half's 2 groups decode idx (qs|qh-high-bits)
@@ -2333,7 +2279,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
             // for l = 0,1,2,3. The index is computed in the int domain (`qs[]`/`qh[]`
             // are uint8, shift small/positive, result in [0,1023]). grid off = idx*8.
             mlir::Value qsIdxByte =
-                loadByteAsInt(qsBase, ib32 * groupsPerSub + l);
+                emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qsBase, ib32 * groupsPerSub + l);
             mlir::Value qhShifted =
                 rewriter
                     .create<emitc::BitwiseLeftShiftOp>(loc, intType, qhByte,
@@ -2357,7 +2303,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
             // DIRECTLY from the sign region at qs+32 -- NO ksigns lookup). signs256[
             // signByte*8..] = that sign byte expanded to +-1. sign off = signByte*8.
             mlir::Value signByte =
-                loadByteAsInt(sgnBase, ib32 * groupsPerSub + l);
+                emitLoadByteAsInt(rewriter, loc, constU8Type, intType, sgnBase, ib32 * groupsPerSub + l);
             mlir::Value signByteOff =
                 rewriter.create<emitc::MulOp>(loc, intType, signByte, intLit(8))
                     .getResult();
