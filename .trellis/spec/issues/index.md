@@ -284,6 +284,7 @@
 | 092 | `判定` 与台账 `结果` 的值域未枚举 | 待裁 | 门与工具 |
 | 093 | ★`experiments/runs.log` 被 `*.log` ignore ⟹ 台账非耐久 | 待裁 | 门与工具 |
 | 094 | `--drift` 漂移门退役（守护对象已被新法废除） | 已退役 | 门与工具 |
+| 099 | ★PR-47 15 格 clang-18 重测前提落空（gemm_tile.sh 仅 4 IQ 格·FLAT 现值来自部署管线·product_reduce 无 harness·7 格已覆盖） | 待裁 | 门与工具 |
 
 ---
 
