@@ -153,3 +153,4 @@
 | `lib/Plugin/RVV/FrontDoor/RVVMonolithicBlockDotSourceFrontDoor.cpp` 的 `[flat-block-dot-fp-fold-oracle §5]` | 位于 `llvm::cl::desc(...)` **字符串字面量**（CLI help 文本）= **代码，非注释**，撞「禁碰任何代码/CHECK 行」硬规则。且该处**只有文档名、无路径** ⟹ 不产生悬空路径。**登记待裁**：是否允许改 help 文本内的文档名。 |
 | `architecture/系统定位与边界.md` 原样 ① 内的 `[variant-pipeline](../variant-pipeline/generation-selection-tuning.md)` | 该块受文件自身「**以下两段为原样·逐字**」约束，且原文明令「原文内的链接一并原样保留」。**引文本体零改**；改为在**引文之外**加「现住址注」指向 `architecture/变体流水线.md`。 |
 | `.agents|.claude/skills/trellis-break-loop/SKILL.md` 的 `cross-platform-thinking-guide.md` / `backend/*.md` / `frontend/*.md` | **Trellis 上游模板的通用文案**，所指文件在本仓**从来不存在**（`guides/` 八份里无此名）⟹ **先前即悬空、非本次归档所致**，不在触碰集。 |
+| `大重构总令-最终版.md` | `_attic/大重构总令-最终版.md` | 大重构收口完成,令文历史使命已尽 → 归档(用户 2026-07-17 令「可以归档,准备走 trellis 流程」)。其条文已迁六 spec + 事故档案 + ISSUES;**逐字性可复核** → `git show pre-restructure-snapshot:大重构总令-最终版.md`(239 行)。3 处引用:TOOLS.md 链接锚已改标签形式;收口简报/ISSUE-095 是散文历史线索(§6.4 允许·非死锚)。 | 2026-07-17 |

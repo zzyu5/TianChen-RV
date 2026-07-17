@@ -1,6 +1,6 @@
 # TOOLS.md — `tools/` · `scripts/` 工具册
 
-> **法源** = [大重构总令-最终版](../大重构总令-最终版.md) §4.2.8：「`tools/`、`scripts/`：只留真实在用——
+> **法源** = 《大重构总令-最终版》§4.2.8（已归档 → `git show pre-restructure-snapshot:大重构总令-最终版.md`）：「`tools/`、`scripts/`：只留真实在用——
 > runner、oracle、gates、必要构建脚本。**每个留下的在 `tools/TOOLS.md` 写一行 {用途 + 被谁调用}，
 > 写不出即 attic**；近似重复合并留一。」
 >
