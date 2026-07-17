@@ -1,10 +1,29 @@
 # Weft-RV MLIR
 
-Weft-RV is a **reference template for a capability-driven, extensible MLIR execution-layer software stack** — with **RISC-V quantized LLM inference as its first high-performance instance**. The headline is the *extensibility* (a reproducible way to organize the stack so admission cost is predictable, correctness is machine-checked, and selection is attributable); on-silicon wins over hand-written shipped kernels are the *proof of the template's quality, not the goal itself*. It is **not** a general-purpose compiler: "extensible" means the stack-organization is reproducible, and the load domain stays locked to ggml-style quantized inference kernels (canonical positioning: `docs/canon/Weft-RV_定位-v2.md`).
+Weft-RV is a **reference template for a capability-driven, extensible MLIR execution-layer software stack** — with **RISC-V quantized LLM inference as its first high-performance instance**. The headline is the *extensibility*: a reproducible way to organize the stack so that admission cost is predictable, correctness is machine-checked, and selection is attributable. On-silicon wins over hand-written shipped kernels are the *proof of the template's quality, not the goal itself*.
+
+It is **not** a general-purpose compiler: "extensible" means the stack-organization is reproducible; the input side stops at a kernel-level interface and the load domain stays locked to ggml-style quantized inference kernels.
 
 Concretely, it is a **capability-driven, unified RISC-V MLIR execution layer** that sits *after* high-level MLIR. It does not introduce a new high-level tensor/tile IR, and it is not "one independent backend dialect per target." Instead it models RISC-V target capabilities (ISA extensions, VLEN/uarch, toolchain, runtime/offload) as first-class, queryable MLIR objects, and uses them to drive plugin-local variant generation, legality, selection, dispatch, tuning, and lowering across a single common pipeline.
 
-The long-term spec lives in [`.trellis/spec/`](.trellis/spec/index.md); read [`spec/index.md`](.trellis/spec/index.md) before changing design or code. The paper-side research dossier (contributions, evidence ledger, threats, related work) lives out-of-tree under `papers/TianchenRV/`.
+## Where everything is: `.trellis/`
+
+**`.trellis/` is the single authority** for this project — queue, tasks, spec, issues, and report deliverables. There is no second source.
+
+**Start at [`.trellis/spec/index.md`](.trellis/spec/index.md)** (the root map): positioning, the six-layer table, the reading order for a new contributor, and the N1/N2/N3 ↔ C1/C2/C3′ bridge.
+
+| Layer | Answers |
+|---|---|
+| [canon](.trellis/spec/canon/index.md) | The **law**: may a claim stand, may a number be reported, is a cell a win. Includes the core invariants I1–I9 |
+| [measurement](.trellis/spec/measurement/index.md) | **How to measure**: what counts as measurement, which board, which pipeline, against whom, where results land |
+| [architecture](.trellis/spec/architecture/index.md) | **Structural law**: what each station *actually is* in code today, what it should become, what is off-limits |
+| [evidence](.trellis/spec/evidence/index.md) | **Evidence map**: which artifact backs which claim; how to read a result and which readings are forbidden |
+| [governance](.trellis/spec/governance/index.md) | **How to work**: decision-authority card, deferred-ruling rule, queue and briefing, hygiene, thinking guides |
+| [issues](.trellis/spec/issues/index.md) | The **single issue register**: every known gap / pending ruling / debt, as `ISSUE-NNN` |
+
+Read the root map, then the layer your task belongs to; attach the work to a Trellis task with its scope pre-registered before starting.
+
+> **Research claims are not restated here.** The positioning red line and the three contributions C1/C2/C3′ are canonical in the root map and in [`canon/暂定-科研主张.md`](.trellis/spec/canon/暂定-科研主张.md), marked **【暂定 · 随论文侧更新 · 非定论】** (provisional, tracks the paper side, not settled). Their supporting artifacts and honest boundaries are mapped in the [evidence](.trellis/spec/evidence/index.md) layer. Performance figures are not quoted in this file: numbers live in the result tables with their run-ids, under the measurement layer's rules.
 
 ## Project spine
 
@@ -19,78 +38,53 @@ high-level MLIR op
   -> hardware evidence when runtime/correctness/performance is claimed
 ```
 
-## Research contributions (calibrated — claims, with their honest boundaries)
-
-These are **claims to be demonstrated with evidence**, not assumed. "Variant containers" and "plugins" are architecture, not contributions — MLIR already provides them. The load-bearing contribution is a **conjunction**, not any single component; every conjunct in isolation is prior art.
-
-- **N2 — zero-core-branch cross-family admission (the keystone, structurally PROVEN).** The single branch-free core absorbs **IME — a matrix-MAC engine — onto the RVV vector core through one unmodified capability schema**, with no `if RVV` / `if IME` family-name branch (grep-clean falsifier: 0 hits over `lib/` minus the IME plugin dir; dispatch is identity- and interface-based). This is the first *demonstrated* cross-family admission on RISC-V under one schema. **Honest boundary:** IME **implies RVV** and shares the V register file — it is a matrix *paradigm* on a vector core, **not** a register/ISA-independent family; the admission cost is "local-not-zero" (2 registration-table rows + ~2484 family-local LOC); the IME payload is **correctness-only** (K1 16/16 bit-exact — the 16 int32 words of one 4×4 MAC tile — no benchmarked GEMM yet).
-
-- **N1 — the capability substrate (NOT a standalone contribution).** RISC-V extensions are modeled as first-class `CapabilityDescriptor` objects with `provides`/`implies`/`conflicts` relations, queried by C++ passes (not string metadata). But the queryable-capability-object *itself* is anticipated on every axis (MLIR DLTI, IREE `#hal.executable.target`, TVM Target, LLVM `SubtargetFeature`+TTI, FODA's `requires`/`excludes`). **N1's only novelty is the conjunction** — one fine-grained fact-set drives generation+selection *and* is reused unchanged across a second family — defensible **only via N2**; strip the cross-family reuse and N1 collapses to pure engineering. The exportable framing is a *mechanism*, not a discovery: **one relation-bearing schema unifies compile-time variant generation with the runtime dispatch guard and is reused unchanged across a compute-paradigm boundary** (VLA-SIMD → whole-matrix MAC) — the thing FMV/IFUNC/`__riscv_hwprobe` (single-family, runtime-only, same-paradigm) cannot claim. **两层如实分层**: the compile-time half is shipped — 编译期 VariantSelection fail-closed (`VariantSelection.cpp:667/701`, capability facts read from compile-time IR); the **runtime/load-time dispatch guard half is a 目标契约·未实现·[D-2a]** (target contract, not yet implemented — `hwprobe`/`__riscv_hwprobe`/instance-hash are grep=0 in `lib/`+`include/`, per the 执行总纲v2 现状台账).
-
-- **Track B — generic capability-driven body construction (a bounded mechanism, real on integer cores).** The compiler auto-constructs kernel bodies from capability+shape facts rather than hand-writing them (TTGIR-shaped *in kind*, RISC-V-specialized). Real today: 4 production front doors auto-build integer cores byte-exact, 2 carrying real capability-driven LMUL flips (objdump-sealed on X60); **the entire 24-op block-dot zoo** is now **wired to production end-to-end** (front door → `--weft-materialize-emission-plans` → coherence → target-artifact-export → `riscv64` relocatable object) via a **unified trait-keyed monolithic-block-dot path** (`RVVMonolithicBlockDotFamily.h`, super-block vs flat route-ID split, per-op ABI/symbol/codebook as table data), byte-exact for the existing zoo, each locked by a full-pipeline e2e lit. Coverage spans all four format-buckets and every family: flat q1_0/q4_0/q4_1/q5_0/q5_1/q8_0, K-quant q2_K/q3_K/q4_K/q5_K/q6_K, ternary tq1_0/tq2_0, fp4 mxfp4/nvfp4, and the codebook iq1_s/iq1_m/iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq4_nl/iq4_xs (2048-entry grids extracted verbatim, `vluxei16` indexed gather for the large grids). The 24 near-identical (~95% mechanical-mirror) per-op front-door passes have since been **collapsed into ONE table-driven generic pass** (`RVVMonolithicBlockDotSourceFrontDoor.cpp` driven by `monolithicBlockDotOpTable()`), net **−17,587 LOC**, byte-exact (independently re-verified: forced clean relink + full `check-weft` 783/780/3 unchanged, all 24 e2e lits' `diff core-emit vs prod-emit` green) — an architecture-maturity win, everything per-op reduced to table DATA. **Honest boundary:** this is production-*wiring* maturity — the block-dot *bodies* are still hand-written (front-door-provided ggml `_generic`), **not** auto-constructed from capability facts; it is export/lit-tier byte-identity (cross-compile to a `riscv64` object with the expected symbol + one `libm`-declaration shim for the fp4 bodies' `ldexpf`), **not** objdump-sealed on silicon, on-hardware-run-verified, or a perf claim. Body auto-construction (the actual Track-B deepening) is scoped (`research/track-b-autoconstruct-scope.md`) with a precise frontier: schedule facts + block geometry are already descriptor-driven for all 24 ops, only the *decode-primitive* + *fold-model* remained op-identity-selected. **"Fork B" is now DONE for the flat-plain bucket** (`emitFlatBlockDot`, byte-exact, −1209 LOC): the 5 flat-plain emitter monoliths (q4_0/q8_0/q4_1/q5_0/q5_1) are consolidated into ONE method where the decode-primitive and fold-model are **descriptor fields** (`deriveFlatBlockDotDescriptor` off the op's `kind`/attrs) dispatching the factored decode helpers + fp32 folds — i.e. "capability-facts + a block-format descriptor select the body" demonstrated byte-exact for flat-plain. **Honest boundary:** this is body *consolidation* — the decode/fold arithmetic is still the existing hand-written helpers, now descriptor-*selected* rather than generated from first principles; the codebook/super-block/IQ/ternary bodies remain per-op monoliths (a larger, separate mechanism); and the composable-micro-op "Fork A" (the purest first-principles generation) stays gated on the multi-quarter P1 N-operand route redesign.
-
-- **N3 — capability-keyed selection (Gearbox) — a corollary of N1+N2, mechanism-thin.** Selection is keyed on the same fact-set, uniform across the two RISC-V families via the shared substrate. **Not a standalone tuning contribution** (strictly weaker than TopHub / Roller / Welder): the live path is offline memoization and the cold-start fallback is a **capability-blind** static argmin (a known maturity gap, honestly disclosed — not sold as "by design"). The capability-*driven* shape-realization lever lives in **Track B**, not the selector.
-
-## Current status (honest)
-
-- **Real / proven.** The `weft.exec` core dialect; a real C++ capability model (`provides`/`implies`/`conflicts`, queried by passes) reused unchanged across two families; a substantial typed `weft_rvv` vector dialect with verifiers; the RVV plugin (legality, selected-body realization, route provider); a **second real family, IME** (matrix MAC, 6 ODS ops, zero-core-branch admission, K1 16/16 bit-exact); and a **live end-to-end RVV path** — `weft.exec` → typed `weft_rvv` body → Gearbox → MLIR EmitC → C/C++ → clang cross-compile → RISC-V object → hardware. Track-B front doors auto-construct integer-core kernel bodies, checked byte-exact against scalar oracles.
-
-- **Performance (parity-now / beat-board-pending — evidence the substrate is real, NOT the contribution).** Against a *competent naive RVV* baseline the capability-driven wide-LMUL tune wins **1.4–3.79× across 3 chips** (rvv 2.27–3.79×, K1/X60 1.8–3.6×, C920 1.4–1.7× — the lower C920 number is RVV0.7's stronger floored baseline, not a weaker tune) — but this is **internal sanity that the tune fires, never the contribution baseline**. Against **ggml's own RVV kernel** (the real baseline) the system is **parity-now**: q4_0 ~0.94×, q8_0 ~1.0×, one q4_K 1.26× micro-win that is manual-stamped (not auto-selected) and **does not clear the beat bar**. There is **no clean end-to-end beat vs ggml's own kernel yet**. Kernel-micro wins are reported separately from e2e (a compute-bound kernel win does not transport to memory-bound decode). **New-board (2026-07-02) datapoint** — the `rvv` host is back (openEuler/VLEN128, board-identified, not comparable to pre-swap cells): gate4 measures the capability-tuned **product-reduce-dequantize** kernel beating **true scalar 10.8× AND clang-autovectorized RVV (an objdump-verified competent naive-RVV proxy) 3.3×** at n=4096 — the **first clean two-axis win (beat scalar AND naive-RVV)** on real hardware, satisfying the N3 bar *on this one kernel* (still vs-naive/scalar, **not** vs ggml; KERNEL-only, **not** e2e). Its sibling clamp variant *loses* to autovec (0.5×) — traced to a **missing wide-clamp capability** (the wide-accumulate form is SEW8/SEW32-illegal single-scope and the two-region body isn't built), not a selector mis-pick.
-
-- **Recent (post-freeze) progress.** One Track-B body (the dequant `widening-product → reduce → dequantize` body) is now **production-reachable end-to-end and VLEN-general**: it exports through the full `--weft-materialize-emission-plans → --weft-rvv-lower-to-emitc` chain at **both VLEN128 (LMUL strip m2/m4) and VLEN256 (m1/m2)**, the strip flipping *structurally* with VLEN. This upgrades exactly one prior hedge ("Track-B witnesses not wired to production"). It is a **compiler-maturity / plumbing milestone at the export/lit tier — byte-identical and lit-verified, not yet objdump-sealed on silicon** — and it is *not* a new performance number, does *not* close the full-kernel-zoo gap, and does *not* upgrade the still-blind selector. **That N-operand redesign is now done.** The `ContractionRouteIdentity` descriptor was refactored so one generic descriptor-driven pipeline (arity, roles, ABI order, role-step spec, canonical order) replaces the parallel 2-operand-assuming validators; it now drives **three product-reduction route shapes end-to-end** — q4_0 nibble, offset-binary (N=3, a 2nd `rhs-input-buffer` product source), and codebook (N=3 LUT `vrgather` + asymmetric u8-source/signed-product signedness) — each exported through the full `--weft-materialize-emission-plans → --weft-rvv-lower-to-emitc` chain at both VLEN128/256 and locked by a mutation-tested e2e lit, **byte-exact for the entire existing zoo** (the N3 `low_precision_resource` evidence provably unchanged — 83/83 candidate facts identical). A new N-operand product-reduction route now needs only a registry entry, not consumer surgery: the *capability-driven-generation* claim demonstrated as a generic mechanism, not a per-route special-case. **Honest boundaries:** still the export/lit tier (byte-identical + lit-verified, *not* objdump-sealed on silicon); the generic helpers are specific to the N≥3 product-reduction shape — a 2nd contraction family (widening-dot-reduce) transfers only on the ABI-order axis, its fused-op / N=2 / compare-prefix structure keeping its own machinery (an honest scaling bound, not universal genericity); and this N-operand work itself closes *none* of the full-kernel-zoo, the ggml-beat, or the capability-blind-selector gaps (a separate block-dot production-wiring thrust closes the first for the entire 24-op zoo — production-reachability for all 24 block-dot ops via the unified trait path above — since collapsed into ONE table-driven pass, −17.6K LOC, bodies still hand-written not auto-constructed). Hardware measurement has since fired: the new rvv board yields the **first clean two-axis (scalar + naive-RVV) kernel win** (metric ③) on the product-reduce-dequantize lamp kernel — **not** vs ggml and **not** across the block-dot zoo (those gaps remain fully open). The blind-selector gap is **refined**: the measured clamp regression is a *missing wide-clamp capability* (SEW8/SEW32-illegal single-scope; two-region body unbuilt), not a mis-pick — a real `lib/` thrust, still open.
-
-- **Open / weak (honest hedges).** The live `conflicts` set is inert (the only real conflicts are RVV0.7-vs-1.0, literature-only, and AME-vs-IME, no AME family exists); `implies` is mechanism-thin (no distinct core call site); capability is fed march/synthetic facts, **not a hardware probe** (the build pass self-states it "probes no hardware"); the cold-start cost model is capability-blind; the load-bearing full-kernel arithmetic stays largely per-kernel hand-written. The RISC-V-centric admission boundary (admit iff the capability is a RISC-V fact consumed zero-core-branch; exclude discrete GPU/TPU) is a **design principle the architecture is organized around, not a mechanized gate** — a discrete accelerator modeled as `kind="runtime-offload"` rides the same path (the falsifier fires); mechanizing an `isRiscV` gate is named future work (and must never be per-dispatch, which would break N2's zero-core-branch falsifier).
-
-- **Stub / future.** `weft_scalar` is a reserved namespace with no active op; `weft_offload` is a single fail-closed handoff marker. There is no high-level frontend (linalg→weft) — current input is hand-written Weft-RV MLIR. A truly **RVV-independent** family (Zvk/Zb\*, or an AME matrix engine) is the named key future witness that would upgrade "paradigm" to "ISA-independent family" — feasibility-gated on such silicon existing.
+The normative version of this spine, the station-to-code map, and the Non-Goals live in [`architecture/系统定位与边界.md`](.trellis/spec/architecture/系统定位与边界.md). Per-family status — with re-runnable predicates separating **what the code does today** from **what is designed but not yet built** — lives in [`architecture/家族现状.md`](.trellis/spec/architecture/家族现状.md). Treat those as the status source; a prose summary in a README goes stale, the predicates do not.
 
 ## Repository layout
 
 ```text
 include/Weft/   ODS/TableGen + headers (dialects, capability model, plugin interfaces)
-lib/                  C++ implementation (dialects, passes, plugins, EmitC, target export)
-tools/                weft-opt, weft-translate
-test/                 lit/FileCheck + C++ tests
-scripts/              Python tooling: probes, runners, ssh-hardware evidence harnesses (tooling only)
-.trellis/             project spec, tasks, and developer workspace
+lib/            C++ implementation (dialects, passes, plugins, EmitC, target export)
+  lib/Plugin/   per-family plugins: RVV, IME, Scalar, Offload, Template (reference family), ...
+tools/          weft-opt, weft-translate, gates/, oracle/, bench/ (build helpers), ...
+test/           lit/FileCheck + C++ tests
+scripts/        Python tooling: probes, runners, ssh-hardware evidence harnesses (tooling only)
+schema/         capability schema data
+experiments/    measurement data + artifacts (consumed by scripts; see measurement layer)
+.trellis/       spec, tasks, issues, workspace — the project's single authority
+_attic/         archive (git-ignored except ATTIC_INDEX.md)
 ```
+
+**`docs/` and `docs/ROADMAP.md` are retired and archived** (大重构 §一.1 / §4.2.7). Their content lives in `.trellis/spec/`; the originals are in `_attic/docs/` (git-ignored — see `_attic/ATTIC_INDEX.md`). Do not read them as current, and do not create any new governance/knowledge file under `docs/`.
+
+Two carve-outs, both deliberate:
+- **`.trellis/事故档案/`** — accident casefiles (misdiagnosis / reversal / self-correction records), moved **verbatim** as recurrence-prevention assets (§4.2.7). In-repo and tracked, *not* archived. Read these before repeating an old mistake.
+- **`docs/` still holds 6 files** — the sealed-Win registry + its evidence legs + the C2 ledger. Their destination is a **pending user ruling** (`ISSUE-072`, gaps **G-1 / G-3**); agents must not relocate them.
+
+Python is restricted to tooling (probes, runners, evidence harnesses, artifact parsing). Core IR, dialects, passes, the plugin registry, the capability model, lowering, and emission are C++/MLIR/LLVM/TableGen/CMake.
 
 ## Extending the stack: add a family
 
-The headline claim is *extensibility* — that a new capability family (a new ISA
-extension, matrix engine, or offload target) can be admitted through one
-branch-free core. If you are integrating a new family, start here (this is the
-external entry point; the protocol docs are otherwise not discoverable from the
-layout above):
+The headline claim is *extensibility* — that a new capability family (a new ISA extension, matrix engine, or offload target) can be admitted through one branch-free core. The admission protocol is canonical in the **architecture** layer:
 
-- **30-minute orientation map** — [`docs/method/REPOSITORY-MAP-五大件.md`](docs/method/REPOSITORY-MAP-五大件.md):
-  the template's components → concrete directories, the per-family touch-set
-  (**6 directory roots, not 5 files** — [GAP-P4-TOUCHSET]), and the reference
-  family `lib/Plugin/Template/`.
-- **Integration contract** — [`.trellis/spec/plugin-protocol/extension-plugin-integration.md`](.trellis/spec/plugin-protocol/extension-plugin-integration.md):
-  the Standard Flow, the [P-2] five-piece acceptance set, the shared registration
-  step ([GAP-P4-REGISTER]), and where each deliverable lands.
-- **Interfaces / registry** — [`.trellis/spec/plugin-protocol/interfaces-and-registry.md`](.trellis/spec/plugin-protocol/interfaces-and-registry.md)
-  (the `ExtensionPlugin` hooks) and [`locality-contract.md`](.trellis/spec/plugin-protocol/locality-contract.md)
-  ([F-3] change containment).
-- **Capability model** — [`.trellis/spec/capability-model/capability-contract.md`](.trellis/spec/capability-model/capability-contract.md)
-  (fact shape [S-1]/[S-2]; note the schema is partly aspirational — [GAP-P4-SCHEMA-DIVERGENCE]).
-- **Machine-checked acceptance** — [`docs/method/FALSIFIER-INDEX.md`](docs/method/FALSIFIER-INDEX.md)
-  ([F-1..F-6] gates → checker/lit/gtest/CI).
-- **Write-up template** — [`docs/method/P4-family-integration-doc-TEMPLATE.md`](docs/method/P4-family-integration-doc-TEMPLATE.md)
-  (the fill-in integration doc [P-4] requires).
+- **Integration contract + the [P-2] five-piece acceptance set + registration** — [`architecture/插件协议.md`](.trellis/spec/architecture/插件协议.md) (this is C1's implementation: interface freeze [P-1], registry, locality [F-3], the family template and its real touch-set).
+- **Capability model** (fact shape [S-1]/[S-2], relations, verifier duties) — [`architecture/能力模型.md`](.trellis/spec/architecture/能力模型.md).
+- **Admission boundary** (which capabilities may be admitted at all) and per-family status — [`architecture/家族现状.md`](.trellis/spec/architecture/家族现状.md).
+- **Machine-checked acceptance** — the falsifier gates [F-1..F-6]; the checkers live in `tools/gates/`, and the [evidence](.trellis/spec/evidence/index.md) layer maps each gate to its script.
+- **Hard rules the core must keep** (zero family-name branching, etc.) — [`canon/核心不变量.md`](.trellis/spec/canon/核心不变量.md) I1–I9.
 
-Reference family to copy: `lib/Plugin/Template/` (clean, no historical baggage).
+Reference family to copy: `lib/Plugin/Template/`.
+
+> **Honest note on the gates:** the checker scripts exist under `tools/gates/`, but there is **no CI orchestrator in this repo** — `.github/` does not exist (`ls -d .github` → absent). "Gate is green" therefore means *someone ran the script*, not *CI enforces it*. See the [issues](.trellis/spec/issues/index.md) register for the gate-orchestration debt.
 
 ## Build
 
 ```bash
-cmake -S . -B build -G Ninja \
-  -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm \
-  -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir
+cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
-Missing LLVM/MLIR CMake packages or tools fail configuration with an explicit diagnostic. The project must not replace MLIR compiler internals with Python data structures.
+The top-level `CMakeLists.txt` searches `/usr/lib/llvm-{20..14}` for the LLVM and MLIR CMake packages; pass `-DLLVM_DIR=/path/to/lib/cmake/llvm -DMLIR_DIR=/path/to/lib/cmake/mlir` to override. Missing LLVM/MLIR CMake packages fail configuration with an explicit diagnostic. The project must not replace MLIR compiler internals with Python data structures.
 
 ## Test
 
@@ -98,14 +92,17 @@ Missing LLVM/MLIR CMake packages or tools fail configuration with an explicit di
 cmake --build build --target check-weft
 ```
 
-In-tree lit/FileCheck + C++ tests cover dialect syntax, verification, pass behavior, plugin interfaces, route materialization, and fail-closed diagnostics. They are compiler/toolchain evidence — they do **not** prove hardware correctness or performance.
+In-tree lit/FileCheck + C++ tests cover dialect syntax, verification, pass behavior, plugin interfaces, route materialization, and fail-closed diagnostics. They are **compiler/toolchain evidence** — they do **not** prove hardware correctness or performance.
 
-## Hardware evidence
+## Hardware evidence and measurement
 
-RISC-V correctness / runtime / performance claims require real on-device evidence (correctness checked before timing; baseline and generated artifact on the same named target). Local CMake / `weft-opt` / lit checks are not runtime evidence. The live hardware channel is currently `ssh k1` (SpacemiT X60, RVV1.0 + IME); the former `ssh rvv` host is board-pending after a machine swap. Non-interactive sessions must `source /opt/weft-toolchains/env.sh` first.
+RISC-V correctness / runtime / performance claims require real on-device evidence: correctness is checked **before** timing, and the baseline and the generated artifact must be built for the same named board. Local CMake / `weft-opt` / lit checks are not runtime evidence.
+
+The board register — board identity, VLEN, which performance counters exist, and the per-board constraints that make a measurement legal or illegal — is canonical in [`measurement/板册.md`](.trellis/spec/measurement/板册.md) (SSH aliases `rvv`, `k1`, `scalar`; `rvv07` is registered-pending). **Do not infer board facts from this README** — that file is the source, and per-board rules (e.g. `k1` has no usable PMU, so no performance-counter claims; the `scalar` board must be built with vectorization explicitly off) decide whether a number may be reported at all.
+
+> **★ Current state, stated plainly: there is no legal formal-measurement channel today.**
+> The measurement layer establishes `bench <格> --board <板>` as the **only legal measurement action**, but **that runner does not exist**: `tools/bench/` contains four build-helper scripts and no timing / cross-check / row-writing logic, and the three destinations it pins (`experiments/master/`, `experiments/runs/`, `experiments/runs.log`) do not exist either. Live tables are under `experiments/active/result-tables/`. This is tracked as **`ISSUE-067`** (with re-runnable predicates in the entry) and is the single hard prerequisite before measurement restarts. Read [measurement](.trellis/spec/measurement/index.md) before attempting to produce any number — **an action that layer does not authorize is an illegal action**.
 
 ```bash
 python3 scripts/rvv_remote_probe.py   # records sanitized RVV host/toolchain capability facts
 ```
-
-Python is restricted to tooling (probes, runners, evidence harnesses, artifact parsing). Core IR, dialects, passes, the plugin registry, the capability model, lowering, and emission are C++/MLIR/LLVM/TableGen/CMake.

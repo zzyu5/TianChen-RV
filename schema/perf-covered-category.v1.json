@@ -27,9 +27,9 @@
     "headline": "perf-covered = 9/83 = 10.84% (any-board·裁四.0·recon 机算·snapshot 02d6609a); 绿9={q4_K@k1 kernel·q4_0 系统账 routing·q8_0 系统账 carrier·q5_0/q5_1/q4_1 净新 scaffold·q5_K@k1 our-kernel·★q4_0@ime tie-stock 发射器 wide-tiling·★q8_0@ime beat-stock 2.233×}。★G6-A IME 三格分裂:q4_0+q8_0@ime 绿(发射器 [PAT-1] wide-vmadot-tiling)·q4_K@ime 黄-传导稀释(array-util format-keyed 边界)。备选单位 fold 6/83（--no-fold·regime 保留·flagged 待用户复核）.",
     "ime_reclassification": "裁一.2(历史): IME 三格曾从 黄-传导稀释→黄-未接线(bridge 未建)。★2026-07-13 更新(G6-A 收口·[GAP-IME-BRIDGE-PERF] CLOSED): bridge M1-M7 建成+铺三格·实测判读落定 = q4_0@ime 绿(1.0088× tie-stock·[PAT-1] wide-vmadot-tiling)·q8_0@ime 绿(2.233× beat-stock·int8-direct 无内存税)·q4_K@ime 黄-传导稀释(0.909×<parity·super-block 重 fold epilogue 稀释 array-util·format-keyed 适用边界)。传导稀释类现 =1(仅 q4_K@ime)。",
     "sources": [
-      "docs/reports/2026-07-12-perf-covered-零未定义格分类.md",
-      "docs/reports/2026-07-12-三具名GAP修复评估.md",
-      "docs/reports/2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md",
+      ".trellis/事故档案/2026-07-12-perf-covered-零未定义格分类.md",
+      ".trellis/事故档案/2026-07-12-三具名GAP修复评估.md",
+      "_attic/docs/reports/2026-07-12-perf-covered-q6_K-yellow-kernel-axis.md",
       "experiments/active/covering-batch3-stream-rvv/"
     ],
     "recon_tool": ".trellis/scripts/perf_covered_metrics.py",

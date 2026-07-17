@@ -2,7 +2,7 @@
 
 > **性质**：纯案头冻结·**无板·无代码·无新主张·无新数字**（全部数字引自已 commit 的表行/schema/report·**0 造数**）。
 > **用途**：把 G8 战役本轮产出的新证据按三贡献 C1/C2/C3′ 冻结成 **净新增 + commit 指针 + 成色 + 诚实状态** 的一页式清单。
-> 权威索引本体 = `docs/reports/2026-07-10-paper-evidence-index.md`（本 doc 与其**交叉引用**·索引各分节含标注「本轮 G8 冻结」的对应证据行）。
+> 权威索引本体 = `_attic/docs/reports/2026-07-10-paper-evidence-index.md`（本 doc 与其**交叉引用**·索引各分节含标注「本轮 G8 冻结」的对应证据行）。
 > **成色诚实 = 命门**（[NG-4] 措辞锁）：计数≠强赢·负结果如实标负·记忆=authority 非翻盘·传导=机制正结果非 perf-beat·四账禁互推·perf-covered 9/83 硬冻结。
 
 ---
@@ -16,7 +16,7 @@
 
 **净新增②：regime-split 结构判据落地（recon 机算）。**
 - **是什么**：roster 93→110 · certified 84/91→**101/108** · 全 `recon_master_rebuild.py` 机算（snapshot `g8-master-rebuild-v2-single-denom`·Σ=分母✓）。
-- **commit / 指针**：`docs/reports/2026-07-16-G8-全量攻坚收口报告.md` §五（四裁决落地·PENDING_RULINGS 13 项全触硬冻结·canon 条文零改·分母只随 recon）。
+- **commit / 指针**：`_attic/docs/reports/2026-07-16-G8-全量攻坚收口报告.md` §五（四裁决落地·PENDING_RULINGS 13 项全触硬冻结·canon 条文零改·分母只随 recon）。
 - **成色 / 诚实状态**：machine-anchored（recon 机算·非人填·anti-gate=分母修正非为过门）。
 
 ---
@@ -49,7 +49,7 @@
 3. **iq/tq gemm gcc-death**：prefill rvv-gcc（deploy MAIN）7/7 输纯标量 ref·[CASE-KQUANT-GCC-CODEGEN] 扩展到 iq/tq repack-GEMM（同格 clang 6.8-11.2× 快于 gcc）。
 4. **[GAP-IQ1S]-RESOLVED-HOLISTIC**：iq1_s emitter-maturity = holistic micro-scheduling（非单一可隔离轴）·三 byte-exact 杠杆逐一精确追平 opp 单一优势轴·ratio 恒 ~0.40-0.47·**翻正门=结构级重写超单旋钮**（真-fixable≠保证翻正的诚实案例·G2 未翻正双板确认）。
 5. **dequant/product_reduce emitter-maturity 墙**：iq3 gather-bound（vrgather）+ nvfp4 ldexpf + product_reduce offbin 被 scalar 追平。
-- **commit / 指针**：`docs/reports/2026-07-16-G8-全量攻坚收口报告.md` §四。
+- **commit / 指针**：`_attic/docs/reports/2026-07-16-G8-全量攻坚收口报告.md` §四。
 - **成色 / 诚实状态**：**如实标负**（负结果 = 能力键控适用边界诚实映射·**不粉饰成正**）·部署级洞察 = front-door 应 DECLINE {K-quant repack@decode · IME@复杂格式 · gcc-death 路}·[PAT-1] format-keyed 适用边界 C3′。
 
 ---
@@ -68,7 +68,7 @@
 ## 冻结标记
 
 - **本轮定格（paper-ready）**：C1 二净新增（[SEL-3] authority 层 + regime-split recon）· C2 一净新增（[SEL-3] 灌库=复用存量）· C3′ 三净新增（[DISCRIMINATOR] 正判据 + 2 强 e2e 传导 + 5 负结果）。
-- **触碰集**：本 doc（新建）+ `docs/reports/2026-07-10-paper-evidence-index.md`（加行·交叉引用本 doc）。**零** canon / roster $meta / schema / perf-covered 计数 / lib / include 改动。
+- **触碰集**：本 doc（新建）+ `_attic/docs/reports/2026-07-10-paper-evidence-index.md`（加行·交叉引用本 doc）。**零** canon / roster $meta / schema / perf-covered 计数 / lib / include 改动。
 - **数字来源**：全部引自已 commit 的 T6 ledger（`d50b09a66`）/ batch1 report（`972ab5c2a`/`195b11910`）/ T4b §2.1b（`0b8abb239`）/ measurement-memory schema（`26b875ac1`/`513b464d6`/`0eb8a4543`）/ G8 收口报告。**0 造数。**
 
 ---

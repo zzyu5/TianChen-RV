@@ -83,7 +83,7 @@ lines.append(f"- **C2 founding-slice anchor = raw wc-l {founding}** (历史 slic
              f"reproduced @git `{founding_ref}` / 2026-07-03 -- the commit that pinned the "
              "[LED-1] first data point). This is the **C2 marginal-cost curve anchor** "
              "(apples-to-apples with X-SCALAR's founding cost) and never changes. "
-             "`docs/canon/Weft-RV_执行总纲v2.md` §8 recompute table = this slice.")
+             "`_attic/docs/canon/Weft-RV_执行总纲v2.md` §8 recompute table = this slice.")
 lines.append(f"- **LIVE `--family IME` raw wc-l = {raw}** (current family size; the authoritative "
              "recompute of the live tree). The SAME 7 files that summed to "
              f"{founding} @`{founding_ref}` now sum to {raw} (delta **+{drift}**) because the IME "

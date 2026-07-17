@@ -456,8 +456,8 @@ struct RVVLoopOrderMeasurementHit {
 };
 
 // Consult the offline-profile loop-order A/B cache. Seeded (T3 / M1c) from the REAL
-// M1b-board rvv/VLEN128 paired-cold A/B (docs/reports/2026-07-10-rvv-e2e-m1b-loop-
-// interchange-board.md): q4_K col-outer wins 2.47x throughput over row-outer. BOTH
+// M1b-board rvv/VLEN128 paired-cold A/B (_attic/docs/reports/2026-07-10-rvv-e2e-m1b-
+// loop-interchange-board.md): q4_K col-outer wins 2.47x throughput over row-outer. BOTH
 // legs are OURS-clang, byte-exact hot core => compiler-SYMMETRIC, so this A/B ratio
 // is a VALID kernel-account selection input that SURVIVES [CASE-COMPILER-ASYMMETRY]
 // (exactly like the SP4 axis's ab_wall_ratio_tiled_over_untiled; NEVER the

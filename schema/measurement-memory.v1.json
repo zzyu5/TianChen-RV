@@ -5,10 +5,10 @@
     "declares": "[SEL-3] measurement-memory layer: the general offline-profile argmin cache the capability-keyed selector consults BEFORE its [SEL-1] cold-start prior. Generalizes schema/tiling-measurements.v1.json (SP schedule axis only) to a single rows[] table keyed by (declared_instance_hash, kernel, variant) + variant_axis, covering all bounded variant axes. EVIDENCE-axis mirror data (core-invariants I4): NEVER chooses route/compute/dtype, NEVER a correctness or cost authority in lib/. Authority order: hardware measurement > this cache > static prior.",
     "provenance": "v1.0.0 landed from schema/tiling-measurements.v1.json (v1.1.0); the live schema is UNCHANGED (this is a copy-transform migration, not a move). All cold/parity/spill numbers transcribed from EXISTING cells (T3 / T8-via-tiling-measurements / T9 caliber). ZERO new timing, ZERO fabricated numbers.",
     "authority": [
-      "docs/ROADMAP.md#〇.4 (SEL-3 立项: offline-profile argmin + byte-exact gate)",
+      "_attic/docs/ROADMAP.md#〇.4 (SEL-3 立项: offline-profile argmin + byte-exact gate)",
       "experiments/active/g8-stage3-attack/SEL3-measurement-memory-design.md (design; §2 schema / §3 ingest / §4 iron lines)",
       "schema/tiling-measurements.v1.json (the live SEL-1 schedule-axis instance this generalizes; UNCHANGED)",
-      "docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3]",
+      "_attic/docs/canon/Weft-RV_科研目标总纲v2.md#[SEL-3]",
       ".trellis/spec/architecture/core-invariants.md#I4",
       "experiments/active/result-tables/T3_master_rebuild.csv (T3 ingest source)",
       "experiments/active/result-tables/T9_kernel_sym_ledger.md (opponent caliber classes)"
@@ -171,10 +171,10 @@
       "status": "CASE CLOSED 2026-07-10 (user-approved); parallel to [CASE-MINTERM].",
       "finding": "The seed vs_ggml_blockdot_ratio values on the rvv/VLEN128 s6_tiled rows (q4_K 1.884, q2_K 1.413, q5_K 2.193) are clang-ours(-O2)-vs-gcc-shipped-block-dot COMPILER-ASYMMETRY artifacts. Symmetric gcc/gcc remeasure evaporates them to LOSS (0.272 / 0.386 / 0.775; q5_K-L1 1.5-1.62->0.120). The rvv board ships a GCC-15-compiled ggml; ours is clang-17. gcc 820-vsetvli/742-spill vs clang 71/3-spill = the 5.6x codegen gap that manufactured the apparent win.",
       "selector_unaffected": "THE SELECTION IS UNAFFECTED. SP4 (tiled-vs-plain) keys on register_cliff_reached (spill->0, maxVreg<=v30 = objdump/codegen fact, compiler-symmetric) AND the internal ab_wall_ratio_tiled_over_untiled (both legs ours-clang, compiler-symmetric). It NEVER keys on vs_ggml_blockdot_ratio. So the memoized argmin winner (s6_tiled where the cliff is reached) is correct regardless of the artifact; vs_ggml_blockdot_ratio is a成色/reporting note only.",
-      "double_ledger": "kernel-account (source-quality claim) = compiler-symmetry FORCED; system-account (product comparison) = each side own full stack + toolchain disclosure + strongest-baseline column. Deployment SOP: ship clang .o object export (front door); never inject our .inc into the opponent's gcc build chain. See docs/canon/Weft-RV_执行总纲v2.md §7 items 4/5.",
+      "double_ledger": "kernel-account (source-quality claim) = compiler-symmetry FORCED; system-account (product comparison) = each side own full stack + toolchain disclosure + strongest-baseline column. Deployment SOP: ship clang .o object export (front door); never inject our .inc into the opponent's gcc build chain. See _attic/docs/canon/Weft-RV_执行总纲v2.md §7 items 4/5.",
       "k1_reversal": "On k1/VLEN256 the shipped ggml is CLANG-18 (CMakeCache + objdump 19/0 four-proof), so k1 kernel-axis 3.106x/1.916x are ALREADY symmetric-clang and SURVIVE as as-shipped micro beats (NON-e2e). Discriminator key = board-shipped compiler (rvv=gcc, k1=clang).",
       "authority": [
-        "docs/reports/2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md",
+        ".trellis/事故档案/2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md",
         "experiments/active/result-tables/T-VALIDITY_compiler_symmetry_ledger.md",
         "experiments/active/result-tables/T-VALIDITY-STAGE1_rvv_symmetric_remeasure.md"
       ]
@@ -190,13 +190,13 @@
     "pending_rulings": [
       {
         "id": "[SEL-3-KEY]",
-        "registered": "docs/PENDING_RULINGS.md PR-5",
+        "registered": "_attic/docs/PENDING_RULINGS.md PR-5",
         "issue": "执行总纲v2.md:69 says key=kernel+march; ROADMAP令〇.4 + this schema + tiling-measurements use (declared_instance_hash, kernel, variant). Semantically reconcilable (instance-hash SUBSUMES march/vlen/vreg) but canon wording conflicts. Designed to the operative directive (instance-hash); canon wording unification needs user ruling.",
         "conservative_default": "instance-hash key (per 令〇.4 + live schema); canon [SEL-3] line gets a correction NOTE, not a wording change (hard-freeze)."
       },
       {
         "id": "[SEL-3-SELVALID]",
-        "registered": "docs/PENDING_RULINGS.md PR-15",
+        "registered": "_attic/docs/PENDING_RULINGS.md PR-15",
         "issue": "design §2.2 lists vs_generic (same-compiler) as a selection-valid input; but design §1 says only ab_paired paired-A/B L2 rows are真正能作 memoized-argmin 选择输入. Tension: is selection_valid_input a pure compiler-symmetry flag (=> vs_generic single-points TRUE) or does it additionally require a paired sibling variant (=> single-point vs-opponent seeds FALSE)?",
         "conservative_default": "the stricter paired-variant reading: ALL single-point T3 coverage seeds (vs_generic AND vs_shipped_opp) are selection_valid_input=false; only the 12 ab_paired L2 rows are true. This matches the design §1 small-scope thesis and the task honesty guardrail ('T3 多数 selection_valid_input=false 或仅成色')."
       }
@@ -657,7 +657,7 @@
         "threads": 8
       },
       "byte_exact_gate": "pass",
-      "source": "M1b-board row col-outer clang-object (LLC-load-miss 4.62e9->0.89e9 down 5.2x, backend-idle 85.81->66.20, avg_ts 2.793->6.896 = 2.47x, cycles 2.87e12->1.20e12, IPC 0.41->0.98; 3-round interleaved median, IQR 0.19%, DRAM-bound load-robust); docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md, committed emitter d33dd545",
+      "source": "M1b-board row col-outer clang-object (LLC-load-miss 4.62e9->0.89e9 down 5.2x, backend-idle 85.81->66.20, avg_ts 2.793->6.896 = 2.47x, cycles 2.87e12->1.20e12, IPC 0.41->0.98; 3-round interleaved median, IQR 0.19%, DRAM-bound load-robust); _attic/docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md, committed emitter d33dd545",
       "ts": "0",
       "axis_extras": {
         "weight_panel_larger_stream": true,
@@ -698,7 +698,7 @@
         "threads": 8
       },
       "byte_exact_gate": "pass",
-      "source": "M1b-board row row-outer clang-object (M0 0.764x baseline, the cold-stream regression the loop-interchange repairs); docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md",
+      "source": "M1b-board row row-outer clang-object (M0 0.764x baseline, the cold-stream regression the loop-interchange repairs); _attic/docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md",
       "ts": "0",
       "axis_extras": {
         "weight_panel_larger_stream": true,

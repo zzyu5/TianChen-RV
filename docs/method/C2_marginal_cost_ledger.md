@@ -126,7 +126,7 @@ K-quant 谱证了 super-block 算术 decode 谱系内的构造边际成本律。
 
 *证据/复算:`python3 .trellis/scripts/family_ledger.py report --family Scalar`(raw 1501 / cloc-approx 1148 /
 test 1401);`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` seq 14;
-排期报告 `docs/reports/2026-07-11-X-SCALAR-AUDIT后续-排期报告.md` 甲.5(hand-est ~1131);
+排期报告 `.trellis/事故档案/2026-07-11-X-SCALAR-AUDIT后续-排期报告.md` 甲.5(hand-est ~1131);
 `schema/family-dirs.v1.json` Scalar 条目。快照 HEAD=2d2d8a1b。*
 
 ---
@@ -158,4 +158,4 @@ test 1401);`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` seq
 不注册独立 backend emitter**、以维持 [F-3] 触碰集清洁;该 gap 详见 T1c 报告。
 
 *证据/复算:`find lib/{Plugin,Dialect,Target}/Demo include/Weft/{Plugin,Dialect,Target}/Demo -name '*.cpp' -o -name '*.h' -o -name '*.td' | xargs wc -l`(2787);
-falsifier 复算见 T1c 报告 `docs/reports/2026-07-12-P4-Tier-2-cleanroom-接入演练-T1c.md`。build dir = `build-demo/`(fresh clean·0 error)。*
+falsifier 复算见 T1c 报告 `_attic/docs/reports/2026-07-12-P4-Tier-2-cleanroom-接入演练-T1c.md`。build dir = `build-demo/`(fresh clean·0 error)。*

@@ -8,7 +8,7 @@ clone / per worktree.
 
 Rejects a commit whose staged file set escapes the active work line's declared
 touch-set. Backed by `tools/ci/check_commit_touchset.py`. See the policy in
-[`docs/并行线纪律-worktree-与触碰集.md`](../../docs/并行线纪律-worktree-与触碰集.md).
+[`.trellis/事故档案/2026-07-06-并行线纪律-worktree-与触碰集.md`](../../.trellis/事故档案/2026-07-06-并行线纪律-worktree-与触碰集.md).
 
 ### Install — option A (recommended, whole-repo)
 

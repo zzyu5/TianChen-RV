@@ -3,7 +3,7 @@
 
 // G8 stage-2 [ROLL] MEASURED-GATE AUTO-PREDICATE fixture (VLEN128 board).
 //
-// This is the DECISION-side fixture the audit (docs/reports/2026-07-14-G8-阶段二-
+// This is the DECISION-side fixture the audit (.trellis/事故档案/2026-07-14-G8-阶段二-
 // 键控核查报告.md §五 档 B#4) flagged as missing: the existing rolled fixtures ALL carry
 // an explicit emit_loop_schedule STAMP, so the AUTO predicate (no stamp) had NO fixture
 // exercising its default. The SAME q6_K x q8_K 16x1-REPACKED PREFILL GEMM region as

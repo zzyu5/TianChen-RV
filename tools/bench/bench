@@ -1,0 +1,570 @@
+#!/usr/bin/env python3
+# tools/bench/bench — 唯一合法测量动作 `bench <格> --board <板>`。
+#
+# 权威 = .trellis/spec/measurement/（本文件是【实现】，不是权威）：
+#   §3.2 单一目的地法       -> 哲学与目的地.md
+#   §3.3 五步流水线          -> 流水线与行schema.md
+#   §3.3.1 行 schema（规范性）-> 流水线与行schema.md   ★ 字段集在 spec，不在本文件
+#   §3.4 对手法              -> 对手法.md
+#   §3.5 门体系（三硬点）     -> 门体系.md
+#   §3.1/§3.7 板册与板别注记  -> 板册.md
+#
+# 「任何『schema 以 runner 实现为准』的读法都非法」(§3.3) ⟹ 本文件的 ROW_SCHEMA 常量在每次
+# 出行前与 spec §3.3.1 的字段表【机核比对】，不等即 fail-closed 中止。spec 改了而 runner 没改
+# = runner 的缺陷，由该比对当场变红，而不是靠人读。
+#
+# 为什么住 tools/ 而不是 experiments/：tools/gates/check_experiments_layout.py 的 (A) DATA-CELL
+# WHITELIST 判 experiments/ 为数据格 —— 脚本 / +x / `^run_` 命名的 harness 一律 RED
+# （"harness lives under tools/, never in the data cell"）。
+#
+#   bench <格> --board <板> --dry-run   # 干跑演示：零 ssh · 零计时 · 零主表写
+#   bench --self-test                   # 纯函数自检（schema 绑定 / 目的地闸 / 0 造数）
+#
+# 本轮（大重构总令 §六.1）验收 = 干跑演示，不产正式数字。真实测量路径见 STEP 3/4 的
+# CellRecipeMissing —— 被 ISSUE-090 阻塞，禁伪装可用。
+
+import argparse
+import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+import uuid
+
+ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+SPEC_DIR = os.path.join(ROOT, ".trellis", "spec", "measurement")
+SPEC_PIPELINE = os.path.join(SPEC_DIR, "流水线与行schema.md")
+ROSTER = os.path.join(ROOT, "schema", "coverage-roster.v1.json")
+
+
+# ───────────────────────────────────────────────────────── §3.3.1 行 schema（绑定 spec）
+# 本元组 = 对 spec §3.3.1 字段表的【复制】，其正确性由 spec_row_schema() 每次运行时机核。
+ROW_SCHEMA = (
+    "cold",
+    "判定",
+    "对手符号",
+    "对手档",
+    "对手证据引用",
+    "我方向量指令数",
+    "世系",
+    "run-id",
+    "噪声标",
+)
+
+_SPEC_FIELD_RE = re.compile(r"^\|\s*\*\*(?P<field>[^*|]+)\*\*\s*\|.*\|\s*(?P<step>[^|]*?)\s*\|\s*$")
+
+
+def spec_row_schema(path=SPEC_PIPELINE):
+    """从 spec §3.3.1 的字段表机核抽出权威字段序列。禁手抄、禁默认值。"""
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.read().splitlines()
+    start = end = None
+    for i, ln in enumerate(lines):
+        if start is None and ln.startswith("### 3.3.1"):
+            start = i
+        elif start is not None and ln.startswith("## ") and i > start:
+            end = i
+            break
+    if start is None:
+        raise SchemaDrift(f"spec §3.3.1 章节在 {path} 中未找到")
+    fields = []
+    for ln in lines[start : (end if end is not None else len(lines))]:
+        m = _SPEC_FIELD_RE.match(ln)
+        if m:
+            fields.append(m.group("field").strip())
+    if not fields:
+        raise SchemaDrift(f"spec §3.3.1 字段表解析出 0 字段（{path}）")
+    return tuple(fields)
+
+
+class SchemaDrift(Exception):
+    pass
+
+
+class CellRecipeMissing(Exception):
+    pass
+
+
+def assert_schema_bound():
+    """本层是权威、runner 是实现 —— 不等即 fail-closed。"""
+    authoritative = spec_row_schema()
+    if authoritative != ROW_SCHEMA:
+        raise SchemaDrift(
+            "行 schema 与 spec §3.3.1 不一致（spec 是权威，本 runner 是实现）：\n"
+            f"  spec   = {authoritative}\n"
+            f"  runner = {ROW_SCHEMA}\n"
+            "  ⟹ 这是 runner 的缺陷。修 runner，不修 spec（§3.0 稳定性条款）。"
+        )
+
+
+# ───────────────────────────────────────────────────────── §3.2 单一目的地法
+# 三处目的地【均为目标态】—— spec §3.2 就地注记「目录重组落地前不构成对现路径的否定」，
+# 争点 = ISSUE-073（主表住址两层 spec 打架），runner 落地后一次性改锚。
+DEST_MASTER = os.path.join(ROOT, "experiments", "master")           # 目标态·ISSUE-073 保守默认=禁预先写入
+DEST_RUNS = os.path.join(ROOT, "experiments", "runs")               # 本 runner 新建，无冲突
+DEST_RUNSLOG = os.path.join(ROOT, "experiments", "runs.log")        # append-only 运行台账
+MASTER_INTERIM = os.path.join(ROOT, "experiments", "active", "result-tables")  # ISSUE-073 过渡期读写权威
+
+
+def guarded_open(path, mode):
+    """§3.2.2 测量禁止创建三处目的地以外的任何文件。写路径不在闸内 = 中止，不是警告。"""
+    real = os.path.realpath(path)
+    allowed = real == os.path.realpath(DEST_RUNSLOG) or real.startswith(
+        os.path.realpath(DEST_RUNS) + os.sep
+    )
+    if not allowed:
+        raise SystemExit(
+            f"[destination-guard] 拒绝写入 {real}\n"
+            f"  §3.2 单一目的地法只许：{DEST_RUNSLOG} · {DEST_RUNS}/<run-id>/\n"
+            f"  （主表现址 {MASTER_INTERIM} 的写入 gated on ISSUE-073；"
+            f"{DEST_MASTER} 为目标态、禁预先写入。）"
+        )
+    return open(real, mode, encoding="utf-8")
+
+
+# ───────────────────────────────────────────────────────── §3.1 板册（四板身份钉死）
+# 配方来源 = experiments/active/g8-stage3-attack/P2-grid4-raw/run_grid4_p2.sh（2026-07-17 跑通
+# 8 board-cell 的单世界 clang-18 双板配方）+ §3.7 板别注记。
+BOARDS = {
+    "rvv": {
+        "identity": "openEuler·64 核",
+        "vector": "VLEN128",
+        "ssh": "rvv",
+        "cc": "/opt/tcrv-toolchains/llvm-18.1.8/bin/clang",
+        "march": (
+            "rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_"
+            "zicond_zfa_zihintntl_zihintpause"
+        ),
+        "cflags": "-fno-integrated-as -ffp-contract=on",
+        "ldextra": "--gcc-install-dir=/opt/tcrv-toolchains/gcc-15.2.0/lib/gcc/riscv64-unknown-linux-gnu/15.2.0",
+        "envsrc": "source /opt/tcrv-toolchains/env.sh;",
+        "ggml": "/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin",
+        "cores": [8, 9, 10, 11, 12, 13, 14, 15],  # 0,1 = co-tenant vLLM，永不触碰
+        "flush_mb": 224,
+        "pmu": "cache-miss 硬件计数器可用（§3.7：可用于 roofline 判定）",
+        "measurable": True,
+        "block": None,
+    },
+    "k1": {
+        "identity": "SpacemiT X60·8 核",
+        "vector": "VLEN256 + IME",
+        "ssh": "k1",
+        "cc": "clang-18",  # Bianbu clang-18 = k1 出货编译器
+        "march": "rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs",
+        "cflags": "-ffp-contract=on",
+        "ldextra": "",
+        "envsrc": "",
+        "ggml": "/data/k1build-stock/bin",
+        "cores": [0, 1, 2, 3, 4, 5, 6, 7],
+        "flush_mb": 32,  # 无 L3；64× L2 ⟹ 真 DRAM cold
+        "pmu": "无可用 PMU（§3.7：禁性能计数器主张，仅指令/周期）",
+        "measurable": True,
+        "block": None,
+    },
+    "scalar": {
+        "identity": "超锐·Fedora42·8 核",
+        "vector": "无向量（实证：/proc/cpuinfo isa 串无 v 扩展）",
+        "ssh": "scalar",
+        "cc": "/usr/bin/clang-18",  # 18.1.8 · riscv64-redhat-linux-gnu
+        "march": "rv64gc",
+        "cflags": "",
+        "ldextra": "",
+        "envsrc": "",
+        "ggml": "~/llama.cpp-scalar/build-clang18-rv64gc",  # GGML_RVV=OFF · GGML_NATIVE=OFF
+        "cores": [0, 1, 2, 3, 4, 5, 6, 7],
+        "flush_mb": 32,
+        "pmu": "有硬件计数器·载荷极低",
+        "measurable": False,
+        # §3.1 板册：「标量派发路径的家族身份验收尚未证成…验收完成前 S 线不开测」
+        "block": "ISSUE-061（scalar 板：对手链已建成，缺标量派发路径的家族身份验收）—— S 线不开测",
+    },
+    "rvv07": {
+        "identity": "RVV0.7 前身·128 核",
+        "vector": "非标准",
+        "ssh": None,
+        "cc": None,
+        "march": None,
+        "cflags": "",
+        "ldextra": "",
+        "envsrc": "",
+        "ggml": None,
+        "cores": [],
+        "flush_mb": 0,
+        "pmu": "—",
+        "measurable": False,
+        "block": "ISSUE-063（rvv07 板去向未定）—— §3.1 状态 = REGISTERED-PENDING·零工作",
+    },
+}
+
+
+# ───────────────────────────────────────────────────────── VOID（§3.3 第 1/3 步的四出口）
+VOID_DIRTY_BOARD = "VOID-脏板"      # 第 1 步 静板预飞不过
+VOID_OURS_WRONG = "VOID-我方错"     # 第 3 步 我方 vs oracle 失败
+VOID_OPP_BAD = "VOID-对手废"        # 第 3 步 对手 vs oracle 失败
+VOID_DISPATCH_MISMATCH = "VOID-派发不符"  # 第 3 步 对手非真实派发
+VOID_REASONS = (VOID_DIRTY_BOARD, VOID_OURS_WRONG, VOID_OPP_BAD, VOID_DISPATCH_MISMATCH)
+
+# §3.3 近门补充：仅当比值落在 0.7–1.0 区间，追加一次独立复测确认。
+NEAR_GATE_LO, NEAR_GATE_HI = 0.7, 1.0
+
+
+def is_near_gate(ratio):
+    return NEAR_GATE_LO <= ratio <= NEAR_GATE_HI
+
+
+# ───────────────────────────────────────────────────────── run-id
+DRY_RUN_MARK = "DRY-RUN"
+
+
+def make_run_id(fmt, board):
+    """run-id = 一次调用的标识，兼作 runs/<run-id>/ 目录名与行内引用锚（§术语）。
+
+    §3.2 的台账行 = {run-id·时间·格·结果|VOID 原因} —— 【无板字段】。故把板编进 run-id，
+    使台账自足而不增字段（不增字段 = 不改 spec）。该缺字段本身 = ISSUE-091。
+    """
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{stamp}-{fmt}-{board}-{uuid.uuid4().hex[:8]}"
+
+
+def now_iso():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+
+# ───────────────────────────────────────────────────────── 台账（§3.2.1 第三处目的地）
+def append_runs_log(run_id, fmt, result):
+    """append-only；每次调用一行 {run-id·时间·格·结果|VOID 原因}。字段序与分隔符照 spec 字面。"""
+    line = f"{run_id}·{now_iso()}·{fmt}·{result}\n"
+    with guarded_open(DEST_RUNSLOG, "a") as fh:
+        fh.write(line)
+    return line
+
+
+# ───────────────────────────────────────────────────────── 格（roster = 分母唯一源）
+def roster_rows(fmt):
+    with open(ROSTER, encoding="utf-8") as fh:
+        roster = json.load(fh)
+    return [k for k in roster["kernels"] if k.get("format") == fmt]
+
+
+def known_formats():
+    with open(ROSTER, encoding="utf-8") as fh:
+        roster = json.load(fh)
+    return sorted({k["format"] for k in roster["kernels"] if k.get("format")})
+
+
+# ───────────────────────────────────────────────────────── 五步流水线（§3.3）
+def step1_preflight(board, cfg, execute):
+    """静板预飞：载荷阈 · 单实例锁 · 零游离进程 · CPU 状态哈希。不过即 VOID-脏板。
+
+    配方 = run_grid4_p2.sh 的 load gate（/proc/stat 逐核 idle%，阈 70）+ stray（pgrep -x）
+    + cpu_md5（libggml-cpu.so 前后比对）。
+    """
+    plan = {
+        "步": "1 · 静板预飞（硬点）",
+        "载荷阈": "逐核 /proc/stat idle% ≥ 70（best-core 选核）",
+        "单实例锁": f"flock {DEST_RUNS}/.lock（同板同格互斥）",
+        "零游离进程": "pgrep -x <bin> == 0（-f 会匹配 ssh 自身命令行，故 -x）",
+        "CPU 状态哈希": f"md5sum {cfg['ggml']}/libggml-cpu.so 前后比对 + scaling_governor + loadavg",
+        "不过": VOID_DIRTY_BOARD,
+    }
+    if not execute:
+        return plan, None
+    idle = _probe_best_core(cfg)
+    if idle is None or idle[1] < 70:
+        return plan, VOID_DIRTY_BOARD
+    return plan, None
+
+
+def _probe_best_core(cfg):
+    """真板探针（干跑不走此路）。返回 (core, idle%) 或 None。"""
+    cores = " ".join(str(c) for c in cfg["cores"])
+    script = (
+        "read_busy(){ awk -v c=\"cpu$1\" '$1==c{idle=$5+$6; "
+        "tot=$2+$3+$4+$5+$6+$7+$8; print tot\" \"idle}' /proc/stat; }; "
+        f"for c in {cores}; do read t i < <(read_busy $c); echo \"$c $t $i\"; done; sleep 0.5; "
+        f"for c in {cores}; do read t i < <(read_busy $c); echo \"$c $t $i\"; done"
+    )
+    try:
+        out = subprocess.run(
+            ["ssh", cfg["ssh"], "bash -c " + json.dumps(script)],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if out.returncode != 0:
+        return None
+    rows = [ln.split() for ln in out.stdout.splitlines() if ln.strip()]
+    half = len(rows) // 2
+    best = None
+    for a, b in zip(rows[:half], rows[half:]):
+        dt, di = int(b[1]) - int(a[1]), int(b[2]) - int(a[2])
+        pct = (100 * di // dt) if dt > 0 else 0
+        if best is None or pct > best[1]:
+            best = (int(a[0]), pct)
+    return best
+
+
+def step2_lineage(board, cfg, execute):
+    """双方板端 clang-18 构建 —— 我方与对手同链同板；世系（板·链·批次）自动入行。
+
+    §Quality Check：验收【查世系不查字样】⟹ 世系 = 探针读数三元，不是构建脚本里的字符串。
+    """
+    plan = {
+        "步": "2 · 双方板端 clang-18 构建（硬点：世系）",
+        "我方链": f"{cfg['cc']} -march={cfg['march']} {cfg['cflags']} {cfg['ldextra']}".strip(),
+        "对手链": f"同链同板（对手 = {cfg['ggml']} 的板端 clang-18 构建）",
+        "世系三元": "{板 = uname -m/-r + /proc/cpuinfo isa · 链 = $CC --version 实读 · 批次 = ggml pin + so 的 md5}",
+        "gcc": "§3.6：gcc 不存在 —— --gcc-install-dir 是 clang 的 CRT 定位器，非 gcc 构建",
+    }
+    if not execute:
+        return plan, None
+    return plan, _probe_lineage(cfg)
+
+
+def _probe_lineage(cfg):
+    """真板探针（干跑不走此路）。世系 = {板·链·批次} 的实读三元。"""
+    script = (
+        f"{cfg['envsrc']} echo BOARD=$(uname -m)/$(uname -r); "
+        f"echo CHAIN=$({cfg['cc']} --version | head -1); "
+        f"echo BATCH=$(md5sum {cfg['ggml']}/libggml-cpu.so | cut -d' ' -f1)"
+    )
+    try:
+        out = subprocess.run(
+            ["ssh", cfg["ssh"], script], capture_output=True, text=True, timeout=60
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if out.returncode != 0:
+        return None
+    triple = dict(
+        ln.split("=", 1) for ln in out.stdout.splitlines() if "=" in ln
+    )
+    return "·".join(triple.get(k, "?") for k in ("BOARD", "CHAIN", "BATCH"))
+
+
+def step3_crosscheck(fmt, board, cfg, execute):
+    """对拍（一步三验）：我方 vs oracle · 对手 vs oracle · 对手就是真实派发的那一个。
+
+    顺手记我方产物真实向量运算指令数（配置指令与死值不计）—— 记录不拦截。
+    """
+    plan = {
+        "步": "3 · 对拍（硬点：一步三验）",
+        "验 ①": f"我方 vs oracle（[K-5] 整数 byte-exact / 浮点 ULP 上界）→ 失败 = {VOID_OURS_WRONG}",
+        "验 ②": f"对手 vs oracle（同一 oracle）→ 失败 = {VOID_OPP_BAD}（禁用坏对手时间算倍率）",
+        "验 ③": f"对手 = 该板 ggml 实际部署派发的函数（objdump dispatch/类型注册表）→ 不符 = {VOID_DISPATCH_MISMATCH}",
+        "向量指令数": "objdump -d 我方 .o，TAB-field-aware awk 计 $3~/^v/ 且剔除 ^vset（配置指令）与死值；记录不拦截",
+        "对手档": "{手调 | 通用向量 | 标量类} 逐格证据判定（§3.4），证据引用入行",
+        "任一失败": "不计时",
+    }
+    if not execute:
+        return plan, None
+    raise CellRecipeMissing(
+        f"格 {fmt} @ 板 {board} 无可寻址的对拍配方（driver + oracle + 对手符号表）。\n"
+        "  §3.3 第 3/4 步假定每格存在 harness，但【无 spec 层规定其住址与契约】；\n"
+        "  而 tools/gates/check_experiments_layout.py 判 experiments/ 为数据格、禁 harness 入内。\n"
+        "  ⟹ 结构缺口，登记 = ISSUE-090。禁伪装可用（§3.0：agent 可提案，不可自改）。"
+    )
+
+
+def step4_cold(fmt, board, cfg, execute):
+    """cold 计时：预注册重复数，冷启动唯一。"""
+    plan = {
+        "步": "4 · cold 计时",
+        "预注册": "重复数 N 先于测量预注册（§3.6 预注册先于测量）",
+        "冷启动唯一": f"每 rep 前 flush {cfg['flush_mb']} MiB（> 该板 LLC）· taskset -c <best-core>",
+        "禁继承": "§3.6：decode 一律 M=1 实测；IME 禁承 native",
+        "近门": f"仅当比值 ∈ [{NEAR_GATE_LO}, {NEAR_GATE_HI}] 追加一次独立复测确认 → 打噪声标",
+    }
+    if not execute:
+        return plan, None
+    raise CellRecipeMissing(f"格 {fmt} @ 板 {board}：同 STEP 3（ISSUE-090）")
+
+
+def step5_row(run_id, execute):
+    """入行：按 §3.3.1 字段表写一行。"""
+    plan = {
+        "步": "5 · 入行",
+        "字段": " / ".join(ROW_SCHEMA),
+        "目的地": f"主表（现址 {os.path.relpath(MASTER_INTERIM, ROOT)}，gated on ISSUE-073）",
+        "VOID": "VOID 的行不存在 —— 只在 runs.log 留一行，不入主表",
+    }
+    if not execute:
+        return plan, None
+    raise CellRecipeMissing("入行 gated on ISSUE-073（主表住址待裁）+ ISSUE-090（无对拍配方）")
+
+
+# ───────────────────────────────────────────────────────── 演示行（0 造数）
+def dry_run_row(run_id):
+    """干跑演示行：除 run-id 外每个字段都显式标 DRY-RUN，零数字 ⟹ 无任何看起来像测量结果的数。"""
+    return {
+        "cold": f"{DRY_RUN_MARK}(未计时)",
+        "判定": f"{DRY_RUN_MARK}(未判定)",
+        "对手符号": f"{DRY_RUN_MARK}(未探针)",
+        "对手档": f"{DRY_RUN_MARK}(未判档)",
+        "对手证据引用": f"{DRY_RUN_MARK}(无证据)",
+        "我方向量指令数": f"{DRY_RUN_MARK}(未计数)",
+        "世系": f"{DRY_RUN_MARK}(未探针)",
+        "run-id": run_id,
+        "噪声标": f"{DRY_RUN_MARK}(未评估)",
+    }
+
+
+def render_row(row):
+    header = ",".join(ROW_SCHEMA)
+    values = ",".join(row[f] for f in ROW_SCHEMA)
+    return header, values
+
+
+# ───────────────────────────────────────────────────────── 自检（纯函数 · 不碰板 · 不写盘）
+def self_test():
+    ok = []
+
+    assert_schema_bound()
+    ok.append(f"schema 绑定：runner 9 字段 == spec §3.3.1 字段表 {spec_row_schema()}")
+
+    row = dry_run_row("RID")
+    assert tuple(row) == ROW_SCHEMA, "演示行字段序与 ROW_SCHEMA 不一致"
+    ok.append("演示行字段序 == ROW_SCHEMA（逐项一一对应，不增不删）")
+
+    # 0 造数：除 run-id 外，演示行不得含任何数字。
+    digits = {k: v for k, v in row.items() if k != "run-id" and re.search(r"\d", v)}
+    assert not digits, f"演示行含数字（造数嫌疑）：{digits}"
+    ok.append("0 造数：演示行除 run-id 外零数字")
+
+    # 目的地闸真的会咬（负控）。
+    for bad in (os.path.join(ROOT, "experiments", "stray.txt"),
+                os.path.join(MASTER_INTERIM, "T3_master_rebuild.csv"),
+                os.path.join(DEST_MASTER, "T3.csv")):
+        try:
+            guarded_open(bad, "a")
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError(f"目的地闸未咬：{bad}")
+    ok.append("目的地闸负控：三处闸外路径（experiments/ 散件 · 主表现址 · 目标态 master/）全部被拒")
+
+    for good in (DEST_RUNSLOG, os.path.join(DEST_RUNS, "RID", "x.log")):
+        real = os.path.realpath(good)
+        allowed = real == os.path.realpath(DEST_RUNSLOG) or real.startswith(
+            os.path.realpath(DEST_RUNS) + os.sep
+        )
+        assert allowed, f"目的地闸误咬合法路径：{good}"
+    ok.append("目的地闸正控：runs.log 与 runs/<run-id>/ 放行")
+
+    assert is_near_gate(0.85) and is_near_gate(0.7) and is_near_gate(1.0)
+    assert not is_near_gate(0.69) and not is_near_gate(1.01)
+    ok.append(f"近门区间 [{NEAR_GATE_LO}, {NEAR_GATE_HI}] 闭区间判定（含端点）")
+
+    assert len(VOID_REASONS) == 4, "VOID 出口数与 §3.3 不符"
+    ok.append(f"VOID 四出口：{' / '.join(VOID_REASONS)}")
+
+    rid = make_run_id("q4_0", "rvv")
+    assert re.match(r"^\d{8}T\d{6}Z-q4_0-rvv-[0-9a-f]{8}$", rid), rid
+    ok.append("run-id 形态 <UTC>-<格>-<板>-<8hex>（板经 run-id 编码 ⟹ 台账不增字段）")
+
+    assert set(BOARDS) == {"rvv", "k1", "scalar", "rvv07"}, "板册与 §3.1 四板不符"
+    assert not BOARDS["scalar"]["measurable"] and not BOARDS["rvv07"]["measurable"]
+    ok.append("板册 == §3.1 四板；scalar（ISSUE-061）与 rvv07（ISSUE-063）真实模式不开测")
+
+    for line in ok:
+        print(f"  PASS  {line}")
+    print(f"\n[self-test] {len(ok)}/{len(ok)} PASS")
+    return 0
+
+
+# ───────────────────────────────────────────────────────── main
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        prog="bench",
+        description="唯一合法测量动作（.trellis/spec/measurement §3.3）。本层是权威，本 runner 是实现。",
+    )
+    ap.add_argument("格", nargs="?", help="量化格式（roster 内的 format），如 q4_0")
+    ap.add_argument("--board", help="板：" + " | ".join(BOARDS))
+    ap.add_argument("--dry-run", action="store_true",
+                    help="干跑演示：零 ssh · 零计时 · 零主表写；只产 runs.log 一行 + 演示行")
+    ap.add_argument("--self-test", action="store_true", help="纯函数自检（不碰板、不写盘）")
+    args = ap.parse_args(argv)
+
+    if args.self_test:
+        return self_test()
+
+    fmt, board = getattr(args, "格"), args.board
+    if not fmt or not board:
+        ap.error("用法：bench <格> --board <板>")
+    if board not in BOARDS:
+        ap.error(f"未知板 {board}（§3.1 板册只钉死四板：{' / '.join(BOARDS)}）")
+
+    # schema 绑定先于一切（spec 漂移 = runner 缺陷，当场红）。
+    assert_schema_bound()
+
+    cfg = BOARDS[board]
+    rows = roster_rows(fmt)
+    if not rows:
+        ap.error(f"格 {fmt} 不在 roster（{os.path.relpath(ROSTER, ROOT)}）。已知格：{' '.join(known_formats())}")
+
+    run_id = make_run_id(fmt, board)
+    execute = not args.dry_run
+
+    print(f"bench {fmt} --board {board}" + ("" if execute else "  --dry-run"))
+    print(f"  run-id  = {run_id}")
+    print(f"  板      = {cfg['identity']} · {cfg['vector']} · {cfg['pmu']}")
+    print(f"  格      = {fmt} —— roster 命中 {len(rows)} 条 op：{' '.join(r['op'] for r in rows)}")
+    if len(rows) > 1:
+        print("            ★ 格单独不定位行（主表行键 = op×format×engine）—— ISSUE-091")
+    print()
+
+    if execute and cfg["block"]:
+        result = f"{VOID_DIRTY_BOARD}(板不开测：{cfg['block']})"
+        append_runs_log(run_id, fmt, result)
+        print(f"  拒测：{cfg['block']}")
+        return 1
+
+    # 五步按序执行（§3.3「步内自动留痕，步外无合法动作」）；干跑 = 每步只述不做。
+    if not execute:
+        print("  ── 五步流水线（干跑：只述不做）─────────────────────────")
+        for plan, _ in (
+            step1_preflight(board, cfg, False),
+            step2_lineage(board, cfg, False),
+            step3_crosscheck(fmt, board, cfg, False),
+            step4_cold(fmt, board, cfg, False),
+            step5_row(run_id, False),
+        ):
+            print(f"  [{plan['步']}]")
+            for k, v in plan.items():
+                if k != "步":
+                    print(f"      {k:<12}{v}")
+        print()
+        header, values = render_row(dry_run_row(run_id))
+        print("  ── 演示行（§3.3.1 九字段 · 逐字对齐 spec · 零正式数字）──")
+        print(f"  {header}")
+        print(f"  {values}")
+        print()
+        line = append_runs_log(run_id, fmt, f"{DRY_RUN_MARK}(演示·未测量·无行更新)")
+        print(f"  ── 台账（§3.2 唯一落盘）───────────────────────────────")
+        print(f"  {os.path.relpath(DEST_RUNSLOG, ROOT)} += {line.rstrip()}")
+        print(f"  主表：未写（干跑演示行只走 stdout）· runs/{run_id}/：未建（干跑无原始产物）")
+        return 0
+
+    # ── 真实路径：五步按序，任一 VOID 即止 —— 不计时、不入行、只落台账一行（§3.3 / §3.2.2）。
+    _, void = step1_preflight(board, cfg, True)
+    if void:
+        append_runs_log(run_id, fmt, void)
+        print(f"  {void} —— 不测")
+        return 1
+    _, lineage = step2_lineage(board, cfg, True)
+    if not lineage:
+        append_runs_log(run_id, fmt, f"{VOID_DIRTY_BOARD}(世系探针无读数)")
+        return 1
+    step3_crosscheck(fmt, board, cfg, True)   # ISSUE-090：抛 CellRecipeMissing，禁伪装可用
+    step4_cold(fmt, board, cfg, True)
+    step5_row(run_id, True)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (SchemaDrift, CellRecipeMissing) as exc:
+        print(f"[bench] {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(2)

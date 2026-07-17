@@ -27,13 +27,14 @@
   - **commit hash 入正文**：`★G1 精化①/②（d0826caa · L2 实证…）` 两处 —— 规则本身（「绝对 spill 必须以部署编译器测」/「指令数子门是 regime-keyed」）是好规则，但被绑在一个 commit 号上。
   - **战役事故叙事**：`对手类机判（重编令二.2 · q4_K 稻草人事故制度化修复）` + 整段 `b29c269c 证伪` /「测错核之戒」/「双核分立限定（27658b8a · 五复核）」叙事。
 - **★为何是上岗阻塞（不只是卫生）**：该文件**被两处 spec 判为新 agent 必读的「权威全文」** —— [canon](../canon/index.md) 「Guidelines Index」的架构不变量条目（「权威全文住 `architecture/core-invariants.md`…此处为规范性一句，**不重抄**」）与 [architecture](../architecture/index.md) 「本层地图」的硬规则条目（「全部正文住 `architecture/core-invariants.md`」）。⟹ 新 agent **被指着去读**一份夹带 commit 号与战役叙事的文件，而那些 commit 与战役档案正随 `docs/` 归档进 git-ignored 的 `_attic/` ⟹ **他读到的引用解析不了**。architecture 层 「本层登记的未决项」表已自认此事（C 行）并明写「**本文不改该文件 · 不代裁、不代改**」。
-- **须裁（两问）**：
-  1. **该文件的去向**：把正文抽进 architecture 层并就地去叙事，还是保留它为独立现行法文件并单独做去叙事清洗。
-  2. **既有 spec 树（`architecture/` · `capability-model/` · `core-dialect/` · `plugin-protocol/` 等）与新六层的归并 / 归档关系**（= architecture 层 「本层登记的未决项」表 B 行的同一事项，本条一并承接）。
-- **影响面**：新 agent 上岗可行性（六层迁移完成判据本身）+ 该文件全体条文的引用面。
-- **卡在**：**canon 级**（改既有条文载体 + 动 spec 树形）。
-- **保守默认**：**只登记、条文本体零改**（正文是现行法，不因载体有病而失效）；**禁 agent 自行删改条文或发明替代表述**。
-- **状态**：待裁
+- **★裁决（2026-07-17 · 用户裁 · 本条 CLOSED）**：**收敛为单一权威本 + 另一本归档 + 引用改指**。落地形态：
+  1. **权威本 = [canon · 核心不变量](../canon/核心不变量.md)**。判据 = **上岗级引用四处全指它**（`CLAUDE.md` 法源入口 · `README.md` · `AGENTS.md` · `schema/family-regex.v1.json` 的 `$meta.invariant`），且 canon = 法源层；[待裁](../canon/待裁.md) 原 4b 行亦载「本层 I1–I9 已按『只留规则、删历史外壳』洗净并落此」。
+  2. **归档件 = `architecture/core-invariants.md` 原全文**（含其 commit 号 / 令文体 / 战役叙事）→ `_attic/`（plain `mv` · git-ignored · 记于 `_attic/ATTIC_INDEX.md`）。**铁律 1 违规随载体离场**，非靠逐句删改。
+  3. **★原路径保留为指针（非删除）**：`schema/capability.schema.v1.json` 的 `$meta.authority` 钉住该路径的 `[S-5]` / `[F-2′]`（v1.2.0 sealed）；`ISSUE-072` 裁决材料 (b) **实测** 改锚 = `breaking` + 新 RFC。用户令明禁「touching sealed 资产」⟹ 全档不可行，**指针是唯一同时满足『单一权威本』与『不动 sealed 资产』的形态**。
+  4. **前置验证（防丢法条）**：归档前逐条机核 **12 条附加硬规则在 canon 均有完整家**（[L-6]/[NG-4] → 成色与措辞 · [L-8]/[K-10] → 部署与构造语义 · [K-4]/[SEL-2] → 覆盖状态机与选择归因 · [S-5]/[F-2′]/[F-6]/[NG-3] → 能力模型与插件协议 · [VERIFY-LADDER] → 测量判据 · 对手类机判 → 对手与档位）⟹ **归档零法条损失**，只去重复本。
+- **影响面（已结）**：新 agent 上岗可行性 —— 必读集合内不再有夹带 `_attic/` 死引用的文件。
+- **遗留（不属本条）**：既有 spec 树与新六层的归并 / 归档关系（原须裁第 2 问）**未随本裁了结**，仍住 [architecture](../architecture/index.md) 「本层登记的未决项」表 B 行。
+- **状态**：**已裁 · 已落地**（2026-07-17）
 - **出处**：仓内谓词（上列 `grep -n`，可复跑）；承接来源 = [architecture](../architecture/index.md) 「本层登记的未决项」表 B/C 行。
 
 ### ISSUE-071 · [PERF-1] 门项数：「八门」vs「十项」
@@ -41,24 +42,46 @@
   - **称「八门」**：[architecture/core-invariants.md](../architecture/core-invariants.md) 的 `[NG-4]` 正文（「在性能验收门 [PERF-1]（**性能验收八门**，科研目标总纲 §4.4）未全绿前…」）· spec 根 `index.md` 的 C3′ 证据门行（「…过 [PERF-1] **八门**」）。
   - **列「十项」**：[canon](../canon/index.md) §四 的门体自身**逐项列出十项**：① 字节精确（或声明 ULP 界）② VLEN 翻转 lit（128/256 双配置）③ 双板各一次 objdump 验封 ④ micro **且** e2e ⑤ 双板都验证 ⑥ 实验纪律 ⑦ 机制合成归因 ⑧ 措辞门（[L-1]）⑨ 账本合规（[L-9]）⑩ 部署身份五验（[L-10]）；**⑨⑩ 是前置：不满足则整门不予受理**。
   - **实质无歧义**：门体列十项，「八门」是简称；两者不指向两个不同的门，**不阻塞任何施工**。**但** `[NG-4]` 的「八门」还额外把权威指向 **`科研目标总纲 §4.4`** = `docs/` 下即将归档的文件 ⟹ 新 agent 顺着「八门」去查会走进 `_attic/`（git-ignored）。
-- **须裁**：简称的归属 —— 统一为「十项」并清除「八门」字样，还是保留「八门」为法定简称并在门体处钉死「八门 ≡ 本十项门」。（[GOV-9] 命名冻结之下，改称谓属 canon 级。）
-- **★副本事实（一并登记）**：[canon](../canon/index.md)「待裁」表内另有一行即本条同一事项（**[PERF-1] 门数称谓：八门 vs 十项**）⟹ 与 [index](./index.md) §〇「一切已知缺口…**仅在此**登记」相抵。裁定时须同时决定该表的去留（合并入本册留一，还是本册引用它）。
-- **影响面**：`[PERF-1]` 的全部引用面（beat 措辞放行通道）+ 唯一登记簿原则。
-- **卡在**：canon 级（命名冻结 + 措辞宪法）。
-- **保守默认**：**正文按十项执行**；**引用本门一律用 `[PERF-1]`、禁带门数**（canon 门体已自设此规）；简称与副本表的去留待裁；**禁 agent 自行删「八门」字样**。
-- **状态**：待裁
-- **出处**：仓内谓词（`grep -rn 'PERF-1' .trellis/spec/`，可复跑）；承接来源 = [architecture](../architecture/index.md) 「本层登记的未决项」表 D 行 + [canon](../canon/index.md)「待裁」表同事项行。
+- **★裁决（2026-07-17 · 用户裁 · 本条 CLOSED）**：**按实况订正称谓 · 一处定义、全树引用**。
+- **★实况 = 十项（数门体本身得出，非两处文本互猜——互猜正是本 bug 的成因）**。**门体演进史**（谓词：读归档的三代总纲门体，逐项数）：
+  | 载体 | 门体实列 | 自述称谓 |
+  |---|---|---|
+  | 总纲 v2 §4.4（`_attic/docs/canon/Weft-RV_科研目标总纲v2.md`） | **①–⑧**（8 项） | 「**八项**全绿前」——**当时属实** |
+  | 总纲 v3 §4.4（`_attic/docs/files (2)/TianChen-RV_科研目标总纲v3.md`） | **①–⑧ + v3 增补两项前置 ⑨⑩** = **10 项** | 自相抵三称谓：「八项（十项）」· [L-1] 称「八门」· 附 B 称「**十门**」 |
+  | **活 canon**（[测量判据](../canon/测量判据.md) §一.2） | **①–⑩**（10 项） | 现「门体 = 十项」 |
+  ⟹ **门体从来只有一个**；「**八门**」= **v2 期化石简称**，在 v3 增补 ⑨（账本合规 [L-9]）/ ⑩（部署身份五验 [L-10]）**两条前置**后即失效，而 v3 未订正自身摘要行 ⟹ 三称谓并存。**v4 草案 §6.1 第 5 条已把「门数三称谓」登记为 v3 自身缺陷**（独立佐证：非本轮新说）。
+- **落地**：
+  1. **一处定义** = [canon · 测量判据](../canon/测量判据.md) §一.2（**门数只在此出现一次** + 称谓订正注）。
+  2. **全树引用** = 一律 `[PERF-1]`、**禁带门数**（别处带数即漂移源）。
+  3. 「八门」的两处活载体：`[NG-4]` / `[VERIFY-LADDER]` 的旧载体 `architecture/core-invariants.md` **已随 `ISSUE-070` 归档离场**（其「八门」还把权威指向已归档的 `科研目标总纲 §4.4` = 死指针，一并了结）；spec 根 `index.md` C3′ 行的「八门」**已去数**。canon 现役 [NG-4]（[成色与措辞](../canon/成色与措辞.md)）**本就不带门数**，无需改。
+  4. **副本表**：[canon · 待裁](../canon/待裁.md) 原第 4 行（同事项）**已随裁定移除**，唯一登记簿原则恢复。
+- **影响面（已结）**：`[PERF-1]` 全部引用面 + 唯一登记簿原则。
+- **状态**：**已裁 · 已落地**（2026-07-17）
+- **出处**：仓内谓词（`grep -rn 'PERF-1' .trellis/spec/`，可复跑）+ 归档三代总纲门体逐项计数；承接来源 = [architecture](../architecture/index.md) 「本层登记的未决项」表 D 行 + [canon](../canon/index.md)「待裁」表同事项行。
 
 ### ISSUE-072 · evidence 层三处「唯一权威」锚在 `docs/`（根悬空）
 - **实质**：[evidence](../evidence/index.md) 是「三贡献 → 证据工件指针地图」，但其数处**唯一权威**锚点住在 `docs/` 下 —— 而 `docs/` 全体归档进 **git-ignored** 的 `_attic/` ⟹ **克隆本仓的新 agent 拿不到，指针整段失效**。该层已自设两条必裁项（住其 §六 缺口表，**按 G 编号寻址、不按行号**）：
   - **G-1 · 性能证词的根悬空**：`docs/reports/SEALED-WIN-REGISTRY.md` 是 **C3′ 性能证词的唯一权威登记**（Win #1 Win-K1-VLEN · Win #2 q4_K@k1 e2e prefill，逐字锁定措辞），且被列为**可达性根集合成员**、被判「留仓库」；但它**现住 `docs/` 下**，且**零脚本消费** —— 曾唯一与之接触的 `check_docs_canon.py` 也仅做文件名命名豁免、不读其内容，且该脚本**现已入 attic**（见 ISSUE-054⑥）⟹ 此刻全仓**无任何脚本引用它**。⟹「被脚本消费的数据」这条留仓理由**不被事实支撑**，**新家未定 → 整张地图的性能证词根悬空**。
   - **G-3 · 承重论证载体去向**：三贡献的承重**论证**主体住 `docs/reports/` 与 `docs/method/`（构造协议 + 摊销曲线 · 模式库综合 · 五负结果 · regime-split · 两 casefile · 三份接入实录 · C2 口径 · 归因锁 · ZERO-MODEL 法）。它们是**论证/报告**、非「被脚本消费的数据」→ 按可达性判据应归档；但**归档后本地图大半指针指向 `_attic`**。
     **★已出 G-3 范围（结论已迁入 evidence 层正文、不再依赖 docs 可达）**：五条 C3′ 负结果 → §4.7 · [F-1..F-6] → 工件映射 + [C1-SHAPE] 命名碰撞 → §2.2 / §2.1 · 相邻门 → §5.8。docs 侧原件**降为可选参考**（**禁再在 docs 留同内容副本**）。
-  - 另 evidence 层 §2.1 / §2.2 把 **[C1-SHAPE] ↔ [F-1] 命名碰撞的唯一权威记录**与 **F → 工件的唯一映射索引**都锚在 `docs/method/FALSIFIER-INDEX.md`（同样归档去向未定）—— 惟此两项的**结论正本已迁入 evidence 层**（见上）。
+  - 另 evidence 层 §2.1 / §2.2 把 **[C1-SHAPE] ↔ [F-1] 命名碰撞的唯一权威记录**与 **F → 工件的唯一映射索引**都锚在 `_attic/docs/method/FALSIFIER-INDEX.md`（同样归档去向未定）—— 惟此两项的**结论正本已迁入 evidence 层**（见上）。
 - **须裁**：「迁入六层 / 事故区」vs「破例留仓」。
 - **影响面**：evidence 全图的可用性 = C1/C2/C3′ 三贡献证据链能否被只读 `.trellis/` 的 agent 走通。
 - **卡在**：与归档令的可达性判据正面耦合 = canon 级。
 - **保守默认**：evidence 正文已逐条标「归档去向待裁」，**指针按现路径钉死、不预写尚不存在的新路径**；**禁 agent 自行搬迁或发明新家**。
+
+#### ★ 2026-07-17 `docs/` 归档轮的处置（**执行了保守默认 · 未裁本条**）
+
+`docs/` 已按令 §七③ / §4.2.7 归档（124 文件 → **67 attic + 51 事故区 + 6 留仓**；台账住 [`_attic/ATTIC_INDEX.md`](../../../_attic/ATTIC_INDEX.md) §三.2）。本条**未被裁**，其两问（G-1 新家 / G-3 承重论证载体去向）**仍全额待裁**。本轮对本条相关件做的是：
+
+1. **G-1 的 `SEALED-WIN-REGISTRY.md` = 未动**（仍住 `docs/reports/`）。**理由不是「被脚本消费」**（本条已实测推翻该理由，本轮复核其四条谓词**全为真** —— `test -e tools/gates/check_docs_canon.py`=假 · `grep -rln SEALED-WIN-REGISTRY tools/ .trellis/scripts/ schema/`=**零命中**），而是：**§4.1.2 根集合逐字含「SEALED 登记」⟹ 它是根，而 attic 判据是「从根引用不到的一律入 attic」，根本身永不入 attic**；且本条保守默认**明令「禁 agent 自行搬迁或发明新家」** ⟹ 搬 = 自裁、归档进 git-ignored 区 = **正是 G-1 描述的伤害**、留在原地 = 唯一不预判的动作。
+2. **G-3 的「两 Win 的 docs 侧证据腿与加固报告」= 未动**（4 份，随其根同留）。**该 4 份不是 agent 挑的** —— 是 `SEALED-WIN-REGISTRY.md:17/21/47` 的**证据指针逐字点名**的，按 §4.1.2「被引用的留下」机械可达。
+3. **G-3 的 `docs/method/C2_marginal_cost_ledger.md` = 未动**：[architecture · 插件协议](../architecture/插件协议.md) §接入五件套交付物表把它列为「⑤ C2 ledger 行」的**落点**，并自带「★该文件归档去向待裁……**落点以裁定为准**」。
+4. **G-3 的「★已出本条范围」部分 = 已按其自身授权归档**（该段逐字写「docs 侧原件**降为可选参考**，**随 `docs/` 归档即可**」）：`FALSIFIER-INDEX.md`（[F-1..F-6] 工件映射 + [C1-SHAPE] 命名碰撞，正本已在 evidence §2.1/§2.2；**G-8③ 的「已核实不破门」本轮复跑再确认** —— `check_family_locality.py` default 门 **exit=0**）· 三份接入实录 · C2 两 regime 口径 · 摊销规律 · q4_0 归因锁 · ZERO-MODEL 法 · 五条 C3′ 负结果。
+5. **G-3 的两 casefile（[CASE-MICRO-E2E] / [CASE-COMPILER-ASYMMETRY]）= 迁入 [事故档案](../../事故档案/README.md)**。**这【不是】自裁 G-3 的「迁入六层/事故区 vs 破例留仓」** —— 而是**执行令文 §4.2.7 的明令**「事故档案**原样迁入 Trellis 事故区**（防复发资产，不去重不改写）」。令文即用户裁决，其对**事故档案子集**的去向已明定；G-3 剩余（非事故档案的承重论证载体）**不受影响、仍待裁**。
+6. **未新增副本**：G-3 明令「**禁再在 `docs/` 留同内容副本**」—— 本轮零复制，全部为 `mv`。
+
+**⟹ 本条状态不变（待裁）。** 待裁面**已收窄为**：① 那 6 件留仓件的最终新家（`docs/` 是否作为「数据/工件岛」长期存在，还是迁 `experiments/` 数据区 / evidence 层）；② G-3 中**未随事故区出清**的残余承重载体（如 `2026-07-10-C3-pattern-library-evidence.md` 模式库综合叙述，现已入 attic —— 若裁「破例留仓」须从 attic 取回）。
 - **状态**：待裁
 - **出处**：仓内 —— [evidence](../evidence/index.md) §六 缺口表 **G-1 / G-3** 行（该层在 `.trellis/` 内，可直接读到）。
 
@@ -87,12 +110,12 @@
 - **出处**：仓内 —— [architecture](../architecture/index.md) 「命名未决」节 / 「命名未决 · 「五层」的所指未裁」节 / 「「五」已有既存所指」节 / 「裸 `L<数字>` 编号禁用」节 与 「本层登记的未决项」表 A 行（该层在 `.trellis/` 内，可直接读到）。
 
 ### ISSUE-086 · 前身证据索引含已验证死指针 + T2 口径 stale
-- **实质**：evidence 层的迁移底本（`docs/reports/2026-07-10-paper-evidence-index.md`）内 **4 处路径经核实不存在**，且其 T2 口径已 stale（按 `seq` 区间描述，与现行单分母制口径不符）⟹ **禁照抄该底本**。已核实的死指针 → 正解对照（**结论已迁入本条，不依赖底本可达**）：
+- **实质**：evidence 层的迁移底本（`_attic/docs/reports/2026-07-10-paper-evidence-index.md`）内 **4 处路径经核实不存在**，且其 T2 口径已 stale（按 `seq` 区间描述，与现行单分母制口径不符）⟹ **禁照抄该底本**。已核实的死指针 → 正解对照（**结论已迁入本条，不依赖底本可达**）：
   | 死指针 | 正解 |
   |---|---|
   | `include/TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h` | `include/Weft/Plugin/RVV/RVVRepackTilingSelection.h`（改名后） |
-  | `docs/canon/TianChen-RV_定位-v2.md` | `docs/canon/Weft-RV_定位-v2.md` |
-  | `docs/canon/TianChen-RV_执行总纲v2.md` | `docs/canon/Weft-RV_执行总纲v2.md` |
+  | `docs/canon/TianChen-RV_定位-v2.md` | `_attic/docs/canon/Weft-RV_定位-v2.md` |
+  | `docs/canon/TianChen-RV_执行总纲v2.md` | `_attic/docs/canon/Weft-RV_执行总纲v2.md` |
   | `experiments/active/kquant-family-closure/transmission_account.md` | `experiments/archive/l1-kquant/kquant-family-closure/transmission_account.md`（已归档） |
   **阅读纪律（承接改名事实）**：改名前的历史记载用旧名 = 当时准确，**勿改**；改名后一律 `weft` / `Weft`。
 - **影响面**：凡以该底本为源起草的证据表述。

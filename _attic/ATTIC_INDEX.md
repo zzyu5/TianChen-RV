@@ -21,6 +21,8 @@
 | 路径 | 结论 | 依据 | 日期 |
 |---|---|---|---|
 | `build/bin` 发现路径（3 门） | **修正而非归档** —— §4.2.4 布局归一的机械后果 | 门的 binary 发现候选原为 `$WEFT_BUILD/bin` → `build/bin` → `build-weft/bin`。**预存缺陷**：`build/bin`（陈旧 07-12 构建）排在真正在用的 `build-weft/bin` **之前** ⟹ 门一直在拿**陈旧 binary** 当证据。布局归一到 `build/weft/` 后两者皆无 ⟹ 退化为**静默 SKIP 返回 0**（更坏：绿得无声）。**已修**：候选首位改为唯一布局 `build/weft/bin`，删除已不存在的 `build-weft`。**负控实证**（f5/f4/f6 三门）：挪走 `weft-opt` + `--require-binaries` → **exit=2 全部变红**；恢复后复绿。 | 2026-07-17 |
+| `docs/` **6 件留仓**（`reports/SEALED-WIN-REGISTRY.md` + 其 4 条证据腿 `2026-07-10-vlen-adapt-m1-k1-sealed-win-candidate.md` / `2026-07-10-k1-seal-e2e-transduction.md` / `2026-07-10-Win-K1-VLEN-加固报告.md` / `2026-07-16-G8-paper-evidence-freeze.md` + `method/C2_marginal_cost_ledger.md`） | **保留** —— **不是我的判断，是 §4.1.2 可达性的机械结果 + 已登记必裁项的保守默认** | **① SEALED 登记 = 根集合成员**：§4.1.2 根集合逐字含「**SEALED 登记**」，而规则是「从根引用不到的一律入 attic；**被引用的留下**」⟹ 根本身永不入 attic。§一.2 亦逐字列其「**留在仓库**」。**② 4 条证据腿 = 从该根可达**：`SEALED-WIN-REGISTRY.md:17/21/47` 的**证据指针**逐字点名这 4 份（Win #1 的 1.085× CI + 五验 + hand-brick 对手身份 + 加固报告；Win #2 的三点隔离 + 1.101× 卷）——**这不是我挑的，是登记册自己点的名**，恰好就是 evidence 层 **G-3 所称「两 Win 的 docs 侧证据腿与加固报告」**。归档它们 = 让 C3′ 唯一权威登记的证据腿指进 git-ignored 区 = **正是 G-1 描述的那个伤害**。**③ C2 ledger = 活落点**：`.trellis/spec/architecture/插件协议.md:245` 列其为接入五件套「⑤ C2 ledger 行」的**落点**，并自带「**★该文件归档去向待裁……落点以裁定为准**」；另被 `schema/family-manifest.v1.json`(3) · `family-dirs.v1.json` · T2 CSV provenance(13) 引。**④ 保守默认由 ISSUE-072 逐字规定**：「指针按现路径钉死、不预写尚不存在的新路径；**禁 agent 自行搬迁或发明新家**」；须裁项 = 「迁入六层 / 事故区」vs「破例留仓」。⟹ **搬 = 自裁 · 归档 = 自裁 · 留在原地 = 唯一不预判的动作**。<br>**★ 特别记：留仓理由【不是】「被脚本消费的数据」。** 令文 §一.2 用该理由留 SEALED，但 **G-1 已实测推翻它**：「**零脚本消费** …… 曾唯一与之接触的 `check_docs_canon.py` 仅做文件名命名豁免、不读其内容，且该脚本现已入 attic」。**本轮独立复核 G-1 四条谓词全部为真**：`test -e tools/gates/check_docs_canon.py` = 假（已在 `_attic/tools/lint/`）· `grep -rln SEALED-WIN-REGISTRY tools/ .trellis/scripts/ schema/` = **零命中** · `test -e .github/workflows` = 假 · `check_family_locality.py` default 门 exit=0。⟹ 留仓的**真**理由 = 上述 ①②③④，**不是** §一.2 那句话。 | 2026-07-17 |
+| `docs/PENDING_RULINGS.md` 48 条的落位（§〇.3「已知问题零丢失」） | **零丢失·可归档** —— 48 行**逐条**核毕 | **计数订正**：登记表**真值 = 48 行**（`PR-1`…`PR-46` + `PR-48` + `PR-49`），但全文含 **49** 个 `PR-NN` 记号 —— **`PR-47` 是幽灵**：**无登记行**，只在 `PR-49` 行正文与 `2026-07-17-收束-推进与理解.md:126`「PR-47 **待写**」里现身。**issues 层已自行抓到并承接**（`性能与测量.md:32`：「出处：历史线索 = PR-47（**旧册无此行，本条即其承接**）」）。<br>**48 行分两类，各自可寻址**：**(a) 31 行被 issues 层按 `PR-NN` 直接引**（`PR-3` · `PR-18` · `PR-20`…`PR-46` · `PR-48` · `PR-49`）—— 恰好是全部 `APPLIED-DEFAULT`/移交（**真未决**）者。**(b) 17 行未被引**（`PR-1,2,4..17,19`）—— 恰好是全部 `RESOLVED*` 者，其**裁决已成现行法**，逐条抽验落地：`PR-2`双 regime→`canon/暂定-科研主张`·`PR-4`[I7]→`architecture/core-invariants`·`PR-5`instance-hash→`architecture/变体流水线`·`PR-6`物理墙收严→`canon/缺口与认输`·`PR-7`三档词表→同·`PR-9`双账本→`canon/测量判据`·`PR-10`parity-by-roofline→`canon/成色与措辞`·`PR-11`dequant 标量类→`measurement/对手法`·`PR-12`便宜档→`issues/性能与测量`·`PR-14`Win#2→`evidence/三贡献证据地图`·`PR-15`selection_valid→`canon/覆盖状态机与选择归因`·`PR-17`单世界 clang→9 文件·`PR-19`→`issues/发射器与架构`（**13/14 命中 spec**）。**唯一未命中 spec 的 `PR-16`（`deployed_point` 复合主键）落在【数据】而非文档** —— 实存于 `schema/measurement-memory.v1.json`，**符合 §一.2「schema = 被脚本消费的数据、不是文档」**，非丢失。<br>**两条 RESOLVED 仍带残留、均已在册**：`PR-8` 的 runner 三 gap → `issues/门与工具.md:65` **逐字承接**（「(1) 注册 token 需 repo-admin（无采购）；(2) 无官方 riscv64 runner 二进制；(3) 板上构建需板构建 = 同硬冻结」）· `PR-1` 的 X-SCALAR 窄豁免灰区 → **已升格为现行法** `canon/测量判据.md:108`（「**采购 = 否决**……在飞路径**只有** (b) 窄豁免，且**每次**须显式标注」）+ `evidence/三贡献证据地图.md:64` 的 `narrow-exempt: V-board-run-as-noV` 工件指针。 | 2026-07-17 |
 | `.touch-set/` | **保留** —— 是**活基建**，非僵尸 | §4.2.2 要求"查来历 + 是否被现役引用"。**来历**：由"纪律机械化 A1+A3 — touch-set CI + 禁 git add -A + worktree 政策"引入。**现役引用（代码级，非散文）**：`tools/hooks/pre-commit`（打印那条 NOTE 的就是它）· `tools/ci/check_commit_touchset.py`（检查器本体）· `tools/bench/new-line-worktree.sh`（写 `ACTIVE` 标记）· `.gitignore`（忽略 `ACTIVE`）。**作用**：`{commit 触碰的文件} ⊆ {线声明的 globs}`，可真变红。**排查注记**：用 `grep touch-set` 会匹到散文用法（"3-file touch-set"）= 假阳性；真引用须用 `\.touch-set` 或 `TRELLIS_TOUCH_SET_LINE`。 | 2026-07-17 |
 
 ## 三、移入 attic
@@ -58,6 +60,49 @@
 | `.trellis/spec/lowering-runtime/` (3) | `_attic/.trellis/spec/lowering-runtime/` | 指路牌层；条文已并入 `architecture/发射与降级.md`。唯一提及在 `experiments/` 历史台账（`T8_winloss_gap_ledger.csv` 的 `#` 注释行·**已核无脚本读该 CSV**）= 写就的历史事实，按令不改。 | 2026-07-17 |
 
 **移入计量**：41 文件（35 = 10 层 + 6 平铺件）。**整性已验**：attic 副本 vs HEAD blob 逐一 `sha256` 相同（抽验 `SPEC-CANON.md` / `SPEC-MEASUREMENT.md` / `ISSUES.md` = SAME）。**跟踪已断**：`git ls-files _attic` = 1（仅本索引）——`.gitignore:45 _attic/*` 覆盖嵌套路径，`git add -A` 只落 41 个 `D`，未把 attic 拉回跟踪。
+
+### 三.2 `docs/` 整体归档（§七③ + §4.2.7 · 2026-07-17）
+
+> **三分处置**（124 文件 = 67 attic + 51 事故区 + 6 留仓）。**分法不是体裁直觉，是令文自带的两条机械规则**：
+> ① **§4.1.2 可达性**（根集合 = 六 spec ∪ `experiments/master` ∪ **SEALED 登记** ∪ 现役 runner/oracle/gates ∪ ISSUES ∪ 现役测试套件；「从根引用不到的一律入 attic；**被引用的留下并标注来源**」）；
+> ② **§4.2.7 事故档案原样迁入 Trellis 事故区**（判据与选址理由住 [`.trellis/事故档案/README.md`](../.trellis/事故档案/README.md)，不在此重抄）。
+>
+> **★ 归档前置已核（非推定）**：`docs/` 现状 **124 文件**（不是先前简报所说的 119 —— 另有一个**未申报**的 `docs/files (2)/` 4 件 = 浏览器下载残留目录，内含 pre-rename 的 v3 canon 家族，被 `docs/canon/Weft-RV_科研目标总纲v4-草案.md:4` 以「导入制前身」引用；引用面全在 `docs/` 内 ⟹ 随之同行入 attic）。
+
+| 原路径 | → attic 路径 | 一句话原因 | 日期 |
+|---|---|---|---|
+| `docs/canon/` (5) | `_attic/docs/canon/` | §一.1 明令「ROADMAP.md 与 docs/ 全体（**含 canon**）不再使用」。**现行法已在六层**（逐条抽验：`双账本`/`[L-9]`/`[L-10]` 均命中 spec）。**非事故档案**——体裁 = 法条，其教训按 §二 铁律已压缩成 canon 规则本身。 | 2026-07-17 |
+| `docs/files (2)/` (4) | `_attic/docs/files (2)/` | 同上（pre-rename v3 canon 家族）。**PR-29 已登记其为「两 canon 家族问题」同源**（v3 实体在 `files (2)/`、非 `canon/`）。零根引用（引用者仅 `v4-草案` 与 `E5-T1d`，两者本身亦已离开 docs/）。 | 2026-07-17 |
+| `docs/design/` (1) | `_attic/docs/design/` | 零根引用。iq2 grid repack GEMM 设计稿；其「signs64 blocker 已解」属**陈旧事实随时间被解决**、非我方判断有错 ⟹ 不入事故区。 | 2026-07-17 |
+| `docs/method/` (6/10) | `_attic/docs/method/` | 归档 6：`FALSIFIER-INDEX.md`（**evidence 层 G-3 ★已出本条范围**明列「[F-1..F-6] → 工件映射 + [C1-SHAPE] 命名碰撞 → §2.2/§2.1」结论正本已迁，原件「降为可选参考·随 docs/ 归档即可」；且 **G-8③ 已核实不破门**——`check_family_locality.py` 对 `docs/**` 走前缀豁免、不校验存在性，default 门实跑 GREEN，**本轮复跑仍 exit=0**）· `REPOSITORY-MAP-五大件.md`（地图）· `CADENCE-LAW.md` · `LAW-FIRST-EMISSION.md` · `P4-family-integration-doc-TEMPLATE.md` · `x-scalar-ternary-vec-dot-construction.md`。**留 1**（`C2_marginal_cost_ledger.md`·见「查证后保留」）+ **入事故区 3**。 | 2026-07-17 |
+| `docs/reports/` (56/102) | `_attic/docs/reports/` | 零根引用且非事故档案者。含全部 `perf-covered-*-green-*` 绿格登记（体裁 = 转绿记账）· 侦察报告（`gap-grid-decode-scout` / `small-m-decode-reuse` / `decode-cost-scout`：**假说被实测证伪 = 正常科学，非事故**）· T3/T6 报告模板 · `paper-material-inventory`（清单）· RENAME 台账 · M4 三件套。 | 2026-07-17 |
+| `docs/ROADMAP.md` | `_attic/docs/ROADMAP.md` | §一.1 **明令**「ROADMAP.md 与 docs/ 全体不再使用」。体裁 = 队列 / canon 权威流水账。**内嵌订正确属自指翻转**（`register-cliff` 误名 + headroom 主张 RETRACTED；M1b 证伪 carrier 假说），但**第 4 条体裁测试不过** ⟹ 归档而非入事故区；其**队列职能已由 `.trellis/` 承接**（§一.1 Trellis = 唯一权威）。★**副作用见 ISSUE-094**（`--drift` 锚失依托）。 | 2026-07-17 |
+| `docs/PENDING_RULINGS.md` | `_attic/docs/PENDING_RULINGS.md` | 登记册体裁；**§〇.3「已知问题零丢失」已逐条核毕**（见「查证后保留」段的 48 条落位对账）。issues 层 89 条 = 唯一问题登记簿（§二.6）。 | 2026-07-17 |
+
+**移入计量**：**67 文件**。**跟踪已断**：`git ls-files _attic` = **1**（仅本索引）—— 用 **plain `mv` 非 `git mv`**（`git mv` 会让 attic 文件**仍被跟踪**，`.gitignore` 只管未跟踪文件）。`docs/canon/` `docs/design/` `docs/files (2)/` 三个空目录已 `rmdir`。
+
+**移入事故区（**非 attic**·令文 §4.2.7 明令）**：**51 文件** → `.trellis/事故档案/`（**在库内·已跟踪**）。判据、选址理由、十大事故簇、「内部指针刻意未改」说明**全住** [`.trellis/事故档案/README.md`](../.trellis/事故档案/README.md)。
+
+**★ 改锚台账（移入前完成）**
+
+| 类 | 处数 | 从 → 到 |
+|---|---|---|
+| `schema/` 文档指针（**已核非机检字段**：全仓无脚本校验其存在性；**[S-6] 哈希只覆盖 `capability.schema.v1.json` 一件**，其余是 [F-3] 领地） | **8 文件** | `cert-lineage` · `f5-failclosed-baseline` · `family-manifest` · `measurement-memory.{v1,design}` · `pattern-registry` · `perf-covered-category` · `tiling-measurements` → 事故区 / `_attic/docs/`；**改后 8 份 JSON 均 `json.load` 通过** |
+| 门 / 工具 docstring 与打印串 | **3 行 / 3 文件** | `tools/gates/check_pat3_registry_diff.py` · `tools/visibility/recompute_ledger_anchor.sh`（仅 `lines.append` 打印、**不读文件**） · `tools/bench/new-line-worktree.sh` |
+| 代码注释（**零代码、零 CHECK 行**） | **3 行 / 3 文件** | `lib/Plugin/RVV/CMakeLists.txt` · `include/Weft/Plugin/RVV/RVVRepackTilingSelection.h:459`（**折行指针**·grep 单行匹不到，易漏） · `test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-auto-unrolled-vlen128.mlir:6`（**折行**·行 6-7 是 `//` 散文、非 CHECK） |
+| 六层内指针 | **2 文件** | `.trellis/spec/issues/spec树与治理.md`（ISSUE-086 死指针对照表的「正解」列 + ISSUE-072 描述）· `.trellis/spec/evidence/三贡献证据地图.md`（G-8③） |
+| 留仓件的出向指针 | **2 文件** | `docs/method/C2_marginal_cost_ledger.md`（→ 事故区 X-SCALAR 排期报告 · → `_attic` T1c）· `docs/reports/2026-07-16-G8-paper-evidence-freeze.md`（→ `_attic` paper-evidence-index / G8-全量攻坚收口） |
+| 并行线纪律指针（**先前即悬空**·顺手修正） | **3 行 / 3 文件** | `tools/hooks/pre-commit` · `tools/hooks/README.md` · `tools/ci/check_commit_touchset.py`：`docs/并行线纪律-worktree-与触碰集.md`（**该路径从来不存在**·真身在 `docs/reports/2026-07-06-…`）→ `.trellis/事故档案/2026-07-06-并行线纪律-worktree-与触碰集.md`。**自测复跑 exit=0** |
+
+**★ 刻意未改（3 类 · 连同理由留证，防后人当遗漏重查）**
+
+| 处 | 为何不改 |
+|---|---|
+| **`experiments/` 全部 docs 指针**（~84 处 · `MOVES.md` / 各 `MANIFEST.md` / T2·T3_A·T3_B·T8 CSV 的 provenance 列 / `B*-*.md`） | `experiments/` = **历史实验记录 = 写就的事实**，改写即篡改历史（沿用本索引 §三.1 既立先例：「唯一提及在 `experiments/` 历史台账 = 写就的历史事实，按令不改」）。**已核无脚本读取这些指针**（`grep -rnE "(open\|read_text\|cat \|source \|Path)\(...docs/" experiments/` = **零命中**；`sel3_transcribe.py` 只**写出**这些串到 schema、不读回）。CSV 里是 **provenance 列**，非文件句柄。 |
+| **事故区文件的内部自述指针** | 令文 §4.2.7 **明令「原样……不改写」**。判读法住 `.trellis/事故档案/README.md` §四。 |
+| **自测 fixture 里的合成路径**（`docs/x.md` · `docs/foo.md` · `docs/policy.md` · `docs/other.md` · `docs/note.md` · `check_family_locality.py:474` 的 `docs/method/FALSIFIER-INDEX.md`） | 是**门自测的合成输入串**，**从来不指真实文件**（`check_commit_touchset.py:345` 当场 `mkdir` 临时 `docs/`）。改它们 = 改测试语义。 |
+| **`capability.schema.v1.json` `$meta.authority[3]` = `docs/Weft-RV_科研目标总纲v2.md#S-5`**（连同 `schema/VERSIONLOG.md:23` · `tiling-measurements:9` · `pattern-registry:5,7` 的同名旧路径） | **本轮归档【未】使其悬空——它在 `pre-restructure-snapshot` 快照里就是死的**（真路径缺 `/canon/`）⟹ 按本索引既立先例「**先前即悬空、非本次归档所致，不在触碰集**」。且该文件 = `schema.def` 本体，**[S-6] 哈希对整个对象取、不排除 `$meta`**，动一字即 950/4（已实证并回退）。**已登记 ISSUE-089·待用户裁**。 |
+| **`tools/gates/emit_maturity_numbers.py:50-51` 的 `DOC_CCONSTRUCT_ANCHORS`** | **全仓唯一在【运行期真读】`docs/` 的消费者**。改门语义 = 门清算（§六.4）职责 + 撞「禁碰代码」⟹ **只登记不自改**。**★ 见 ISSUE-094**（归档使其从**诚实红**退化为**空心绿**）。 |
 
 **条文搬迁（唯一一件真条文·非指路牌）**
 

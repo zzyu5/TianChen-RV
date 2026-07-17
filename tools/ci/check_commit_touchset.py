@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Touch-set gate — a commit's file set must be a subset of the line's declared touch-set.
 
-Parallel work lines (see docs/并行线纪律-worktree-与触碰集.md) each declare, up front,
+Parallel work lines (see .trellis/事故档案/2026-07-06-并行线纪律-worktree-与触碰集.md) each declare, up front,
 the set of path globs they are allowed to write. This script is the machine check:
 
     given a commit (or the staged set), verify

@@ -120,7 +120,7 @@ cat >&2 <<EOF
                diff <("\$BASE" IN.mlir --pass) <(build/$LINE/bin/tcrv-opt IN.mlir --pass)
   finish   : commit on $BRANCH (explicit paths only), merge back, then:
                git worktree remove $WT
-  See docs/method/parallel-build-and-baseline.md for the full protocol.
+  See .trellis/事故档案/parallel-build-and-baseline.md for the full protocol.
 EOF
 
 # absolute worktree path on stdout for scripting.

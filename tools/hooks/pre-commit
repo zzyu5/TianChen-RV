@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Touch-set pre-commit gate — reject a commit whose staged set escapes the
 # active line's declared touch-set. This is the git-side enforcement of the
-# parallel-line discipline (see docs/并行线纪律-worktree-与触碰集.md).
+# parallel-line discipline (see .trellis/事故档案/2026-07-06-并行线纪律-worktree-与触碰集.md).
 #
 # WHY: when parallel work lines are active, `git add -A` / exclusion-based
 # staging silently pulls in files another line owns (the classic hazard that

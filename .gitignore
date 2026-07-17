@@ -23,6 +23,9 @@ dist/
 
 artifacts/tmp/
 *.log
+# 大重构 §3.2 单一目的地法:运行台账是【耐久】证据(每次调用一行 run-id·时间·格·结果|VOID),
+# 必须随仓分发 —— fresh-clone 拿不到台账 = run-id 无落脚处。豁免必须在 *.log 之后。
+!experiments/runs.log
 
 
 .claude/settings.local.json
