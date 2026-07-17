@@ -58,7 +58,7 @@
     PASS    silu|f32 cold=0.997
     PASS    scale|f32 cold=0.998
 
-[标量类] 头条 PASS 36/51 (全量) · 已测胜率 36/45 (派生) · 格内: PASS 36/具名-X 9/挂起 0/pending 6
+[标量类] 头条 PASS 38/51 (全量) · 已测胜率 38/49 (派生) · 格内: PASS 38/具名-X 11/挂起 0/pending 2
     具名-X    vec_dot|nvfp4 cold=0.565
     PASS    prod_reduce|q4_0_nibble cold=2.712
     PASS    prod_reduce|offset_binary_n3 cold=0.855
@@ -86,16 +86,16 @@
     PASS    dequantize|nvfp4 cold=2.1736
     PASS    dequantize|tq1_0
     具名-X    dequantize|tq2_0
-    pending gemm|iq1_s@rvv
-    pending gemm|iq1_m@rvv
+    具名-X    gemm|iq1_s@rvv cold=0.6643
+    具名-X    gemm|iq1_m@rvv cold=0.5713
     具名-X    gemm|iq2_xxs@rvv/decode cold=0.6
     PASS    gemm|iq2_xxs@rvv/prefill cold=2.32
     PASS    gemm|iq2_xs@rvv/decode cold=1.0
     PASS    gemm|iq2_xs@rvv/prefill cold=12.32
     PASS    gemm|iq2_s@rvv/decode cold=1.03
     PASS    gemm|iq2_s@rvv/prefill cold=11.49
-    pending gemm|iq3_xxs@rvv
-    pending gemm|iq3_s@rvv
+    PASS    gemm|iq3_xxs@rvv cold=0.9484
+    PASS    gemm|iq3_s@rvv cold=1.3483
     具名-X    gemm|iq4_xs@rvv/decode cold=0.63
     PASS    gemm|iq4_xs@rvv/prefill cold=3.15
     PASS    gemm|mxfp4@rvv/decode cold=1.51
@@ -175,7 +175,7 @@
     PASS    silu|f32 cold=1.012
     PASS    scale|f32 cold=0.917
 
-[标量类] 头条 PASS 42/51 (全量) · 已测胜率 42/46 (派生) · 格内: PASS 42/具名-X 4/挂起 0/pending 5
+[标量类] 头条 PASS 42/51 (全量) · 已测胜率 42/50 (派生) · 格内: PASS 42/具名-X 8/挂起 0/pending 1
     PASS    vec_dot|nvfp4 cold=1.086
     PASS    prod_reduce|q4_0_nibble cold=1.166
     具名-X    prod_reduce|offset_binary_n3 cold=0.797
@@ -203,16 +203,16 @@
     具名-X    dequantize|nvfp4 cold=0.716
     PASS    dequantize|tq1_0 cold=4.285
     PASS    dequantize|tq2_0 cold=4.232
-    pending gemm|iq1_s@rvv
-    pending gemm|iq1_m@rvv
+    具名-X    gemm|iq1_s@rvv cold=0.5919
+    具名-X    gemm|iq1_m@rvv cold=0.5945
     PASS    gemm|iq2_xxs@rvv/decode cold=1.13
     PASS    gemm|iq2_xxs@rvv/prefill cold=3.02
     PASS    gemm|iq2_xs@rvv/decode cold=3.81
     PASS    gemm|iq2_xs@rvv/prefill cold=10.3
     PASS    gemm|iq2_s@rvv/decode cold=3.55
     PASS    gemm|iq2_s@rvv/prefill cold=9.7
-    pending gemm|iq3_xxs@rvv
-    pending gemm|iq3_s@rvv
+    具名-X    gemm|iq3_xxs@rvv cold=0.6474
+    具名-X    gemm|iq3_s@rvv cold=0.6136
     PASS    gemm|iq4_xs@rvv/decode cold=0.93
     PASS    gemm|iq4_xs@rvv/prefill cold=2.1
     PASS    gemm|mxfp4@rvv/decode cold=0.94

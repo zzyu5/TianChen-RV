@@ -122,13 +122,13 @@ TIER = {
  ("gemm_tile","q5_K"):{"rvv":(V,"ggml_vec_dot_q5_K_q8_K(CROSSOP)","cross-op vs native-vec-moderate(q5_K无vl-spec)"),"k1":(H,"ggml_gemm_q5_K_8x4_q8_K(repack)","repack opponent·★成色升级 DEFERRED(q5_K 8x8 前提证伪·非 verified hand-brick·F-2 纠·真硬赢锁 2=q4_K/q2_K)")},
  ("gemm_tile","q6_K"):{"rvv":(H,"ggml_vec_dot_q6_K_q8_K_vl128(CROSSOP)","cross-op vs vl128 手调block-dot"),"k1":(H,"ggml_gemm_q6_K_16x1_q8_K(repack)","repack opponent·★成色升级 DEFERRED(非 verified hand-brick·F-2 纠)")},
  # ---- iq/tq/fp4 GEMM (§〇.2 全员有对手·ggml标量参考兜底·去向=待补标量仗·pending-真) ----
- ("gemm_tile","iq1_s"):{"rvv":(S,"ggml scalar-ref(fallback)","1-bit grid·无 repack GEMM→标量参考兜底(§〇.2)·待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
- ("gemm_tile","iq1_m"):{"rvv":(S,"ggml scalar-ref(fallback)","无 repack GEMM→标量参考兜底·待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
+ ("gemm_tile","iq1_s"):{"rvv":(S,"ggml_vec_dot_iq1_s_q8_K_vl128(CROSSOP)","★P2 部署对手落账(ISSUE-004)·rvv 实跳 vl128 手调核(反汇编坐实·thunk rvv=0 纯分发)·CROSSOP 同算子 repack 缺席·tier=S 暂留[ISSUE-007 待裁]·verdict 见 P2_GRID4"),"k1":(S,"ggml_vec_dot_iq1_s_q8_K_vl256(CROSSOP)","★P2 部署对手落账·k1 实跳 vl256 手调核·CROSSOP·tier=S 暂留[ISSUE-007]")},
+ ("gemm_tile","iq1_m"):{"rvv":(S,"ggml_vec_dot_iq1_m_q8_K_vl128(CROSSOP)","★P2 部署对手落账(ISSUE-004)·rvv 实跳 vl128 手调核·CROSSOP·tier=S 暂留[ISSUE-007]·verdict 见 P2_GRID4"),"k1":(S,"ggml_vec_dot_iq1_m_q8_K_vl256(CROSSOP)","★P2 部署对手落账·k1 实跳 vl256 手调核·CROSSOP·tier=S 暂留[ISSUE-007]")},
  ("gemm_tile","iq2_xxs"):{"rvv":(S,"ggml scalar-ref(fallback)","same-op repack absent→标量参考兜底(§〇.2)·待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
  ("gemm_tile","iq2_xs"): {"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
  ("gemm_tile","iq2_s"):  {"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
- ("gemm_tile","iq3_xxs"):{"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
- ("gemm_tile","iq3_s"):  {"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
+ ("gemm_tile","iq3_xxs"):{"rvv":(S,"ggml_vec_dot_iq3_xxs_q8_K_vl128(CROSSOP)","★P2 部署对手落账(ISSUE-004)·rvv 实跳 vl128 手调核·CROSSOP·tier=S 暂留[ISSUE-007]·verdict 见 P2_GRID4"),"k1":(S,"ggml_vec_dot_iq3_xxs_q8_K_vl256(CROSSOP)","★P2 部署对手落账·k1 实跳 vl256 手调核·CROSSOP·tier=S 暂留[ISSUE-007]")},
+ ("gemm_tile","iq3_s"):  {"rvv":(S,"ggml_vec_dot_iq3_s_q8_K_vl128(CROSSOP)","★P2 部署对手落账(ISSUE-004)·rvv 实跳 vl128 手调核·CROSSOP·tier=S 暂留[ISSUE-007]·verdict 见 P2_GRID4"),"k1":(S,"ggml_vec_dot_iq3_s_q8_K_vl256(CROSSOP)","★P2 部署对手落账·k1 实跳 vl256 手调核·CROSSOP·tier=S 暂留[ISSUE-007]")},
  ("gemm_tile","iq4_nl"): {"rvv":(V,"ggml_vec_dot_iq4_nl_q8_0_vl128(CROSSOP)","measured anchor 0.217×·pending-fold·native-vec中"),"k1":(V,"ggml_vec_dot_iq4_nl_q8_0_vl256(CROSSOP)","pending-fold")},
  ("gemm_tile","iq4_xs"): {"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
  ("gemm_tile","mxfp4"):  {"rvv":(S,"ggml scalar-ref(fallback)","待补标量仗"),"k1":(S,"ggml scalar-ref(fallback)","待补标量仗")},
@@ -219,6 +219,28 @@ GEMM_DECODE = {
    "——与 [emitter-maturity-vluxei16] 方向相反(vluxei16 对 iq1_s 大 grid 是 win·对 16 项 tiny codebook 是 loss)→ 判别键=codebook 尺寸(C3′ 能力键控正例)"
    "·★部署成色=what-if(selector=block-dot-decline-vlen256-decode-measured-negative·出货走 block-dot·禁写成 k1 decode 部署输)"
    "·循环论证防线: registry DECLINE 由 0.248x 驱动·本轮独立复测 0.2493/0.2490 与 registry Negative 一致(未证伪)→ 无 canon 触发·selector/registry 不动")},
+}
+# ★P2-grid4 落账(2026-07-18·ISSUE-004 对手政策统一为部署事实·regime='' 单行 iq gemm prefill)
+#   raw = experiments/active/g8-stage3-attack/P2-grid4-raw/{rvv,k1}_<fmt>_measure.log · ratio_cold_X(部署对手·2-seed)
+#   ★对手 = 部署 VLEN 专化手调核(反汇编坐实·rvv 实跳 _vl128·k1 实跳 _vl256·thunk ggml_vec_dot_<fmt>_q8_K rvv=0 为纯分发)
+#   ★CROSSOP: 同算子 ggml_gemm_<fmt> 结构缺席(seal same-operator probe=0 符号)·我方 repack-GEMM vs 对手 per-column vec_dot
+#   ★便宜档(vs generic ratio_cold_G 2.71–15.99×)【降披露·非 verdict】·具名-X 带逐指令墙(我方 generic-aux32 未专化 vs 对手 VLEN 专化 full-unroll)
+#   ★tier=S 暂留(ISSUE-007 tier 分档待裁·部署对手是向量手调核非标量·改档=必问)·本落账只落对手身份+verdict
+#   verdict = 部署对手 cold_X ≥0.8 → PASS 否则 具名-X · ZERO-MODEL 全 8 格 T2 ours vs oracle mism=0/8192(正确核·输性能非正确性)
+# (op,format): {board:(cold_X, verdict-token, wall-note)}
+P2_GRID4 = {
+ ("gemm_tile","iq1_s"):{
+   "rvv":(0.6643,"具名-X","部署 vl128(CROSSOP)·cold_X 0.6643(s1)/0.6699(s2)·墙=我方 generic-aux32 ins13109/rvv10345/vset4565 vs 对手 vl128 full-unroll ins201/rvv109/vset41(≈65×指令量·vset storm)·便宜档 vs generic 15.20×【降披露】"),
+   "k1":(0.5919,"具名-X","部署 vl256(CROSSOP)·cold_X 0.5919(s1)/0.5913(s2)·墙=generic-aux32 ins13110 vs vl256 full-unroll ins151/rvv89(≈87×)·便宜档 vs generic 16.00×【降披露】")},
+ ("gemm_tile","iq1_m"):{
+   "rvv":(0.5713,"具名-X","部署 vl128(CROSSOP)·cold_X 0.5713(s1)/0.5701(s2)·墙=generic-aux32 ins21018/rvv11922 vs vl128 full-unroll ins231/rvv79(≈91×)·便宜档 vs generic 9.01×【降披露】"),
+   "k1":(0.5945,"具名-X","部署 vl256(CROSSOP)·cold_X 0.5945(s1)/0.5945(s2)·墙=generic-aux32 ins21019 vs vl256 full-unroll ins221/rvv66(≈95×)·便宜档 vs generic 10.15×【降披露】")},
+ ("gemm_tile","iq3_xxs"):{
+   "rvv":(0.9484,"PASS","部署 vl128(CROSSOP)·cold_X 0.9484(s1)/0.9545(s2)·near-parity vs 部署手调核(≥0.8·非硬赢·我方 ins15238 vs vl128 ins310)·便宜档 vs generic 2.71×【降披露·禁称硬赢】"),
+   "k1":(0.6474,"具名-X","部署 vl256(CROSSOP)·cold_X 0.6474(s1)/0.6481(s2)·墙=generic-aux32 ins15240/rvv12819 vs vl256 full-unroll ins314/rvv112(≈49×)·便宜档 vs generic 3.60×【降披露】")},
+ ("gemm_tile","iq3_s"):{
+   "rvv":(1.3483,"PASS","部署 vl128(CROSSOP)·cold_X 1.3483(s1)/1.3429(s2)·beat 部署 vl128(对手 leaf 轻 ins105/rvv38·我方 repack-GEMM 摊销更好)·板间翻转候选(k1 输)·便宜档 vs generic 12.26×【降披露】"),
+   "k1":(0.6136,"具名-X","部署 vl256(CROSSOP)·cold_X 0.6136(s1)/0.6137(s2)·墙=generic-aux32 ins15144/rvv12702 vs vl256 full-unroll ins232/rvv126(≈65×)·同 leaf rvv 赢 k1 输=VLEN 专化满展开缺口·便宜档 vs generic 11.24×【降披露】")},
 }
 # ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME 核·非便宜档·honest 负结果·赛道≠e2e perf-covered 绿·禁互推)
 IME_KERNELSYM = {
@@ -338,6 +360,13 @@ def main():
                     elif "DEPLOY" in dtok: d="PASS-DEPLOYED(decode-GEVM·C1)"
                     else: d="具名-X(decode-M1)"
                     note = note + " ·[decode-M1: "+cx+"]"
+            # ★P2-grid4 prefill 落账(regime=''·ISSUE-004 部署对手政策·同 GEMM_DECODE/CLANG_WORLD 数据消费范式·0.8 门不改)
+            if op=="gemm_tile" and regime=="":
+                p2 = P2_GRID4.get((op,fmt))
+                if p2 and board in p2:
+                    c, dtok, cx = p2[board]
+                    d = "PASS" if c>=0.8 else "具名-X"
+                    note = note + " ·[P2-grid4-prefill(部署对手): "+cx+"]"
             # ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME·非便宜档·honest 负结果)
             if eng=="ime" and board=="k1":
                 ik = IME_KERNELSYM.get((op,fmt))
