@@ -261,3 +261,25 @@
 - **★这是一条「规则不对自己生效」的元实例**：与本役另三起同源（`--drift` 门 / 「禁归并」指令 / 版本载体）——
   **一条停止条件若无「它已被后令取代」的成文记录，就会永远拿过时的标准量新工作**。
 
+---
+
+### ISSUE-103 · T-X 六列证据表的 spec 层归属未定（重构后无 testing 层）
+
+- **状态**：**待裁**（**判据级** —— 「T-X 定义该落 measurement 还是 evidence」须先答，非对齐既有事实）
+- **实质**：B4 案头稿把 T-X 六列证据的**定义**指向 `.trellis/spec/testing/mlir-testing-contract.md` §T-X；
+  但六层重构后 spec **无 testing 层**（[index](./index.md) 六层 = governance/canon/issues/architecture/measurement/evidence）。
+  T-X = X-SCALAR enablement 的六列证据格（列1 目标身份 · 列2 构建 · 列3 零向量机检 · 列4 byte-correct ·
+  列5 逐竞品产出数 · 列6 参考路径披露），**域 = enablement·非胜负账·[L-6] scalar 永不作贡献基线**。
+  候选归属层：**measurement**（它证「零向量 + ZERO-MODEL byte-exact」= [正确性门](../measurement/正确性门.md) 的
+  X-SCALAR 特例）或 **evidence**（enablement 证词·连 [ISSUE-062] C2 摊销曲线第 3 独立家族点）。
+- **保守默认（现行·已生效）**：T-X 证据表**暂落 `experiments/` 数据格·活证据**
+  （`experiments/active/g8-stage3-attack/A3-xscalar-rv64gc/TX-six-column-evidence.md`·本 task 已更新为
+  **真硅 (a)物理 no-V 态** —— 超锐板 verified isa 无 v/zve·去 B4 稿「窄豁免」标）；
+  **定义指针待裁·不擅建 spec testing 层/文件**（[决策权限卡](../governance/决策权限卡.md) §〇 判据级）。
+- **候选裁法（供裁·不代裁）**：① measurement 层加「T-X 证据格」定义（作正确性门的 X-SCALAR 落点）；
+  ② evidence 层收（enablement 证词）；③ 保持纯 `experiments/` 活证据·无 spec 定义站点（则 spec 侧只留一条指针）。
+- **连带（登记·不擅改旧册）**：B4 稿 PR-1「采购物理 no-V 板」= **RESOLVED-BY-FACT** —— 超锐(scalar)板即真物理
+  no-V 硅（isa `rv64imafdch_zicntr_zicsr_zifencei_zihpm_zaamo_zalrsc_zca_zcd`·无 v/zve·clang-18 装讫），
+  **无需采购**；措辞铁线「validated on silicon」字面成立。
+- **出处**：本 task `.trellis/tasks/07-18-07-18-s-scalar-tx-s1`（S 线·scalar 真 no-V 硅 T-X 收口）。
+
