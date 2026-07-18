@@ -6264,19 +6264,31 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   //     deployed vl128 hand-tuned dataflow that vectorizes BOTH the dot and the
   //     min term. The integer product/sum is associative/order-free (int32 zero-
   //     rounding), so byte-exact holds.
+  //   * "mlp" (ISSUE-109 memory-scheduling lever, q4_K non-qh only) -- STACKS
+  //     "minterm-vec"'s register-resident dataflow (register-resident weight +
+  //     independent vwredsum.vs reduce + vectorized MIN-term) with the ONE untried
+  //     axis: intra-super-block WIDE MULTI-STREAM register-resident loads. All 12
+  //     wide loads (4 packed-weight u8m2 chunks + 8 q8 i8m2 strips) are emitted
+  //     BEFORE any consumer into independent registers, the 8 sub-block reduces are
+  //     mutually independent (no running accumulator), and the 8 scaled dots are
+  //     combined with an order-free scalar add tree -- mirroring the deployed vl128
+  //     hand-tuned MLP that overlaps DRAM latency by keeping many outstanding wide
+  //     loads in flight. The per-super-block integer sum is identical to "vwredsum"/
+  //     "minterm-vec" (associative regroup, int32 zero-rounding), so byte-exact holds.
   if (getIntegerCoreLmul().has_value()) {
     llvm::StringRef coreLmul = *getIntegerCoreLmul();
     if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2" &&
         coreLmul != "fused" && coreLmul != "vwredsum" &&
-        coreLmul != "minterm-vec")
+        coreLmul != "minterm-vec" && coreLmul != "mlp")
       return emitOpError()
              << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\", "
-                "\"fused\", \"vwredsum\", \"minterm-vec\"} (the base LMUL of the "
-                "i8 -> i16 -> i32 integer-MAC chain; \"m2\" is the ceiling at one "
-                "sub-block == 32 elements per scalar scale; \"fused\" is the m2 "
+                "\"fused\", \"vwredsum\", \"minterm-vec\", \"mlp\"} (the base LMUL "
+                "of the i8 -> i16 -> i32 integer-MAC chain; \"m2\" is the ceiling at "
+                "one sub-block == 32 elements per scalar scale; \"fused\" is the m2 "
                 "chain with the register-resident aux8-free unpack; \"vwredsum\" "
                 "is the aux8-free per-sub-block independent vwredsum.vs reduce; "
-                "\"minterm-vec\" adds the wide-LMUL vectorized MIN-term reduction) "
+                "\"minterm-vec\" adds the wide-LMUL vectorized MIN-term reduction; "
+                "\"mlp\" stacks the wide multi-stream register-resident loads) "
                 "for the q4_K/q5_K Region-C scaled-dot route; got \""
              << coreLmul << "\"";
   }

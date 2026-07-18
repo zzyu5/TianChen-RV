@@ -1726,6 +1726,205 @@ VariantToEmitCFunc::emitQ4_KVwredsumUnpackScaledDot(
     return llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
 }
 
+// ISSUE-109 memory-scheduling lever (q4_K non-qh): the aux8-free "mlp" variant.
+// The board-tested wall after the three instruction-stream levers (register-fusion,
+// vwredsum.vs, minterm-vec) is NOT the instruction stream (all three are cold-inert
+// at ~1.32M ns / IPC 0.12 / 96% backend-idle) but the memory-stall floor: our窄
+// per-sub-block q8 load emitted TIGHT against its own vwmul consumer keeps too few
+// outstanding DRAM requests in flight (low MLP), so the 590KB weight+activation
+// stream's latency is exposed SERIALLY, ~8 DRAM latencies per row. The deployed
+// vl128 opponent hides that latency by hoisting ~16 independent WIDE loads to
+// independent registers BEFORE their consumers (intra-super-block multi-stream MLP).
+// This variant mirrors that structure at the C-intrinsic level: emit ALL of the
+// super-block's wide loads FIRST -- the 4 packed-weight chunk loads (u8m2) and the 8
+// q8 activation strip loads (i8m2) -- into 12 INDEPENDENT registers, THEN unpack the
+// 8 nibble sub-blocks register-resident, THEN run 8 MUTUALLY-INDEPENDENT reduce
+// chains (vwmul i16m4 -> vwredsum.vs -> vmv.x.s -> scalar scale product) with NO
+// running accumulator, combining the 8 independent scaled dots with an order-free
+// scalar add tree only at the end. The 12 loads and 8 reduces carry no false
+// ordering edge, so the emitted DAG is maximally parallel -- whether clang-18's RVV
+// scheduler PRESERVES that multi-stream schedule (register-resident load burst) is
+// the attack's真验收门 (objdump the compiled leaf). The per-super-block integer sum
+// is bit-identical to the "vwredsum"/"m2" anchors (associative regroup, int32
+// zero-rounding), so byte-exact holds "for free" ([K-5]) under the vec_dot harness
+// int-mode fp fold. q5_K (cx.hasQh) is NOT handled here (stays on the aux8 path).
+mlir::TypedValue<emitc::LValueType>
+VariantToEmitCFunc::emitQ4_KMlpUnpackScaledDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+    mlir::Value scalesU8) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = cx.opName;
+    llvm::StringRef role = cx.role;
+    int64_t numChunks = (cx.subBlock * cx.numSubBlocks) / 64; // 256/64 == 4
+
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
+    auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                             mlir::Type castType) -> mlir::Value {
+      mlir::Value full = base;
+      if (fixed != 0)
+        full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
+    };
+
+    // The widening product + reduction types: i8m2 x i8m2 -> i16m4 (one 32-element
+    // sub-block per vwmul), reduced by ONE vwredsum.vs into the i32m1 lane-0 boundary
+    // -- the SAME wide chain the "vwredsum" anchor uses.
+    mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
+    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+
+    mlir::Value q8Base =
+        byteOffsetPtr(yb, cx.activationPtrType, cx.q8Offset, cx.i8PtrType);
+
+    // ---- ONE vsetvl_e8m2(32): every wide load / product / reduce below runs at the
+    // same m2 (32-element) configuration, so a single granted `vl` is reused. ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "mlp_set_wide_vl"));
+    mlir::Value vl = emitOpaqueCallBuilt(
+        rewriter, loc, cx.sizeType, "__riscv_vsetvl_e8m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {sizeLit(32)};
+        });
+
+    // ---- PHASE 1a: HOIST the 4 packed-weight chunk loads (u8m2, 32 packed bytes
+    // each) into INDEPENDENT registers, up-front, BEFORE any consumer. ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "mlp_hoist_weight_streams"));
+    llvm::SmallVector<mlir::Value, 4> q4Chunks;
+    q4Chunks.reserve(numChunks);
+    for (int64_t chunk = 0; chunk < numChunks; ++chunk) {
+      mlir::Value qsPtr = byteOffsetPtr(xb, cx.weightPtrType,
+                                        cx.qsOffset + chunk * 32, cx.u8PtrType);
+      q4Chunks.push_back(emitVCall(rewriter, loc, cx.u8m2Type, "vle8_v", "u8m2",
+                                   mlir::ValueRange{qsPtr, vl}, opName, role));
+    }
+
+    // ---- PHASE 1b: HOIST the 8 q8 activation strip loads (i8m2, 32 bytes each) into
+    // INDEPENDENT registers, up-front, BEFORE any consumer -- the multi-stream burst
+    // that mirrors the opponent's register-resident hoisted loads. ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "mlp_hoist_activation_streams"));
+    llvm::SmallVector<mlir::Value, 8> q8Strips;
+    q8Strips.reserve(cx.numSubBlocks);
+    for (int64_t sub = 0; sub < cx.numSubBlocks; ++sub) {
+      mlir::Value q8Ptr =
+          rewriter
+              .create<emitc::AddOp>(loc, cx.i8PtrType, q8Base,
+                                    sizeLit(sub * cx.subBlock))
+              .getResult();
+      q8Strips.push_back(emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                                        "__riscv_vle8_v_i8m2",
+                                        mlir::ValueRange{q8Ptr, vl}, opName, role));
+    }
+
+    auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                       llvm::StringRef imm) -> mlir::Value {
+      return emitVCallBuilt(
+          rewriter, loc, cx.u8m2Type, mnemonic, "u8m2", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, cx.i32ImmType, imm.str());
+            return {src, amt, vl};
+          });
+    };
+
+    // ---- PHASE 2: unpack the 8 nibble sub-blocks REGISTER-RESIDENT from the hoisted
+    // weight chunks (NO vse8 to aux8, NO reload). sub-block 2*chunk = low nibble,
+    // 2*chunk+1 = high nibble -- the SAME nibble decode the "vwredsum" anchor uses. ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "mlp_unpack_nibbles"));
+    llvm::SmallVector<mlir::Value, 8> nibbles(cx.numSubBlocks, nullptr);
+    for (int64_t chunk = 0; chunk < numChunks; ++chunk) {
+      mlir::Value loU = u8ImmOp("vand_vx", q4Chunks[chunk], "0x0F");
+      nibbles[chunk * 2] =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                         "__riscv_vreinterpret_v_u8m2_i8m2",
+                         mlir::ValueRange{loU}, opName, role);
+      mlir::Value hiU = u8ImmOp("vsrl_vx", q4Chunks[chunk], "0x04");
+      nibbles[chunk * 2 + 1] =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                         "__riscv_vreinterpret_v_u8m2_i8m2",
+                         mlir::ValueRange{hiU}, opName, role);
+    }
+
+    // ---- PHASE 3: 8 MUTUALLY-INDEPENDENT per-sub-block dots. Each sub-block widening-
+    // multiplies its hoisted q8 strip against its register-resident nibble, reduces
+    // the 32 i16 products to a scalar with ONE vwredsum.vs (seed 0, independent of the
+    // others), then folds the uint6 scale in the SCALAR domain -- into its OWN scaled
+    // scalar (NO running accumulator, so no cross-sub-block dependency edge). ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "mlp_independent_sub_block_dots"));
+    llvm::SmallVector<mlir::Value, 8> scaledDots;
+    scaledDots.reserve(cx.numSubBlocks);
+    for (int64_t sub = 0; sub < cx.numSubBlocks; ++sub) {
+      mlir::Value scale =
+          emitLoadByteAsInt(rewriter, loc, constU8Type, cx.i32ImmType, scalesU8,
+                            sub);
+      mlir::Value p =
+          emitOpaqueCall(rewriter, loc, i16m4Type, "__riscv_vwmul_vv_i16m4",
+                         mlir::ValueRange{q8Strips[sub], nibbles[sub], vl},
+                         opName, role);
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, "__riscv_vmv_v_x_i32m1", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value zeroImm =
+                rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+            return {zeroImm, sizeLit(1)};
+          });
+      mlir::Value red = emitOpaqueCall(
+          rewriter, loc, i32m1Type, "__riscv_vwredsum_vs_i16m4_i32m1",
+          mlir::ValueRange{p, seed, vl}, opName, role);
+      mlir::Value dot =
+          emitOpaqueCall(rewriter, loc, i32Type, "__riscv_vmv_x_s_i32m1_i32",
+                         mlir::ValueRange{red}, opName, role);
+      scaledDots.push_back(
+          rewriter.create<emitc::MulOp>(loc, i32Type, scale, dot).getResult());
+    }
+
+    // ---- PHASE 4: order-free scalar add-tree combining the 8 independent scaled dots
+    // in ASCENDING sub-block order (== the running isum the "vwredsum" anchor formed;
+    // integer add is associative, so byte-exact). ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "mlp_isum_combine"));
+    mlir::Value isumFinal = scaledDots[0];
+    for (int64_t sub = 1; sub < cx.numSubBlocks; ++sub)
+      isumFinal =
+          rewriter.create<emitc::AddOp>(loc, i32Type, isumFinal, scaledDots[sub])
+              .getResult();
+
+    // ---- deposit the scalar isum into lane 0 of a ZEROED canonical-8 vint32m2 so the
+    // SAME byte-exact 8-lane fp fold (emitQ4_KSumsFoldScaleD) applies UNCHANGED -- the
+    // SAME tail emitQ4_KVwredsumUnpackScaledDot uses. ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "isum_to_canon8_lane0"));
+    mlir::Value zero8 = emitOpaqueCallBuilt(
+        rewriter, loc, cx.i32Canon8Type, "__riscv_vmv_v_x_i32m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroImm =
+              rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+          return {zeroImm, sizeLit(8)};
+        });
+    mlir::Value aux32cVal = emitOpaqueCallBuilt(
+        rewriter, loc, cx.i32Canon8Type, "__riscv_vmv_s_x_i32m2_tu", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {zero8, isumFinal, sizeLit(8)};
+        });
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux32c", opName, role));
+    auto aux32cVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(cx.i32Canon8Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, aux32cVar, aux32cVal);
+    return llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
+}
+
 // Track B q4_K BRICK 4 (first half): the int16 bsums load + the SCALAR integer
 // reduction sumi = sum_j(bsums[j] * mins[j/2]), factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
@@ -3503,8 +3702,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     // term. It shares vwredsum's aux8-free block-dot region (useVwredsumBlockDot)
     // and only diverges at the MIN-term brick.
     bool useMintermVec = (coreLmulAttr == "minterm-vec") && !hasQh;
+    // The sentinel "mlp" (ISSUE-109 memory-scheduling lever, q4_K non-qh only)
+    // STACKS "minterm-vec"'s register-resident aux8-free dataflow (register-resident
+    // weight + independent vwredsum.vs reduce + vectorized MIN-term) with the ONE
+    // untried axis -- intra-super-block WIDE MULTI-STREAM register-resident loads
+    // (all 12 wide loads hoisted BEFORE their consumers, 8 mutually-independent
+    // reduce chains, order-free scalar isum combine). It uses the SAME vectorized
+    // MIN-term brick as "minterm-vec" and diverges ONLY at the block-dot region,
+    // which routes to emitQ4_KMlpUnpackScaledDot. Whether clang-18 preserves the
+    // hoisted multi-stream load schedule is the attack's真验收门 (objdump).
+    bool useMlp = (coreLmulAttr == "mlp") && !hasQh;
     bool useVwredsumBlockDot = useVwredsum || useMintermVec;
-    bool aux8Free = useRegisterFusion || useVwredsum || useMintermVec;
+    // "minterm-vec" AND "mlp" both vectorize the MIN-term brick.
+    bool useVecMinTerm = useMintermVec || useMlp;
+    bool aux8Free = useRegisterFusion || useVwredsum || useMintermVec || useMlp;
     llvm::StringRef coreLmul =
         aux8Free ? llvm::StringRef("m2") : coreLmulAttr;
     WideningChain wideningChain = deriveWideningChain(coreLmul);
@@ -3732,6 +3943,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
             blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
                          "super_block_base_y"),
             scalesU8);
+      } else if (useMlp) {
+        // ISSUE-109 memory-scheduling lever: bit-dance first (the wide multi-stream
+        // dot needs the decoded uint6 scales), then the hoisted register-resident
+        // multi-stream unpack+dot.
+        scalesU8 = emitQ4_KScaleMinBitDanceCore(
+            rewriter, loc, cx,
+            blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            utmpArray);
+        aux32Var = emitQ4_KMlpUnpackScaledDot(
+            rewriter, loc, cx,
+            blockBaseFor(b1.getWeightBase(), b1.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
+                         "super_block_base_y"),
+            scalesU8);
       } else if (useVwredsumBlockDot) {
         scalesU8 = emitQ4_KScaleMinBitDanceCore(
             rewriter, loc, cx,
@@ -3786,15 +4013,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
               .getResult();
 
       // ---- BRICK 4 MIN term, FIRST half: the int16 bsums reduction (yb driven
-      // by BRICK 4's activation base). Under the "minterm-vec" anchor the scalar
-      // reduction is replaced by the WIDE-LMUL vectorized variant (byte-exact
+      // by BRICK 4's activation base). Under the "minterm-vec" AND "mlp" anchors the
+      // scalar reduction is replaced by the WIDE-LMUL vectorized variant (byte-exact
       // integer, same scalar sumi contract); every other anchor keeps the scalar
       // reduction byte-identically. ----
       mlir::Value b4ActBase =
           blockBaseFor(b4.getActivationBase(), b4.getBlockIndex(),
                        activationStride, "super_block_base_y");
       mlir::TypedValue<emitc::LValueType> sumiVar =
-          useMintermVec
+          useVecMinTerm
               ? emitQ4_KVecMinTermBsumsDot(rewriter, loc, mx, b4ActBase, scalesU8)
               : emitQ4_KMinTermBsumsDot(rewriter, loc, mx, b4ActBase, scalesU8);
 

@@ -3846,6 +3846,38 @@ private:
       const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
       mlir::Value scalesU8) const;
 
+  /// ISSUE-109 memory-scheduling lever (q4_K non-qh): the aux8-free "mlp" variant
+  /// that STACKS the register-resident dataflow of "minterm-vec" with the ONE
+  /// untried axis -- intra-super-block WIDE MULTI-STREAM register-resident loads
+  /// (mirroring the deployed vl128 hand-tuned MLP: ~16 independent wide loads
+  /// hoisted to independent registers BEFORE their consumers, so the hardware can
+  /// keep many outstanding DRAM requests in flight and overlap the load latency).
+  /// Unlike emitQ4_KVwredsumUnpackScaledDot (which interleaves each sub-block's q8
+  /// load TIGHT against its own vwmul consumer, and threads a SERIAL scalar isum
+  /// across the 8 reduces), this variant emits ALL of the super-block's wide loads
+  /// FIRST -- the 4 packed-weight chunk loads (u8m2, 32 bytes each) AND the 8 q8
+  /// activation strip loads (i8m2, 32 bytes each) -- into 12 INDEPENDENT registers,
+  /// THEN unpacks the 8 nibble sub-blocks (register-resident, NO aux8 spill), THEN
+  /// runs 8 MUTUALLY-INDEPENDENT per-sub-block chains (vwmul i16m4 -> ONE vwredsum.vs
+  /// i32m1 -> vmv.x.s -> scalar scale fold) with NO running accumulator, and only
+  /// combines the 8 independent scaled dots with an order-free scalar add tree at
+  /// the very end. The load/product/reduce DAG is thus maximally parallel (no false
+  /// ordering edge between the 12 loads or the 8 reduces), giving the compiler the
+  /// freedom to schedule the wide loads as a register-resident multi-stream burst.
+  /// The integer dot is associative/order-free (int32 zero-rounding), and the 8
+  /// scaled dots are summed in the SAME ascending sub-block order the running isum
+  /// used, so the per-super-block total is bit-identical to the "vwredsum"/"m2"
+  /// anchors -- byte-exact "for free" ([K-5]) under the vec_dot harness int-mode fp
+  /// fold. The scalar isum is deposited in lane 0 of a ZEROED canonical-8 vint32m2
+  /// (SAME tail as emitQ4_KVwredsumUnpackScaledDot) so the byte-exact 8-lane fp fold
+  /// (emitQ4_KSumsFoldScaleD) applies unchanged. Reads scalesU8 (BRICK 2 decoded
+  /// scales) and the q8 base derived from `yb`; takes `xb` for the packed q4 loads.
+  /// Returns the canonical-8 aux32 lvalue. q5_K (cx.hasQh) is NOT handled here.
+  mlir::TypedValue<emitc::LValueType> emitQ4_KMlpUnpackScaledDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::Value scalesU8) const;
+
   /// Emit the FIRST half of ONE super-block's q4_K/q5_K MIN term (Track B BRICK
   /// 4): the int16 bsums load (yb + bsumsOffset, cast const int16_t *) and the
   /// SCALAR integer reduction `int sumi = 0; for (j) sumi += bsums[j] *
