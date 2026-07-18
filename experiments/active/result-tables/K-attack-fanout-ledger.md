@@ -4,6 +4,8 @@
 > 源 = 攻坚环解剖阶段（task `07-18-k-attack-dissect`·trellis-check 已核承重数）。
 > **状态（2026-07-18）**：机制① re-scope（满展开→VLEN256 宽化）·**iq3_xxs@k1 首个扇出成功 = proven WIN 1.38（板测·byte-exact·trellis-check 复核·但 NOT deployed → [ISSUE-105]）**（task `07-18-k-mech1-vlen-leaf`）；**机制③ vec_dot q4_K@rvv 首次完整攻坚环 board-tested = 具名墙（翻 0.8 证伪·best m1 0.186·IPC 0.08 memory-stall·非 throughput-bound·task `07-18-k-kquant-vecdot-attack`）**；**机制③ vec_dot q6_K@rvv 2nd 数据点 board-tested = 同墙泛化确认（best m1 0.214·mf2 0.202·IPC 0.12·86.87% backend-idle·q6_K 无 min-term 仍同 weight-reconstruction floor = 强泛化·m2 byte-INVALID sub_block=16 封顶 m1·task `07-18-k-q6k-vecdot-attack`）**；②·④·⑤ 仍候选未施工。
 
+> **★全表具名-X 杠杆台账（§六 交付正本·2026-07-18）** = [`named-X-leverage-census.md`](named-X-leverage-census.md)：55 board-cell 逐板拆 · 4 类（live-lever 38 / board-vacant honest-null 5 / gated 1 / **NEEDS-LEVER 11**）· 9 杠杆族 ↔ 本表机制①–⑤ + F4/F6/F7/F9 · 11 缺口已由 [ISSUE-112] 补名（移出 §六 软认输面）。**本表 = 机制入库叙事·census = 全表逐格盘点**·二者互补。
+
 ## 机制队列（按扇出降序 · §二.4 手调列队）
 
 | # | 机制 | 命中格 | XFER 正预测 | XFER 负预测 |
