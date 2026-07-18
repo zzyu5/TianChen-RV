@@ -117,7 +117,7 @@
 
 ===== k1 (板分母=105) =====
 
-[手调] 头条 PASS 9/29 (全量) · 已测胜率 9/27 (派生) · 格内: PASS 9/具名-X 18/挂起 0/pending 2
+[手调] 头条 PASS 10/29 (全量) · 已测胜率 10/28 (派生) · 格内: PASS 10/具名-X 18/挂起 0/pending 1
     具名-X    vec_dot|q2_K cold=0.684
     具名-X    vec_dot|q3_K cold=0.522
     具名-X    vec_dot|q4_K cold=0.592
@@ -145,7 +145,7 @@
     具名-X    gemm|q6_K@rvv/decode cold=0.3771
     PASS    gemm|q6_K@rvv/prefill cold=1.769
     具名-X    gemm|q4_0@ime cold=0.196
-    pending gemm|q8_0@ime
+    PASS    gemm|q8_0@ime cold=0.937
     具名-X    gemm|q4_K@ime cold=0.049
 
 [通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/23 (派生) · 格内: PASS 21/具名-X 2/挂起 0/pending 2

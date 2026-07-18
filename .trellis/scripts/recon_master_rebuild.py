@@ -251,7 +251,7 @@ P2_GRID4 = {
 # ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME 核·非便宜档·honest 负结果·赛道≠e2e perf-covered 绿·禁互推)
 IME_KERNELSYM = {
  ("gemm_tile","q4_0"):(0.196,"具名-X","IME kernel-sym vs vendor手调IME核 gemm_kernel_i8i4(真硅vmadot)·输5.1×·墙=scale-fold epilogue未融进vmadot MAC·真硬件vendor正面度量负结果"),
- ("gemm_tile","q8_0"):(None,"该板无合法对手","q8_0不进vendor IME(dispatch ime.cpp:317仅q4_0/q4_1/q4_K)·落RVV-repack回退·结构无IME对手·探针证据·★坐实e2e q8_0@ime beat 0.984×=赢RVV-repack非赢IME"),
+ ("gemm_tile","q8_0"):(0.937,"PASS","★裁决4改判(a4e6·走check)·对手=RVV-repack回退 ggml_gemm_q8_0_16x1_q8_0(部署真核·非vendor IME·runtime gdb证prefill实跳该核·gemm_kernel_i8i4/vec_dot从不触发·IME2 compiled-out无i8i8符号·spacemit get_optimal q8_0仅IME2→IME1下nullptr→mainline repack q8_0_16x1@zvfh VLEN256)·kernel-sym M64N512K2048 byte-exact int32核2097152/2097152 mism=0·OURS byte-identical回退(opp_vs_ours=0)·cold 2seed×6 w4≈0.937/predec≈0.916·compiler-symmetric clang-18·★near-parity非硬赢(ours~6%慢·≥0.8门·同iq3_xxs@rvv 0.9484范式)·系统账部署真核·禁写赢了IME·e2e 2.233×另赛道禁互推·★诚实缺口(a2cd check): 对手身份4路独立坐实(源码/二进制/env/repack·比单点gdb强)+byte-exact int32结构保证·但cold 0.937=a4e6单源(OURS wide-vmadot harness未落盘·精确cold无第二复现通道·建议保存harness·near-parity裕度足不影响≥0.8门)"),
  ("gemm_tile","q4_K"):(0.049,"具名-X","IME kernel-sym vs vendor IME·输20×·★C3′[PAT-1]format-keyed边界最锋利·gap随格式复杂度扩张(q4_0 5×→q4_K 20×·我方fold随super-block暴涨25→110ms·vendor单核塞所有格式4.9→5.5ms)"),
 }
 # ★线A·A1 单世界 clang-18 override(PR-17 终裁·「用 clang 就用 clang-18 全部都用」·gcc 视为不存在)
@@ -384,7 +384,12 @@ def main():
                 ik = IME_KERNELSYM.get((op,fmt))
                 if ik:
                     c, dtok, cx = ik
-                    d = "pending(IME结构·该板无合法对手·q8_0落RVV-repack回退·缺vendor-IME对手·探针证据)" if "无合法对手" in dtok else "具名-X(IME-kernel-sym·vendor手调IME)"
+                    if "无合法对手" in dtok:
+                        d = "pending(IME结构·该板无合法对手·q8_0落RVV-repack回退·缺vendor-IME对手·探针证据)"
+                    elif dtok=="PASS":
+                        d = "PASS(IME-kernel-sym·对手RVV-repack回退部署真核·near-parity非硬赢·非vendor-IME·禁写赢了IME)"
+                    else:
+                        d = "具名-X(IME-kernel-sym·vendor手调IME)"
                     note = note + " ·[IME-kernel-sym: "+cx+"]"
             # q5@k1 deploy absorb (裁决④·decode-GEVM 部署赢·只落 decode regime·非 prefill)
             dep = Q5K1_DEPLOY.get((op,fmt))
