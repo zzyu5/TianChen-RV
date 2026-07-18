@@ -7,14 +7,18 @@
 // weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core (decode_model
 // "tq1_0", qk=256, stride=54); typed_dequantize_row_loop_yield } and lowers it (the emission
 // is DRIVEN by the typed region op-identity + decode_model, [L-6]/[L-8] construction, NOT the
-// abstract format string). The emitted C is BYTE-IDENTICAL to the dispatch-wired tq1_0 monolith
-// modulo ONLY the source-op provenance token (the SHARED decode emitGgmlDequantizeRowExtended,
-// reached via emitDequantizeRowCodebookGridBodyShared, is the SAME code both paths run) --
-// the fp16 d scale via the (float)*(const _Float16 *) seam (@52, block END), then the base-3
-// unpack q = (qs*pow3[n]) mod 256, xi = ((q*3)>>8), y = (xi-1)*d over the qs (160+80) and qh
-// (16) sections. The pow3 weight table is DERIVED at emit as a function-local static (NO
-// op-attr). REUSES the tq1_0 block-dot vec_dot decode. Byte-exact-vs-ggml-reference
-// dequantize_row_tq1_0 (a scalar AoS super-block loop; no reduction).
+// abstract format string). It lowers via the OWNED REAL-VECTOR body
+// emitDequantizeRowTernaryVectorBody (B线批3 ternary de-lottery): byte-exact-vs-ggml-reference
+// dequantize_row_tq1_0 by CONSTRUCTION (NOT byte-identical to the scalar monolith -- the
+// CONSTRUCTED path now emits OWNED __riscv_v intrinsics, the dispatch-wired monolith keeps the
+// scalar emitGgmlDequantizeRowExtended): the fp16 d scale via the (float)*(const _Float16 *)
+// seam (@52, block END), then the base-3 unpack -- vle8 the packed qs/qh bytes, vmul_vx by the
+// immediate pow3[n] (u8m1, mod-256 truncation == ggml's uint8 `qs*pow3[n]`), vzext_vf2 -> u16m2,
+// vmul_vx(3)/vsrl_vx(8) the xi = ((uint16_t)q*3)>>8 extraction, reinterpret u16->i16, vsext_vf2
+// -> i32m4, vsub_vx(1), int->float (vfcvt), scaled by d in ONE vfmul (single-mul, no
+// fp-contraction ambiguity), stored (vse32) over the qs (160+80) and qh (16) sections. The
+// pow3 weights are immediate scalars (NO table). PURE ARITHMETIC decode, NO codebook and NO
+// gather. ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery for tq1_0 dequant.
 
 module {
   weft.exec.kernel @dequant_tq1_0_kernel {
@@ -36,11 +40,24 @@ module {
 // The construction is real: the emit is DRIVEN by the typed region (the provenance
 // token proves the abstract op went THROUGH weft_rvv.typed_dequantize_row_loop_body).
 // CHECK: route_source_op=weft_rvv.typed_dequantize_row_loop_body
-// The pow3 base-3 weight table decl, emitted once above the loop.
-// CHECK: static const uint8_t weft_dequant_tq1_0_pow3
+// The block count nb = k / 256 and the block loop.
 // CHECK: div
 // CHECK: for
+// The fp16 d scale seam (@52, block END).
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The base-3 unpack: (q*3)>>8 with the uint8 truncation & 0xFF.
-// CHECK: bitwise_and
-// CHECK: bitwise_right_shift
+// The OWNED REAL-VECTOR base-3 ternary decode (B线批3 ternary fan-out): the packed bytes load,
+// the vmul_vx by the immediate pow3[n] (mod-256 u8m1), the vzext to u16, the (q*3)>>8 extract
+// (vmul_vx / vsrl_vx, u16m2), the reinterpret to signed, the vf2 sign-extend, the subtract-1,
+// the int->float convert, the single vfmul by d, and the store. PURE ARITHMETIC -- NO codebook
+// table, NO gather. The vector content is the EMITTER's (OWNED __riscv_v), not host-autovec.
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vmul_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf2_u16m2"
+// CHECK: call_opaque "__riscv_vmul_vx_u16m2"
+// CHECK: call_opaque "__riscv_vsrl_vx_u16m2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_u16m2_i16m2"
+// CHECK: call_opaque "__riscv_vsext_vf2_i32m4"
+// CHECK: call_opaque "__riscv_vsub_vx_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

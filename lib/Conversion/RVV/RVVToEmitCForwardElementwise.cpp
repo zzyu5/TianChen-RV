@@ -4250,15 +4250,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
   // The four 16-entry codebook leaves (mxfp4/nvfp4 FP4 e2m1, iq4_nl/iq4_xs non-linear)
   // lower to the OWNED vrgather codebook vector body (B线批2 tiny-codebook de-lottery,
   // the FP4/non-linear fan-out over the q8_0/nibble non-grid precedent · [L-8] ·
-  // closes the ISSUE-002 codegen-lottery for these formats). The ternary iq1_s/iq1_m
-  // and the tq1_0/tq2_0 base-3/2-bit ternary super-blocks stay on the scalar forwarder
-  // until they fan out (iq1_s/iq1_m are a 2048-grid gather, NOT a 16-entry register
-  // codebook -- the gather-wall exclusion).
+  // closes the ISSUE-002 codegen-lottery for these formats).
   if (format == "mxfp4" || format == "nvfp4" || format == "iq4_nl" ||
       format == "iq4_xs")
     return emitDequantizeRowCodebookVectorBody(rewriter, loc, input, output,
                                                avlArg, sizeType, opName, role,
                                                format);
+  // The tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks lower to the OWNED ternary
+  // ARITHMETIC vector body (B线批3 ternary de-lottery · [L-8] · closes the ISSUE-002
+  // codegen-lottery for these formats). NO codebook table and NO gather -- the ternary
+  // {-1,0,1} value is decoded by pure arithmetic (2-bit shift/mask; base-3 * pow3).
+  // The ternary iq1_s/iq1_m stay on the scalar forwarder (they are a 2048-grid gather,
+  // NOT a register-resident decode -- the gather-wall exclusion).
+  if (format == "tq1_0" || format == "tq2_0")
+    return emitDequantizeRowTernaryVectorBody(rewriter, loc, input, output,
+                                              avlArg, sizeType, opName, role,
+                                              format);
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
 }
@@ -4518,6 +4525,173 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
         emitHalfGroup(/*qsByteOff=*/8 + ib32 * 16, /*nLanes=*/16, dl,
                       /*outLo=*/ib32 * 32, /*outHi=*/ib32 * 32 + 16);
       }
+    }
+  }
+  return mlir::success();
+}
+
+// ============================================================================
+// The OWNED REAL-VECTOR ternary super-block dequantize_row body (B线批3 ternary
+// de-lottery · [L-8] · ISSUE-001 reverse · closes the ISSUE-002 codegen-lottery for the
+// tq1_0/tq2_0 ternary super-blocks). Unlike the tiny-codebook fan-out there is NO
+// codebook table and NO gather: the ternary {-1,0,1} value is decoded by PURE ARITHMETIC.
+//   tq2_0 (2-bit): q = (qs >> (2l)) & 3 (vsrl_vx / vand_vx, u8m1), reinterpret to i8,
+//                  vsext_vf4 -> i32m4, subtract 1, int->float (vfcvt), scaled by the
+//                  fp16 d in ONE vfmul, stored (vse32).
+//   tq1_0 (base-3): q = (uint8_t)(byte * pow3[n]) (vmul_vx u8m1, mod-256), xi =
+//                  ((uint16_t)q * 3) >> 8 (vzext_vf2 -> u16m2, vmul_vx, vsrl_vx),
+//                  reinterpret to i16, vsext_vf2 -> i32m4, subtract 1, vfcvt, ONE vfmul
+//                  by d, vse32. qs packs 5 base-3 digits/byte (n=0..4), qh packs 4
+//                  (n=0..3). The `* pow3[n]` base-3 digit extraction is the OWNED vector
+//                  analogue of the block-dot vwmulu.vx powers-of-3 unpack, but STREAMING
+//                  (no reduction). The integer ternary decode mirrors the scalar
+//                  emitGgmlDequantizeRowExtended byte-for-byte; the ONE vfmul by d ==
+//                  ggml's single `(q-1)*d` / `(xi-1)*d` mul -> no fp-contraction
+//                  ambiguity. Byte-exact to dequantize_row_{tq1_0,tq2_0} by construction.
+// All lane groups are emitted with nLanes<=16 so every widened LMUL (u16m2 / i32m4 /
+// f32m4) fits VLMAX at VLEN128 (and processes exactly nLanes elements on any VLEN>=128).
+// Streaming sibling of emitDequantizeRowCodebookVectorBody (no accumulator, no gather).
+// ============================================================================
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowTernaryVectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    llvm::StringRef format) const {
+  const bool isTq1 = format == "tq1_0";
+  // Per-format ternary super-block geometry (byte-exact ggml block_tqX AoS facts, NOT
+  // knobs): tq2_0 { qs[64]; d(fp16); } stride=66; tq1_0 { qs[48]; qh[4]; d(fp16); }
+  // stride=54. Both QK_K=256.
+  const int64_t qk = 256;
+  const int64_t stride = isTq1 ? 54 : 66;
+  const int64_t dOff = isTq1 ? 52 : 64;
+
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type inputPtrType = input.getType();   // const uint8_t *
+  mlir::Type outputPtrType = output.getType(); // float *
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+  mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+  mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
+  mlir::Type floatPtrType = emitc::PointerType::get(floatType);
+  mlir::Type u8VecType = emitc::OpaqueType::get(ctx, "vuint8m1_t");
+  mlir::Type i8VecType = emitc::OpaqueType::get(ctx, "vint8m1_t");
+  mlir::Type u16VecType = emitc::OpaqueType::get(ctx, "vuint16m2_t");
+  mlir::Type i16VecType = emitc::OpaqueType::get(ctx, "vint16m2_t");
+  mlir::Type i32VecType = emitc::OpaqueType::get(ctx, "vint32m4_t");
+  mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m4_t");
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
+  auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
+  auto mulSz = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::MulOp>(loc, sizeType, a, b).getResult();
+  };
+  auto fp16ReadAt = [&](mlir::Value xb, int64_t off) -> mlir::Value {
+    mlir::Value addr = off == 0 ? xb
+                                : rewriter.create<emitc::AddOp>(loc, inputPtrType, xb,
+                                                                sizeLit(off)).getResult();
+    return emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                          mlir::ValueRange{addr}, opName, role,
+                          llvm::StringRef("fcvt.s.h"));
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "super_block_count"));
+  mlir::Value nb = rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1), nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "xb"));
+    mlir::Value xb = rewriter.create<emitc::AddOp>(loc, inputPtrType, input, mulSz(ib, sizeLit(stride))).getResult();
+    mlir::Value ybRaw = rewriter.create<emitc::AddOp>(loc, outputPtrType, output, mulSz(ib, sizeLit(qk))).getResult();
+    mlir::Value yb = rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d_scale"));
+    mlir::Value d = fp16ReadAt(xb, dOff);
+
+    // Load `nLanes` packed bytes at (xb + srcOff) as u8m1.
+    auto loadBytes = [&](int64_t srcOff, int64_t nLanes) -> mlir::Value {
+      mlir::Value qsPtr = rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(srcOff)).getResult();
+      mlir::Value qsU8 = rewriter.create<emitc::CastOp>(loc, u8PtrType, qsPtr).getResult();
+      return emitOpaqueCall(rewriter, loc, u8VecType, riscvIntrinsicName("vle", 8, "m1", "u8"),
+                            mlir::ValueRange{qsU8, sizeLit(nLanes)}, opName, role);
+    };
+    // Common tail: `w32` holds the RAW ternary digit {0,1,2} sign-extended to i32m4;
+    // subtract 1 -> {-1,0,1}, int->float, scale by d in ONE vfmul, store to (yb+outOff).
+    auto emitScaleStore = [&](mlir::Value w32, int64_t nLanes, int64_t outOff) {
+      mlir::Value sub1 = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vsub_vx_i32m4",
+                                        mlir::ValueRange{w32, intLit(1), sizeLit(nLanes)}, opName, role);
+      mlir::Value f = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfcvt_f_x_v", 32, "m4", "f32"),
+                                     mlir::ValueRange{sub1, sizeLit(nLanes)}, opName, role);
+      mlir::Value r = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfmul_vf", 32, "m4", "f32"),
+                                     mlir::ValueRange{f, d, sizeLit(nLanes)}, opName, role);
+      mlir::Value yStore = rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, sizeLit(outOff)).getResult();
+      emitOpaqueCallVoid(rewriter, loc, riscvIntrinsicName("vse", 32, "m4", "f32"),
+                         mlir::ValueRange{yStore, r, sizeLit(nLanes)}, opName, role);
+    };
+
+    if (!isTq1) {
+      // tq2_0: over qs[64], each byte packs FOUR 2-bit lanes. For j in {0,32}, l in
+      // 0..3, m in 0..31: q = (qs[j+m] >> (2l)) & 3; y[(j/32)*128 + l*32 + m] = (q-1)*d.
+      // Each 32-lane (jg,l) group is split into two 16-lane halves (VLEN128 VLMAX).
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "tq2_0_decode"));
+      for (int64_t jg = 0; jg < 2; ++jg) {
+        for (int64_t l = 0; l < 4; ++l) {
+          for (int64_t half = 0; half < 2; ++half) {
+            int64_t srcOff = jg * 32 + half * 16;
+            int64_t outOff = jg * 128 + l * 32 + half * 16;
+            mlir::Value w = loadBytes(srcOff, 16);
+            mlir::Value sh =
+                l == 0 ? w
+                       : emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vsrl_vx_u8m1",
+                                        mlir::ValueRange{w, intLit(2 * l), sizeLit(16)}, opName, role);
+            mlir::Value masked = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vand_vx_u8m1",
+                                                mlir::ValueRange{sh, intLit(3), sizeLit(16)}, opName, role);
+            mlir::Value qi8 = emitOpaqueCall(rewriter, loc, i8VecType, "__riscv_vreinterpret_v_u8m1_i8m1",
+                                             mlir::ValueRange{masked}, opName, role);
+            mlir::Value w32 = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vsext_vf4_i32m4",
+                                             mlir::ValueRange{qi8, sizeLit(16)}, opName, role);
+            emitScaleStore(w32, 16, outOff);
+          }
+        }
+      }
+    } else {
+      // tq1_0: base-3 packed. pow3 = {1,3,9,27,81}; q = (uint8_t)(byte * pow3[n]);
+      // xi = ((uint16_t)q * 3) >> 8; y[out] = (xi-1)*d.
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "tq1_0_decode"));
+      static const int64_t pow3[5] = {1, 3, 9, 27, 81};
+      // The base-3 digit-n extraction for `nLanes` bytes at srcOff, storing to outOff.
+      auto emitTq1Chunk = [&](int64_t srcOff, int64_t n, int64_t nLanes, int64_t outOff) {
+        mlir::Value w = loadBytes(srcOff, nLanes);
+        mlir::Value q = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vmul_vx_u8m1",
+                                       mlir::ValueRange{w, intLit(pow3[n]), sizeLit(nLanes)}, opName, role);
+        mlir::Value q16 = emitOpaqueCall(rewriter, loc, u16VecType, "__riscv_vzext_vf2_u16m2",
+                                         mlir::ValueRange{q, sizeLit(nLanes)}, opName, role);
+        mlir::Value t = emitOpaqueCall(rewriter, loc, u16VecType, "__riscv_vmul_vx_u16m2",
+                                       mlir::ValueRange{q16, intLit(3), sizeLit(nLanes)}, opName, role);
+        mlir::Value xi = emitOpaqueCall(rewriter, loc, u16VecType, "__riscv_vsrl_vx_u16m2",
+                                        mlir::ValueRange{t, intLit(8), sizeLit(nLanes)}, opName, role);
+        mlir::Value xii = emitOpaqueCall(rewriter, loc, i16VecType, "__riscv_vreinterpret_v_u16m2_i16m2",
+                                         mlir::ValueRange{xi}, opName, role);
+        mlir::Value w32 = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vsext_vf2_i32m4",
+                                         mlir::ValueRange{xii, sizeLit(nLanes)}, opName, role);
+        emitScaleStore(w32, nLanes, outOff);
+      };
+      // main qs (j=0): out[n*32 + m], n=0..4, m=0..31 -> two 16-lane halves.
+      for (int64_t n = 0; n < 5; ++n)
+        for (int64_t half = 0; half < 2; ++half)
+          emitTq1Chunk(/*srcOff=*/half * 16, n, /*nLanes=*/16, /*outOff=*/n * 32 + half * 16);
+      // tail qs (j=32): out[160 + n*16 + m], n=0..4, m=0..15.
+      for (int64_t n = 0; n < 5; ++n)
+        emitTq1Chunk(/*srcOff=*/32, n, /*nLanes=*/16, /*outOff=*/160 + n * 16);
+      // qh (offset 48): out[240 + n*4 + j], n=0..3, j=0..3.
+      for (int64_t n = 0; n < 4; ++n)
+        emitTq1Chunk(/*srcOff=*/48, n, /*nLanes=*/4, /*outOff=*/240 + n * 4);
     }
   }
   return mlir::success();

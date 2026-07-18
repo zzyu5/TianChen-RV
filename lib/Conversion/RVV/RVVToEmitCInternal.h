@@ -5119,6 +5119,31 @@ private:
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
       llvm::StringRef format) const;
 
+  /// The OWNED REAL-VECTOR ternary super-block dequantize_row body (B线批3 ternary
+  /// de-lottery · [L-8] · ISSUE-001 reverse · closes the ISSUE-002 codegen-lottery for
+  /// the tq1_0/tq2_0 ternary super-blocks). Unlike the tiny-codebook fan-out there is
+  /// NO codebook table and NO gather: the ternary {-1,0,1} value is decoded by PURE
+  /// ARITHMETIC. Keyed by `format`:
+  ///   tq2_0 : qs[64] @0, d(fp16) @64,            stride=66  qk=256  (2-bit)
+  ///   tq1_0 : qs[48] @0, qh[4] @48, d(fp16) @52, stride=54  qk=256  (base-3 packed)
+  /// tq2_0: q = (qs >> (2l)) & 3 (vsrl_vx / vand_vx, u8m1), reinterpret to i8, vsext_vf4
+  /// -> i32m4, subtract 1, int->float (vfcvt), scaled by the fp16 d in ONE vfmul, stored
+  /// (vse32). tq1_0: q = (uint8_t)(byte * pow3[n]) (vmul_vx u8m1, mod-256), xi =
+  /// ((uint16_t)q * 3) >> 8 (vzext_vf2 -> u16m2, vmul_vx, vsrl_vx), reinterpret to i16,
+  /// vsext_vf2 -> i32m4, subtract 1, vfcvt, ONE vfmul by d, vse32; qs packs 5 base-3
+  /// digits/byte (n=0..4), qh packs 4 (n=0..3). All lane groups are emitted with
+  /// nLanes<=16 so every widened LMUL (u16m2 / i32m4 / f32m4) fits VLMAX at VLEN128 (and
+  /// processes exactly nLanes elements on any VLEN>=128). The integer ternary decode
+  /// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte; the ONE vfmul by d
+  /// == ggml's single `(q-1)*d` / `(xi-1)*d` mul -> no fp-contraction ambiguity.
+  /// Byte-exact to ggml's dequantize_row_{tq1_0,tq2_0} by construction. Streaming
+  /// sibling of emitDequantizeRowCodebookVectorBody (no accumulator, no gather).
+  mlir::LogicalResult emitDequantizeRowTernaryVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef format) const;
+
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the

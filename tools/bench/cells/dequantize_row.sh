@@ -30,6 +30,7 @@
 #          q3_K q6_K    （K-quant super-block·owned real-vector·single mul（无 min·byte-exact by construction））
 #          mxfp4 nvfp4  （FP4 e2m1 16-entry 码本·owned real-vector·vrgather_vv_i8m1 REGISTER 码本 gather（非 vluxei 内存 gather·无 HW-gather 墙）·E8M0 块标度 / 4×UE4M3 子标度·single mul·byte-exact by construction）
 #          iq4_nl iq4_xs（16-entry 非线性码本·owned real-vector·vrgather_vv_i8m1 REGISTER 码本 gather·flat fp16 标度 / super-block signed-6 子标度·single mul·byte-exact by construction）
+#          tq2_0 tq1_0  （ternary super-block QK_K=256·owned real-vector·PURE ARITHMETIC 解包（无码本·无 gather）·tq2_0 = 2-bit vsrl/vand·tq1_0 = base-3 vmul_vx(pow3)+((q*3)>>8)·single mul·byte-exact by construction）
 #   mode : verify  = build + ZEROVEC objdump 探针 + ZERO-MODEL byte-exact + 3-arm 反空心 (NO TIMING)
 #          sanity  = 预测量噪声自检 3 轮
 #          measure = cold N=25 2-seed flush
@@ -107,7 +108,13 @@ case "$FMT" in
   iq4_xs)  LEAFC="kernels/iq4_xs_dequant.c";  DRVC="iq4_xs_dequant_row_driver.cpp"
            TBLC="";                           GSED='s/89, 113}/89, 114}/'
            OPPSYM="dequantize_row_iq4_xs";    NB_MEASURE=512;  NB_VERIFY=1024 ;;
-  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·q8_0·q4_0·q5_0·q4_1·q5_1·q4_K·q5_K·q2_K·q3_K·q6_K·mxfp4·iq4_nl·nvfp4·iq4_xs)"; exit 2 ;;
+  tq2_0)   LEAFC="kernels/tq2_0_dequant.c";   DRVC="tq2_0_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 64;/v8 + 63;/'
+           OPPSYM="dequantize_row_tq2_0";     NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  tq1_0)   LEAFC="kernels/tq1_0_dequant.c";   DRVC="tq1_0_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 52;/v8 + 51;/'
+           OPPSYM="dequantize_row_tq1_0";     NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·q8_0·q4_0·q5_0·q4_1·q5_1·q4_K·q5_K·q2_K·q3_K·q6_K·mxfp4·iq4_nl·nvfp4·iq4_xs·tq2_0·tq1_0)"; exit 2 ;;
 esac
 
 if [ "$BOARD" = rvv ]; then
