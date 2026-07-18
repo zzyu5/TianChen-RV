@@ -6,16 +6,15 @@
 // (format="q2_K") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
 // it into the typed weft_rvv.typed_dequantize_row_loop_body region {
 // dequantize_row_decode_core (decode_model "q2_K"); typed_dequantize_row_loop_yield }
-// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
-// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
-// BYTE-IDENTICAL to the dispatch-wired q2_K monolith modulo ONLY the source-op
-// provenance token (the SHARED super-block decode emitGgmlDequantizeRowExtended, reached
-// via emitDequantizeRowKQuantBodyShared, is the SAME code both paths run) -- the fp16
-// d/dmin scales via the (float)*(const _Float16 *) seam, then the 4-bit packed scale/min
-// (sc&0xF, sc>>4) and the 2-bit quant unpack ((q>>shift)&3) folded dl*q - ml. The q2_K
-// decode REUSES the block-decode facts already built for the q2_K block-dot vec_dot.
-// Byte-exact-vs-ggml-reference dequantize_row_q2_K (a scalar AoS super-block loop; no
-// reduction).
+// and lowers it via the OWNED REAL-VECTOR body emitDequantizeRowQ2KVectorBody (R线 §四.2):
+// the emission is DRIVEN by the typed region op-identity + decode_model ([L-6]/[L-8]
+// construction, NOT the abstract format string). Byte-exact-vs-ggml-reference
+// dequantize_row_q2_K by CONSTRUCTION (NOT byte-identical to the scalar monolith -- the
+// CONSTRUCTED path now emits OWNED __riscv_v; the monolith keeps the scalar
+// emitDequantizeRowKQuantBodyShared): the fp16 d/dmin seam, the 4-bit packed scale/min
+// (sc&0xF, sc>>4) in SCALAR C, then the per-group 16-lane 2-bit quant pipeline ((q>>shift)&3)
+// folded dl*q - ml in ONE fused vfmsac (matching the -ffp-contract=on opponent). NO gather.
+// ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery for q2_K dequant.
 
 module {
   weft.exec.kernel @dequant_q2_K_kernel {
@@ -45,6 +44,17 @@ module {
 // The two fp16 super-block scales (d, dmin) through the shared seam.
 // CHECK: call_opaque "(float)*(const _Float16 *)"
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The 4-bit scale/min unpack and the 2-bit quant shift.
+// The 4-bit scale/min unpack (SCALAR C, byte-exact to ggml).
 // CHECK: bitwise_and
 // CHECK: bitwise_right_shift
+// The OWNED REAL-VECTOR 2-bit quant decode (R线 §四.2 K-quant fan-out): the 16 quant
+// bytes load, the 2-bit extract (vsrl_vx(shift) + vand_vx(3)), the vf4 widen + convert,
+// and the FUSED dl*q - ml fold (vfmv_v_f(ml) + vfmsac_vf(dl), matching the contracted
+// opponent). NO gather. OWNED __riscv_v (ISSUE-001 reverse; closes ISSUE-002 for q2_K).
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vsrl_vx_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmsac_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

@@ -4981,6 +4981,45 @@ private:
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
       llvm::StringRef format) const;
 
+  /// The OWNED REAL-VECTOR K-quant super-block dequantize_row block-decode bodies for
+  /// the QK_K=256 family (q4_K/q5_K shared, q2_K, q3_K, q6_K): the AoS `nb = k/256`
+  /// super-block loop, the fp16 d (+ optional fp16 dmin) seam, the per-format
+  /// scale/min unpack computed in SCALAR C (get_scale_min_k4 for q4_K/q5_K, the packed
+  /// 4-bit scale/min for q2_K, the aux kmask 6-bit scale shuffle for q3_K, the SIGNED
+  /// int8 scales for q6_K -- byte-identical to the scalar reference), then per
+  /// super-sub-block an OWNED vector pipeline over the quant bytes: vle8 (the packed
+  /// nibbles/2-bit/6-bit quants) + vand_vx/vsrl_vx (the quant plane) + [q5_K/q6_K high
+  /// bit merge from qh] + vzext_vf4 (-> u32) + vreinterpret (-> i32) + [bias vsub] +
+  /// vfcvt_f_x_v (-> f32) + the fold + vse32 (contiguous store). The fold is the fused
+  /// `d1*v - m1` via vfmv_v_f(m1) + vfmsac_vf(d1) (ONE rounding == the -ffp-contract=on
+  /// scalar `d1*v - m1` the opponent autovec's to vfmsub) for the min-subtract formats
+  /// (q4_K/q5_K/q2_K), or the SINGLE mul vfmul_vf (no min -> no fp-contraction
+  /// ambiguity) for q3_K/q6_K. NO gather (K-quant is bit-unpack, not codebook lookup)
+  /// -> NO HW-gather wall (contrast the iq* grid leaves). Byte-exact-vs-ggml
+  /// dequantize_row_<fmt> by construction: the integer quant decode is byte-identical
+  /// to the scalar reference and the fold rounds identically. Only the CONSTRUCTED path
+  /// (emitTypedDequantizeRowLoopBody) routes here; the dispatch-wired monolith fallback
+  /// stays on the scalar emitGgmlDequantizeRowExtended (the q8_0/nibble precedent). The
+  /// per-super-sub-block lane widths + LMULs are DERIVED from the fixed QK_K super-block
+  /// geometry, NOT tunable knobs. opName/role thread the source-op provenance.
+  mlir::LogicalResult emitDequantizeRowQ45KVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      bool isQ5) const;
+  mlir::LogicalResult emitDequantizeRowQ2KVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ3KVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ6KVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// The SHARED IQ grid-table super-block dequantize_row block-decode body for the
   /// QK_K=256 IQ grid family (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s): the AoS
   /// `nb = k / 256` super-block loop, the fp16 d seam, the per-format canonical grid

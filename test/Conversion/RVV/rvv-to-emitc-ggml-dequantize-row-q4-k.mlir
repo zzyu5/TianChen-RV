@@ -6,15 +6,16 @@
 // (format="q4_K") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
 // it into the typed weft_rvv.typed_dequantize_row_loop_body region {
 // dequantize_row_decode_core (decode_model "q4_K"); typed_dequantize_row_loop_yield }
-// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
-// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
-// BYTE-IDENTICAL to the dispatch-wired q4_K monolith modulo ONLY the source-op
-// provenance token (the SHARED super-block decode emitGgmlDequantizeRowExtended, reached
-// via emitDequantizeRowKQuantBodyShared, is the SAME code both paths run) -- the fp16
-// d/dmin scales via the (float)*(const _Float16 *) seam, the get_scale_min_k4 6-bit
-// scale/min unpack, then the nibble quant (q&0xF, q>>4) folded d1*q - m1. REUSES the
-// q4_K block-dot vec_dot decode. Byte-exact-vs-ggml-reference dequantize_row_q4_K (a
-// scalar AoS super-block loop; no reduction).
+// and lowers it via the OWNED REAL-VECTOR body emitDequantizeRowQ45KVectorBody (R线 §四.2
+// K-quant fan-out): the emission is DRIVEN by the typed region op-identity + decode_model
+// ([L-6]/[L-8] construction, NOT the abstract format string). Byte-exact-vs-ggml-reference
+// dequantize_row_q4_K by CONSTRUCTION (NOT byte-identical to the scalar monolith -- the
+// CONSTRUCTED path now emits OWNED __riscv_v intrinsics, the dispatch-wired monolith keeps
+// the scalar emitDequantizeRowKQuantBodyShared): the fp16 d/dmin scales via the
+// (float)*(const _Float16 *) seam, the get_scale_min_k4 6-bit scale/min unpack in SCALAR C,
+// then the per-super-sub 32-lane nibble pipeline (q&0xF, q>>4) folded d1*q - m1 in ONE fused
+// vfmsac (matching the -ffp-contract=on opponent). NO gather (K-quant is bit-unpack, not a
+// codebook lookup). ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery for q4_K dequant.
 
 module {
   weft.exec.kernel @dequant_q4_K_kernel {
@@ -41,6 +42,21 @@ module {
 // The two fp16 super-block scales (d, dmin).
 // CHECK: call_opaque "(float)*(const _Float16 *)"
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The get_scale_min_k4 6-bit unpack + nibble quant.
+// The get_scale_min_k4 6-bit scale/min unpack (SCALAR C, byte-exact to ggml).
 // CHECK: bitwise_and
-// CHECK: bitwise_right_shift
+// The OWNED REAL-VECTOR nibble decode (R线 §四.2 K-quant fan-out, PR-31 precedent): the
+// 32 packed bytes load, the low nibble split (vand_vx), the vf4 widen, the int->float
+// convert, and the FUSED d1*v - m1 fold (vfmv_v_f(m1) + vfmsac_vf(d1), ONE rounding
+// matching the -ffp-contract=on opponent's vfmsub), then the high nibble split
+// (vsrl_vx). NO gather. The vector content is the EMITTER's (OWNED __riscv_v), not
+// host-autovec lottery (the ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery
+// exposure for q4_K dequant).
+// CHECK: call_opaque "__riscv_vle8_v_u8m2"
+// CHECK: call_opaque "__riscv_vand_vx_u8m2"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m8"
+// CHECK: call_opaque "__riscv_vreinterpret_v_u32m8_i32m8"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m8"
+// CHECK: call_opaque "__riscv_vfmsac_vf_f32m8"
+// CHECK: call_opaque "__riscv_vse32_v_f32m8"
+// CHECK: call_opaque "__riscv_vsrl_vx_u8m2"

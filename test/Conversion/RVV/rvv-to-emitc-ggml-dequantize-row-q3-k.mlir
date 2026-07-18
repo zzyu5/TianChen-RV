@@ -6,16 +6,15 @@
 // (format="q3_K") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
 // it into the typed weft_rvv.typed_dequantize_row_loop_body region {
 // dequantize_row_decode_core (decode_model "q3_K"); typed_dequantize_row_loop_yield }
-// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
-// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
-// BYTE-IDENTICAL to the dispatch-wired q3_K monolith modulo ONLY the source-op
-// provenance token (the SHARED super-block decode emitGgmlDequantizeRowExtended, reached
-// via emitDequantizeRowKQuantBodyShared, is the SAME code both paths run) -- the fp16
-// d_all scale via the (float)*(const _Float16 *) seam, the 6-bit signed scales
-// reconstructed from the packed scales\[12\] (ggml's aux kmask1/kmask2 shuffle,
-// byte-exact), then the 2-bit quant unpack merged with the hmask high-bit term. REUSES
-// the q3_K block-dot vec_dot decode facts. Byte-exact-vs-ggml-reference
-// dequantize_row_q3_K (a scalar AoS super-block loop; no reduction).
+// and lowers it via the OWNED REAL-VECTOR body emitDequantizeRowQ3KVectorBody (R线 §四.2):
+// the emission is DRIVEN by the typed region op-identity + decode_model ([L-6]/[L-8]
+// construction, NOT the abstract format string). Byte-exact-vs-ggml-reference
+// dequantize_row_q3_K by CONSTRUCTION (NOT byte-identical to the scalar monolith -- the
+// CONSTRUCTED path now emits OWNED __riscv_v; the monolith keeps the scalar
+// emitDequantizeRowKQuantBodyShared): the fp16 d_all seam, the 6-bit signed scales from the
+// packed scales\[12\] (aux kmask1/kmask2 shuffle in SCALAR C, byte-exact), then the per-group
+// 16-lane 2-bit quant merged with the hmask high-bit term folded dl*qdec in a SINGLE mul
+// (NO min -> no fp-contraction). NO gather. ISSUE-001 reverse; closes ISSUE-002 for q3_K.
 
 module {
   weft.exec.kernel @dequant_q3_K_kernel {
@@ -40,6 +39,18 @@ module {
 // CHECK: route_source_op=weft_rvv.typed_dequantize_row_loop_body
 // CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The 6-bit scale shuffle + 2-bit quant unpack.
+// The 6-bit aux kmask scale shuffle (SCALAR C, byte-exact to ggml).
 // CHECK: bitwise_and
-// CHECK: bitwise_right_shift
+// The OWNED REAL-VECTOR 2-bit + hmask-high-bit decode (R线 §四.2 K-quant fan-out): the
+// 16 qs bytes + 16 hmask bytes load, the 2-bit extract (vsrl_vx + vand_vx), the hmask
+// high term ((hm>>mbit)&1 -> (1-bit)<<2 via vrsub_vx) in i32, qdec = qbits - term, the
+// convert, and the SINGLE-mul dl fold (vfmul_vf, NO min -> no fp-contraction). NO
+// gather. OWNED __riscv_v (ISSUE-001 reverse; closes ISSUE-002 for q3_K dequant).
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vsrl_vx_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vrsub_vx_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

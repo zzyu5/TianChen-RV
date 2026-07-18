@@ -6,15 +6,15 @@
 // (format="q6_K") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
 // it into the typed weft_rvv.typed_dequantize_row_loop_body region {
 // dequantize_row_decode_core (decode_model "q6_K"); typed_dequantize_row_loop_yield }
-// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
-// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
-// BYTE-IDENTICAL to the dispatch-wired q6_K monolith modulo ONLY the source-op
-// provenance token (the SHARED super-block decode emitGgmlDequantizeRowExtended, reached
-// via emitDequantizeRowKQuantBodyShared, is the SAME code both paths run) -- the fp16 d
-// scale via the (float)*(const _Float16 *) seam, the SIGNED int8 scales\[16\] loads, and
-// the 6-bit quant assembly ((ql&0xF) | ((qh>>s)&3)<<4) - 32 folded d*sc*q. REUSES the
-// q6_K block-dot vec_dot decode. Byte-exact-vs-ggml-reference dequantize_row_q6_K (a
-// scalar AoS super-block loop; no reduction).
+// and lowers it via the OWNED REAL-VECTOR body emitDequantizeRowQ6KVectorBody (R线 §四.2):
+// the emission is DRIVEN by the typed region op-identity + decode_model ([L-6]/[L-8]
+// construction, NOT the abstract format string). Byte-exact-vs-ggml-reference
+// dequantize_row_q6_K by CONSTRUCTION (NOT byte-identical to the scalar monolith -- the
+// CONSTRUCTED path now emits OWNED __riscv_v; the monolith keeps the scalar
+// emitDequantizeRowKQuantBodyShared): the fp16 d seam, the SIGNED int8 scales\[16\] loads,
+// then the per-group 16-lane 6-bit quant assembly ((ql&0xF) | ((qh>>s)&3)<<4) - 32 folded
+// (d*sc)*q in a SINGLE mul (NO add -> no fp-contraction; the l/16 scale split -> two 16-lane
+// groups per 32-span). NO gather. ISSUE-001 reverse; closes ISSUE-002 for q6_K dequant.
 
 module {
   weft.exec.kernel @dequant_q6_K_kernel {
@@ -41,5 +41,17 @@ module {
 // CHECK: call_opaque "(float)*(const _Float16 *)"
 // The SIGNED int8 super-block scales (sign-extending load).
 // CHECK: const int8_t
-// The 6-bit quant assembly (ql nibble | qh high 2 bits).
-// CHECK: bitwise_and
+// The OWNED REAL-VECTOR 6-bit quant decode (R线 §四.2 K-quant fan-out): the 16 ql bytes
+// + 16 qh bytes load, the nibble (vand_vx / vsrl_vx) | the qh high 2 bits (vsll_vx +
+// vor_vv) -> combined 0..63, the vf4 widen, the -32 bias (vsub_vx), the convert, and the
+// SINGLE-mul dsc fold (vfmul_vf, `(d*sc)*q`, NO fp-contraction). NO gather. OWNED
+// __riscv_v (ISSUE-001 reverse; closes ISSUE-002 for q6_K dequant).
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vsll_vx_u8m1"
+// CHECK: call_opaque "__riscv_vor_vv_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vsub_vx_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

@@ -25,6 +25,9 @@
 #          q8_0         （NON-GRID flat block·owned real-vector·NO gather·首个标量门 owned 收口探路）
 #          q4_0 q5_0    （flat nibble SAFE set·单 mul·owned real-vector·byte-exact by construction）
 #          q4_1 q5_1    （flat nibble FMA set·x*d+m·owned real-vector·fused vfmacc·byte-exact 须证 contraction 一致）
+#          q4_K q5_K    （K-quant super-block·per super-sub owned real-vector·fused vfmsac d1*v-m1·byte-exact 须证 contraction 一致）
+#          q2_K         （K-quant 2-bit super-block·owned real-vector·fused vfmsac dl*q-ml·byte-exact 须证 contraction 一致）
+#          q3_K q6_K    （K-quant super-block·owned real-vector·single mul（无 min·byte-exact by construction））
 #   mode : verify  = build + ZEROVEC objdump 探针 + ZERO-MODEL byte-exact + 3-arm 反空心 (NO TIMING)
 #          sanity  = 预测量噪声自检 3 轮
 #          measure = cold N=25 2-seed flush
@@ -75,7 +78,22 @@ case "$FMT" in
   q5_1)    LEAFC="kernels/q5_1_dequant.c";    DRVC="q5_1_dequant_row_driver.cpp"
            TBLC="";                           GSED='s/+ 8;/+ 7;/'
            OPPSYM="dequantize_row_q5_1";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
-  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·q8_0·q4_0·q5_0·q4_1·q5_1)"; exit 2 ;;
+  q4_K)    LEAFC="kernels/q4_K_dequant.c";    DRVC="q4_K_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 16;/v8 + 17;/'
+           OPPSYM="dequantize_row_q4_K";      NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  q5_K)    LEAFC="kernels/q5_K_dequant.c";    DRVC="q5_K_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 48;/v8 + 49;/'
+           OPPSYM="dequantize_row_q5_K";      NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  q2_K)    LEAFC="kernels/q2_K_dequant.c";    DRVC="q2_K_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 80;/v8 + 81;/'
+           OPPSYM="dequantize_row_q2_K";      NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  q3_K)    LEAFC="kernels/q3_K_dequant.c";    DRVC="q3_K_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 108;/v8 + 107;/'
+           OPPSYM="dequantize_row_q3_K";      NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  q6_K)    LEAFC="kernels/q6_K_dequant.c";    DRVC="q6_K_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/v8 + 208;/v8 + 207;/'
+           OPPSYM="dequantize_row_q6_K";      NB_MEASURE=512;  NB_VERIFY=1024 ;;
+  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·q8_0·q4_0·q5_0·q4_1·q5_1·q4_K·q5_K·q2_K·q3_K·q6_K)"; exit 2 ;;
 esac
 
 if [ "$BOARD" = rvv ]; then
