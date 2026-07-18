@@ -2417,14 +2417,25 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
   }
 
 // ===========================================================================
-// PR-31 · The OWNED REAL-VECTOR iq3_xxs dequantize_row leaf (the dequant
-// true-vector emitter first cell). Reuses the SAME vluxei16 grid gather + sign
-// fold (vmv/vand/vmsne/vneg/vmerge) idiom the iq3_xxs block-dot vec_dot body
-// (emitIQ3XXSSuperBlockGridBody) renders, then replaces the widening-dot tail
-// (vwmul + vwredsum) with an int->float convert (vsext_vf4 + vfcvt_f_x_v) + a
-// runtime `db` scale (vfmul_vf) + a unit store (vse32). No reduction, no q8
-// activation. Byte-exact to dequantize_row_iq3_xxs by construction (see the
-// header note). Emits OWNED __riscv_v intrinsics -- the ISSUE-001 reverse.
+// PR-31 / candidate ② · The OWNED iq3_xxs dequantize_row leaf in the OPPONENT
+// SHAPE (裁决3 / ISSUE-107 candidate ②): SCALAR grid-codebook index loads
+// grid32[qg[s]] into a stack gstage[8] + ONE unit-stride vle32, and the 4
+// per-group sign bytes SCALAR-spread into a stack sigstage[32] + ONE unit-stride
+// vle8 -- NO __riscv_vluxei/vlox indexed HARDWARE gather anywhere (objdump the
+// deployed dequantize_row_iq3_xxs: HW_GATHER=0, scalar loads + unit-stride
+// vector arithmetic). The sign fold (vand/vmsne/vneg/vmerge) + the int->float
+// convert (vsext_vf4 + vfcvt_f_x_v) + the runtime `db` scale (vfmul_vf) + the
+// unit store (vse32) are the SAME full-LMUL vector arithmetic. No reduction, no
+// q8 activation. This is an OWNED emit -- the emitter DETERMINES the scalar-load
+// structure (de-lottery [L-8]); the vector content is the emitter's, not host
+// autovec codegen-lottery (the ISSUE-001 reverse: OWNED __riscv_v intrinsics >>
+// 2). Byte-exact to dequantize_row_iq3_xxs by construction: gstage[s] ==
+// grid32[qg[s]] (== the gathered lane) and sigstage[l*8+j] == the l-th sign byte
+// (== the gathered spread) -- only the transport into the vector registers
+// differs from the grid HW-gather variant (which hit the 0.36 vluxei gather
+// ceiling, ISSUE-107). db*(float)grid is the only rounding; the sign fold
+// multiplies by EXACT +-1.0f; all grid bytes < 128 so the signed i8 view ==
+// ggml's (const uint8_t *) read.
 // ===========================================================================
 mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -2440,8 +2451,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   mlir::Type inputPtrType = input.getType();   // const uint8_t *
   mlir::Type outputPtrType = output.getType(); // float *
   mlir::Type floatPtrType = emitc::PointerType::get(floatType);
-  mlir::Type u16ElemType = emitc::OpaqueType::get(ctx, "uint16_t");
-  mlir::Type u16PtrTypeMut = emitc::PointerType::get(u16ElemType);
   mlir::Type u32PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint32_t"));
   mlir::Type i32PtrType =
@@ -2449,13 +2458,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
 
   // The FIXED iq3_xxs grid-of-4 x 2 geometry: a sign group = 8 grid bytes (2 grid u32
   // entries), a sub-block = 4 sign groups = 32 grid bytes, and `db` is CONSTANT across
-  // a sub-block. The naive body renders this as 4 per-group vl=2 __riscv_vluxei16 grid
-  // gathers (the fractional-LMUL 2-element scalarization storm) + 4 per-group vl=8 (of
-  // 32) float pipelines. This body HOISTS that to ONE wide vl=8 grid gather + ONE
-  // full-LMUL vl=32 sign-fold + int->float convert per sub-block -- the SAME HOIST
-  // emitIQ3XXSSuperBlockGridBody applies to the vec_dot body (RVVToEmitCGridCodebook
-  // pair-batch). All LMULs (u8m2/i8m2/i32m8/f32m8, u16m1/i32m2 for the gather) are
-  // DERIVED from the 32-lane sub-block width, NOT tunable knobs.
+  // a sub-block. Candidate ② renders each sub-block as 8 SCALAR grid-index loads
+  // grid32[qg[s]] into gstage[8] + ONE unit-stride vle32, then ONE full-LMUL vl=32
+  // sign-fold + int->float convert (the opponent shape: NO HW indexed gather). All
+  // LMULs (u8m2/i8m2/i32m8/f32m8, i32m2 for the staged grid load) are DERIVED from the
+  // 32-lane sub-block width, NOT tunable knobs.
   const int64_t groupLanes = 8;
   const int64_t numGroups = 4;
   const int64_t subBlockLanes = groupLanes * numGroups; // 32
@@ -2464,12 +2471,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   mlir::Type u8WideType = emitc::OpaqueType::get(ctx, "vuint8m2_t");
   mlir::Type i8WideType = emitc::OpaqueType::get(ctx, "vint8m2_t");
   mlir::Type maskWideType = emitc::OpaqueType::get(ctx, "vbool4_t");
+  // The 8-lane i32 grid-staging vector (unit-stride vle32 of the SCALAR-loaded grid
+  // entries -- candidate ②, the opponent shape: NO HW vluxei indexed gather).
   mlir::Type i32GatherType = emitc::OpaqueType::get(ctx, "vint32m2_t");
-  mlir::Type u16IdxType = emitc::OpaqueType::get(ctx, "vuint16m1_t");
   mlir::Type i32WideType = emitc::OpaqueType::get(ctx, "vint32m8_t");
   mlir::Type f32WideType = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
-  mlir::Type u16ArrayType = emitc::ArrayType::get({groupLanes}, u16ElemType);
-  mlir::Type u8Array4Type = emitc::ArrayType::get({numGroups}, u8ElemType);
+  mlir::Type i32ElemType = emitc::OpaqueType::get(ctx, "int32_t");
+  mlir::Type constI32Type = emitc::OpaqueType::get(ctx, "const int32_t");
+  mlir::Type i32PtrTypeMut = emitc::PointerType::get(i32ElemType);
+  // gstage[8] = the 8 SCALAR-loaded grid u32 entries; sigstage[32] = the 4 per-group
+  // sign bytes SCALAR-spread to their 8 lanes each (both fed to unit-stride vle loads).
+  mlir::Type i32Array8Type = emitc::ArrayType::get({groupLanes}, i32ElemType);
+  mlir::Type u8Array32Type = emitc::ArrayType::get({subBlockLanes}, u8ElemType);
 
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
@@ -2501,30 +2514,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   // lowering renders). The kmask {1<<j} sign-bit selector is an inline const.
   emitIQ3XXSCanonicalGridTableDecl(rewriter, loc);
   emitIQ3XXSCanonicalKsignsTableDecl(rewriter, loc);
-  // The wide sign-fold statics (emitted ONCE, DERIVED from the fixed 8-lane group /
-  // 4-group sub-block geometry -- NOT literal knobs): kmask32 = the 8-bit {1<<j}
+  // The wide sign-fold static (emitted ONCE, DERIVED from the fixed 8-lane group /
+  // 4-group sub-block geometry -- NOT a literal knob): kmask32 = the 8-bit {1<<j}
   // selector pattern REPLICATED across the sub-block's 4 sign groups (lane l*8+j tests
-  // bit j of group l's sign byte); sigspread = the sub-block broadcast index
-  // (sigspread[l*8+j]=l) that fans the 4 per-group sign bytes to their 8 lanes.
+  // bit j of group l's sign byte). Candidate ② has NO sigspread broadcast-index table:
+  // the per-group sign bytes are SCALAR-spread into a stack sigstage[32] (opponent
+  // shape -- NO HW vluxei8 gather), so the only static the sign fold still needs is the
+  // {1<<j} bit selector consumed by the unit-stride vand.
   {
     std::string kmaskDecl = "static const uint8_t weft_iq3xxs_kmask32[" +
                             std::to_string(subBlockLanes) + "] = {";
-    std::string spreadDecl = "static const uint8_t weft_iq3xxs_sigspread[" +
-                             std::to_string(subBlockLanes) + "] = {";
     for (int64_t g = 0; g < numGroups; ++g) {
       for (int64_t j = 0; j < groupLanes; ++j) {
-        if (g || j) {
+        if (g || j)
           kmaskDecl += ", ";
-          spreadDecl += ", ";
-        }
         kmaskDecl += std::to_string(int64_t(1) << j);
-        spreadDecl += std::to_string(g);
       }
     }
     kmaskDecl += "};";
-    spreadDecl += "};";
     rewriter.create<emitc::VerbatimOp>(loc, kmaskDecl);
-    rewriter.create<emitc::VerbatimOp>(loc, spreadDecl);
   }
 
   // size_t nb = k / 256;
@@ -2546,20 +2554,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
         return {kmaskName, sizeLit(subBlockLanes)};
       },
       llvm::StringRef("kmask_table_load"));
-  // vuint8m2_t sigspread = vle8(weft_iq3xxs_sigspread, 32);  (ONCE) -- the sub-block
-  // broadcast index that fans the 4 per-group sign bytes to their 8 lanes each.
-  mlir::Value sigspread = emitOpaqueCallBuilt(
-      rewriter, loc, u8WideType, u8LoadCallee, opName, role,
-      [&](mlir::OpBuilder &b,
-          mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-        mlir::Value spreadName = rewriter.create<emitc::LiteralOp>(
-            loc, u8PtrType, "weft_iq3xxs_sigspread");
-        return {spreadName, sizeLit(subBlockLanes)};
-      },
-      llvm::StringRef("sigspread_table_load"));
 
   // const int32_t *grid32 = (const int32_t *)weft_iq3xxs_grid;  (signed-i32 view of
-  // the uint32[256] grid for the vluxei16 indexed gather.)
+  // the uint32[256] grid for the SCALAR indexed loads grid32[qg[s]].)
   rewriter.create<emitc::VerbatimOp>(
       loc, stepComment(opName, role, "grid_table_i32_view"));
   mlir::Value gridArrayName =
@@ -2653,78 +2650,83 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
                                           sizeLit(ib32 * 8))
                     .getResult();
 
-      // ===== WIDE sub-block: ONE vl=8 grid gather + ONE vl=32 sign-fold/convert =====
-      // The 4 per-group vl=2 gathers are HOISTED to ONE wide vl=8 vluxei16 over all 8
-      // grid u32 entries; the 4 per-group vl=8 float pipelines are fused into ONE
-      // vl=32 (full i8m2/i32m8/f32m8 LMUL) sign-fold + int->float convert + db scale +
-      // unit store. `db` is CONSTANT across the sub-block. Lane l*8+j is byte-identical
-      // to the naive body's group l lane j; the store is contiguous, so the output row
-      // layout is unchanged.
+      // ===== candidate ② sub-block: SCALAR grid lookup + UNIT-STRIDE vector fold =====
+      // The OPPONENT SHAPE (objdump dequantize_row_iq3_xxs: HW_GATHER=0 -- scalar grid-
+      // index loads + unit-stride vector arithmetic). The 8 grid u32 entries are read by
+      // 8 SCALAR indexed loads grid32[qg[s]] into a stack gstage[8], then ONE unit-stride
+      // vle32; the 4 per-group sign bytes are SCALAR-spread into a stack sigstage[32],
+      // then ONE unit-stride vle8 -- NO __riscv_vluxei/vlox indexed gather anywhere. The
+      // downstream vl=32 sign-fold + int->float convert + db scale + unit store is the
+      // SAME full-LMUL (i8m2/i32m8/f32m8) vector arithmetic; lane l*8+j is byte-identical
+      // to the naive body's group l lane j. `db` is CONSTANT across the sub-block; the
+      // store is contiguous, so the output row layout is unchanged. This is an OWNED emit
+      // (the emitter DETERMINES the scalar-load structure, de-lottery [L-8]) whose only
+      // difference from the grid HW-gather variant is HOW the grid/sign bytes reach the
+      // vector registers -- byte-exact to dequantize_row_iq3_xxs by construction.
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "grid_sign_subblock"));
 
-      // uint16_t goff[8]; goff[s] = (uint16_t)(qg[s] << 2);  (the 8 grid u32 byte-
-      // offsets, contiguous over the sub-block's 4 groups, for the ONE wide gather.)
-      auto gridOffVar = rewriter.create<emitc::VariableOp>(
-          loc, u16ArrayType, emitc::OpaqueAttr::get(ctx, ""));
-      auto gridOffArray =
-          llvm::cast<mlir::TypedValue<emitc::ArrayType>>(gridOffVar.getResult());
+      // int32_t gstage[8]; gstage[s] = grid32[qg[s]];  (8 SCALAR indexed grid-codebook
+      // loads -- the opponent shape, NO HW vluxei16 gather. grid32[qg[s]] is the s-th
+      // grid u32 entry, byte-identical to the gathered lane s.)
+      auto gstageVar = rewriter.create<emitc::VariableOp>(
+          loc, i32Array8Type, emitc::OpaqueAttr::get(ctx, ""));
+      auto gstageArray =
+          llvm::cast<mlir::TypedValue<emitc::ArrayType>>(gstageVar.getResult());
       for (int64_t s = 0; s < groupLanes; ++s) {
         mlir::Value idx =
             emitLoadByteAsInt(rewriter, loc, constU8Type, intType, qgBase, s);
-        mlir::Value byteOff =
+        mlir::Value gElem =
             rewriter
-                .create<emitc::BitwiseLeftShiftOp>(loc, intType, idx, intLit(2))
+                .create<emitc::SubscriptOp>(
+                    loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(grid32),
+                    idx)
                 .getResult();
-        mlir::Value byteOffU16 =
-            rewriter.create<emitc::CastOp>(loc, u16ElemType, byteOff).getResult();
+        mlir::Value gVal =
+            rewriter.create<emitc::LoadOp>(loc, constI32Type, gElem).getResult();
+        mlir::Value gValMut =
+            rewriter.create<emitc::CastOp>(loc, i32ElemType, gVal).getResult();
         mlir::Value slotIdx = rewriter.create<emitc::LiteralOp>(
             loc, rewriter.getIndexType(), std::to_string(s));
         mlir::Value slotElem =
             rewriter
-                .create<emitc::SubscriptOp>(loc, gridOffArray,
+                .create<emitc::SubscriptOp>(loc, gstageArray,
                                             mlir::ValueRange{slotIdx})
                 .getResult();
         rewriter.create<emitc::AssignOp>(
             loc, llvm::cast<mlir::TypedValue<emitc::LValueType>>(slotElem),
-            byteOffU16);
+            gValMut);
       }
 
-      // vuint16m1_t voff = vle16(&goff[0], 8);
-      mlir::Value idxBaseIndex0 = rewriter.create<emitc::LiteralOp>(
+      // vint32m2_t gg = vle32(&gstage[0], 8);  (ONE unit-stride vector load of the 8
+      // scalar-staged grid entries -- replaces the wide vluxei16 HARDWARE gather.)
+      mlir::Value gstageIndex0 = rewriter.create<emitc::LiteralOp>(
           loc, rewriter.getIndexType(), "0");
-      mlir::Value idxBaseElem0 =
+      mlir::Value gstageElem0 =
           rewriter
-              .create<emitc::SubscriptOp>(loc, gridOffArray,
-                                          mlir::ValueRange{idxBaseIndex0})
+              .create<emitc::SubscriptOp>(loc, gstageArray,
+                                          mlir::ValueRange{gstageIndex0})
               .getResult();
-      mlir::Value idxBase =
-          rewriter.create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", idxBaseElem0)
+      mlir::Value gstageBase =
+          rewriter.create<emitc::ApplyOp>(loc, i32PtrTypeMut, "&", gstageElem0)
               .getResult();
-      std::string idxLoadCallee = riscvIntrinsicName("vle", 16, "m1", "u16");
-      mlir::Value voff = emitOpaqueCall(
-          rewriter, loc, u16IdxType, idxLoadCallee,
-          mlir::ValueRange{idxBase, sizeLit(groupLanes)}, opName, role);
-
-      // vint32m2_t gg = vluxei16_v_i32m2(grid32, voff, 8);  (ONE wide HARDWARE gather
-      // over the whole sub-block -- replaces 4 fractional-LMUL vl=2 gathers.)
-      std::string gatherCallee =
-          riscvIndexedMemoryIntrinsicName("vluxei", 16, "i32", "m2");
+      std::string i32LoadCallee = riscvIntrinsicName("vle", 32, "m2", "i32");
       mlir::Value gg = emitOpaqueCall(
-          rewriter, loc, i32GatherType, gatherCallee,
-          mlir::ValueRange{grid32, voff, sizeLit(groupLanes)}, opName, role);
+          rewriter, loc, i32GatherType, i32LoadCallee,
+          mlir::ValueRange{gstageBase, sizeLit(groupLanes)}, opName, role);
       // vint8m2_t gridV = vreinterpret_v_i32m2_i8m2(gg);  (32 grid bytes; group l at
       // lanes l*8..l*8+7 == the naive body's per-group lanes 0..7.)
       mlir::Value gridV = emitOpaqueCall(
           rewriter, loc, i8WideType, "__riscv_vreinterpret_v_i32m2_i8m2",
           mlir::ValueRange{gg}, opName, role);
 
-      // uint8_t signs4[4] = { weft_iq3xxs_ksigns[(aux >> 7*l) & 127] } for l=0..3;
-      // (the 4 per-group sign selector bytes -- SAME ksigns lookup as the naive body.)
-      auto signs4Var = rewriter.create<emitc::VariableOp>(
-          loc, u8Array4Type, emitc::OpaqueAttr::get(ctx, ""));
-      auto signs4Array =
-          llvm::cast<mlir::TypedValue<emitc::ArrayType>>(signs4Var.getResult());
+      // uint8_t sigstage[32]; sigstage[l*8+j] = weft_iq3xxs_ksigns[(aux >> 7*l) & 127];
+      // (the 4 per-group sign bytes SCALAR-spread to their 8 lanes each -- the opponent
+      // shape, NO HW vluxei8 gather. SAME ksigns lookup as the naive body.)
+      auto sigstageVar = rewriter.create<emitc::VariableOp>(
+          loc, u8Array32Type, emitc::OpaqueAttr::get(ctx, ""));
+      auto sigstageArray =
+          llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sigstageVar.getResult());
       for (int64_t l = 0; l < numGroups; ++l) {
         mlir::Value signSel =
             rewriter
@@ -2745,38 +2747,35 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
                 .getResult();
         mlir::Value signsMut =
             rewriter.create<emitc::CastOp>(loc, u8ElemType, signsU8).getResult();
-        mlir::Value slotIdx = rewriter.create<emitc::LiteralOp>(
-            loc, rewriter.getIndexType(), std::to_string(l));
-        mlir::Value slotElem =
-            rewriter
-                .create<emitc::SubscriptOp>(loc, signs4Array,
-                                            mlir::ValueRange{slotIdx})
-                .getResult();
-        rewriter.create<emitc::AssignOp>(
-            loc, llvm::cast<mlir::TypedValue<emitc::LValueType>>(slotElem),
-            signsMut);
+        for (int64_t j = 0; j < groupLanes; ++j) {
+          mlir::Value slotIdx = rewriter.create<emitc::LiteralOp>(
+              loc, rewriter.getIndexType(), std::to_string(l * groupLanes + j));
+          mlir::Value slotElem =
+              rewriter
+                  .create<emitc::SubscriptOp>(loc, sigstageArray,
+                                              mlir::ValueRange{slotIdx})
+                  .getResult();
+          rewriter.create<emitc::AssignOp>(
+              loc, llvm::cast<mlir::TypedValue<emitc::LValueType>>(slotElem),
+              signsMut);
+        }
       }
 
-      // vuint8m2_t signsVec = vluxei8_v_u8m2(signs4, sigspread, 32);  (each group's
-      // sign byte broadcast to its 8 lanes -- sigspread[l*8+j]=l, ONE wide gather from
-      // the 4-byte sub-block sign array; empirically CHEAPER than a register-only
-      // vmv/vmseq/vmerge fan-out on this hardware.)
-      mlir::Value s4Elem0 =
+      // vuint8m2_t signsVec = vle8(&sigstage[0], 32);  (ONE unit-stride vector load of
+      // the scalar-spread sign bytes -- replaces the wide vluxei8 HARDWARE gather.)
+      mlir::Value sigstageIndex0 = rewriter.create<emitc::LiteralOp>(
+          loc, rewriter.getIndexType(), "0");
+      mlir::Value sigstageElem0 =
           rewriter
-              .create<emitc::SubscriptOp>(loc, signs4Array,
-                                          mlir::ValueRange{idxBaseIndex0})
+              .create<emitc::SubscriptOp>(loc, sigstageArray,
+                                          mlir::ValueRange{sigstageIndex0})
               .getResult();
-      mlir::Value s4Ptr =
-          rewriter.create<emitc::ApplyOp>(loc, u8PtrTypeMut, "&", s4Elem0)
+      mlir::Value sigstageBase =
+          rewriter.create<emitc::ApplyOp>(loc, u8PtrTypeMut, "&", sigstageElem0)
               .getResult();
-      mlir::Value s4PtrConst =
-          rewriter.create<emitc::CastOp>(loc, u8PtrType, s4Ptr).getResult();
-      std::string signsGatherCallee =
-          riscvIndexedMemoryIntrinsicName("vluxei", 8, "u8", "m2");
       mlir::Value signsVec = emitOpaqueCall(
-          rewriter, loc, u8WideType, signsGatherCallee,
-          mlir::ValueRange{s4PtrConst, sigspread, sizeLit(subBlockLanes)}, opName,
-          role);
+          rewriter, loc, u8WideType, u8LoadCallee,
+          mlir::ValueRange{sigstageBase, sizeLit(subBlockLanes)}, opName, role);
 
       // sign-bit mask: m = vmsne(vand(signsVec, kmask32), 0), vl=32.  (lane l*8+j =
       // signs[l] & {1<<j} != 0 -- byte-identical to the naive per-group vl=8 fold.)

@@ -187,10 +187,10 @@ GEMM_DECODE = {
                        "k1":(1.205,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.205×")},
  ("gemm_tile","q5_1"):{"rvv":(1.090,"PASS","near-parity"),
                        "k1":(1.317,"PASS-DEPLOYED","C1-deployed·batch4 免测确认1.317×")},
- ("gemm_tile","q4_K"):{"rvv":(0.361,"具名-X","★genuine-C3′-negative·对手结构优势具名(rvv q4_K native-vec block-dot 3.6×快·gap=opp-strength非我方核·register-resident)·成本中心留白(旧"fold@M=1不amortize/指令数内禀墙"经ISSUE-014证非物理地板·真成本中心待诊断)·非物理墙([§三.15])"),
+ ("gemm_tile","q4_K"):{"rvv":(0.361,"具名-X","★genuine-C3′-negative·对手结构优势具名(rvv q4_K native-vec block-dot 3.6×快·gap=opp-strength非我方核·register-resident)·成本中心留白(旧「fold@M=1不amortize/指令数内禀墙」经ISSUE-014证非物理地板·真成本中心待诊断)·非物理墙([§三.15])"),
                        "k1":(1.535,"PASS","手调-REAL·k1 WIN vs 弱opp·genuine(k1 real repack hand-brick域·batch4·8-sub-block不泛化到16-sub)")},
  # ★A2-batch5: K-quant decode C3′ 负结果(super-block fold@M=1 不amortize·format-keyed 适用边界·11/12 具名-X·batch4 q4_K@k1 win 不泛化·判别键=sub-block数16 vs 8)
- ("gemm_tile","q2_K"):{"rvv":(0.0685,"具名-X","对手结构优势具名(手调block-dot register-resident·rvv零K-quant repack)·成本中心留白(旧"fold@M=1不amortize"经ISSUE-014四腿证=非物理地板·纯算术地板0.889-0.941>0.8·真成本中心待诊断·禁写权重位重建)·非物理墙(单侧at-wall·[§三.15])·C3′负·pending-真诊断"),
+ ("gemm_tile","q2_K"):{"rvv":(0.0685,"具名-X","对手结构优势具名(手调block-dot register-resident·rvv零K-quant repack)·成本中心留白(旧「fold@M=1不amortize」经ISSUE-014四腿证=非物理地板·纯算术地板0.889-0.941>0.8·真成本中心待诊断·禁写权重位重建)·非物理墙(单侧at-wall·[§三.15])·C3′负·pending-真诊断"),
                        "k1":(0.9585,"PASS","★near-parity非win(ratio<1.0·弱opp·q2_K 2-bit但16-sub-block最高vsetvl81)·唯一非-loss·成色低不称赢")},
  ("gemm_tile","q3_K"):{"rvv":(0.0830,"具名-X","对手结构优势具名(手调block-dot·rvv零repack)·成本中心留白(fold@M=1经ISSUE-014证非物理地板·真成本中心待诊断)·非物理墙(单侧at-wall·[§三.15])·C3′负"),
                        "k1":(0.4252,"具名-X","指令数内禀-fold@M=1不amortize(16-sub-block)·C3′负")},
@@ -268,7 +268,7 @@ CLANG_WORLD = {
  ("dequantize_row","q4_1",""): (2.29,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned·FMA-resolved fused vfmacc匹配对手 vfmadd.vv objdump证·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.284 lottery→owned·D1板测2.2854/2.2936·ab84复现)·标量类硬门·★opp-immaturity(§三.12·非硬赢)·勿外推"),
  # ── R线 §四.1 de-lottery: iq3_xxs@rvv 从 autovec-lottery-PASS 升为 owned 真向量真测(具名-X)──
  # owned emit(非 autovec)·byte-exact GREEN·ISSUE-001 反转+ISSUE-002[L-8]满足·naive first-cut cold 0.18×(比 lottery 慢·perf 优化=批量宽gather pending)·opp=部署 dequantize_row_iq3_xxs(标量类)·trellis-check 复现 s1 0.1825/s2 0.1812·勿称 perf 赢(真测 LOSS 如实)
- ("dequantize_row","iq3_xxs",""): (0.360,"★R线§四.1 de-lottery·owned 真向量 emit(ISSUE-001 反转·[L-8]满足)·byte-exact GREEN·批量宽gather优化后 0.360×(naive 0.181→0.360·storm vset129→33 objdump双证)·具名-X·★HW-gather-STRATEGY 天花板·grid-codebook 通用·【非架构不可达】(对手 objdump HW_GATHER=0 用标量load·parity lever=owned 标量-load emit·gated on 调度成熟度[项目级]·ISSUE-107)·勿称赢·收口未达"),
+ ("dequantize_row","iq3_xxs",""): (0.360,"★R线§四.1·grid dequant owned real wall(环走完·裁决3候选②已试·ISSUE-107 resolved honest-null for construction)·de-lottery [L-8]·byte-exact GREEN·★3 owned变体全<0.8: naive 0.181/候选②标量-load 0.33(clang -O3 re-gather非连续grid)/HW-gather 0.36(best owned)·对手仅via host-autovec-of-scalar-C=codegen抽签(ISSUE-002·construction轴拒)达parity·杠杆清单空(construction)·grid族(iq3_s/iq2*)同墙·opp-immaturity·勿称赢"),
  # ── R线 §四.1 de-lottery: q8_0@rvv non-grid owned 真向量·PASS→PASS·cold 改善(0.838 lottery→2.33 owned)·trellis-check a81da 复现 2.3478/2.3266 ──
  ("dequantize_row","q8_0",""): (2.33,"★R线§四.1 de-lottery·owned 真向量 emit(5 owned intrinsic·ISSUE-001 反转·[L-8]强义 construction 真赢·非autovec抽签·regen-identical)·byte-exact GREEN·non-grid 无gather墙(对比 grid iq3_xxs 0.36 天花板)·cold 0.838 lottery→2.33 owned(trellis-check 复现 2.3478/2.3266·2seed)·标量类硬门 PASS·[L-8]强义construction真赢·★关ISSUE-002该格敞口(24行dequant [L-8]存疑随de-lottery逐格关)·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢·禁称重大WIN/真赢部署核)·勿外推grid/K-quant"),
 }

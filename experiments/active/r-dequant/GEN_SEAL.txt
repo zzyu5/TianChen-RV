@@ -4,32 +4,69 @@
 # weft_opt_md5=aaa4bfd165a92fb408ad302b7146225b
 # mlir_translate=Ubuntu LLVM version 20.1.8
 
-iq3_xxs (dequantize_row · OWNED REAL-VECTOR emit · BATCH-WIDE-GATHER opt over PR-31 naive):
-  leaf_md5=589b756a362a33b1f8f437f8aae13365  lines=979
-  owned_riscv_intrinsics=13 distinct / 196 calls (excludes vsetvl · grep leaf .c)
-    { vle8 vle16 vluxei16 vluxei8 vreinterpret vand vmsne vneg vmerge vsext_vf4
-      vfcvt_f_x_v vfmul_vf vse32 } -- the ISSUE-001 reverse (was 2, both dead vsetvl)
+iq3_xxs (dequantize_row · OWNED emit · candidate ② SCALAR-LOAD 查表 [裁决3 / ISSUE-107] ·
+    CANONICAL iq3_xxs leaf; the grid HW-gather variant is preserved as iq3_xxs_grid A/B):
+  weft_opt_md5=c2d345240d208bcea8754b0bfb5c403c
+  leaf_md5=6f6098fa42401836b0f6af237a854d96  lines=1176
+  owned_riscv_intrinsics=11 distinct / calls (excludes vsetvl · grep leaf .c)
+    { vle8 vle32 vreinterpret vand vmsne vneg vmerge vsext_vf4 vfcvt_f_x_v vfmul_vf vse32 }
+    -- the ISSUE-001 reverse (was 2, both dead vsetvl). NO __riscv_vluxei/vlox in the SOURCE.
   cmd: build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-xxs.mlir \
          --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
          > experiments/active/r-dequant/kernels/iq3_xxs_dequant.c
   emit owner: emitDequantizeRowIQ3XXSVectorBody (lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp),
         routed from emitDequantizeRowIQGridBodyShared (RVVToEmitCForwardElementwise.cpp).
-  OPT: the naive body's 32 per-group vl=2 __riscv_vluxei16 grid gathers (fractional-LMUL
-       2-element scalarization storm) + 32 per-group vl=8-of-32 float pipelines are HOISTED
-       to 8 wide vl=8 (i32m2) grid gathers + 8 full-LMUL vl=32 sign-fold/int->float/db-scale
-       passes (i8m2/i32m8/f32m8). Per-group sign bytes fanned to their 8-lane windows by a
-       vluxei8 spread gather over a sub-block sigspread index. Same HOIST idiom
-       emitIQ3XXSSuperBlockGridBody applies to the vec_dot body. objdump storm (leaf.o):
-       vset 129->33, vl=2 grid gathers 32->8 (wide), vfp 64->16, vector_mnemonic 578->147.
-  NOTE: byte-exact to dequantize_row_iq3_xxs by construction (only rounding = db*(float)grid;
-        sign fold multiplies by EXACT +-1.0f; all grid bytes < 128 so signed i8 view ==
-        ggml's (uint8_t) read). The harness proves it (ZERO-MODEL + 3-arm anti-hollow, GREEN).
-  PERF: rvv cold ratio_cold=0.360 (2-seed, ours_med_ns~1019044 vs deployed autovec
-        ggml_med_ns~367221). ~2x over PR-31 naive 0.181, but < 0.8 -> still 具名-X.
-        Wall = vluxei indexed-gather throughput inherent to a vector grid-codebook decode;
-        the scalar-source autovec opponent pipelines indexed SCALAR loads (no HW gather).
-        A register-only sign fan-out (vmv/vmseq/vmerge, no signs gather) was measured
-        SLOWER (0.312) -> the single wide vluxei8 signs gather is the cheaper spread here.
+  SHAPE (candidate ② = the OPPONENT shape): objdump the deployed dequantize_row_iq3_xxs
+        -> HW_GATHER=0 (total=294, vector=74, scalar_loads=36 [20 lbu / 11 ld / 4 lb / 1 lh],
+        unit-stride vle=8, NO vluxei/vlox/vrgather). Candidate ② replicates it: the 8 grid u32
+        entries read by 8 SCALAR indexed loads grid32[qg[s]] into a stack gstage[8] + ONE
+        unit-stride vle32; the 4 per-group sign bytes SCALAR-spread into a stack sigstage[32]
+        + ONE unit-stride vle8; then the SAME vl=32 sign-fold + int->float + db-scale + store.
+        The emitter DETERMINES the scalar-load structure (de-lottery [L-8]; judgment key = who
+        decides, not scalar-vs-vector) -- the leaf SOURCE has NO HW indexed gather.
+  NOTE: byte-exact to dequantize_row_iq3_xxs by construction (gstage[s]==grid32[qg[s]] and
+        sigstage[l*8+j]==the l-th sign byte -- same values, only the transport differs from the
+        grid HW-gather variant; only rounding = db*(float)grid; sign fold * EXACT +-1.0f; all
+        grid bytes < 128 so signed i8 view == ggml's (uint8_t) read). Harness proves it
+        (dequantize_row.sh rvv verify iq3_xxs: ZERO-MODEL mism=0/1048576 GREEN + 3-arm
+        anti-hollow all bite + CORPUS grid_idx 256/256 sign_sel 128/128 COMPLETE).
+  ★★ VERDICT (裁决3 / ISSUE-107 candidate ② · 先测不预告 · cold < 0.8 -> 具名 + 真墙 ·环走完):
+        rvv cold ratio_cold=0.3289 / 0.3294 (2-seed; ours_med_ns~1114705 vs deployed autovec
+        ggml_med_ns~366941) -- < 0.8, candidate ② does NOT beat the gather wall (it is even
+        SLIGHTLY SLOWER than the grid HW-gather variant 0.361/0.359 measured SAME session).
+     ★ROOT CAUSE (objdump the COMPILED leaf.o): the OWNED source is HW_GATHER=0, but host
+        clang-18 -O3 RE-VECTORIZES the scalar `gstage[s]=grid32[qg[s]]` staging loop back into
+        8 __riscv_vluxei16.v indexed gathers (leaf.o: ins=562 vector=209 vset=41 gather=8) --
+        so the compiled binary STILL hits the gather throughput wall. The deployed opponent
+        (same clang-18) stays HW_GATHER=0 only because its scalar-C loop shape (scalar grid
+        pointers + a unit-stride inner j-loop over contiguous grid bytes) does not present a
+        gatherable staging pattern; reproducing THAT exact shape = ceding vectorization to host
+        autovec = the codegen lottery (ISSUE-002) the owned-construction axis rejects.
+     ★WALL (fully bracketed, all OWNED variants < 0.8 · the grid family gather ceiling is REAL
+        for OWNED emit, not just the HW-gather variant): {PR-31 naive vl=2/vl=8 storm 0.181;
+        candidate ② owned scalar-load, clang re-gathers 0.33; batch-wide HW-gather 0.36}. A
+        wide vector of NON-CONTIGUOUS grid entries IS semantically a gather; forcing the loads
+        to stay scalar (barriers) only reintroduces the storm's memory-roundtrip cost. Parity
+        is reachable ONLY via the opponent's host-autovec-of-scalar-C (lottery), NOT by any
+        owned deterministic emit. ⟹ grid-codebook dequant @rvv = 具名 real wall (honest-null
+        for the OWNED-construction axis); ISSUE-107 fork = grid family NOT extensible to PASS
+        via candidate ② (iq3_s/iq2* share the identical gather structure -> same wall).
+  成色 (对手与档位 §三.12): opponent = the SOLE deployed dequantize_row_iq3_xxs (host-autovec
+        scalar-source = codegen-lottery on the OPP side); this is an opp-immaturity 便宜档 axis,
+        NOT a 硬赢 -- and here candidate ② LOSES (< parity). The DURABLE claim is the de-lottery
+        [L-8] on the SOURCE structure (we own the scalar-load emit) + the honest named wall.
+
+iq3_xxs_grid (dequantize_row · OWNED REAL-VECTOR emit · BATCH-WIDE-GATHER · ★A/B REFERENCE only
+    · the grid HW-gather variant, FROZEN as the pre-裁决3 sealed 0.36 gather-ceiling record):
+  leaf_md5=589b756a362a33b1f8f437f8aae13365  lines=979  (frozen git-HEAD grid leaf)
+  owned_riscv_intrinsics=13 distinct / 196 calls: { vle8 vle16 vluxei16 vluxei8 vreinterpret
+      vand vmsne vneg vmerge vsext_vf4 vfcvt_f_x_v vfmul_vf vse32 } -- explicit OWNED gathers.
+  harness: dequantize_row.sh rvv {verify,measure} iq3_xxs_grid (same driver/tables/OPPSYM).
+  PERF: rvv cold ratio_cold=0.3612 / 0.3594 (2-seed, SAME session as candidate ② A/B; matches
+        the pre-裁决3 sealed 0.360). compiled leaf.o: gather=16 (8 vluxei16 grid + 8 vluxei8
+        signs, both EXPLICITLY owned). Wall = vluxei indexed-gather throughput; the scalar-
+        source autovec opponent pipelines indexed SCALAR loads (HW_GATHER=0). A register-only
+        sign fan-out (no signs gather) was measured SLOWER (0.312) on this hardware.
 
 q8_0 (dequantize_row · OWNED REAL-VECTOR emit · PR-31 first NON-GRID cell):
   weft_opt_md5=33fe87f90a9bd4edc5857e35fb929c51  HEAD=d5074f0bf (+ uncommitted R-line q8_0 emit)

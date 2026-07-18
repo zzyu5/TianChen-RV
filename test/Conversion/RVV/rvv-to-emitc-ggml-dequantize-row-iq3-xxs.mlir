@@ -10,21 +10,28 @@
 // region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
 // string).
 //
-// PR-31 (the dequant true-vector emitter, first cell): iq3_xxs is the FIRST IQ grid
-// format lowered to the OWNED REAL-VECTOR body (emitDequantizeRowIQ3XXSVectorBody) --
-// NOT the shared scalar dispatch-wired monolith the other IQ formats still forward to.
-// The leaf now emits OWNED __riscv_v intrinsics (the ISSUE-001 reverse: the vector
-// content is the emitter's, not host-autovec codegen-lottery): the SAME vluxei16 grid
-// gather + sign fold (vmv/vand/vmsne/vneg/vmerge) idiom the iq3_xxs block-dot vec_dot
-// body renders, but with the widening-dot tail replaced by an int->float convert
-// (vsext_vf4 + vfcvt_f_x_v) + a runtime `db` scale (vfmul_vf) + a unit store (vse32).
+// PR-31 / candidate ② (裁决3 / ISSUE-107): iq3_xxs is the FIRST IQ grid format lowered
+// to an OWNED body (emitDequantizeRowIQ3XXSVectorBody) -- NOT the shared scalar dispatch-
+// wired monolith the other IQ formats still forward to. Candidate ② emits the OPPONENT
+// SHAPE: the deployed dequantize_row_iq3_xxs has HW_GATHER=0 (objdump: scalar grid-index
+// loads + unit-stride vector arithmetic, NO vluxei/vlox indexed gather). This leaf reads
+// the 8 grid u32 entries by SCALAR indexed loads grid32[qg[s]] into a stack gstage[8] +
+// ONE unit-stride vle32, and SCALAR-spreads the 4 per-group sign bytes into a stack
+// sigstage[32] + ONE unit-stride vle8 -- then the SAME full-LMUL sign fold (vand/vmsne/
+// vneg/vmerge) + int->float convert (vsext_vf4 + vfcvt_f_x_v) + runtime `db` scale
+// (vfmul_vf) + unit store (vse32). It emits OWNED __riscv_v intrinsics (the ISSUE-001
+// reverse: the vector content is the emitter's, not host-autovec codegen-lottery; the
+// emitter DETERMINES the scalar-load structure, de-lottery [L-8]) -- but with NO HW
+// indexed gather (the grid HW-gather variant hit the 0.36 vluxei ceiling, ISSUE-107).
 // The 8-lane group geometry is the fixed iq3_xxs grid-of-4 x 2 structure (NOT a tunable
 // knob). The grid-of-4 (uint32) codebook + the ksigns selector plane + the {1<<j} kmask
 // are DERIVED at emit as function-local statics (NO ksigns op-attr; that blocker is
 // block-dot-repack-only). Byte-exact-vs-ggml-reference dequantize_row_iq3_xxs by
-// construction: the only rounding is db*(float)grid and the sign fold multiplies by an
-// EXACT +-1.0f (a float sign flip is bitwise-exact); all grid bytes are < 128 so the
-// signed i8 view == ggml's (const uint8_t *) read.
+// construction: gstage[s] == grid32[qg[s]] and sigstage[l*8+j] == the l-th sign byte
+// (only the transport into the vector registers differs from the HW-gather variant); the
+// only rounding is db*(float)grid and the sign fold multiplies by an EXACT +-1.0f (a
+// float sign flip is bitwise-exact); all grid bytes are < 128 so the signed i8 view ==
+// ggml's (const uint8_t *) read.
 
 module {
   weft.exec.kernel @dequant_iq3_xxs_kernel {
@@ -51,26 +58,31 @@ module {
 // CHECK: weft_iq3xxs_grid
 // The ksigns selector plane decl, emitted once above the super-block loop.
 // CHECK: weft_iq3xxs_ksigns
-// The wide sign-fold statics (the {1<<j} pattern replicated across the sub-block's 4
-// groups + the per-group broadcast index), each loaded ONCE above the loop at vl=32.
+// The {1<<j} sign-bit selector static, replicated across the sub-block's 4 groups and
+// loaded ONCE above the loop at vl=32 (candidate ② has NO sigspread broadcast-index
+// table -- the sign bytes are SCALAR-spread into a stack sigstage[32]).
 // CHECK: weft_iq3xxs_kmask32
-// CHECK: weft_iq3xxs_sigspread
+// CHECK-NOT: weft_iq3xxs_sigspread
 // CHECK: call_opaque "__riscv_vle8_v_u8m2"
 // The super-block loop, then the fp16 block-scale seam inside it.
 // CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The OWNED real-vector decode (PR-31 + the batch-wide-gather opt): ONE wide vl=8
-// vluxei16 grid gather per sub-block + ONE wide vl=32 sign fold (the 4 per-group sign
-// bytes broadcast to their 8-lane windows by a vluxei8 spread gather over sigspread,
-// then vand+vmsne) + the int->float convert + runtime db scale + full-LMUL store --
-// the ISSUE-001 reverse, the fractional-LMUL vl=2 gather storm hoisted.
-// CHECK: call_opaque "__riscv_vle16_v_u16m1"
-// CHECK: call_opaque "__riscv_vluxei16_v_i32m2"
+// The OWNED candidate ② decode (opponent shape, HW_GATHER=0): the 8 grid u32 entries
+// read by SCALAR indexed loads grid32[qg[s]] into gstage[8] + ONE unit-stride vle32, the
+// 4 per-group sign bytes SCALAR-spread into sigstage[32] + ONE unit-stride vle8, then the
+// SAME vl=32 sign fold (vand+vmsne+vneg+vmerge) + int->float convert + runtime db scale +
+// full-LMUL store -- the ISSUE-001 reverse WITHOUT any __riscv_vluxei/vlox indexed gather.
+// CHECK: call_opaque "__riscv_vle32_v_i32m2"
 // CHECK: call_opaque "__riscv_vreinterpret_v_i32m2_i8m2"
-// CHECK: call_opaque "__riscv_vluxei8_v_u8m2"
+// CHECK: call_opaque "__riscv_vle8_v_u8m2"
 // CHECK: call_opaque "__riscv_vand_vv_u8m2"
 // CHECK: call_opaque "__riscv_vmerge_vvm_i8m2"
 // CHECK: call_opaque "__riscv_vsext_vf4_i32m8"
 // CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
 // CHECK: call_opaque "__riscv_vfmul_vf_f32m8"
 // CHECK: call_opaque "__riscv_vse32_v_f32m8"
+// candidate ② is byte-exact to the grid HW-gather variant but transports the grid/sign
+// bytes via scalar loads + unit-stride vle -- NO HW indexed gather anywhere in the leaf.
+// CHECK-NOT: vluxei
+// CHECK-NOT: vloxei
+// CHECK-NOT: vrgather
