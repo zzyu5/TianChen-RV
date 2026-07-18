@@ -238,6 +238,22 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         [&](weftrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp) {
           hasNvfp4CodebookCore = true;
         });
+    // The CONSTRUCTED nvfp4 dequantize_row leaf (B线批2 tiny-codebook OWNED vrgather
+    // body, emitDequantizeRowCodebookVectorBody) reconstructs the four UE4M3 sub-block
+    // scales via ldexpf (ggml_ue4m3_to_fp32), so it needs <math.h>. The front-door
+    // construction into the typed loop body happens DURING this variant's lowering, so
+    // at include-emit time the scope still carries the ABSTRACT weft_rvv.dequantize_row
+    // (format "nvfp4"); detect both the abstract op and the constructed typed body. The
+    // other three codebook leaves (mxfp4 E8M0 bit-construction / iq4_nl / iq4_xs fp16
+    // seams) call NO libm, so they keep the three-header list byte-identical (additivity).
+    scope.getBody().walk([&](weftrvv::GgmlDequantizeRowOp deq) {
+      if (deq.getFormat() == "nvfp4")
+        hasNvfp4CodebookCore = true;
+    });
+    scope.getBody().walk([&](weftrvv::TypedDequantizeRowLoopBodyOp lb) {
+      if (lb.getDecodeModel() == "nvfp4")
+        hasNvfp4CodebookCore = true;
+    });
     // rms_norm (now CONSTRUCTED through the reduce-model scaffold) still calls
     // scalar libm (1/sqrtf(mean+eps)), so its constructed body -- a
     // typed_elementwise_loop_body carrying the reduce core brick -- adds <math.h>

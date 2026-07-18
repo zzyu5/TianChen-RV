@@ -4247,8 +4247,280 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
     llvm::StringRef format) const {
+  // The four 16-entry codebook leaves (mxfp4/nvfp4 FP4 e2m1, iq4_nl/iq4_xs non-linear)
+  // lower to the OWNED vrgather codebook vector body (B线批2 tiny-codebook de-lottery,
+  // the FP4/non-linear fan-out over the q8_0/nibble non-grid precedent · [L-8] ·
+  // closes the ISSUE-002 codegen-lottery for these formats). The ternary iq1_s/iq1_m
+  // and the tq1_0/tq2_0 base-3/2-bit ternary super-blocks stay on the scalar forwarder
+  // until they fan out (iq1_s/iq1_m are a 2048-grid gather, NOT a 16-entry register
+  // codebook -- the gather-wall exclusion).
+  if (format == "mxfp4" || format == "nvfp4" || format == "iq4_nl" ||
+      format == "iq4_xs")
+    return emitDequantizeRowCodebookVectorBody(rewriter, loc, input, output,
+                                               avlArg, sizeType, opName, role,
+                                               format);
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
+}
+
+// ============================================================================
+// The OWNED REAL-VECTOR tiny-codebook (16-entry) dequantize_row body (B线批2, the FP4 /
+// non-linear codebook fan-out over the q8_0/nibble non-grid precedent · de-lottery [L-8]
+// · ISSUE-001 reverse · closes the ISSUE-002 codegen-lottery exposure per format). The
+// 16-entry int8 codebook is broadcast into ONE i8m1 vreg ONCE; every group's two nibble
+// index lanes are gathered through it (vrgather_vv_i8m1 -- a REGISTER-RESIDENT gather,
+// NOT a vluxei memory gather -> NO HW-gather wall), sign-extended, int->float, scaled by
+// the per-group float scale in ONE vfmul (== ggml's single `d*kv` mul -> no
+// fp-contraction ambiguity), and stored. The integer nibble/codebook/scale decode
+// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte. Byte-exact to
+// dequantize_row_{mxfp4,nvfp4,iq4_nl,iq4_xs} by construction.
+// ============================================================================
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    llvm::StringRef format) const {
+  const bool isMx = format == "mxfp4";
+  const bool isNl = format == "iq4_nl";
+  const bool isNv = format == "nvfp4";
+  const bool isXs = format == "iq4_xs";
+  // Per-format super-block geometry (byte-exact ggml block_qX AoS facts, NOT knobs).
+  const int64_t qk = isMx ? 32 : isNl ? 32 : isNv ? 64 : 256;
+  const int64_t stride = isMx ? 17 : isNl ? 18 : isNv ? 36 : 136;
+
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type inputPtrType = input.getType();   // const uint8_t *
+  mlir::Type outputPtrType = output.getType(); // float *
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+  mlir::Type uintType = emitc::OpaqueType::get(ctx, "uint32_t");
+  mlir::Type boolType = rewriter.getI1Type();
+  mlir::Type indexType = rewriter.getIndexType();
+  mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+  mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
+  mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
+  mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
+  mlir::Type floatPtrType = emitc::PointerType::get(floatType);
+  mlir::Type u8VecType = emitc::OpaqueType::get(ctx, "vuint8m1_t");
+  mlir::Type i8VecType = emitc::OpaqueType::get(ctx, "vint8m1_t");
+  mlir::Type i32VecType = emitc::OpaqueType::get(ctx, "vint32m4_t");
+  mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m4_t");
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
+  auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
+  auto uLit = [&](int64_t v) { return emitUintLit(rewriter, loc, uintType, v); };
+  auto idxLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, indexType, std::to_string(v));
+  };
+  auto floatLit = [&](llvm::StringRef s) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, floatType, s);
+  };
+  auto iAnd = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::BitwiseAndOp>(loc, intType, a, b).getResult();
+  };
+  auto iOr = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::BitwiseOrOp>(loc, intType, a, b).getResult();
+  };
+  auto iShl = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, intType, a, b).getResult();
+  };
+  auto iShr = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::BitwiseRightShiftOp>(loc, intType, a, b).getResult();
+  };
+  auto iSub = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::SubOp>(loc, intType, a, b).getResult();
+  };
+  auto fMul = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::MulOp>(loc, floatType, a, b).getResult();
+  };
+  auto i2f = [&](mlir::Value v) {
+    return rewriter.create<emitc::CastOp>(loc, floatType, v).getResult();
+  };
+  auto mulSz = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::MulOp>(loc, sizeType, a, b).getResult();
+  };
+  auto addSz = [&](mlir::Value a, mlir::Value b) {
+    return rewriter.create<emitc::AddOp>(loc, sizeType, a, b).getResult();
+  };
+  // Load *(base + off) as a uint8 byte widened to int (the proven pointer-advance +
+  // subscript[0] idiom, byte-identical to ggml's `x[off]` promoted decode).
+  auto loadU8Int = [&](mlir::Value base, int64_t off) -> mlir::Value {
+    mlir::Value p = rewriter.create<emitc::AddOp>(loc, inputPtrType, base, sizeLit(off)).getResult();
+    mlir::Value pc = rewriter.create<emitc::CastOp>(loc, u8PtrType, p).getResult();
+    mlir::Value elem = rewriter.create<emitc::SubscriptOp>(
+        loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(pc), idxLit(0)).getResult();
+    mlir::Value v = rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+    return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
+  };
+  // Load one uint8 byte at (base + off) ZERO-extended to uint32 (for the scales_h
+  // little-endian assembly; a logical-shift domain -- ggml's uint16 read).
+  auto loadU8Uint = [&](mlir::Value base, int64_t off) -> mlir::Value {
+    mlir::Value p = rewriter.create<emitc::AddOp>(loc, inputPtrType, base, sizeLit(off)).getResult();
+    mlir::Value pc = rewriter.create<emitc::CastOp>(loc, u8PtrType, p).getResult();
+    mlir::Value elem = rewriter.create<emitc::SubscriptOp>(
+        loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(pc), idxLit(0)).getResult();
+    mlir::Value v = rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+    return rewriter.create<emitc::CastOp>(loc, uintType, v).getResult();
+  };
+  auto fp16ReadAt = [&](mlir::Value xb, int64_t off) -> mlir::Value {
+    mlir::Value addr = off == 0 ? xb
+                                : rewriter.create<emitc::AddOp>(loc, inputPtrType, xb,
+                                                                sizeLit(off)).getResult();
+    return emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                          mlir::ValueRange{addr}, opName, role,
+                          llvm::StringRef("fcvt.s.h"));
+  };
+  // The nvfp4 per-sub-block UE4M3 fp8 -> fp32 HALF scale (ggml_ue4m3_to_fp32,
+  // ggml-impl.h): e==0||e==0x7F -> 0; exp=(e>>3)&0xF, man=e&7; raw = exp==0 ?
+  // ldexpf(man,-9) : ldexpf(1+man/8, exp-7); result = raw*0.5f. Structured emitc,
+  // byte-identical to the scalar emitGgmlDequantizeRowExtended nvfp4 seam.
+  auto ue4m3ScaleAt = [&](mlir::Value xb, int64_t off) -> mlir::Value {
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "ue4m3_scale"));
+    mlir::Value e32 = loadU8Uint(xb, off);
+    mlir::Value expU = rewriter.create<emitc::BitwiseAndOp>(
+        loc, uintType, rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, e32, uLit(3)),
+        uLit(0xF)).getResult();
+    mlir::Value manU = rewriter.create<emitc::BitwiseAndOp>(loc, uintType, e32, uLit(0x7)).getResult();
+    mlir::Value expInt = rewriter.create<emitc::CastOp>(loc, intType, expU).getResult();
+    mlir::Value manFloat = i2f(rewriter.create<emitc::CastOp>(loc, intType, manU).getResult());
+    mlir::Value denormRaw = rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{floatType}, "ldexpf",
+        mlir::ValueRange{manFloat, intLit(-9)}).getResult(0);
+    mlir::Value normMant = rewriter.create<emitc::AddOp>(
+        loc, floatType, floatLit("1.0f"),
+        rewriter.create<emitc::DivOp>(loc, floatType, manFloat, floatLit("8.0f"))).getResult();
+    mlir::Value normExp = rewriter.create<emitc::SubOp>(loc, intType, expInt, intLit(7)).getResult();
+    mlir::Value normRaw = rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{floatType}, "ldexpf",
+        mlir::ValueRange{normMant, normExp}).getResult(0);
+    mlir::Value isDenorm = rewriter.create<emitc::CmpOp>(
+        loc, boolType, emitc::CmpPredicate::eq, expU, uLit(0)).getResult();
+    mlir::Value raw = rewriter.create<emitc::ConditionalOp>(
+        loc, floatType, isDenorm, denormRaw, normRaw).getResult();
+    mlir::Value scaled = fMul(raw, floatLit("0.5f"));
+    mlir::Value isZero = rewriter.create<emitc::CmpOp>(
+        loc, boolType, emitc::CmpPredicate::eq, e32, uLit(0)).getResult();
+    mlir::Value isSpec = rewriter.create<emitc::CmpOp>(
+        loc, boolType, emitc::CmpPredicate::eq, e32, uLit(0x7F)).getResult();
+    mlir::Value special = rewriter.create<emitc::LogicalOrOp>(
+        loc, boolType, isZero, isSpec).getResult();
+    return rewriter.create<emitc::ConditionalOp>(
+        loc, floatType, special, floatLit("0.0f"), scaled).getResult();
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // ---- The 16-entry int8 codebook, emitted ONCE as a function-local static ----
+  // mxfp4/nvfp4 share the FP4 e2m1 codebook; iq4_nl/iq4_xs share the non-linear
+  // codebook (the SAME 16-entry anchors the block-dot vec_dot lowerings render).
+  static const int kvaluesMxfp4[16] = {0, 1, 2, 3,  4,  6,  8,  12,
+                                       0, -1, -2, -3, -4, -6, -8, -12};
+  static const int kvaluesIq4nl[16] = {-127, -104, -83, -65, -49, -35, -22, -10,
+                                        1,    13,   25,  38,  53,  69,  89,  113};
+  llvm::StringRef codebookName = (isMx || isNv) ? "weft_dequant_mxfp4_kvalues"
+                                                : "weft_dequant_iq4nl_kvalues";
+  {
+    llvm::ArrayRef<int> entries = (isMx || isNv) ? llvm::ArrayRef<int>(kvaluesMxfp4)
+                                                 : llvm::ArrayRef<int>(kvaluesIq4nl);
+    std::string decl = "static const int8_t " + codebookName.str() + "[16] = {";
+    for (size_t i = 0; i < entries.size(); ++i) {
+      if (i) decl += ", ";
+      decl += std::to_string(entries[i]);
+    }
+    decl += "};";
+    rewriter.create<emitc::VerbatimOp>(loc, decl);
+  }
+
+  // vint8m1_t values = __riscv_vle8_v_i8m1(<codebook>, 16);  (broadcast the codebook
+  // into ONE vreg, reused by every vrgather -- register-resident, NO memory gather).
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "codebook_table_load"));
+  std::string tableLoadCallee = riscvIntrinsicName("vle", 8, "m1", "i8");
+  mlir::Value values = emitOpaqueCallBuilt(
+      rewriter, loc, i8VecType, tableLoadCallee, opName, role,
+      [&](mlir::OpBuilder &, mlir::Location) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value tbl = rewriter.create<emitc::LiteralOp>(loc, i8PtrType, codebookName);
+        return {tbl, sizeLit(16)};
+      });
+
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "super_block_count"));
+  mlir::Value nb = rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1), nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "xb"));
+    mlir::Value xb = rewriter.create<emitc::AddOp>(loc, inputPtrType, input, mulSz(ib, sizeLit(stride))).getResult();
+    mlir::Value ybRaw = rewriter.create<emitc::AddOp>(loc, outputPtrType, output, mulSz(ib, sizeLit(qk))).getResult();
+    mlir::Value yb = rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    // Emit ONE half-group codebook pipeline over `nLanes` packed nibble bytes at
+    // (xb + qsByteOff): low/high nibble split -> vrgather -> sext -> fcvt -> vfmul by
+    // `scale` -> vse32 to (yb + outLo) and (yb + outHi).
+    auto emitHalfGroup = [&](int64_t qsByteOff, int64_t nLanes, mlir::Value scale,
+                             int64_t outLo, int64_t outHi) {
+      mlir::Value qsPtr = rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsByteOff)).getResult();
+      mlir::Value qsU8 = rewriter.create<emitc::CastOp>(loc, u8PtrType, qsPtr).getResult();
+      mlir::Value w = emitOpaqueCall(rewriter, loc, u8VecType, riscvIntrinsicName("vle", 8, "m1", "u8"),
+                                     mlir::ValueRange{qsU8, sizeLit(nLanes)}, opName, role);
+      mlir::Value idxLo = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vand_vx_u8m1",
+                                         mlir::ValueRange{w, intLit(0x0F), sizeLit(nLanes)}, opName, role);
+      mlir::Value idxHi = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vsrl_vx_u8m1",
+                                         mlir::ValueRange{w, intLit(4), sizeLit(nLanes)}, opName, role);
+      auto lane = [&](mlir::Value idx, int64_t outOff) {
+        mlir::Value g = emitOpaqueCall(rewriter, loc, i8VecType, "__riscv_vrgather_vv_i8m1",
+                                       mlir::ValueRange{values, idx, sizeLit(nLanes)}, opName, role);
+        mlir::Value w32 = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vsext_vf4_i32m4",
+                                         mlir::ValueRange{g, sizeLit(nLanes)}, opName, role);
+        mlir::Value f = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfcvt_f_x_v", 32, "m4", "f32"),
+                                       mlir::ValueRange{w32, sizeLit(nLanes)}, opName, role);
+        mlir::Value r = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfmul_vf", 32, "m4", "f32"),
+                                       mlir::ValueRange{f, scale, sizeLit(nLanes)}, opName, role);
+        mlir::Value yStore = rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, sizeLit(outOff)).getResult();
+        emitOpaqueCallVoid(rewriter, loc, riscvIntrinsicName("vse", 32, "m4", "f32"),
+                           mlir::ValueRange{yStore, r, sizeLit(nLanes)}, opName, role);
+      };
+      lane(idxLo, outLo);
+      lane(idxHi, outHi);
+    };
+
+    if (isMx || isNl) {
+      // qk=32 nibble codebook: y[j] = d*kv[qs[j]&0xF]; y[j+16] = d*kv[qs[j]>>4].
+      // mxfp4: qs @+1, E8M0 block scale; iq4_nl: qs @+2, fp16 d block scale.
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, isMx ? "mxfp4_decode" : "iq4_nl_decode"));
+      mlir::Value d = isMx ? emitE8M0HalfScale(rewriter, loc, xb, opName, role)
+                           : fp16ReadAt(xb, 0);
+      emitHalfGroup(/*qsByteOff=*/isMx ? 1 : 2, /*nLanes=*/16, d, /*outLo=*/0, /*outHi=*/16);
+    } else if (isNv) {
+      // Four 16-element UE4M3-scaled sub-blocks; qs @+4, 8 bytes/sub. Per sub s:
+      // y[s*16 + j] = d[s]*kv[qs[s*8+j]&0xF]; y[s*16+8 + j] = d[s]*kv[qs[s*8+j]>>4].
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "nvfp4_sub_decode"));
+      for (int64_t s = 0; s < 4; ++s) {
+        mlir::Value d = ue4m3ScaleAt(xb, s);
+        emitHalfGroup(/*qsByteOff=*/4 + s * 8, /*nLanes=*/8, d, /*outLo=*/s * 16, /*outHi=*/s * 16 + 8);
+      }
+    } else { // iq4_xs
+      // d@0, scales_h(u16)@2, scales_l[4]@4, qs[128]@8. Per ib (8 sub-blocks of 32):
+      // ls = (scales_l[ib/2] >> 4*(ib%2))&0xF | ((scales_h >> 2*ib)&3)<<4; dl=d*(ls-32);
+      // y[ib*32 + j] = dl*kv[qs[ib*16+j]&0xF]; y[ib*32+16 + j] = dl*kv[qs[ib*16+j]>>4].
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "iq4_xs_decode"));
+      mlir::Value d = fp16ReadAt(xb, 0);
+      // scales_h assembled little-endian from bytes @2,@3 into int (positive, <=0xFFFF).
+      mlir::Value sh = iOr(loadU8Int(xb, 2), iShl(loadU8Int(xb, 3), intLit(8)));
+      for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
+        mlir::Value scl = loadU8Int(xb, 4 + ib32 / 2);
+        mlir::Value low = iAnd(iShr(scl, intLit(4 * (ib32 % 2))), intLit(0xF));
+        mlir::Value hi = iShl(iAnd(iShr(sh, intLit(2 * ib32)), intLit(3)), intLit(4));
+        mlir::Value dl = fMul(d, i2f(iSub(iOr(low, hi), intLit(32))));
+        emitHalfGroup(/*qsByteOff=*/8 + ib32 * 16, /*nLanes=*/16, dl,
+                      /*outLo=*/ib32 * 32, /*outHi=*/ib32 * 32 + 16);
+      }
+    }
+  }
+  return mlir::success();
 }
 
 // Lower the CONSTRUCTED streaming dequantize_row region: walk the

@@ -5092,6 +5092,33 @@ private:
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
       llvm::StringRef format) const;
 
+  /// The OWNED REAL-VECTOR tiny-codebook (16-entry) dequantize_row body (B线批2
+  /// tiny-codebook de-lottery · [L-8] · ISSUE-001 reverse · closes the ISSUE-002
+  /// codegen-lottery exposure per format) for the four 16-entry codebook leaves keyed
+  /// by `format`:
+  ///   mxfp4  : E8M0 block-shared scale,        qk=32  stride=17  qsOff=1  kvalues_mxfp4
+  ///   iq4_nl : fp16 d flat scale,              qk=32  stride=18  qsOff=2  kvalues_iq4nl
+  ///   nvfp4  : four UE4M3 sub-block scales,    qk=64  stride=36  qsOff=4  kvalues_mxfp4
+  ///   iq4_xs : fp16 d + signed-6 sub scale,    qk=256 stride=136 qsOff=8  kvalues_iq4nl
+  /// The 16-entry int8 codebook is broadcast into ONE i8m1 vreg ONCE
+  /// (vle8_v_i8m1, 16); every group's two nibble index lanes (vand 0x0F / vsrl 0x04,
+  /// u8m1) are gathered through it (vrgather_vv_i8m1 -> signed-i8 codebook lanes -- a
+  /// REGISTER-RESIDENT codebook gather, NOT a vluxei memory gather, so NO HW-gather
+  /// wall), sign-extended (vsext_vf4 -> i32m4), int->float (vfcvt -> f32m4), scaled by
+  /// the per-group float scale (vfmul_vf, ONE rounding == ggml's single `d*kv` mul ->
+  /// no fp-contraction ambiguity), and stored (vse32). N = 16 (mxfp4/iq4_nl/iq4_xs
+  /// half-group) or 8 (nvfp4 sub-half); the i8m1 / i32m4 / f32m4 LMULs are DERIVED from
+  /// the fixed group width (VLEN128: i8m1 VLMAX 16 >= the 16-entry codebook AND the
+  /// 16-lane half-group; i32m4 VLMAX 16). The integer nibble/codebook/scale decode
+  /// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte. Byte-exact to
+  /// ggml's dequantize_row_{mxfp4,nvfp4,iq4_nl,iq4_xs} by construction. Streaming
+  /// sibling of emitDequantizeRowQ8_0VectorBody (no accumulator).
+  mlir::LogicalResult emitDequantizeRowCodebookVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef format) const;
+
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the

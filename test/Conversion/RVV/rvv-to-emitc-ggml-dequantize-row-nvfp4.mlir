@@ -8,15 +8,18 @@
 // weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core
 // (decode_model "nvfp4", qk=64, stride=36); typed_dequantize_row_loop_yield } and lowers it
 // (the emission is DRIVEN by the typed region op-identity + decode_model, [L-6]/[L-8]
-// construction, NOT the abstract format string). The emitted C is BYTE-IDENTICAL to the
-// dispatch-wired nvfp4 monolith modulo ONLY the source-op provenance token (the SHARED
-// decode emitGgmlDequantizeRowExtended, reached via emitDequantizeRowCodebookGridBodyShared,
-// is the SAME code both paths run) -- the four per-16-element UE4M3 sub-block scales
-// (ggml_ue4m3_to_fp32 via ldexpf, HALF form) then the 16-entry FP4 codebook gather scaled
-// per sub-block. The codebook + UE4M3 scale are DERIVED at emit (NO op-attr; that blocker
-// is block-dot-repack-only, not this streaming dequant path). REUSES the nvfp4 block-dot
-// vec_dot codebook + UE4M3 scale. Byte-exact-vs-ggml-reference dequantize_row_nvfp4 (a
-// scalar AoS super-block loop; no reduction).
+// construction, NOT the abstract format string). It lowers via the OWNED REAL-VECTOR body
+// emitDequantizeRowCodebookVectorBody (B线批2 tiny-codebook fan-out): byte-exact-vs-ggml-
+// reference dequantize_row_nvfp4 by CONSTRUCTION (NOT byte-identical to the scalar monolith
+// -- the CONSTRUCTED path now emits OWNED __riscv_v intrinsics, the dispatch-wired monolith
+// keeps the scalar emitGgmlDequantizeRowExtended): the four per-16-element UE4M3 sub-block
+// scales (ggml_ue4m3_to_fp32 via ldexpf, HALF form) in SCALAR C, then per sub the FP4
+// codebook (shared with mxfp4, broadcast into ONE i8m1 vreg) GATHERED by the two nibble
+// index lanes (vrgather_vv_i8m1 -- a REGISTER-RESIDENT codebook gather, NOT a vluxei memory
+// gather, so NO HW-gather wall), sign-extended (vsext_vf4), int->float (vfcvt), scaled by
+// the sub scale in ONE vfmul (single-mul, no fp-contraction ambiguity), stored (vse32). The
+// codebook + UE4M3 scale are DERIVED at emit. ISSUE-001 reverse; closes the ISSUE-002
+// codegen-lottery for nvfp4 dequant.
 
 module {
   weft.exec.kernel @dequant_nvfp4_kernel {
@@ -38,11 +41,22 @@ module {
 // The construction is real: the emit is DRIVEN by the typed region (the provenance
 // token proves the abstract op went THROUGH weft_rvv.typed_dequantize_row_loop_body).
 // CHECK: route_source_op=weft_rvv.typed_dequantize_row_loop_body
-// The FP4 codebook table decl (kvalues_mxfp4, reused by nvfp4), above the loop.
-// CHECK: static const int8_t weft_dequant_nvfp4_kvalues
+// The FP4 codebook table decl (kvalues_mxfp4, reused by nvfp4), above the loop, then
+// broadcast into ONE i8m1 vreg (register-resident, reused by every vrgather).
+// CHECK: static const int8_t weft_dequant_mxfp4_kvalues
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
 // The block count nb = k / 64 and the block loop.
 // CHECK: div
 // CHECK: for
-// The UE4M3 -> fp32 HALF scale via ldexpf (NO fp16 seam).
+// The UE4M3 -> fp32 HALF scale via ldexpf (NO fp16 seam), in SCALAR C.
 // CHECK: call_opaque "ldexpf"
-// CHECK: bitwise_and
+// The OWNED REAL-VECTOR codebook nibble decode (B线批2 tiny-codebook fan-out): the packed
+// nibble bytes load, the low/high nibble split (vand_vx / vsrl_vx), the REGISTER codebook
+// gather (vrgather_vv_i8m1, NOT vluxei memory gather), the vf4 sign-extend, the int->float
+// convert, the single vfmul by the sub scale, and the store. OWNED __riscv_v, not lottery.
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vrgather_vv_i8m1"
+// CHECK: call_opaque "__riscv_vsext_vf4_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

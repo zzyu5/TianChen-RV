@@ -8,15 +8,18 @@
 // dequantize_row_decode_core (decode_model "iq4_nl", qk=32, stride=18);
 // typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the typed
 // region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
-// string). The emitted C is BYTE-IDENTICAL to the dispatch-wired iq4_nl monolith modulo
-// ONLY the source-op provenance token (the SHARED decode emitGgmlDequantizeRowExtended,
-// reached via emitDequantizeRowCodebookGridBodyShared, is the SAME code both paths run) --
-// the fp16 d via the (float)*(const _Float16 *) seam, then the 16-entry non-linear codebook
-// gather (kvalues_iq4nl[qs&0xF], kvalues_iq4nl[qs>>4]) scaled by d. The codebook is DERIVED
-// at emit as a function-local static (NO codebook op-attr; that blocker is
-// block-dot-repack-only, not this streaming dequant path). REUSES the iq4_nl block-dot
-// vec_dot codebook. Byte-exact-vs-ggml-reference dequantize_row_iq4_nl (a scalar AoS block
-// loop; no reduction).
+// string). It lowers via the OWNED REAL-VECTOR body emitDequantizeRowCodebookVectorBody
+// (B线批2 tiny-codebook fan-out): byte-exact-vs-ggml-reference dequantize_row_iq4_nl by
+// CONSTRUCTION (NOT byte-identical to the scalar monolith -- the CONSTRUCTED path now emits
+// OWNED __riscv_v intrinsics, the dispatch-wired monolith keeps the scalar
+// emitGgmlDequantizeRowExtended): the fp16 d via the (float)*(const _Float16 *) seam, then
+// the 16-entry non-linear codebook broadcast into ONE i8m1 vreg (vle8_v_i8m1, 16) and the
+// two nibble index lanes (vand 0x0F / vsrl 0x04) GATHERED through it (vrgather_vv_i8m1 -- a
+// REGISTER-RESIDENT codebook gather, NOT a vluxei memory gather, so NO HW-gather wall),
+// sign-extended (vsext_vf4), int->float (vfcvt), scaled by d in ONE vfmul (single-mul, no
+// fp-contraction ambiguity), stored (vse32). The codebook is DERIVED at emit as a
+// function-local static. ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery for
+// iq4_nl dequant.
 
 module {
   weft.exec.kernel @dequant_iq4_nl_kernel {
@@ -38,11 +41,22 @@ module {
 // The construction is real: the emit is DRIVEN by the typed region (the provenance
 // token proves the abstract op went THROUGH weft_rvv.typed_dequantize_row_loop_body).
 // CHECK: route_source_op=weft_rvv.typed_dequantize_row_loop_body
-// The 16-entry non-linear codebook table decl, emitted once above the loop.
+// The 16-entry non-linear codebook table decl, emitted once above the loop, then
+// broadcast into ONE i8m1 vreg (register-resident, reused by every vrgather).
 // CHECK: static const int8_t weft_dequant_iq4nl_kvalues
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
 // CHECK: div
 // CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The nibble split feeding the codebook gather.
-// CHECK: bitwise_and
-// CHECK: bitwise_right_shift
+// The OWNED REAL-VECTOR codebook nibble decode (B线批2 tiny-codebook fan-out): the 16
+// packed nibble bytes load, the low/high nibble split (vand_vx / vsrl_vx), the REGISTER
+// codebook gather (vrgather_vv_i8m1, NOT vluxei memory gather), the vf4 sign-extend, the
+// int->float convert, the single vfmul by d, and the store. OWNED __riscv_v, not lottery.
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vsrl_vx_u8m1"
+// CHECK: call_opaque "__riscv_vrgather_vv_i8m1"
+// CHECK: call_opaque "__riscv_vsext_vf4_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
