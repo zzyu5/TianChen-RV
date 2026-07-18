@@ -58,7 +58,7 @@
     PASS    silu|f32 cold=0.997
     PASS    scale|f32 cold=0.998
 
-[标量类] 头条 PASS 39/51 (全量) · 已测胜率 39/49 (派生) · 格内: PASS 39/具名-X 10/挂起 0/pending 2
+[标量类] 头条 PASS 40/51 (全量) · 已测胜率 40/49 (派生) · 格内: PASS 40/具名-X 9/挂起 0/pending 2
     具名-X    vec_dot|nvfp4 cold=0.565
     PASS    prod_reduce|q4_0_nibble cold=2.712
     PASS    prod_reduce|offset_binary_n3 cold=0.855
@@ -84,8 +84,8 @@
     PASS    dequantize|iq4_xs cold=5.17
     PASS    dequantize|mxfp4 cold=6.42
     PASS    dequantize|nvfp4 cold=0.8
-    PASS    dequantize|tq1_0
-    具名-X    dequantize|tq2_0
+    PASS    dequantize|tq1_0 cold=1.05
+    PASS    dequantize|tq2_0 cold=1.0
     具名-X    gemm|iq1_s@rvv cold=0.6643
     具名-X    gemm|iq1_m@rvv cold=0.5713
     具名-X    gemm|iq2_xxs@rvv/decode cold=0.6
