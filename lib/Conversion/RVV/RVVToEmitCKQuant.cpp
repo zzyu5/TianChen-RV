@@ -3031,7 +3031,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
     // setup, NOT a typed fact (always 0 for this family).
     int64_t weightDOffset = fold.getWeightDByteOffset(); // 0
     int64_t activationDOffset = 0;                        // 0
-    int64_t numLanes = 8;                                // canonical aux32/sums lanes
+    // A-line g-axis debake (路 B): the canonical fp32 sums lane count is a
+    // FORMAT-DEFINED descriptor fact read FAIL-CLOSED from the fold op (no baked
+    // default, no subBlock/2 derivation -- byte-INEXACT for q6_K). Absent => the
+    // front door failed to stamp.
+    if (!fold.getNumLanes())
+      return rewriter.notifyMatchFailure(
+          fold, "q4_K/q5_K sums-fold requires an explicit num_lanes descriptor "
+                "fact (front door stamps it; no baked default)");
+    int64_t numLanes = static_cast<int64_t>(*fold.getNumLanes());  // 8
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
@@ -3451,7 +3459,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     int64_t bsumsOffset = b4.getBsumsByteOffset();              // 260
     int64_t numSubBlocks = qk / subBlock;                       //   8
     int64_t quarter = subBlock / 4;                             // 8-elem quarters (subBlock/4)
-    int64_t numLanes = 8;                                       // aux32/sums lanes
+    // A-line g-axis debake (路 B): the canonical fp32 sums lane count is a
+    // FORMAT-DEFINED descriptor fact read FAIL-CLOSED from the sums-fold BRICK 6
+    // (no baked default, no subBlock/2 derivation). Absent => front door failed.
+    if (!b6.getNumLanes())
+      return rewriter.notifyMatchFailure(
+          b6, "q4_K/q5_K sums-fold (BRICK 6) requires an explicit num_lanes "
+              "descriptor fact (front door stamps it; no baked default)");
+    int64_t numLanes = static_cast<int64_t>(*b6.getNumLanes());     // 8
     int64_t numBsums = qk / 16;                                 //  16
 
     // The Region-C integer-MAC LMUL anchor, sourced from the BRICK 3 scaled dot
@@ -4763,7 +4778,14 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t bsumsOffset = coreOp.getActivationBsumsByteOffset();// 260
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t groupsPerSub = 4;  // 4 grid groups per sub-block (l=0..3)
+    // A-line g-axis debake (路 B): the iq1_s grid group count is a FORMAT-DEFINED
+    // descriptor fact read FAIL-CLOSED from the core op (no baked default, no
+    // subBlock/8 derivation). Absent => the front door failed to stamp.
+    if (!coreOp.getGroupsPerSub())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq1_s grid core requires an explicit groups_per_sub "
+                  "descriptor fact (front door stamps it; no baked default)");
+    int64_t groupsPerSub = static_cast<int64_t>(*coreOp.getGroupsPerSub()); // 4
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
@@ -4976,7 +4998,13 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M(
     int64_t activationDOffset = 0;                              //   0 (fp32 y.d)
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t groupsPerSub = 4;  // 4 grid groups per sub-block (l=0..3)
+    // A-line g-axis debake (路 B): the iq1_m grid group count is a FORMAT-DEFINED
+    // descriptor fact read FAIL-CLOSED from the core op (no baked default).
+    if (!coreOp.getGroupsPerSub())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq1_m grid core requires an explicit groups_per_sub "
+                  "descriptor fact (front door stamps it; no baked default)");
+    int64_t groupsPerSub = static_cast<int64_t>(*coreOp.getGroupsPerSub()); // 4
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
@@ -5181,9 +5209,19 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs(
     int64_t activationDOffset = coreOp.getActivationDByteOffset();//  0
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t numGroups = 4;      // 4 sign groups per sub-block
-    int64_t indicesPerSubBlock = 8; // 8 grid index bytes per sub-block (2 per group)
-    int64_t groupLanes = 8;     // 8 grid lanes per sign group
+    // A-line g-axis debake (路 B): the iq3_xxs grid sub-structure counts are
+    // FORMAT-DEFINED descriptor facts read FAIL-CLOSED from the core op (no baked
+    // default, no subBlock-derivation). Absent => the front door failed to stamp.
+    if (!coreOp.getNumGroups() || !coreOp.getIndicesPerSubBlock() ||
+        !coreOp.getGroupLanes())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq3_xxs grid core requires explicit num_groups / "
+                  "indices_per_sub_block / group_lanes descriptor facts "
+                  "(front door stamps them; no baked default)");
+    int64_t numGroups = static_cast<int64_t>(*coreOp.getNumGroups());      // 4
+    int64_t indicesPerSubBlock =
+        static_cast<int64_t>(*coreOp.getIndicesPerSubBlock());             // 8
+    int64_t groupLanes = static_cast<int64_t>(*coreOp.getGroupLanes());   // 8
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
@@ -5428,10 +5466,21 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
     int64_t activationDOffset = coreOp.getActivationDByteOffset();//  0
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t numGroups = 4;      // 4 sign groups per sub-block
-    int64_t indicesPerSubBlock = 8; // 8 grid index bytes per sub-block (2 per group)
-    int64_t signsPerSubBlock = 4;   // 4 explicit sign bytes per sub-block
-    int64_t groupLanes = 8;     // 8 grid lanes per sign group
+    // A-line g-axis debake (路 B): the iq3_s grid sub-structure counts are
+    // FORMAT-DEFINED descriptor facts read FAIL-CLOSED from the core op (no baked
+    // default, no subBlock-derivation). Absent => the front door failed to stamp.
+    if (!coreOp.getNumGroups() || !coreOp.getIndicesPerSubBlock() ||
+        !coreOp.getSignsPerSubBlock() || !coreOp.getGroupLanes())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq3_s grid core requires explicit num_groups / "
+                  "indices_per_sub_block / signs_per_sub_block / group_lanes "
+                  "descriptor facts (front door stamps them; no baked default)");
+    int64_t numGroups = static_cast<int64_t>(*coreOp.getNumGroups());      // 4
+    int64_t indicesPerSubBlock =
+        static_cast<int64_t>(*coreOp.getIndicesPerSubBlock());             // 8
+    int64_t signsPerSubBlock =
+        static_cast<int64_t>(*coreOp.getSignsPerSubBlock());               // 4
+    int64_t groupLanes = static_cast<int64_t>(*coreOp.getGroupLanes());   // 8
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
@@ -5670,7 +5719,14 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
     int64_t activationDOffset = coreOp.getActivationDByteOffset();//  0
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t numGroups = 4;      // 4 grid/sign groups per sub-block
+    // A-line g-axis debake (路 B): the iq2_xxs grid sign-group count is a
+    // FORMAT-DEFINED descriptor fact read FAIL-CLOSED from the core op (no baked
+    // default, no subBlock/8 derivation). Absent => the front door failed to stamp.
+    if (!coreOp.getNumGroups())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq2_xxs grid core requires an explicit num_groups descriptor "
+                  "fact (front door stamps it; no baked default)");
+    int64_t numGroups = static_cast<int64_t>(*coreOp.getNumGroups());      // 4
     llvm::StringRef coreLmul = coreOp.getIntegerCoreLmul().value_or("m2");
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
@@ -5899,7 +5955,15 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xs(
     int64_t activationDOffset = coreOp.getActivationDByteOffset();//  0
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t numGroupsPerHalf = 2;      // 2 grid/sign groups per 16-lane half
+    // A-line g-axis debake (路 B): the iq2_xs per-16-lane-half group count is a
+    // FORMAT-DEFINED descriptor fact read FAIL-CLOSED from the core op (no baked
+    // default, no halfLanes/groupLanes derivation). Absent => front door failed.
+    if (!coreOp.getNumGroupsPerHalf())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq2_xs grid core requires an explicit num_groups_per_half "
+                  "descriptor fact (front door stamps it; no baked default)");
+    int64_t numGroupsPerHalf =
+        static_cast<int64_t>(*coreOp.getNumGroupsPerHalf());              // 2
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 
@@ -6128,8 +6192,17 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
     int64_t activationDOffset = coreOp.getActivationDByteOffset();//  0
     int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t groupsPerSub = 4;          // 4 grid groups per sub-block (l=0..3)
-    int64_t numGroupsPerHalf = 2;      // 2 grid/sign groups per 16-lane half
+    // A-line g-axis debake (路 B): the iq2_s grid group counts are FORMAT-DEFINED
+    // descriptor facts read FAIL-CLOSED from the core op (no baked default, no
+    // subBlock/8 or halfLanes derivation). Absent => the front door failed to stamp.
+    if (!coreOp.getGroupsPerSub() || !coreOp.getNumGroupsPerHalf())
+      return rewriter.notifyMatchFailure(
+          coreOp, "iq2_s grid core requires explicit groups_per_sub / "
+                  "num_groups_per_half descriptor facts (front door stamps them; "
+                  "no baked default)");
+    int64_t groupsPerSub = static_cast<int64_t>(*coreOp.getGroupsPerSub()); // 4
+    int64_t numGroupsPerHalf =
+        static_cast<int64_t>(*coreOp.getNumGroupsPerHalf());              // 2
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 

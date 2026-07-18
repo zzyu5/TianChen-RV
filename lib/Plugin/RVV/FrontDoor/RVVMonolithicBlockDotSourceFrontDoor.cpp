@@ -1257,6 +1257,10 @@ void createTypedSuperBlockBlockDotLoopChain(
     s.addAttribute("num_sub_blocks", builder.getI64IntegerAttr(numSubBlocks));
     s.addAttribute("weight_d_byte_offset",
                    builder.getI64IntegerAttr(weightDOffset));
+    // A-line g-axis debake (路 B): stamp the canonical fp32 sums lane count as a
+    // FORMAT-DEFINED descriptor fact (8), NOT a subBlock/2 derivation (byte-
+    // INEXACT for q6_K). The EmitC fold reads coreOp.getNumLanes() fail-closed.
+    s.addAttribute("num_lanes", builder.getI64IntegerAttr(8));
     s.addTypes(i32VecType);
     (void)builder.create(s);
   }
@@ -1422,6 +1426,10 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
     s.addAttribute("num_sub_blocks", builder.getI64IntegerAttr(8));
     s.addAttribute("weight_d_byte_offset",
                    builder.getI64IntegerAttr(weightDOffset));
+    // A-line g-axis debake (路 B): stamp the canonical fp32 sums lane count as a
+    // FORMAT-DEFINED descriptor fact (8). The EmitC fold reads
+    // coreOp.getNumLanes() fail-closed (no baked default).
+    s.addAttribute("num_lanes", builder.getI64IntegerAttr(8));
     s.addTypes(i32VecType);
     (void)builder.create(s);
   }
@@ -1667,6 +1675,10 @@ void createTypedSuperBlockScalarDeltaGridLoopChain(
                    builder.getI64IntegerAttr(activationQuantOffset));
     s.addAttribute("activation_bsums_byte_offset",
                    builder.getI64IntegerAttr(activationBsumsOffset));
+    // A-line g-axis debake (路 B): stamp the iq1_s grid group count as a
+    // FORMAT-DEFINED descriptor fact (4 grid groups per sub-block), so the EmitC
+    // grid loop reads coreOp.getGroupsPerSub() instead of a baked literal.
+    s.addAttribute("groups_per_sub", builder.getI64IntegerAttr(4));
     s.addTypes({i32ScalarType, i32ScalarType});
     (void)builder.create(s);
   }
@@ -1784,6 +1796,9 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq1M(
                    builder.getI64IntegerAttr(weightScalesOffset));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
+    // A-line g-axis debake (路 B): stamp the iq1_m grid group count as a
+    // FORMAT-DEFINED descriptor fact (4 grid groups per sub-block).
+    s.addAttribute("groups_per_sub", builder.getI64IntegerAttr(4));
     s.addTypes({i32ScalarType, i32ScalarType});
     (void)builder.create(s);
   }
@@ -1904,6 +1919,12 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
                    builder.getI64IntegerAttr(activationDOffset));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
+    // A-line g-axis debake (路 B): stamp the iq3_xxs grid sub-structure counts as
+    // FORMAT-DEFINED descriptor facts (4 sign groups per sub-block, 8 grid index
+    // bytes per sub-block, 8 grid lanes per sign group).
+    s.addAttribute("num_groups", builder.getI64IntegerAttr(4));
+    s.addAttribute("indices_per_sub_block", builder.getI64IntegerAttr(8));
+    s.addAttribute("group_lanes", builder.getI64IntegerAttr(8));
     s.addTypes({i32ScalarType});
     (void)builder.create(s);
   }
@@ -2037,6 +2058,14 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
                    builder.getI64IntegerAttr(activationDOffset));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
+    // A-line g-axis debake (路 B): stamp the iq3_s grid sub-structure counts as
+    // FORMAT-DEFINED descriptor facts (4 sign groups per sub-block, 8 grid index
+    // bytes per sub-block, 4 explicit sign bytes per sub-block, 8 grid lanes per
+    // sign group).
+    s.addAttribute("num_groups", builder.getI64IntegerAttr(4));
+    s.addAttribute("indices_per_sub_block", builder.getI64IntegerAttr(8));
+    s.addAttribute("signs_per_sub_block", builder.getI64IntegerAttr(4));
+    s.addAttribute("group_lanes", builder.getI64IntegerAttr(8));
     s.addTypes({i32ScalarType});
     (void)builder.create(s);
   }
@@ -2522,6 +2551,9 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
                    builder.getI64IntegerAttr(activationDOffset));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
+    // A-line g-axis debake (路 B): stamp the iq2_xxs grid sign-group count as a
+    // FORMAT-DEFINED descriptor fact (4 sign groups per sub-block).
+    s.addAttribute("num_groups", builder.getI64IntegerAttr(4));
     s.addTypes({i32ScalarType});
     (void)builder.create(s);
   }
@@ -2644,6 +2676,9 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
                    builder.getI64IntegerAttr(activationDOffset));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
+    // A-line g-axis debake (路 B): stamp the iq2_xs per-16-lane-half group count
+    // as a FORMAT-DEFINED descriptor fact (2 grid/sign groups per 16-lane half).
+    s.addAttribute("num_groups_per_half", builder.getI64IntegerAttr(2));
     s.addTypes({i32ScalarType});
     (void)builder.create(s);
   }
@@ -2773,6 +2808,11 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2s(
                    builder.getI64IntegerAttr(activationDOffset));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
+    // A-line g-axis debake (路 B): stamp the iq2_s grid group counts as
+    // FORMAT-DEFINED descriptor facts (4 grid groups per sub-block, 2 grid/sign
+    // groups per 16-lane half).
+    s.addAttribute("groups_per_sub", builder.getI64IntegerAttr(4));
+    s.addAttribute("num_groups_per_half", builder.getI64IntegerAttr(2));
     s.addTypes({i32ScalarType});
     (void)builder.create(s);
   }

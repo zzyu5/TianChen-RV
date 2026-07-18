@@ -60,7 +60,7 @@ module {
           // dot with two half scales + the per-group four-sign Σq8 delta, producing the
           // two SCALAR integer states sumi1 + sumi2. The `block %super_block_index`
           // operand makes the bases per-super-block (vx + ib*56, vy + ib*292).
-          %sumi1, %sumi2 = weft_rvv.iq1_m_q8_k_grid_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_iq1_m_q8_k_grid_core", scale_model = "packed-iq1m-scale-per-half-scale-ternary-grid-codebook-per-group-delta-int-domain", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 56 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_qh_byte_offset = 32 : i64, weight_scales_byte_offset = 48 : i64, activation_quant_byte_offset = 4 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32, i32
+          %sumi1, %sumi2 = weft_rvv.iq1_m_q8_k_grid_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_iq1_m_q8_k_grid_core", scale_model = "packed-iq1m-scale-per-half-scale-ternary-grid-codebook-per-group-delta-int-domain", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 56 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_qh_byte_offset = 32 : i64, weight_scales_byte_offset = 48 : i64, activation_quant_byte_offset = 4 : i64, groups_per_sub = 4 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32, i32
           // SINGLE carried-out SCALAR accumulator (sumf ONLY -- no 8-lane vector
           // `sums`). The byte-exact scalar fold sumf += d*((float)sumi1 +
           // IQ1M_DELTA*(float)sumi2) (d = reconstructed-fp16 * y.d @0, IQ1M_DELTA=0.125f)

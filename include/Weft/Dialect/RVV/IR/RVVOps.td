@@ -6427,7 +6427,12 @@ def Q4KSumsFoldScaleDOp
     I64Attr:$qk,
     I64Attr:$sub_block,
     I64Attr:$num_sub_blocks,
-    I64Attr:$weight_d_byte_offset
+    I64Attr:$weight_d_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the canonical fp32 aux32/`sums`
+    // lane count (8) is a FORMAT-DEFINED first-class fact, NOT a subBlock/2
+    // derivation (that is byte-INEXACT for q6_K). OptionalAttr keeps existing
+    // fixtures parsing; the EmitC fold read is FAIL-CLOSED (no baked default).
+    OptionalAttr<I64Attr>:$num_lanes
   );
   let results = (outs AnyType:$result);
 
@@ -7135,7 +7140,13 @@ def GgmlBlockDotIQ1SQ8KGridCoreOp
     I64Attr:$weight_qs_byte_offset,
     I64Attr:$weight_qh_byte_offset,
     I64Attr:$activation_quant_byte_offset,
-    I64Attr:$activation_bsums_byte_offset
+    I64Attr:$activation_bsums_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the iq1_s grid sub-block group
+    // count (4 grid groups per sub-block) is a FORMAT-DEFINED first-class fact,
+    // NOT a subBlock/8 derivation ("恰好=subBlock/8" is a coincidence of the
+    // current grids, not a law). OptionalAttr keeps fixtures parsing; the EmitC
+    // grid read is FAIL-CLOSED (no baked default).
+    OptionalAttr<I64Attr>:$groups_per_sub
   );
   let results = (outs AnyType:$sumi, AnyType:$sumi1);
 
@@ -7231,7 +7242,12 @@ def GgmlBlockDotIQ1MQ8KGridCoreOp
     I64Attr:$weight_qs_byte_offset,
     I64Attr:$weight_qh_byte_offset,
     I64Attr:$weight_scales_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the iq1_m grid sub-block group
+    // count (4 grid groups per sub-block) is a FORMAT-DEFINED first-class fact,
+    // NOT a subBlock/8 derivation. OptionalAttr keeps fixtures parsing; the
+    // EmitC grid read is FAIL-CLOSED (no baked default).
+    OptionalAttr<I64Attr>:$groups_per_sub
   );
   let results = (outs AnyType:$sumi1, AnyType:$sumi2);
 
@@ -7323,7 +7339,15 @@ def GgmlBlockDotIQ3XXSQ8KGridCoreOp
     I64Attr:$weight_qs_byte_offset,
     I64Attr:$weight_gas_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the iq3_xxs grid sub-block
+    // sub-structure counts -- sign groups per sub-block (4), grid index bytes
+    // per sub-block (8), grid lanes per sign group (8) -- are FORMAT-DEFINED
+    // first-class facts, NOT subBlock/8 or subBlock/4 derivations. OptionalAttr
+    // keeps fixtures parsing; the EmitC grid reads are FAIL-CLOSED (no defaults).
+    OptionalAttr<I64Attr>:$num_groups,
+    OptionalAttr<I64Attr>:$indices_per_sub_block,
+    OptionalAttr<I64Attr>:$group_lanes
   );
   let results = (outs AnyType:$bsum);
 
@@ -7444,7 +7468,12 @@ def GgmlBlockDotIQ2XXSQ8KGridCoreOp
     I64Attr:$activation_d_byte_offset,
     I64Attr:$activation_quant_byte_offset,
     OptionalAttr<StrAttr>:$integer_core_lmul,
-    OptionalAttr<I64Attr>:$minimum_vlen
+    OptionalAttr<I64Attr>:$minimum_vlen,
+    // A-line g-axis debake (路 B, descriptor): the iq2_xxs grid sign-group count
+    // (4 sign groups per sub-block) is a FORMAT-DEFINED first-class fact, NOT a
+    // subBlock/8 derivation. OptionalAttr keeps fixtures parsing; the EmitC grid
+    // read is FAIL-CLOSED (no baked default).
+    OptionalAttr<I64Attr>:$num_groups
   );
   let results = (outs AnyType:$bsum);
 
@@ -8114,7 +8143,12 @@ def GgmlBlockDotIQ2XSQ8KGridCoreOp
     I64Attr:$weight_qs_byte_offset,
     I64Attr:$weight_scales_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the iq2_xs grid/sign-group count
+    // per 16-lane half (2) is a FORMAT-DEFINED first-class fact, NOT a
+    // halfLanes/groupLanes (16/8) derivation. OptionalAttr keeps fixtures
+    // parsing; the EmitC grid read is FAIL-CLOSED (no baked default).
+    OptionalAttr<I64Attr>:$num_groups_per_half
   );
   let results = (outs AnyType:$bsum);
 
@@ -8241,7 +8275,13 @@ def GgmlBlockDotIQ2SQ8KGridCoreOp
     I64Attr:$weight_qh_byte_offset,
     I64Attr:$weight_scales_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the iq2_s grid group count per
+    // sub-block (4) and per 16-lane half (2) are FORMAT-DEFINED first-class
+    // facts, NOT subBlock/8 or halfLanes/groupLanes derivations. OptionalAttr
+    // keeps fixtures parsing; the EmitC grid reads are FAIL-CLOSED (no defaults).
+    OptionalAttr<I64Attr>:$groups_per_sub,
+    OptionalAttr<I64Attr>:$num_groups_per_half
   );
   let results = (outs AnyType:$bsum);
 
@@ -8357,7 +8397,17 @@ def GgmlBlockDotIQ3SQ8KGridCoreOp
     I64Attr:$weight_signs_byte_offset,
     I64Attr:$weight_scales_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    // A-line g-axis debake (路 B, descriptor): the iq3_s grid sub-block
+    // sub-structure counts -- sign groups per sub-block (4), grid index bytes
+    // per sub-block (8), explicit sign bytes per sub-block (4), grid lanes per
+    // sign group (8) -- are FORMAT-DEFINED first-class facts, NOT subBlock/8 or
+    // subBlock/4 derivations. OptionalAttr keeps fixtures parsing; the EmitC grid
+    // reads are FAIL-CLOSED (no baked defaults).
+    OptionalAttr<I64Attr>:$num_groups,
+    OptionalAttr<I64Attr>:$indices_per_sub_block,
+    OptionalAttr<I64Attr>:$signs_per_sub_block,
+    OptionalAttr<I64Attr>:$group_lanes
   );
   let results = (outs AnyType:$bsum);
 

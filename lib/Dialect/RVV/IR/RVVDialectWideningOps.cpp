@@ -6514,7 +6514,10 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
   // name is rejected fail-closed (I7).
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "qk" || name == "sub_block" ||
-           name == "num_sub_blocks" || name == "weight_d_byte_offset";
+           name == "num_sub_blocks" || name == "weight_d_byte_offset" ||
+           // A-line g-axis debake (路 B): the canonical fp32 sums lane count
+           // descriptor fact (8), read fail-closed by the EmitC fold.
+           name == "num_lanes";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -7578,7 +7581,9 @@ mlir::LogicalResult GgmlBlockDotIQ1SQ8KGridCoreOp::verify() {
            name == "activation_block_stride" ||
            name == "weight_qs_byte_offset" || name == "weight_qh_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "activation_bsums_byte_offset";
+           name == "activation_bsums_byte_offset" ||
+           // A-line g-axis debake (路 B): the iq1_s grid group count descriptor.
+           name == "groups_per_sub";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -7744,7 +7749,9 @@ mlir::LogicalResult GgmlBlockDotIQ1MQ8KGridCoreOp::verify() {
            name == "activation_block_stride" ||
            name == "weight_qs_byte_offset" || name == "weight_qh_byte_offset" ||
            name == "weight_scales_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           // A-line g-axis debake (路 B): the iq1_m grid group count descriptor.
+           name == "groups_per_sub";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -7910,7 +7917,10 @@ mlir::LogicalResult GgmlBlockDotIQ3XXSQ8KGridCoreOp::verify() {
            name == "weight_d_byte_offset" || name == "weight_qs_byte_offset" ||
            name == "weight_gas_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           // A-line g-axis debake (路 B): the iq3_xxs grid sub-structure counts.
+           name == "num_groups" || name == "indices_per_sub_block" ||
+           name == "group_lanes";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -8987,6 +8997,8 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
+           // A-line g-axis debake (路 B): the iq2_xxs grid sign-group count.
+           name == "num_groups" ||
            name.starts_with("weft_rvv.iq2_xxs_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -9170,7 +9182,9 @@ mlir::LogicalResult GgmlBlockDotIQ2XSQ8KGridCoreOp::verify() {
            name == "weight_d_byte_offset" || name == "weight_qs_byte_offset" ||
            name == "weight_scales_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           // A-line g-axis debake (路 B): the iq2_xs per-16-lane-half group count.
+           name == "num_groups_per_half";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -9331,7 +9345,9 @@ mlir::LogicalResult GgmlBlockDotIQ2SQ8KGridCoreOp::verify() {
            name == "weight_qh_byte_offset" ||
            name == "weight_scales_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           // A-line g-axis debake (路 B): the iq2_s grid group counts.
+           name == "groups_per_sub" || name == "num_groups_per_half";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -9501,7 +9517,10 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KGridCoreOp::verify() {
            name == "weight_signs_byte_offset" ||
            name == "weight_scales_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           // A-line g-axis debake (路 B): the iq3_s grid sub-structure counts.
+           name == "num_groups" || name == "indices_per_sub_block" ||
+           name == "signs_per_sub_block" || name == "group_lanes";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
