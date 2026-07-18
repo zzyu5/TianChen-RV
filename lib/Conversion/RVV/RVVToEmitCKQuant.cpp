@@ -2711,6 +2711,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
     // is the SAME single-source detail::deriveWideningChain the monolithic q4_K
     // core uses, so the auto-constructed Region C is byte-identical at every legal
     // anchor (the wide m1/m2 forms reach the q4_K capability flip: the fold-back).
+    // [A-line stage-3: NOT debakeable] this default is LIVE, not dead code: the
+    // q4_K DECODE front door leaves q4_k_scaled_dot's optional integer_core_lmul
+    // UNSTAMPED by design, so fail-closing here breaks byte-exact across the q4_K
+    // production e2e. A real debake must stamp it in the front door first (gated
+    // supervisor decision, out of this emitter-only relayer scope).
     llvm::StringRef coreLmul = scaledDot.getIntegerCoreLmul().value_or("mf2");
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef l8 = wideningChain.l8;
@@ -3482,6 +3487,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     // (breaking the latency/dependency wall + the m8 register-cliff, matching the
     // deployed vl128 hand-tuned dataflow). q5_K (hasQh) uses NEITHER -> stays on the
     // aux8 path.
+    // [A-line stage-3: NOT debakeable] this default is LIVE: the q4_K/q5_K DECODE
+    // front door leaves this super-block-loop q4_k_scaled_dot brick's optional
+    // integer_core_lmul UNSTAMPED by design (hand-authored Conversion fixtures
+    // hard-code it, but the q4-k/q5-k production e2e does not). Fail-closing breaks
+    // byte-exact e2e; a real debake stamps it in the front door first.
     llvm::StringRef coreLmulAttr = b3.getIntegerCoreLmul().value_or("mf2");
     bool useRegisterFusion = (coreLmulAttr == "fused") && !hasQh;
     bool useVwredsum = (coreLmulAttr == "vwredsum") && !hasQh;
@@ -5727,6 +5737,10 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
           coreOp, "iq2_xxs grid core requires an explicit num_groups descriptor "
                   "fact (front door stamps it; no baked default)");
     int64_t numGroups = static_cast<int64_t>(*coreOp.getNumGroups());      // 4
+    // [A-line stage-3: NOT debakeable] unlike num_groups above (a format descriptor
+    // fact the front door DOES stamp, hence fail-closed), integer_core_lmul is the
+    // optional Win-A gearbox that the iq2_xxs DECODE front door leaves UNSTAMPED by
+    // design; fail-closing here breaks byte-exact across the iq2_xxs production e2e.
     llvm::StringRef coreLmul = coreOp.getIntegerCoreLmul().value_or("m2");
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };

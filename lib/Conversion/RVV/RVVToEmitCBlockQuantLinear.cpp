@@ -104,6 +104,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0GemmTile(
     // vsetvl_e8m1(16) covers the 16 nibble bytes at VLEN >= 128); the product
     // widens i8m1 -> i16m2. These are the *how* (vector grouping), never the
     // *what*: the dot product is byte-exact (vwredsum sums the same integer set).
+    // [A-line stage-3: structural constant, NOT a knob] the m1/m2 shape is FIXED by
+    // this GEMM-tile body (hardcoded vint8m1_t/vint16m2_t types + the "m1"/"m2"
+    // intrinsic-name suffixes below all pin the same shape); there is no IR width to
+    // read. [K-10]: do not fake a knob -- the debake is a no-op here.
     llvm::StringRef coreLmul = "m1";
     llvm::StringRef wideLmul = "m2";
     mlir::Type i8CoreType = emitc::OpaqueType::get(ctx, "vint8m1_t");
@@ -394,6 +398,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0Gemm(
     // vsetvl_e8m1(16) covers the 16 nibble bytes at VLEN >= 128); the product
     // widens i8m1 -> i16m2. The *how* (vector grouping), never the *what*: the
     // dot product is byte-exact (vwredsum sums the same integer set).
+    // [A-line stage-3: structural constant, NOT a knob] the m1/m2 shape is FIXED by
+    // this GEMM body (hardcoded vint8m1_t/vint16m2_t types + intrinsic-name suffixes
+    // below); no IR width to read. [K-10]: do not fake a knob (debake is a no-op).
     llvm::StringRef coreLmul = "m1";
     llvm::StringRef wideLmul = "m2";
     mlir::Type i8CoreType = emitc::OpaqueType::get(ctx, "vint8m1_t");
@@ -14218,6 +14225,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       return rewriter.notifyMatchFailure(loopBody,
                                          "q1_0 loop-body output not a pointer");
 
+    // [A-line stage-3: NOT debakeable] this "m2" default is LIVE: the q1_0 flat
+    // front door leaves the binary-sign core's optional integer_core_lmul UNSTAMPED
+    // by design (proven: the q1_0 production e2e lowers at this default). Fail-
+    // closing breaks byte-exact; a real debake stamps it in the front door first.
     llvm::StringRef coreLmul = "m2";
     if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
       coreLmul = *attrLmul;
@@ -14297,6 +14308,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
 
     // The codebook gather pins the m1 anchor (VLMAX >= 16); the brick's optional
     // integer_core_lmul is verifier-restricted to m1.
+    // [A-line stage-3: NOT debakeable] this "m1" default is LIVE: the nvfp4 flat
+    // front door leaves the codebook core's optional integer_core_lmul UNSTAMPED by
+    // design (proven: the nvfp4 production e2e lowers at this default). Fail-closing
+    // breaks byte-exact; a real debake stamps it in the front door first.
     llvm::StringRef coreLmul = "m1";
     if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
       coreLmul = *attrLmul;
@@ -17641,6 +17656,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
   if (!outPointer)
     return rewriter.notifyMatchFailure(blockDot, "block-dot output not a pointer");
 
+  // [A-line stage-3: NOT debakeable] this "m2" default is LIVE: the q1_0 flat front
+  // door leaves GgmlBlockDotQ10Q80Op's optional integer_core_lmul UNSTAMPED by
+  // design (same q1_0 production e2e as the flat-loop body above). Fail-closing
+  // breaks byte-exact; a real debake stamps it in the front door first.
   llvm::StringRef coreLmul = "m2";
   if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
     coreLmul = *attrLmul;
