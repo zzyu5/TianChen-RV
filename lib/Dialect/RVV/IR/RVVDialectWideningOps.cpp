@@ -6256,18 +6256,28 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   //     the deployed vl128 hand-tuned dataflow). The integer dot is associative/
   //     order-free (int32 zero-rounding), so byte-exact holds under the int-mode
   //     fp fold.
+  //   * "minterm-vec" (ISSUE-109 min-term vectorization lever, q4_K non-qh only) --
+  //     the "vwredsum" aux8-free block-dot PLUS a WIDE-LMUL vectorized MIN-term
+  //     bsums.mins reduction (vle16 the 16 bsums, vrgather-broadcast the 8 mins,
+  //     ONE vwmul i16m2 -> i32m4, ONE vredsum.vs), eliminating the remaining
+  //     board-tested scalar-heavy floor (16 lh + 16 scalar mul) and matching the
+  //     deployed vl128 hand-tuned dataflow that vectorizes BOTH the dot and the
+  //     min term. The integer product/sum is associative/order-free (int32 zero-
+  //     rounding), so byte-exact holds.
   if (getIntegerCoreLmul().has_value()) {
     llvm::StringRef coreLmul = *getIntegerCoreLmul();
     if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2" &&
-        coreLmul != "fused" && coreLmul != "vwredsum")
+        coreLmul != "fused" && coreLmul != "vwredsum" &&
+        coreLmul != "minterm-vec")
       return emitOpError()
              << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\", "
-                "\"fused\", \"vwredsum\"} (the base LMUL of the i8 -> i16 -> i32 "
-                "integer-MAC chain; \"m2\" is the ceiling at one sub-block == 32 "
-                "elements per scalar scale; \"fused\" is the m2 chain with the "
-                "register-resident aux8-free unpack; \"vwredsum\" is the aux8-free "
-                "per-sub-block independent vwredsum.vs reduce) for the q4_K/q5_K "
-                "Region-C scaled-dot route; got \""
+                "\"fused\", \"vwredsum\", \"minterm-vec\"} (the base LMUL of the "
+                "i8 -> i16 -> i32 integer-MAC chain; \"m2\" is the ceiling at one "
+                "sub-block == 32 elements per scalar scale; \"fused\" is the m2 "
+                "chain with the register-resident aux8-free unpack; \"vwredsum\" "
+                "is the aux8-free per-sub-block independent vwredsum.vs reduce; "
+                "\"minterm-vec\" adds the wide-LMUL vectorized MIN-term reduction) "
+                "for the q4_K/q5_K Region-C scaled-dot route; got \""
              << coreLmul << "\"";
   }
 

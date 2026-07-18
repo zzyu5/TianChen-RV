@@ -76,6 +76,28 @@ module {
 
 // -----
 
+// Accept the ISSUE-109 "minterm-vec" integer_core_lmul anchor (the aux8-free
+// vwredsum block-dot PLUS the wide-LMUL vectorized MIN-term reduction, q4_K
+// non-qh only). It must roundtrip unchanged.
+// CHECK-LABEL: weft.exec.kernel @q4_k_scaled_dot_accepts_minterm_vec_anchor
+module {
+  weft.exec.kernel @q4_k_scaled_dot_accepts_minterm_vec_anchor {
+    weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %aux8 = weft_rvv.runtime_abi_value {c_name = "aux8", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-unpacked", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %scales = weft_rvv.runtime_abi_value {c_name = "scales", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-scales", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_accepts_minterm_vec_anchor", status = "selected-lowering-boundary"} {
+        // CHECK: integer_core_lmul = "minterm-vec"
+        %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "minterm-vec", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
+    }
+  }
+}
+
+// -----
+
 // Reject a wrong operation kind (fail-closed, I7).
 module {
   weft.exec.kernel @q4_k_scaled_dot_rejects_unknown_kind {
@@ -213,9 +235,10 @@ module {
 // -----
 
 // Reject an illegal integer_core_lmul value. The legal set is {"mf2","m1","m2",
-// "fused","vwredsum"} (the base LMUL of the i8 -> i16 -> i32 integer-MAC chain, plus
-// the ISSUE-109 "fused" register-resident aux8-free anchor and the "vwredsum"
-// per-sub-block independent-reduce anchor; "m4" would need an illegal i32m16
+// "fused","vwredsum","minterm-vec"} (the base LMUL of the i8 -> i16 -> i32
+// integer-MAC chain, plus the ISSUE-109 "fused" register-resident aux8-free
+// anchor, the "vwredsum" per-sub-block independent-reduce anchor, and the
+// "minterm-vec" vectorized-min-term anchor; "m4" would need an illegal i32m16
 // product). Fail-closed (I7).
 module {
   weft.exec.kernel @q4_k_scaled_dot_rejects_illegal_lmul {
@@ -226,7 +249,7 @@ module {
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_illegal_lmul", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2", "fused", "vwredsum"}}}
+        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2", "fused", "vwredsum", "minterm-vec"}}}
         %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "m4", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }

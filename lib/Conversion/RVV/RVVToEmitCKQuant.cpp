@@ -1810,6 +1810,147 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ4_KMinTermBsumsDot(
     return llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumiVar.getResult());
 }
 
+// ISSUE-109 min-term vectorization lever (q4_K non-qh): the aux8-free
+// "minterm-vec" anchor replaces the SCALAR bsums.mins reduction (the board-tested
+// integer-core scalar-heavy wall: 16x `lh` int16 bsums load + 16 scalar int
+// `mul` + 16 scalar add) with a WIDE-LMUL vectorized reduction, replicating the
+// deployed vl128 hand-tuned min-term dataflow (vector bsums load + vector product
+// + one vredsum). The 16 int16 bsums are loaded ONCE as a vint16m2 (vle16,
+// vl=16); the 8 decoded uint6 mins (scalesU8 + 8, each spanning TWO consecutive
+// bsums) are zero-extended to i16 and broadcast to the 16 sub-block lanes via a
+// vrgather with the index [0,0,1,1,...,7,7] (vid >> 1), so mins16[j] == mins[j/2]
+// EXACTLY; the 16 SIGNED products bsums[j]*mins[j/2] are formed by ONE widening
+// vwmul i16m2 -> i32m4 and reduced by ONE vredsum.vs (seed 0) into the scalar
+// `int sumi`. The integer product/sum is associative/order-free (int32 zero-
+// rounding), so the reduced sumi is bit-identical to the scalar reduction's --
+// byte-exact "for free" ([K-5]). Returns the SAME scalar sumi lvalue the scalar
+// min-term returns, so the second MIN-term half (emitQ4_KMinTermSubtract, the
+// `sumf -= dmin * (float)sumi` fp contraction) is emitted UNCHANGED. q5_K
+// (cx.hasQh) is NOT routed here (the gate keeps it on the scalar min-term path).
+mlir::TypedValue<emitc::LValueType>
+VariantToEmitCFunc::emitQ4_KVecMinTermBsumsDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KMinTermContext &mx, mlir::Value yb, mlir::Value scalesU8) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = mx.opName;
+    llvm::StringRef role = mx.role;
+    mlir::Type activationPtrType = yb.getType();
+    mlir::Type scalesPtrType = scalesU8.getType();
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, mx.sizeType, v); };
+
+    // WIDE-LMUL vector types for the min-term: 16 int16 bsums / 8 uint8 mins
+    // widened+broadcast to 16 int16, ONE i16m2 x i16m2 -> i32m4 widening product,
+    // reduced by ONE vredsum.vs into the i32m1 lane-0 boundary.
+    mlir::Type i16m2Type = emitc::OpaqueType::get(ctx, "vint16m2_t");
+    mlir::Type u16m2Type = emitc::OpaqueType::get(ctx, "vuint16m2_t");
+    mlir::Type u8m1Type = emitc::OpaqueType::get(ctx, "vuint8m1_t");
+    mlir::Type i32m4Type = emitc::OpaqueType::get(ctx, "vint32m4_t");
+    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+    int64_t numMins = mx.numBsums / 2; // 8 decoded uint6 mins, each spanning 2 bsums
+
+    // const int16_t *bsums = (const int16_t *)(yb + bsumsOffset);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "min_term_bsums_vec"));
+    mlir::Value bsumsAddr = yb;
+    if (mx.bsumsOffset != 0)
+      bsumsAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType, yb,
+                                                sizeLit(mx.bsumsOffset));
+    mlir::Value bsumsPtr =
+        rewriter.create<emitc::CastOp>(loc, mx.constI16PtrType, bsumsAddr)
+            .getResult();
+
+    // vint16m2_t bsv = __riscv_vle16_v_i16m2(bsums, 16);  -- the 16 int16 bsums.
+    mlir::Value bsv = emitOpaqueCallBuilt(
+        rewriter, loc, i16m2Type, "__riscv_vle16_v_i16m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {bsumsPtr, sizeLit(mx.numBsums)};
+        });
+
+    // const uint8_t *mins = scalesU8 + 8;  vuint8m1_t mins8 = vle8(mins, 8);
+    mlir::Value minsPtr =
+        rewriter.create<emitc::AddOp>(loc, scalesPtrType, scalesU8, sizeLit(8))
+            .getResult();
+    mlir::Value mins8 = emitOpaqueCallBuilt(
+        rewriter, loc, u8m1Type, "__riscv_vle8_v_u8m1", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {minsPtr, sizeLit(numMins)};
+        });
+    // vuint16m2_t mins16u = __riscv_vzext_vf2_u16m2(mins8, 8);  -- zero-extend the
+    // uint6 mins (0..63) to the 16-bit product SEW; lanes 0..7 = mins (8..15 unread).
+    mlir::Value mins16u = emitOpaqueCallBuilt(
+        rewriter, loc, u16m2Type, "__riscv_vzext_vf2_u16m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {mins8, sizeLit(numMins)};
+        });
+    // vuint16m2_t vidx = __riscv_vid_v_u16m2(16);            -- [0,1,2,...,15]
+    // vuint16m2_t gidx = __riscv_vsrl_vx_u16m2(vidx, 1, 16); -- [0,0,1,1,...,7,7]
+    mlir::Value vidx = emitOpaqueCallBuilt(
+        rewriter, loc, u16m2Type, "__riscv_vid_v_u16m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {sizeLit(mx.numBsums)};
+        });
+    mlir::Value gidx = emitOpaqueCallBuilt(
+        rewriter, loc, u16m2Type, "__riscv_vsrl_vx_u16m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value one =
+              rewriter.create<emitc::LiteralOp>(loc, mx.sizeType, "1");
+          return {vidx, one, sizeLit(mx.numBsums)};
+        });
+    // vuint16m2_t mins16u_e = __riscv_vrgather_vv_u16m2(mins16u, gidx, 16);
+    //   mins16u_e[j] = mins16u[gidx[j]] = mins[j/2]  (each min replicated to 2 lanes).
+    mlir::Value mins16uExp = emitOpaqueCallBuilt(
+        rewriter, loc, u16m2Type, "__riscv_vrgather_vv_u16m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {mins16u, gidx, sizeLit(mx.numBsums)};
+        });
+    mlir::Value mins16 =
+        emitOpaqueCall(rewriter, loc, i16m2Type,
+                       "__riscv_vreinterpret_v_u16m2_i16m2",
+                       mlir::ValueRange{mins16uExp}, opName, role);
+
+    // vint32m4_t prod = __riscv_vwmul_vv_i32m4(bsv, mins16, 16);  -- SIGNED 16x16
+    // -> 32 (mins are 0..63 non-negative, so the sign is carried by bsums).
+    mlir::Value prod = emitOpaqueCallBuilt(
+        rewriter, loc, i32m4Type, "__riscv_vwmul_vv_i32m4", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {bsv, mins16, sizeLit(mx.numBsums)};
+        });
+    // vint32m1_t seed = __riscv_vmv_v_x_i32m1(0, 1);
+    // vint32m1_t red  = __riscv_vredsum_vs_i32m4_i32m1(prod, seed, 16);
+    mlir::Value seed = emitOpaqueCallBuilt(
+        rewriter, loc, i32m1Type, "__riscv_vmv_v_x_i32m1", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroImm =
+              rewriter.create<emitc::LiteralOp>(loc, mx.i32Type, "0");
+          return {zeroImm, sizeLit(1)};
+        });
+    mlir::Value red = emitOpaqueCallBuilt(
+        rewriter, loc, i32m1Type, "__riscv_vredsum_vs_i32m4_i32m1", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {prod, seed, sizeLit(mx.numBsums)};
+        });
+    // int sumi = __riscv_vmv_x_s_i32m1_i32(red);  -- the SAME scalar contract the
+    // scalar min-term returns, so emitQ4_KMinTermSubtract folds it unchanged.
+    mlir::Value sumiScalar =
+        emitOpaqueCall(rewriter, loc, mx.i32Type, "__riscv_vmv_x_s_i32m1_i32",
+                       mlir::ValueRange{red}, opName, role);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumi", opName, role));
+    auto sumiVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(mx.i32Type), emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiScalar);
+    return llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumiVar.getResult());
+}
+
 // Track B q4_K BRICK 4 (second half): the fp16 dmin read + the single fp
 // contraction sumf -= dmin * (float)sumi, factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
@@ -3329,8 +3470,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     llvm::StringRef coreLmulAttr = b3.getIntegerCoreLmul().value_or("mf2");
     bool useRegisterFusion = (coreLmulAttr == "fused") && !hasQh;
     bool useVwredsum = (coreLmulAttr == "vwredsum") && !hasQh;
+    // The sentinel "minterm-vec" (ISSUE-109 min-term vectorization lever, q4_K
+    // non-qh only) runs the vwredsum register-resident aux8-free block-dot AND
+    // ADDITIONALLY vectorizes the MIN-term bsums.mins reduction (the remaining
+    // board-tested scalar-heavy floor: 16 lh + 16 scalar mul), matching the
+    // deployed vl128 hand-tuned dataflow that vectorizes BOTH the dot and the min
+    // term. It shares vwredsum's aux8-free block-dot region (useVwredsumBlockDot)
+    // and only diverges at the MIN-term brick.
+    bool useMintermVec = (coreLmulAttr == "minterm-vec") && !hasQh;
+    bool useVwredsumBlockDot = useVwredsum || useMintermVec;
+    bool aux8Free = useRegisterFusion || useVwredsum || useMintermVec;
     llvm::StringRef coreLmul =
-        (useRegisterFusion || useVwredsum) ? llvm::StringRef("m2") : coreLmulAttr;
+        aux8Free ? llvm::StringRef("m2") : coreLmulAttr;
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef l8 = wideningChain.l8;
     llvm::StringRef l16 = wideningChain.l16;
@@ -3378,7 +3529,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     // store->load round-trip is gone from the emitted C.
     mlir::TypedValue<emitc::ArrayType> aux8Array = nullptr;
     mlir::Value aux8Base = nullptr;
-    if (!useRegisterFusion && !useVwredsum) {
+    if (!aux8Free) {
       mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
       rewriter.create<emitc::VerbatimOp>(
           loc, localVariableComment("aux8", opName, role));
@@ -3556,7 +3707,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
             blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
                          "super_block_base_y"),
             scalesU8);
-      } else if (useVwredsum) {
+      } else if (useVwredsumBlockDot) {
         scalesU8 = emitQ4_KScaleMinBitDanceCore(
             rewriter, loc, cx,
             blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
@@ -3610,12 +3761,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
               .getResult();
 
       // ---- BRICK 4 MIN term, FIRST half: the int16 bsums reduction (yb driven
-      // by BRICK 4's activation base). ----
-      mlir::TypedValue<emitc::LValueType> sumiVar = emitQ4_KMinTermBsumsDot(
-          rewriter, loc, mx,
+      // by BRICK 4's activation base). Under the "minterm-vec" anchor the scalar
+      // reduction is replaced by the WIDE-LMUL vectorized variant (byte-exact
+      // integer, same scalar sumi contract); every other anchor keeps the scalar
+      // reduction byte-identically. ----
+      mlir::Value b4ActBase =
           blockBaseFor(b4.getActivationBase(), b4.getBlockIndex(),
-                       activationStride, "super_block_base_y"),
-          scalesU8);
+                       activationStride, "super_block_base_y");
+      mlir::TypedValue<emitc::LValueType> sumiVar =
+          useMintermVec
+              ? emitQ4_KVecMinTermBsumsDot(rewriter, loc, mx, b4ActBase, scalesU8)
+              : emitQ4_KMinTermBsumsDot(rewriter, loc, mx, b4ActBase, scalesU8);
 
       // ---- BRICK 6 deferred positive fold (xb driven by BRICK 6's weight base):
       // sums += (fp16(x.d) * dy) * (float)aux32. Slotted BETWEEN the two MIN-term

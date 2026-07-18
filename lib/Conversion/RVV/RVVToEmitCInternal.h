@@ -3864,6 +3864,24 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       const Q4_KMinTermContext &mx, mlir::Value yb, mlir::Value scalesU8) const;
 
+  /// ISSUE-109 min-term vectorization lever (q4_K non-qh): the WIDE-LMUL
+  /// vectorized replacement for emitQ4_KMinTermBsumsDot's SCALAR bsums.mins
+  /// reduction (the board-tested scalar-heavy floor: 16 lh int16 bsums load + 16
+  /// scalar int mul + 16 scalar add), replicating the deployed vl128 hand-tuned
+  /// min-term dataflow. Loads the 16 int16 bsums ONCE as a vint16m2 (vle16),
+  /// broadcasts the 8 decoded uint6 mins (scalesU8 + 8) to the 16 sub-block lanes
+  /// via a vrgather with index [0,0,1,1,...,7,7] (vid >> 1) so mins16[j] ==
+  /// mins[j/2], forms the 16 SIGNED products with ONE widening vwmul i16m2 ->
+  /// i32m4, and reduces with ONE vredsum.vs into the scalar `int sumi`. The
+  /// integer product/sum is associative/order-free (int32 zero-rounding), so the
+  /// reduced sumi is bit-identical to emitQ4_KMinTermBsumsDot's -- byte-exact
+  /// "for free" ([K-5]). RETURNS the SAME scalar sumi lvalue, so the second
+  /// MIN-term half (emitQ4_KMinTermSubtract) is emitted UNCHANGED. Only reached
+  /// under the "minterm-vec" anchor; q5_K (cx.hasQh) stays on the scalar path.
+  mlir::TypedValue<emitc::LValueType> emitQ4_KVecMinTermBsumsDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KMinTermContext &mx, mlir::Value yb, mlir::Value scalesU8) const;
+
   /// Emit the SECOND half of ONE super-block's q4_K/q5_K MIN term (Track B BRICK
   /// 4): the fp16 dmin read (`dmin = fp16(*(const _Float16 *)(xb +
   /// weightDminOffset)) * dy`) and the single fp contraction `sumf = sumf - dmin
