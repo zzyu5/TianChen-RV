@@ -295,6 +295,13 @@ CLANG_WORLD = {
  ("vec_dot","iq2_xxs",""): (0.84,"★B线第二块 P2 首次直接 M=1 vec_dot 板测·deployed emit(CORE==PROD 主会话独立验 md5 db1bfdcd)·compiler-symmetric clang18·byte-exact worst_ulp=0·3-arm anti-hollow·5-seed cold 0.837/0.847/0.862/0.841/0.828(min 0.828 全≥0.8)·proxy T3 0.697→direct 0.84→PASS(地盘+1·具名-X→PASS·公式墙对位攻坚坐实无绕过)·★成色诚实=对手手调 _vl128(非便宜档)·near-parity PASS-by-gate·cold≤1.0 非beat(勿称打赢手调)·M=1 kernel-axis 数勿外推 e2e"),
  ("vec_dot","iq2_xs",""): (0.62,"★B线第二块 P2 首次直接 M=1 vec_dot 板测·deployed emit(CORE==PROD md5 4c2f8acc)·compiler-symmetric·byte-exact worst_ulp=0·3-arm·4-seed cold ~0.62(全<0.8)·proxy T3 0.529→direct 0.62→具名-X(边界·三步走完:objdump→owned leaf vwredsum=16 板测→证伪<0.8)·★具名 floor=16×serial vwredsum 归约链(iq2_xs 双 per-half scale ls1/ls2 强制 16-lane collapse·结构可读)·挂号杠杆=归约批处理 ISSUE-020(sum2符号和·已就绪)/ISSUE-109(vwredsum floor)·闭式可键控非架构墙非杠杆真空"),
 }
+# ── vec_dot kernel-sym DEPLOYED direct M=1(both boards·区别 CLANG_WORLD rvv-only·compiler-symmetric·手调 opp·override T3 proxy) ──
+VECDOT_KERNELSYM = {  # (op,fmt): {board: (cold, note)}
+ ("vec_dot","tq1_0"): {
+   "rvv":(0.82,"★B线第二块 tq1_0 vec_dot DEPLOYED fused leaf(部署 P1 fused 结构·改 emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10 消 aux8[256] scratch+8×serial vwredsum→单 i16m4 累加器+单 vwredsum·真 emitter 改进非旋钮·sealed md5 338a31bb→bb4d574a)·deployed 具名-X 0.22→PASS 0.82·byte-exact mism=0 双板(_tu tail-undisturbed correctness fix)·VLEN-universal(VLEN128 emit==VLEN256 emit byte-identical·C3′「换VLEN不换条目」deployed 坐实)·5-seed min 0.807 全≥0.8·compiler-symmetric·opp 手调 _vl128·CORE==PROD md5 7e4ed0dc 主会话独立验·★near-parity PASS-by-gate 非 beat(cold≤1.0·~1.22×慢于手调·过0.8门=地盘非打赢)·gap=deployed unrolled+_tu(~219ns) vs P1 standalone rolled(~198ns)·rolled-loop lever 未试"),
+   "k1":(0.82,"★B线第二块 tq1_0 vec_dot DEPLOYED fused leaf(同 rvv·部署 P1 fused)·deployed 具名-X 0.549→PASS 0.82·byte-exact mism=0·VLEN256·5-seed~0.821(iqr<0.2%)·compiler-symmetric·opp 手调 _vl256·near-parity PASS-by-gate 非 beat(cold≤1.0)·k1 deployed 0.821≈P1 standalone 0.823 无 gap(VLEN256 unaffected)"),
+ },
+}
 
 def disp(op, fmt, engine, board, tier, cold, na):
     if na: return "N/A-hw"
@@ -421,6 +428,12 @@ def main():
                 c, cwnote = cw
                 d = "PASS" if c>=0.8 else "具名-X"
                 note = cwnote
+            # ★vec_dot kernel-sym DEPLOYED direct M=1(both boards·compiler-symmetric·手调 opp·override T3 proxy·区别 CLANG_WORLD rvv-only)
+            vk = VECDOT_KERNELSYM.get((op,fmt))
+            if vk and board in vk:
+                c, vknote = vk[board]
+                d = "PASS" if c>=0.8 else "具名-X"
+                note = vknote
             if na: tier="N/A-hw"; sym="—"; note="ime.present unsatisfiable on %s(机判)"%board; d="N/A-hw"
             rec[board] = {"tier":tier,"sym":sym,"note":note+depnote,"cold":c,"disp":d,"na":na}
         master.append(rec)

@@ -1,44 +1,36 @@
-// The tq1_0 Win-A proof (PRESERVED across the tq1_0 flip): the COMPILER SELECTS the
-// ggml TQ1_0 x Q8_K integer-DOT anchor (the base-3 unpack is fixed), and the
-// selection DIVERGES by capability from the SAME attr-less input -- via the UNIFIED
-// schedule autotuner (the SAME walk-all pass that auto-discovers every
-// TunableScheduleOpInterface op, NO per-tq1_0 pass). The monolith op was RETIRED at
-// the flip; the Win-A gearbox moved verbatim onto the CONSTRUCTED
-// weft_rvv.tq1_0_q8_k_ternary_core brick (SAME kernel key "tq1_0"), so the autotuner
-// stamps the SAME m2->m1 selection onto the brick with NO registry change. This test
-// now drives the CONSTRUCTED typed super-block SCALAR-accumulator BASE-3 TERNARY loop
-// body (fold_model "scalar_delta_grid"), not the retired monolith op. It REUSES the
-// tq2_0 ternary scaffold at C2 marginal cost, differing ONLY in the base-3 unpack.
+// The tq1_0 FUSED vec_dot leaf VLEN-UNIVERSALITY (deployed at the P1 flip): the
+// COMPILER SELECTS the ggml TQ1_0 x Q8_K integer-DOT anchor (the base-3 unpack is
+// fixed), and the deployed leaf is the P1-proven owned FUSED structure -- a SINGLE
+// i16m4 accumulator (vmul_vv init / vmacc chain, NO aux8 scratch) reduced by ONE
+// vwredsum. That leaf is VLEN-UNIVERSAL: it emits the SAME core at VLEN128 AND
+// VLEN256 (byte-identical), so ONE table entry covers both boards -- C3'
+// "change VLEN, don't change the entry".
 //
-// The ternary-core brick below carries NO integer_core_lmul knob -- the compiler must
-// compute it. tq1_0's base-3 trit unpack (section A) lands an element-ordered
-// aux8[256]; the integer dot (section B) is a flat 256-element aux8 x q8 contraction
-// (single fp16 scale, NO per-sub-block scale), so it widens to 32-lane strips. The
-// single vsetvl_e8<anchor>(32) cover is correct ONLY at the whole-LMUL anchor whose i8
-// strip VLMAX spans 32 at the derived minimum VLEN. WHICH anchor that is MOVES with
-// VLEN:
-//
-//   * at VLEN 128: only m2 spans it (e8m1 VLMAX 16 < 32) -> integer_core_lmul "m2"
-//     (dot widens i16m4).
-//   * at VLEN 256: m1 also reaches 32; the lighter footprint breaks the tie ->
-//     integer_core_lmul "m1" (dot i16m2).
-//
-// One capability fact (the REAL VLEN bits) -> the dot anchor FLIPS m2->m1. NOTE:
-// this widens ONLY the dot; the base-3 unpack + aux8 round-trip are KEPT (ggml's
-// tq1_0 _vl128/_vl256 are DIFFERENT shapes, not a clean LMUL flip -- full fusion
-// is a separate larger emit), so this is an honest below-parity LOSS reduction.
+// The unified schedule autotuner (the SAME walk-all pass that auto-discovers every
+// TunableScheduleOpInterface op, NO per-tq1_0 pass) STILL stamps a per-VLEN
+// integer_core_lmul m2->m1 selection onto the CONSTRUCTED
+// weft_rvv.tq1_0_q8_k_ternary_core brick (the gearbox mechanism + kernel key "tq1_0"
+// are unchanged). But the FUSED leaf does NOT consume that stamp: unlike the retired
+// aux8 + widening-dot form (whose dot narrowed i16m4->i16m2 WITH the anchor), the
+// fused single-accumulator core is fixed m2/m4 at ANY VLEN >= 128 (the fixed vl=32
+// reduce bounds it). So the stamp is now VESTIGIAL for tq1_0, and the emit does NOT
+// diverge by VLEN -- the honest SUPERSEDE of the old per-VLEN gearbox divergence by a
+// VLEN-universal owned leaf (byte-exact on rvv AND k1).
 
-// First, the DECISION-LEVEL proof: the unified autotuner stamps DIFFERENT anchors
-// onto the SAME attr-less ternary-core brick purely by the VLEN capability fact (no
-// lowering).
+// First, the DECISION-LEVEL fact: the unified autotuner STILL stamps DIFFERENT
+// anchors onto the SAME attr-less ternary-core brick purely by the VLEN capability
+// fact (the gearbox walk is unchanged) -- even though the fused leaf no longer
+// consumes it.
 // RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
 // RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
 //
-// Then the EMISSION-LEVEL non-NULL proof: VLEN256 emits a BYTE-DIFFERENT dot from
-// VLEN128 (vwmul_vv_i16m2 / vwredsum_i16m2 vs vwmul_vv_i16m4 / vwredsum_i16m4). A
-// capability FACT changes the lowering -- NOT a structural NULL.
-// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
-// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
+// Then the EMISSION-LEVEL VLEN-UNIVERSAL proof: the emit is BYTE-IDENTICAL at VLEN128
+// and VLEN256 (the fused single-accumulator core does NOT consume the per-VLEN
+// stamp). ONE entry, both boards -- NOT the retired byte-different m2/m1 dot.
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc > %t.vlen128.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc > %t.vlen256.mlir
+// RUN: diff %t.vlen128.mlir %t.vlen256.mlir
+// RUN: FileCheck %s --check-prefix=UNIVERSAL --implicit-check-not=vwmul_vv_i16m4 --implicit-check-not=vwmul_vv_i16m2 --implicit-check-not=vwredsum_vs_i16m2_i32m1 < %t.vlen128.mlir
 
 module {
   weft.exec.kernel @ggml_vec_dot_tq1_0_q8_K_kernel {
@@ -60,40 +52,31 @@ module {
   }
 }
 
-// ================= STAMPED ANCHOR (the SELECTION decision) ==================
-// rv64gcv (VLEN128): the compiler SELECTED m2 (the ONLY anchor whose e8 VLMAX 32
-// spans the 32-lane dot strip at VLEN128) + the SEMANTIC minimum_vlen = 128. The
-// gearbox now stamps the CONSTRUCTED brick.
+// ============= STAMPED ANCHOR (the autotuner decision, UNCHANGED) ============
+// rv64gcv (VLEN128): the autotuner still SELECTS m2 (the ONLY anchor whose e8 VLMAX
+// 32 spans a 32-lane strip at VLEN128) + the SEMANTIC minimum_vlen = 128 and stamps
+// the CONSTRUCTED brick. The FUSED leaf does NOT consume this stamp (VLEN-universal).
 // STAMP-VLEN128: weft_rvv.tq1_0_q8_k_ternary_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
 // STAMP-VLEN128-SAME: weft_rvv.tq1_0_schedule.has_zvl128b = true
 // STAMP-VLEN128-SAME: weft_rvv.tq1_0_schedule.producer = "rvv-tq1-0-autotuner"
 //
-// rv64gcv_zvl256b (VLEN256): the SAME brick FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
-// reaches 32, spans the strip in ONE vsetvl, and the lighter footprint breaks the
-// tie to m1. minimum_vlen = 256 is stamped.
+// rv64gcv_zvl256b (VLEN256): the SAME brick still stamps m1 (the gearbox tie-break
+// is unchanged) + minimum_vlen = 256 -- also NOT consumed by the fused leaf.
 // STAMP-VLEN256: weft_rvv.tq1_0_q8_k_ternary_core
 // STAMP-VLEN256-SAME: integer_core_lmul = "m1"
 // STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
 
-// ===================== VLEN128 (rv64gcv) — the m2 dot anchor ================
-// The compiler SELECTED m2: the integer dot widens to vle8_v_i8m2 + vwmul_vv_i16m4
-// + vwredsum_vs_i16m4_i32m1 (the base-3 unpack -- vwmulu_vx_u16m4 etc -- is fixed).
-// VLEN128: emitc.func @weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
-// VLEN128: call_opaque "__riscv_vwmul_vv_i16m4"
-// VLEN128: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// VLEN128-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
-// VLEN128-NOT: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
-// VLEN128: return
-
-// ===================== VLEN256 (rv64gcv_zvl256b) — the FLIP =================
-// The compiler SELECTED m1: a BYTE-DIFFERENT dot from the VLEN128 m2 shape. The
-// dot MAC narrows to vwmul_vv_i16m2 and the reduce to vwredsum_vs_i16m2_i32m1.
-// This is the NON-NULL proof: the two VLENs do NOT emit the same dot bytes.
-// VLEN256: emitc.func @weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
-// VLEN256: call_opaque "__riscv_vwmul_vv_i16m2"
-// VLEN256: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
-// VLEN256-NOT: call_opaque "__riscv_vwmul_vv_i16m4"
-// VLEN256-NOT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// VLEN256: return
+// ================= VLEN-UNIVERSAL FUSED LEAF (identical both VLEN) ===========
+// The deployed fused leaf: a SINGLE i16m4 accumulator (vmul_vv_i16m4 INIT +
+// vmacc_vv_i16m4 chain) reduced by ONE vwredsum_vs_i16m4_i32m1 -- the SAME emit at
+// VLEN128 AND VLEN256 (asserted byte-identical by the `diff` above; this UNIVERSAL
+// check runs against the VLEN128 emit but holds identically for the VLEN256 emit).
+// The retired per-VLEN divergent dot (vwmul_vv_i16m2 / vwmul_vv_i16m4 / the i16m2
+// reduce) is GONE at BOTH VLEN -- forbidden globally by --implicit-check-not.
+// UNIVERSAL: emitc.func @weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_ggml_vec_dot_tq1_0_q8_K(
+// UNIVERSAL: call_opaque "__riscv_vmul_vv_i16m4"
+// UNIVERSAL: call_opaque "__riscv_vmacc_vv_i16m4"
+// UNIVERSAL: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
+// UNIVERSAL: return

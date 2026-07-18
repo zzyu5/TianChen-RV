@@ -56,12 +56,15 @@
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
-// The CORE EmitC integer core is the tq1_0 BASE-3 TERNARY decode (each trit
-// recovered by the mandatory uint8-wrap `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q
-// *3)>>8; xi-1`) into aux8[256], a SINGLE flat-256 integer accumulator, and a
-// SINGLE-SCALE SCALAR fp32 fold -- pinned so a regression into a 2-bit-field decode,
-// a nibble/min K-quant, or a wrong scale domain is caught.
-// RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
+// The CORE EmitC integer core is the FUSED tq1_0 BASE-3 TERNARY vec_dot leaf (the
+// P1-proven owned VLEN-universal structure): each trit recovered by the mandatory
+// uint8-wrap `xi=((uint16_t)byte*3)>>8; (u16)(xi-1) reinterpret i16`, q8 PRE-WIDENED
+// to i16, folded into a SINGLE i16m4 accumulator (vmul_vv init / vmacc chain, NO
+// aux8[256] scratch store/reload), reduced by ONE vwredsum, then a SINGLE-SCALE
+// SCALAR fp32 fold -- pinned so a regression into a 2-bit-field decode, a nibble/min
+// K-quant, a wrong scale domain, OR the retired aux8 + 8x-serial-vwredsum form is
+// caught. --implicit-check-not forbids the retired ops anywhere in the emit.
+// RUN: FileCheck %s --check-prefix=CORE --implicit-check-not=aux8 --implicit-check-not=vse8_v_i8m2 --implicit-check-not=vncvt_x_x_w_u8m2 --implicit-check-not=vwmul_vv_i16m4 --implicit-check-not=vwmul_vv_i16m2 --implicit-check-not=vadd_vx_i8m2 < %t.core.mlir
 
 module attributes {weft_rvv.source_front_door = "ggml_tq1_0_q8_K_block_dot_source",
                    weft_rvv.source_kernel = "ggml_vec_dot_tq1_0_q8_K_kernel"} {
@@ -100,41 +103,52 @@ module attributes {weft_rvv.source_front_door = "ggml_tq1_0_q8_K_block_dot_sourc
 // PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
-// ===================== CORE EmitC base-3 ternary integer core ================
+// ===================== CORE EmitC base-3 ternary FUSED integer core ==========
 // CORE: emitc.func @weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_rvv_tq1_0_q8_K_block_dot
-// The int8_t aux8[256] scratch + the scalar sumf, zeroed ONCE outside the loop.
-// CORE: %[[AUX8:.*]] = "emitc.variable"() {{.*}} -> !emitc.array<256x!emitc.opaque<"int8_t">>
+// The qh SINGLE-pass plane-weight table (function scope) + the scalar sumf, zeroed
+// ONCE outside the loop. NO aux8[256] scratch: the fused leaf keeps the WHOLE
+// super-block dot in ONE i16m4 accumulator (no store/reload round-trip).
+// CORE: static const uint8_t weft_tq1_0_pow16[16]
 // CORE: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
-// The BASE-3 trit unpack (the load-bearing decode `q=(uint8_t)(byte*pow3[l]); xi=
-// ((uint16_t)q*3)>>8; xi-1`): the u8m2 load of the qs chunk, the uint8 wrap vmul.vx
-// by pow3[l] (NOT widened -- the mod-256 truncation IS the decode), the widening
-// vwmulu by 3, the vsrl by 8, the u16->u8 narrow, the u8->i8 reinterpret, then the
-// per-element `-1` ternary bias (vadd.vx of -1) BEFORE the vse8.
-// CORE: call_opaque "__riscv_vsetvl_e8m2"
+// The FUSED base-3 trit decode (`xi=((uint16_t)byte*3)>>8; (u16)(xi-1) reinterpret
+// i16`) with q8 PRE-WIDENED to i16 (vwcvt), paired directly into the accumulator:
+// digit 0 of main qs is the vmul_vv INIT. The u8 wrap vmul.vx by pow3[l] feeds the
+// widening vwmulu by 3, the vsrl by 8, the (u16 - 1) vsub, then the u16->i16
+// reinterpret -- NO u16->u8 narrow, NO aux8 store.
 // CORE: call_opaque "__riscv_vle8_v_u8m2"
-// CORE: call_opaque "__riscv_vmul_vx_u8m2"
 // CORE: call_opaque "__riscv_vwmulu_vx_u16m4"
 // CORE: call_opaque "__riscv_vsrl_vx_u16m4"
-// CORE: call_opaque "__riscv_vncvt_x_x_w_u8m2"
-// CORE: call_opaque "__riscv_vreinterpret_v_u8m2_i8m2"
-// CORE: call_opaque "__riscv_vadd_vx_i8m2"
-// CORE: call_opaque "__riscv_vse8_v_i8m2"
-// tq1_0 is BASE-3, NOT a 2-bit field shift (tq2_0) and NOT a nibble/min K-quant: no
-// `& 3` 2-bit field mask, no 4-bit nibble scale extraction between the trit unpack
-// and the dot.
-// CORE-NOT: call_opaque "__riscv_vand_vx_u8m2"
-// CORE-NOT: bitwise_right_shift
-// The SINGLE per-super-block integer accumulator sumi, fed by the WIDE-strip
-// flat-256 dot over aux8 x q8 at the default m2 anchor: vle8 i8m2 -> vwmul_vv_i16m4
-// -> vwredsum_vs_i16m4_i32m1 -> vmv_x_s (NO per-sub-block scale multiply -- tq1_0
-// has no scales).
-// CORE: %[[SUMI:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int">>
+// CORE: call_opaque "__riscv_vsub_vx_u16m4"
+// CORE: call_opaque "__riscv_vreinterpret_v_u16m4_i16m4"
 // CORE: call_opaque "__riscv_vle8_v_i8m2"
-// CORE: call_opaque "__riscv_vwmul_vv_i16m4"
+// CORE: call_opaque "__riscv_vwcvt_x_x_v_i16m4"
+// CORE: call_opaque "__riscv_vmul_vv_i16m4"
+// digits 1..4 of main qs: the pow3[l] u8 wrap (vmul.vx) then the PLAIN vmacc (vl=32,
+// no tail to preserve) accumulate into the SAME i16m4 accumulator (init + 4 macc).
+// CORE: call_opaque "__riscv_vmul_vx_u8m2"
+// CORE: call_opaque "__riscv_vmacc_vv_i16m4"
+// The tail qs (5 macc) uses the tail-UNDISTURBED vmacc `_tu` at vl=16: it MUST keep
+// the accumulator's upper lanes 16..31 (the main contributions the vl=32 reduce
+// sums), which the tail-agnostic default may clobber -- byte-exact + VLEN-universal.
+// CORE: call_opaque "__riscv_vmacc_vv_i16m4_tu"
+// tq1_0 is BASE-3, NOT a 2-bit field shift (tq2_0) and NOT a nibble/min K-quant: no
+// `& 3` 2-bit field mask, no 4-bit nibble scale extraction.
+// CORE-NOT: call_opaque "__riscv_vand_vx_u8m2"
+// The qh SINGLE pass: the 4 qh bytes read as a little-endian u32, broadcast x4 via
+// vmv.v.x u32m2 + reinterpret to u8m2, multiplied lane-wise by the pow16 plane
+// weights (vmul_vv_u8m2), then the SAME trit decode + ONE tail-undisturbed vmacc
+// (NOT 4 per-plane aux8 stores).
+// CORE: call_opaque "__riscv_vmv_v_x_u32m2"
+// CORE: call_opaque "__riscv_vreinterpret_v_u32m2_u8m2"
+// CORE: call_opaque "__riscv_vmul_vv_u8m2"
+// CORE: call_opaque "__riscv_vmacc_vv_i16m4_tu"
+// The SINGLE reduce: ONE vwredsum over exactly 32 active lanes (fixed vl ->
+// VLEN-universal) folds the whole i16m4 accumulator into sumi -- NOT the retired
+// 8x serial per-strip vwredsum chain.
+// CORE: call_opaque "__riscv_vmv_v_x_i32m1"
 // CORE: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
+// CORE: %[[SUMI:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int">>
 // CORE: call_opaque "__riscv_vmv_x_s_i32m1_i32"
-// The OLD narrow dot path (per-16-lane vwmul_i16m2 reduce) is gone.
-// CORE-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
 // The SINGLE-SCALE SCALAR fp32 fold: dx via ONE fp16 read seam (at xb+52, the END
 // of block_tq1_0), dy (fp32 q8_K scale) loaded once, then `sumf += (float)sumi *
 // (dx*dy)` -- a cast + a mul + an add. Exactly ONE fp16 read (no dall/dmin pair).

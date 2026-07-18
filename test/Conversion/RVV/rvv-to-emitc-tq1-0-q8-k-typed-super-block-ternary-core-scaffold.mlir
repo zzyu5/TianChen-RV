@@ -1,5 +1,5 @@
 // RUN: weft-opt %s | FileCheck %s --check-prefix=VERIFY
-// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT --implicit-check-not=aux8 --implicit-check-not=vse8_v_i8m2 --implicit-check-not=vncvt_x_x_w_u8m2 --implicit-check-not=vwmul_vv_i16m4 --implicit-check-not=vwmul_vv_i16m2 --implicit-check-not=vadd_vx_i8m2
 // RUN: sed 's|// R1 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 // tq1_0 anti-bypass M-tests (the emit is OPERAND-DRIVEN, not gate-only): (MSWAP)
 // swapping the ternary core's q8 activation base %vy -> %vx CHANGES the emit -- the
@@ -90,17 +90,18 @@ module {
 // VERIFY: weft_rvv.typed_super_block_block_dot_loop_yield %{{.*}} : f32
 // VERIFY-NOT: weft_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}}
 
-// The flip lowers the honest body to a REAL emitc.func -- the byte-exact SCALAR-accumulator
-// BASE-3 TERNARY emit, byte-identical to the retired monolith (same base-3 trit unpack +
-// flat-256 integer dot + single-scale scalar fp32 fold, same facts, same order) modulo the
-// source-op provenance token + the func name.
+// The flip lowers the honest body to a REAL emitc.func -- the FUSED base-3 ternary vec_dot
+// leaf (the P1-proven owned VLEN-universal structure): base-3 trit unpack + q8 pre-widened
+// to i16, folded into ONE i16m4 accumulator (vmul_vv init / vmacc chain, NO aux8 scratch),
+// reduced by ONE vwredsum, then the single-scale scalar fp32 fold. Byte-exact (order-free
+// integer sum) to the retired aux8 form modulo the source-op provenance token + the func name.
 // EMIT: emitc.func @weft_emitc_tq1_0_super_block_ternary_core_kernel_tq1_0_super_block_ternary_core(
-// The super-block count nb = n / 256, and the element-ordered int8_t aux8[256] scratch (the
-// base-3 unpack destination read contiguously by the dot -- tq1_0 KEEPS the aux8 round-trip,
-// unlike tq2_0's fully-fused plane).
+// The super-block count nb = n / 256, and the qh SINGLE-pass pow16 plane-weight table
+// (function scope). NO aux8[256] scratch: the fused leaf keeps the whole dot in ONE i16m4
+// accumulator -- no store/reload round-trip (unlike the retired aux8 form).
 // EMIT: callee=super_block_count
 // EMIT: div %{{.*}}, %{{.*}} :
-// EMIT: !emitc.array<256x!emitc.opaque<"int8_t">>
+// EMIT: static const uint8_t weft_tq1_0_pow16[16]
 // The SINGLE `sumf` float emitc.variable SCALAR accumulator, seeded ONCE outside the loop.
 // EMIT: local_variable=sumf
 // EMIT: !emitc.lvalue<!emitc.opaque<"float">>
@@ -112,42 +113,55 @@ module {
 // EMIT: literal "54"
 // EMIT: callee=super_block_base_y
 // EMIT: literal "292"
-// The BASE-3 trit unpack (the load-bearing decode `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q
-// *3)>>8; xi-1`): the u8m2 load of the qs chunk, the uint8 wrap vmul.vx by pow3[l] (NOT widened
-// -- the mod-256 truncation IS the decode), the widening vwmulu by 3, the vsrl by 8, the
-// u16->u8 narrow, the u8->i8 reinterpret, then the per-element `-1` ternary bias (vadd.vx of
-// -1) BEFORE the vse8 spill.
-// EMIT: callee=unpack_base3_trit
-// EMIT: call_opaque "__riscv_vsetvl_e8m2"
+// The FUSED base-3 trit decode (`xi=((uint16_t)byte*3)>>8; (u16)(xi-1) reinterpret i16`) with
+// q8 PRE-WIDENED to i16 (vwcvt): main qs digit 0 is the vmul_vv INIT of the i16m4 accumulator.
+// The u8 wrap vmul.vx by pow3[l] feeds the widening vwmulu by 3, the vsrl by 8, the (u16 - 1)
+// vsub, then the u16->i16 reinterpret -- NO u16->u8 narrow, NO aux8 store.
+// EMIT: callee=fused_ternary_dot
+// EMIT: callee=main_qs
 // EMIT: call_opaque "__riscv_vle8_v_u8m2"
-// EMIT: call_opaque "__riscv_vmul_vx_u8m2"
 // EMIT: call_opaque "__riscv_vwmulu_vx_u16m4"
 // EMIT: call_opaque "__riscv_vsrl_vx_u16m4"
-// EMIT: call_opaque "__riscv_vncvt_x_x_w_u8m2"
-// EMIT: call_opaque "__riscv_vreinterpret_v_u8m2_i8m2"
-// EMIT: call_opaque "__riscv_vadd_vx_i8m2"
-// EMIT: call_opaque "__riscv_vse8_v_i8m2"
+// EMIT: call_opaque "__riscv_vsub_vx_u16m4"
+// EMIT: call_opaque "__riscv_vreinterpret_v_u16m4_i16m4"
+// EMIT: call_opaque "__riscv_vle8_v_i8m2"
+// EMIT: call_opaque "__riscv_vwcvt_x_x_v_i16m4"
+// EMIT: call_opaque "__riscv_vmul_vv_i16m4"
+// digits 1..4 of main qs: the pow3[l] u8 wrap (vmul.vx) then the PLAIN vmacc (vl=32,
+// no tail to preserve) accumulate into the SAME i16m4 accumulator.
+// EMIT: call_opaque "__riscv_vmul_vx_u8m2"
+// EMIT: call_opaque "__riscv_vmacc_vv_i16m4"
 // tq1_0 is BASE-3, NOT a 2-bit field shift (tq2_0) and NOT a nibble/min K-quant: NO `& 3`
-// 2-bit field mask, NO fused-plane vwmacc, NO codebook/grid gather, NO 6-bit utmp/kmask
-// bit-dance, NO bsums.
+// 2-bit field mask, NO codebook/grid gather, NO 6-bit utmp/kmask bit-dance, NO bsums (the
+// retired aux8 narrow/store + widening vwmul-reduce dot are forbidden by --implicit-check-not).
 // EMIT-NOT: call_opaque "__riscv_vand_vx_u8m2"
-// EMIT-NOT: call_opaque "__riscv_vwmacc_vv_i16m4"
 // EMIT-NOT: bitwise_and
 // EMIT-NOT: bitwise_right_shift
 // EMIT-NOT: const int16_t
 // EMIT-NOT: call_opaque "__riscv_vluxei16
 // EMIT-NOT: call_opaque "__riscv_vrgather
-// The SINGLE per-super-block integer accumulator sumi, fed by the WIDE-strip flat-256 dot over
-// aux8 x q8 at the default m2 anchor: vle8 i8m2 -> vwmul_vv_i16m4 -> vwredsum_vs_i16m4_i32m1 ->
-// vmv_x_s (NO per-sub-block scale multiply -- tq1_0 has no scales).
+// The tail qs (16 lanes) then the qh SINGLE pass: the 4 qh bytes read as a little-endian u32,
+// broadcast x4 (vmv.v.x u32m2 + reinterpret to u8m2), multiplied lane-wise by the pow16 plane
+// weights (vmul_vv_u8m2), then the SAME trit decode + ONE vmacc (NOT 4 per-plane aux8 stores).
+// Both tail + qh vmacc are tail-UNDISTURBED (`_tu`, vl=16) so the accumulator's upper lanes
+// 16..31 (the main contributions the vl=32 reduce sums) are preserved -- byte-exact.
+// EMIT: callee=tail_qs
+// EMIT: call_opaque "__riscv_vmacc_vv_i16m4_tu"
+// EMIT: callee=qh_planes
+// EMIT: call_opaque "__riscv_vmv_v_x_u32m2"
+// EMIT: call_opaque "__riscv_vreinterpret_v_u32m2_u8m2"
+// EMIT: call_opaque "__riscv_vmul_vv_u8m2"
+// EMIT: call_opaque "__riscv_vmacc_vv_i16m4_tu"
+// The SINGLE reduce: ONE vwredsum over exactly 32 active lanes (fixed vl -> VLEN-universal)
+// folds the whole i16m4 accumulator into sumi -- NOT the retired 8x serial per-strip vwredsum
+// chain, NO per-sub-block scale multiply (tq1_0 has no scales).
+// EMIT: callee=reduce_sumi
+// EMIT: call_opaque "__riscv_vmv_v_x_i32m1"
+// EMIT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMIT: local_variable=sumi
 // EMIT: !emitc.lvalue<!emitc.opaque<"int">>
-// EMIT: callee=chunk_dot
-// EMIT: call_opaque "__riscv_vle8_v_i8m2"
-// EMIT: call_opaque "__riscv_vwmul_vv_i16m4"
-// EMIT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMIT: call_opaque "__riscv_vmv_x_s_i32m1_i32"
-// The OLD narrow dot path (per-16-lane vwmul_i16m2 reduce) is gone at the default m2 anchor.
+// The narrow-LMUL dot path (per-16-lane vwmul_i16m2 reduce) never appears.
 // EMIT-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
 // The SINGLE-SCALE SCALAR fp32 fold: dx via the fp16 read seam (ONE read, at xb+52, the END of
 // block_tq1_0), dy (fp32 q8_K scale) loaded once, d = dx*dy, then `sumf += (float)sumi * d` as
