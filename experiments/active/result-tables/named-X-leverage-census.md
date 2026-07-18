@@ -17,6 +17,8 @@
 
 > 校验：38+5+1+11 = 55 ✓。
 
+> **★DEPLOY DELTA（2026-07-18·裁决1·ISSUE-105 RESOLVED）**：4 格 `gemm@k1`（iq3_xxs/iq3_s/iq1_s/iq1_m）VLEN256 宽化 **deployed PASS**（1.38/1.21/1.34/1.79·triple-verified）⟹ **移出具名-X 集**：本首节 55 board-cells → **51**（**消灭具名-X +4·地盘+4**）· gated(c) 1→**0**（下方 §2.1 gated 表 + §2.3 a-3 的 iq3_xxs@k1 gemm 已 deployed·**全表逐行刷新留后**·本注为权威 delta）。rvv 侧 iq1_s/iq1_m@rvv 维持具名-X（native VLEN128 无半宽·仍在 (d) NEEDS-LEVER）。
+
 ---
 
 ## 二、主表（一行一 board-cell · NEEDS-LEVER(d) 置顶）
@@ -167,7 +169,7 @@
 |---|---|---|---|---|
 | **F1** | **min-term + scale bit-dance 向量化**（K-quant vec_dot·独立 Emission Plan；~~register-fusion~~ / ~~vwredsum.vs~~ 均板测 EXHAUSTED） | 8（q2_K/q3_K/q4_K/q6_K ×2 板） | **两 lever EXHAUSTED·真墙再订正=整核 scalar-heavy**（register-fusion 消 aux8 + vwredsum 消 serial 链·cold 都没动·ours 55 向量 vs 对手 105·min-term/scale 我方标量对手向量化）·**新 lever = 向量化 min-term/scale（未试·清单非空·对手存在性证可达）**·best m1 0.186；q4_K/q6_K@rvv 2 板测·余 6 结构推断 | ISSUE-109 · K-ledger 机制③ |
 | **F2** | **真成本中心诊断**（K-quant gemm-decode M=1·fold 非物理地板·真 driver 待诊断） | 8（q2_K/q3_K/q4_K/q5_K/q6_K decode） | **待诊断**（成本中心留白·ISSUE-014 四腿证非物理墙·k1 侧叠 VLEN256/repack 对手） | ISSUE-014（[+109/102]） |
-| **F3** | **VLEN256 width-widening**（k1 半宽欠用·宽 LMUL/大 AVL 填满 256b） | 13（iq*@k1 vec_dot+gemm+iq4_nl±） | **1 proven-gated**（iq3_xxs@k1 gemm 1.38 WIN·gated ISSUE-105）+ **12 结构推断扇出**（未逐格证·iq2 未在显式 scope·建议扩） | ISSUE-019/102/105 · 机制① |
+| **F3** | **VLEN256 width-widening**（k1 半宽欠用·宽 LMUL/大 AVL 填满 256b） | 13（iq*@k1 vec_dot+gemm+iq4_nl±） | **★4 deployed PASS**（iq3_xxs 1.38/iq3_s 1.21/iq1_s 1.34/iq1_m 1.79 gemm@k1·裁决1 部署完成·triple-verified·ISSUE-105 RESOLVED·移出具名-X 集）+ **9 结构推断扇出**（iq2/iq4 harness 待建 ISSUE-099）（未逐格证·iq2 未在显式 scope·建议扩） | ISSUE-019/102/105 · 机制① |
 | **F4** | **tiny-reduction sum2 per-group**（iq1_m·符号和向量化批处理） | 2（iq1_m vec_dot ×2） | **已就绪**（代数证过+oracle 已建·发射器未改） | ISSUE-020 |
 | **F5** | ~~窄位宽整数乘加~~ 板测 EXHAUSTED → **codebook-table residency / scalar-scale hoist**（低置信·maturity-gated 同构 ISSUE-107） | 2（nvfp4 vec_dot@rvv + nvfp4 dequant@k1） | **narrow-int EXHAUSTED**（byte-exact ULP=0·cold NULL 1.01×·三态没消·spill 11/11/22 不变）·**真墙 re-diagnosis=码本 TABLE spill 非三态**（clang reg-alloc spill v8 交织 scalar scale·对 product LMUL 不敏感）·新候选低置信→§六 具名-X 非架构不可达·mxfp4 3.47× 正锚·禁性能名义立项 ISSUE-021 | ISSUE-100/021/025 · 机制⑤ |
 | **F6** | **grid HW-gather 天花板 = honest-null**（grid dequant owned-construction 轴杠杆空） | 5（iq3_xxs/iq3_s/iq1_m dequant） | **honest-null**（iq3_xxs@rvv board-measured 3 变体·余结构推断）·非架构不可达·[L-8]-vs-PASS 待战略裁 | ISSUE-107（连 106） |

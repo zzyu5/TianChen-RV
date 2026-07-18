@@ -65,7 +65,25 @@ else
 fi
 
 DRV="$ASSETS/grid4_gemm_prefill_p2.cpp"
-LEAF="$ASSETS/kernels_grid4/${FMT}_gemm.c"
+# ---- per-board fixture routing (ISSUE-105 deploy) --------------------------------
+# The pre-emitted leaf carries its strip width BAKED IN (half_lanes, an AVL literal
+# in every mf2-family vector op): the front door derives it at CONSTRUCT time from
+# the emit -march via deriveRepackHalfLanes(minVLEN) -- rv64gcv => minVLEN 128 =>
+# half_lanes 8 (AVL=8), rv64gcv_zvl256b => minVLEN 256 => half_lanes 16 (AVL=16).
+# k1 is TRUE VLEN256 silicon: an AVL=8 leaf half-uses each vector op. So k1 consumes
+# the VLEN256-widened fixture (kernels_grid4_vlen256/, march=rv64gcv_zvl256b), while
+# rvv (VLEN128) keeps the rv64gcv leaf -- an AVL=16 leaf would clamp vl to 8 on
+# VLEN128 and drop half its lanes, so the routing is per-BOARD. This is a
+# CONSTRUCT-time / emit-time fixture choice, NOT a per-dispatch runtime check
+# ([NG-3] per-dispatch enforcement stays forbidden). The widen is objdump-provable
+# true (AVL 8->16, vset/gather counts halve), never a re-roll.
+if [ "$BOARD" = k1 ]; then
+  LEAFDIR=kernels_grid4_vlen256   # deployed: half_lanes=16 (march=rv64gcv_zvl256b)
+else
+  LEAFDIR=kernels_grid4           # rvv/VLEN128: half_lanes=8 (march=rv64gcv)
+fi
+LEAF="$ASSETS/${LEAFDIR}/${FMT}_gemm.c"
+echo "# LEAF_ROUTE board=$BOARD leafdir=$LEAFDIR (per-board VLEN fixture; construct-time, not per-dispatch)"
 [ -f "$DRV" ]  || { echo "# HARNESS-VOID missing driver $DRV"; exit 3; }
 [ -f "$LEAF" ] || { echo "# HARNESS-VOID missing leaf $LEAF"; exit 3; }
 

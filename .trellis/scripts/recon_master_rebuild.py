@@ -231,16 +231,16 @@ GEMM_DECODE = {
 P2_GRID4 = {
  ("gemm_tile","iq1_s"):{
    "rvv":(0.6643,"具名-X","部署 vl128(CROSSOP)·cold_X 0.6643(s1)/0.6699(s2)·墙=我方 generic-aux32 ins13109/rvv10345/vset4565 vs 对手 vl128 full-unroll ins201/rvv109/vset41(≈65×指令量·vset storm)·便宜档 vs generic 15.20×【降披露】"),
-   "k1":(0.5919,"具名-X","部署 vl256(CROSSOP)·cold_X 0.5919(s1)/0.5913(s2)·墙=generic-aux32 ins13110 vs vl256 full-unroll ins151/rvv89(≈87×)·便宜档 vs generic 16.00×【降披露】")},
+   "k1":(1.3406,"PASS","★deployed VLEN256 fixture(裁决1·ISSUE-105)·cold_X 1.3406(s1)/1.3399(s2)·真硬赢 vs 部署手调 vl256(CROSSOP 系统账·aaee 板验+a6ad check)·byte-exact·objdump 真宽 AVL8→16 非 re-roll·便宜档 vs generic 禁称硬赢")},
  ("gemm_tile","iq1_m"):{
    "rvv":(0.5713,"具名-X","部署 vl128(CROSSOP)·cold_X 0.5713(s1)/0.5701(s2)·墙=generic-aux32 ins21018/rvv11922 vs vl128 full-unroll ins231/rvv79(≈91×)·便宜档 vs generic 9.01×【降披露】"),
-   "k1":(0.5945,"具名-X","部署 vl256(CROSSOP)·cold_X 0.5945(s1)/0.5945(s2)·墙=generic-aux32 ins21019 vs vl256 full-unroll ins221/rvv66(≈95×)·便宜档 vs generic 10.15×【降披露】")},
+   "k1":(1.7936,"PASS","★deployed VLEN256 fixture(裁决1·ISSUE-105)·cold_X 1.7936(s1)/1.7625(s2)·真硬赢 vs 部署手调 vl256(CROSSOP 系统账·aaee 板验+a6ad check·2.94× compound=宽化+spill-storm 810→42 清零)·byte-exact·objdump 真宽非 re-roll·便宜档 vs generic 禁称硬赢")},
  ("gemm_tile","iq3_xxs"):{
    "rvv":(0.9484,"PASS","部署 vl128(CROSSOP)·cold_X 0.9484(s1)/0.9545(s2)·near-parity vs 部署手调核(≥0.8·非硬赢·我方 ins15238 vs vl128 ins310)·便宜档 vs generic 2.71×【降披露·禁称硬赢】"),
-   "k1":(0.6474,"具名-X","部署 vl256(CROSSOP)·cold_X 0.6474(s1)/0.6481(s2)·墙=generic-aux32 ins15240/rvv12819 vs vl256 full-unroll ins314/rvv112(≈49×)·便宜档 vs generic 3.60×【降披露】")},
+   "k1":(1.3811,"PASS","★deployed VLEN256 fixture(裁决1·ISSUE-105 放行)·cold_X 1.3811(s1)/1.375(s2·aa640 独立复现 1.371/1.375·变异内·s2 由 aaee 1.4022 软化取保守独立值)·真硬赢 vs 部署手调 vl256(CROSSOP 系统账·aaee 板验 + a6ad + aa640 双独立 check CONFIRMED)·byte-exact 4-arm·objdump 真宽 AVL8→16/gather1024→512/vset5397→2515 非 re-roll·便宜档 vs generic 禁称硬赢·[D-2a]长期形态并行")},
  ("gemm_tile","iq3_s"):{
    "rvv":(1.3483,"PASS","部署 vl128(CROSSOP)·cold_X 1.3483(s1)/1.3429(s2)·beat 部署 vl128(对手 leaf 轻 ins105/rvv38·我方 repack-GEMM 摊销更好)·板间翻转候选(k1 输)·便宜档 vs generic 12.26×【降披露】"),
-   "k1":(0.6136,"具名-X","部署 vl256(CROSSOP)·cold_X 0.6136(s1)/0.6137(s2)·墙=generic-aux32 ins15144/rvv12702 vs vl256 full-unroll ins232/rvv126(≈65×)·同 leaf rvv 赢 k1 输=VLEN 专化满展开缺口·便宜档 vs generic 11.24×【降披露】")},
+   "k1":(1.2074,"PASS","★deployed VLEN256 fixture(裁决1·ISSUE-105)·cold_X 1.2074(s1)/1.2063(s2)·真硬赢 vs 部署手调 vl256(CROSSOP 系统账·aaee 板验+a6ad check)·byte-exact·同 leaf rvv 赢现 k1 也赢(VLEN256 宽化补齐半宽缺口·objdump 真宽非 re-roll)·便宜档 vs generic 禁称硬赢")},
 }
 # ★A2-batch7 IME kernel-sym(k1·vendor 真手调 IME 核·非便宜档·honest 负结果·赛道≠e2e perf-covered 绿·禁互推)
 IME_KERNELSYM = {

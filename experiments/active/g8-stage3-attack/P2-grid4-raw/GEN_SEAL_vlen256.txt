@@ -1,0 +1,18 @@
+# P2-grid4 VLEN256 GEN_SEAL  (per-board k1 deployed fixture; front-door live export; forced clean rebuild of weft-opt)
+# purpose = ISSUE-105 deploy: k1 (true VLEN256) consumes half_lanes=16 widened leaf; rvv (VLEN128) keeps kernels_grid4/ (half_lanes=8).
+# date_utc=2026-07-18T07:00:41Z
+# HEAD=c84820c46d61036ff3171714afd38b0cf076687d
+# weft_opt_md5=2610d726ea25a64919ed41a91a8cdeff
+# weft_opt_forced_rebuild=YES (all lib/ include/ sources touched; ninja weft-opt 260/260)
+# mlir_translate=Ubuntu LLVM version 20.1.8
+# widen_mechanism=deriveRepackHalfLanes(minVLEN): march=rv64gcv_zvl256b => minVLEN=256 => half_lanes=16 (vs rv64gcv => 128 => 8). NO source change.
+# baseline byte-identity (rv64gcv re-emit == committed kernels_grid4/): iq1_s/iq1_m/iq3_xxs/iq3_s ALL byte-identical to GEN_SEAL.txt md5s.
+#
+iq1_s:   march=rv64gcv_zvl256b md5=a6e14f516bb5402d35cddd7634fd6350 lines=13524
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq1-s-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp > kernels_grid4_vlen256/iq1_s_gemm.c
+iq1_m:   march=rv64gcv_zvl256b md5=895bc406f668f787fc71ea50e1f017df lines=15668
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq1-m-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp > kernels_grid4_vlen256/iq1_m_gemm.c
+iq3_xxs: march=rv64gcv_zvl256b md5=4e917c3b1ec94f483f4110e08f46d870 lines=14981
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq3-xxs-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp > kernels_grid4_vlen256/iq3_xxs_gemm.c
+iq3_s:   march=rv64gcv_zvl256b md5=fd7da4c984bc09c2391414371ac87d63 lines=14853
+   cmd: build-weft/bin/weft-opt test/Conversion/RVV/rvv-emit-quant-contraction-iq3-s-repack-gemm-prefill-vlen128.mlir --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp > kernels_grid4_vlen256/iq3_s_gemm.c
