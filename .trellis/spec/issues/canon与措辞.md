@@ -98,3 +98,12 @@
 - **保守默认**：**两枚举并存、条文本体零改**；引用时**须显式限定**是「档位」还是「角色」。**禁 agent 自行改名、合并或发明第三个术语**。
 - **状态**：待裁
 - **出处**：仓内谓词（上列 `grep -n`，可复跑）。
+
+
+### ISSUE-111 · 数值口径松绑：headline 取最快变体 + 强制 ULP 界·[浮点折叠oracle §5]「永不作 headline」作废（补充令二 §二·用户裁）
+
+- **状态**：待裁（canon 措辞订正·[门体系 §3.5 第4条] 提案入 ISSUES·**但用户裁已现行法·队列动作立即执行**）。
+- **实质**（补充令二 §二·2026-07-18 用户裁）：[K-5] 浮点只要 ULP 界（非 byte-exact）·[PERF-1]① 「字节精确或声明 ULP 界」·oracle 不对 ggml 二进制验收（ggml 跨 SIMD 本就不 bit-exact）。⟹ **裁**：headline **取最快变体**（含重排/FMA/K 路累加器）+ **强制标注声明的 ULP 上界**·`[浮点折叠oracle §5]「重排变体永不作 headline」作废`。报告形态 = 三数并列（最快 X× + ULP 界 Y + 精确 Z×）·headline 取 X。§1 精确规格**留着**（oracle 参照）·整数路径 byte-exact **不动**（量化点积 int32 零舍入·byte-exact 免费）·q4_1/q5_1 FMA-risk **放行**（走 reassoc-容忍 oracle + ULP 界）。**唯一硬约束：报数必须带 ULP 界。**
+- **★量税实证附注**（task `07-18-k-fmatax-probe`）：数值松绑**不是 perf 杠杆**——FMA 契约单独收益 0%·Kway 孤立 1.5× 但 Amdahl 全 kernel <2%（实测 −3~−5%）。ISSUE-014 第②腿**保留**（对手 objdump 向量 FMA=0·相消成立·非翻盘）。K-quant decode 真成本中心 = codegen 灾难（92× 指令爆炸·非 fold·确认成本中心留白）。⟹ 数值松绑 = **报告规则变更**·非 perf 兑现（除 q4_1/q5_1 简化）。
+- **保守默认**：报告即按「最快+ULP 界」形态（现行）·canon [浮点折叠oracle §5] 措辞订正待用户落 canon。
+- **出处**：补充令二 §二/§三（用户裁）· task `07-18-k-fmatax-probe`（对手 FMA objdump + 税实验 + Amdahl）。
