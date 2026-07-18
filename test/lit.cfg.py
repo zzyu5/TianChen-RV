@@ -162,6 +162,7 @@ llvm_config.add_tool_substitutions(
         "clang++",
         "llvm-readobj",
         "weft-capability-model-test",
+        "weft-load-time-resolution-test",
         "weft-construction-protocol-common-test",
         "weft-plugin-registry-test",
         "weft-plugin-variant-cost-test",

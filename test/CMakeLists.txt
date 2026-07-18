@@ -319,12 +319,26 @@ target_link_libraries(weft-capability-model-test
   MLIRSupport
 )
 
+add_executable(weft-load-time-resolution-test
+  Support/LoadTimeCapabilityResolutionTest.cpp
+)
+
+target_link_libraries(weft-load-time-resolution-test
+  PRIVATE
+  WeftInitAll
+  WeftSupport
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_lit_testsuite(check-weft "Running Weft-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
   weft-opt
   weft-translate
   weft-capability-model-test
+  weft-load-time-resolution-test
   weft-construction-protocol-common-test
   weft-plugin-emission-plan-test
   weft-plugin-variant-cost-test

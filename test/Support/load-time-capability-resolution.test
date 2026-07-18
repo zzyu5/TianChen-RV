@@ -1,0 +1,5 @@
+# [D-2a] loading-time capability resolution (A load-time resolver + B per-process
+# one record) with [NG-3]/[I3]/[I7] red-line 守法 machine-checks.
+# RUN: weft-load-time-resolution-test | FileCheck %s
+
+# CHECK: [load-time-resolution] GREEN
