@@ -1,7 +1,7 @@
 {
-  "id": "07-18-k-fmatax-probe",
-  "name": "07-18-k-fmatax-probe",
-  "title": "K线·补充令二§三 量税实验前置(objdump对手FMA形态+编两份税·可能推翻ISSUE-014第②腿)",
+  "id": "07-18-k-regfusion-q4k",
+  "name": "07-18-k-regfusion-q4k",
+  "title": "K线·ISSUE-109 register-fusion q4_K vec_dot(§五.1别排队·消aux8 roundtrip·top perf lever)",
   "description": "",
   "status": "planning",
   "dev_type": null,
