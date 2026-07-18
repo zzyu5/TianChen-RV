@@ -4796,6 +4796,52 @@ private:
       int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
       int64_t sub, bool hasMin, bool hasQh) const;
 
+  /// The OWNED REAL-VECTOR 4-bit nibble dequantize_row block-decode body for the flat
+  /// legacy formats (q4_0/q5_0 single-mul SAFE set, q4_1/q5_1 min-add FMA set): the AoS
+  /// `nb = k/32` block loop, the fp16 d (+ optional fp16 min m) seam, then TWO 16-lane
+  /// OWNED half-block pipelines per block -- vle8 (16 packed nibble bytes, u8m1) +
+  /// vand_vx/vsrl_vx (the low/high nibble planes) + vzext_vf4 (nibble 0..15 -> u32m4) +
+  /// [q5 5th-bit spread: vid/vmv/vsrl_vv/vand_vx/vsll_vx/vor_vv, bit j / j+16 of the
+  /// byte-assembled qh -> {0,16}] + vreinterpret to i32m4 + [q4_0/q5_0 bias vsub_vx
+  /// -8/-16] + vfcvt_f_x_v (i32->f32) + the runtime d scale (vfmul_vf single-mul set) OR
+  /// the fused min-add (vfmv_v_f(m) + vfmacc_vf(d): d*val+m in one rounding) + vse32 (the
+  /// 16-float contiguous half-block store). NO gather (nibble unpack is not a codebook
+  /// lookup). Byte-exact-vs-ggml dequantize_row_<fmt> by construction: q4_0/q5_0 single
+  /// mul -> no fp-contraction ambiguity; q4_1/q5_1 single fused mul-add -> matches the
+  /// contracted scalar `val*d+m` the -ffp-contract=on opponent autovec's to vfmadd. Only
+  /// the CONSTRUCTED path (emitTypedDequantizeRowLoopBody) routes here; the dispatch-wired
+  /// monolith fallback stays on the scalar shared body (the q8_0/iq3_xxs precedent). The
+  /// 16-lane half-block width + u8m1/u32m4/i32m4/f32m4 pipeline LMULs are DERIVED from the
+  /// fixed QK/2 nibble geometry, NOT tunable knobs. opName/role thread the provenance.
+  mlir::LogicalResult emitDequantizeRowNibbleVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
+      int64_t sub, bool hasMin, bool hasQh) const;
+
+  /// The per-format OWNED REAL-VECTOR nibble leaves (q4_0/q5_0/q4_1/q5_1): each
+  /// hard-codes its ggml block_qX AoS layout facts and calls the shared vector body
+  /// emitDequantizeRowNibbleVectorBody. Only the CONSTRUCTED typed lowering routes here;
+  /// the monolith fallback keeps the scalar emitDequantizeRow<FMT>BodyShared. Siblings of
+  /// emitDequantizeRowQ8_0VectorBody.
+  mlir::LogicalResult emitDequantizeRowQ4_0VectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ5_0VectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ4_1VectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ5_1VectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// The per-format CONSTRUCTED dequantize_row decode leaves for the flat nibble
   /// family (q4_0/q4_1/q5_0/q5_1): each hard-codes its ggml block_qX AoS layout
   /// facts and calls emitDequantizeRowNibbleBodyShared -- the SAME shared body the

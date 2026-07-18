@@ -46,7 +46,19 @@ module {
 // The byte-assembled uint32 qh 5th-bit plane.
 // CHECK: bitwise_left_shift
 // CHECK: bitwise_or
-// The nibble decode + the *d then +m affine.
-// CHECK: bitwise_and
-// CHECK: mul
-// CHECK: add
+// The OWNED REAL-VECTOR nibble decode (R线 §四.1 FMA set, PR-31 fan-out): the 16 packed
+// bytes load, the low/high nibble split, the vf4 widen, the 5th-bit spread
+// (vid / vmv qh / vsrl_vv / vand / vsll / vor -> {0,16}), the int->float convert, then the
+// FUSED min-add (vfmv_v_f(m) + vfmacc_vf(d): `m + d*val` in ONE rounding, matching the
+// contracted opponent vfmadd; NO -16 bias). NO gather. OWNED __riscv_v.
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vid_v_u32m4"
+// CHECK: call_opaque "__riscv_vmv_v_x_u32m4"
+// CHECK: call_opaque "__riscv_vsrl_vv_u32m4"
+// CHECK: call_opaque "__riscv_vor_vv_u32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// CHECK: call_opaque "__riscv_vfmacc_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

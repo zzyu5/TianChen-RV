@@ -43,7 +43,15 @@ module {
 // CHECK: for
 // The fp16 block scale seam.
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The nibble decode: qi & 0x0F and qi >> 4, then the -8 bias and the f32 scale.
-// CHECK: bitwise_and
-// CHECK: bitwise_right_shift
-// CHECK: mul
+// The OWNED REAL-VECTOR nibble decode (R线 §四.1 SAFE set, PR-31 fan-out): the 16 packed
+// bytes load, the low/high nibble split (vand_vx / vsrl_vx), the vf4 widen, the -8 bias,
+// the int->float convert, and the SINGLE-mul `d` scale (vfmul_vf, NO fp-contraction). NO
+// gather. The vector content is the EMITTER's (OWNED __riscv_v), not host-autovec lottery.
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vsub_vx_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
+// CHECK: call_opaque "__riscv_vsrl_vx_u8m1"

@@ -43,8 +43,16 @@ module {
 // The fp16 d and fp16 m scales (two seam reads).
 // CHECK: call_opaque "(float)*(const _Float16 *)"
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The nibble decode + the affine *d then +m.
-// CHECK: bitwise_and
-// CHECK: bitwise_right_shift
-// CHECK: mul
-// CHECK: add
+// The OWNED REAL-VECTOR nibble decode (R线 §四.1 FMA set, PR-31 fan-out): the 16 packed
+// bytes load, the low/high nibble split, the vf4 widen, the int->float convert, then the
+// FUSED min-add -- vfmv_v_f broadcasts m into the accumulator and vfmacc_vf folds `m + d*val`
+// in ONE rounding (matching the contracted scalar `val*d+m` the -ffp-contract=on opponent
+// autovec's to vfmadd; NO vfmul/vfadd split, NO -8 bias). NO gather. OWNED __riscv_v.
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// CHECK: call_opaque "__riscv_vfmacc_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
+// CHECK: call_opaque "__riscv_vsrl_vx_u8m1"

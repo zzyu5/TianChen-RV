@@ -46,6 +46,20 @@ module {
 // The byte-assembled uint32 qh 5th-bit plane (shift the qh bytes into place + OR).
 // CHECK: bitwise_left_shift
 // CHECK: bitwise_or
-// The 5th-bit merge into the nibble + the -16 bias + the f32 scale.
-// CHECK: bitwise_and
-// CHECK: mul
+// The OWNED REAL-VECTOR nibble decode (R线 §四.1 SAFE set, PR-31 fan-out): the 16 packed
+// bytes load, the low/high nibble split, the vf4 widen, then the 5th-bit spread
+// (vid / vmv broadcast qh / vsrl_vv per-lane / vand / vsll / vor -> {0,16}), the -16 bias,
+// the int->float convert, and the SINGLE-mul `d` scale (vfmul_vf, NO fp-contraction). NO
+// gather. The vector content is the EMITTER's (OWNED __riscv_v), not host-autovec lottery.
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vand_vx_u8m1"
+// CHECK: call_opaque "__riscv_vzext_vf4_u32m4"
+// CHECK: call_opaque "__riscv_vid_v_u32m4"
+// CHECK: call_opaque "__riscv_vmv_v_x_u32m4"
+// CHECK: call_opaque "__riscv_vsrl_vv_u32m4"
+// CHECK: call_opaque "__riscv_vsll_vx_u32m4"
+// CHECK: call_opaque "__riscv_vor_vv_u32m4"
+// CHECK: call_opaque "__riscv_vsub_vx_i32m4"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"

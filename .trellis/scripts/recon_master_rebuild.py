@@ -262,14 +262,15 @@ CLANG_WORLD = {
  ("gemm_tile","tq1_0","prefill"):  (7.90,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§1·s1 7.90/s2 7.93)"),
  ("gemm_tile","tq2_0","prefill"):  (9.91,"clang世界·opp=ggml scalar-ref(便宜档)·具名-X→PASS·ours vsetvl=8最简·便宜档禁称硬赢(A1§1·s1 9.91/s2 10.10)"),
  # ── 3 DEQ @rvv 翻转(A1 §2·标量类·opp=dequantize_row_* autovec 便宜档·byte-exact 0mism/0ULP)·q4_1/q8_0 本已 PASS ──
- ("dequantize_row","q4_0",""): (2.51,"clang世界(单一编译器世界)·opp=dequantize_row autovec(便宜档)·具名-X→PASS·便宜档禁称硬赢(A1§2·s1 2.51/s2 2.90)"),
- ("dequantize_row","q5_0",""): (1.007,"clang世界·opp=autovec·具名-X→PASS·★parity 编译器中性真结果(双方 memory-bound 0.60GB/s·qh5bit DRAM墙)(A1§2·s1/s2 1.007)"),
- ("dequantize_row","q5_1",""): (1.02,"clang世界·opp=autovec·具名-X→PASS·★parity 编译器中性真结果(双方 memory-bound 0.60GB/s·qh5bit DRAM墙)(A1§2·s1/s2 1.02)"),
+ ("dequantize_row","q4_0",""): (2.10,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned intrinsic·gather=0·ISSUE-001反转·[L-8]强义construction真赢·关ISSUE-002该格敞口)·byte-exact GREEN·PASS→PASS(0.838类lottery→owned·D1板测2.0998/2.0752)·标量类硬门·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢)·勿外推"),
+ ("dequantize_row","q5_0",""): (5.96,"★R线§四.1 de-lottery·owned 真向量 emit(16 owned intrinsic·gather=0·[L-8]强义construction真赢·关ISSUE-002敞口)·byte-exact GREEN·PASS→PASS(1.007 lottery→owned·D1板测5.9557/6.0301)·标量类硬门·★opp-immaturity(5th-bit·ggml autovec差 non_vset_vec=26·§三.12·非perf硬赢·勿称6×赢)·勿外推"),
+ ("dequantize_row","q5_1",""): (6.44,"★R线§四.1 de-lottery·owned 真向量 emit(16 owned·FMA-resolved fused vfmacc匹配对手 vfmadd·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.02 lottery→owned·D1板测6.4173/6.4036)·标量类硬门·★opp-immaturity(5th-bit ggml autovec差·§三.12·非硬赢)·勿外推"),
+ ("dequantize_row","q4_1",""): (2.29,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned·FMA-resolved fused vfmacc匹配对手 vfmadd.vv objdump证·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.284 lottery→owned·D1板测2.2854/2.2936·ab84复现)·标量类硬门·★opp-immaturity(§三.12·非硬赢)·勿外推"),
  # ── R线 §四.1 de-lottery: iq3_xxs@rvv 从 autovec-lottery-PASS 升为 owned 真向量真测(具名-X)──
  # owned emit(非 autovec)·byte-exact GREEN·ISSUE-001 反转+ISSUE-002[L-8]满足·naive first-cut cold 0.18×(比 lottery 慢·perf 优化=批量宽gather pending)·opp=部署 dequantize_row_iq3_xxs(标量类)·trellis-check 复现 s1 0.1825/s2 0.1812·勿称 perf 赢(真测 LOSS 如实)
  ("dequantize_row","iq3_xxs",""): (0.360,"★R线§四.1 de-lottery·owned 真向量 emit(ISSUE-001 反转·[L-8]满足)·byte-exact GREEN·批量宽gather优化后 0.360×(naive 0.181→0.360·storm vset129→33 objdump双证)·具名-X·★HW-gather-STRATEGY 天花板·grid-codebook 通用·【非架构不可达】(对手 objdump HW_GATHER=0 用标量load·parity lever=owned 标量-load emit·gated on 调度成熟度[项目级]·ISSUE-107)·勿称赢·收口未达"),
  # ── R线 §四.1 de-lottery: q8_0@rvv non-grid owned 真向量·PASS→PASS·cold 改善(0.838 lottery→2.33 owned)·trellis-check a81da 复现 2.3478/2.3266 ──
- ("dequantize_row","q8_0",""): (2.33,"★R线§四.1 de-lottery·owned 真向量 emit(5 owned intrinsic·ISSUE-001 反转·[L-8]强义 construction 真赢·非autovec抽签·regen-identical)·byte-exact GREEN·non-grid 无gather墙(对比 grid iq3_xxs 0.36 天花板)·cold 0.838 lottery→2.33 owned(trellis-check 复现 2.3478/2.3266·2seed)·标量类硬门 PASS·★便宜档-compiler-artifact(对手=诚实重autovec唯一部署核·§三.12·非perf硬赢)·勿外推grid/K-quant"),
+ ("dequantize_row","q8_0",""): (2.33,"★R线§四.1 de-lottery·owned 真向量 emit(5 owned intrinsic·ISSUE-001 反转·[L-8]强义 construction 真赢·非autovec抽签·regen-identical)·byte-exact GREEN·non-grid 无gather墙(对比 grid iq3_xxs 0.36 天花板)·cold 0.838 lottery→2.33 owned(trellis-check 复现 2.3478/2.3266·2seed)·标量类硬门 PASS·[L-8]强义construction真赢·★关ISSUE-002该格敞口(24行dequant [L-8]存疑随de-lottery逐格关)·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢·禁称重大WIN/真赢部署核)·勿外推grid/K-quant"),
 }
 
 def disp(op, fmt, engine, board, tier, cold, na):

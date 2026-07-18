@@ -20,6 +20,8 @@
 #   board: rvv          （@k1 dequant 部署 gated on ISSUE-105 半宽 — 本格 @rvv 先证·k1=VOID）
 #   fmt  : iq3_xxs      （grid-codebook super-block·C4a·vluxei gather 天花板 ISSUE-107）
 #          q8_0         （NON-GRID flat block·owned real-vector·NO gather·首个标量门 owned 收口探路）
+#          q4_0 q5_0    （flat nibble SAFE set·单 mul·owned real-vector·byte-exact by construction）
+#          q4_1 q5_1    （flat nibble FMA set·x*d+m·owned real-vector·fused vfmacc·byte-exact 须证 contraction 一致）
 #   mode : verify  = build + ZEROVEC objdump 探针 + ZERO-MODEL byte-exact + 3-arm 反空心 (NO TIMING)
 #          sanity  = 预测量噪声自检 3 轮
 #          measure = cold N=25 2-seed flush
@@ -42,6 +44,12 @@ echo "# HARNESS dequantize_row board=$BOARD mode=$MODE fmt=$FMT assets=$ASSETS"
 #   iq3_xxs : grid-codebook super-block (QK=256) · vluxei gather · GEN_SEAL BATCH-WIDE-GATHER
 #   q8_0    : NON-GRID flat block (QK=32) · vle8+vsext_vf4+vfcvt+vfmul_vf+vse32 · NO gather ·
 #             fault flips the quant byte offset `+ 2` -> `+ 1` (in-bounds, value-changing)
+#   q4_0/q5_0 : flat nibble SAFE set (QK=32) · vle8+vand/vsrl+vzext+[q5 5th-bit spread]+vsub+
+#             vfcvt+vfmul_vf+vse32 · NO gather · single mul (byte-exact by construction) ·
+#             fault flips the nibble byte offset (+2->+1 / +6->+5, in-bounds, value-changing)
+#   q4_1/q5_1 : flat nibble FMA set (QK=32) · ...+vfmv_v_f(m)+vfmacc_vf(d)+vse32 · fused
+#             mul-add (byte-exact needs contraction consistency: oracle=std::fma, opponent
+#             autovec=vfmadd) · fault flips the nibble byte offset (+4->+3 / +8->+7)
 case "$FMT" in
   iq3_xxs) LEAFC="kernels/iq3_xxs_dequant.c"; DRVC="dequant_row_driver.cpp"
            TBLC="tables/iq3xxs_tables.h";     GSED='s/0x04040404U/0x04040405U/'
@@ -49,7 +57,19 @@ case "$FMT" in
   q8_0)    LEAFC="kernels/q8_0_dequant.c";    DRVC="q8_0_dequant_row_driver.cpp"
            TBLC="";                           GSED='s/+ 2;/+ 1;/'
            OPPSYM="dequantize_row_q8_0";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
-  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·q8_0)"; exit 2 ;;
+  q4_0)    LEAFC="kernels/q4_0_dequant.c";    DRVC="q4_0_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/+ 2;/+ 1;/'
+           OPPSYM="dequantize_row_q4_0";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
+  q5_0)    LEAFC="kernels/q5_0_dequant.c";    DRVC="q5_0_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/+ 6;/+ 5;/'
+           OPPSYM="dequantize_row_q5_0";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
+  q4_1)    LEAFC="kernels/q4_1_dequant.c";    DRVC="q4_1_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/+ 4;/+ 3;/'
+           OPPSYM="dequantize_row_q4_1";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
+  q5_1)    LEAFC="kernels/q5_1_dequant.c";    DRVC="q5_1_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/+ 8;/+ 7;/'
+           OPPSYM="dequantize_row_q5_1";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
+  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·q8_0·q4_0·q5_0·q4_1·q5_1)"; exit 2 ;;
 esac
 
 if [ "$BOARD" = rvv ]; then

@@ -66,3 +66,52 @@ q8_0 (dequantize_row · OWNED REAL-VECTOR emit · PR-31 first NON-GRID cell):
         First standalone scalar-class hard-gate格 owned-construction 真收口 via the dequant
         true-vector emitter (verdict PASS->PASS; the de-lottery gain is owned-construction,
         the ratio成色 stays 便宜档).
+
+q4_0/q5_0/q4_1/q5_1 (dequantize_row · OWNED REAL-VECTOR emit · R线 §四.1 block-quant fan-out
+    over the q8_0 non-grid precedent · de-lottery [L-8] · ISSUE-001 reverse):
+  weft_opt_md5=455ab65b4171dee6e5945055ebf0faf8  HEAD=3afa436ca (+ uncommitted R线 §四.1 nibble emit)
+  leaf_md5 / lines / owned distinct-riscv-intrinsics (excludes vsetvl · grep leaf .c):
+    q4_0 = 657da19f88ade21aa528afc92f61e250  63 lines   9 distinct
+    q5_0 = 5cc1823354f83cdda2b49953c43d6484 106 lines  16 distinct
+    q4_1 = 0a87d01eda78769d33fdc6b90f49e1e7  66 lines   9 distinct
+    q5_1 = 01b1d9c53c331b941977b5bf9293d54f 109 lines  16 distinct
+    -- the ISSUE-001 reverse (scalar shared body = 0 owned vector intrinsics); OWNED >> 2.
+  cmd (per fmt f in q4-0/q5-0/q4-1/q5-1): build/weft/bin/weft-opt \
+         test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-<f>.mlir --weft-rvv-lower-to-emitc \
+         | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
+         > experiments/active/r-dequant/kernels/<fmt>_dequant.c
+  emit owner: emitDequantizeRowNibbleVectorBody (lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp),
+        per-fmt wrappers emitDequantizeRowQ{4_0,5_0,4_1,5_1}VectorBody, routed from
+        emitTypedDequantizeRowLoopBody (decode_model). The dispatch-wired monolith fallback
+        keeps the scalar emitDequantizeRowNibbleBodyShared (the q8_0/iq3_xxs precedent).
+  BODY: per block, TWO 16-lane half-block pipelines (low nibbles qs[j]&0x0F -> y[j], high
+        nibbles qs[j]>>4 -> y[j+16]): vle8 (u8m1) -> vand_vx/vsrl_vx -> vzext_vf4 (u32m4) ->
+        [q5 5th-bit spread: vid/vmv/vsrl_vv/vand/vsll/vor, bit j / j+16 of the byte-assembled
+        uint32 qh -> {0,16}] -> vreinterpret i32m4 -> [q4_0/q5_0 bias vsub -8/-16] -> vfcvt_f_x_v
+        (f32m4) -> {SAFE q4_0/q5_0: vfmul_vf(d) single mul} / {FMA q4_1/q5_1: vfmv_v_f(m) +
+        vfmacc_vf(d) = m+d*val FUSED} -> vse32. NO gather (nibble unpack != codebook lookup) ->
+        NO HW-gather wall (contrast iq3_xxs grid). 16-lane half-block width = fixed QK/2 nibble
+        geometry; u8m1/u32m4/i32m4/f32m4 LMULs DERIVED from it (NOT tunable knobs).
+  NOTE: byte-exact to dequantize_row_<fmt> by construction. SAFE set {q4_0,q5_0}: the ONLY
+        rounding is vfmul_vf(nF,d) == scalar val*d (single f32 RNE; NO add/min => no
+        fp-contraction ambiguity). FMA set {q4_1,q5_1}: the CONTRACTION is RESOLVED --
+        vfmacc_vf(m,d,nF) = m+d*val in ONE fused rounding == the scalar `val*d+m` the
+        -ffp-contract=on opponent autovec's to vfmadd (confirmed vfmadd.vv in the deployed
+        decode). Oracle uses std::fma to nail the single fused rounding; the ggml-vs-oracle
+        crosscheck is the FMA-contract consistency probe and it PASSED byte-exact for BOTH
+        q4_1 and q5_1 (NO格 needed 具名 FMA-contract). Harness proves all four
+        (dequantize_row.sh rvv verify <fmt>: ZERO-MODEL byte-exact GREEN 0/131072 + 3-arm
+        anti-hollow all bite + CORPUS 32/32 (q4) / 64/64 (q5·nibble|5thbit) COMPLETE).
+  PERF: rvv cold ratio_cold PASS (标量类 scalar-class hard-gate · 2-seed):
+        q4_0 S1=2.0998 S2=2.0752 (ours~178k ns vs ggml~373k ns)
+        q5_0 S1=5.9557 S2=6.0301 (ours~179k ns vs ggml~1071k ns -- opponent's 5th-bit
+             bit-fiddle autovec's poorly: OPP non_vset_vector=26 vs q4_0's 230)
+        q4_1 S1=2.3035 S2=2.3001 (ours~181k ns vs ggml~416k ns)
+        q5_1 S1=6.4173 S2=6.4036 (ours~181k ns vs ggml~1158k ns -- same weak 5th-bit OPP)
+        all >> 0.8. Opponent = the SOLE deployed dequantize_row_<fmt> (host-autovec = the
+        codegen-lottery on the OPP side, scalar-source), so these are 便宜档/cheap-tier
+        compiler-artifact ratios, NOT 硬赢 (硬赢 = 硬碰硬赢手调对手); 禁外推为 win / 禁外推
+        grid / K-quant ([NG-4]/[L-1]). The DURABLE claim is the CONSTRUCTION axis ([L-8] 强义
+        constructed 真赢): de-lottery = OUR leaf no longer rides the host-autovec lottery
+        (interim autovec value -> determined owned real-vector measured value). Verdict
+        PASS->PASS (ISSUE-001 reverse) for all four; cpu_md5 sealed lib UNCHANGED throughout.

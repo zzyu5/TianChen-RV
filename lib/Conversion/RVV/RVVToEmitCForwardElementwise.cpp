@@ -2936,6 +2936,313 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleBodyShared(
     return mlir::success();
   }
 
+// The OWNED REAL-VECTOR 4-bit nibble dequantize_row block-decode body for the flat
+// legacy formats (q4_0/q5_0 the single-mul SAFE set, q4_1/q5_1 the min-add FMA set).
+// The ISSUE-001 / [L-8] reverse of the scalar emitDequantizeRowNibbleBodyShared (whose
+// owned vector-intrinsic count is 0 -- the host-autovec codegen-lottery owns any
+// vectorization there): here the vector content is the EMITTER'S (OWNED __riscv_v
+// intrinsics), de-lottery by construction. Per block, the 16 packed nibble bytes decode
+// as TWO 16-lane half-block pipelines (low nibbles `qs[j]&0x0F` -> y[j], high nibbles
+// `qs[j]>>4` -> y[j+16]): vle8 (the 16 packed bytes, u8m1) -> vand_vx/vsrl_vx (the two
+// nibble planes, u8m1) -> vzext_vf4 (nibble 0..15 -> u32m4) -> [q5 5th-bit spread:
+// vid/vmv/vsrl_vv/vand_vx/vsll_vx/vor_vv, bit j (resp j+16) of the byte-assembled uint32
+// qh -> {0,16}] -> vreinterpret to i32m4 -> [q4_0/q5_0 pre-scale bias vsub_vx: -8/-16] ->
+// vfcvt_f_x_v (i32->f32, exact for |val|<=31) -> the runtime `d` scale (vfmul_vf for the
+// single-mul set) OR the fused min-add (vfmv_v_f(m) + vfmacc_vf(d): `d*val + m` in ONE
+// rounding, matching the CONTRACTED scalar `x0*d+m` the -ffp-contract=on opponent
+// autovec's to vfmadd) -> vse32 (the 16-float contiguous half-block store). NO gather
+// (nibble unpack is not a codebook lookup) -> NO HW-gather wall (contrast the iq3_xxs
+// grid leaf). The 16-lane half-block width is the FIXED QK/2 nibble geometry (NOT a
+// tunable knob); the pipeline LMULs (u8m1 for the 16 packed bytes, u32m4/i32m4/f32m4 for
+// the 4x-widened 16-lane int->float pipeline) are DERIVED from that width, NOT literal
+// knobs. Byte-exact-vs-ggml-reference dequantize_row_<fmt> by construction: the fp16
+// d (+ optional m) seam is the SAME `(float)*(const _Float16 *)` read, the nibble/5th-bit
+// integer values are byte-identical to the scalar `int` decode (all in [-16,31], exact in
+// f32), and the fold rounds identically (single-mul for q4_0/q5_0 -> no fp-contraction
+// ambiguity; single fused mul-add for q4_1/q5_1 -> matches the contracted opponent).
+// Only the CONSTRUCTED path (emitTypedDequantizeRowLoopBody) routes here; the
+// dispatch-wired monolith fallback keeps the scalar shared body (the q8_0/iq3_xxs
+// precedent). Streaming sibling of emitDequantizeRowQ8_0VectorBody (no accumulator).
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleVectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
+    int64_t sub, bool hasMin, bool hasQh) const {
+  // block_q4_0/q4_1/q5_0/q5_1 AoS facts: qk=32 lanes per block, 16 packed nibble bytes
+  // (the byte-exact ggml ABI shape constants, NOT tunable knobs -- the SAME facts the
+  // scalar emitDequantizeRowNibbleBodyShared hard-codes).
+  const int64_t qk = 32, half = qk / 2;
+
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type inputPtrType = input.getType();   // const uint8_t *
+  mlir::Type outputPtrType = output.getType(); // float *
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type uintType = emitc::OpaqueType::get(ctx, "uint32_t");
+  mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+  mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
+  mlir::Type floatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+  // The 16-lane half-block pipeline types: u8m1 holds the 16 packed nibble bytes
+  // (VLEN>=128: m1 SEW8 >= 16 lanes); the vf4 4x widening lands the 0..15 nibble in
+  // u32m4 (VLEN128 m4 SEW32 == 16 lanes exactly), then i32m4 (reinterpret) for the bias
+  // + f32m4 for the convert/scale/store. All DERIVED from the fixed QK/2=16 nibble width.
+  mlir::Type u8VecType = emitc::OpaqueType::get(ctx, "vuint8m1_t");
+  mlir::Type u32VecType = emitc::OpaqueType::get(ctx, "vuint32m4_t");
+  mlir::Type i32VecType = emitc::OpaqueType::get(ctx, "vint32m4_t");
+  mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m4_t");
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
+  // vx / v_x scalar operands: a plain integer literal of the matching opaque C type
+  // (call_opaque emits it verbatim; C converts to the intrinsic's rhs type).
+  mlir::Type u8ScalarType = emitc::OpaqueType::get(ctx, "uint8_t");
+  mlir::Type u32ScalarType = emitc::OpaqueType::get(ctx, "uint32_t");
+  mlir::Type i32ScalarType = emitc::OpaqueType::get(ctx, "int32_t");
+  auto u8Lit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, u8ScalarType, std::to_string(v));
+  };
+  auto u32Lit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, u32ScalarType, std::to_string(v));
+  };
+  auto i32Lit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, i32ScalarType, std::to_string(v));
+  };
+  auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
+    return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
+  };
+  mlir::Value halfVl = sizeLit(half);
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // size_t nb = k / 32;  (ggml's `const int nb = k / qk`; k % qk == 0, no tail).
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "block_count"));
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1),
+                                                /*bodyBuilder=*/nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    // const uint8_t *xb = x + ib*stride;  float *yb = (float *)(y + ib*32);
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "x_block"));
+    mlir::Value xOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+    mlir::Value xb =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, input, xOff);
+    mlir::Value yOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(qk));
+    mlir::Value ybRaw =
+        rewriter.create<emitc::AddOp>(loc, outputPtrType, output, yOff);
+    mlir::Value yb =
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    // float d = (float)*(const _Float16 *)(xb + dOff);  (the fp16 block scale).
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d"));
+    mlir::Value dAddr = xb;
+    if (dOff != 0)
+      dAddr = rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(dOff));
+    mlir::Value d = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                   mlir::ValueRange{dAddr}, opName, role,
+                                   llvm::StringRef("fcvt.s.h"));
+
+    // float m = (float)*(const _Float16 *)(xb + mOff);  (q4_1/q5_1 block min).
+    mlir::Value m;
+    if (hasMin) {
+      mlir::Value mAddr =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(mOff));
+      m = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                         mlir::ValueRange{mAddr}, opName, role,
+                         llvm::StringRef("fcvt.s.h"));
+    }
+
+    // uint32_t qh = qh[0] | qh[1]<<8 | qh[2]<<16 | qh[3]<<24;  (q5_0/q5_1 5th-bit
+    // plane; the byte-assembled little-endian load matches ggml's memcpy(&qh)).
+    mlir::Value qh;
+    if (hasQh) {
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "qh"));
+      mlir::Value qhBaseRaw =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qhOff));
+      mlir::Value qhBase =
+          rewriter.create<emitc::CastOp>(loc, u8PtrType, qhBaseRaw).getResult();
+      mlir::Value b0 = loadByteAsUint(qhBase, 0);
+      mlir::Value b1 = loadByteAsUint(qhBase, 1);
+      mlir::Value b2 = loadByteAsUint(qhBase, 2);
+      mlir::Value b3 = loadByteAsUint(qhBase, 3);
+      mlir::Value s1 = rewriter.create<emitc::BitwiseLeftShiftOp>(
+          loc, uintType, b1, u32Lit(8));
+      mlir::Value s2 = rewriter.create<emitc::BitwiseLeftShiftOp>(
+          loc, uintType, b2, u32Lit(16));
+      mlir::Value s3 = rewriter.create<emitc::BitwiseLeftShiftOp>(
+          loc, uintType, b3, u32Lit(24));
+      qh = rewriter.create<emitc::BitwiseOrOp>(loc, uintType, b0, s1).getResult();
+      qh = rewriter.create<emitc::BitwiseOrOp>(loc, uintType, qh, s2).getResult();
+      qh = rewriter.create<emitc::BitwiseOrOp>(loc, uintType, qh, s3).getResult();
+    }
+
+    // const uint8_t *qs = (const uint8_t *)(xb + qsOff);  (the 16 packed nibbles).
+    mlir::Value qsBaseRaw =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsOff));
+    mlir::Value qsBase =
+        rewriter.create<emitc::CastOp>(loc, u8PtrType, qsBaseRaw).getResult();
+
+    // vuint8m1_t qv = vle8_v_u8m1(qs, 16);  (the 16 packed nibble bytes.)
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "nibble_load"));
+    std::string u8LoadCallee = riscvIntrinsicName("vle", 8, "m1", "u8");
+    mlir::Value qv = emitOpaqueCall(rewriter, loc, u8VecType, u8LoadCallee,
+                                    mlir::ValueRange{qsBase, halfVl}, opName, role);
+
+    // The half-block pipeline: nibble plane (u8m1) -> u32m4 (zext) -> [q5 5th-bit
+    // merge] -> i32m4 (reinterpret) -> [bias sub] -> f32m4 (convert) -> fold -> store.
+    // `qhShiftBase` = 0 for the low half (bit j of qh), 16 for the high half (bit
+    // j+16); `yStore` is the block output cursor (yb for the low nibbles, yb+16 for
+    // the high nibbles).
+    auto emitHalf = [&](mlir::Value nibblePlane, int64_t qhShiftBase,
+                        mlir::Value yStore) {
+      // n_u32 = vzext_vf4(nibblePlane);  (0..15, exact zero-extend).
+      mlir::Value n_u32 = emitOpaqueCall(
+          rewriter, loc, u32VecType, "__riscv_vzext_vf4_u32m4",
+          mlir::ValueRange{nibblePlane, halfVl}, opName, role);
+      if (hasQh) {
+        // vid = vid_v_u32m4();  (the per-lane index j = 0..15.)
+        mlir::Value vid = emitOpaqueCall(rewriter, loc, u32VecType,
+                                         "__riscv_vid_v_u32m4",
+                                         mlir::ValueRange{halfVl}, opName, role);
+        if (qhShiftBase != 0)
+          // high half: the 5th bit is bit (j+16) of qh.
+          vid = emitOpaqueCall(rewriter, loc, u32VecType, "__riscv_vadd_vx_u32m4",
+                               mlir::ValueRange{vid, u32Lit(qhShiftBase), halfVl},
+                               opName, role);
+        // qhb = vmv_v_x_u32m4(qh);  sh = vsrl_vv(qhb, vid);  bit = sh & 1;
+        // xh = bit << 4;  (== ((qh >> j) & 1) ? 0x10 : 0 -- the scalar's
+        // ((qh>>j)<<4)&0x10 for the low half, ((qh>>(j+12)))&0x10 for the high half.)
+        std::string bcastCallee = riscvIntrinsicName("vmv_v_x", 32, "m4", "u32");
+        mlir::Value qhb = emitOpaqueCall(rewriter, loc, u32VecType, bcastCallee,
+                                         mlir::ValueRange{qh, halfVl}, opName, role);
+        mlir::Value sh = emitOpaqueCall(rewriter, loc, u32VecType,
+                                        "__riscv_vsrl_vv_u32m4",
+                                        mlir::ValueRange{qhb, vid, halfVl},
+                                        opName, role);
+        mlir::Value bit = emitOpaqueCall(rewriter, loc, u32VecType,
+                                         "__riscv_vand_vx_u32m4",
+                                         mlir::ValueRange{sh, u32Lit(1), halfVl},
+                                         opName, role);
+        mlir::Value xh = emitOpaqueCall(rewriter, loc, u32VecType,
+                                        "__riscv_vsll_vx_u32m4",
+                                        mlir::ValueRange{bit, u32Lit(4), halfVl},
+                                        opName, role);
+        n_u32 = emitOpaqueCall(rewriter, loc, u32VecType, "__riscv_vor_vv_u32m4",
+                               mlir::ValueRange{n_u32, xh, halfVl}, opName, role);
+      }
+      // n_i32 = reinterpret(n_u32);  (values in [0,31] -- bit-identical view.)
+      mlir::Value n_i32 = emitOpaqueCall(
+          rewriter, loc, i32VecType, "__riscv_vreinterpret_v_u32m4_i32m4",
+          mlir::ValueRange{n_u32}, opName, role);
+      if (sub != 0)
+        // n_i32 -= sub;  (the pre-scale bias: q4_0 -8, q5_0 -16.)
+        n_i32 = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vsub_vx_i32m4",
+                               mlir::ValueRange{n_i32, i32Lit(sub), halfVl},
+                               opName, role);
+      // nF = vfcvt_f_x_v(n_i32);  (i32 -> f32, exact for |val| <= 31.)
+      std::string cvtCallee = riscvIntrinsicName("vfcvt_f_x_v", 32, "m4", "f32");
+      mlir::Value nF = emitOpaqueCall(rewriter, loc, f32VecType, cvtCallee,
+                                      mlir::ValueRange{n_i32, halfVl}, opName, role);
+      mlir::Value r;
+      if (hasMin) {
+        // r = vfmacc_vf(vfmv_v_f(m), d, nF);  (m + d*nF in ONE fused rounding ==
+        // the CONTRACTED scalar `val*d + m`; the opponent autovec's it to vfmadd.)
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "nibble_scale_min"));
+        std::string mBcastCallee = riscvIntrinsicName("vfmv_v_f", 32, "m4", "f32");
+        mlir::Value macc = emitOpaqueCall(rewriter, loc, f32VecType, mBcastCallee,
+                                          mlir::ValueRange{m, halfVl}, opName, role);
+        r = emitOpaqueCall(rewriter, loc, f32VecType, "__riscv_vfmacc_vf_f32m4",
+                           mlir::ValueRange{macc, d, nF, halfVl}, opName, role);
+      } else {
+        // r = vfmul_vf(nF, d);  (one f32 round-to-nearest-even multiply == scalar
+        // `val*d`; q4_0/q5_0 have NO add/min => no fp-contraction ambiguity.)
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "nibble_scale"));
+        std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, "m4", "f32");
+        r = emitOpaqueCall(rewriter, loc, f32VecType, mulCallee,
+                           mlir::ValueRange{nF, d, halfVl}, opName, role);
+      }
+      // vse32_v_f32m4(yStore, r, 16);  (the 16-float contiguous half-block store.)
+      std::string vseCallee = riscvIntrinsicName("vse", 32, "m4", "f32");
+      emitOpaqueCallVoid(rewriter, loc, vseCallee,
+                         mlir::ValueRange{yStore, r, halfVl}, opName, role);
+    };
+
+    // Low nibbles: nlo = qs[j] & 0x0F  -> y[j..j+15].
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "nibble_decode_lo"));
+    mlir::Value nlo = emitOpaqueCall(rewriter, loc, u8VecType,
+                                     "__riscv_vand_vx_u8m1",
+                                     mlir::ValueRange{qv, u8Lit(15), halfVl},
+                                     opName, role);
+    emitHalf(nlo, /*qhShiftBase=*/0, yb);
+
+    // High nibbles: nhi = qs[j] >> 4  -> y[j+16..j+31].
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "nibble_decode_hi"));
+    mlir::Value nhi = emitOpaqueCall(rewriter, loc, u8VecType,
+                                     "__riscv_vsrl_vx_u8m1",
+                                     mlir::ValueRange{qv, u8Lit(4), halfVl},
+                                     opName, role);
+    mlir::Value ybHi =
+        rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, sizeLit(half));
+    emitHalf(nhi, /*qhShiftBase=*/16, ybHi);
+  }
+
+  return mlir::success();
+}
+
+// The per-format OWNED REAL-VECTOR nibble leaves: each hard-codes its ggml block_qX AoS
+// layout facts (the byte-exact ABI shape constants, NOT tunable knobs) and calls the
+// SHARED vector body. Only the CONSTRUCTED path routes here; the monolith fallback keeps
+// the scalar emitDequantizeRow<FMT>BodyShared. Siblings of emitDequantizeRowQ8_0VectorBody.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ4_0VectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleVectorBody(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/18, /*dOff=*/0, /*mOff=*/0, /*qhOff=*/0, /*qsOff=*/2,
+      /*sub=*/8, /*hasMin=*/false, /*hasQh=*/false);
+}
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_0VectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleVectorBody(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/22, /*dOff=*/0, /*mOff=*/0, /*qhOff=*/2, /*qsOff=*/6,
+      /*sub=*/16, /*hasMin=*/false, /*hasQh=*/true);
+}
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ4_1VectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleVectorBody(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/20, /*dOff=*/0, /*mOff=*/2, /*qhOff=*/0, /*qsOff=*/4,
+      /*sub=*/0, /*hasMin=*/true, /*hasQh=*/false);
+}
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_1VectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleVectorBody(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/24, /*dOff=*/0, /*mOff=*/2, /*qhOff=*/4, /*qsOff=*/8,
+      /*sub=*/0, /*hasMin=*/true, /*hasQh=*/true);
+}
+
 // The SHARED q8_0 dequantize_row block-decode body: the AoS `nb = k/32` block loop,
 // the fp16 block scale via the `(float)*(const _Float16 *)` seam, and the bare
 // signed-int8 scale `y[j] = qs[j] * d` over all 32 block lanes (the load
@@ -3398,17 +3705,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   // Dispatch on decode_model to the per-format leaf: each re-emits the whole nb
   // block loop + per-block decode via the SHARED body emitter, byte-exact to the
   // dispatch-wired monolith.
+  // The flat nibble leaves (q4_0/q5_0 the single-mul SAFE set, q4_1/q5_1 the min-add
+  // FMA set) are the THIRD..SIXTH cells of the dequant true-vector emitter (R线 §四.1,
+  // fan-out over the q8_0 non-grid precedent): the CONSTRUCTED path lowers to the OWNED
+  // real-vector body (vle8 + vand/vsrl nibble split + vzext + [q5 5th-bit spread] +
+  // vfcvt + vfmul_vf / [q4_1/q5_1 fused vfmacc_vf] + vse32, NO gather), NOT the scalar
+  // per-element loop the dispatch-wired monolith fallback still runs. Byte-exact to the
+  // ggml reference by construction (q4_0/q5_0 single-mul -> no fp-contraction ambiguity;
+  // q4_1/q5_1 single fused mul-add -> matches the contracted opponent autovec vfmadd).
+  // The monolith fallback keeps the scalar emitDequantizeRow<FMT>BodyShared.
   if (decodeModel == "q4_0")
-    return emitDequantizeRowQ4_0BodyShared(rewriter, loc, weightBase, output,
+    return emitDequantizeRowQ4_0VectorBody(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
   if (decodeModel == "q4_1")
-    return emitDequantizeRowQ4_1BodyShared(rewriter, loc, weightBase, output,
+    return emitDequantizeRowQ4_1VectorBody(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
   if (decodeModel == "q5_0")
-    return emitDequantizeRowQ5_0BodyShared(rewriter, loc, weightBase, output,
+    return emitDequantizeRowQ5_0VectorBody(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
   if (decodeModel == "q5_1")
-    return emitDequantizeRowQ5_1BodyShared(rewriter, loc, weightBase, output,
+    return emitDequantizeRowQ5_1VectorBody(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
   // The K-quant QK_K=256 super-block leaves (q2_K/q3_K/q4_K/q5_K/q6_K) forward to
   // the SAME hand-written super-block decode the dispatch-wired monolith runs, so
