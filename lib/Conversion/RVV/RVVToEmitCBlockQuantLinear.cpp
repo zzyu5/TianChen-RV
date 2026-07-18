@@ -2195,7 +2195,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "ternary repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     if (coreBrick.getDecodeModel() == "tq2_0")
       return emitRepackTernaryGemvBodyTQ20(
           rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
@@ -2294,7 +2300,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "codebook repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // The iq4_xs SUPER-BLOCK sibling: the SAME codebook gather + i32 dot PLUS the
     // K-quant 6-bit SIGNED per-sub-block scale fold. Its super-block decode facts
     // (scales_l LOW pair region, scales_h HIGH 2-bit region, sub-block count) ride on
@@ -2405,7 +2417,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "grid repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // The plan's ls ARITY selects the body leaf: Single rides the iq2_xxs leaf, Dual
     // rides the shared dual-ls leaf (which now takes the PLAN, so the grid table + sign
     // plane are DATA rather than an Iq2DualGridVariant hard-select).
@@ -2589,7 +2607,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "K-quant repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*, never
     // the *what*), SHARED across the min-fold K-quant GEVM family (q5_K/q4_K/q2_K): PREFER
     // the explicit emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED
@@ -2721,7 +2745,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "K-quant no-min repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*, never
     // the *what*), SHARED across the no-min K-quant GEVM family (q6_K/q3_K): PREFER the
     // explicit emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED unless
@@ -2938,13 +2968,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           ? static_cast<int64_t>(*foldByStrip[0].getActivationSumByteOffset())
           : -1;
 
-  // The integer-core LMUL anchor (the *how*, never the *what*): "mf2" default
-  // (RVV1.0 fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2, f16 scale m1) or
+  // The integer-core LMUL anchor (the *how*, never the *what*): "mf2" (the RVV1.0
+  // fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2, f16 scale m1) or
   // "m1" (the RVV0.7 whole-LMUL chain i8m1 -> i16m2 -> i32m4 -> f32m4, f16 scale
   // m2). Only the type/callee LMUL suffixes change; numHalves, vl, every loop bound
   // and byte offset are driven by half_lanes and stay identical -- exactly the
   // monolithic emitRepackGemvQ4_0Q8_0's rung derivation.
-  llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+  // Fail-closed capability-fact read (was value_or("mf2") board default): the
+  // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+  if (!loopBody.getIntegerCoreLmul())
+    return rewriter.notifyMatchFailure(
+        loopBody, "repack integer core requires an explicit integer_core_lmul "
+              "capability fact (front door stamps it; no silent mf2 default)");
+  llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
   llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
   llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
   llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -3321,7 +3357,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "ternary repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     if (coreBrick.getDecodeModel() == "tq2_0")
       return emitRepackTernaryGemmBodyTQ20(
           rewriter, loc, weightBase, activationBase, output, rowCount,
@@ -3423,7 +3465,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "codebook repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // The iq4_xs SUPER-BLOCK sibling: the SAME codebook gather + i32 dot PLUS the
     // K-quant 6-bit SIGNED per-sub-block scale fold, AMORTIZED across the 4 interleaved
     // block_q8_Kx4 columns. Its super-block decode facts ride on the loop body op's
@@ -3541,7 +3589,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "grid repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // The plan's ls ARITY selects the body leaf: Single rides the iq2_xxs leaf, Dual
     // rides the shared dual-ls leaf (which now takes the PLAN, so the grid table + sign
     // plane are DATA rather than an Iq2DualGridVariant hard-select).
@@ -3709,7 +3763,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "K-quant repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // [GAP-EMIT-VSETVL-TAX] / [K-10] structural GEMM plan: the whole-K-nest [ROLL]
     // schedule axis (the *how*, never the *what*), resolved ONCE for the WHOLE min-fold
     // K-quant GEMM family (q4_K/q2_K/q5_K share it -- the discriminant is the code-volume
@@ -3901,7 +3961,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "K-quant no-min repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!loopBody.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          loopBody, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // [GAP-EMIT-VSETVL-TAX] / [K-10] structural GEMM plan: the whole-K-nest [ROLL]
     // schedule axis (the *how*, never the *what*), resolved ONCE for the WHOLE no-min
     // K-quant GEMM family (q6_K AND q3_K share it -- the discriminant is the code-volume
@@ -3970,15 +4036,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // interleaved columns consume per nibble step (activationInterleave*nibbleBytes).
   int64_t activationHighRow = activationInterleave * nibbleBytes; // 64
 
-  // The integer-core LMUL anchor (the *how*, never the *what*): "mf2" default
-  // (RVV1.0 fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2, f16 scale m1) or
+  // The integer-core LMUL anchor (the *how*, never the *what*): "mf2" (the RVV1.0
+  // fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2, f16 scale m1) or
   // "m1" (the RVV0.7 whole-LMUL chain i8m1 -> i16m2 -> i32m4 -> f32m4, f16 scale
   // m2). Only the type/callee LMUL suffixes change; numHalves, vl, every loop bound
   // and byte offset stay identical -- exactly the monolithic rung derivation. The
   // fold granularity columnsPerPass is 4 (all columns, one pass) for the mf2
   // fractional chain and 1 (one column per pass) for the m1 whole-LMUL chain (the
   // spill-avoiding form; see emitRepackGemmQ4_0Q8_0's columnsPerPass rationale).
-  llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+  // Fail-closed capability-fact read (was value_or("mf2") board default): the
+  // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+  if (!loopBody.getIntegerCoreLmul())
+    return rewriter.notifyMatchFailure(
+        loopBody, "repack integer core requires an explicit integer_core_lmul "
+              "capability fact (front door stamps it; no silent mf2 default)");
+  llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
   llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
   llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
   llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -4430,7 +4502,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0(
     llvm::StringRef role = gemv.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!gemv.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          gemv, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *gemv.getIntegerCoreLmul();
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -4943,7 +5021,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one
     // notch i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!gemv.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          gemv, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *gemv.getIntegerCoreLmul();
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -5475,7 +5559,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0(
     // i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip at VLEN=128. Only
     // the type/callee LMUL suffixes change; numHalves, vl, every loop bound and
     // byte offset are driven by half_lanes and stay identical.
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!gemv.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          gemv, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *gemv.getIntegerCoreLmul();
     // The three element-width LMUL rungs the chain anchors on, keyed off the
     // i8 core anchor: 8-bit core, 16-bit product/scale, 32-bit accumulate/f32 fold.
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
@@ -5890,7 +5980,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one
     // notch i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!gemv.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          gemv, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *gemv.getIntegerCoreLmul();
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -7633,7 +7729,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvColgroupTiledLoopBody
         loopBody, "colgroup-tiled GEVM loop ABI operand unmapped");
   llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
   llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-  llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+  // Fail-closed capability-fact read (was value_or("mf2") board default): the
+  // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+  if (!loopBody.getIntegerCoreLmul())
+    return rewriter.notifyMatchFailure(
+        loopBody, "repack integer core requires an explicit integer_core_lmul "
+              "capability fact (front door stamps it; no silent mf2 default)");
+  llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
   return emitRepackKQuantGemvColgroupTiledBodyQ4K(
       rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
       sizeType, opName, role, coreLmul,
@@ -7683,7 +7785,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one notch
     // i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    llvm::StringRef coreLmul = gemm.getIntegerCoreLmul().value_or("mf2");
+    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+    if (!gemm.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          gemm, "repack integer core requires an explicit integer_core_lmul "
+                "capability fact (front door stamps it; no silent mf2 default)");
+    llvm::StringRef coreLmul = *gemm.getIntegerCoreLmul();
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
