@@ -3,15 +3,15 @@
 
 ===== rvv (板分母=102) =====
 
-[手调] 头条 PASS 8/24 (全量) · 已测胜率 8/23 (派生) · 格内: PASS 8/具名-X 15/挂起 0/pending 1
+[手调] 头条 PASS 9/24 (全量) · 已测胜率 9/23 (派生) · 格内: PASS 9/具名-X 14/挂起 0/pending 1
     具名-X    vec_dot|q2_K cold=0.342
     具名-X    vec_dot|q3_K cold=0.258
     具名-X    vec_dot|q4_K cold=0.189
     具名-X    vec_dot|q6_K cold=0.18
     具名-X    vec_dot|iq1_s cold=0.365
     具名-X    vec_dot|iq1_m cold=0.152
-    具名-X    vec_dot|iq2_xxs cold=0.697
-    具名-X    vec_dot|iq2_xs cold=0.529
+    PASS    vec_dot|iq2_xxs cold=0.84
+    具名-X    vec_dot|iq2_xs cold=0.62
     PASS    vec_dot|iq2_s cold=1.92
     具名-X    vec_dot|iq3_xxs cold=0.156
     具名-X    vec_dot|iq3_s cold=0.213

@@ -1,0 +1,58 @@
+# BUILD iq2 vec_dot@rvv CC=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 ggml_cpu_md5=e85fceda47606a115c5fbb0021817cdc
+=== [A] compile ours iq2 leaves clang-18 -O3 (symmetric) + structure self-probe ===
+# OURS_iq2_xxs(clang18 .o): fp16=cleanfp vluxei16=8 vwredsum=8 vsetvli=42 size=7568B
+# OURS_iq2_xs(clang18 .o): fp16=cleanfp vluxei16=8 vwredsum=16 vsetvli=61 size=8704B
+=== [B] opponent symbol machine-probe (dispatched class @VLEN128) ===
+# OPP_iq2_xxs: sym=ggml_vec_dot_iq2_xxs_q8_K vl_specializations=[ggml_vec_dot_iq2_xxs_q8_K_generic,ggml_vec_dot_iq2_xxs_q8_K_vl128,ggml_vec_dot_iq2_xxs_q8_K_vl256,ggml_vec_dot_iq2_xxs_q8_K_vl512,] (VLEN128 -> _vl128 hand-tuned)
+# OPP_iq2_xs: sym=ggml_vec_dot_iq2_xs_q8_K vl_specializations=[ggml_vec_dot_iq2_xs_q8_K_generic,ggml_vec_dot_iq2_xs_q8_K_vl128,ggml_vec_dot_iq2_xs_q8_K_vl256,ggml_vec_dot_iq2_xs_q8_K_vl512,] (VLEN128 -> _vl128 hand-tuned)
+=== [C] compile driver + link ours + real libggml-cpu.so (clang-18) ===
+# linked OK -> ./iq2_vecdot
+===RUNLOG===
+# loadavg=2.26 2.17 2.18 1/1027 2558225 nproc=64
+=== [D] byte-exact VERIFY (reps=0) + anti-hollow INJECT (1=ours 2=oracle 3=leaf-input) ===
+# VECDOT_CORRECT fmt=iq2_xxs op=vec_dot engine=rvv regime=decode inject=0 seed=0xEE1D38C9 K=2048 M=1 nc=512 nb=8 vlen=128
+# fp16_primitive_golden=PASS (h2f 9/9 textbook IEEE)
+# result_ours=2818 result_ggml_deployed=2818 result_int_oracle=2818
+# bits_ours=0x45302000 bits_ggml=0x45302000 bits_int_oracle=0x45302000 worst_ulp=0
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# VECDOT_CORRECT fmt=iq2_xxs op=vec_dot engine=rvv regime=decode inject=0 seed=0xCE92EC38 K=2048 M=1 nc=512 nb=8 vlen=128
+# fp16_primitive_golden=PASS (h2f 9/9 textbook IEEE)
+# result_ours=-2696.375 result_ggml_deployed=-2696.375 result_int_oracle=-2696.375
+# bits_ours=0xc5288600 bits_ggml=0xc5288600 bits_int_oracle=0xc5288600 worst_ulp=0
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# VECDOT_CORRECT fmt=iq2_xs op=vec_dot engine=rvv regime=decode inject=0 seed=0xA6D77D6A K=2048 M=1 nc=512 nb=8 vlen=128
+# fp16_primitive_golden=PASS (h2f 9/9 textbook IEEE)
+# result_ours=1180.625 result_ggml_deployed=1180.625 result_int_oracle=1180.625
+# bits_ours=0x44939400 bits_ggml=0x44939400 bits_int_oracle=0x44939400 worst_ulp=0
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# VECDOT_CORRECT fmt=iq2_xs op=vec_dot engine=rvv regime=decode inject=0 seed=0x6FCE4C37 K=2048 M=1 nc=512 nb=8 vlen=128
+# fp16_primitive_golden=PASS (h2f 9/9 textbook IEEE)
+# result_ours=2569.5 result_ggml_deployed=2569.5 result_int_oracle=2569.5
+# bits_ours=0x45209800 bits_ggml=0x45209800 bits_int_oracle=0x45209800 worst_ulp=0
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE-EXACT GATE PASS (3-way ALL=true + anti-hollow bites) -> proceed to cold
+=== [E] 2-seed cold timing (224MiB flush paired A/B median) ===
+# VECDOT_COLD fmt=iq2_xxs seed=0x1 reps=15 | ours_med_ns=651763(iqr2.16%) oppX_med_ns=545803(iqr2.51%) | ratio_cold_X=0.8374 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=5754585088
+# VECDOT_COLD fmt=iq2_xxs seed=0x2 reps=15 | ours_med_ns=645483(iqr1.15%) oppX_med_ns=546642(iqr2.09%) | ratio_cold_X=0.8469 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=5754585088
+# VECDOT_COLD fmt=iq2_xs seed=0x1 reps=15 | ours_med_ns=850344(iqr0.68%) oppX_med_ns=532963(iqr4.89%) | ratio_cold_X=0.6268 | opp=ggml_vec_dot_iq2_xs_q8_K(deployed _vl128) flush=224MiB fsink=5754585088
+# VECDOT_COLD fmt=iq2_xs seed=0x2 reps=15 | ours_med_ns=857184(iqr1.19%) oppX_med_ns=529102(iqr6.18%) | ratio_cold_X=0.6173 | opp=ggml_vec_dot_iq2_xs_q8_K(deployed _vl128) flush=224MiB fsink=5754585088
+# DONE
+
+===EXTRA-SEED COLD CONFIRMATION (headline-flip robustness)===
+iq2_xxs seed=0x1 ratio_cold_X=0.8374
+iq2_xxs seed=0x2 ratio_cold_X=0.8469
+iq2_xxs seed=0x3 ratio_cold_X=0.8619
+iq2_xxs seed=0x4 ratio_cold_X=0.8414
+iq2_xxs seed=0x5 ratio_cold_X=0.8280   => 5-seed ALL >=0.8 (min 0.828) -> PASS robust
+iq2_xs  seed=0x1 ratio_cold_X=0.6268
+iq2_xs  seed=0x2 ratio_cold_X=0.6173
+iq2_xs  seed=0x3 ratio_cold_X=0.6102
+iq2_xs  seed=0x4 ratio_cold_X=0.6571   => 4-seed ALL <0.8 (~0.62) -> 具名-X boundary robust
+(ratio_cold_X = ours-speed / opp-speed; >=0.8 = PASS地盘, <0.8 = 具名-X边界)

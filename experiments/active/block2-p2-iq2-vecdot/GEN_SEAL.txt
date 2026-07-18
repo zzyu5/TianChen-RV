@@ -1,0 +1,11 @@
+# owned iq2 grid vec_dot leaf export seal (B线 block2 P2)
+iq2_xxs md5=db1bfdcd4e9870301179c98809131f16 sym=weft_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot
+iq2_xs  md5=4c2f8acce4c04b30888087c1986f03db sym=weft_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot
+--- recipe (byte-identical to the sealed CORE emit; export-e2e fixture asserts core==prod diff=0) ---
+weft-opt <test/Target/RVV/iq2-{xxs,xs}-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir> \
+  --weft-rvv-materialize-iq2-{xxs,xs}-q8-k-block-dot-source-front-door \
+  --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
+HEAD=25cdac49bd44f3b5c8237f6072136a9a34f77c8e
+--- sealed core: lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp UNTOUCHED (git diff empty) ---
+--- leaf is the pre-existing emitIQ2XXS/IQ2XSSuperBlockGridBody path, exported + board-tested
+    for the FIRST TIME as M=1 vec_dot (additive; no emitter/dispatch/Internal.h change) ---
