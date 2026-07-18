@@ -1370,6 +1370,181 @@ VariantToEmitCFunc::emitQ4_KScaledDotIntoAux32(
     return resultAux32Var;
 }
 
+// ISSUE-109 register-fusion (q4_K non-qh): fuse Region A (nibble unpack) and
+// Region C (per-sub-block scaled i32 dot) into ONE register-resident pass,
+// eliminating the aux8[256] scratch store->load round-trip (the board-tested
+// weight-reconstruction wall). Per 32-byte packed chunk (4 chunks) the two nibble
+// halves (each a full 32-element sub-block) are unpacked at e8m2(32) and KEPT IN
+// REGISTER -- NO vse8 to aux8, NO vle8 reload -- then immediately widening-MAC'd
+// (vwmul i16m4 against the sub-block q8 strip loaded at m2, vwmacc i32m8 with the
+// sub-block UINT6 scale fused) into the WIDE 32-lane aux32. The trailing
+// VLEN-agnostic integer fold-back (vslidedown + vadd + vget) is the SAME the m2
+// anchor uses. The accumulated per-lane integer sums are IDENTICAL to the m2
+// anchor (chunk-interleaved vs sub-block-sequential ORDER only; integer add is
+// associative/order-free), so the canonical-8 result is bit-identical to the m2
+// anchor and byte-exact against the ggml oracle.
+mlir::TypedValue<emitc::LValueType>
+VariantToEmitCFunc::emitQ4_KFusedUnpackScaledDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+    mlir::Value scalesU8) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = cx.opName;
+    llvm::StringRef role = cx.role;
+    int64_t qk = cx.subBlock * cx.numSubBlocks; // 256
+
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
+    auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                             mlir::Type castType) -> mlir::Value {
+      mlir::Value full = base;
+      if (fixed != 0)
+        full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
+    };
+
+    // The fused-path wide types: the unpack is m2 (32-wide), the widening chain is
+    // i8m2 x i8m2 -> i16m4 -> i32m8 (the SAME chain the m2 anchor uses, minus the
+    // aux8 spill). The canonical-8 fold-back target is cx.i32Canon8Type (i32m2).
+    mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
+    mlir::Type i32m8Type = emitc::OpaqueType::get(ctx, "vint32m8_t");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+
+    // ---- (C) register-fused unpack + per-sub-block uint6-scaled i32 dot ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux32", opName, role));
+    auto aux32Var = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(i32m8Type), emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value aux32Zero = emitOpaqueCallBuilt(
+        rewriter, loc, i32m8Type, "__riscv_vmv_v_x_i32m8", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroImm =
+              rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+          return {zeroImm, sizeLit(cx.subBlock)};
+        });
+    rewriter.create<emitc::AssignOp>(loc, aux32Var, aux32Zero);
+
+    mlir::Value q8Base =
+        byteOffsetPtr(yb, cx.activationPtrType, cx.q8Offset, cx.i8PtrType);
+
+    // One 32-element sub-block MAC from a nibble register KEPT IN REGISTER: load
+    // the sub-block's q8 strip at m2, widening-multiply against the unpacked
+    // weight nibble, and vwmacc into the wide 32-lane aux32 with the sub-block's
+    // uint6 scale fused. No aux8 spill anywhere.
+    auto fusedMac = [&](mlir::Value nib, int64_t subIdx, mlir::Value vl) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fused_sub_block_mac"));
+      mlir::Value scale =
+          emitLoadByteAsInt(rewriter, loc, constU8Type, cx.i32ImmType, scalesU8,
+                            subIdx);
+      mlir::Value q8Ptr =
+          rewriter
+              .create<emitc::AddOp>(loc, cx.i8PtrType, q8Base,
+                                    sizeLit(subIdx * cx.subBlock))
+              .getResult();
+      mlir::Value q8v =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type, "__riscv_vle8_v_i8m2",
+                         mlir::ValueRange{q8Ptr, vl}, opName, role);
+      mlir::Value p =
+          emitOpaqueCall(rewriter, loc, i16m4Type, "__riscv_vwmul_vv_i16m4",
+                         mlir::ValueRange{q8v, nib, vl}, opName, role);
+      mlir::Value aux32Next = emitOpaqueCallBuilt(
+          rewriter, loc, i32m8Type, "__riscv_vwmacc_vx_i32m8", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value aux32Cur =
+                rewriter.create<emitc::LoadOp>(loc, i32m8Type, aux32Var)
+                    .getResult();
+            return {aux32Cur, scale, p, vl};
+          });
+      rewriter.create<emitc::VerbatimOp>(
+          loc, assignComment("aux32", opName, role));
+      rewriter.create<emitc::AssignOp>(loc, aux32Var, aux32Next);
+    };
+
+    auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                       llvm::StringRef imm, mlir::Value vl) -> mlir::Value {
+      return emitVCallBuilt(
+          rewriter, loc, cx.u8m2Type, mnemonic, "u8m2", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, cx.i32ImmType, imm.str());
+            return {src, amt, vl};
+          });
+    };
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "fused_unpack_mac"));
+    for (int64_t chunk = 0; chunk < qk / 64; ++chunk) {
+      int64_t qsChunk = chunk * 32; // q4 advances 32 packed bytes per chunk
+      mlir::Value vl = emitOpaqueCallBuilt(
+          rewriter, loc, cx.sizeType, "__riscv_vsetvl_e8m2", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(32)};
+          });
+      mlir::Value qsPtr = byteOffsetPtr(xb, cx.weightPtrType,
+                                        cx.qsOffset + qsChunk, cx.u8PtrType);
+      mlir::Value q4 =
+          emitVCall(rewriter, loc, cx.u8m2Type, "vle8_v", "u8m2",
+                    mlir::ValueRange{qsPtr, vl}, opName, role);
+      // low nibble -> sub-block 2*chunk (KEPT IN REGISTER)
+      mlir::Value loU = u8ImmOp("vand_vx", q4, "0x0F", vl);
+      mlir::Value lo =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                         "__riscv_vreinterpret_v_u8m2_i8m2",
+                         mlir::ValueRange{loU}, opName, role);
+      fusedMac(lo, chunk * 2, vl);
+      // high nibble -> sub-block 2*chunk+1 (KEPT IN REGISTER)
+      mlir::Value hiU = u8ImmOp("vsrl_vx", q4, "0x04", vl);
+      mlir::Value hi =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                         "__riscv_vreinterpret_v_u8m2_i8m2",
+                         mlir::ValueRange{hiU}, opName, role);
+      fusedMac(hi, chunk * 2 + 1, vl);
+    }
+
+    // ---- fold-back the WIDE 32-lane aux32 to the canonical 8 (SAME VLEN-agnostic
+    // vslidedown + vadd + vget the m2 anchor uses; foldGroups == 4 here). ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "aux32_fold_back_to_8"));
+    mlir::Value aux32WideVal =
+        rewriter.create<emitc::LoadOp>(loc, i32m8Type, aux32Var).getResult();
+    int64_t foldGroups = cx.subBlock / 8; // 32/8 == 4
+    mlir::Value foldWide = aux32WideVal;
+    for (int64_t k = 1; k < foldGroups; ++k) {
+      mlir::Value slid = emitOpaqueCallBuilt(
+          rewriter, loc, i32m8Type, "__riscv_vslidedown_vx_i32m8", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {aux32WideVal, sizeLit(8 * k), sizeLit(8)};
+          });
+      foldWide = emitOpaqueCallBuilt(
+          rewriter, loc, i32m8Type, "__riscv_vadd_vv_i32m8", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {foldWide, slid, sizeLit(8)};
+          });
+    }
+    mlir::Value fold = emitOpaqueCallBuilt(
+        rewriter, loc, cx.i32Canon8Type, "__riscv_vget_v_i32m8_i32m2", opName,
+        role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroImm =
+              rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+          return {foldWide, zeroImm};
+        });
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux32c", opName, role));
+    auto aux32cVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(cx.i32Canon8Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, aux32cVar, fold);
+    return llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
+}
+
 // Track B q4_K BRICK 4 (first half): the int16 bsums load + the SCALAR integer
 // reduction sumi = sum_j(bsums[j] * mins[j/2]), factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
@@ -2960,8 +3135,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     // The Region-C integer-MAC LMUL anchor, sourced from the BRICK 3 scaled dot
     // (the brick that owns the integer_core_lmul knob), default "mf2". Same
     // detail::deriveWideningChain the monolith uses -> byte-identical at every
-    // legal anchor.
-    llvm::StringRef coreLmul = b3.getIntegerCoreLmul().value_or("mf2");
+    // legal anchor. The sentinel "fused" (ISSUE-109 register-fusion, q4_K non-qh
+    // only) selects the aux8-free structural path: it runs at the m2 widening
+    // chain (32-wide unpack + i32m8 accumulator) but keeps the unpacked nibble in
+    // register instead of spilling to aux8[256] (the board-tested weight-
+    // reconstruction wall). q5_K (hasQh) is NOT fused -> stays on the aux8 path.
+    llvm::StringRef coreLmulAttr = b3.getIntegerCoreLmul().value_or("mf2");
+    bool useRegisterFusion = (coreLmulAttr == "fused") && !hasQh;
+    llvm::StringRef coreLmul =
+        useRegisterFusion ? llvm::StringRef("m2") : coreLmulAttr;
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef l8 = wideningChain.l8;
     llvm::StringRef l16 = wideningChain.l16;
@@ -3004,23 +3186,29 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
 
     // int8_t aux8[256];  (function-scoped scratch, shared with the integer core;
     // W7 threads it as function-level declaration, exactly like the monolith.)
-    mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, localVariableComment("aux8", opName, role));
-    auto aux8Var = rewriter.create<emitc::VariableOp>(
-        loc, aux8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
-    auto aux8Array =
-        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(aux8Var.getResult());
-    mlir::Value aux8Index0 =
-        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
-    mlir::Value aux8Elem0 =
-        rewriter
-            .create<emitc::SubscriptOp>(loc, aux8Array,
-                                        mlir::ValueRange{aux8Index0})
-            .getResult();
-    mlir::Value aux8Base =
-        rewriter.create<emitc::ApplyOp>(loc, i8PtrType, "&", aux8Elem0)
-            .getResult();
+    // ISSUE-109: the register-fusion path spills NOTHING to aux8, so the scratch
+    // (and its base pointer) are NOT declared under useRegisterFusion -- the whole
+    // store->load round-trip is gone from the emitted C.
+    mlir::TypedValue<emitc::ArrayType> aux8Array = nullptr;
+    mlir::Value aux8Base = nullptr;
+    if (!useRegisterFusion) {
+      mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, localVariableComment("aux8", opName, role));
+      auto aux8Var = rewriter.create<emitc::VariableOp>(
+          loc, aux8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
+      aux8Array =
+          llvm::cast<mlir::TypedValue<emitc::ArrayType>>(aux8Var.getResult());
+      mlir::Value aux8Index0 =
+          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+      mlir::Value aux8Elem0 =
+          rewriter
+              .create<emitc::SubscriptOp>(loc, aux8Array,
+                                          mlir::ValueRange{aux8Index0})
+              .getResult();
+      aux8Base = rewriter.create<emitc::ApplyOp>(loc, i8PtrType, "&", aux8Elem0)
+                     .getResult();
+    }
 
     // uint32_t utmp[4];
     mlir::Type utmpArrayType = emitc::ArrayType::get({4}, u32Type);
@@ -3163,17 +3351,37 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
       // BRICK 3 -> scaled dot). Aux32Core is exactly this sequence with a null
       // scaleMinOutput; inlining the 3 leaves makes bricks 1/2/3 independently
       // operand-driven while staying byte-identical. ----
-      emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
-      mlir::Value scalesU8 = emitQ4_KScaleMinBitDanceCore(
-          rewriter, loc, cx,
-          blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
-                       "super_block_base_x"),
-          utmpArray);
-      mlir::TypedValue<emitc::LValueType> aux32Var = emitQ4_KScaledDotIntoAux32(
-          rewriter, loc, cx,
-          blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
-                       "super_block_base_y"),
-          aux8Base, scalesU8);
+      // ISSUE-109 register-fusion (q4_K non-qh): Region A + Region C collapse into
+      // ONE aux8-free register-resident pass. Region B (bit-dance) MUST run first
+      // (the fused MAC needs the decoded uint6 scales), then the fused unpack+dot.
+      mlir::Value scalesU8;
+      mlir::TypedValue<emitc::LValueType> aux32Var;
+      if (useRegisterFusion) {
+        scalesU8 = emitQ4_KScaleMinBitDanceCore(
+            rewriter, loc, cx,
+            blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            utmpArray);
+        aux32Var = emitQ4_KFusedUnpackScaledDot(
+            rewriter, loc, cx,
+            blockBaseFor(b1.getWeightBase(), b1.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
+                         "super_block_base_y"),
+            scalesU8);
+      } else {
+        emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
+        scalesU8 = emitQ4_KScaleMinBitDanceCore(
+            rewriter, loc, cx,
+            blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            utmpArray);
+        aux32Var = emitQ4_KScaledDotIntoAux32(
+            rewriter, loc, cx,
+            blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
+                         "super_block_base_y"),
+            aux8Base, scalesU8);
+      }
 
       // ---- fp32 activation scale dy = *(const float *)(yb + 0), loaded ONCE. ----
       rewriter.create<emitc::VerbatimOp>(

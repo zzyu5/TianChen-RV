@@ -20,6 +20,8 @@
 **攻坚候选的「翻 0.8」多数须板测（丙）证实** —— gated on bench harness 基建（各族 harness·ISSUE-099）。
 
 ## ★诚实边界
+- **★register-fusion 板测 EXHAUSTED(2026-07-18·task `07-18-k-regfusion-q4k`·§五.1 别排队已执行)**：q4_K vec_dot register-fusion 消 aux8 roundtrip 真消(objdump+perf 双证·IPC 2.1×·cache-miss 33×少·byte-exact 0 ULP)·**但 cold 0.152 略慢·墙没动** ⟹ 真墙 = latency/dependency-bound(serial i32m8 累加链 + register-cliff·非内存流量)。**新 lever = `vwredsum.vs` per-sub-block 归约(对手结构·独立→高 ILP·未试·清单非空)**。ISSUE-109 订正。
+
 
 - **机制①：iq3_xxs@k1 首个板测证实**（proven WIN 1.38·手调档硬赢·byte-exact·trellis-check 复核）——但 **proven ≠ deployed**（deployed 叶仍 VLEN128=0.65·[ISSUE-105]）⟹ **master census 不因此翻 PASS**（deployed 现实保留）。②–⑤ 仍**候选未施工·翻正幅度未板测**。
 - **★流水线 lever（真高扇出·[ISSUE-105]）**：iq3_xxs@k1 gap 真因 = GEN_SEAL 对 k1 发 VLEN128 fixture（半宽欠用）·非机制/算法。部署 proven 赢（→ deployed PASS）须 per-board k1-VLEN256 fixture = **判据级·须裁**。iq3_s@k1/iq1 系**同病·likely 同 lever·未证**（禁按此外推计数·逐格须 byte-exact+板测）。

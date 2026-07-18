@@ -6243,14 +6243,23 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   //     exactly ONE sub-block under ONE scalar scale (32-lane aux32 folded back).
   //     A wider "m4" base would need an illegal i32m16 product AND would fold TWO
   //     sub-blocks under one scalar -- rejected.
+  //   * "fused" (ISSUE-109 register-fusion, q4_K non-qh only) -- the m2 widening
+  //     chain (32-lane aux32) but with the unpacked weight nibble KEPT IN REGISTER
+  //     instead of spilled to aux8[256] and reloaded: the structural fusion of the
+  //     Region-A unpack and this Region-C dot that eliminates the board-tested
+  //     weight-reconstruction store->load round-trip. The emitted per-lane integer
+  //     sums are identical to "m2" (associative regroup), so byte-exact holds.
   if (getIntegerCoreLmul().has_value()) {
     llvm::StringRef coreLmul = *getIntegerCoreLmul();
-    if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2")
+    if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2" &&
+        coreLmul != "fused")
       return emitOpError()
-             << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\"} (the "
-                "base LMUL of the i8 -> i16 -> i32 integer-MAC chain; \"m2\" is "
-                "the ceiling at one sub-block == 32 elements per scalar scale) "
-                "for the q4_K/q5_K Region-C scaled-dot route; got \""
+             << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\", "
+                "\"fused\"} (the base LMUL of the i8 -> i16 -> i32 integer-MAC "
+                "chain; \"m2\" is the ceiling at one sub-block == 32 elements per "
+                "scalar scale; \"fused\" is the m2 chain with the register-"
+                "resident aux8-free unpack) for the q4_K/q5_K Region-C scaled-dot "
+                "route; got \""
              << coreLmul << "\"";
   }
 

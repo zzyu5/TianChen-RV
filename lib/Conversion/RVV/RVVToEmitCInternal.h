@@ -3799,6 +3799,30 @@ private:
       const Q4_KIntegerCoreContext &cx, mlir::Value yb, mlir::Value aux8Base,
       mlir::Value scalesU8) const;
 
+  /// ISSUE-109 register-fusion (q4_K, non-qh only): the STRUCTURAL fusion of
+  /// Region A (the 4-bit nibble unpack) and Region C (the per-sub-block uint6-
+  /// scaled i32 dot) into ONE register-resident pass -- eliminating the aux8[256]
+  /// scratch store->load round-trip (the board-tested weight-reconstruction wall,
+  /// 8x vse8 + 32x vle8 reload). Per 32-byte packed chunk (4 chunks): vsetvl_e8m2
+  /// (32) -> vle8 the packed q4 -> vand/vsrl the two nibble halves (each a full
+  /// 32-element sub-block) -> KEPT IN REGISTER (NO vse8 to aux8), immediately
+  /// vwmul i16m4 against the sub-block's q8 activation strip (loaded at m2) ->
+  /// vwmacc i32m8 with the sub-block's UINT6 scale scalesU8[2*chunk (+1)] FUSED,
+  /// into the WIDE 32-lane aux32. After the four chunks, the SAME VLEN-agnostic
+  /// integer fold-back (vslidedown + vadd + vget) the m2 anchor uses collapses the
+  /// 32 lanes to the canonical 8-lane vint32m2. The per-lane integer sums are the
+  /// SAME the m2-anchor path accumulates (chunk-interleaved vs sub-block-sequential
+  /// ORDER only; integer add is associative/order-free) -- so the result is
+  /// bit-identical to the m2 anchor, hence byte-exact against the ggml oracle.
+  /// Reads scalesU8 (BRICK 2 decoded scales) and the q8 base derived from `yb`;
+  /// takes `xb` (the weight super-block base) for the packed q4 loads. Returns the
+  /// canonical-8 aux32 lvalue (the byte-exact Region-F contract type). q5_K
+  /// (cx.hasQh) is NOT handled here (stays on the aux8 path).
+  mlir::TypedValue<emitc::LValueType> emitQ4_KFusedUnpackScaledDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::Value scalesU8) const;
+
   /// Emit the FIRST half of ONE super-block's q4_K/q5_K MIN term (Track B BRICK
   /// 4): the int16 bsums load (yb + bsumsOffset, cast const int16_t *) and the
   /// SCALAR integer reduction `int sumi = 0; for (j) sumi += bsums[j] *
