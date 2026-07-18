@@ -1,0 +1,29 @@
+# BOARD=Linux 6.12.66-0.0.0.0.riscv64 riscv64 CC=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb factory_mode=lib kernel=kernels/tq1_0_deployed_emit.cpp (DEPLOYED-EMIT)
+# opponent lib = /home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-cpu.so md5=e85fceda47606a115c5fbb0021817cdc
+# lib .comment = clang version 18.1.8
+# lib exports ggml_vec_dot_tq1_0_q8_K = T (dispatch calls local _vl* specialization)
+=== [A] ours DEPLOYED-EMIT leaf (kernels/tq1_0_deployed_emit.cpp, clang-18 -x c++ symmetric) + self-probe ===
+# OURS leaf: fp16=cleanfp vsetvli=57 vwmacc=0 vmacc=0 vmul=14 vwredsum=8 vwmulu=14 insn~269 vec~185 size=2760B md5=00142974e1f26ca67abdcb52b5ef54f8
+=== [C] driver + link (-x c driver, C++ leaf, -lstdc++) ===
+# LINK_OK via [gcc -O2 -no-pie -Wl,--gc-sections] bench=18680B
+# opponent specialization visible in bench = [in-shared-lib]
+=== [V] BYTE-EXACT VERIFY (ZERO-MODEL + 3-arm anti-hollow, 2 seeds) ===
+VERIFY tq1_0 corpus=8192*2 INT[ours_vs_oracle_mism=0 fac_vs_oracle_mism=0] FLOAT[max_ulp(ours,oracle)=0 max_ulp(fac,oracle)=2 max_ulp(ours,fac)=2 bytediv(ours,oracle)=0] antihollow[base_agree=1 DUT=1 oracle=1 factory=1]=RED-all numerics.reassoc_ok=true RESULT=GREEN
+VERIFY tq1_0 corpus=8192*2 INT[ours_vs_oracle_mism=0 fac_vs_oracle_mism=0] FLOAT[max_ulp(ours,oracle)=1 max_ulp(fac,oracle)=2 max_ulp(ours,fac)=2 bytediv(ours,oracle)=3] antihollow[base_agree=1 DUT=1 oracle=1 factory=1]=RED-all numerics.reassoc_ok=true RESULT=GREEN
+=== [S] COLD SWEEP (5-seed, load-gated, compiler-symmetric) ===
+# core8 idle_pct=100
+# core9 idle_pct=100
+# core10 idle_pct=100
+# core11 idle_pct=100
+# core12 idle_pct=100
+# core13 idle_pct=100
+# core14 idle_pct=100
+# core15 idle_pct=100
+# LOAD_GATE_OK core=8 idle=100% freq=2600000
+# fmt | seed | ours_ns | opp_ns | RATIO_opp/ours | ours_iqr% | opp_iqr% | ours_GBs | opp_GBs | fp
+RESULT tq1_0 | 0xBEEF01 | 797.828 | 181.579 | 0.2276x | 3.33 | 1.48 | 0.435 | 1.918 | DIVERGE
+RESULT tq1_0 | 0xC0FFEE | 808.906 | 181.563 | 0.2245x | 3.52 | 2.46 | 0.429 | 1.932 | DIVERGE
+RESULT tq1_0 | 0x3 | 814.424 | 178.643 | 0.2193x | 3.92 | 2.13 | 0.425 | 1.945 | DIVERGE
+RESULT tq1_0 | 0x4 | 800.406 | 179.331 | 0.2241x | 2.84 | 1.81 | 0.431 | 1.959 | DIVERGE
+RESULT tq1_0 | 0x5 | 823.935 | 179.153 | 0.2174x | 3.00 | 2.15 | 0.422 | 1.955 | DIVERGE
+=== ALL_DONE ===

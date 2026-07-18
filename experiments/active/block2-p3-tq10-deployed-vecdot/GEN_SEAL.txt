@@ -1,0 +1,15 @@
+# DEPLOYED-EMIT tq1_0 vec_dot export seal (B线 block2 P3 — P2 iq2 paradigm, direct M=1)
+tq1_0 md5=00142974e1f26ca67abdcb52b5ef54f8 sym=weft_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_rvv_tq1_0_q8_K_block_dot
+--- recipe (byte-identical to the sealed CORE emit; export-e2e fixture asserts core==prod diff=0) ---
+weft-opt test/Target/RVV/tq1-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir \
+  --weft-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door \
+  --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp > kernels/tq1_0_deployed_emit.cpp
+HEAD=2f40fed5dd4f250fb3b29d849ebad5780be6ca27
+--- CORE==PROD diff (reproduced this run) ---
+core = weft-opt <fixture> --materialize-...-front-door --weft-rvv-lower-to-emitc            (size 86616B)
+prod = weft-opt <fixture> --materialize-...-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc  (size 86616B)
+diff core.mlir prod.mlir => EMPTY  (sealed core untouched; materialize-emission-plans only appends diagnostic mirror)
+--- sealed core: lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp UNTOUCHED (git diff empty; md5=338a31bb22113b6c4937d4cc84bec83a) ---
+--- leaf is the pre-existing emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10 path (base-3 ternary,
+    default m2 integer-core anchor, VLEN-universal floor), exported + board-tested for the FIRST
+    TIME as direct M=1 vec_dot (additive; NO emitter/dispatch/Internal.h change; NO commit) ---
