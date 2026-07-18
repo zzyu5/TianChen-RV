@@ -6249,17 +6249,25 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   //     Region-A unpack and this Region-C dot that eliminates the board-tested
   //     weight-reconstruction store->load round-trip. The emitted per-lane integer
   //     sums are identical to "m2" (associative regroup), so byte-exact holds.
+  //   * "vwredsum" (ISSUE-109 vwredsum.vs lever, q4_K non-qh only) -- also aux8-free
+  //     at the m2 unpack, but REPLACES the serial i32m8 vwmacc accumulator with 8
+  //     INDEPENDENT per-sub-block vwredsum.vs reduces + a scalar isum fold (breaking
+  //     the board-tested latency/dependency wall + the m8 register-cliff, matching
+  //     the deployed vl128 hand-tuned dataflow). The integer dot is associative/
+  //     order-free (int32 zero-rounding), so byte-exact holds under the int-mode
+  //     fp fold.
   if (getIntegerCoreLmul().has_value()) {
     llvm::StringRef coreLmul = *getIntegerCoreLmul();
     if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2" &&
-        coreLmul != "fused")
+        coreLmul != "fused" && coreLmul != "vwredsum")
       return emitOpError()
              << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\", "
-                "\"fused\"} (the base LMUL of the i8 -> i16 -> i32 integer-MAC "
-                "chain; \"m2\" is the ceiling at one sub-block == 32 elements per "
-                "scalar scale; \"fused\" is the m2 chain with the register-"
-                "resident aux8-free unpack) for the q4_K/q5_K Region-C scaled-dot "
-                "route; got \""
+                "\"fused\", \"vwredsum\"} (the base LMUL of the i8 -> i16 -> i32 "
+                "integer-MAC chain; \"m2\" is the ceiling at one sub-block == 32 "
+                "elements per scalar scale; \"fused\" is the m2 chain with the "
+                "register-resident aux8-free unpack; \"vwredsum\" is the aux8-free "
+                "per-sub-block independent vwredsum.vs reduce) for the q4_K/q5_K "
+                "Region-C scaled-dot route; got \""
              << coreLmul << "\"";
   }
 

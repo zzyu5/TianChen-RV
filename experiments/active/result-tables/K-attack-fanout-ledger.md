@@ -22,7 +22,11 @@
 **攻坚候选的「翻 0.8」多数须板测（丙）证实** —— gated on bench harness 基建（各族 harness·ISSUE-099）。
 
 ## ★诚实边界
-- **★register-fusion 板测 EXHAUSTED(2026-07-18·task `07-18-k-regfusion-q4k`·§五.1 别排队已执行)**：q4_K vec_dot register-fusion 消 aux8 roundtrip 真消(objdump+perf 双证·IPC 2.1×·cache-miss 33×少·byte-exact 0 ULP)·**但 cold 0.152 略慢·墙没动** ⟹ 真墙 = latency/dependency-bound(serial i32m8 累加链 + register-cliff·非内存流量)。**新 lever = `vwredsum.vs` per-sub-block 归约(对手结构·独立→高 ILP·未试·清单非空)**。ISSUE-109 订正。
+- **★机制③ q4_K vec_dot@rvv 两 lever 板测 EXHAUSTED + 真墙三次 re-diagnosis(2026-07-18·trellis-check CONFIRMED)**：
+  - **register-fusion**(task `07-18-k-regfusion-q4k`)：消 aux8 roundtrip 真消(vse8 8→0·IPC 2.1×·cache-miss 33×少·byte-exact)·**cold 0.152 墙没动** → 曾诊断 latency/dependency-bound。
+  - **vwredsum.vs**(task `07-18-k-issue-109-vwredsum`)：复刻对手 register-resident per-sub-block 归约(8×vwredsum.vs·消 serial i32m8 链 vwmacc 32→0)·byte-exact ULP=0·sealed byte-identical 892b6cf8·**cold 0.162 墙没动**。
+  - **★真墙再订正 = 整核 scalar-heavy**(非 aux8·非 serial 链·非 latency/dependency——都消了 cold 都没动)：ours 267 ins/仅 55 向量 vs 对手 198/105(wide-LMUL)·scalar min-term(16 lh bsums+16 mul+scale bit-dance)主导·**对手向量化了 min-term+scale·我方没有**。
+  - **★新 lever(清单非空·§六 具名-X 非架构不可达·对手存在性证可达·未试)= (a)向量化 min-term (b)向量化 scale bit-dance (c)e8m1 粒度精配 (d)跨 super-block MLP**·(a)/(b)→独立 Emission Plan。best 维持 m1 0.186(两 lever 0.152/0.162 未超)。两 emit dormant gated regression-free。ISSUE-109 二次订正。
 
 
 - **机制①：iq3_xxs@k1 首个板测证实**（proven WIN 1.38·手调档硬赢·byte-exact·trellis-check 复核）——但 **proven ≠ deployed**（deployed 叶仍 VLEN128=0.65·[ISSUE-105]）⟹ **master census 不因此翻 PASS**（deployed 现实保留）。②–⑤ 仍**候选未施工·翻正幅度未板测**。

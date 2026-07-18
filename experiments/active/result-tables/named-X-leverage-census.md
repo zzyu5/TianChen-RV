@@ -165,7 +165,7 @@
 
 | 族 | lever（攻坚入口） | 覆盖格数 | 现状 | 源 |
 |---|---|---|---|---|
-| **F1** | **`vwredsum.vs` per-sub-block 归约**（K-quant vec_dot·消 serial 累加链·高 ILP） | 8（q2_K/q3_K/q4_K/q6_K ×2 板） | **attacking**（register-fusion 板测 EXHAUSTED·vwredsum **未试**·fused scaffold dormant 可复用；q4_K/q6_K@rvv 2 板测数据点·余 6 结构推断） | ISSUE-109 · K-ledger 机制③ |
+| **F1** | **min-term + scale bit-dance 向量化**（K-quant vec_dot·独立 Emission Plan；~~register-fusion~~ / ~~vwredsum.vs~~ 均板测 EXHAUSTED） | 8（q2_K/q3_K/q4_K/q6_K ×2 板） | **两 lever EXHAUSTED·真墙再订正=整核 scalar-heavy**（register-fusion 消 aux8 + vwredsum 消 serial 链·cold 都没动·ours 55 向量 vs 对手 105·min-term/scale 我方标量对手向量化）·**新 lever = 向量化 min-term/scale（未试·清单非空·对手存在性证可达）**·best m1 0.186；q4_K/q6_K@rvv 2 板测·余 6 结构推断 | ISSUE-109 · K-ledger 机制③ |
 | **F2** | **真成本中心诊断**（K-quant gemm-decode M=1·fold 非物理地板·真 driver 待诊断） | 8（q2_K/q3_K/q4_K/q5_K/q6_K decode） | **待诊断**（成本中心留白·ISSUE-014 四腿证非物理墙·k1 侧叠 VLEN256/repack 对手） | ISSUE-014（[+109/102]） |
 | **F3** | **VLEN256 width-widening**（k1 半宽欠用·宽 LMUL/大 AVL 填满 256b） | 13（iq*@k1 vec_dot+gemm+iq4_nl±） | **1 proven-gated**（iq3_xxs@k1 gemm 1.38 WIN·gated ISSUE-105）+ **12 结构推断扇出**（未逐格证·iq2 未在显式 scope·建议扩） | ISSUE-019/102/105 · 机制① |
 | **F4** | **tiny-reduction sum2 per-group**（iq1_m·符号和向量化批处理） | 2（iq1_m vec_dot ×2） | **已就绪**（代数证过+oracle 已建·发射器未改） | ISSUE-020 |

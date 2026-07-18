@@ -3823,6 +3823,29 @@ private:
       const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
       mlir::Value scalesU8) const;
 
+  /// ISSUE-109 vwredsum.vs lever (q4_K non-qh): the aux8-free variant that replaces
+  /// the "fused" anchor's SERIAL i32m8 vwmacc accumulator chain (the board-tested
+  /// latency/dependency wall + m8 register-cliff) with 8 INDEPENDENT per-sub-block
+  /// reductions, replicating the deployed vl128 hand-tuned dataflow. Per 32-byte
+  /// packed chunk (4 chunks): vsetvl_e8m2(32) -> vle8 the packed q4 -> vand/vsrl the
+  /// two nibble halves (each a full 32-element sub-block) KEPT IN REGISTER (NO vse8),
+  /// then for EACH sub-block independently: vwmul i16m4 against the sub-block's q8
+  /// strip (loaded at m2) -> ONE vwredsum.vs into an i32m1 lane-0 seeded 0 -> vmv.x.s
+  /// to a scalar dot -> fold the UINT6 scale scalesU8[2*chunk(+1)] in the SCALAR domain
+  /// (isum += scale * dot). The 8 vwredsum reduces have no mutual data dependency (high
+  /// ILP/MLP); the running accumulation is a short-latency scalar int chain. The scalar
+  /// isum is then deposited in lane 0 of a ZEROED canonical-8 vint32m2 (vmv.v.x 0 ->
+  /// vmv.s.x.tu) so the SAME byte-exact 8-lane fp fold (emitQ4_KSumsFoldScaleD) applies
+  /// unchanged; under the vec_dot harness int-mode fp fold (d exact, < 2^24) the fold's
+  /// ascending horizontal sum recovers the super-block total exactly -- byte-exact "for
+  /// free" ([K-5], integer dot int32 zero-rounding). Reads scalesU8 (BRICK 2 decoded
+  /// scales) and the q8 base derived from `yb`; takes `xb` for the packed q4 loads.
+  /// Returns the canonical-8 aux32 lvalue. q5_K (cx.hasQh) is NOT handled here.
+  mlir::TypedValue<emitc::LValueType> emitQ4_KVwredsumUnpackScaledDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::Value scalesU8) const;
+
   /// Emit the FIRST half of ONE super-block's q4_K/q5_K MIN term (Track B BRICK
   /// 4): the int16 bsums load (yb + bsumsOffset, cast const int16_t *) and the
   /// SCALAR integer reduction `int sumi = 0; for (j) sumi += bsums[j] *

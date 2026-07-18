@@ -1545,6 +1545,187 @@ VariantToEmitCFunc::emitQ4_KFusedUnpackScaledDot(
     return llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
 }
 
+// ISSUE-109 vwredsum.vs lever (q4_K non-qh): replicate the deployed vl128 hand-tuned
+// dataflow (board-probed = 8x vwredsum.vs, ZERO aux8 spill). The board-tested wall
+// for the register-fusion "fused" anchor was NOT the aux8 memory traffic (that was
+// already eliminated) but the SERIAL i32m8 accumulator dependency chain + the m8
+// register-cliff: each of the 8 sub-block vwmacc's read-modify-writes the SAME wide
+// aux32 register, so the critical path is 8 vwmacc latencies deep and the m8
+// accumulator pins 8 vector registers. This variant BREAKS that chain: each 32-element
+// sub-block is reduced INDEPENDENTLY (vwmul i16m4 -> ONE vwredsum.vs into its own i32m1
+// lane0 -> vmv.x.s scalar) with NO cross-sub-block vector accumulator, so the 8 reduces
+// have no data dependency and the hardware/compiler can overlap them (high ILP/MLP,
+// matching the opponent); the running accumulation is the SCALAR isum += scale * dot
+// (short-latency int chain, associative/order-free). q4_K carries d=1.0 / dmin=0 int-mode
+// activation in the vec_dot harness so the fp fold is an EXACT integer fold (< 2^24),
+// making any reduction regroup byte-exact "for free" ([K-5], integer dot int32 zero-
+// rounding). To keep the SAME byte-exact fp fold contract (emitQ4_KSumsFoldScaleD's
+// 8-lane `sums` accumulator -- also the harness fault-arm anchor), the per-super-block
+// scalar isum is deposited in lane 0 of a ZEROED canonical-8 vint32m2 (vmv.v.x 0 ->
+// vmv.s.x.tu isum); the fold's per-lane `sums[l] += d*aux32[l]` then folds isum through
+// lane 0 while lanes 1..7 carry 0, and the fixed ascending horizontal sum recovers the
+// super-block total exactly. q5_K (cx.hasQh) is NOT handled here (stays on the aux8 path).
+mlir::TypedValue<emitc::LValueType>
+VariantToEmitCFunc::emitQ4_KVwredsumUnpackScaledDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+    mlir::Value scalesU8) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = cx.opName;
+    llvm::StringRef role = cx.role;
+    int64_t qk = cx.subBlock * cx.numSubBlocks; // 256
+
+    auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, cx.sizeType, v); };
+    auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                             mlir::Type castType) -> mlir::Value {
+      mlir::Value full = base;
+      if (fixed != 0)
+        full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
+    };
+
+    // The widening product + reduction types: i8m2 x i8m2 -> i16m4 (one 32-element
+    // sub-block per vwmul), reduced by ONE vwredsum.vs into the i32m1 lane-0 boundary.
+    mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
+    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+
+    // ---- int isum = 0;  (the per-super-block SCALAR positive accumulator -- the
+    // running sum of the 8 independent per-sub-block scaled dots; NO wide vector
+    // accumulator, so there is no serial i32m8 dependency chain). ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("isum", opName, role));
+    auto isumVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(i32Type), emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, isumVar,
+        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult());
+
+    mlir::Value q8Base =
+        byteOffsetPtr(yb, cx.activationPtrType, cx.q8Offset, cx.i8PtrType);
+
+    // One 32-element sub-block INDEPENDENT reduce from a nibble register KEPT IN
+    // REGISTER (NO aux8 spill): load the sub-block's q8 strip at m2, widening-multiply
+    // against the unpacked weight nibble, reduce the 32 i16 products to a scalar with
+    // ONE vwredsum.vs (seed 0, INDEPENDENT of the other sub-blocks), then fold the
+    // uint6 scale in the scalar domain: isum += scale * dot.
+    auto subReduce = [&](mlir::Value nib, int64_t subIdx, mlir::Value vl) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "vwredsum_sub_block_dot"));
+      mlir::Value scale =
+          emitLoadByteAsInt(rewriter, loc, constU8Type, cx.i32ImmType, scalesU8,
+                            subIdx);
+      mlir::Value q8Ptr =
+          rewriter
+              .create<emitc::AddOp>(loc, cx.i8PtrType, q8Base,
+                                    sizeLit(subIdx * cx.subBlock))
+              .getResult();
+      mlir::Value q8v =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type, "__riscv_vle8_v_i8m2",
+                         mlir::ValueRange{q8Ptr, vl}, opName, role);
+      mlir::Value p =
+          emitOpaqueCall(rewriter, loc, i16m4Type, "__riscv_vwmul_vv_i16m4",
+                         mlir::ValueRange{q8v, nib, vl}, opName, role);
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, "__riscv_vmv_v_x_i32m1", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value zeroImm =
+                rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+            return {zeroImm, sizeLit(1)};
+          });
+      mlir::Value red =
+          emitOpaqueCall(rewriter, loc, i32m1Type, "__riscv_vwredsum_vs_i16m4_i32m1",
+                         mlir::ValueRange{p, seed, vl}, opName, role);
+      mlir::Value dot =
+          emitOpaqueCall(rewriter, loc, i32Type, "__riscv_vmv_x_s_i32m1_i32",
+                         mlir::ValueRange{red}, opName, role);
+      mlir::Value scaleProd =
+          rewriter.create<emitc::MulOp>(loc, i32Type, scale, dot).getResult();
+      mlir::Value isumCur =
+          rewriter.create<emitc::LoadOp>(loc, i32Type, isumVar).getResult();
+      mlir::Value isumNext =
+          rewriter.create<emitc::AddOp>(loc, i32Type, isumCur, scaleProd)
+              .getResult();
+      rewriter.create<emitc::AssignOp>(loc, isumVar, isumNext);
+    };
+
+    auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                       llvm::StringRef imm, mlir::Value vl) -> mlir::Value {
+      return emitVCallBuilt(
+          rewriter, loc, cx.u8m2Type, mnemonic, "u8m2", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, cx.i32ImmType, imm.str());
+            return {src, amt, vl};
+          });
+    };
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "vwredsum_unpack_reduce"));
+    for (int64_t chunk = 0; chunk < qk / 64; ++chunk) {
+      int64_t qsChunk = chunk * 32; // q4 advances 32 packed bytes per chunk
+      mlir::Value vl = emitOpaqueCallBuilt(
+          rewriter, loc, cx.sizeType, "__riscv_vsetvl_e8m2", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(32)};
+          });
+      mlir::Value qsPtr = byteOffsetPtr(xb, cx.weightPtrType,
+                                        cx.qsOffset + qsChunk, cx.u8PtrType);
+      mlir::Value q4 =
+          emitVCall(rewriter, loc, cx.u8m2Type, "vle8_v", "u8m2",
+                    mlir::ValueRange{qsPtr, vl}, opName, role);
+      // low nibble -> sub-block 2*chunk (KEPT IN REGISTER)
+      mlir::Value loU = u8ImmOp("vand_vx", q4, "0x0F", vl);
+      mlir::Value lo =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                         "__riscv_vreinterpret_v_u8m2_i8m2",
+                         mlir::ValueRange{loU}, opName, role);
+      subReduce(lo, chunk * 2, vl);
+      // high nibble -> sub-block 2*chunk+1 (KEPT IN REGISTER)
+      mlir::Value hiU = u8ImmOp("vsrl_vx", q4, "0x04", vl);
+      mlir::Value hi =
+          emitOpaqueCall(rewriter, loc, cx.i8m2Type,
+                         "__riscv_vreinterpret_v_u8m2_i8m2",
+                         mlir::ValueRange{hiU}, opName, role);
+      subReduce(hi, chunk * 2 + 1, vl);
+    }
+
+    // ---- deposit the scalar isum into lane 0 of a ZEROED canonical-8 vint32m2 so the
+    // SAME byte-exact 8-lane fp fold (emitQ4_KSumsFoldScaleD) applies unchanged: zero
+    // the 8 lanes (vmv.v.x 0), then vmv.s.x.tu isum into lane 0 (tail-undisturbed keeps
+    // lanes 1..7 at 0). Under the int-mode fp fold (d exact) the fold's ascending
+    // horizontal sum recovers isum exactly. ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "isum_to_canon8_lane0"));
+    mlir::Value isumFinal =
+        rewriter.create<emitc::LoadOp>(loc, i32Type, isumVar).getResult();
+    mlir::Value zero8 = emitOpaqueCallBuilt(
+        rewriter, loc, cx.i32Canon8Type, "__riscv_vmv_v_x_i32m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroImm =
+              rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+          return {zeroImm, sizeLit(8)};
+        });
+    mlir::Value aux32cVal = emitOpaqueCallBuilt(
+        rewriter, loc, cx.i32Canon8Type, "__riscv_vmv_s_x_i32m2_tu", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {zero8, isumFinal, sizeLit(8)};
+        });
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux32c", opName, role));
+    auto aux32cVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(cx.i32Canon8Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, aux32cVar, aux32cVal);
+    return llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
+}
+
 // Track B q4_K BRICK 4 (first half): the int16 bsums load + the SCALAR integer
 // reduction sumi = sum_j(bsums[j] * mins[j/2]), factored out VERBATIM from
 // emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
@@ -3139,11 +3320,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     // only) selects the aux8-free structural path: it runs at the m2 widening
     // chain (32-wide unpack + i32m8 accumulator) but keeps the unpacked nibble in
     // register instead of spilling to aux8[256] (the board-tested weight-
-    // reconstruction wall). q5_K (hasQh) is NOT fused -> stays on the aux8 path.
+    // reconstruction wall). The sentinel "vwredsum" (ISSUE-109 vwredsum.vs lever,
+    // q4_K non-qh only) also runs aux8-free at the m2 unpack but REPLACES the serial
+    // i32m8 vwmacc accumulator with 8 INDEPENDENT per-sub-block vwredsum.vs reduces
+    // (breaking the latency/dependency wall + the m8 register-cliff, matching the
+    // deployed vl128 hand-tuned dataflow). q5_K (hasQh) uses NEITHER -> stays on the
+    // aux8 path.
     llvm::StringRef coreLmulAttr = b3.getIntegerCoreLmul().value_or("mf2");
     bool useRegisterFusion = (coreLmulAttr == "fused") && !hasQh;
+    bool useVwredsum = (coreLmulAttr == "vwredsum") && !hasQh;
     llvm::StringRef coreLmul =
-        useRegisterFusion ? llvm::StringRef("m2") : coreLmulAttr;
+        (useRegisterFusion || useVwredsum) ? llvm::StringRef("m2") : coreLmulAttr;
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef l8 = wideningChain.l8;
     llvm::StringRef l16 = wideningChain.l16;
@@ -3186,12 +3373,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
 
     // int8_t aux8[256];  (function-scoped scratch, shared with the integer core;
     // W7 threads it as function-level declaration, exactly like the monolith.)
-    // ISSUE-109: the register-fusion path spills NOTHING to aux8, so the scratch
-    // (and its base pointer) are NOT declared under useRegisterFusion -- the whole
+    // ISSUE-109: the register-fusion AND vwredsum paths spill NOTHING to aux8, so the
+    // scratch (and its base pointer) are NOT declared under either -- the whole
     // store->load round-trip is gone from the emitted C.
     mlir::TypedValue<emitc::ArrayType> aux8Array = nullptr;
     mlir::Value aux8Base = nullptr;
-    if (!useRegisterFusion) {
+    if (!useRegisterFusion && !useVwredsum) {
       mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
       rewriter.create<emitc::VerbatimOp>(
           loc, localVariableComment("aux8", opName, role));
@@ -3363,6 +3550,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
                          "super_block_base_x"),
             utmpArray);
         aux32Var = emitQ4_KFusedUnpackScaledDot(
+            rewriter, loc, cx,
+            blockBaseFor(b1.getWeightBase(), b1.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
+                         "super_block_base_y"),
+            scalesU8);
+      } else if (useVwredsum) {
+        scalesU8 = emitQ4_KScaleMinBitDanceCore(
+            rewriter, loc, cx,
+            blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
+                         "super_block_base_x"),
+            utmpArray);
+        aux32Var = emitQ4_KVwredsumUnpackScaledDot(
             rewriter, loc, cx,
             blockBaseFor(b1.getWeightBase(), b1.getBlockIndex(), weightStride,
                          "super_block_base_x"),
