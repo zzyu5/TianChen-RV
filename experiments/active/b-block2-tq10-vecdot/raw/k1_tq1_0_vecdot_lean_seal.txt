@@ -1,0 +1,26 @@
+# BOARD=Linux 6.6.63 riscv64 CC=Bianbu clang version 18.1.8 (11bb4) march=rv64gcv_zfh_zvfh_zicbop_zihintpause factory_mode=source kernel=kernels/tq1_0_vecdot_lean.c
+# ggml_root=/home/bianbu/tcrv-k1-llama commit=20039c9 2025-07-22 09:23:46 +0800
+=== [B] factory from source (clang-18 symmetric) ===
+# factory.o=385432B ggml_vec_dot_tq1_0_q8_K=[T] .comment=clang version 18.1.8
+=== [A] ours leaf (kernels/tq1_0_vecdot_lean.c, clang-18 symmetric) + self-probe ===
+# OURS leaf: fp16=cleanfp vsetvli=41 vwmacc=0 vmacc=0 vmul.vv=4 vwredsum=1 vwmulu=11 insn~244 vec~138 size=3000B md5=9dfa00d80e3b2552a57171b1faab796a
+=== [C] driver + link ===
+# LINK_OK via [/usr/bin/clang-18 -O2 -march=rv64gcv_zfh_zvfh_zicbop_zihintpause -mabi=lp64d -no-pie -Wl,--gc-sections] bench=36000B
+# opponent specialization visible in bench = [ggml_vec_dot_tq1_0_q8_K_vl128,ggml_vec_dot_tq1_0_q8_K_vl256,]
+=== [V] BYTE-EXACT VERIFY (ZERO-MODEL + 3-arm anti-hollow, 2 seeds) ===
+VERIFY tq1_0 corpus=8192*2 INT[ours_vs_oracle_mism=8181 fac_vs_oracle_mism=0] FLOAT[max_ulp(ours,oracle)=2147390054 max_ulp(fac,oracle)=2 max_ulp(ours,fac)=2147390054 bytediv(ours,oracle)=8188] antihollow[base_agree=0 DUT=1 oracle=1 factory=1]=HOLLOW numerics.reassoc_ok=false RESULT=FAIL
+VERIFY tq1_0 corpus=8192*2 INT[ours_vs_oracle_mism=8189 fac_vs_oracle_mism=0] FLOAT[max_ulp(ours,oracle)=2147476777 max_ulp(fac,oracle)=2 max_ulp(ours,fac)=2147476776 bytediv(ours,oracle)=8182] antihollow[base_agree=0 DUT=1 oracle=1 factory=1]=HOLLOW numerics.reassoc_ok=false RESULT=FAIL
+=== [S] COLD SWEEP (2-seed, load-gated, compiler-symmetric) ===
+# core0 idle_pct=100
+# core1 idle_pct=100
+# core2 idle_pct=97
+# core3 idle_pct=97
+# core4 idle_pct=97
+# core5 idle_pct=95
+# core6 idle_pct=97
+# core7 idle_pct=100
+# LOAD_GATE_OK core=0 idle=100% freq=1600000
+# fmt | seed | ours_ns | opp_ns | RATIO_opp/ours | ours_iqr% | opp_iqr% | ours_GBs | opp_GBs | fp
+RESULT tq1_0 | 0xBEEF01 | 404.856 | 241.496 | 0.5965x | 0.10 | 0.11 | 0.855 | 1.433 | DIVERGE
+RESULT tq1_0 | 0xC0FFEE | 404.986 | 241.475 | 0.5963x | 0.16 | 0.22 | 0.854 | 1.433 | DIVERGE
+=== ALL_DONE ===

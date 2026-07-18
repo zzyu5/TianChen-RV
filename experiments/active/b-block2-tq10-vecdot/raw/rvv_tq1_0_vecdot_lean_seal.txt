@@ -1,0 +1,26 @@
+# BOARD=Linux 6.12.66-0.0.0.0.riscv64 riscv64 CC=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb factory_mode=lib kernel=kernels/tq1_0_vecdot_lean.c
+# opponent lib = /home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin/libggml-cpu.so md5=e85fceda47606a115c5fbb0021817cdc
+# lib .comment = clang version 18.1.8
+# lib exports ggml_vec_dot_tq1_0_q8_K = T (dispatch calls local _vl* specialization)
+=== [A] ours leaf (kernels/tq1_0_vecdot_lean.c, clang-18 symmetric) + self-probe ===
+# OURS leaf: fp16=cleanfp vsetvli=41 vwmacc=0 vmacc=0 vmul.vv=4 vwredsum=1 vwmulu=11 insn~244 vec~138 size=2976B md5=9dfa00d80e3b2552a57171b1faab796a
+=== [C] driver + link ===
+# LINK_OK via [gcc -O2 -no-pie -Wl,--gc-sections] bench=18800B
+# opponent specialization visible in bench = [in-shared-lib]
+=== [V] BYTE-EXACT VERIFY (ZERO-MODEL + 3-arm anti-hollow, 2 seeds) ===
+VERIFY tq1_0 corpus=8192*2 INT[ours_vs_oracle_mism=0 fac_vs_oracle_mism=0] FLOAT[max_ulp(ours,oracle)=0 max_ulp(fac,oracle)=2 max_ulp(ours,fac)=2 bytediv(ours,oracle)=0] antihollow[base_agree=1 DUT=1 oracle=1 factory=1]=RED-all numerics.reassoc_ok=true RESULT=GREEN
+VERIFY tq1_0 corpus=8192*2 INT[ours_vs_oracle_mism=0 fac_vs_oracle_mism=0] FLOAT[max_ulp(ours,oracle)=1 max_ulp(fac,oracle)=2 max_ulp(ours,fac)=2 bytediv(ours,oracle)=3] antihollow[base_agree=1 DUT=1 oracle=1 factory=1]=RED-all numerics.reassoc_ok=true RESULT=GREEN
+=== [S] COLD SWEEP (2-seed, load-gated, compiler-symmetric) ===
+# core8 idle_pct=100
+# core9 idle_pct=100
+# core10 idle_pct=100
+# core11 idle_pct=100
+# core12 idle_pct=100
+# core13 idle_pct=100
+# core14 idle_pct=100
+# core15 idle_pct=100
+# LOAD_GATE_OK core=8 idle=100% freq=2600000
+# fmt | seed | ours_ns | opp_ns | RATIO_opp/ours | ours_iqr% | opp_iqr% | ours_GBs | opp_GBs | fp
+RESULT tq1_0 | 0xBEEF01 | 215.385 | 178.465 | 0.8286x | 0.42 | 2.83 | 1.602 | 1.949 | DIVERGE
+RESULT tq1_0 | 0xC0FFEE | 219.836 | 178.100 | 0.8101x | 2.69 | 2.37 | 1.585 | 1.934 | DIVERGE
+=== ALL_DONE ===
