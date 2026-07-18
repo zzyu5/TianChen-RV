@@ -54,6 +54,14 @@ module {
 // EMIT: route_source_op=weft_rvv.typed_dequantize_row_loop_body
 // EMIT: call_opaque "(float)*(const _Float16 *)"
 // EMIT: !emitc.opaque<"const int8_t">
+// The CONSTRUCTED q8_0 path lowers to the OWNED REAL-VECTOR body (PR-31 non-grid cell):
+// vle8 + vsext_vf4 + vfcvt_f_x_v + vfmul_vf + vse32, NO gather. Identical to the atomic
+// --weft-rvv-lower-to-emitc path locked in rvv-to-emitc-ggml-dequantize-row-q8-0.mlir.
+// EMIT: call_opaque "__riscv_vle8_v_i8m2"
+// EMIT: call_opaque "__riscv_vsext_vf4_i32m8"
+// EMIT: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
+// EMIT: call_opaque "__riscv_vfmul_vf_f32m8"
+// EMIT: call_opaque "__riscv_vse32_v_f32m8"
 
 // The ternary super-block tq2_0 is NOW front-door CONSTRUCTED: the front door rewrites the
 // abstract weft_rvv.dequantize_row (format="tq2_0") into the typed streaming region (decode_model

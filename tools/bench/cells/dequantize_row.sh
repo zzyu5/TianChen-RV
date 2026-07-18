@@ -18,7 +18,8 @@
 #   - 源资产（driver / leaf / tables）住数据格，本 harness 只【读】（ASSET_ROOT 覆写）。
 #
 #   board: rvv          （@k1 dequant 部署 gated on ISSUE-105 半宽 — 本格 @rvv 先证·k1=VOID）
-#   fmt  : iq3_xxs      （首攻单格·C4a grid-table·research §5）
+#   fmt  : iq3_xxs      （grid-codebook super-block·C4a·vluxei gather 天花板 ISSUE-107）
+#          q8_0         （NON-GRID flat block·owned real-vector·NO gather·首个标量门 owned 收口探路）
 #   mode : verify  = build + ZEROVEC objdump 探针 + ZERO-MODEL byte-exact + 3-arm 反空心 (NO TIMING)
 #          sanity  = 预测量噪声自检 3 轮
 #          measure = cold N=25 2-seed flush
@@ -29,16 +30,26 @@ SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF/../../.." && pwd)"
 ASSETS="${DEQUANT_ROW_ASSET_ROOT:-$ROOT/experiments/active/r-dequant}"
 
-NB_MEASURE=512           # k = 131072 f32 out (> LLC when flushed cold)
-NB_VERIFY=4096           # larger corpus: sweeps all 256 grid idx + 128 sign sel
 REPS=25; S1=0x1357; S2=0xACE2; SV=0xD00D
 RDIR=/tmp/bench_cells_dequantize_row_${BOARD}_${FMT}
 
 echo "# HARNESS dequantize_row board=$BOARD mode=$MODE fmt=$FMT assets=$ASSETS"
 
+# Per-format: emitted leaf · standalone driver · optional codebook table · the single-byte
+# AoS FAULT anchor (arm D) · the deployed-opponent symbol · the cold working-set nb.
+# NB_MEASURE is chosen so k (f32 out = nb*QK) ~= 131072 across formats (> LLC when flushed
+# cold); NB_VERIFY sweeps the format's full decode corpus (grid idx / sign sel / quant val).
+#   iq3_xxs : grid-codebook super-block (QK=256) · vluxei gather · GEN_SEAL BATCH-WIDE-GATHER
+#   q8_0    : NON-GRID flat block (QK=32) · vle8+vsext_vf4+vfcvt+vfmul_vf+vse32 · NO gather ·
+#             fault flips the quant byte offset `+ 2` -> `+ 1` (in-bounds, value-changing)
 case "$FMT" in
-  iq3_xxs) LEAFC="kernels/iq3_xxs_dequant.c"; GSED='s/0x04040404U/0x04040405U/' ;;
-  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族首攻仅 iq3_xxs)"; exit 2 ;;
+  iq3_xxs) LEAFC="kernels/iq3_xxs_dequant.c"; DRVC="dequant_row_driver.cpp"
+           TBLC="tables/iq3xxs_tables.h";     GSED='s/0x04040404U/0x04040405U/'
+           OPPSYM="dequantize_row_iq3_xxs";   NB_MEASURE=512;  NB_VERIFY=4096 ;;
+  q8_0)    LEAFC="kernels/q8_0_dequant.c";    DRVC="q8_0_dequant_row_driver.cpp"
+           TBLC="";                           GSED='s/+ 2;/+ 1;/'
+           OPPSYM="dequantize_row_q8_0";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
+  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·q8_0)"; exit 2 ;;
 esac
 
 if [ "$BOARD" = rvv ]; then
@@ -57,17 +68,21 @@ else
   echo "# HARNESS-VOID unsupported board $BOARD (dequantize_row 族当前仅 rvv)"; exit 2
 fi
 
-DRV="$ASSETS/dequant_row_driver.cpp"
+DRV="$ASSETS/$DRVC"
 LEAF="$ASSETS/$LEAFC"
-TBL="$ASSETS/tables/iq3xxs_tables.h"
-for f in "$DRV" "$LEAF" "$TBL"; do
+REQ=("$DRV" "$LEAF")
+[ -n "$TBLC" ] && { TBL="$ASSETS/$TBLC"; REQ+=("$TBL"); }
+for f in "${REQ[@]}"; do
   [ -f "$f" ] || { echo "# HARNESS-VOID missing asset $f"; exit 3; }
 done
 
 ssh "$BOARD" "mkdir -p $RDIR/tables" || { echo "# HARNESS-VOID ssh mkdir failed"; exit 3; }
+# The board build always compiles $RDIR/dequant_row_driver.cpp (per-format driver source,
+# fixed board name) + $RDIR/leaf_dequant.c; the codebook table (grid formats only) rides in
+# its relative path so the driver's `#include "tables/..."` resolves.
 scp -q "$DRV"  "$BOARD:$RDIR/dequant_row_driver.cpp" || { echo "# HARNESS-VOID scp driver"; exit 3; }
 scp -q "$LEAF" "$BOARD:$RDIR/leaf_dequant.c"         || { echo "# HARNESS-VOID scp leaf"; exit 3; }
-scp -q "$TBL"  "$BOARD:$RDIR/tables/iq3xxs_tables.h" || { echo "# HARNESS-VOID scp table"; exit 3; }
+[ -n "$TBLC" ] && { scp -q "$TBL" "$BOARD:$RDIR/$TBLC" || { echo "# HARNESS-VOID scp table"; exit 3; }; }
 
 ssh "$BOARD" "set -uo pipefail; $ENVSRC cd $RDIR
   SEAL=$RDIR/build_seal.txt; LOG=$RDIR/run_${MODE}.log; : > \$LOG; : > \$SEAL
@@ -76,7 +91,8 @@ ssh "$BOARD" "set -uo pipefail; $ENVSRC cd $RDIR
   echo '# cpu_md5_before='\$(md5sum $GGML/libggml-cpu.so|cut -d' ' -f1) | tee -a \$SEAL
   echo '# leaf_md5='\$(md5sum leaf_dequant.c|cut -d' ' -f1)' drv_md5='\$(md5sum dequant_row_driver.cpp|cut -d' ' -f1) | tee -a \$SEAL
 
-  # ---- FAULT leaf: flip ONE source byte of the emitted weft_iq3xxs_grid table ----
+  # ---- FAULT leaf: flip ONE source byte of the emitted decode (single-byte delta) ----
+  #   grid formats flip a codebook table byte; non-grid q8_0 flips the quant byte offset.
   sed '$GSED' leaf_dequant.c > leaf_dequant_FAULT.c
   D=\$(cmp -l leaf_dequant.c leaf_dequant_FAULT.c 2>/dev/null | wc -l)
   echo '# fault_leaf differing_bytes='\$D' (must be exactly 1)' | tee -a \$SEAL
@@ -114,10 +130,10 @@ ssh "$BOARD" "set -uo pipefail; $ENVSRC cd $RDIR
   OWNEDCALL=\$(grep -cE '__riscv_v[a-z0-9_]+' leaf_dequant.c)
   echo \"# ZEROVEC leaf.o [\$ZV] non_vset_vector=\$NONVSET(autovec+owned·抽签污染) OWNED_src_vec_intrinsics=\$OWNED distinct/\$OWNEDCALL calls(vsetvl 除外·真判据) fp16_libcall=\$FL\" | tee -a \$LOG
 
-  # ---- probe the deployed opponent (ggml dequantize_row_iq3_xxs·标量类档 autovec) ----
-  objdump --disassemble=dequantize_row_iq3_xxs $GGML/libggml-base.so > opp_dis.txt 2>/dev/null
+  # ---- probe the deployed opponent (ggml $OPPSYM·标量类档 autovec) ----
+  objdump --disassemble=$OPPSYM $GGML/libggml-base.so > opp_dis.txt 2>/dev/null
   OZ=\$(awk -F'\t' '\$3 ~ /^[a-z]/ { ins++; if(\$3 ~ /^v/ && \$3 !~ /^vset/) v++ } END{printf \"ins=%d non_vset_vector=%d\", ins+0,v+0}' opp_dis.txt)
-  echo \"# OPP dequantize_row_iq3_xxs [\$OZ] (标量类档·host autovec = codegen-lottery)\" | tee -a \$SEAL
+  echo \"# OPP $OPPSYM [\$OZ] (标量类档·host autovec = codegen-lottery)\" | tee -a \$SEAL
 
   # ---- hygiene / single-instance ----
   stray(){ { pgrep -x d_$FMT; pgrep -x d_${FMT}_i1; pgrep -x d_${FMT}_i2; pgrep -x d_${FMT}_i3; } 2>/dev/null | wc -l; }
@@ -145,11 +161,11 @@ fi
 if [ \"$MODE\" = verify ]; then
   echo '=== [A] CLEAN INJECT=0 (nb=$NB_VERIFY, verify-only) — expect ours-vs-oracle PASS + ggml-vs-oracle PASS + CORPUS COMPLETE ===' | tee -a \$LOG
   run d_$FMT $NB_VERIFY 0 $SV
-  echo '=== [B] ANTI-HOLLOW #1 ORACLE-FAULT (INJECT=1, oracle rotates one grid idx) — expect ours-vs-oracle RED ===' | tee -a \$LOG
+  echo '=== [B] ANTI-HOLLOW #1 ORACLE-FAULT (INJECT=1, oracle rotates one decoded value) — expect ours-vs-oracle RED ===' | tee -a \$LOG
   run d_${FMT}_i1 $NB_VERIFY 0 $SV
   echo '=== [C] ANTI-HOLLOW #2 DUT-FAULT (INJECT=2, ours[mid]+=1.0f) — expect ours-vs-oracle RED ONLY ===' | tee -a \$LOG
   run d_${FMT}_i2 $NB_VERIFY 0 $SV
-  echo '=== [D] ANTI-HOLLOW #3 LEAF single-byte grid fault — expect ours-vs-oracle RED ONLY (bites the EMITTED RISC-V) ===' | tee -a \$LOG
+  echo '=== [D] ANTI-HOLLOW #3 LEAF single-byte source fault — expect ours-vs-oracle RED ONLY (bites the EMITTED RISC-V) ===' | tee -a \$LOG
   run d_${FMT}_i3 $NB_VERIFY 0 $SV
 elif [ \"$MODE\" = sanity ]; then
   echo '=== 3x re-measure noise self-check (seed=$SV nb=$NB_MEASURE N=$REPS) ===' | tee -a \$LOG

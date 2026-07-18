@@ -30,3 +30,39 @@ iq3_xxs (dequantize_row · OWNED REAL-VECTOR emit · BATCH-WIDE-GATHER opt over 
         the scalar-source autovec opponent pipelines indexed SCALAR loads (no HW gather).
         A register-only sign fan-out (vmv/vmseq/vmerge, no signs gather) was measured
         SLOWER (0.312) -> the single wide vluxei8 signs gather is the cheaper spread here.
+
+q8_0 (dequantize_row · OWNED REAL-VECTOR emit · PR-31 first NON-GRID cell):
+  weft_opt_md5=33fe87f90a9bd4edc5857e35fb929c51  HEAD=d5074f0bf (+ uncommitted R-line q8_0 emit)
+  leaf_md5=bef46c2534cd656614dce90b17058779  lines=39
+  owned_riscv_intrinsics=5 distinct / 12 calls (excludes vsetvl · grep leaf .c)
+    { vle8_v_i8m2 vsext_vf4_i32m8 vfcvt_f_x_v_f32m8 vfmul_vf_f32m8 vse32_v_f32m8 }
+    -- the ISSUE-001 reverse (scalar shared body = 0 owned vector intrinsics)
+  cmd: build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q8-0.mlir \
+         --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
+         > experiments/active/r-dequant/kernels/q8_0_dequant.c
+  emit owner: emitDequantizeRowQ8_0VectorBody (lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp),
+        routed from emitTypedDequantizeRowLoopBody (decode_model "q8_0"). The dispatch-wired
+        monolith fallback keeps the scalar emitDequantizeRowQ8_0BodyShared (iq3_xxs precedent).
+  BODY: each block = 32 signed int8 quants * ONE fp16 d. ONE 32-lane pipeline per block:
+        vle8 (i8m2) -> vsext_vf4 (i32m8) -> vfcvt_f_x_v (f32m8) -> vfmul_vf(d) (f32m8) -> vse32.
+        NO gather (non-grid) -> NO HW-gather wall (contrast iq3_xxs grid). LMULs derived from
+        the fixed 32-lane QK8_0 block width (NOT tunable knobs).
+  NOTE: byte-exact to dequantize_row_q8_0 by construction: fp16 d seam is the SAME
+        (float)*(const _Float16 *) read; signed i8 sign-extends exactly; vfmul_vf(qf,d) ==
+        scalar qs[j]*d (single f32 RNE; q8_0 has NO add/min => no fp-contraction ambiguity).
+        Harness proves it (dequantize_row.sh rvv verify q8_0: ZERO-MODEL byte-exact GREEN
+        0/131072 + 3-arm anti-hollow all bite + CORPUS quant_val 256/256).
+  PERF: rvv cold ratio_cold PASS (标量类 scalar-class hard-gate · 2-seed): S1=2.3311
+        (ours_med_ns=185561 vs ggml_med_ns=432561), S2=2.2721 (ours_med_ns=189520 vs
+        ggml_med_ns=430602); both >> 0.8. Opponent dequantize_row_q8_0 is the SOLE deployed
+        q8_0 decode (type_traits .to_float; no _generic variant) = HONEST heavy autovec
+        (objdump non_vset_vector=194), NOT a weak scalar loop. 成色 (对手与档位 §三.12):
+        the ~2.3x is a 便宜档/cheap-tier ratio -- the opponent is host-autovec (codegen-lottery
+        on the OPP side) scalar-source, so this is a compiler-artifact result, NOT a 硬赢
+        (硬赢 = 硬碰硬赢手调对手); 禁外推为 win / 禁外推 grid / K-quant ([NG-4]/[L-1]).
+        The DURABLE claim is the CONSTRUCTION axis ([L-8] 强义 constructed 真赢): de-lottery
+        = OUR leaf no longer rides the host-autovec lottery (interim autovec value ->
+        determined owned real-vector measured value; the owned emit OWNS the vectorization).
+        First standalone scalar-class hard-gate格 owned-construction 真收口 via the dequant
+        true-vector emitter (verdict PASS->PASS; the de-lottery gain is owned-construction,
+        the ratio成色 stays 便宜档).

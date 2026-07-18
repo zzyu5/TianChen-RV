@@ -10,17 +10,23 @@
 // through the output pointer, so the region is terminated by the VOID
 // weft_rvv.typed_dequantize_row_loop_yield). The per-block decode is the separate
 // typed brick weft_rvv.dequantize_row_decode_core (decode_model "q8_0"): read the
-// fp16 block scale via the (float)*(const _Float16 *) seam, then the bare signed-int8
-// scale y[j] = qs[j] * d over all 32 block lanes (the load sign-extends).
+// fp16 block scale via the (float)*(const _Float16 *) seam, then decode the 32 signed
+// int8 quants as y[j] = qs[j] * d.
 //
 // This is the FAMILY-HEAD of the 23-format dequantize_row spectrum: the shared
 // front-door construction path is proven ONCE here (abstract dequantize_row ->
-// typed region -> byte-exact C); subsequent formats swap only the decode leaf. The
-// emit is BYTE-EXACT to the retired dispatch-wired q8_0 monolith (emitGgmlDequantizeRow
-// bareInt8 branch) via the SHARED body emitter emitDequantizeRowQ8_0BodyShared,
-// modulo only the source-op provenance token. Byte-exact-vs-ggml-reference
-// dequantize_row_q8_0 (a scalar AoS block loop; no reduction). Numerical
-// bit-exact-vs-ggml is pending-hardware (ssh rvv), not tested here.
+// typed region -> C); subsequent formats swap only the decode leaf. The CONSTRUCTED
+// q8_0 path now lowers to the OWNED REAL-VECTOR body (PR-31, the first NON-GRID cell
+// of the dequant true-vector emitter, emitDequantizeRowQ8_0VectorBody): a single
+// 32-lane vle8 + vsext_vf4 + vfcvt_f_x_v + vfmul_vf + vse32 pipeline per block, NO
+// gather (q8_0 is non-grid) -- NOT the scalar per-element loop the dispatch-wired
+// monolith fallback (emitGgmlDequantizeRow bareInt8 branch) still runs. The vector
+// content is the EMITTER's OWNED __riscv_v intrinsics (the ISSUE-001 reverse), not
+// host-autovec codegen-lottery. Byte-exact-vs-ggml-reference dequantize_row_q8_0 by
+// construction: vfmul_vf(qf, d) == the scalar `qs[j]*d` (a single f32 round-to-nearest
+// -even multiply; q8_0 has no add/min so no fp-contraction ambiguity). Numerical
+// bit-exact-vs-ggml is PROVEN on ssh rvv via the tools/bench/cells/dequantize_row.sh
+// harness (ZERO-MODEL byte-exact GREEN, 3-arm anti-hollow); it is not tested here.
 
 module {
   weft.exec.kernel @dequant_q8_0_kernel {
@@ -52,9 +58,16 @@ module {
 // CHECK: for %{{.*}} = %{{.*}} to %[[NB]] step %{{.*}}  : !emitc.opaque<"size_t"> {
 // The fp16 block scale seam (fcvt.s.h).
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The signed-int8 read (sign-extending) + the bare block scale y[j] = qs[j] * d.
+// The signed-int8 quant base (the load sign-extends).
 // CHECK: !emitc.opaque<"const int8_t">
-// CHECK: %{{.*}} = mul %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// The OWNED REAL-VECTOR 32-lane decode pipeline (PR-31 non-grid cell): vle8 (the 32
+// int8 quants) + vsext_vf4 (int8->int32) + vfcvt_f_x_v (int32->f32) + vfmul_vf (the
+// runtime `d` scale) + vse32 (the contiguous 32-float store). NO gather.
+// CHECK: call_opaque "__riscv_vle8_v_i8m2"
+// CHECK: call_opaque "__riscv_vsext_vf4_i32m8"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m8"
+// CHECK: call_opaque "__riscv_vse32_v_f32m8"
 // CHECK: return
 
 // The bounded surface is fail-closed on the loop kind and the decode_model leaf (I7).

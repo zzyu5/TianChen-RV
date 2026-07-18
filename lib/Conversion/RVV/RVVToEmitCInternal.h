@@ -4757,6 +4757,25 @@ private:
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
 
+  /// The OWNED REAL-VECTOR q8_0 dequantize_row block-decode body emit (PR-31, the
+  /// first NON-GRID cell of the dequant true-vector emitter): the AoS `nb = k/32`
+  /// block loop, the fp16 block scale via the `(float)*(const _Float16 *)` seam, then
+  /// a single 32-lane OWNED vector pipeline per block -- vle8 (the 32 signed int8
+  /// quants) + vsext_vf4 (int8->int32, the load sign-extends) + vfcvt_f_x_v
+  /// (int32->f32) + vfmul_vf (the runtime `d` scale) + vse32 (the contiguous 32-float
+  /// store). NO gather (q8_0 is non-grid). Byte-exact-vs-ggml dequantize_row_q8_0 by
+  /// construction (vfmul_vf(qf, d) == the scalar `qs[j]*d`; q8_0 has no add/min so no
+  /// fp-contraction ambiguity). Only the CONSTRUCTED path
+  /// (emitTypedDequantizeRowLoopBody) routes here; the dispatch-wired monolith
+  /// fallback stays on the scalar emitDequantizeRowQ8_0BodyShared (iq3_xxs precedent).
+  /// The 32-lane block width + the i8m2/i32m8/f32m8 pipeline LMULs are DERIVED from
+  /// the fixed q8_0 QK8_0 geometry, NOT tunable knobs. opName/role thread the
+  /// source-op provenance into the route/step comments.
+  mlir::LogicalResult emitDequantizeRowQ8_0VectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// The SHARED 4-bit nibble dequantize_row block-decode body emit for the flat
   /// legacy formats q4_0/q4_1/q5_0/q5_1: the AoS `nb = k/32` block loop, the fp16
   /// block scale d (+ the optional fp16 min m) via the `(float)*(const _Float16 *)`

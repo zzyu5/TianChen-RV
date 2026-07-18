@@ -3057,6 +3057,131 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ8_0BodyShared(
   return mlir::success();
 }
 
+// The OWNED REAL-VECTOR q8_0 dequantize_row block-decode body (PR-31, the FIRST
+// non-grid cell of the dequant true-vector emitter): each block is 32 signed int8
+// quants scaled by ONE fp16 `d`, so the whole per-block decode is a single 32-lane
+// vector pipeline -- vle8 (the 32 int8 quants) + vsext_vf4 (int8->int32, the load
+// sign-extends) + vfcvt_f_x_v (int32->f32) + vfmul_vf (the runtime `d` scale) + vse32
+// (the contiguous 32-float store). NO gather (q8_0 is NON-GRID: no codebook, no sign
+// plane, no nibble unpack), so unlike the iq3_xxs grid leaf there is no vluxei
+// indexed-gather wall -- a clean streaming vector dequant. The vector content is the
+// EMITTER's (OWNED __riscv_v intrinsics), NOT host-autovec codegen-lottery: the
+// ISSUE-001 reverse of the scalar emitDequantizeRowQ8_0BodyShared (whose owned vector
+// intrinsic count is 0). The 32-lane block width is the FIXED q8_0 QK8_0 block
+// geometry (NOT a tunable knob); the pipeline LMULs (i8m2 for the 32 int8 quants,
+// i32m8/f32m8 for the 4x-widened 32-lane int->float pipeline) are DERIVED from that
+// width, NOT literal knobs. Byte-exact-vs-ggml-reference dequantize_row_q8_0 by
+// construction: the fp16 d seam is the SAME `(float)*(const _Float16 *)` read, the
+// signed i8 quants sign-extend exactly, and vfmul_vf(qf, d) == the scalar `qs[j]*d`
+// (a single f32 round-to-nearest-even multiply either way -- q8_0 has NO add/min, so
+// there is NO fp-contraction ambiguity to break the byte-exact gate). Only the
+// CONSTRUCTED path (emitTypedDequantizeRowLoopBody) routes here; the dispatch-wired
+// monolith fallback stays on the scalar shared body (the iq3_xxs precedent).
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ8_0VectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  // block_q8_0 AoS facts: fp16 d @0, 32 signed int8 quants @2, stride 34 (the
+  // byte-exact ggml ABI shape constants, NOT tunable knobs -- the SAME facts the
+  // scalar emitDequantizeRowQ8_0BodyShared hard-codes).
+  const int64_t qk = 32, stride = 34, qsOff = 2;
+
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type inputPtrType = input.getType();   // const uint8_t *
+  mlir::Type outputPtrType = output.getType(); // float *
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
+  mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
+  mlir::Type floatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+  // The 32-lane pipeline types: i8m2 holds the 32 int8 quants (VLEN>=128: m2 SEW8 >=
+  // 32 lanes); the vsext_vf4 4x widening lands them in i32m8 (VLEN128 m8 SEW32 == 32
+  // lanes exactly), then f32m8 for the convert + scale + store. All DERIVED from the
+  // fixed 32-lane q8_0 block width.
+  mlir::Type i8VecType = emitc::OpaqueType::get(ctx, "vint8m2_t");
+  mlir::Type i32VecType = emitc::OpaqueType::get(ctx, "vint32m8_t");
+  mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // size_t nb = k / 32;  (ggml's `const int nb = k / qk`; k % qk == 0, no tail).
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "block_count"));
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1),
+                                                /*bodyBuilder=*/nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    // const uint8_t *xb = x + ib*34;  float *yb = (float *)(y + ib*32);
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "x_block"));
+    mlir::Value xOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+    mlir::Value xb =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, input, xOff);
+    mlir::Value yOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(qk));
+    mlir::Value ybRaw =
+        rewriter.create<emitc::AddOp>(loc, outputPtrType, output, yOff);
+    mlir::Value yb =
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    // float d = (float)*(const _Float16 *)xb;  (the fp16 block scale; fcvt.s.h).
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d"));
+    mlir::Value d = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                   mlir::ValueRange{xb}, opName, role,
+                                   llvm::StringRef("fcvt.s.h"));
+
+    // const int8_t *qs = (const int8_t *)(xb + 2);
+    mlir::Value qsBaseRaw =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsOff));
+    mlir::Value qsBase =
+        rewriter.create<emitc::CastOp>(loc, i8PtrType, qsBaseRaw).getResult();
+
+    // vint8m2_t qv = vle8_v_i8m2(qs, 32);  (the 32 signed int8 quants; a signed
+    // load, so the widen sign-extends -- byte-identical to ggml's int8_t read.)
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "q8_load"));
+    std::string i8LoadCallee = riscvIntrinsicName("vle", 8, "m2", "i8");
+    mlir::Value qv = emitOpaqueCall(
+        rewriter, loc, i8VecType, i8LoadCallee,
+        mlir::ValueRange{qsBase, sizeLit(qk)}, opName, role);
+
+    // int->float: q32 = vsext_vf4(qv); qf = vfcvt_f_x_v(q32).  (vl=32; int8 -> i32
+    // sign-extend is exact, i32 -> f32 is exact for |q| <= 127.)
+    mlir::Value q32 = emitOpaqueCall(
+        rewriter, loc, i32VecType, "__riscv_vsext_vf4_i32m8",
+        mlir::ValueRange{qv, sizeLit(qk)}, opName, role);
+    std::string cvtCallee = riscvIntrinsicName("vfcvt_f_x_v", 32, "m8", "f32");
+    mlir::Value qf = emitOpaqueCall(
+        rewriter, loc, f32VecType, cvtCallee,
+        mlir::ValueRange{q32, sizeLit(qk)}, opName, role);
+
+    // r = vfmul_vf(qf, d, 32);  (the runtime block scale; vfmul_vf(qf, d) == the
+    // scalar `qs[j]*d` -- one f32 round-to-nearest-even multiply, byte-exact.)
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "q8_scale"));
+    std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, "m8", "f32");
+    mlir::Value r = emitOpaqueCall(
+        rewriter, loc, f32VecType, mulCallee,
+        mlir::ValueRange{qf, d, sizeLit(qk)}, opName, role);
+
+    // vse32_v_f32m8(yb, r, 32);  (ONE contiguous 32-float store.)
+    std::string vseCallee = riscvIntrinsicName("vse", 32, "m8", "f32");
+    emitOpaqueCallVoid(rewriter, loc, vseCallee,
+                       mlir::ValueRange{yb, r, sizeLit(qk)}, opName, role);
+  }
+
+  return mlir::success();
+}
+
 // The per-format CONSTRUCTED dequantize_row decode leaves for the flat nibble family.
 // Each hard-codes its ggml block_qX AoS layout facts (the byte-exact ABI shape
 // constants, NOT tunable knobs) and calls the SHARED nibble body -- the SAME emitter
@@ -3321,6 +3446,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   if (decodeModel == "q1_0")
     return emitGgmlDequantizeRowExtended(rewriter, loc, decodeModel, weightBase,
                                          output, avlArg, sizeType, opName, role);
+  // q8_0 is the SECOND cell of the dequant true-vector emitter (PR-31, the first
+  // NON-GRID cell): the CONSTRUCTED path lowers to the OWNED real-vector body
+  // (vle8 + vsext_vf4 + vfcvt + vfmul_vf + vse32, NO gather), NOT the scalar
+  // per-element loop the dispatch-wired monolith fallback still runs. Byte-exact to
+  // ggml's dequantize_row_q8_0 by construction (q8_0 has no add/min => no
+  // fp-contraction ambiguity). The iq3_xxs precedent: the vector body lives only on
+  // the constructed leaf; the monolith fallback keeps the scalar shared body.
+  if (decodeModel == "q8_0")
+    return emitDequantizeRowQ8_0VectorBody(rewriter, loc, weightBase, output,
+                                           avlArg, sizeType, opName, role);
   return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,
                                          avlArg, sizeType, opName, role);
 }

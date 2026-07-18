@@ -7,15 +7,22 @@
 // typed weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
 // typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the
 // typed region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract
-// format string). The emitted C is BYTE-IDENTICAL to the retired dispatch-wired q8_0
-// monolith modulo ONLY the source-op provenance token (the shared body emitter
-// emitDequantizeRowQ8_0BodyShared is common to both) -- the fp16 scale via the
-// (float)*(const _Float16 *) seam, then the bare signed-int8 scale y[j] = qs[j]*d over
-// all 32 block lanes (the load is a `const int8_t` read that sign-extends). The other
-// 22 dequantize_row formats stay dispatch-wired (hand-written per-format monolith).
-// The dedicated typed-region -> C lowering contract (+ verifier fail-closed) is locked
-// in rvv-to-emitc-typed-dequantize-row-loop-body.mlir. Byte-exact-vs-ggml-reference
-// dequantize_row_q8_0 (a scalar AoS block loop; no reduction).
+// format string).
+//
+// PR-31 (the dequant true-vector emitter, first NON-GRID cell): the CONSTRUCTED q8_0
+// path lowers to the OWNED REAL-VECTOR body (emitDequantizeRowQ8_0VectorBody) -- a
+// single 32-lane vle8 (the 32 signed int8 quants) + vsext_vf4 (int8->int32) + vfcvt_f_x_v
+// (int32->f32) + vfmul_vf (the runtime `d` scale) + vse32 (contiguous 32-float store)
+// pipeline per block, NO gather (q8_0 is non-grid: no codebook, no sign plane, no nibble
+// unpack). The leaf now emits OWNED __riscv_v intrinsics (the ISSUE-001 reverse: the
+// vector content is the emitter's, not host-autovec codegen-lottery), NOT the scalar
+// per-element loop the dispatch-wired monolith fallback (emitDequantizeRowQ8_0BodyShared)
+// still runs. The other 22 dequantize_row formats keep their existing (scalar / grid)
+// leaves. The dedicated typed-region -> C lowering contract (+ verifier fail-closed) is
+// locked in rvv-to-emitc-typed-dequantize-row-loop-body.mlir. Byte-exact-vs-ggml-reference
+// dequantize_row_q8_0 by construction: the fp16 d seam is the SAME (float)*(const _Float16 *)
+// read, the signed i8 quants sign-extend exactly, and vfmul_vf(qf, d) == the scalar
+// `qs[j]*d` (q8_0 has no add/min => no fp-contraction ambiguity).
 
 module {
   weft.exec.kernel @dequant_q8_0_kernel {
@@ -44,6 +51,11 @@ module {
 // CHECK: for
 // The fp16 block scale seam.
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The signed-int8 read (sign-extending) + the bare block scale.
+// The signed-int8 quant base (the load sign-extends).
 // CHECK: !emitc.opaque<"const int8_t">
-// CHECK: mul
+// The OWNED REAL-VECTOR 32-lane decode pipeline (PR-31 non-grid cell), NO gather.
+// CHECK: call_opaque "__riscv_vle8_v_i8m2"
+// CHECK: call_opaque "__riscv_vsext_vf4_i32m8"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
+// CHECK: call_opaque "__riscv_vfmul_vf_f32m8"
+// CHECK: call_opaque "__riscv_vse32_v_f32m8"
