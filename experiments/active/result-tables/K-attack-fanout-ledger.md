@@ -32,7 +32,7 @@
 - **机制①：iq3_xxs@k1 首个板测证实**（proven WIN 1.38·手调档硬赢·byte-exact·trellis-check 复核）——但 **proven ≠ deployed**（deployed 叶仍 VLEN128=0.65·[ISSUE-105]）⟹ **master census 不因此翻 PASS**（deployed 现实保留）。②–⑤ 仍**候选未施工·翻正幅度未板测**。
 - **★流水线 lever（真高扇出·[ISSUE-105]）**：iq3_xxs@k1 gap 真因 = GEN_SEAL 对 k1 发 VLEN128 fixture（半宽欠用）·非机制/算法。部署 proven 赢（→ deployed PASS）须 per-board k1-VLEN256 fixture = **判据级·须裁**。iq3_s@k1/iq1 系**同病·likely 同 lever·未证**（禁按此外推计数·逐格须 byte-exact+板测）。
 - 便宜档（vs generic/scalar 大倍数）**禁称硬赢**·仅降披露列。CROSSOP（repack-GEMM vs dispatched vec_dot）一律标系统账 framing。
-- 架构不可达格见 [ISSUE-100]（`vec_dot·nvfp4@rvv`·完整攻坚环证实）。
+- **`vec_dot·nvfp4@rvv` = 具名-X（NON-架构不可达·[ISSUE-100]·2026-07-18 订正）**：float re-roll 路 + 窄位宽整数乘加 lever **均板测 EXHAUSTED**（byte-exact·cold NULL 1.01×）·**真墙 re-diagnosis = codebook TABLE spill（clang reg-alloc·非三态 register-footprint·narrow 释放 product 寄存器表仍 spill 11×）**·新候选 = table-residency/scalar-scale hoist（低置信·maturity-gated 同构 ISSUE-107·清单非空 → §六 不写架构不可达）·对手 = 覆盖空洞 opp-immaturity 便宜档。
 - **★机制③ vec_dot q4_K@rvv 具名墙（board-tested 2026-07-18·三档墙分类·带 objdump+perf 证据·同 ISSUE-100 nvfp4 范式·但 ≠ 架构不可达）**：
   - **① 可攻坚旋钮 = compute-width `integer_core_lmul`（mf2/m1/m2）**——proven byte-exact（fold-back·ALL=true）+ instruction-reducing（vset 70→39→20·objdump 亲见·re-roll-trap gate PASS）·但 cold 平（0.162/0.186/0.168·非单调·m2 = i32m8 register-cliff）·**旋钮 EXHAUSTED·best 0.186 << 0.8**。
   - **② 我方内禀墙 = weight-reconstruction memory roundtrip**——aux8[256] scratch **store→load**（Region A 8×vse8 存·Region C 68×vle8 重载）+ scalar min-term 16-deep serial MAC。perf stat **IPC 0.08·96.2% backend-idle·2.2B cache-miss** ⟹ stall-bound（∴旋钮减指令无效）。**(SEW,LMUL,VLEN) 旋钮不触碰此二者**·= [MECH-WEIGHT-RECONSTRUCTION-BOUND] floor 坐实。
