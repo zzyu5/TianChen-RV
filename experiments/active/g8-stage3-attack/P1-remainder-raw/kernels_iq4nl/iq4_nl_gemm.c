@@ -1,28 +1,29 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <riscv_vector.h>
-extern "C" void weft_emitc_ggml_repack_gemm_iq4_nl_q8_0_kernel_ggml_repack_gemm_iq4_nl_q8_0(size_t v1, float* v2, const uint8_t* v3, const uint8_t* v4, size_t v5, size_t v6, size_t v7) {
+extern "C" void weft_emitc_ggml_repack_gemm_iq4_nl_q8_0_kernel_ggml_repack_gemm_iq4_nl_q8_0(size_t v1, size_t v2, size_t v3, float* v4, const uint8_t* v5, const uint8_t* v6, size_t v7) {
   // weft_emitc.route_source_op=weft_rvv.with_vl role=scope op_interface=WEFTEmitCLowerableOpInterface
   // weft_emitc.source_op=weft_rvv.setvl role=configure op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-  size_t v8 = __riscv_vsetvl_e32m1(v1);
+  size_t v8 = __riscv_vsetvl_e32m1(v3);
+  // weft_emitc.loop_order_override selector=col_outer/prior realized=row_outer gate=measured-gate-blocks-unmeasured
   // weft_emitc.route_source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface
   static const int8_t weft_iq4_nl_repack_kvalues[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};
   // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=block_count
-  size_t v9 = v1 / 32;
+  size_t v9 = v3 / 32;
   // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=row_group_count
-  size_t v10 = v5 / 4;
+  size_t v10 = v1 / 4;
   // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=col_group_count
-  size_t v11 = v6 / 16;
+  size_t v11 = v7 / 16;
   for (size_t v12 = 0; v12 < v10; v12 += 1) {
     // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=act_group_base
     size_t v13 = v12 * v9;
     size_t v14 = v13 * 136;
-    const uint8_t* v15 = v4 + v14;
+    const uint8_t* v15 = v6 + v14;
     for (size_t v16 = 0; v16 < v11; v16 += 1) {
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=weight_group_base
       size_t v17 = v16 * v9;
       size_t v18 = v17 * 288;
-      const uint8_t* v19 = v3 + v18;
+      const uint8_t* v19 = v5 + v18;
       vfloat32m2_t v20;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m2
       vfloat32m2_t v21 = __riscv_vfmv_v_f_f32m2(0.0f, 8);
@@ -2594,84 +2595,84 @@ extern "C" void weft_emitc_ggml_repack_gemm_iq4_nl_q8_0_kernel_ggml_repack_gemm_
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1425 = v12 * 4;
       size_t v1426 = v1425 + 0;
-      size_t v1427 = v1426 * v7;
+      size_t v1427 = v1426 * v2;
       size_t v1428 = v16 * 16;
       size_t v1429 = v1427 + v1428;
-      float* v1430 = v2 + v1429;
+      float* v1430 = v4 + v1429;
       vfloat32m2_t v1431 = v20;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1430, v1431, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1432 = v12 * 4;
       size_t v1433 = v1432 + 0;
-      size_t v1434 = v1433 * v7;
+      size_t v1434 = v1433 * v2;
       size_t v1435 = v16 * 16;
       size_t v1436 = v1434 + v1435;
       size_t v1437 = v1436 + 8;
-      float* v1438 = v2 + v1437;
+      float* v1438 = v4 + v1437;
       vfloat32m2_t v1439 = v22;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1438, v1439, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1440 = v12 * 4;
       size_t v1441 = v1440 + 1;
-      size_t v1442 = v1441 * v7;
+      size_t v1442 = v1441 * v2;
       size_t v1443 = v16 * 16;
       size_t v1444 = v1442 + v1443;
-      float* v1445 = v2 + v1444;
+      float* v1445 = v4 + v1444;
       vfloat32m2_t v1446 = v24;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1445, v1446, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1447 = v12 * 4;
       size_t v1448 = v1447 + 1;
-      size_t v1449 = v1448 * v7;
+      size_t v1449 = v1448 * v2;
       size_t v1450 = v16 * 16;
       size_t v1451 = v1449 + v1450;
       size_t v1452 = v1451 + 8;
-      float* v1453 = v2 + v1452;
+      float* v1453 = v4 + v1452;
       vfloat32m2_t v1454 = v26;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1453, v1454, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1455 = v12 * 4;
       size_t v1456 = v1455 + 2;
-      size_t v1457 = v1456 * v7;
+      size_t v1457 = v1456 * v2;
       size_t v1458 = v16 * 16;
       size_t v1459 = v1457 + v1458;
-      float* v1460 = v2 + v1459;
+      float* v1460 = v4 + v1459;
       vfloat32m2_t v1461 = v28;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1460, v1461, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1462 = v12 * 4;
       size_t v1463 = v1462 + 2;
-      size_t v1464 = v1463 * v7;
+      size_t v1464 = v1463 * v2;
       size_t v1465 = v16 * 16;
       size_t v1466 = v1464 + v1465;
       size_t v1467 = v1466 + 8;
-      float* v1468 = v2 + v1467;
+      float* v1468 = v4 + v1467;
       vfloat32m2_t v1469 = v30;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1468, v1469, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1470 = v12 * 4;
       size_t v1471 = v1470 + 3;
-      size_t v1472 = v1471 * v7;
+      size_t v1472 = v1471 * v2;
       size_t v1473 = v16 * 16;
       size_t v1474 = v1472 + v1473;
-      float* v1475 = v2 + v1474;
+      float* v1475 = v4 + v1474;
       vfloat32m2_t v1476 = v32;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1475, v1476, 8);
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=output_addr
       size_t v1477 = v12 * 4;
       size_t v1478 = v1477 + 3;
-      size_t v1479 = v1478 * v7;
+      size_t v1479 = v1478 * v2;
       size_t v1480 = v16 * 16;
       size_t v1481 = v1479 + v1480;
       size_t v1482 = v1481 + 8;
-      float* v1483 = v2 + v1482;
+      float* v1483 = v4 + v1482;
       vfloat32m2_t v1484 = v34;
       // weft_emitc.source_op=weft_rvv.typed_repack_gemm_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m2
       __riscv_vse32_v_f32m2(v1483, v1484, 8);

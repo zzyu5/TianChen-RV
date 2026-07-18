@@ -238,6 +238,12 @@ P2_GRID4 = {
  ("gemm_tile","iq3_xxs"):{
    "rvv":(0.9484,"PASS","部署 vl128(CROSSOP)·cold_X 0.9484(s1)/0.9545(s2)·near-parity vs 部署手调核(≥0.8·非硬赢·我方 ins15238 vs vl128 ins310)·便宜档 vs generic 2.71×【降披露·禁称硬赢】"),
    "k1":(1.3811,"PASS","★deployed VLEN256 fixture(裁决1·ISSUE-105 放行)·cold_X 1.3811(s1)/1.375(s2·aa640 独立复现 1.371/1.375·变异内·s2 由 aaee 1.4022 软化取保守独立值)·真硬赢 vs 部署手调 vl256(CROSSOP 系统账·aaee 板验 + a6ad + aa640 双独立 check CONFIRMED)·byte-exact 4-arm·objdump 真宽 AVL8→16/gather1024→512/vset5397→2515 非 re-roll·便宜档 vs generic 禁称硬赢·[D-2a]长期形态并行")},
+ # ★iq2/iq4_nl PREFILL 行(regime='prefill'·split·k1-only=rvv 由 CLANG_WORLD 管·af60 独立复核·裁决1/2·ISSUE-099 harness 建成)
+ # ★成色 upgrade(非新flip·PASS计数不增)：iq2 prefill@k1 现状已PASS(vs scalar-ref便宜档)·本轮对手身份升 scalar-ref→部署OPP-X vl256手调(真硬赢CROSSOP·same-op OPP-S缺席probe=0·ISSUE-004部署对手政策)
+ ("gemm_tile","iq2_xxs"):{"k1":(1.4581,"PASS","★deployed VLEN256 fixture(PREFILL 行·裁决1/2)·cold_X 1.4581(s1)/1.4761(s2·af60 独立复核==ab6d 1.464)·成色 upgrade: 真硬赢 vs 部署手调 vl256 OPP-X(CROSSOP·同算子 OPP-S 缺席 probe=0)·byte-exact 4-arm mism=0/8192·objdump 真宽 ins14945→7284/vset5461→2515/gather1024→512/AVL8→16 非 re-roll·便宜档 vs generic 5.98× 禁称硬赢")},
+ ("gemm_tile","iq2_xs"):{"k1":(1.1513,"PASS","★deployed VLEN256 fixture(PREFILL 行·裁决1/2)·cold_X 1.1513(s1)/1.1554(s2·af60==ab6d 1.143)·成色 upgrade: 真硬赢 vs OPP-X vl256(CROSSOP·OPP-S 缺席 probe=0)·byte-exact mism=0/8192·objdump 真宽 16037→7324/5477→2531/1024→512/AVL8→16·便宜档 vs generic 22.4× 禁称硬赢")},
+ ("gemm_tile","iq2_s"):{"k1":(1.3932,"PASS","★deployed VLEN256 fixture(PREFILL 行·裁决1/2)·cold_X 1.3932(s1)/1.3899(s2·af60 保守实测·claim 1.408 噪声内)·成色 upgrade: 真硬赢 vs OPP-X vl256(CROSSOP·OPP-S 缺席 probe=0)·byte-exact mism=0/8192·objdump 真宽 16037→7324/5477→2531/1024→512/AVL8→16·便宜档 vs generic 21.2× 禁称硬赢")},
+ ("gemm_tile","iq4_nl"):{"k1":(0.4250,"具名-X","★deployed VLEN256 fixture(PREFILL 行·裁决2)·binding=同算子 OPP-S ggml_gemm_iq4_nl_16x1_q8_0(PRESENT nm4·VALID mism=0/8192)beats 2.35×(ratio_cold_S 0.4250 s1/0.4279 s2)·widening 分离两 co-factor: 墙①narrow-vl(AVL8→16)已解 ours-vs-OPP-X 0.6019→1.2504·墙②codebook-gather(ISSUE-021·16-entry vluxei vs vrgather)立→非硬赢·byte-exact 4-arm mism=0/8192·objdump 真宽 1784→955/656→328/64→32/AVL8→16·具名-X 如实")},
  ("gemm_tile","iq3_s"):{
    "rvv":(1.3483,"PASS","部署 vl128(CROSSOP)·cold_X 1.3483(s1)/1.3429(s2)·beat 部署 vl128(对手 leaf 轻 ins105/rvv38·我方 repack-GEMM 摊销更好)·板间翻转候选(k1 输)·便宜档 vs generic 12.26×【降披露】"),
    "k1":(1.2074,"PASS","★deployed VLEN256 fixture(裁决1·ISSUE-105)·cold_X 1.2074(s1)/1.2063(s2)·真硬赢 vs 部署手调 vl256(CROSSOP 系统账·aaee 板验+a6ad check)·byte-exact·同 leaf rvv 赢现 k1 也赢(VLEN256 宽化补齐半宽缺口·objdump 真宽非 re-roll)·便宜档 vs generic 禁称硬赢")},
@@ -366,8 +372,8 @@ def main():
                     elif "DEPLOY" in dtok: d="PASS-DEPLOYED(decode-GEVM·C1)"
                     else: d="具名-X(decode-M1)"
                     note = note + " ·[decode-M1: "+cx+"]"
-            # ★P2-grid4 prefill 落账(regime=''·ISSUE-004 部署对手政策·同 GEMM_DECODE/CLANG_WORLD 数据消费范式·0.8 门不改)
-            if op=="gemm_tile" and regime=="":
+            # ★P2-grid4 prefill 落账(regime=''〔iq1/iq3 单行〕 + regime='prefill'〔iq2/iq4_nl split 行〕·ISSUE-004 部署对手政策·同 GEMM_DECODE/CLANG_WORLD 数据消费范式·0.8 门不改·regime-aware 避 iq2 decode 行双触发)
+            if op=="gemm_tile" and regime in ("","prefill"):
                 p2 = P2_GRID4.get((op,fmt))
                 if p2 and board in p2:
                     c, dtok, cx = p2[board]

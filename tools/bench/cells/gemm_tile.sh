@@ -15,10 +15,15 @@
 # （2026-07-17 跑通 8 board-cell）。源资产（driver / leaf kernel / tables）住数据格，本 harness
 # 只【读】它们（ASSET_ROOT），不复制、不写回。
 #
-#   board: rvv | k1        fmt: iq1_s | iq1_m | iq3_xxs | iq3_s
+#   board: rvv | k1        fmt: iq1_s | iq1_m | iq3_xxs | iq3_s | iq2_xxs | iq2_xs | iq2_s
 #   mode : verify  = build + probe + ABI gate + T1 board byte-exact + T2 + 4-arm anti-hollow (NO TIMING)
 #          sanity  = PREREG §6 pre-measure noise self-check (3 rounds)
 #          measure = PREREG §5.0 (K=2048 nr=16 nc=512 N=25 2-seed cold)
+#
+# iq2_xxs/iq2_xs/iq2_s (ISSUE-099): same q8_K super-block gemm_tile family, added 2026-07-18.
+# Per-board VLEN256 fixture (kernels_grid4_vlen256/) routes k1 -> half_lanes=16 widened leaf,
+# objdump-provable true widen (AVL 8->16), same driver/oracle path. GSED flips one byte of the
+# emitted weft_<fmt>_grid table (all three share the 0x0808...08 first grid entry, unique).
 set -uo pipefail
 BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-iq1_s}"
 
@@ -38,7 +43,10 @@ case "$FMT" in
   iq1_m)   DEF=FMT_IQ1_M;   HDRS="iq1s_grid.h";     GSED='s/0xffffffffffffff01ULL/0xffffffffffffff02ULL/' ;;
   iq3_xxs) DEF=FMT_IQ3_XXS; HDRS="iq3xxs_tables.h"; GSED='s/0x04040404U/0x04040405U/' ;;
   iq3_s)   DEF=FMT_IQ3_S;   HDRS="iq3s_tables.h";   GSED='s/0x01010101U/0x01010102U/' ;;
-  *) echo "# HARNESS-VOID bad fmt $FMT (gemm_tile 族仅 iq1_s|iq1_m|iq3_xxs|iq3_s)"; exit 2 ;;
+  iq2_xxs) DEF=FMT_IQ2_XXS; HDRS="iq2xxs_tables.h"; GSED='s/0x0808080808080808ULL/0x0808080808080801ULL/' ;;
+  iq2_xs)  DEF=FMT_IQ2_XS;  HDRS="iq2xs_tables.h";  GSED='s/0x0808080808080808ULL/0x0808080808080801ULL/' ;;
+  iq2_s)   DEF=FMT_IQ2_S;   HDRS="iq2s_tables.h";   GSED='s/0x0808080808080808ULL/0x0808080808080801ULL/' ;;
+  *) echo "# HARNESS-VOID bad fmt $FMT (gemm_tile 族仅 iq1_s|iq1_m|iq3_xxs|iq3_s|iq2_xxs|iq2_xs|iq2_s)"; exit 2 ;;
 esac
 
 if [ "$BOARD" = rvv ]; then

@@ -169,7 +169,7 @@
     pending gemm|q8_0@rvv/decode
     PASS    gemm|q8_0@rvv/prefill cold=1.48
     具名-X    gemm|iq4_nl@rvv/decode cold=0.2493
-    具名-X    gemm|iq4_nl@rvv/prefill cold=0.6025
+    具名-X    gemm|iq4_nl@rvv/prefill cold=0.425
     PASS    rms_norm|f32 cold=1.336
     PASS    softmax|f32 cold=1.004
     PASS    silu|f32 cold=1.012
@@ -206,11 +206,11 @@
     PASS    gemm|iq1_s@rvv cold=1.3406
     PASS    gemm|iq1_m@rvv cold=1.7936
     PASS    gemm|iq2_xxs@rvv/decode cold=1.13
-    PASS    gemm|iq2_xxs@rvv/prefill cold=3.02
+    PASS    gemm|iq2_xxs@rvv/prefill cold=1.4581
     PASS    gemm|iq2_xs@rvv/decode cold=3.81
-    PASS    gemm|iq2_xs@rvv/prefill cold=10.3
+    PASS    gemm|iq2_xs@rvv/prefill cold=1.1513
     PASS    gemm|iq2_s@rvv/decode cold=3.55
-    PASS    gemm|iq2_s@rvv/prefill cold=9.7
+    PASS    gemm|iq2_s@rvv/prefill cold=1.3932
     PASS    gemm|iq3_xxs@rvv cold=1.3811
     PASS    gemm|iq3_s@rvv cold=1.2074
     PASS    gemm|iq4_xs@rvv/decode cold=0.93

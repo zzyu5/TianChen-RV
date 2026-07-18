@@ -137,8 +137,33 @@ typedef _Float16 ggml_half;
   // ACT_MAX=100 => 11,904,000 < 2^24.
   #define ACT_MAX  100
   #define USES_BSUMS 0
+#elif defined(FMT_IQ2_XXS)
+  #define FMT_NAME "iq2_xxs"
+  #include "iq2xxs_tables.h"
+  #define FOLD_C   0.125
+  #define FOLD_INV 8
+  // grid bytes reach 43, ls reaches 31 => worst |bsum| <= 8*31*32*43*ACT_MAX
+  //   = 341248*ACT_MAX. ACT_MAX=40 => 13,649,920 < 2^24 (machine-rechecked per (r,c)).
+  #define ACT_MAX  40
+  #define USES_BSUMS 0
+#elif defined(FMT_IQ2_XS)
+  #define FMT_NAME "iq2_xs"
+  #include "iq2xs_tables.h"
+  #define FOLD_C   0.125
+  #define FOLD_INV 8
+  // dual ls; worst |bsum| <= 8*(31*16*43 + 31*16*43)*ACT_MAX = 341248*ACT_MAX.
+  #define ACT_MAX  40
+  #define USES_BSUMS 0
+#elif defined(FMT_IQ2_S)
+  #define FMT_NAME "iq2_s"
+  #include "iq2s_tables.h"
+  #define FOLD_C   0.125
+  #define FOLD_INV 8
+  // dual ls; worst |bsum| <= 341248*ACT_MAX (same bound as iq2_xs).
+  #define ACT_MAX  40
+  #define USES_BSUMS 0
 #else
-  #error "define one of FMT_IQ1_S / FMT_IQ1_M / FMT_IQ3_XXS / FMT_IQ3_S"
+  #error "define one of FMT_IQ1_S / FMT_IQ1_M / FMT_IQ3_XXS / FMT_IQ3_S / FMT_IQ2_XXS / FMT_IQ2_XS / FMT_IQ2_S"
 #endif
 
 // ===========================================================================
@@ -185,6 +210,30 @@ static_assert(sizeof(PlainW)==110, "iq3_s 110");
 struct X16 { ggml_half d[16]; int8_t ls[8][16]; uint16_t gidx[8][8][16]; uint8_t signs[8][4][16]; };
 static_assert(sizeof(X16)==2720, "iq3_sx16 2720");
 static_assert(offsetof(X16,ls)==32 && offsetof(X16,gidx)==160 && offsetof(X16,signs)==2208, "iq3_sx16 planes");
+
+#elif defined(FMT_IQ2_XXS)
+struct block_iq2_xxs { ggml_half d; uint16_t qs[QK_K/8]; };
+typedef block_iq2_xxs PlainW;
+static_assert(sizeof(PlainW)==66, "iq2_xxs 66");
+struct X16 { ggml_half d[16]; int8_t ls[8][16]; uint8_t gidx[8][4][16]; uint8_t ssel[8][4][16]; };
+static_assert(sizeof(X16)==1184, "iq2_xxsx16 1184");
+static_assert(offsetof(X16,ls)==32 && offsetof(X16,gidx)==160 && offsetof(X16,ssel)==672, "iq2_xxsx16 planes");
+
+#elif defined(FMT_IQ2_XS)
+struct block_iq2_xs { ggml_half d; uint16_t qs[QK_K/8]; uint8_t scales[QK_K/32]; };
+typedef block_iq2_xs PlainW;
+static_assert(sizeof(PlainW)==74, "iq2_xs 74");
+struct X16 { ggml_half d[16]; int8_t ls[8][2][16]; uint16_t gidx[8][4][16]; uint8_t ssel[8][4][16]; };
+static_assert(sizeof(X16)==1824, "iq2_xsx16 1824");
+static_assert(offsetof(X16,ls)==32 && offsetof(X16,gidx)==288 && offsetof(X16,ssel)==1312, "iq2_xsx16 planes");
+
+#elif defined(FMT_IQ2_S)
+struct block_iq2_s { ggml_half d; uint8_t qs[QK_K/4]; uint8_t qh[QK_K/32]; uint8_t scales[QK_K/32]; };
+typedef block_iq2_s PlainW;
+static_assert(sizeof(PlainW)==82, "iq2_s 82");
+struct X16 { ggml_half d[16]; int8_t ls[8][2][16]; uint16_t gidx[8][4][16]; uint8_t ssel[8][4][16]; };
+static_assert(sizeof(X16)==1824, "iq2_sx16 1824");
+static_assert(offsetof(X16,ls)==32 && offsetof(X16,gidx)==288 && offsetof(X16,ssel)==1312, "iq2_sx16 planes");
 #endif
 
 // ===========================================================================
@@ -247,6 +296,43 @@ static X16 make_x16(const PlainW* in) {
                 o.gidx[ib][e][c] = (uint16_t)(lo | (hi<<8));
             }
             for (int l=0;l<4;++l) o.signs[ib][l][c] = in[c].signs[4*ib+l];
+        }
+    }
+#elif defined(FMT_IQ2_XXS)
+    for (int c=0;c<16;++c) o.d[c] = in[c].d;
+    for (int c=0;c<16;++c) for (int ib=0; ib<8; ++ib) {
+        uint32_t a0 = (uint32_t)in[c].qs[4*ib+0] | ((uint32_t)in[c].qs[4*ib+1] << 16);
+        uint32_t a1 = (uint32_t)in[c].qs[4*ib+2] | ((uint32_t)in[c].qs[4*ib+3] << 16);
+        o.ls[ib][c] = (int8_t)(2*(a1>>28)+1);
+        for (int l=0;l<4;++l) {
+            o.gidx[ib][l][c] = (uint8_t)((a0 >> (8*l)) & 0xff);
+            o.ssel[ib][l][c] = (uint8_t)((a1 >> (7*l)) & 127);
+        }
+    }
+#elif defined(FMT_IQ2_XS)
+    for (int c=0;c<16;++c) o.d[c] = in[c].d;
+    for (int c=0;c<16;++c) for (int ib=0; ib<8; ++ib) {
+        int sc = in[c].scales[ib];
+        o.ls[ib][0][c] = (int8_t)(2*(sc & 0xf)+1);   // ls1 (groups 0-1)
+        o.ls[ib][1][c] = (int8_t)(2*(sc >> 4)+1);    // ls2 (groups 2-3)
+        for (int l=0;l<4;++l) {
+            uint16_t w = in[c].qs[4*ib+l];
+            o.gidx[ib][l][c] = (uint16_t)(w & 511);
+            o.ssel[ib][l][c] = (uint8_t)(w >> 9);
+        }
+    }
+#elif defined(FMT_IQ2_S)
+    for (int c=0;c<16;++c) o.d[c] = in[c].d;
+    for (int c=0;c<16;++c) for (int ib=0; ib<8; ++ib) {
+        int sc = in[c].scales[ib];
+        o.ls[ib][0][c] = (int8_t)(2*(sc & 0xf)+1);
+        o.ls[ib][1][c] = (int8_t)(2*(sc >> 4)+1);
+        int qh = in[c].qh[ib];
+        for (int l=0;l<4;++l) {
+            int g = 4*ib+l;
+            int high2 = (qh >> (2*l)) & 3;
+            o.gidx[ib][l][c] = (uint16_t)(in[c].qs[g] | (high2 << 8));   // assembled 10-bit
+            o.ssel[ib][l][c] = in[c].qs[QK_K/8 + g];                     // explicit sign byte
         }
     }
 #endif
@@ -385,6 +471,88 @@ static void ref_block(const PlainW* x, const block_q8_K* y, int64_t& a_out, int6
         }
     }
     a_out = 0; b_out = bsum;
+
+#elif defined(FMT_IQ2_XXS)
+    int64_t bsum=0; int q8pos=0;
+    const uint16_t* q2 = x->qs;
+    for (int ib=0; ib<8; ++ib) {
+        uint32_t a0 = (uint32_t)q2[4*ib+0] | ((uint32_t)q2[4*ib+1] << 16);
+        uint32_t a1 = (uint32_t)q2[4*ib+2] | ((uint32_t)q2[4*ib+3] << 16);
+        int64_t ls = 2*(a1>>28)+1;
+        int64_t sumi = 0;
+        for (int l=0;l<4;++l) {
+            int idx = (a0 >> (8*l)) & 0xff;
+#if INJECT==1
+            idx = (idx + 37) & 255;
+#endif
+            const int8_t* grid = (const int8_t*)(iq2xxs_grid + idx);   // ggml's own read
+            uint8_t signs = ksigns_iq2xs[(a1 >> (7*l)) & 127];
+            for (int j=0;j<8;++j) {
+                int sgn = (signs & (1<<j)) ? -1 : 1;
+                sumi += (int64_t)q8[q8pos++] * grid[j] * sgn;
+            }
+        }
+        bsum += sumi * ls;
+    }
+    a_out = 0; b_out = bsum;
+
+#elif defined(FMT_IQ2_XS)
+    int64_t bsum=0; int q8pos=0;
+    const uint16_t* q2 = x->qs; const uint8_t* sc = x->scales;
+    for (int ib=0; ib<8; ++ib) {
+        int64_t ls1 = 2*(sc[ib] & 0xf)+1;
+        int64_t ls2 = 2*(sc[ib] >> 4)+1;
+        int64_t sumi = 0;                       // groups 0-1 (ls1)
+        for (int l=0;l<2;++l) {
+            uint16_t w = q2[4*ib+l];
+            int idx = w & 511;
+#if INJECT==1
+            idx = (idx + 91) & 511;
+#endif
+            const int8_t* grid = (const int8_t*)(iq2xs_grid + idx);
+            uint8_t signs = ksigns_iq2xs[w >> 9];
+            for (int j=0;j<8;++j) { int sgn = (signs & (1<<j)) ? -1 : 1; sumi += (int64_t)q8[q8pos++] * grid[j] * sgn; }
+        }
+        bsum += sumi * ls1;
+        sumi = 0;                               // groups 2-3 (ls2)
+        for (int l=2;l<4;++l) {
+            uint16_t w = q2[4*ib+l];
+            int idx = w & 511;
+#if INJECT==1
+            idx = (idx + 91) & 511;
+#endif
+            const int8_t* grid = (const int8_t*)(iq2xs_grid + idx);
+            uint8_t signs = ksigns_iq2xs[w >> 9];
+            for (int j=0;j<8;++j) { int sgn = (signs & (1<<j)) ? -1 : 1; sumi += (int64_t)q8[q8pos++] * grid[j] * sgn; }
+        }
+        bsum += sumi * ls2;
+    }
+    a_out = 0; b_out = bsum;
+
+#elif defined(FMT_IQ2_S)
+    int64_t bsum=0; int q8pos=0;
+    const uint8_t* qs = x->qs; const uint8_t* signs = x->qs + QK_K/8;
+    const uint8_t* qh = x->qh; const uint8_t* sc = x->scales;
+    for (int ib=0; ib<8; ++ib) {
+        int64_t ls1 = 2*(sc[ib] & 0xf)+1;
+        int64_t ls2 = 2*(sc[ib] >> 4)+1;
+        for (int half=0; half<2; ++half) {
+            int64_t sumi = 0;
+            for (int l=half*2; l<half*2+2; ++l) {
+                int high2 = (qh[ib] >> (2*l)) & 3;
+                int idx = qs[l] | (high2 << 8);
+#if INJECT==1
+                idx = (idx + 257) & 1023;
+#endif
+                const int8_t* grid = (const int8_t*)(iq2s_grid + idx);
+                uint8_t sb = signs[l];
+                for (int j=0;j<8;++j) { int sgn = (sb & (1<<j)) ? -1 : 1; sumi += (int64_t)q8[q8pos++] * grid[j] * sgn; }
+            }
+            bsum += sumi * (half==0 ? ls1 : ls2);
+        }
+        qs += 4; signs += 4;
+    }
+    a_out = 0; b_out = bsum;
 #endif
 }
 
@@ -473,6 +641,54 @@ static void build_w_block(PlainW* x, std::mt19937& rng, int col, int blk, bool e
         x->scales[ib>>1] = (uint8_t)((ib&1) ? (x->scales[ib>>1] | (nib<<4)) : nib);
         ++g_sb;
     }
+#elif defined(FMT_IQ2_XXS)
+    x->d = (ggml_half)dv;
+    for (int ib=0; ib<8; ++ib) {
+        int lsF = (int)((g_sb*3)%16); cov_lsset.insert(2*lsF+1);   // 3 coprime 16 => all 16
+        uint32_t a0=0, a1=((uint32_t)lsF)<<28;
+        for (int l=0;l<4;++l) {
+            int idx=(int)(g_idx%256); ++g_idx; cov_idx.insert(idx);
+            int sel=(int)((g_sb*5+l*13)%128); cov_sel.insert(sel);
+            a0 |= ((uint32_t)idx) << (8*l);
+            a1 |= ((uint32_t)sel) << (7*l);
+        }
+        ++g_sb;
+        x->qs[4*ib+0]=(uint16_t)(a0 & 0xffff);
+        x->qs[4*ib+1]=(uint16_t)(a0 >> 16);
+        x->qs[4*ib+2]=(uint16_t)(a1 & 0xffff);
+        x->qs[4*ib+3]=(uint16_t)(a1 >> 16);
+    }
+#elif defined(FMT_IQ2_XS)
+    x->d = (ggml_half)dv;
+    for (int ib=0; ib<8; ++ib) {
+        for (int l=0;l<4;++l) {
+            int idx=(int)(g_idx%512); ++g_idx; cov_idx.insert(idx);
+            int sel=(int)((g_sb*5+l*13)%128); cov_sel.insert(sel);
+            x->qs[4*ib+l] = (uint16_t)(idx | (sel<<9));
+        }
+        int ls1F=(int)((g_sb*3)%16), ls2F=(int)((g_sb*5+2)%16);
+        cov_lsset.insert(2*ls1F+1); cov_lsset.insert(2*ls2F+1);
+        x->scales[ib] = (uint8_t)(ls1F | (ls2F<<4));
+        ++g_sb;
+    }
+#elif defined(FMT_IQ2_S)
+    x->d = (ggml_half)dv;
+    for (int ib=0; ib<8; ++ib) {
+        int qh=0;
+        for (int l=0;l<4;++l) {
+            int g=4*ib+l;
+            int idx=(int)(g_idx%1024); ++g_idx; cov_idx.insert(idx);
+            x->qs[g] = (uint8_t)(idx & 0xff);
+            qh |= ((idx>>8)&3) << (2*l);
+            int sign=(int)((g_sb*7+l*29)%256); cov_sel.insert(sign);
+            x->qs[QK_K/8 + g] = (uint8_t)sign;
+        }
+        x->qh[ib] = (uint8_t)qh;
+        int ls1F=(int)((g_sb*3)%16), ls2F=(int)((g_sb*5+2)%16);
+        cov_lsset.insert(2*ls1F+1); cov_lsset.insert(2*ls2F+1);
+        x->scales[ib] = (uint8_t)(ls1F | (ls2F<<4));
+        ++g_sb;
+    }
 #endif
 }
 
@@ -512,6 +728,18 @@ static void build_a_block(block_q8_K* a, std::mt19937& rng, int blk, bool exact)
   #define LEAF weft_emitc_ggml_repack_gemm_iq3_s_q8_K_kernel_ggml_repack_gemm_iq3_s_q8_K
   #define OPPG ggml_vec_dot_iq3_s_q8_K_generic
   #define OPPX ggml_vec_dot_iq3_s_q8_K
+#elif defined(FMT_IQ2_XXS)
+  #define LEAF weft_emitc_ggml_repack_gemm_iq2_xxs_q8_K_kernel_ggml_repack_gemm_iq2_xxs_q8_K
+  #define OPPG ggml_vec_dot_iq2_xxs_q8_K_generic
+  #define OPPX ggml_vec_dot_iq2_xxs_q8_K
+#elif defined(FMT_IQ2_XS)
+  #define LEAF weft_emitc_ggml_repack_gemm_iq2_xs_q8_K_kernel_ggml_repack_gemm_iq2_xs_q8_K
+  #define OPPG ggml_vec_dot_iq2_xs_q8_K_generic
+  #define OPPX ggml_vec_dot_iq2_xs_q8_K
+#elif defined(FMT_IQ2_S)
+  #define LEAF weft_emitc_ggml_repack_gemm_iq2_s_q8_K_kernel_ggml_repack_gemm_iq2_s_q8_K
+  #define OPPG ggml_vec_dot_iq2_s_q8_K_generic
+  #define OPPX ggml_vec_dot_iq2_s_q8_K
 #endif
 
 extern "C" void LEAF(size_t nr, size_t bs, size_t n, float* s,
@@ -666,6 +894,18 @@ int main(int argc, char** argv){
 #elif defined(FMT_IQ3_S)
         covok = (cov_idx.size()==512 && nls==16 && cov_sel.size()==256);
         printf("  CORPUS-GATE idx %zu/512 ls %d/16 sign_byte %zu/256 -> %s\n", cov_idx.size(), nls,
+               cov_sel.size(), covok?"COMPLETE":"VOID-CORPUS");
+#elif defined(FMT_IQ2_XXS)
+        covok = (cov_idx.size()==256 && nls==16 && cov_sel.size()==128);
+        printf("  CORPUS-GATE idx %zu/256 ls %d/16 sign_sel %zu/128 -> %s\n", cov_idx.size(), nls,
+               cov_sel.size(), covok?"COMPLETE":"VOID-CORPUS");
+#elif defined(FMT_IQ2_XS)
+        covok = (cov_idx.size()==512 && nls==16 && cov_sel.size()==128);
+        printf("  CORPUS-GATE idx %zu/512 ls %d/16 sign_sel %zu/128 -> %s\n", cov_idx.size(), nls,
+               cov_sel.size(), covok?"COMPLETE":"VOID-CORPUS");
+#elif defined(FMT_IQ2_S)
+        covok = (cov_idx.size()==1024 && nls==16 && cov_sel.size()==256);
+        printf("  CORPUS-GATE idx %zu/1024 ls %d/16 sign_byte %zu/256 -> %s\n", cov_idx.size(), nls,
                cov_sel.size(), covok?"COMPLETE":"VOID-CORPUS");
 #endif
         if (!covok){ fprintf(stderr,"VOID-CORPUS: a decode axis was not fully exercised\n"); return 9; }
