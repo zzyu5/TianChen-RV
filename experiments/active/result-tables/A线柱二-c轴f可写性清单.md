@@ -19,3 +19,31 @@
 
 ## 已进货能力事实（一项不缺）
 march/isRVV0p7·minVLEN·halfLanes(deriveRepackHalfLanes)·块宽 kWeightInterleave=16·寄存器预算 kVectorRegisterBudget=32 + getRVVLMULRegisterFootprint。c 轴哨兵之源所需一项不缺——但"缺"的是 SEL-3 measured 板测数（恒 nullopt·刻意非能力事实·补数=STAGE THREE 板测非本柱补公式）。
+
+---
+
+## ★代码层定论（2026-07-19·grep 精确·非摘要）——c 轴哨兵处「没有公式可写」
+
+`RVVToEmitCBlockQuantLinear.cpp` 的 c 轴 fail-closed getter 是**同一模式 ×8 处**（行 2205/2310/2427/2617/2755/2984/3367/3475/3599）：
+
+```cpp
+// Fail-closed capability-fact read (was value_or("mf2") board default): the
+// front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
+if (!loopBody.getIntegerCoreLmul())
+    return rewriter.notifyMatchFailure(loopBody, "repack integer core requires an explicit integer_core_lmul ...");
+llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
+```
+
+**全是消费者·零计算**：它们不 compute 公式·只 read 前门 stamp 的上游闭式决策（`selectRepackAccumulatorLMUL` RVVLowerQuantContraction.cpp:1285-1304）。**「换成闭式公式」在此处无对象**——公式已存在于上游。
+
+### 退休三路（全非「写 inline 公式」）
+| 路 | 机制 | 状态 | 阻塞 |
+|---|---|---|---|
+| ① schema-required | integer_core_lmul `OptionalAttr→required`·前门恒 stamp（a860 fail-closed + stamp totality 已证 byte-exact-safe）→ 哨兵 unreachable 可删 | **用户「c轴required=选1 暂不升」** | 需用户反转 选1（schema 接口变更·回门） |
+| ② STAGE-THREE 板测 | 板测 repack accumulator LMUL 配对 A/B（m1 vs mf2 vs m2）→ 填 SEL-3 measured gate ②→ reason=measured 替 cold-start ③ | SEL-3 恒 nullopt | 测量通道 ISSUE-090/091 待裁 + [GAP-P1] 律 |
+| ③ widest-legal inline | `core_lmul=widest_legal(VLEN,块宽)` | 🔴 **[GAP-P1] IRON RULE 明禁**（widen-to-m1 falsified 2×·micro win washes/regfile spill） | canon 锁·写=破 byte-exact+违律 |
+
+### 判据归属：c 轴 = **measured-decision 墙·非公式墙**
+[GAP-P1] 明言「c 轴 perf 公式被 canon 刻意锁死·是 measured 决策非公式-writable 决策」。依 `公式墙 vs 脾气墙` 判据：c 轴依赖的量 = **板测性能数**（非可读闭式能力量·非 clang 不可读量）→ 属第三类「measured 决策」·移动它靠**板测填 SEL-3**（STAGE THREE·测量通道裁决前置）·**不靠写公式**。
+
+> **★为凑「退休一个哨兵」写 inline 公式 = 存得数 + 破 byte-exact + 违 [GAP-P1]**——严禁。柱二 c 轴曲线「卡在 0」= canon 锁 + 用户 选1暂缓 + 测量通道待裁 的**合法叠加**·非 agent 不作为。移动它 = 用户裁 ①（反转选1）或 ②（放行测量通道跑 SEL-3 A/B）——**入 ISSUE-117 待裁·不自决**。
