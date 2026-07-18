@@ -2140,7 +2140,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
     int64_t qsOffset = blockDot.getWeightQsByteOffset();           //  16
     int64_t q8Offset = blockDot.getActivationQuantByteOffset();    //   4
     int64_t numSubBlocks = qk / subBlock;             //   8
-    int64_t quarter = 8;                              // 8-elem quarters
+    int64_t quarter = subBlock / 4;                   // 8-elem quarters (subBlock/4)
 
     // The integer-core vector types. The 4-bit unpack runs 32-wide chunks at
     // e8m2 (VLMAX = 32 at VLEN >= 128); the per-sub-block quarter-strip runs
@@ -3309,7 +3309,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
         static_cast<int64_t>(b3.getActivationQuantByteOffset().value_or(4)); // 4
     int64_t bsumsOffset = b4.getBsumsByteOffset();              // 260
     int64_t numSubBlocks = qk / subBlock;                       //   8
-    int64_t quarter = 8;                                        // 8-elem quarters
+    int64_t quarter = subBlock / 4;                             // 8-elem quarters (subBlock/4)
     int64_t numLanes = 8;                                       // aux32/sums lanes
     int64_t numBsums = qk / 16;                                 //  16
 
