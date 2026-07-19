@@ -1216,17 +1216,19 @@ constexpr Iq2GridDecodeFacts kIq3SDecodeFacts = {
 };
 
 // Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
-// minimum VLEN, the SAME pure rule MaterializeRVVRepackStripWidth uses
-// (RVVRepackStripWidthMaterialization.cpp:78): half_lanes = min(vlen/16, 16),
-// so 128 -> 8, 256 -> 16. Returns 0 when the evidence guarantees no >= 128
-// minimum (an empty -march, or a constrained tier) -- the bridge then has NO
-// capability-derived strip width and CANNOT form a well-formed x16 repack op, so
+// minimum VLEN via the NAMED CLOSED FORM getRVVRepackStripHalfLanes(minVLEN,
+// interleave) in the gearbox header ([GAP-P1] family/width selector): half_lanes =
+// min(vlen/16, 16), so 128 -> 8, 256 -> 16. Returns 0 when the evidence guarantees
+// no >= 128 minimum (an empty -march, or a constrained tier) -- the bridge then has
+// NO capability-derived strip width and CANNOT form a well-formed x16 repack op, so
 // it leaves the request as the deferred block-dot stub (the honest no-capability
-// behavior, e.g. the q4_0-prefill-at-VLEN0 cell).
+// behavior, e.g. the q4_0-prefill-at-VLEN0 cell). `vlenBits` is PULLED off the in-IR
+// capability provider op (resolveRVVMinimumVLEN) at the call site, never a -march
+// re-parse -- so a capability-file VLEN drives the width, provably (byte-exact: the
+// closed form returns the same value the old inline helper did).
 std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits) {
-  if (vlenBits < 128)
-    return 0;
-  return std::min<std::int64_t>(vlenBits / 16, kWeightInterleave);
+  return pluginrvv::getRVVRepackStripHalfLanes(vlenBits, kWeightInterleave)
+      .halfLanes;
 }
 
 //===----------------------------------------------------------------------===//

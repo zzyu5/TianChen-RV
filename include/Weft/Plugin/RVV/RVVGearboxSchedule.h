@@ -2981,6 +2981,72 @@ getRVVEffectiveWidthInvariantLMUL(std::int64_t minimumVLEN, std::int64_t sew,
 }
 
 //===----------------------------------------------------------------------===//
+// [GAP-P1] repack STRIP WIDTH (half_lanes) -- the resource-aware repack FAMILY/WIDTH
+// selector as an EXPLICIT NAMED CLOSED FORM f(minimumVLEN, weightInterleave). This
+// is the DUAL of getRVVEffectiveWidthInvariantLMUL above (§3.4 "theta_family =
+// f(VLEN)"): the K=32 reduction core holds the register-group width CONSTANT by
+// FLIPPING the LMUL (m2@VLEN128 <-> m1@VLEN256, VLMAX*sew invariant); the repack core
+// instead holds the LMUL constant (the mf2 fractional default) and GROWS the e16m1
+// strip WIDTH with the capability VLEN. Both are the same species of capability-keyed
+// theta = f(VLEN), stated as a named equation, not an argmin:
+//     half_lanes = min(VLEN/16, weightInterleave)   -- e16m1 lanes, whole strips
+//       VLEN128 => half_lanes 8  (two 8-lane halves of the 16-way interleave)
+//       VLEN256 => half_lanes 16 (one 16-lane strip)
+// This IS the [GAP-P1] strip-width (JE1) axis: a WIDER guaranteed VLEN affords a WIDER
+// strip, so the family/width output FLIPS with the capability fact. The width is
+// derived from the guaranteed minimum VLEN capability FACT (read off the in-IR
+// provider op via resolveRVVMinimumVLEN / readRVVProviderMinimumVLEN by the callers),
+// NEVER a local -march re-parse (I1/I3) and NEVER a cost-model argmin -- the carried
+// reason is the capability derivation itself, never a `static_order`. Below 128 (no
+// guaranteed VLEN >= 128 fact) it returns 0: the caller leaves any authored width
+// intact / defers to the block-dot stub -- the honest no-capability path, byte-exact
+// with the no-march default. REPLACES the two duplicated local deriveRepackHalfLanes
+// helpers (the strip-width materializer pass + the repack front door) with one named f.
+//===----------------------------------------------------------------------===//
+
+/// Why the repack strip width was chosen -- carried on the selector output ONLY (the
+/// static_order attribution discipline: this enumerates a capability-derived width,
+/// never a cost-model argmin, never a -march re-parse). `CapabilityStripWidth`: a
+/// guaranteed VLEN >= 128 fact affords the e16m1 strip (half_lanes = min(VLEN/16,
+/// interleave)) -- the capability flip (8@VLEN128 / 16@VLEN256). `NoCapability`: no
+/// guaranteed VLEN >= 128 fact, so no strip width (half_lanes 0); the caller leaves
+/// the authored width intact / defers to block-dot -- honestly a no-capability null.
+enum class RVVRepackStripWidthReason { CapabilityStripWidth, NoCapability };
+
+inline llvm::StringRef
+stringifyRVVRepackStripWidthReason(RVVRepackStripWidthReason reason) {
+  switch (reason) {
+  case RVVRepackStripWidthReason::CapabilityStripWidth:
+    return "capability_strip_width";
+  case RVVRepackStripWidthReason::NoCapability:
+    return "no_capability_strip_width";
+  }
+  return "";
+}
+
+struct RVVRepackStripHalfLanesChoice {
+  std::int64_t halfLanes; // 0 iff no guaranteed VLEN >= 128 fact.
+  RVVRepackStripWidthReason reason = RVVRepackStripWidthReason::NoCapability;
+};
+
+/// The resource-aware repack e16m1 strip width (half_lanes) as a CLOSED FORM
+/// f(minimumVLEN, weightInterleave) (see the block comment): half_lanes =
+/// min(minimumVLEN/16, weightInterleave), clamped to whole strips of the 16-way
+/// interleave. Returns {value, reason}. VLEN128 -> {8, CapabilityStripWidth}; VLEN256
+/// -> {16, CapabilityStripWidth}; no guaranteed VLEN >= 128 (< 128, or a non-positive
+/// interleave) -> {0, NoCapability} (the byte-exact no-capability default). Matches
+/// the OLD duplicated deriveRepackHalfLanes helpers at every point.
+inline RVVRepackStripHalfLanesChoice
+getRVVRepackStripHalfLanes(std::int64_t minimumVLEN,
+                           std::int64_t weightInterleave) {
+  if (minimumVLEN < 128 || weightInterleave <= 0)
+    return {0, RVVRepackStripWidthReason::NoCapability};
+  std::int64_t lanes = minimumVLEN / 16; // e16m1 lane count
+  return {std::min<std::int64_t>(lanes, weightInterleave),
+          RVVRepackStripWidthReason::CapabilityStripWidth};
+}
+
+//===----------------------------------------------------------------------===//
 // [GAP-NUM] capability-keyed NUMERICS-TIER selection (the schedule-stage sibling
 // of chooseFillOptimalLMUL). A PURE, COST-MODEL-FREE decision over exactly two
 // boolean facts: (1) whether the `numerics.reassoc_ok` (kind=policy) capability

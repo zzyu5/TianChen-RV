@@ -52,6 +52,7 @@
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -71,18 +72,33 @@ namespace weft::transforms {
 
 namespace {
 
-// Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
-// minimum VLEN: half_lanes = vlen/16 (the e16m1 lane count of a 16-bit-element
-// vector), clamped to `weightInterleave` so the 16-block-as-lane group always
-// tiles into whole strips. 128 -> 8, 256 -> 16, 512+ -> 16 (one 16-lane strip
-// run at the available vl, upper lanes inactive). Returns 0 when the evidence
-// guarantees no >= 128 minimum (the pass then leaves any authored width intact).
-std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits,
-                                   std::int64_t weightInterleave) {
-  if (vlenBits < 128 || weightInterleave <= 0)
-    return 0;
-  std::int64_t lanes = vlenBits / 16; // e16m1 lane count
-  return std::min(lanes, weightInterleave);
+// Stamps the capability-derived strip width (half_lanes) onto a repack monolithic
+// op from the NAMED closed form getRVVRepackStripHalfLanes(minVLEN, weightInterleave)
+// = min(vlen/16, interleave): 128 -> 8, 256 -> 16 (the [GAP-P1] family/width flip).
+// The pre-ratification RVV0.7.1 generation (no fractional LMUL) pins the whole-LMUL
+// one-16-lane-strip form instead (half_lanes = weightInterleave, integer_core_lmul
+// "m1"). `vlenBits` is the provider minimum_vlen fact READ off the in-IR capability
+// object by the caller (NOT a -march re-parse), so the width follows the capability.
+//
+// The closed form ALSO returns the ATTRIBUTION reason (capability_strip_width, NEVER a
+// -march re-parse, NEVER a cost-model static_order); it is the PINNED 改判 record the
+// committed judgment lit (rvv-repack-strip-width-capability-flip-closedform-judgment)
+// documents + FileChecks the width flip against. It is NOT stamped as an op attribute
+// here: these monolithic repack ops enforce a strict discardable-attr allowlist
+// (fail-closed, I7), and the emitter reads the half_lanes ODS attr directly -- so the
+// width is the load-bearing output and stamping stays byte-exact (no extra attrs).
+template <typename RepackOp>
+void stampRepackStripWidth(RepackOp repack, std::int64_t vlenBits, bool isRVV0p7) {
+  if (isRVV0p7) {
+    repack.setIntegerCoreLmul("m1");
+    repack.setHalfLanes(repack.getWeightInterleave());
+    return;
+  }
+  weft::plugin::rvv::RVVRepackStripHalfLanesChoice choice =
+      weft::plugin::rvv::getRVVRepackStripHalfLanes(vlenBits,
+                                                    repack.getWeightInterleave());
+  if (choice.halfLanes > 0) // guaranteed VLEN >= 128 -> capability_strip_width.
+    repack.setHalfLanes(choice.halfLanes);
 }
 
 class MaterializeRVVRepackStripWidthPass final
@@ -141,15 +157,7 @@ public:
       // 16-way interleave), so it participates in the same capability-driven
       // half_lanes / whole-LMUL stamp.
       if (auto gemv = llvm::dyn_cast<weftrvv::GgmlRepackGemvQ41Q81Op>(op)) {
-        if (isRVV0p7) {
-          gemv.setIntegerCoreLmul("m1");
-          gemv.setHalfLanes(gemv.getWeightInterleave());
-          return;
-        }
-        std::int64_t width =
-            deriveRepackHalfLanes(vlenBits, gemv.getWeightInterleave());
-        if (width > 0)
-          gemv.setHalfLanes(width);
+        stampRepackStripWidth(gemv, vlenBits, isRVV0p7);
         return;
       }
       // The FAMILY-B q4_1 repacked GEMM (prefill) diverges on the SAME
@@ -157,15 +165,7 @@ public:
       // (the block-as-lane weight layout is byte-identical in shape), so it
       // participates in the same capability-driven half_lanes / whole-LMUL stamp.
       if (auto gemm = llvm::dyn_cast<weftrvv::GgmlRepackGemmQ41Q81Op>(op)) {
-        if (isRVV0p7) {
-          gemm.setIntegerCoreLmul("m1");
-          gemm.setHalfLanes(gemm.getWeightInterleave());
-          return;
-        }
-        std::int64_t width =
-            deriveRepackHalfLanes(vlenBits, gemm.getWeightInterleave());
-        if (width > 0)
-          gemm.setHalfLanes(width);
+        stampRepackStripWidth(gemm, vlenBits, isRVV0p7);
         return;
       }
       // The FAMILY-A symmetric q8_0 repacked GEMV diverges on the SAME
@@ -174,15 +174,7 @@ public:
       // int8, never a nibble), so it participates in the same capability-driven
       // half_lanes / whole-LMUL stamp.
       if (auto gemv = llvm::dyn_cast<weftrvv::GgmlRepackGemvQ80Q80Op>(op)) {
-        if (isRVV0p7) {
-          gemv.setIntegerCoreLmul("m1");
-          gemv.setHalfLanes(gemv.getWeightInterleave());
-          return;
-        }
-        std::int64_t width =
-            deriveRepackHalfLanes(vlenBits, gemv.getWeightInterleave());
-        if (width > 0)
-          gemv.setHalfLanes(width);
+        stampRepackStripWidth(gemv, vlenBits, isRVV0p7);
         return;
       }
     });
