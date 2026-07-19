@@ -1,0 +1,77 @@
+# iq2_xs vec_dot@rvv — reduction-batching fusion attack (B线第二块 floor 攻坚)
+# board=rvv (Linux riscv64 VLEN128, 64c) PIN=40  clang-18.1.8 symmetric  opp=build-clang18-rv64gcv/libggml-cpu.so
+# ggml_cpu_md5=e85fceda47606a115c5fbb0021817cdc  K=2048 M=1 nc=512 nb=8  flush=224MiB  reps=15  metric=ratio_cold_X=opp_ns/ours_ns
+# opp = ggml_vec_dot_iq2_xs_q8_K deployed _vl128 (hand-tuned, tier=手调, NOT the cheap _generic)
+#
+# ===== objdump-diff (structure, clang-18 .o / lib disasm) =====
+#   OURS_DEPLOYED_EMIT (P2 floor)   : vwredsum=16 vredsum=0 vluxei16=8 vwmacc=0 vsetvli=61
+#   OPP _vl128 (hand-tuned)         : vwredsum=16 vredsum=0 vluxei =8 vwmacc=0 vsetvli=49  <-- SAME structure, NO fusion
+#   OURS_FUSED_A (VLEN-universal)   : vwredsum=0  vredsum=1 vluxei16=16 vwmacc=8 vsetvli=35  <-- gather DOUBLED (i64m2 4-entry)
+#   OURS_FUSED_B (VLEN128-form)     : vwredsum=0  vredsum=1 vluxei16=8  vwmacc=8 vsetvli=32  <-- 8-gather, fused, FEWEST vsetvli
+#   => opponent does NOT batch reductions; the 16x serial vwredsum is common to opp AND our emit.
+#      emit-vs-opp gap (0.62, same structure) = 脾气墙 (clang codegen: opp 49 vs emit 61 vsetvli).
+#      FUSED_B out-structures the opponent (batches the reductions opp did NOT) -> crosses to near-parity.
+#
+# ===== byte-exact gate (ZERO-MODEL 3-way + 3-arm anti-hollow) =====
+#   FUSED_A: GREEN (5 seeds ALL=true worst_ulp=0; anti-hollow 1/2/3 all BITES-OK)
+#   FUSED_B: GREEN (2 seeds ALL=true + anti-hollow 1/2/3 BITES-OK; + all 15 cold seeds verified before timing)
+#
+# ===== cold ratio_cold_X (same board session, same opp) =====
+# --- DEPLOYED EMIT (P2 floor) ---
+[EMIT] seed=0x1 ratio=0.6359  ours=854003 opp=543082
+[EMIT] seed=0x2 ratio=0.6226  ours=853404 opp=531362
+[EMIT] seed=0x3 ratio=0.6127  ours=859443 opp=526602
+[EMIT] seed=0x4 ratio=0.6056  ours=877264 opp=531302
+[EMIT] seed=0x5 ratio=0.6383  ours=849164 opp=542002
+#   EMIT: n=5 min=0.6056 med=0.6226 max=0.6383  >=0.8: 0/5
+#
+# --- FUSED VARIANT A (VLEN-universal, i64m2 4-entry gather => 16 vluxei, gather DOUBLED) ---
+[A] seed=0x1 ratio=0.5009 | 0x2 0.4886 | 0x3 0.4872 | 0x4 0.4926 | 0x5 0.5051
+#   A: n=5 min=0.4872 med=0.4926 max=0.5051  >=0.8: 0/5  (REGRESSION vs emit: gather-doubling costs > reductions saved)
+#
+# --- FUSED VARIANT B (VLEN128-form, i64m4 8-entry gather => 8 vluxei, NO doubling + fused reduction) ---
+[Bfused] seed=0x1 ratio=0.8457  ours=626122 opp=529542
+[Bfused] seed=0x2 ratio=0.8097  ours=648282 opp=524902
+[Bfused] seed=0x3 ratio=0.7956  ours=652723 opp=519302
+[Bfused] seed=0x4 ratio=0.8254  ours=636723 opp=525523
+[Bfused] seed=0x5 ratio=0.8345  ours=656043 opp=535783
+[Bfused] seed=0x6 ratio=0.7852  ours=660423 opp=518583
+[Bfused] seed=0x7 ratio=0.8900  ours=628203 opp=559083
+[Bfused] seed=0x8 ratio=0.8081  ours=655683 opp=529842
+[Bfused] seed=0x9 ratio=0.8333  ours=631982 opp=526642
+[Bfused] seed=0xA ratio=0.7997  ours=646202 opp=516782
+[Bfused] seed=0xB ratio=0.8870  ours=623382 opp=552962
+[Bfused] seed=0xC ratio=0.8208  ours=644723 opp=529182
+[Bfused] seed=0xD ratio=0.8098  ours=651383 opp=527483
+[Bfused] seed=0xE ratio=0.8074  ours=650643 opp=525322
+[Bfused] seed=0xF ratio=0.8204  ours=644903 opp=529063
+#   B: n=15 min=0.7852 med=0.8204 mean=0.8248 max=0.8900  >=0.8: 12/15
+#
+# ===== verdict =====
+# floor move: emit med 0.623 -> FUSED_B med 0.820 (closes 52% of the gap to parity).
+# 公式墙 ATTACK SUCCESS (mechanism proven, standalone): reduction-batching (16 serial vwredsum
+#   -> 8 vwmacc + 1 vredsum, per-half scale folded into products) is byte-exact and reaches
+#   near-parity (median 0.82, 12/15 seeds >=0.8) = PASS candidate at the 0.8 gate (boundary).
+#成色: cold<=1.0 near-parity PASS-by-gate (NOT beat); opp=手调非便宜档; M=1 kernel-axis NOT e2e.
+# VLEN caveat: FUSED_B is VLEN128-FORM (vget_i8m4_i8m2 32-lane split), on-position vs opp's own
+#   _vl128 specialization. A VLEN-universal single kernel (FUSED_A) regresses to 0.49 because the
+#   i32-accumulator LMUL8 cap (max 32 lanes @VLEN128) forces 4-entry i64m2 gathers = gather doubling.
+# DEPLOYMENT: FUSED_B is a NEW structure (not the current emitIQ2XSSuperBlockGridBody). Realizing
+#   0.82 as 地盘 requires deploying the fused structure into the emitter (scope registered, NOT done here).
+# headline flip (具名-X 0.62 -> PASS-candidate 0.82) needs main-session independent +/- check before入账.
+
+# ===== FUSED VARIANT C (VLEN-UNIVERSAL, i64m4 8-entry gather + vslidedown upper-half) =====
+# objdump: vwredsum=0 vredsum=1 vluxei16=8 vwmacc=8 vslidedown=8 vsetvli=36  (byte-exact GREEN, anti-hollow 3/3)
+[Cfused] seed=0x1 ratio=0.7516 | 0x2 0.7849 | 0x3 0.7565 | 0x4 0.8141 | 0x5 0.7254 | 0x6 0.7484 | 0x7 0.7362 | 0x8 0.7587
+#   C: n=8 min=0.7254 med=0.7540 mean=0.7595 max=0.8141  >=0.8: 1/8
+#
+# ===== FULL LADDER (rvv VLEN128, opp=_vl128 手调, same board family) =====
+#   deployed emit (P2 floor) .......... med 0.62  0/5    [16 vwredsum, SAME structure as opp]
+#   FUSED_A universal 4-gather ........ med 0.49  0/5    [gather DOUBLED (16 vluxei) -> REGRESS]
+#   FUSED_C universal 8-gather+slide .. med 0.75  1/8    [8 vslidedown overhead -> below 0.8 gate = 具名-X]
+#   FUSED_B VLEN128-form 8-gather ..... med 0.82  12/15  [near-parity PASS candidate at 0.8 gate]
+#
+# CORRECTED verdict (vs earlier "VLEN-universal blocked"): VLEN-universal 8-gather+fused IS realizable
+# (variant C, vslidedown upper-half), but the slide costs ~7% -> lands at 0.75 (具名-X boundary). The
+# PASS-crossing 0.82 requires the VLEN128-FORM vget split (variant B), on-position vs opp's own _vl128.
+# So: reduction-batching lever PROVEN (floor 0.62 -> 0.75~0.82); PASS candidate is VLEN-specialized (B).

@@ -1,0 +1,10 @@
+# BUILD iq2_xs FUSED vec_dot@rvv CC=clang version 18.1.8 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 ggml_cpu_md5=e85fceda47606a115c5fbb0021817cdc
+=== [A] compile leaves clang-18 -O3 (symmetric) ===
+=== [B] objdump-diff: OURS(fused) vs OURS(deployed emit) vs OPP(_vl128) ===
+# OURS_FUSED_iq2_xs(clang18 .o): vwredsum=0 vredsum=1 vluxei16=16 vwmacc=8 vsetvli=35 fp16=cleanfp size=8376B
+# OURS_DEPLOYED_EMIT_iq2_xs(clang18 .o): vwredsum=16 vredsum=0 vluxei16=8 vwmacc=0 vsetvli=61 fp16=cleanfp size=8704B
+# OPP_iq2_xs_vl128(hand-tuned): vwredsum=16 vredsum=0 vluxei=8 vwmacc=0 vsetvli=49 disasm_lines=253
+# OPP vl_specializations=[ggml_vec_dot_iq2_xs_q8_K_generic,ggml_vec_dot_iq2_xs_q8_K_vl128,ggml_vec_dot_iq2_xs_q8_K_vl256,ggml_vec_dot_iq2_xs_q8_K_vl512,]
+=== [C] compile driver + link OURS(fused) + real libggml-cpu.so (clang-18) ===
+# linked OK -> ./iq2_vecdot (OURS iq2_xs = FUSED leaf)

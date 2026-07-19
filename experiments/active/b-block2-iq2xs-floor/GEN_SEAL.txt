@@ -1,0 +1,36 @@
+# owned iq2_xs FUSED (reduction-batching) vec_dot leaf seal — B线 block2 floor 攻坚
+# task 07-19-block2-iq2xs-floor · base HEAD=9763020eddd14376da5f6f9b9af6fef96f06ebd6
+
+iq2_xs_fused.c   md5=d1639a50600ee83a507a5648d0d18532  sym=weft_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot  variant=A(VLEN-universal, i64m2 4-entry gather)
+iq2_xs_fused_b.c md5=5ad55a44ecdd295a147ebdfacff554fd  sym=weft_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot  variant=B(VLEN128-form, i64m4 8-entry gather)
+iq2_xs_fused_c.c md5=8046e19fb53d20ceeacd7a108ebd032c  sym=weft_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot  variant=C(VLEN-universal, i64m4 8-entry gather + vslidedown upper)
+
+--- construction (owned C-intrinsic, NO inline-asm, NO pinned schedule) ---
+Independent research leaves (NOT exported from the emitter). Grid gather (vluxei16 over the
+512-entry iq2xs codebook) + signs64 sign-fold tables copied VERBATIM from the sealed emit
+kernel `../block2-p2-iq2-vecdot/kernels/iq2_xs.kernel.c` (canonical ggml constants). The
+fusion folds each half-group's integer scale (ls1/ls2) INTO its products and accumulates all
+into ONE persistent i32 accumulator (vwmacc i16*i16->i32) → ONE vredsum per super-block,
+replacing the deployed emit's / opponent's 16× serial vwredsum.
+
+--- sealed core UNTOUCHED ---
+lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp  git diff EMPTY (emitIQ2XSSuperBlockGridBody not modified).
+This task proves the reduction-batching MECHANISM standalone; it does NOT deploy into the emitter.
+
+--- byte-exact (ZERO-MODEL 3-way + 3-arm anti-hollow, INT-mode order-free integer fold) ---
+FUSED_A: GREEN 5 seeds worst_ulp=0, anti-hollow 1/2/3 BITES-OK.
+FUSED_B: GREEN 2 seeds + 15 cold-verified seeds (driver verifies before timing), anti-hollow 1/2/3 BITES-OK.
+
+--- board rvv VLEN128, clang-18 symmetric, 224MiB flush, reps=15, opp=deployed _vl128 (手调) ---
+ratio_cold_X = opp_ns/ours_ns:
+  deployed emit (P2 floor):             med 0.62 (0/5 ≥0.8)
+  FUSED_A (VLEN-universal, 4-gather):   med 0.49 (0/5 ≥0.8)   — REGRESSION (gather doubled: 16 vluxei)
+  FUSED_C (VLEN-universal, 8-gather+slide): med 0.75 (1/8 ≥0.8) — 具名-X boundary (vslidedown ~7% cost)
+  FUSED_B (VLEN128-form, 8-gather):     med 0.82 (12/15 ≥0.8) — 公式墙 PASS candidate (near-parity, boundary)
+
+VERDICT: reduction-batching lever WORKS (floor 0.62 → 0.75~0.82). PASS candidate = VLEN128-form B.
+成色 = near-parity PASS-by-gate (cold ≤1.0, NOT beat; opp 手调非便宜档). M=1 kernel-axis, NOT e2e.
+VLEN tension: PASS-crossing 0.82 is VLEN128-form (on-position vs opp _vl128); the VLEN-universal
+single kernel (C) is realizable but pays ~7% (vslidedown) → 0.75, below gate. (i32-LMUL8 32-lane
+cap forces either 4-entry gather [A regress] or vslidedown [C, below gate].)
+Deployment scope (emit the fused structure, VLEN-keyed) REGISTERED, NOT done. headline flip needs main-session check.
