@@ -278,8 +278,12 @@
   **定义指针待裁·不擅建 spec testing 层/文件**（[决策权限卡](../governance/决策权限卡.md) §〇 判据级）。
 - **候选裁法（供裁·不代裁）**：① measurement 层加「T-X 证据格」定义（作正确性门的 X-SCALAR 落点）；
   ② evidence 层收（enablement 证词）；③ 保持纯 `experiments/` 活证据·无 spec 定义站点（则 spec 侧只留一条指针）。
-- **连带（登记·不擅改旧册）**：B4 稿 PR-1「采购物理 no-V 板」= **RESOLVED-BY-FACT** —— 超锐(scalar)板即真物理
-  no-V 硅（isa `rv64imafdch_zicntr_zicsr_zifencei_zihpm_zaamo_zalrsc_zca_zcd`·无 v/zve·clang-18 装讫），
-  **无需采购**；措辞铁线「validated on silicon」字面成立。
+- **连带 · B4 稿 PR-1「采购物理 no-V 板」= 重开·事实更正态**（W1 载体批 §2.3.3·裁1 已裁·2026-07-20 落）：
+  **改写依据 = 事实「手头无物理 no-V 真硅」已为假**——超锐(scalar)板已**到货**且 verified isa
+  `rv64imafdch_zicntr_zicsr_zifencei_zihpm_zaamo_zalrsc_zca_zcd`（无 v/zve·clang-18 装讫）= 真物理 no-V 硅。
+  ⚠**措辞铁线**：板是**到货**的不是**采购**的·**不推翻「采购否决」那条硬冻结**（采购仍否决·只是无需采购即有真硅）；
+  铁线「validated on silicon」字面成立。**⟹ 落盘完成·下游两条 canon 订正自动解锁进待裁**（agent 不自决·下轮裁）：
+  ①**词表订正**（scalar「永不作贡献基线」动分档口径）②**铁线4 订正**（「窄豁免」→「物理 no-V」·牵动 T-X 旗舰措辞）。
+  三份 W1 FINDING 已 tracked（`experiments/active/r5.1-w1-carrier/{L3L4-scalar-silicon,scalar-noV-fourway,rvv-Aprime-dualVLEN}-FINDING.md`·`git ls-tree -r HEAD | grep -c FINDING`=8≥4）。
 - **出处**：本 task `.trellis/tasks/07-18-07-18-s-scalar-tx-s1`（S 线·scalar 真 no-V 硅 T-X 收口）。
 
