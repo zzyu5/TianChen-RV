@@ -12,12 +12,19 @@ THE TWO FACT CHANNELS (they are genuinely different; do not conflate them):
       These form the TargetCapabilitySet that
       support::computeDeclaredInstanceHash (lib/Support/DeclaredInstanceHash.cpp)
       hashes. Changing a fact row CHANGES declared_instance_hash.
-  (2) march= PASS-OPTION channel: the front door derives a guaranteed VLEN via
-      deriveMinimumVLEN (lib/Plugin/RVV/RVVCapabilityProfile.cpp) from the
-      `march=` pass option. This is NOT an in-IR capability fact, so it does NOT
-      enter declared_instance_hash -- two marches over the same IR yield the SAME
-      hash but a DIFFERENT chosen LMUL. Probe P4 records exactly this, because it
-      is a real and easily-misread property of the mechanism.
+  (2) march= RESOLVED-VLEN channel: the front-door CONSTRUCTOR resolves a guaranteed
+      VLEN via resolveRVVMinimumVLEN (lib/Plugin/RVV/RVVCapabilityProfile.cpp), which
+      PREFERS the in-IR minimum_vlen provider fact and derives from the `march=` pass
+      option ONLY as the construction-boundary fallback (source-only IR carries no
+      provider op yet -- the constructor is the fact's PRODUCER). POST-construction
+      consumers (repack strip width / lower-quant-contraction / schedule-descriptor-
+      registry) read the stamped in-IR minimum_vlen fact DIRECTLY -- W3/W3b pull-the-
+      pipe, decisive tests prove a provider minimum_vlen=256 OVERRIDES a conflicting
+      march=zvl128b there. Either way the DERIVED VLEN axis does NOT enter
+      declared_instance_hash (which keys on the declared capability fact ROWS, not the
+      derived VLEN): two marches over the same IR yield the SAME hash but a DIFFERENT
+      chosen LMUL. Probe P4 records exactly this at the constructor boundary, a real
+      and easily-misread property of the mechanism.
 
 THE MAIN BODY (section 1) is ONE byte-identical module carrying TWO variants:
   @rvv_typed_body   requires [@rvv]                 -- feasible on both boards
@@ -454,10 +461,11 @@ def collect(weft_opt, workdir):
             probe_rows.append(dict(
                 probe_id="P4-march-channel", instance="rvv|k1",
                 verdict="PASS" if ok else "FAIL",
-                detail="march= is a PASS OPTION that MATERIALIZES the in-IR "
-                       "minimum_vlen provider fact (W3 pull-the-pipe: the probe "
-                       "layer parses march ONCE and stamps minimum_vlen; consumers "
-                       "read that in-IR fact): minimum_vlen %s->%s flips chosen "
+                detail="march= is the CONSTRUCTION-BOUNDARY fallback of "
+                       "resolveRVVMinimumVLEN (W3/W3b pull-the-pipe: post-construction "
+                       "consumers read the in-IR minimum_vlen provider fact directly; "
+                       "here the source-only front door has no provider yet so march "
+                       "resolves the axis): minimum_vlen %s->%s flips chosen "
                        "LMUL %s->%s (reason=%s) while declared_instance_hash stays "
                        "%s (%s...)" % (
                            march_seen["rvv"]["minimum_vlen"],
