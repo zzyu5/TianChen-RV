@@ -5968,6 +5968,16 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
     // fact the front door DOES stamp, hence fail-closed), integer_core_lmul is the
     // optional Win-A gearbox that the iq2_xxs DECODE front door leaves UNSTAMPED by
     // design; fail-closing here breaks byte-exact across the iq2_xxs production e2e.
+    // The "m2" default is the VLEN128 anchor (the schedule autotuner stamps m1 with
+    // minimum_vlen=256 at VLEN>=256 -- see the autotuner-divergence lit). This default is
+    // NOT a same-VLEN measured performance gearbox and no measured-table row flips it:
+    // integer_core_lmul is a VLEN-CORRECTNESS selector. The pair-batched vget register-
+    // group geometry ties each anchor's i8-strip VLMAX to the 32-element sub-block, so m2
+    // is correct ONLY at VLEN128 and m1 ONLY at VLEN256 -- board-proven in BOTH directions
+    // (m2==oracle & m1!=oracle @rvv VLEN128; m1==oracle & m2!=oracle @k1 VLEN256, 3-arm
+    // scalar-oracle byte-exact; experiments/active/r51g-theta20-iq2xxs-measured/FINDING.md).
+    // Flipping this default to m1 would break VLEN128 legality (the verifier rejects m1 at
+    // minimum_vlen 128: e8m1 VLMAX 16 < 32) AND duplicate the schedule pass, so it stays m2.
     llvm::StringRef coreLmul = coreOp.getIntegerCoreLmul().value_or("m2");
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };

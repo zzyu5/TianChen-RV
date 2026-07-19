@@ -1,0 +1,40 @@
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+== toolchain ==
+clang version 17.0.6 ( 17.0.6-16.oe2403)
+== VLEN ==
+VLENB=16 VLEN=128
+== compile (-O3 -march=rv64gcv_zvfh) ==
+== objdump: m2 chain vtypes (expect e8,m2 + e16,m4 + e64,m4 wide gather) ==
+      4 e16,m1
+      8 e16,m4
+      8 e32,m1
+      5 e64,m4
+      8 e8,m2
+      4 e8,m4
+      4 e8,mf2
+== objdump: m1 chain vtypes (expect e8,m1 + e16,m2 + e64,m2 wide gather) ==
+      4 e16,m1
+      8 e16,m2
+      8 e32,m1
+      4 e64,m2
+      1 e64,m4
+      8 e8,m1
+      4 e8,m2
+      4 e8,mf2
+== objdump: gather (vlux) count -- iq2_xxs IS a codebook-gather leaf (nonzero) ==
+m2 vlux: 12
+m1 vlux: 12
+== objdump: no spill (no stack vector store/reload in the hot chain) ==
+m2 vs*/vl* stack: 0
+m1 vs*/vl* stack: 0
+== run (2-seed cold sweep, median of 7, 64MB flush) ==
+footprint,seed,weight_bytes,m2_median_ns,m1_median_ns,m1_over_m2,m2_vs_oracle_mism,m1_vs_oracle_mism,rows
+M=512 K=2048 cache-resident,0,270336,1156685,1121985,0.9700,0,512,512
+M=512 K=2048 cache-resident,1,270336,1208045,1058605,0.8763,0,512,512
+M=8192 K=4096 ~8.6MB,0,8650752,39440273,33396846,0.8468,0,8192,8192
+M=8192 K=4096 ~8.6MB,1,8650752,37972546,33045585,0.8702,0,8192,8192
+M=32768 K=4096 ~34.6MB DRAM-bound,0,34603008,156900307,130083870,0.8291,0,32768,32768
+M=32768 K=4096 ~34.6MB DRAM-bound,1,34603008,167865295,128203482,0.7637,0,32768,32768
