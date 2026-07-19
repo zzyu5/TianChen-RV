@@ -5093,6 +5093,50 @@ private:
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
 
+  /// The OWNED REAL-VECTOR iq2_xs dequantize_row block-decode body (R5.1-D grid family
+  /// de-lottery, the iq3_xxs/iq3_s dequant sibling fan-out · 扩 iq2 面): iq2_xs dequant
+  /// had NO owned vector body -- the deployed scalar forwarder's clang -O3 autovec
+  /// explodes into 32 vluxei HW gathers + 96 vslidedown + 385 vsetvli (the SAME
+  /// ISSUE-001/002 codegen-STRUCTURE explosion iq3_s dequant showed; pre-check objdump
+  /// verified). This body ports the W4 narrow-per-entry lever to iq2_xs's grid-of-8
+  /// (int64, 512-entry) geometry: `nb = k/256` super-block loop, fp16 d seam, per-ib32
+  /// scale byte with two 4-bit nibbles (l<2 low / l>=2 high, db = d*(0.5+nibble)*0.25),
+  /// and each 8-value grid entry decoded by ONE narrow OWNED pipeline over its 8 CONTIGUOUS
+  /// grid bytes -- a SCALAR grid pointer (gridb + (q&511)*8, NO indexed gather) + a
+  /// unit-stride vle8 (vl=8) + the per-lane +-1 sign applied by an INTEGER vmul_vv against
+  /// the SAME expanded signs64 +-1 plane (sign selector q>>9; 8 CONTIGUOUS +-1 bytes, also
+  /// a unit-stride vle8) + vsext_vf4->i32m2 + vfcvt + vfmul(db) + vse32. Byte-exact to
+  /// ggml's dequantize_row_iq2_xs by construction (grid[j]*sign EXACT integer, grid bytes
+  /// in [8,43] so signed i8 view == ggml's (const uint8_t *) read; float sign-flip and
+  /// mul-by-+-1 are bitwise-exact). LMULs (i8mf2/i32m2/f32m2) DERIVED from the 8-lane grid
+  /// entry width, NOT tunable knobs. OWNED __riscv_ intrinsics, gather-free.
+  mlir::LogicalResult emitDequantizeRowIQ2XSVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
+  /// The OWNED REAL-VECTOR iq1_m dequantize_row block-decode body (R5.1-D grid family
+  /// de-lottery, the iq1s_grid ternary sibling). UNLIKE iq2_xs/iq3_s, the deployed iq1_m
+  /// scalar forwarder is ALREADY gather-free after clang -O3 autovec (pre-check objdump:
+  /// vlux=0, vslidedown=0, only e32,m2 widening -- clang lands the good codegen because
+  /// grid[j] j=0..7 is a CONTIGUOUS int8 read off a scalar pointer, the narrow-per-entry
+  /// shape). This body renders that SAME pipeline EXPLICITLY (de-lottery [L-8]: own the
+  /// codegen), so board throughput is PARITY -- the W4 dominant lever has NOTHING (no
+  /// gather, no m8-wide widening) to eliminate, so the cell is a lever-N/A honest-null,
+  /// kept OWNED for robustness only. Geometry: stride 56 (qs[32]@0, qh[16]@32,
+  /// scales(u16)[4]@48), NO fp16 d field -- d is the packed iq1m_scale fp16 reconstructed
+  /// from the 4 scale words (scbits = (sc0>>12)|((sc1>>8)&0xf0)|((sc2>>4)&0xf00)|(sc3&
+  /// 0xf000)) read AS _Float16. Per inner group ib: dl1/dl2 = d*(2*((sc>>sh)&7)+1), idx[l]
+  /// = qs[l]|((qh<<sh)&0x700), delta[l] = (qh & bit)?-0.125:0.125; each 8-value iq1s_grid
+  /// entry (ternary int8) decoded by SCALAR grid pointer (gridb + idx*8, NO gather) + vle8
+  /// (vl=8, SIGNED == ggml's (const int8_t *) read) + vsext_vf4->i32m2 + vfcvt +
+  /// vfadd(delta) + vfmul(dl) + vse32. Byte-exact to ggml's dequantize_row_iq1_m by
+  /// construction (dl*(float(grid)+delta) = one add + one mul, same rounding order).
+  mlir::LogicalResult emitDequantizeRowIQ1MVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// The SHARED codebook / ternary-grid super-block dequantize_row block-decode body
   /// for the remaining extended formats (iq1_s/iq1_m ternary iq1s_grid + delta,
   /// iq4_nl/iq4_xs 16-entry non-linear codebook, mxfp4/nvfp4 FP4 e2m1 codebook with

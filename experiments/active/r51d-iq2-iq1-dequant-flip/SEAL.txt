@@ -1,0 +1,101 @@
+# r51d-iq2-iq1-dequant-flip SEAL — R5.1-D iq2/iq1 grid DEQUANT 全族翻收尾 (扩 iq2 面 · W4/r5.1-c lever)
+# board = rvv (ssh rvv · VLEN128 · clang-18.1.8 · rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs · env.sh · flush 224MiB · pin 40)
+# date_utc = 2026-07-19 · base = main HEAD 65c9793c9 (r51c iq3_s dequant deployed · archived)
+# W4/r5.1-c lever REUSED (not re-invented): gather-free assembly [necessary] + narrow per-entry
+#   cheap m1/m2 widening [dominant] · OWNED __riscv_ intrinsics · NO inline-asm · NO hand-scheduling.
+
+## HEADLINE: flipped 1 grid cell / 1 grid cell lever-N/A honest-null / 0 walked-loop honest-null
+#   iq2_xs dequant = FLIP  (owned narrow-per-entry DEPLOYED · gather-free · byte-exact · ~3.9x ggml, 2.0x deployed)
+#   iq1_m  dequant = lever-N/A honest-null (deployed leaf ALREADY gather-free+narrow · owned body board-PARITY
+#                    · deployed as de-lottery [L-8] robustness only · byte-exact · NOT a codegen-structure flip)
+
+## ============ PRE-CHECK (objdump现 deployed scalar-forwarder leaf · clang-18 -O3) ============
+#   iq2_xs : vlux=32 vsext.vf2=64 vfwcvt=64 vslide=96 vset=385 13424B · widening e32,m2 (192 vset)
+#            => 32-vluxei HW-gather / 96-vslidedown codegen-lottery EXPLOSION (ISSUE-001/002) => FLIPPABLE.
+#   iq1_m  : vlux=0  vsext.vf2=32 vfwcvt=32 vslide=0  vset=65  21184B · widening e32,m2 ONLY
+#            => ALREADY gather-free + narrow (clang lands the good codegen: grid[j] j=0..7 is a
+#               CONTIGUOUS int8 read off a scalar pointer = the narrow-per-entry shape) => lever-N/A.
+
+## ============ CELL 1: iq2_xs dequantize_row @rvv VLEN128 — FLIP (deployed) ============
+# opponent = ggml dequantize_row_iq2_xs (libggml-base.so · host-autovec = codegen-lottery · 标量类档)
+# driver = iq2xs_dequant_driver.cpp (ZERO-MODEL bit-exact recompute + ggml crosscheck + corpus + 3-arm anti-hollow)
+# NEW: emitDequantizeRowIQ2XSVectorBody (GridCodebook.cpp) ports the W4/r5.1-c narrow-per-entry lever to the
+#   grid-of-8 (int64, 512-entry) geometry: SCALAR grid pointer (gridb + (q&511)*8, NO gather) + unit-stride
+#   vle8(vl=8) grid + unit-stride vle8 signs64 +-1 plane (selector q>>9) + INTEGER vmul_vv sign-fold +
+#   vsext_vf4->i32m2 + vfcvt + vfmul(db) + vse32; db=d*(0.5+scale_nibble)*0.25. Dispatch fanned out in
+#   emitDequantizeRowIQGridBodyShared (ForwardElementwise.cpp, 1 line, the anticipated iq2 fan-out).
+# byte-exact (ZERO-MODEL BIT-exact mism=0 · CORPUS complete · 3-arm anti-hollow bites):
+#   PROD: ours-vs-oracle=0/131072  ggml-vs-oracle=0  ours-vs-ggml=0  grid 512/512 sign_sel 128/128 COMPLETE
+#         anti-hollow inject 1/2/3 BITES-OK   (DEPLOYED baseline leaf: also byte-exact, same corpus)
+# structure self-probe (compiled leaf .o · clang-18 -O3):
+#   deployed(scalar->clang autovec): vlux=32 vsext=64 vfmul=64 vslide=96 vset=385 13424B
+#   PROD(owned narrow-per-entry)   : vlux=0  vsext=32 vfcvt=32 vfmul=32 vslide=0  vset=64   9984B  (GATHER-FREE)
+# 2-seed cold N=25 nb=512 (ratio_cold = ggml-speed / ours-speed; >1 = WIN vs opponent):
+#   seed:              0x1      0x2
+#   DEP  ratio vs ggml: 1.88    1.95   (ours_med ~401us · iqr<1.6%)
+#   PROD ratio vs ggml: 3.76    4.01   (ours_med ~200us · iqr<1%)
+#   durable: PROD ours_med ~200us == HALF the DEPLOYED ~401us (both iqr<1%), AND ~3.9x ggml, AND 2.0x deployed
+#            (well above the vs-部署 >=0.8 入账 floor).
+# WALL-TYPE VERDICT: FLIP — compiler-behavior / codegen-STRUCTURE wall (clang -O3 autovec of the scalar emit
+#   explodes to a 32-vluxei / 96-vslidedown lottery leaf), flipped at the EMISSION layer by the OWNED narrow-
+#   per-entry body. lever = (a) gather-free assembly [here DOMINANT: the 32-gather/96-slide explosion IS the
+#   wall] + (b) narrow per-entry m2 widening — the SAME W4/r5.1-c iq3_xxs/iq3_s lever, transferred to the
+#   grid-of-8 iq2 sibling. (扩 iq2 面 achieved: first OWNED iq2-family dequant vector body.)
+
+## ============ CELL 2: iq1_m dequantize_row @rvv VLEN128 — lever-N/A honest-null (deployed de-lottery) ============
+# opponent = ggml dequantize_row_iq1_m (libggml-base.so · host-autovec · 标量类档)
+# driver = iq1m_dequant_driver.cpp (ZERO-MODEL bit-exact recompute + ggml crosscheck + corpus + 3-arm anti-hollow)
+# NEW: emitDequantizeRowIQ1MVectorBody (GridCodebook.cpp) renders the SAME narrow-per-entry pipeline EXPLICITLY
+#   for the ternary iq1s_grid (2048-entry): SCALAR grid pointer (gridb + idx*8, NO gather) + unit-stride vle8
+#   (vl=8, SIGNED == ggml's (int8_t*) read) + vsext_vf4->i32m2 + vfcvt + vfadd(delta) + vfmul(dl) + vse32;
+#   d = packed iq1m_scale fp16 reconstructed from the 4 scale words; idx = qs|((qh<<sh)&0x700); delta=+-0.125.
+#   Dispatch fanned out in emitDequantizeRowCodebookGridBodyShared (ForwardElementwise.cpp, 1 line).
+# byte-exact (BIT-exact mism=0 · CORPUS complete · 3-arm anti-hollow bites):
+#   PROD: ours-vs-oracle=0/131072  ggml-vs-oracle=0  ours-vs-ggml=0  grid_idx 2048/2048 delta{+,-} COMPLETE
+#         anti-hollow inject 1/2/3 BITES-OK.  (NOTE: bit-exact compare is required — iq1_m's reconstructed
+#         packed scale can be Inf/NaN for some random nibble patterns; ours/ggml/oracle produce the identical
+#         RISC-V canonical qNaN, so BIT compare = correct byte-exact test where float== would false-mismatch.)
+# structure self-probe (compiled leaf .o · clang-18 -O3):
+#   deployed(scalar->clang autovec): vlux=0 vsext=32 vfmul=32 vslide=0 vset=65 21184B  (ALREADY gather-free)
+#   PROD(owned narrow-per-entry)   : vlux=0 vsext=32 vfcvt=32 vfmul=32 vslide=0 vset=1 20976B  (gather-free)
+# 2-seed cold N=25 nb=512:
+#   seed:              0x1      0x2
+#   DEP  ratio vs ggml: 1.044   1.046  (ours_med ~207us · iqr<1%)
+#   PROD ratio vs ggml: 1.026   1.040  (ours_med ~211us · iqr<1.7%)
+#   PROD vs deployed = 0.98x (211 vs 207 · within ~1-2% IQR noise) => PARITY.
+# WALL-TYPE VERDICT: lever-N/A honest-null — the pre-check objdump proved the deployed scalar leaf is ALREADY
+#   gather-free + narrow (vlux=0, vslidedown=0, only e32,m2), i.e. clang already lands the good codegen for
+#   iq1_m's CONTIGUOUS-grid decode, so the W4 dominant lever (a gather / m8-wide widening to eliminate) has
+#   NOTHING to eliminate. The OWNED body is board-PARITY (0.98x deployed / >=parity vs ggml). DEPLOYED anyway
+#   as de-lottery [L-8] robustness (own the codegen instead of riding clang's autovec lottery, which is
+#   toolchain-dependent), NOT claimed as a perf flip. This CONFIRMS (走完攻坚环) the pre-check lever-N/A verdict.
+
+## DEPLOY / CORE==PROD / lit
+# src touched (main tree · NO git commit): lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp
+#   (+emitDequantizeRowIQ2XSVectorBody +emitDequantizeRowIQ1MVectorBody · 451 insertions, 0 deletions —
+#    iq3_xxs/iq3_s bodies UNTOUCHED), RVVToEmitCInternal.h (+2 decls), RVVToEmitCForwardElementwise.cpp
+#   (+2 dispatch lines + comments), test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-{iq2-xs,iq1-m}.mlir
+#   (golden sync: owned-body CHECKs + CHECK-NOT vluxei/vloxei added).
+# CORE==PROD (front-door route == direct route · md5 IDENTICAL):
+#   iq2_xs: --weft-rvv-lower-to-emitc == --weft-rvv-materialize-dequantize-row-stream-front-door ...
+#           -> both md5 6fc3560e47987083f841835f28a053cd
+#   iq1_m:  -> both md5 124450af91b24fa2e3a452071c944fe0
+# golden lit rvv-to-emitc-ggml-dequantize-row-{iq2-xs,iq1-m}.mlir: PASS (owned-body CHECKs pinned).
+# ninja check-weft: 959/962 PASS. 3 fail = PRE-EXISTING Scripts/rvv-generated-bundle-abi-e2e-*strided-
+#   widening-dot-reduce-add* family (documented pre-existing r51c/r51w2 SEAL; unrelated to grid/dequant;
+#   my change = 0 new fail).
+# SEALED md5 CHANGED (report-only · no committed golden .c existed for these leaves):
+#   iq2_xs dequant leaf regen : scalar-forwarder -> OWNED 6fc3560e47987083f841835f28a053cd
+#   iq1_m  dequant leaf regen : scalar-forwarder -> OWNED 124450af91b24fa2e3a452071c944fe0
+# SEALED md5 UNCHANGED (isolation proof · == pre-r51d):
+#   iq3_xxs dequant (W4)   : 9d05ecad695be54d6364e3b3db0d43d6  (== W4 SEAL)
+#   iq3_s   dequant (r51c) : ca6bd4150dcfb0f42062659ecd6d8449  (== r51c SEAL)
+#   iq2_s   dequant (scalar): 8b405fc8588f84e8b28c4930622f243b
+#   iq2_xxs dequant (scalar): 45f480725fdcfb477ff84d051358115d
+
+## reproduce
+#   pre-check : ./precheck.sh                            (objdump deployed iq2_xs/iq1_m scalar leaves)
+#   iq2_xs    : REPS=25 NB=512 ./run.sh iq2_xs           (deployed vs PROD owned vs ggml)
+#   iq1_m     : REPS=25 NB=512 ./run.sh iq1_m
+#   regen     : build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq2-xs.mlir \
+#                 --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp  (== kernels/iq2_xs_dequant_prod.c)

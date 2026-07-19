@@ -4238,6 +4238,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
   if (format == "iq3_s")
     return emitDequantizeRowIQ3SVectorBody(rewriter, loc, input, output, avlArg,
                                            sizeType, opName, role);
+  // iq2_xs FANS OUT next (R5.1-D 扩 iq2 面 · grid family de-lottery): the grid-of-8
+  // (int64, 512-entry) sibling lowers to its OWNED narrow-per-entry real-vector body
+  // (gather-free -- the deployed scalar forwarder's clang autovec exploded to 32 vluxei /
+  // 96 vslidedown, pre-check objdump verified -- board-proven vs the codegen-lottery leaf).
+  // The remaining IQ grid formats (iq2_xxs/iq2_s) stay on the scalar forwarder until they
+  // fan out.
+  if (format == "iq2_xs")
+    return emitDequantizeRowIQ2XSVectorBody(rewriter, loc, input, output, avlArg,
+                                            sizeType, opName, role);
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
 }
@@ -4277,12 +4286,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
   // ARITHMETIC vector body (B线批3 ternary de-lottery · [L-8] · closes the ISSUE-002
   // codegen-lottery for these formats). NO codebook table and NO gather -- the ternary
   // {-1,0,1} value is decoded by pure arithmetic (2-bit shift/mask; base-3 * pow3).
-  // The ternary iq1_s/iq1_m stay on the scalar forwarder (they are a 2048-grid gather,
-  // NOT a register-resident decode -- the gather-wall exclusion).
   if (format == "tq1_0" || format == "tq2_0")
     return emitDequantizeRowTernaryVectorBody(rewriter, loc, input, output,
                                               avlArg, sizeType, opName, role,
                                               format);
+  // iq1_m FANS OUT to its OWNED narrow-per-entry real-vector body (R5.1-D grid family
+  // de-lottery [L-8] · ISSUE-001 reverse). Unlike the iq2_xs/iq3_s flip, iq1_m's deployed
+  // scalar forwarder is ALREADY gather-free after clang -O3 autovec (pre-check objdump:
+  // vlux=0, vslidedown=0 -- grid[j] j=0..7 is a CONTIGUOUS int8 read off a scalar pointer,
+  // the narrow-per-entry shape), so this OWNED body is a de-lottery robustness hardening at
+  // PARITY throughput (lever-N/A honest-null), NOT a codegen-STRUCTURE flip -- the sign-free
+  // ternary grid + per-group delta decode is rendered EXPLICITLY so it no longer rides
+  // clang's codegen-lottery. iq1_s stays on the scalar forwarder until it fans out.
+  if (format == "iq1_m")
+    return emitDequantizeRowIQ1MVectorBody(rewriter, loc, input, output, avlArg,
+                                           sizeType, opName, role);
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
 }

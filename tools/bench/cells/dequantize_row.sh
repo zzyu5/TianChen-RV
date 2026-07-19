@@ -22,6 +22,13 @@
 #                        unit-stride vector 算术·HW_GATHER=0·复刻对手形状·裁决3/ISSUE-107）
 #          iq3_xxs_grid （★A/B 参照：同格的 grid HW-gather 变体·frozen 0.36 gather 天花板·
 #                        vluxei16/vluxei8 indexed gather·裁决前的 sealed 记录）
+#          iq2_xs       （R5.1-D 扩 iq2 面·grid-of-8 int64 512-entry·OWNED narrow-per-entry·
+#                        SCALAR grid ptr + unit-stride vle8 + signs64 +-1 vmul + vsext_vf4->i32m2·
+#                        HW_GATHER=0·FLIP vs 32-vluxei/96-vslide codegen-lottery leaf·~3.9x ggml）
+#          iq1_m        （R5.1-D·ternary iq1s_grid 2048-entry·OWNED narrow-per-entry·SCALAR grid
+#                        ptr + vle8(signed) + vsext_vf4->i32m2 + vfadd(delta) + vfmul(dl)·packed
+#                        iq1m_scale fp16·HW_GATHER=0·lever-N/A honest-null（deployed 已 gather-free·
+#                        board-PARITY·de-lottery [L-8] 部署非结构翻）·byte-exact by construction）
 #          q8_0         （NON-GRID flat block·owned real-vector·NO gather·首个标量门 owned 收口探路）
 #          q4_0 q5_0    （flat nibble SAFE set·单 mul·owned real-vector·byte-exact by construction）
 #          q4_1 q5_1    （flat nibble FMA set·x*d+m·owned real-vector·fused vfmacc·byte-exact 须证 contraction 一致）
@@ -66,6 +73,17 @@ case "$FMT" in
   iq3_xxs_grid) LEAFC="kernels/iq3_xxs_grid_dequant.c"; DRVC="dequant_row_driver.cpp"
            TBLC="tables/iq3xxs_tables.h";     GSED='s/0x04040404U/0x04040405U/'
            OPPSYM="dequantize_row_iq3_xxs";   NB_MEASURE=512;  NB_VERIFY=4096 ;;
+  # R5.1-D grid-family flip (扩 iq2 面). NOTE: the AUTHORITATIVE board seal for these two cells
+  # was produced by the r51d standalone harness (experiments/active/r51d-iq2-iq1-dequant-flip/
+  # run.sh + the format-specific self-contained drivers below · GSED = arm-D source-mutation
+  # anchor: a unique arithmetic float literal, never in the integer grid tables). To drive them
+  # through THIS cell set DEQUANT_ROW_ASSET_ROOT=<r51d dir> (r-dequant kernels are 禁碰).
+  iq2_xs)  LEAFC="kernels/iq2_xs_dequant_prod.c"; DRVC="iq2xs_dequant_driver.cpp"
+           TBLC="tables/iq2xs_grid_tables.h"; GSED='s/0.25f/0.5f/'
+           OPPSYM="dequantize_row_iq2_xs";   NB_MEASURE=512;  NB_VERIFY=4096 ;;
+  iq1_m)   LEAFC="kernels/iq1_m_dequant_prod.c"; DRVC="iq1m_dequant_driver.cpp"
+           TBLC="tables/iq1m_grid_table.h";  GSED='s/0.125f/0.25f/'
+           OPPSYM="dequantize_row_iq1_m";    NB_MEASURE=512;  NB_VERIFY=4096 ;;
   q8_0)    LEAFC="kernels/q8_0_dequant.c";    DRVC="q8_0_dequant_row_driver.cpp"
            TBLC="";                           GSED='s/+ 2;/+ 1;/'
            OPPSYM="dequantize_row_q8_0";      NB_MEASURE=4096; NB_VERIFY=4096 ;;
@@ -114,7 +132,7 @@ case "$FMT" in
   tq1_0)   LEAFC="kernels/tq1_0_dequant.c";   DRVC="tq1_0_dequant_row_driver.cpp"
            TBLC="";                           GSED='s/v8 + 52;/v8 + 51;/'
            OPPSYM="dequantize_row_tq1_0";     NB_MEASURE=512;  NB_VERIFY=1024 ;;
-  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·q8_0·q4_0·q5_0·q4_1·q5_1·q4_K·q5_K·q2_K·q3_K·q6_K·mxfp4·iq4_nl·nvfp4·iq4_xs·tq2_0·tq1_0)"; exit 2 ;;
+  *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·iq2_xs·iq1_m·q8_0·q4_0·q5_0·q4_1·q5_1·q4_K·q5_K·q2_K·q3_K·q6_K·mxfp4·iq4_nl·nvfp4·iq4_xs·tq2_0·tq1_0)"; exit 2 ;;
 esac
 
 if [ "$BOARD" = rvv ]; then

@@ -8,15 +8,23 @@
 // dequantize_row_decode_core (decode_model "iq2_xs", qk=256, stride=74);
 // typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the typed
 // region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
-// string). The emitted C is BYTE-IDENTICAL to the dispatch-wired iq2_xs monolith modulo
-// ONLY the source-op provenance token (the SHARED grid decode emitGgmlDequantizeRowExtended,
-// reached via emitDequantizeRowIQGridBodyShared, is the SAME code both paths run) -- the
-// 512-entry (int64) grid (9-bit index qs&511) + the DERIVED signs64 sign plane (selector
-// qs>>9), the per-ib32 4-bit scales d*(0.5+scale)*0.25, and the fp16 d via the
-// (float)*(const _Float16 *) seam. The grid + signs64 tables are DERIVED at emit as
-// function-local statics (NO signs64 op-attr; that blocker is block-dot-repack-only, not
-// this streaming dequant path). REUSES the iq2_xs block-dot vec_dot grid decl. Byte-exact-
-// vs-ggml-reference dequantize_row_iq2_xs (a scalar AoS super-block loop; no reduction).
+// string). iq2_xs dequant now FANS OUT to its OWNED narrow-per-entry REAL-VECTOR body
+// (emitDequantizeRowIQ2XSVectorBody, R5.1-D 扩 iq2 面 · grid family de-lottery -- the
+// iq3_xxs/iq3_s dequant sibling): each 8-value grid entry (grid-of-8 int64, 512-entry)
+// decoded by ONE narrow OWNED pipeline over its 8 CONTIGUOUS grid bytes -- a SCALAR-computed
+// grid pointer (gridb + (q&511)*8, NO indexed gather) + a unit-stride vle8 (vl=8) + the
+// per-lane +-1 sign applied by an INTEGER vmul_vv against the SAME expanded signs64 +-1
+// plane (selector q>>9; 8 CONTIGUOUS +-1 bytes, also a unit-stride vle8) + vsext_vf4->i32m2
+// + vfcvt + vfmul(db) + vse32, db=d*(0.5+scale_nibble)*0.25. The 512-entry (int64) grid +
+// the signs64 plane are DERIVED at emit as function-local statics (NO signs64 op-attr; that
+// blocker is block-dot-repack-only, not this streaming dequant path; REUSES the iq2_xs
+// block-dot vec_dot grid + signs64 decls) and the fp16 d arrives via the (float)*(const
+// _Float16 *) seam. This REPLACES the prior scalar-AoS forwarder that clang's -O3 autovec
+// blew up into a 32-vluxei HW-gather / 96-vslidedown / 385-vsetvli codegen-lottery leaf
+// (ISSUE-001/002); board-proven gather-free ~2x that scalar leaf and ~3.9x ggml
+// dequantize_row_iq2_xs. Byte-exact-vs-ggml-reference by construction (grid[j]*sign EXACT
+// integer, grid bytes in [8,43] so signed i8 view == ggml's (const uint8_t *) read; float
+// sign-flip and mul-by-+-1 are bitwise-exact; no reduction).
 
 module {
   weft.exec.kernel @dequant_iq2_xs_kernel {
@@ -46,3 +54,14 @@ module {
 // The super-block loop, then the fp16 block-scale seam inside it.
 // CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"
+// The OWNED narrow-per-entry real-vector pipeline (gather-free): unit-stride vle8 of the 8
+// CONTIGUOUS grid bytes + the signs64 +-1 bytes, the INTEGER sign-fold vmul, the m2 widen /
+// convert / db-scale, and the unit store. NO __riscv_vluxei / vslidedown (the flip).
+// CHECK: __riscv_vle8_v_i8mf2
+// CHECK: __riscv_vmul_vv_i8mf2
+// CHECK: __riscv_vsext_vf4_i32m2
+// CHECK: __riscv_vfcvt_f_x_v_f32m2
+// CHECK: __riscv_vfmul_vf_f32m2
+// CHECK: __riscv_vse32_v_f32m2
+// CHECK-NOT: __riscv_vluxei
+// CHECK-NOT: __riscv_vloxei
