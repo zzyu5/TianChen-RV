@@ -85,22 +85,23 @@ module {
 // VLEN128-NOT: weft_rvv.q4_0_q8_0_block_dot
 // VLEN128-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
-// VLEN128-SAME: half_lanes = 8 : i64
+// VLEN128-SAME: half_lanes = 16 : i64
 // VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
 // VLEN128-SAME: weft_rvv.path_materialization = "realized"
 // VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
 // [档 C#9 full-LMUL[B]] the accumulator-LMUL selection reason (m1/mf2 provenance,
-// previously discarded): RVV1.0 measured table EMPTY => mf2 default, byte-exact.
-// VLEN128-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "capability-default-mf2"
+// previously discarded): r51g [GAP-P1]-loosen board-MEASURED q4_0 => WIDE m1 chain
+// (GEVM 2.3-2.5x / GEMM 1.24x faster, spill-free, byte-exact; see FINDING).
+// VLEN128-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 // VLEN128-SAME: weight_block_stride = 288 : i64
 // VLEN128-SAME: weight_interleave = 16 : i64
 // VLEN128-SAME: weight_quant_byte_offset = 32 : i64
 // The decomposed inner region bricks are CONSTRUCTED (not test-authored): the
-// per-block lane-wise integer CORE, the TWO per-strip dual-fp16 scale FOLDs (one
-// per 8-lane strip at half_lanes 8), and the loop yield.
+// per-block lane-wise integer CORE, the dual-fp16 scale FOLD, and the loop yield.
+// r51g board-measured m1 => ONE 16-lane strip (half_lanes 16) => a SINGLE fold
+// (the mf2 default carried two 8-lane-strip folds).
 // VLEN128: weft_rvv.repack_lane_wise_q4_x_i8_dot
-// VLEN128: weft_rvv.repack_dual_fp16_scale_fold
 // VLEN128: weft_rvv.repack_dual_fp16_scale_fold
 // VLEN128: weft_rvv.typed_repack_gemv_loop_yield
 

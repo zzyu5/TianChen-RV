@@ -47,23 +47,24 @@ module {
 // The per-group weight base vx + x*nb*320 (block_q4_1x16 stride 320 = 16 d + 16 m
 // + 256 nibbles).
 // CHECK: literal "320"
-// The two 8-lane f32m2 accumulators (rows 0..7, 8..15) -- the mf2/half_lanes=8 form.
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
+// The single 16-lane f32m4 accumulator -- the board-measured m1/half_lanes=16 form
+// (r51g q4_1 flip; the mf2 default carried two 8-lane f32m2 accumulators).
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
 // The unsigned RAW-nibble load + lane-wise vwmacc accumulate.
-// CHECK: call_opaque "__riscv_vle8_v_u8mf2"
-// CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
-// CHECK: call_opaque "__riscv_vse32_v_f32m2"
+// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// CHECK: call_opaque "__riscv_vwmacc_vx_i16m2"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
 // CHECK: return
 
 // The q4_1 UNSIGNED-nibble decode: vand(0x0F)/vsrl(0x04)/vreinterpret peel, NO
 // offset-binary vsll/vsra sign-extension.
-// UNSIGNED: call_opaque "__riscv_vand_vx_u8mf2"
-// UNSIGNED: call_opaque "__riscv_vsrl_vx_u8mf2"
-// UNSIGNED: call_opaque "__riscv_vreinterpret_v_u8mf2_i8mf2"
-// UNSIGNED-NOT: __riscv_vsll_vx_i8mf2
+// UNSIGNED: call_opaque "__riscv_vand_vx_u8m1"
+// UNSIGNED: call_opaque "__riscv_vsrl_vx_u8m1"
+// UNSIGNED: call_opaque "__riscv_vreinterpret_v_u8m1_i8m1"
+// UNSIGNED-NOT: __riscv_vsll_vx_i8m1
 
 // The q4_1 single MIN-fold: the SECOND vfwmul (m_x * s_y) folded by vfadd AFTER the
 // dual-fp16 scale vfmacc.
-// MIN: call_opaque "__riscv_vfmacc_vv_f32m2"
-// MIN: call_opaque "__riscv_vfwmul_vf_f32m2"
-// MIN: call_opaque "__riscv_vfadd_vv_f32m2"
+// MIN: call_opaque "__riscv_vfmacc_vv_f32m4"
+// MIN: call_opaque "__riscv_vfwmul_vf_f32m4"
+// MIN: call_opaque "__riscv_vfadd_vv_f32m4"

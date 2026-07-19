@@ -1,0 +1,37 @@
+
+
+== toolchain ==
+clang version 17.0.6 ( 17.0.6-16.oe2403)
+== objdump q50 mf2 ==
+      3 e16,m1
+      3 e32,m2
+      1 e8,mf2
+== objdump q50 m1  ==
+      2 e16,m2
+      2 e32,m4
+      1 e8,m1
+q50 spill mf2=0 m1=0  gather m1=0
+== objdump q51 mf2 ==
+      5 e16,m1
+      5 e32,m2
+      1 e8,mf2
+== objdump q51 m1  ==
+      3 e16,m2
+      3 e32,m4
+      1 e8,m1
+q51 spill mf2=0 m1=0  gather m1=0
+== run ==
+format,footprint,seed,weight_bytes,mf2_median_ns,m1_median_ns,m1_over_mf2,byte_exact_3arm
+q5_0,M=256 K=1024 cache-resident,0,180224,107960,70460,0.6526,PASS
+q5_0,M=256 K=1024 cache-resident,1,180224,127420,71260,0.5593,PASS
+q5_0,M=2048 K=4096 ~mid,0,5767168,3920416,2317049,0.5910,PASS
+q5_0,M=2048 K=4096 ~mid,1,5767168,3700635,2285349,0.6176,PASS
+q5_0,M=8192 K=4096 DRAM-bound,0,23068672,15850304,10010581,0.6316,PASS
+q5_0,M=8192 K=4096 DRAM-bound,1,23068672,15395203,8543955,0.5550,PASS
+q5_1,M=256 K=1024 cache-resident,0,196608,115420,65521,0.5677,PASS
+q5_1,M=256 K=1024 cache-resident,1,196608,115580,59340,0.5134,PASS
+q5_1,M=2048 K=4096 ~mid,0,6291456,3440174,2046108,0.5948,PASS
+q5_1,M=2048 K=4096 ~mid,1,6291456,3492214,2114949,0.6056,PASS
+q5_1,M=8192 K=4096 DRAM-bound,0,25165824,14992841,9382238,0.6258,PASS
+q5_1,M=8192 K=4096 DRAM-bound,1,25165824,15177362,9849160,0.6489,PASS
+3-arm byte-exact: PASS mism=0

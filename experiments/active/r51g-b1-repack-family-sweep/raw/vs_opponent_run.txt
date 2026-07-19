@@ -1,0 +1,13 @@
+
+
+== toolchain ==
+clang version 17.0.6 ( 17.0.6-16.oe2403)
+== VLMAX probe (e8mf2 / e32m2 at this VLEN) ==
+== run (ours m1 vs ggml_gemv_q8_0_16x1_q8_0) ==
+footprint,seed,ours_ns,ggml_ns,ours_over_ggml,ours_exact,ggml_exact
+M=256 K=1024,0,59481,329821,0.1803,PASS,FAIL
+M=256 K=1024,1,48420,185961,0.2604,PASS,FAIL
+M=2048 K=4096,0,1916748,8374514,0.2289,PASS,FAIL
+M=2048 K=4096,1,1893467,7539730,0.2511,PASS,FAIL
+M=8192 K=4096 DRAM,0,7711811,31056326,0.2483,PASS,FAIL
+M=8192 K=4096 DRAM,1,7701451,39971803,0.1927,PASS,FAIL

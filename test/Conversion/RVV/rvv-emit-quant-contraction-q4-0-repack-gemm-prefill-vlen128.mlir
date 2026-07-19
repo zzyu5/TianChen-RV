@@ -1,5 +1,5 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWHOLE
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMF2
 
 // OPTION-2 GEMM finale -- REAL-PATH (真路验) auto-select + construct + emit on the
 // SUPPORTED RVV1.0 regime (march=rv64gcv => Zvl128b => VLEN128). The abstract,
@@ -52,23 +52,23 @@ module {
 // per-group weight base vx + x*nb*288 (block_q4_0x16 stride 288).
 // CHECK: literal "136"
 // CHECK: literal "288"
-// The 4x8 f32m2 accumulator set (columnsPerPass == 4 columns folded in ONE pass).
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
+// The 16-lane f32m4 accumulator set (r51g m1 flip; mf2 default was 4x8 f32m2, columnsPerPass 4).
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
 // The disjoint repacked i8mf2 sub-load, plain sign-extension decode (NO vxor), and
 // lane-wise vwmacc accumulate (NO cross-lane reduction wall).
-// CHECK: call_opaque "__riscv_vle8_v_i8mf2"
-// CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
-// CHECK: call_opaque "__riscv_vwadd_vv_i32m2"
-// The dual-fp16 scale fold and the 4x8 vector store vse32_v_f32m2.
-// CHECK: call_opaque "__riscv_vfmacc_vv_f32m2"
-// CHECK: call_opaque "__riscv_vse32_v_f32m2"
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
+// CHECK: call_opaque "__riscv_vwmacc_vx_i16m2"
+// CHECK: call_opaque "__riscv_vwadd_vv_i32m4"
+// The dual-fp16 scale fold and the 16-lane vector store vse32_v_f32m4.
+// CHECK: call_opaque "__riscv_vfmacc_vv_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
 // CHECK: return
 
-// The SUPPORTED RVV1.0 mf2 form -- the dropped RVV0.7 whole-LMUL m1/f32m4 spellings
-// must NOT appear, and NO cross-lane vredsum reduction wall.
-// NOWHOLE-NOT: __riscv_vfmv_v_f_f32m4
-// NOWHOLE-NOT: __riscv_vle8_v_i8m1
-// NOWHOLE-NOT: redsum
+// The board-MEASURED r51g m1 whole-LMUL form (q4_0 flipped) -- the mf2 half_lanes=8
+// spellings must NOT appear, and NO cross-lane vredsum reduction wall.
+// NOMF2-NOT: __riscv_vfmv_v_f_f32m2
+// NOMF2-NOT: __riscv_vle8_v_i8mf2
+// NOMF2-NOT: redsum

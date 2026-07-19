@@ -1295,8 +1295,22 @@ struct RepackAccumulatorLMULChoice {
 // (footprint-robust THROUGH 35.6 MB DRAM-bound -- the "micro washes at e2e"
 // concern does NOT wash out within the deployed GEVM) AND prefill-GEMM ~1.40x
 // (the wide 16-lane strip beats the mf2 4-column columnsPerPass amortization).
-// q4 measured ~parity (0.95-1.005x, confounded by a scalar nibble-unpack) => left
-// UNMEASURED here (no flip). Only q8_0 (kNibbleQ80ScaleModel) is asserted.
+//
+// r51g family board-sweep (experiments/active/r51g-b1-repack-family-sweep) extends
+// the sweep to the DEPLOYED flat nibble family (resolving W2's scalar-nibble-unpack
+// confound: the deployed emit VECTORIZES the unpack). All 3-arm byte-exact
+// (mism=0), spill-free-verified by objdump, 2-seed cold reps=15/7:
+//   * q4_0 (kNibbleQ40ScaleModel): m1 FASTER in BOTH regimes -> FLIP. decode-GEVM
+//     0.39-0.44 (~2.3-2.5x), prefill-GEMM 0.78-0.82 (~1.24x), both spill=0.
+//   * q4_1 (kNibbleQ41ScaleModel): m1 FASTER decode, PARITY prefill -> FLIP (no
+//     regression). decode-GEVM 0.40-0.45 (~2.3x), prefill-GEMM 0.99-1.02 (parity),
+//     both spill=0.
+//   * q5_0/q5_1: m1 wins decode (GEVM 0.55-0.65) but the prefill GEMM m1 emit
+//     SPILLS (objdump 1-2 whole-register reloads) and is 2.3-2.4x SLOWER -- the
+//     [GAP-P1] regfile-spill concern is VINDICATED for the qh+min prefill core at
+//     m1. Because one measured row flips BOTH regimes, q5_0/q5_1 stay mf2 (a fill
+//     would deploy a 2.3x prefill regression). NOT flipped -- honest null.
+// Only board-MEASURED spill-free double-safe formats are asserted here.
 struct RepackMeasuredM1FasterMeasurement {
   llvm::StringRef scaleModel;  ///< committed decode-family WHAT (registry key)
   bool m1Faster;               ///< board-measured: m1 chain faster than mf2 default
@@ -1313,6 +1327,21 @@ constexpr RepackMeasuredM1FasterMeasurement
          "the mf2 default @rvv VLEN128 clang-17.0.6, spill-free by "
          "rvvRegisterPressureLegal, byte-exact 3-arm 2-seed cold, GEVM "
          "footprint-robust THROUGH 35.6 MB DRAM-bound; CORE==PROD deployed emit)"},
+        {kNibbleQ40ScaleModel, /*m1Faster=*/true,
+         "decode-GEVM 0.39-0.44 / prefill-GEMM 0.78-0.82 cold m1/mf2 (2.3-2.5x / 1.24x faster)",
+         "experiments/active/r51g-b1-repack-family-sweep/FINDING.md "
+         "(q4_0 signed-nibble DEPLOYED repack GEVM+GEMM m1 whole-LMUL chain faster "
+         "than the mf2 default @rvv VLEN128 clang-17.0.6, spill-free by objdump, "
+         "byte-exact 3-arm 2-seed cold; resolves W2 scalar-unpack confound -- the "
+         "deployed emit vectorizes the nibble unpack, which mf2 does TWICE per "
+         "16-col group and m1 collapses to ONE 16-lane pass)"},
+        {kNibbleQ41ScaleModel, /*m1Faster=*/true,
+         "decode-GEVM 0.40-0.45 / prefill-GEMM 0.99-1.02 cold m1/mf2 (2.3x faster / parity)",
+         "experiments/active/r51g-b1-repack-family-sweep/FINDING.md "
+         "(q4_1 unsigned-nibble+min DEPLOYED repack GEVM+GEMM: m1 2.3x faster in "
+         "decode, PARITY in prefill (spill-free, no regression) @rvv VLEN128 "
+         "clang-17.0.6, byte-exact 3-arm 2-seed cold; the decode-dominant flat "
+         "family win, prefill neutral)"},
 };
 
 // Pure DATA lookup: the board-measured m1-vs-mf2 disposition for the committed

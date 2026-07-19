@@ -1,31 +1,30 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MF2
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWHOLE
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M1
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMF2
 
 // OPTION-2 M1 -- EMIT-IDENTITY on the SUPPORTED RVV1.0 regime (march=rv64gcv =>
 // Zvl128b => VLEN128). The abstract, algorithm-UNCOMMITTED
 // weft_rvv.quant_contraction op (q4_0 / decode) is AUTO-LOWERED by
 // --weft-rvv-lower-quant-contraction at rv64gcv: the in-compiler selection picks
 // REPACK (deriveMinimumVLEN(rv64gcv)=128 => the q4_0-vlen128-decode keep) and the
-// C1 bridge CONSTRUCTS the typed weft_rvv.typed_repack_gemv_loop_body region (the
-// monolithic weft_rvv.repack_gemv_q4_0_q8_0 op is retired) carrying the
-// block_q4_0x16 x16 facts 288/16/32, half_lanes=8 => mf2, numHalves==2, NO
-// integer_core_lmul, PLUS the 4 emitter-INERT audit attrs contraction_algorithm/
-// path_materialization/path_selection_reason/weight_layout_contract. The region's
-// two decomposed inner bricks (the per-block lane-wise integer CORE + the two
-// per-strip dual-fp16 scale FOLDs) are constructed in-region. --weft-rvv-lower-to-
-// emitc then lowers it to the mf2/half_lanes=8 two-8-lane-halves repack-GEMV kernel.
+// C1 bridge CONSTRUCTS the typed weft_rvv.typed_repack_gemv_loop_body region.
 //
-// THIS proves the COMPILER now AUTO-SELECTS + CONSTRUCTS the repack region
-// (previously hand-chosen by authoring the concrete repack op directly in the
-// input IR) and auto-emits the repack kernel SHAPE. The region emit is byte-exact
-// to the pre-retirement monolithic emit (EMPIRICALLY proven at Phase B), so the
-// audit attrs are emitter-inert AND the auto-selected path emits EXACTLY the same
-// kernel bytes.
+// [GAP-P1]-loosen r51g board sweep flipped q4_0 (kNibbleQ40ScaleModel) to the WIDE
+// m1 whole-LMUL chain: selectRepackAccumulatorLMUL consults lookupRepackMeasuredM1
+// Faster, and q4_0 now has a board-MEASURED row (DEPLOYED repack GEVM 2.3-2.5x /
+// GEMM 1.24x faster than mf2 @rvv VLEN128, spill-free, byte-exact 3-arm -- see
+// experiments/active/r51g-b1-repack-family-sweep/FINDING.md). So the region carries
+// half_lanes=16 => integer_core_lmul "m1", numHalves==1 (one 16-lane strip), PLUS
+// the emitter-INERT audit attrs. --weft-rvv-lower-to-emitc lowers it to the m1
+// whole-LMUL (i8m1 -> i16m2 -> i32m4, single 16-lane f32m4 strip) repack-GEMV.
 //
-// SCOPE: EMIT-IDENTITY ONLY. This is the SUPPORTED RVV1.0 mf2 form, NOT the
-// dropped RVV0.7 (xtheadvector / whole-LMUL m1) regime. NO perf/e2e claim -- the
-// kernel is lit-emitted, NOT run.
+// THIS proves the COMPILER AUTO-SELECTS the board-measured m1 chain (registration-
+// as-DATA: a data row flips it, no per-format C++ switch). The m1 emit is byte-exact
+// to the mf2 default (the LMUL flip does not change arithmetic; board 3-arm mism=0).
+//
+// SCOPE: EMIT-IDENTITY ONLY. The m1 whole-LMUL form is now the board-MEASURED
+// DEPLOYED q4_0 chain on RVV1.0 (VLEN128). NO extra perf claim in this fixture --
+// the kernel is lit-emitted here; the perf is in the r51g FINDING.
 
 module {
   weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel {
@@ -58,25 +57,22 @@ module {
 // CHECK: emitc.func @weft_emitc_ggml_vec_dot_q4_0_q8_0_kernel_ggml_vec_dot_q4_0_q8_0(
 // The per-group weight base vx + x*nb*288 (block_q4_0x16 stride 288).
 // CHECK: literal "288"
-// The two 8-lane f32m2 accumulators (rows 0..7, 8..15) -- the mf2/half_lanes=8 form.
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
-// The two disjoint repacked i8mf2 sub-loads then lane-wise vwmacc accumulate (NO
-// cross-lane reduction wall).
-// CHECK: call_opaque "__riscv_vle8_v_i8mf2"
-// CHECK: call_opaque "__riscv_vle8_v_i8mf2"
-// CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
-// The single-column two-half vector store vse32_v_f32m2.
-// CHECK: call_opaque "__riscv_vse32_v_f32m2"
-// CHECK: call_opaque "__riscv_vse32_v_f32m2"
+// The single 16-lane f32m4 accumulator -- the board-measured m1/half_lanes=16 form.
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// The repacked i8m1 whole-LMUL load then lane-wise vwmacc into i16m2 (NO cross-lane
+// reduction wall) then vwadd into i32m4.
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
+// CHECK: call_opaque "__riscv_vwmacc_vx_i16m2"
+// CHECK: call_opaque "__riscv_vwadd_vv_i32m4"
+// The single 16-lane vector store vse32_v_f32m4.
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
 // CHECK: return
 
-// The SUPPORTED RVV1.0 fractional form: the i8mf2 strip is PRESENT (NOT the
-// dropped RVV0.7 whole-LMUL i8m1/f32m4 form).
-// MF2: call_opaque "__riscv_vle8_v_i8mf2"
+// The board-MEASURED RVV1.0 whole-LMUL m1 form: the i8m1 strip is PRESENT.
+// M1: call_opaque "__riscv_vle8_v_i8m1"
 
-// This is the RVV1.0 mf2 (two 8-lane halves) arm -- the whole-LMUL m1/f32m4
-// spellings (the dropped RVV0.7 / xtheadvector regime) must NOT appear.
-// NOWHOLE-NOT: __riscv_vfmv_v_f_f32m4
-// NOWHOLE-NOT: __riscv_vle8_v_i8m1
-// NOWHOLE-NOT: redsum
+// This is the m1 (single 16-lane strip) chain -- the mf2 (two 8-lane halves)
+// spellings must NOT appear (the flip is a REAL per-format LMUL change).
+// NOMF2-NOT: __riscv_vle8_v_i8mf2
+// NOMF2-NOT: __riscv_vfmv_v_f_f32m2
+// NOMF2-NOT: __riscv_vwmacc_vx_i16m1

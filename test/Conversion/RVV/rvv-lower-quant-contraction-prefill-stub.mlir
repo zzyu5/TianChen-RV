@@ -66,7 +66,7 @@ module {
 // REALIZED: weft_rvv.typed_repack_gemm_loop_body
 // REALIZED-SAME: activation_block_stride = 136 : i64
 // REALIZED-SAME: activation_interleave = 4 : i64
-// REALIZED-SAME: half_lanes = 8 : i64
+// REALIZED-SAME: half_lanes = 16 : i64
 // REALIZED-SAME: weft_rvv.contraction_algorithm = "repack"
 // REALIZED-SAME: weft_rvv.path_materialization = "realized"
 // REALIZED-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-prefill"

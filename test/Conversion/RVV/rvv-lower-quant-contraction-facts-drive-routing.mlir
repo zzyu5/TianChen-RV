@@ -42,7 +42,7 @@ module {
 // CHECK-NOT: weft_rvv.q4_0_q8_0_block_dot
 // CHECK-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
-// CHECK-SAME: half_lanes = 8 : i64
+// CHECK-SAME: half_lanes = 16 : i64
 // CHECK-SAME: weft_rvv.contraction_algorithm = "repack"
 // CHECK-SAME: weft_rvv.path_materialization = "realized"
 // CHECK-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
@@ -51,6 +51,7 @@ module {
 // CHECK-SAME: weight_interleave = 16 : i64
 // CHECK-SAME: weight_quant_byte_offset = 32 : i64
 // CHECK: weft_rvv.repack_lane_wise_q4_x_i8_dot
-// CHECK: weft_rvv.repack_dual_fp16_scale_fold
+// (r51g board-measured m1 => ONE 16-lane strip => a SINGLE dual-fp16 scale fold,
+// where the mf2 default carried two 8-lane-strip folds.)
 // CHECK: weft_rvv.repack_dual_fp16_scale_fold
 // CHECK: weft_rvv.typed_repack_gemv_loop_yield
