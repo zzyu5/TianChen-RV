@@ -1507,10 +1507,13 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
     // to i16m2 and the reduction is i16m2 -> i32m1. The GATHER, however, is BATCHED per
     // SUB-BLOCK PAIR (2 sub-blocks = 4 halves = 64 lanes): ONE i64m4 grid gather + ONE
     // i64m4 sign gather (8 u64 entries = 8 groups) + ONE i8m4 q8 pair load + ONE i8m4
-    // vmul sign-fold, then each 16-lane half is recovered by a register-group vget
-    // (i8m4 -> i8m1) and fed to the UNCHANGED per-half vwmul_vv_i16m2 + vwredsum. The pair
-    // u16 index EMUL is (16/64)*m4 = m1. (The vget half-recovery assumes the board VLEN=128
-    // so one i8m1 register == one 16-lane half; the per-half dot itself stays AVL=16.)
+    // vmul sign-fold, then each 16-lane half is recovered VLEN-AGNOSTICALLY (vslidedown the
+    // wide register by the LITERAL element offset 16*ph so the half lands at lane 0, then
+    // vget(.,0) the low i8m1 register) and fed to the UNCHANGED per-half vwmul_vv_i16m2 +
+    // vwredsum. The pair u16 index EMUL is (16/64)*m4 = m1. (Half ph occupies element window
+    // [16*ph,16*ph+16) of the wide i8m4; the raw vget(.,ph) register-subgroup reads
+    // [ph*VLEN/8,...) = the WRONG lanes at VLEN>=256, so the slide is REQUIRED for VLEN256
+    // byte-exactness -- ISSUE-120. The per-half dot itself stays AVL=16.)
     int64_t halfLanes = 16; // 2 grid entries * 8 i8 = one 16-lane half
     mlir::Type i8WideType = emitc::OpaqueType::get(ctx, "vint8m1_t");
     mlir::Type i16WidestType = emitc::OpaqueType::get(ctx, "vint16m2_t");
@@ -1620,7 +1623,9 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
     // decodes TWO sub-blocks (s0 = 2*pair, s1 = 2*pair+1) -- FOUR 16-lane halves -- with ONE
     // wider i64m4 grid gather + ONE wider signs64 gather (8 index slots = 8 groups), ONE
     // wider i8m4 q8 pair load, and ONE wider i8m4 vmul sign-fold. Each 16-lane half is then
-    // recovered from the wide register via a register-group vget (i8m4 -> i8m1), so the
+    // recovered VLEN-AGNOSTICALLY (vslidedown by the LITERAL element offset 16*ph then
+    // vget(.,0) the low i8m1 register -- the raw vget(.,ph) folded the WRONG lanes at
+    // VLEN>=256), so the
     // per-half signed widening product + vwredsum stay BYTE-IDENTICAL to the unbatched body
     // (still i16m2 at AVL=16 -- the ls1/ls2 per-half split forbids a 32-lane collapse) while
     // the gather + vsetvli config are hoisted to the super-block pair (16 gathers -> 8,
@@ -1631,6 +1636,7 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
     int64_t numGroupsPair = pairHalves * numGroupsPerHalf; // 8 i64 grid/sign entries
     mlir::Type idxArrayPairType = emitc::ArrayType::get({8}, u16ElemType);
     std::string vgetCallee = "__riscv_vget_v_i8m4_i8m1";
+    std::string slideCallee = "__riscv_vslidedown_vx_i8m4";
 
     for (int64_t pair = 0; pair < numSubBlocks / 2; ++pair) {
       // Decode BOTH sub-blocks of the pair up front: the per-half explicit scales (ls1/ls2
@@ -1835,15 +1841,40 @@ void VariantToEmitCFunc::emitIQ2XSSuperBlockGridBody(
             return {gridPairV, signsPairV, sizeLit(pairLanes)};
           });
 
-      // Per-half dot: recover each 16-lane half via a register-group vget (i8m4 -> i8m1),
-      // then the SAME i8m1 -> i16m2 vwmul + vwredsum + extract as the unbatched body, in
-      // STRICT (s0-h0, s0-h1, s1-h0, s1-h1) order with each half's own explicit ls.
+      // Per-half dot: recover each 16-lane half VLEN-AGNOSTICALLY, then the SAME i8m1 ->
+      // i16m2 vwmul + vwredsum + extract as the unbatched body, in STRICT (s0-h0, s0-h1,
+      // s1-h0, s1-h1) order with each half's own explicit ls. Half ph occupies element
+      // window [16*ph, 16*ph+16) of the wide i8m4 register -- NOT the ph-th vget register-
+      // subgroup (lane count = VLEN/8 = 16 at VLEN128 but 32 at VLEN256, so the raw
+      // vget(.,ph) reads [ph*VLEN/8,...) = the WRONG lanes at VLEN>=256 -- ISSUE-120). We
+      // vslidedown the wide register by the LITERAL element offset 16*ph (ph = 1..3) so
+      // element 16*ph+l lands at lane l, then vget(.,0) extracts the low i8m1 register
+      // (lanes [0,16), always the half at every VLEN); ph=0 needs no slide. Slide offset
+      // max 16*3=48 (reads [48,64), a subset of the 64 written lanes). Byte-identical to the
+      // old body at VLEN128 (slide-then-get0 == get(.,ph) there); correct at VLEN256+.
       for (int64_t ph = 0; ph < pairHalves; ++ph) {
+        mlir::Value gridWide = gridSignedPair;
+        mlir::Value q8Wide = q8PairV;
+        if (ph != 0) {
+          gridWide = emitOpaqueCallBuilt(
+              rewriter, loc, i8PairType, slideCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridSignedPair, sizeLit(halfLanes * ph),
+                        sizeLit(halfLanes)};
+              });
+          q8Wide = emitOpaqueCallBuilt(
+              rewriter, loc, i8PairType, slideCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {q8PairV, sizeLit(halfLanes * ph), sizeLit(halfLanes)};
+              });
+        }
         mlir::Value gridSigned = emitOpaqueCall(
             rewriter, loc, i8WideType, vgetCallee,
-            mlir::ValueRange{gridSignedPair, sizeLit(ph)}, opName, role);
+            mlir::ValueRange{gridWide, sizeLit(0)}, opName, role);
         mlir::Value q8V = emitOpaqueCall(rewriter, loc, i8WideType, vgetCallee,
-                                         mlir::ValueRange{q8PairV, sizeLit(ph)},
+                                         mlir::ValueRange{q8Wide, sizeLit(0)},
                                          opName, role);
 
         // p = __riscv_vwmul_vv_i16m2(gridSigned, q8v, 16);  (signed widening product,
@@ -1979,10 +2010,13 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
     // to i16m2 and the reduction is i16m2 -> i32m1. The GATHER, however, is BATCHED per
     // SUB-BLOCK PAIR (2 sub-blocks = 4 halves = 64 lanes): ONE i64m4 grid gather + ONE
     // i64m4 sign gather (8 u64 entries = 8 groups) + ONE i8m4 q8 pair load + ONE i8m4
-    // vmul sign-fold, then each 16-lane half is recovered by a register-group vget
-    // (i8m4 -> i8m1) and fed to the UNCHANGED per-half vwmul_vv_i16m2 + vwredsum. The pair
-    // u16 index EMUL is (16/64)*m4 = m1. (The vget half-recovery assumes the board VLEN=128
-    // so one i8m1 register == one 16-lane half; the per-half dot itself stays AVL=16.)
+    // vmul sign-fold, then each 16-lane half is recovered VLEN-AGNOSTICALLY (vslidedown the
+    // wide register by the LITERAL element offset 16*ph so the half lands at lane 0, then
+    // vget(.,0) the low i8m1 register) and fed to the UNCHANGED per-half vwmul_vv_i16m2 +
+    // vwredsum. The pair u16 index EMUL is (16/64)*m4 = m1. (Half ph occupies element window
+    // [16*ph,16*ph+16) of the wide i8m4; the raw vget(.,ph) register-subgroup reads
+    // [ph*VLEN/8,...) = the WRONG lanes at VLEN>=256, so the slide is REQUIRED for VLEN256
+    // byte-exactness -- ISSUE-120. The per-half dot itself stays AVL=16.)
     int64_t halfLanes = 16; // 2 grid entries * 8 i8 = one 16-lane half
     mlir::Type i8WideType = emitc::OpaqueType::get(ctx, "vint8m1_t");
     mlir::Type i16WidestType = emitc::OpaqueType::get(ctx, "vint16m2_t");
@@ -2093,7 +2127,9 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
     // decodes TWO sub-blocks (s0 = 2*pair, s1 = 2*pair+1) -- FOUR 16-lane halves -- with ONE
     // wider i64m4 grid gather + ONE wider signs256 gather (8 index slots = 8 groups), ONE
     // wider i8m4 q8 pair load, and ONE wider i8m4 vmul sign-fold. Each 16-lane half is then
-    // recovered from the wide register via a register-group vget (i8m4 -> i8m1), so the
+    // recovered VLEN-AGNOSTICALLY (vslidedown by the LITERAL element offset 16*ph then
+    // vget(.,0) the low i8m1 register -- the raw vget(.,ph) folded the WRONG lanes at
+    // VLEN>=256), so the
     // per-half signed widening product + vwredsum stay BYTE-IDENTICAL to the unbatched body
     // (still i16m2 at AVL=16 -- the ls1/ls2 per-half split forbids a 32-lane collapse) while
     // the gather + vsetvli config are hoisted to the super-block pair (16 gathers -> 8,
@@ -2104,6 +2140,7 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
     int64_t numGroupsPair = pairHalves * numGroupsPerHalf; // 8 i64 grid/sign entries
     mlir::Type idxArrayPairType = emitc::ArrayType::get({8}, u16ElemType);
     std::string vgetCallee = "__riscv_vget_v_i8m4_i8m1";
+    std::string slideCallee = "__riscv_vslidedown_vx_i8m4";
 
     for (int64_t pair = 0; pair < numSubBlocks / 2; ++pair) {
       // Decode BOTH sub-blocks of the pair up front: the per-half explicit scales (ls1/ls2
@@ -2318,15 +2355,40 @@ void VariantToEmitCFunc::emitIQ2SSuperBlockGridBody(
             return {gridPairV, signsPairV, sizeLit(pairLanes)};
           });
 
-      // Per-half dot: recover each 16-lane half via a register-group vget (i8m4 -> i8m1),
-      // then the SAME i8m1 -> i16m2 vwmul + vwredsum + extract as the unbatched body, in
-      // STRICT (s0-h0, s0-h1, s1-h0, s1-h1) order with each half's own explicit ls.
+      // Per-half dot: recover each 16-lane half VLEN-AGNOSTICALLY, then the SAME i8m1 ->
+      // i16m2 vwmul + vwredsum + extract as the unbatched body, in STRICT (s0-h0, s0-h1,
+      // s1-h0, s1-h1) order with each half's own explicit ls. Half ph occupies element
+      // window [16*ph, 16*ph+16) of the wide i8m4 register -- NOT the ph-th vget register-
+      // subgroup (lane count = VLEN/8 = 16 at VLEN128 but 32 at VLEN256, so the raw
+      // vget(.,ph) reads [ph*VLEN/8,...) = the WRONG lanes at VLEN>=256 -- ISSUE-120). We
+      // vslidedown the wide register by the LITERAL element offset 16*ph (ph = 1..3) so
+      // element 16*ph+l lands at lane l, then vget(.,0) extracts the low i8m1 register
+      // (lanes [0,16), always the half at every VLEN); ph=0 needs no slide. Slide offset
+      // max 16*3=48 (reads [48,64), a subset of the 64 written lanes). Byte-identical to the
+      // old body at VLEN128 (slide-then-get0 == get(.,ph) there); correct at VLEN256+.
       for (int64_t ph = 0; ph < pairHalves; ++ph) {
+        mlir::Value gridWide = gridSignedPair;
+        mlir::Value q8Wide = q8PairV;
+        if (ph != 0) {
+          gridWide = emitOpaqueCallBuilt(
+              rewriter, loc, i8PairType, slideCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridSignedPair, sizeLit(halfLanes * ph),
+                        sizeLit(halfLanes)};
+              });
+          q8Wide = emitOpaqueCallBuilt(
+              rewriter, loc, i8PairType, slideCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {q8PairV, sizeLit(halfLanes * ph), sizeLit(halfLanes)};
+              });
+        }
         mlir::Value gridSigned = emitOpaqueCall(
             rewriter, loc, i8WideType, vgetCallee,
-            mlir::ValueRange{gridSignedPair, sizeLit(ph)}, opName, role);
+            mlir::ValueRange{gridWide, sizeLit(0)}, opName, role);
         mlir::Value q8V = emitOpaqueCall(rewriter, loc, i8WideType, vgetCallee,
-                                         mlir::ValueRange{q8PairV, sizeLit(ph)},
+                                         mlir::ValueRange{q8Wide, sizeLit(0)},
                                          opName, role);
 
         // p = __riscv_vwmul_vv_i16m2(gridSigned, q8v, 16);  (signed widening product,

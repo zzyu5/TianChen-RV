@@ -1,0 +1,51 @@
+# ISSUE-120 fix seal — iq2_xs/iq2_s pair-batched grid vec_dot VLEN256 byte-broken -> fixed
+# task 07-19-r51w2-issue120 · worktree base d55f9ab4e
+
+--- ROOT CAUSE ---
+emitIQ2XSSuperBlockGridBody / emitIQ2SSuperBlockGridBody (lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp):
+the pair-batched grid decode does ONE wide i64m4 gather + i8m4 vmul sign-fold (4 halves of 16
+lanes each land at element offsets 0/16/32/48 of the i8m4 group at ANY VLEN), then recovered
+each half with __riscv_vget_v_i8m4_i8m1(v, ph). vget(.,ph) reads register-subgroup ph =
+element window [ph*VLEN/8, ...) = [16*ph,..) at VLEN128 (correct) but [32*ph,..) at VLEN256
+(WRONG lanes). => VLEN256 byte-broken (mism=512), VLEN128 fine.
+
+--- FIX (owned C-intrinsic, no inline-asm; VLEN-universal single body) ---
+Recover half ph VLEN-AGNOSTICALLY: vslidedown the wide i8m4 by the LITERAL element offset
+16*ph (ph=1..3; ph=0 no slide) so the half lands at lane 0, then vget(.,0) extracts the low
+i8m1 register (lanes [0,16) = the half at every VLEN). Per-half vwmul_i16m2 + vwredsum
+UNCHANGED (AVL=16). Same value at VLEN128 (slide-then-get0 == get(.,ph)); correct at VLEN256+.
+Same pattern already used for VLEN256 correctness in RVVToEmitCKQuant.cpp (aux32 fold-back)
+and RVVToEmitCForwardElementwise.cpp (bsums chunking). Applied to BOTH iq2_xs and iq2_s.
+
+--- GATE (byte-exact ZERO-MODEL, correctness only, no perf) ---
+driver = iq2_vecdot_driver_ext.c (extends block2-p2 driver with iq2_s: oracle_iq2_s +
+iq2s_grid[1024] in iq2_oracle_tables_ext.h). 3-way: ours vs int-oracle (ZERO-MODEL primary)
+vs ggml-deployed. INT-mode bounded fill => order-independent => byte-exact certificate.
+
+VLEN256 (k1, march rv64gcv_zvl256b_zfh_zvfh, clang-18, ggml build-off dispatch->_vl256):
+  iq2_xs OLD: ours_vs_int_oracle=false mism og=512 oi=512 gi=0  (reproduces ISSUE-120)
+  iq2_xs NEW: ALL=true mism og=0 oi=0 gi=0 worst_ulp=0 (seed 0x1,0x2) + antihollow 1/2/3 BITES-OK
+  iq2_s  OLD: ours_vs_int_oracle=false mism og=512 oi=512 gi=0
+  iq2_s  NEW: ALL=true mism og=0 oi=0 gi=0 worst_ulp=0 (seed 0x1,0x2) + antihollow 1/2/3 BITES-OK
+VLEN128 (rvv, march rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs, clang-18):
+  iq2_xs OLD/NEW: ALL=true (bug is VLEN256-only; NEW no regression, worst_ulp=0)
+  iq2_s  OLD/NEW: ALL=true (bug is VLEN256-only; NEW no regression, worst_ulp=0)
+  NEW result bits VLEN-invariant (identical to VLEN256 NEW).
+
+--- KERNEL md5 (kernels/) ---
+iq2_xs_old 4c2f8acce4c04b30888087c1986f03db  (== committed block2-p2 seal; pre-fix)
+iq2_xs_new 06e4471482f338d6e48936162cd7277c
+iq2_s_old  c211b5a62f0209dd5bf136b97007959b
+iq2_s_new  32cf16455a5a578d9f76c9d3bab3fe88
+iq2_xxs    db1bfdcd4e9870301179c98809131f16  (linkage sibling; UNCHANGED == GEN_SEAL seal)
+
+--- SEALED OTHER grid emits UNCHANGED (fixed emitter, source diff confined to iq2_xs/iq2_s) ---
+iq2_xxs db1bfdcd4e9870301179c98809131f16 (== pre-fix GEN_SEAL.txt), iq3_xxs 0e6055cf4a0f4968a1596d94635438d3,
+iq3_s 4cdccb2ae56c1c31d7b1e34416c8756f, iq1_s 0ad06db45d8c914a00e5c4f0f4025413, iq1_m d0a0994ff05d030cac602aa223da3062
+
+--- lit + CORE==PROD ---
+ninja check-weft: 953/956 pass (3 fail = pre-existing Scripts/rvv-generated-bundle-abi-e2e*,
+unrelated strided-widening-dot family; NOT iq2). All 4 iq2_xs/iq2_s fixtures pass incl.
+CORE golden + CORE==PROD (diff %t.core.mlir %t.prod.mlir = empty).
+
+# reproduce: BOARD=k1 ./run.sh   ;   BOARD=rvv ./run.sh
