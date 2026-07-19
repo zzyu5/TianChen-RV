@@ -5069,6 +5069,30 @@ private:
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
 
+  /// The OWNED REAL-VECTOR iq3_s dequantize_row block-decode body (R5.1-C grid family
+  /// de-lottery, the iq3_xxs sibling fan-out): iq3_s currently has NO owned vector body
+  /// -- the deployed emit is a SCALAR AoS super-block loop left to clang's codegen-lottery
+  /// (regen: 2 vsetvl, 0 vector arithmetic; on-board clang autovec explodes it to a 32
+  /// vluxei-gather / 320 vslidedown mess). This body ports the W4 iq3_xxs narrow-per-entry
+  /// lever to iq3_s's grid-of-4 EXPLICIT-SIGNS geometry: `nb = k / 256` super-block loop,
+  /// fp16 d seam, per-group g (0..3) two passes (qh0/qh1) with db = d*(1+2*scale), and each
+  /// 4-byte grid entry decoded by ONE narrow OWNED pipeline over its 4 CONTIGUOUS grid bytes
+  /// -- a SCALAR-computed grid pointer (gridb + idx*4, idx = q | ((qh<<k)&256) with the 9th
+  /// index bit merged from qh) + a unit-stride vle8 (vl=4, NO indexed gather) + an i8 sign
+  /// fold (the EXPLICIT sign byte, one per entry-pair: entry1 = bits 0-3 = kmask{1,2,4,8},
+  /// entry2 = bits 4-7 = kmask{16,32,64,128}, the SAME klo/khi fold iq3_xxs uses) +
+  /// vsext_vf4->i32m1 + vfcvt + vfmul(db) + vse32. Byte-exact to ggml's reference
+  /// dequantize_row_iq3_s by CONSTRUCTION (only rounding is db*(float)grid; the sign fold
+  /// multiplies by an EXACT +-1.0f; all grid bytes < 16 so the signed i8 view == ggml's
+  /// `(const uint8_t *)` read). All LMULs (i8mf4/i32m1/f32m1, u8mf4 selector) are DERIVED
+  /// from the 4-lane grid entry width, NOT tunable knobs. OWNED __riscv_ intrinsics (the
+  /// ISSUE-001 reverse), gather-free + narrow-m1-widening (NO wide-LMUL vsext/vfcvt), so it
+  /// is VLEN-agnostic (AVL=4, no register-subgroup extraction).
+  mlir::LogicalResult emitDequantizeRowIQ3SVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// The SHARED codebook / ternary-grid super-block dequantize_row block-decode body
   /// for the remaining extended formats (iq1_s/iq1_m ternary iq1s_grid + delta,
   /// iq4_nl/iq4_xs 16-entry non-linear codebook, mxfp4/nvfp4 FP4 e2m1 codebook with

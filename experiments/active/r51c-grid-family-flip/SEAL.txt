@@ -1,0 +1,81 @@
+# r51c-grid-family-flip SEAL — R5.1-C grid family flip (扩 iq2 面 + grid 族全族翻 · 裁2 / W4 lever)
+# board = rvv (ssh rvv · VLEN128 · clang-18.1.8 · rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs · env.sh · flush 224MiB · pin 40)
+# date_utc = 2026-07-19 · base = W4 commit 9d74daa96 (iq3_xxs dequant 0.36->1.39)
+# W4 lever REUSED (not re-invented): gather-free assembly [necessary] + narrow per-entry cheap
+#   m1 widening [dominant] · OWNED __riscv_ intrinsics · NO inline-asm · NO hand-scheduling (裁2 红线)
+
+## HEADLINE: flipped 1 grid cell / 1 grid cell walked-the-loop honest-null
+#   iq3_s dequant  = FLIP (owned narrow-per-entry DEPLOYED in emitter · CORE==PROD · byte-exact)
+#   iq2_xs vec_dot = honest-null (3 gather-free variants byte-exact, none beats deployed/opponent)
+
+## ============ CELL 1: iq2_xs vec_dot @rvv VLEN128 — honest-null ============
+# opponent = ggml_vec_dot_iq2_xs_q8_K (libggml-cpu.so · dispatched _vl128 hand-tuned STRONG)
+# driver = iq2_vecdot_driver_ext.c (from r51w2 · 3-way ZERO-MODEL + int-oracle + 3-arm anti-hollow)
+# lever tried: (vC) narrow per-entry 1 vwredsum/group ; (vD) narrow per-entry + vwmacc 1 reduction/half
+# byte-exact: ALL variants ours-vs-int-oracle=0 ours-vs-ggml=0 ggml-vs-oracle=0 worst_ulp=0 (seed 0x1/0x2)
+#             anti-hollow inject 1/2/3 BITES-OK. VLEN128 iq2_xs NOT regressed (deployed unchanged).
+# structure self-probe (compiled leaf .o · clang-18 -O3):
+#   deployed : vluxei16=8 vwredsum=16 vwmul=16 vslidedown=24 vsetvli=73 8880B
+#   narrow vC: vluxei16=0 vwredsum=4  vwmul=4  vslidedown=0  vsetvli=11 7912B  (GATHER-FREE, owned)
+#   narrowacc vD: vluxei16=0 vwmacc=4 vwredsum=2 vslidedown=0 vsetvli=8 7912B  (GATHER-FREE, owned)
+# 2-seed cold N=25 (ratio_cold_X = ggml-speed / ours-speed; >1 = WIN vs opponent):
+#   DEP  0.4908 / 0.4932   NAR(vC) 0.4628 / 0.4550   ACC(vD) 0.4702 / 0.5411
+#   -> narrow variants are SLOWER-or-parity vs deployed; ALL three ~0.46-0.54 vs the _vl128 opponent.
+# WALL-TYPE VERDICT: honest-null (hardware/opponent-scheduling wall, NOT a codegen-STRUCTURE wall).
+#   objdump proves the OWNED gather-free structure IS achieved (vluxei16=0, vslidedown=0) and byte-exact,
+#   yet yields NO throughput gain => the gather was NEVER the wall for iq2_xs vec_dot (the deployed body
+#   already MIRRORS the opponent's gather structure and is 2x slow). Unlike the W4 dequant, vec_dot's
+#   widening is ALREADY narrow (vwmul_i16m2, not the m8 vsext/vfcvt that was W4's cost center), so the
+#   W4 dominant lever has nothing wide to narrow. The 2x gap is the _vl128 hand-tuned scheduling
+#   advantage, unreachable by clang-compiled emission without forbidden hand-scheduling (裁2). NO deploy
+#   (deploying narrow would REGRESS 0.49->0.46). W4's "vec_dot 有前景未试" hedge = now tested, doesn't
+#   transfer.
+
+## ============ CELL 2: iq3_s dequantize_row @rvv VLEN128 — FLIP (deployed) ============
+# opponent = ggml dequantize_row_iq3_s (libggml-base.so · host-autovec = codegen-lottery · 标量类档)
+# driver = iq3s_dequant_driver.cpp (ZERO-MODEL int-recompute + ggml crosscheck + corpus + 3-arm anti-hollow)
+# iq3_s dequant had NO owned vector body: deployed emit = SCALAR AoS loop (regen: 2 vsetvl, 0 vec arith),
+#   left to clang's -O3 codegen-lottery. NEW: emitDequantizeRowIQ3SVectorBody (GridCodebook.cpp) ports the
+#   W4 iq3_xxs narrow-per-entry lever to the grid-of-4 EXPLICIT-SIGNS sibling (9th idx bit from qh; sign
+#   byte per entry-pair: klo{1,2,4,8}/khi{16,32,64,128}; db=d*(1+2*scale)). Dispatch fanned out in
+#   emitDequantizeRowIQGridBodyShared (ForwardElementwise.cpp, 1 line, the anticipated fan-out).
+# byte-exact (ZERO-MODEL mism=0 · CORPUS complete · anti-hollow bites):
+#   PROD(emitter regen): ours-vs-oracle=0/131072  ggml-vs-oracle=0  ours-vs-ggml=0  grid 512/512 signs 256/256
+#                        anti-hollow inject 1/2/3 BITES-OK
+# structure self-probe (compiled leaf .o · clang-18 -O3):
+#   deployed(scalar->clang autovec): vlux=32 vsext=32 vfcvt=32 vfmul=64 vslidedown=320 vsetvli=321 11488B
+#   PROD(owned narrow-per-entry)   : vlux=0  vsext=64 vfcvt=64 vfmul=64 vslidedown=0   vsetvli=129 8896B  (GATHER-FREE)
+# cold N=25 (ratio_cold = ggml-speed / ours-speed; >1 = WIN vs opponent):
+#   seed:            0x1     0x2     0x3     0x4     0x5     0xABCD  0xBEEF
+#   OLD scalar ratio: 0.84   1.04    0.96    0.97    0.87    1.01    0.91   (ours_med ~522us · lottery mood)
+#   PROD narrow ratio:1.71   2.07    1.96    1.44*   1.44*   2.08*   1.56*  (ours_med ~257us · iqr<1%)
+#     (* from the standalone-narrow confirm run; PROD == standalone structure, byte-identical decode)
+#   durable metric: PROD ours_med ~257us == HALF the OLD scalar-lottery ours_med ~522us (both iqr<1%),
+#   AND beats ggml in all 7 seeds. (PRD-cited prior 0.526/0.665 is where the lottery landed earlier; the
+#   lottery is board/mood-dependent — the point is the OWNED body is DETERMINISTICALLY ~2x it AND wins.)
+# WALL-TYPE VERDICT: FLIP — compiler-behavior / codegen-STRUCTURE wall (clang -O3 autovec of the scalar
+#   emit explodes to a 32-vluxei / 320-vslidedown lottery leaf), flipped at the EMISSION layer by the
+#   OWNED narrow-per-entry body. lever = (a) gather-free assembly [necessary] + (b) narrow per-entry cheap
+#   m1 widening [dominant] — the SAME W4 iq3_xxs lever, transferred cleanly to the grid-of-4 sibling.
+#   (This FLIPS the r-dequant GEN_SEAL prediction "iq3_s ... same [gather] wall via candidate ②".)
+
+## DEPLOY / CORE==PROD / lit
+# src touched (main tree · NO git commit): lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp
+#   (+emitDequantizeRowIQ3SVectorBody), RVVToEmitCInternal.h (+decl), RVVToEmitCForwardElementwise.cpp
+#   (+1 dispatch line + comment), test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-s.mlir (golden sync)
+# CORE==PROD: weft-opt --weft-rvv-lower-to-emitc  ==  --weft-rvv-materialize-dequantize-row-stream-front-door
+#   ... --weft-rvv-lower-to-emitc  -> mlir-translate --mlir-to-cpp : IDENTICAL (both md5 ca6bd4150dcfb0f42062659ecd6d8449)
+# golden lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-s.mlir: PASS (synced: owned-body CHECKs added)
+# ninja check-weft: 959/962 PASS. 3 fail = PRE-EXISTING Scripts/rvv-generated-bundle-abi-e2e-*strided-
+#   widening-dot* family (documented pre-existing in r51w2 SEAL; unrelated to grid/dequant; my change = 0 new fail).
+# SEALED md5 CHANGES (report-only · no committed golden .c existed for this leaf):
+#   iq3_s dequant leaf regen : SCALAR a5a58630dee4c288109f691c6d546a91 -> NARROW ca6bd4150dcfb0f42062659ecd6d8449
+# SEALED md5 UNCHANGED (isolation proof):
+#   iq3_xxs dequant (W4)     : 9d05ecad695be54d6364e3b3db0d43d6  (== W4 SEAL deployed_leaf_regen_md5)
+#   iq2_xs vec_dot           : 06e4471482f338d6e48936162cd7277c  (== committed r51w2 seal)
+
+## reproduce
+#   iq2_xs : REPS=25 ./run_iq2xs.sh     (attack loop: deployed vs narrow vC vs narrowacc vD)
+#   iq3_s  : REPS=25 ./run_iq3s.sh       (deployed scalar vs narrow standalone)  then iq3s_prod (emitter regen)
+#   regen  : build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-s.mlir \
+#              --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp   (== kernels/iq3_s_dequant_prod.c)

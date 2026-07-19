@@ -2789,6 +2789,260 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
   return mlir::success();
 }
 
+// ===========================================================================
+// R5.1-C · The OWNED iq3_s dequantize_row leaf in the OPPONENT SHAPE (grid family
+// de-lottery · iq3_xxs sibling fan-out). iq3_s dequant had NO owned vector body: the
+// deployed emit is a SCALAR AoS super-block loop left to clang's codegen-lottery (the
+// on-board clang -O3 autovec explodes the scalar decode into 32 vluxei16 HW gathers +
+// 320 vslidedown + 321 vsetvli = 11488 bytes, the ISSUE-001/002 exposure). This body
+// ports the W4 iq3_xxs narrow-per-entry lever (0.36 -> 1.4) to iq3_s's grid-of-4
+// EXPLICIT-SIGNS geometry: each 4-byte grid entry is decoded by ONE narrow OWNED pipeline
+// over its 4 CONTIGUOUS grid bytes -- a SCALAR-computed grid pointer (gridb + idx*4, a
+// sh2add; idx = q | ((qh << k) & 256) merges the 9th index bit from qh) + a unit-stride
+// vle8 (vl=4, NO indexed gather) + an i8 sign fold (the EXPLICIT sign byte, one per
+// entry-pair: entry1 = bits 0-3 = kmask_lo{1,2,4,8}, entry2 = bits 4-7 = kmask_hi{16,32,
+// 64,128}) + vsext_vf4->i32m1 + vfcvt + vfmul(db) + vse32. db = d*(1+2*scale). Board-proven
+// gather-free (vlux=0, vslidedown=0) ~2x the deployed scalar-lottery leaf and beats ggml's
+// dequantize_row_iq3_s (ratio 1.44-2.08 @rvv, 7 seeds). Byte-exact to dequantize_row_iq3_s
+// by construction (only rounding db*(float)grid; sign fold is EXACT +-1.0f; grid bytes < 16
+// so the signed i8 view == ggml's (const uint8_t *) read). All LMULs (i8mf4/i32m1/f32m1,
+// u8mf4 selector) DERIVED from the 4-lane grid entry width, NOT tunable knobs.
+// ===========================================================================
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3SVectorBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+  mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+  mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
+  mlir::Type inputPtrType = input.getType();   // const uint8_t *
+  mlir::Type outputPtrType = output.getType(); // float *
+  mlir::Type floatPtrType = emitc::PointerType::get(floatType);
+  mlir::Type u32PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint32_t"));
+
+  // The FIXED iq3_s grid-of-4 geometry: a grid entry = 4 grid bytes (1 grid u32), a
+  // sub-group l holds a grid-entry PAIR (entry1 low signs / entry2 high signs) sharing one
+  // explicit sign byte, an outer group g = 4 sub-groups x 2 passes, and there are 4 outer
+  // groups. `db` is CONSTANT across a pass. Every LMUL (i8mf4/i32m1/f32m1, u8mf4 selector)
+  // is DERIVED from the 4-lane grid entry width.
+  const int64_t entryLanes = 4;
+  mlir::Type u8ScalarType = emitc::OpaqueType::get(ctx, "uint8_t");
+  mlir::Type i8NarrowType = emitc::OpaqueType::get(ctx, "vint8mf4_t");
+  mlir::Type u8NarrowType = emitc::OpaqueType::get(ctx, "vuint8mf4_t");
+  mlir::Type i32NarrowType = emitc::OpaqueType::get(ctx, "vint32m1_t");
+  mlir::Type f32NarrowType = emitc::OpaqueType::get(ctx, "vfloat32m1_t");
+  mlir::Type maskNarrowType = emitc::OpaqueType::get(ctx, "vbool32_t");
+  mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
+  mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
+
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+  auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
+  auto intLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, intType, v); };
+  auto floatLit = [&](llvm::StringRef s) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, floatType, s);
+  };
+  // The iq3_s index / scale bit ops run in the INT domain (ggml reads qs[l]/qh/scales as
+  // `int`; the shifted 9th index bit and the 2*nibble+1 scale are all non-negative).
+  auto iAnd = [&](mlir::Value a, mlir::Value b) { return emitBitAnd(rewriter, loc, intType, a, b); };
+  auto iOr = [&](mlir::Value a, mlir::Value b) { return emitBitOr(rewriter, loc, intType, a, b); };
+  auto iShl = [&](mlir::Value a, mlir::Value b) { return emitBitShl(rewriter, loc, intType, a, b); };
+  auto iShr = [&](mlir::Value a, mlir::Value b) { return emitBitShr(rewriter, loc, intType, a, b); };
+  auto iAdd = [&](mlir::Value a, mlir::Value b) { return rewriter.create<emitc::AddOp>(loc, intType, a, b).getResult(); };
+  auto iMul = [&](mlir::Value a, mlir::Value b) { return rewriter.create<emitc::MulOp>(loc, intType, a, b).getResult(); };
+  auto loadByteAsInt = [&](mlir::Value ptr, int64_t i) {
+    return emitLoadByteAsInt(rewriter, loc, constU8Type, intType, ptr, i);
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // ---- static grid decl + the two 4-lane {1<<j} explicit-sign selectors (ONCE) ----
+  emitIQ3SCanonicalGridTableDecl(rewriter, loc);
+  rewriter.create<emitc::VerbatimOp>(
+      loc, "static const uint8_t weft_iq3s_kmask_lo[4] = {1, 2, 4, 8};");
+  rewriter.create<emitc::VerbatimOp>(
+      loc, "static const uint8_t weft_iq3s_kmask_hi[4] = {16, 32, 64, 128};");
+
+  // size_t nb = k / 256;
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "super_block_count"));
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(256));
+
+  // vuint8mf4_t klo = vle8(weft_iq3s_kmask_lo, 4);  khi = vle8(..._hi, 4);  (ONCE)
+  std::string u8NarrowLoad = riscvIntrinsicName("vle", 8, "mf4", "u8");
+  mlir::Value klo = emitOpaqueCallBuilt(
+      rewriter, loc, u8NarrowType, u8NarrowLoad, opName, role,
+      [&](mlir::OpBuilder &b, mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value nm = rewriter.create<emitc::LiteralOp>(
+            loc, u8PtrType, "weft_iq3s_kmask_lo");
+        return {nm, sizeLit(4)};
+      },
+      llvm::StringRef("kmask_lo_load"));
+  mlir::Value khi = emitOpaqueCallBuilt(
+      rewriter, loc, u8NarrowType, u8NarrowLoad, opName, role,
+      [&](mlir::OpBuilder &b, mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value nm = rewriter.create<emitc::LiteralOp>(
+            loc, u8PtrType, "weft_iq3s_kmask_hi");
+        return {nm, sizeLit(4)};
+      },
+      llvm::StringRef("kmask_hi_load"));
+
+  // const uint8_t *gridb = (const uint8_t *)weft_iq3s_grid;  (byte view for the
+  // SCALAR-computed grid entry pointers gridb + idx*4 -- NO indexed gather.)
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "grid_table_u8_view"));
+  mlir::Value gridArrayName =
+      rewriter.create<emitc::LiteralOp>(loc, u32PtrType, "weft_iq3s_grid");
+  mlir::Value gridb =
+      rewriter.create<emitc::CastOp>(loc, u8PtrType, gridArrayName).getResult();
+
+  // ---- for (size_t ib = 0; ib < nb; ib += 1) -------------------------------
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1),
+                                                /*bodyBuilder=*/nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    // const uint8_t *xb = x + ib*110;   float *yb = (float *)(y + ib*256);
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "xb"));
+    mlir::Value xbRaw =
+        rewriter
+            .create<emitc::AddOp>(
+                loc, inputPtrType, input,
+                rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(110)))
+            .getResult();
+    mlir::Value xb =
+        rewriter.create<emitc::CastOp>(loc, u8PtrType, xbRaw).getResult();
+    mlir::Value ybRaw =
+        rewriter
+            .create<emitc::AddOp>(
+                loc, outputPtrType, output,
+                rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(256)))
+            .getResult();
+    mlir::Value yb =
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    // float d = (float)*(const _Float16 *)(xb + 0);
+    mlir::Value d = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                   mlir::ValueRange{xb}, opName, role,
+                                   llvm::StringRef("fcvt.s.h"));
+
+    for (int64_t g = 0; g < 4; ++g) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "group_scale"));
+      // int sc = xb[106 + g];  db1 = d*(1+2*(sc & 0xf));  db2 = d*(1+2*(sc >> 4));
+      mlir::Value scByte = loadByteAsInt(xb, 106 + g);
+      auto buildDb = [&](mlir::Value nibble) -> mlir::Value {
+        mlir::Value ls = iAdd(intLit(1), iMul(intLit(2), nibble));
+        return rewriter
+            .create<emitc::MulOp>(
+                loc, floatType, d,
+                rewriter.create<emitc::CastOp>(loc, floatType, ls).getResult())
+            .getResult();
+      };
+      mlir::Value db1 = buildDb(iAnd(scByte, intLit(0xf)));
+      mlir::Value db2 = buildDb(iShr(scByte, intLit(4)));
+      // int qh0 = xb[66 + 2*g];  int qh1 = xb[66 + 2*g + 1];
+      mlir::Value qh0 = loadByteAsInt(xb, 66 + 2 * g + 0);
+      mlir::Value qh1 = loadByteAsInt(xb, 66 + 2 * g + 1);
+
+      for (int64_t p = 0; p < 2; ++p) {
+        mlir::Value qh = (p == 0) ? qh0 : qh1;
+        mlir::Value db = (p == 0) ? db1 : db2;
+        int64_t qsBase = 2 + 16 * g + 8 * p;    // qs bytes for this pass (8 bytes)
+        int64_t sgBase = 74 + 8 * g + 4 * p;    // 4 explicit sign bytes for this pass
+        int64_t outStart = g * 64 + 32 * p;     // 32 outputs for this pass
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "grid_sign_pass"));
+        for (int64_t l = 0; l < 4; ++l) {
+          // int idx1 = qs[2l] | ((qh << (8-2l)) & 256);  idx2 uses (7-2l).
+          mlir::Value q1 = loadByteAsInt(xb, qsBase + 2 * l + 0);
+          mlir::Value q2 = loadByteAsInt(xb, qsBase + 2 * l + 1);
+          mlir::Value idx1 =
+              iOr(q1, iAnd(iShl(qh, intLit(8 - 2 * l)), intLit(256)));
+          mlir::Value idx2 =
+              iOr(q2, iAnd(iShl(qh, intLit(7 - 2 * l)), intLit(256)));
+          // uint8_t signByte = xb[sgBase + l];  (one explicit byte per entry-pair.)
+          mlir::Value signByte =
+              rewriter
+                  .create<emitc::CastOp>(loc, u8ScalarType,
+                                         loadByteAsInt(xb, sgBase + l))
+                  .getResult();
+          int64_t outBase = outStart + l * 8;
+          // Each entry decoded by ONE narrow OWNED pipeline; h=0 low signs (klo), h=1 high
+          // signs (khi). NO indexed gather: the grid pointer is a SCALAR sh2add.
+          for (int64_t h = 0; h < 2; ++h) {
+            mlir::Value idx = (h == 0) ? idx1 : idx2;
+            mlir::Value km = (h == 0) ? klo : khi;
+            mlir::Value idxSz =
+                rewriter.create<emitc::CastOp>(loc, sizeType, idx).getResult();
+            mlir::Value off =
+                rewriter.create<emitc::MulOp>(loc, sizeType, idxSz, sizeLit(4))
+                    .getResult();
+            mlir::Value gpU8 =
+                rewriter.create<emitc::AddOp>(loc, u8PtrType, gridb, off)
+                    .getResult();
+            mlir::Value gp =
+                rewriter.create<emitc::CastOp>(loc, i8PtrType, gpU8).getResult();
+            // vint8mf4_t gv = vle8(gp, 4);  (4 contiguous grid bytes.)
+            mlir::Value gv = emitOpaqueCall(
+                rewriter, loc, i8NarrowType,
+                riscvIntrinsicName("vle", 8, "mf4", "i8"),
+                mlir::ValueRange{gp, sizeLit(entryLanes)}, opName, role);
+            // sign fold in the i8 domain: sb = vand_vx(km, signByte); m = vmsne(sb, 0);
+            // gs = vmerge(gv, vneg gv, m).  km = klo (bits 0-3) for h=0, khi (bits 4-7) h=1.
+            mlir::Value sb = emitOpaqueCall(
+                rewriter, loc, u8NarrowType, "__riscv_vand_vx_u8mf4",
+                mlir::ValueRange{km, signByte, sizeLit(entryLanes)}, opName, role);
+            std::string msneCallee =
+                riscvMaskNonzeroIntrinsicName(8, "mf4", "u8", 32);
+            mlir::Value m = emitOpaqueCall(
+                rewriter, loc, maskNarrowType, msneCallee,
+                mlir::ValueRange{sb, intLit(0), sizeLit(entryLanes)}, opName, role);
+            mlir::Value gneg = emitOpaqueCall(
+                rewriter, loc, i8NarrowType, "__riscv_vneg_v_i8mf4",
+                mlir::ValueRange{gv, sizeLit(entryLanes)}, opName, role);
+            mlir::Value gs = emitOpaqueCall(
+                rewriter, loc, i8NarrowType, "__riscv_vmerge_vvm_i8mf4",
+                mlir::ValueRange{gv, gneg, m, sizeLit(entryLanes)}, opName, role);
+            // int->float: vsext_vf4 -> i32m1; vfcvt -> f32m1; * db; store 4 floats.
+            mlir::Value g32 = emitOpaqueCall(
+                rewriter, loc, i32NarrowType, "__riscv_vsext_vf4_i32m1",
+                mlir::ValueRange{gs, sizeLit(entryLanes)}, opName, role);
+            mlir::Value gf = emitOpaqueCall(
+                rewriter, loc, f32NarrowType,
+                riscvIntrinsicName("vfcvt_f_x_v", 32, "m1", "f32"),
+                mlir::ValueRange{g32, sizeLit(entryLanes)}, opName, role);
+            mlir::Value r = emitOpaqueCall(
+                rewriter, loc, f32NarrowType,
+                riscvIntrinsicName("vfmul_vf", 32, "m1", "f32"),
+                mlir::ValueRange{gf, db, sizeLit(entryLanes)}, opName, role);
+            int64_t outOff = outBase + h * 4;
+            mlir::Value yptr =
+                (outOff == 0)
+                    ? yb
+                    : rewriter
+                          .create<emitc::AddOp>(loc, floatPtrType, yb,
+                                                sizeLit(outOff))
+                          .getResult();
+            emitOpaqueCallVoid(rewriter, loc,
+                               riscvIntrinsicName("vse", 32, "m1", "f32"),
+                               mlir::ValueRange{yptr, r, sizeLit(entryLanes)},
+                               opName, role);
+          }
+        }
+      }
+    }
+  }
+
+  return mlir::success();
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
