@@ -79,12 +79,16 @@
 - **动作**：试把 θ20 `RVVToEmitCKQuant.cpp:5971 value_or("m2")` 提为 measured gearbox。
 - **结论**：**honest-null**——board 证伪前提（VLEN-correctness 墙·非 measured gearbox 可翻）。**无计数变化**（θ20 维持 (c) value_or）·记「试过·held」防复试。emit-neutral 注释入 `RVVToEmitCKQuant.cpp`。
 
-### MIG-1 · 律2 entryLanes→描述符（**在飞**·agent `a7f37c81be0d5d607`）
-- **动作**：GridCodebook 机制体里的格式常量（`:2832 entryLanes=4` iq3_xxs / `:3091 entryLanes=8` iq3_s / `:3301 entryLanes=8` iq2_xs / `groupLanes=8` @:504/1002/2532）从**焊死在机制体**→**typed 描述符字段**（律2：机制体点不入源）。
-- **来源**：paper-side self-audit `b0866a09c` B1 确认（三条 entryLanes 新增行确凿·律2 违例·未在 `d173f4c2e` census）。
-- **目标计数**：残余焊死 g **18 → ≤15**（GridCodebook 9 减 entryLanes/groupLanes 处）。
-- **配套**：§四.5 三闸（three-grep 裸格式字面量/板值 value_or/march 解析·Δ≤0·readings 入 commit）。
-- **状态**：dispatched·byte-exact + 判决 lit 待 agent 交付。
+### MIG-1 · 律2 entryLanes→描述符（**✓ 完成**·`06cc93fb3`·ISSUE-118 路B）
+- **动作**：3 处格式常量 `const int64_t entryLanes=N`（iq3_s=4/iq2_xs=8/iq1_m=8）从**焊死在发射体**→**typed `codebook_entry_lanes` OptionalAttr**（住既有 `DequantizeRowStreamFacts`·前门 stamp·发射体 fail-closed 读）。
+- **判决实验 3/3**（committed lit·`rvv-to-emitc-dequantize-row-iq3-s-codebook-entry-lanes-descriptor.mlir`）：正常值 byte-exact / 改 attr 4→7→emit vl 变(真消费) / 缺席→verify-fail 具名诊断(非 value_or)。
+- **三闸 Δ**（GridCodebook.cpp）：①裸格式字面量 **3→0(Δ−3)** ②value_or 0→0 ③march 0→0。byte-exact md5 iq3_s/iq2_xs/iq1_m 不变·CORE==PROD·主树重建+8 dequant lit PASS。
+- **★诚实边界**：PRD 触碰集 naive-grep 误判（entryLanes 实住 dequant-row 发射体·format 分发·非 grid op Context）→重路由到 `DequantizeRowStreamFacts`；标签 off-by-one；**`groupLanes`（:504/1002/2532）守边界未迁**（属 ISSUE-118 簇1 block-dot·不同前门·留后续）。
+- **计数**：GridCodebook 焊死 −3。
+
+### MIG-1b · ISSUE-119 census（`7325317a7`·只读·分母正名）
+- **动作**：ForwardElementwise dequant-row 宽谓词穷举到 100%·**分母 = 59**（精确·替"~51"/"~40"均 undercount·一条可复现谓词定）。全 59 = (c) 焊死-g·派生/other=0·board-invariant。
+- **候选迁移点**（future MIG·census 列不裁）：①`:5366-5386` 19-format stride switch（最高扇出·monolith locus）②vector-leaf geometry decls ③triple-baked q4_0/1/5_0/1 nibble(3 loci) ④residual double-bake。
 
 ---
 
