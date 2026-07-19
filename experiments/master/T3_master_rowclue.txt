@@ -11,7 +11,7 @@
     具名-X    vec_dot|iq1_s cold=0.365
     具名-X    vec_dot|iq1_m cold=0.152
     PASS    vec_dot|iq2_xxs cold=0.84
-    具名-X    vec_dot|iq2_xs cold=0.62
+    具名-X    vec_dot|iq2_xs cold=0.617
     PASS    vec_dot|iq2_s cold=1.92
     具名-X    vec_dot|iq3_xxs cold=0.156
     具名-X    vec_dot|iq3_s cold=0.213
