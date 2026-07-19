@@ -1,0 +1,138 @@
+########################################################################
+# RUN-ID: carrier-w1-scalar-20260719T092244Z
+# repo-HEAD-context: d55f9ab4e377ccef84d001a3abfff49b374af2ea
+# utc: 2026-07-19T09:24:45Z   host: fedora   whoami: aii-tets
+# uname: Linux fedora 6.19.9+ #1 SMP PREEMPT Sun Mar 29 23:47:28 CST 2026 riscv64 GNU/Linux
+# clang: clang version 18.1.8 (Fedora 18.1.8-6.fc41)
+# nonce: 20696-14205
+########################################################################
+
+===== SCALAR FOUR-WAY PHYSICAL no-V MACHINE-CHECK =====
+----- WAY1: kernel-reported ISA (/proc/cpuinfo) -----
+isa		: rv64imafdch_zicntr_zicsr_zifencei_zihpm_zaamo_zalrsc_zca_zcd
+WAY1_VERDICT: NO_V(no v/zve token)
+
+----- WAY2: firmware-reported ISA (/proc/device-tree/.../riscv,isa) -----
+device-tree riscv,isa = rv64imafdcbh
+WAY2_VERDICT: NO_V(no v token)
+
+----- WAY3+WAY4: ELF AT_HWCAP + dynamic SIGILL hardware trap -----
+build noV_fourway: OK
+WAY3_AT_HWCAP hwcap=0x112d V_bit21=0 verdict=NO_V
+WAY4_VOPCODE_TRAP word=0x0C007057 exec_ok=0 sigill_trapped=1 verdict=PHYSICAL_NO_V_SIGILL
+DYNAMIC_NO_V_SUMMARY hwcap_no_v=1 hw_trap_no_v=1 => PHYSICAL_NO_V_CONFIRMED
+noV_fourway exit=0
+
+----- STATIC CORROBORATOR: objdump zero-vector scan of OWNED kernel .o -----
+weft_scalar_tq2_0_kernel.cpp:5:3: error: use of undeclared identifier 'size_t'; did you mean 'sizeof'?
+    5 |   size_t v5 = (size_t) v1;
+      |   ^~~~~~
+      |   sizeof
+weft_scalar_tq2_0_kernel.cpp:5:10: error: use of undeclared identifier 'v5'
+    5 |   size_t v5 = (size_t) v1;
+      |          ^
+weft_scalar_tq2_0_kernel.cpp:5:16: error: use of undeclared identifier 'size_t'; did you mean 'sizeof'?
+    5 |   size_t v5 = (size_t) v1;
+      |                ^~~~~~
+      |                sizeof
+weft_scalar_tq2_0_kernel.cpp:5:22: error: expected expression
+    5 |   size_t v5 = (size_t) v1;
+      |                      ^
+weft_scalar_tq2_0_kernel.cpp:6:3: error: use of undeclared identifier 'size_t'; did you mean 'sizeof'?
+    6 |   size_t v6 = v5 / 256;
+      |   ^~~~~~
+      |   sizeof
+weft_scalar_tq2_0_kernel.cpp:6:10: error: use of undeclared identifier 'v6'
+    6 |   size_t v6 = v5 / 256;
+      |          ^
+weft_scalar_tq2_0_kernel.cpp:6:15: error: use of undeclared identifier 'v5'
+    6 |   size_t v6 = v5 / 256;
+      |               ^
+weft_scalar_tq2_0_kernel.cpp:10:8: error: unknown type name 'size_t'
+   10 |   for (size_t v8 = 0; v8 < v6; v8 += 1) {
+      |        ^
+weft_scalar_tq2_0_kernel.cpp:10:28: error: use of undeclared identifier 'v6'
+   10 |   for (size_t v8 = 0; v8 < v6; v8 += 1) {
+      |                            ^
+weft_scalar_tq2_0_kernel.cpp:11:5: error: use of undeclared identifier 'size_t'; did you mean 'sizeof'?
+   11 |     size_t v9 = v8 * 66;
+      |     ^~~~~~
+      |     sizeof
+weft_scalar_tq2_0_kernel.cpp:11:12: error: use of undeclared identifier 'v9'
+   11 |     size_t v9 = v8 * 66;
+      |            ^
+weft_scalar_tq2_0_kernel.cpp:12:31: error: use of undeclared identifier 'v9'
+   12 |     const uint8_t* v10 = v3 + v9;
+      |                               ^
+weft_scalar_tq2_0_kernel.cpp:13:5: error: use of undeclared identifier 'size_t'; did you mean 'sizeof'?
+   13 |     size_t v11 = v8 * 292;
+      |     ^~~~~~
+      |     sizeof
+weft_scalar_tq2_0_kernel.cpp:13:12: error: use of undeclared identifier 'v11'
+   13 |     size_t v11 = v8 * 292;
+      |            ^
+weft_scalar_tq2_0_kernel.cpp:14:30: error: use of undeclared identifier 'v11'; did you mean 'v1'?
+   14 |     const int8_t* v12 = v4 + v11;
+      |                              ^~~
+      |                              v1
+weft_scalar_tq2_0_kernel.cpp:2:73: note: 'v1' declared here
+    2 | extern "C" void weft_emitc_tq2_0_kernel_scalar_fallback_first_slice(int v1, float* v2, const uint8_t* v3, const int8_t* v4) {
+      |                                                                         ^
+weft_scalar_tq2_0_kernel.cpp:19:10: error: unknown type name 'size_t'
+   19 |     for (size_t v15 = 0; v15 < 64; v15 += 32) {
+      |          ^
+weft_scalar_tq2_0_kernel.cpp:20:12: error: unknown type name 'size_t'
+   20 |       for (size_t v16 = 0; v16 < 4; v16 += 1) {
+      |            ^
+weft_scalar_tq2_0_kernel.cpp:21:9: error: use of undeclared identifier 'size_t'; did you mean 'sizeof'?
+   21 |         size_t v17 = v16 * 2;
+      |         ^~~~~~
+      |         sizeof
+weft_scalar_tq2_0_kernel.cpp:21:16: error: use of undeclared identifier 'v17'
+   21 |         size_t v17 = v16 * 2;
+      |                ^
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+20 errors generated.
+build kernel.o: FAIL
+OWNED_KERNEL_O: vector_mnemonic_lines=0 vset_lines=0
+----- deployed lib whole-file vector scan (no-V build => 0) -----
+DEPLOYED_LIBGGML_CPU_SO: vector_mnemonic_lines=0
+
+===== L3/L4 SILICON PROOF: byte-exact ZERO-MODEL + fp16-9/9 + anti-hollow =====
+----- build S1 driver (OURS + deployed-ggml + int-oracle) -----
+build s1drv: OK
+
+----- CLEAN byte-exact (seed 0xD00D, nb=4096, no timing) -----
+# VECDOT_CORRECT fmt=tq2_0 op=vec_dot engine=scalar regime=prefill inject=0 seed=0xD00D n=1048576 nb=4096
+# fp16_primitive_golden=PASS (weft_h2f 9/9 textbook IEEE)
+# result_ours=20677.0996 result_ggml_deployed=20677.0996 result_int_oracle=20677.0996
+# bits_ours=0x46a18a33 bits_ggml=0x46a18a33 bits_int_oracle=0x46a18a33
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true
+----- CLEAN byte-exact (seed 0x1357) -----
+# VECDOT_CORRECT fmt=tq2_0 op=vec_dot engine=scalar regime=prefill inject=0 seed=0x1357 n=1048576 nb=4096
+# fp16_primitive_golden=PASS (weft_h2f 9/9 textbook IEEE)
+# result_ours=-2216.59033 result_ggml_deployed=-2216.59033 result_int_oracle=-2216.59033
+# bits_ours=0xc50a8972 bits_ggml=0xc50a8972 bits_int_oracle=0xc50a8972
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true
+----- ANTI-HOLLOW inject=1 (corrupt OURS out; byte-exact MUST flip false) -----
+# VECDOT_CORRECT fmt=tq2_0 op=vec_dot engine=scalar regime=prefill inject=1 seed=0xD00D n=1048576 nb=4096
+# fp16_primitive_golden=PASS (weft_h2f 9/9 textbook IEEE)
+# result_ours=20678.0996 result_ggml_deployed=20677.0996 result_int_oracle=20677.0996
+# bits_ours=0x46a18c33 bits_ggml=0x46a18a33 bits_int_oracle=0x46a18a33
+# BYTE_EXACT ours_vs_ggml_deployed=false ours_vs_int_oracle=false ggml_vs_int_oracle=true ALL=false
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+inject1 exit=0
+----- ANTI-HOLLOW inject=2 (corrupt oracle; cross-check MUST catch) -----
+# VECDOT_CORRECT fmt=tq2_0 op=vec_dot engine=scalar regime=prefill inject=2 seed=0xD00D n=1048576 nb=4096
+# fp16_primitive_golden=PASS (weft_h2f 9/9 textbook IEEE)
+# result_ours=20677.0996 result_ggml_deployed=20677.0996 result_int_oracle=20678.0996
+# bits_ours=0x46a18a33 bits_ggml=0x46a18a33 bits_int_oracle=0x46a18c33
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=false ggml_vs_int_oracle=false ALL=false
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+inject2 exit=0
+
+===== END RUN-ID carrier-w1-scalar-20260719T092244Z =====
+===== SUPPLEMENTARY (same session carrier-w1-scalar-20260719T092244Z): static objdump zero-vector scan of OWNED kernel .o (harness include-fix: -include cstddef; deterministic static scan, no timing/perf) =====
+build kernel.o: OK
+OWNED_KERNEL_O: vector_mnemonic_lines=0
+OWNED_KERNEL_O: vector_mnemonic_lines=0 vset_lines=0 total_insn_lines=191 fp16_libcall(__extendhfsf2)=0

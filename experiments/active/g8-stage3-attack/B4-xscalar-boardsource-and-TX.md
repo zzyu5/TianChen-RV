@@ -74,4 +74,6 @@
 
 盘点结论回填 PR-1（`docs/PENDING_RULINGS.md`）：**手头无物理 no-V 真硅**（rvv/k1 均带 V）；**窄豁免 (b) 路径可辩护且五件计划已 design**；**商用 no-V 板可购但属板支出硬冻结**——采购**不执行**，维持 OPEN 待用户裁。保守默认 ③ 不变（仅 spec 落 T-X + 盘板源回报）。
 
+> **〔W1 载体批 · 2026-07-19 事实更正注 · 本行历史 premise 已过期·原字节保留供考古〕**：本行 premise「**手头无物理 no-V 真硅**」= **FALSE**。`scalar`（超锐）板 = **(a) 类物理 no-V 真硅**（isa `rv64imafdch…`无 v/zve · DT `rv64imafdcbh` · AT_HWCAP V_bit21=0 · V-opcode SIGILL 硬件陷阱 · clang-18 · Fedora42）——四路机检 + byte-exact run-id 钉死于 `experiments/active/r5.1-w1-carrier/`（run-id `carrier-w1-scalar-20260719T092244Z`）。**PR-1 = REOPENED-BY-FACT-CORRECTION**（见 `…/r5.1-w1-carrier/PR-1-reopen-by-fact-correction.md`）。★**板=到货非采购·采购否决那条硬冻结不被本更正推翻**；canon 词表/铁线4 措辞订正=自动解锁进待裁·下轮裁。
+
 **灰区标记（供用户裁）**：窄豁免 (b)「带 V 板 run-as-noV」是否算"手头合规板"，是解释性判断。本 agent 选**可逆路径**：出 design（不施工）+ 显式 `narrow-exempt` 标签 + 升级触发挂 PR-1。用户回归可批量追认或改判为①采购 (a) 类真硅。

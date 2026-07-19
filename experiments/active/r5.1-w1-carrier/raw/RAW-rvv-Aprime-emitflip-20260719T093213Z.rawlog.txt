@@ -1,0 +1,28 @@
+########################################################################
+# RUN-ID: carrier-w1-rvvAprime-emitflip-20260719T093213Z
+# repo-HEAD-context: d55f9ab4e377ccef84d001a3abfff49b374af2ea
+# host(build): aiiworks-MS73-HB1-000  weft-opt: build/weft/bin/weft-opt  llvm: clang++-20/llvm-objdump-20
+# fixture: test/Conversion/RVV/rvv-emit-quant-contraction-q3-K-repack-gemm-prefill-vlen128.mlir
+# DETERMINISTIC emit-level dual-VLEN dual-body flip (march = ONLY variable). No board time.
+########################################################################
+
+===== march-A = rv64gcv_zvfhmin (VLEN128) =====
+theta: half_lanes = 8 integer_core_lmul = "mf2" 
+emit_cpp_lines: 20934
+object vwmacc.vx: 2048
+object_bytes(.text): 113824
+408
+
+===== march-B = rv64gcv_zvl256b_zvfhmin (VLEN256) =====
+theta: half_lanes = 16 integer_core_lmul = "mf2" 
+emit_cpp_lines: 10480
+object vwmacc.vx: 1024
+object_bytes(.text): 57042
+288
+
+===== INVARIANTS =====
+march-only-variable: fixture byte-identical, ONLY --march differs
+half_lanes: 8 (VLEN128) -> 16 (VLEN256)  [strip-width theta2, march-driven]
+integer_core_lmul: mf2 BOTH sides  [theta1 pinned; [GAP-P1]; march does NOT move it => two levers separated]
+vwmacc.vx ratio: 2048/1024 = 2.0000 == numHalves ratio 2/1  CONSISTENT (reproduces census pkg5 / bline verdict)
+===== END =====
