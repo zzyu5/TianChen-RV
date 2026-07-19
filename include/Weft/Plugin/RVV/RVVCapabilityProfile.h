@@ -238,6 +238,15 @@ bool isRVVCapabilityProvider(mlir::Operation *op);
 // the historical empty-derive skip. NEVER re-parses -march.
 std::optional<std::int64_t> readRVVProviderMinimumVLEN(mlir::ModuleOp module);
 
+// Reads the PROBED real-board VLENB fact (bytes/vector-register) OFF the in-IR
+// `rvv.vlenb_bytes` capability op (kind "uarch", matched by its own id -- NOT an
+// isRVVCapabilityProvider). Real-board VLEN(bits) = VLENB * 8. Returns nullopt when
+// no rvv.vlenb_bytes op carries a positive `bytes` fact, so callers fall back to
+// deriveMinimumVLEN(-march). This is the seam that makes the PROBED hardware VLEN --
+// not the -march string guess -- the load-bearing input to the already-plumbed VLEN
+// pipe (minimum_vlen -> strip_width / tiling / accumulator-LMUL / gather-VLMAX).
+std::optional<std::int64_t> readRVVProviderVLenBBytes(mlir::ModuleOp module);
+
 // Reads the RVV ISA generation OFF the first in-IR RVV provider op's `rvv_version`
 // fact (materialized by the same probe layer). Returns RVVVersion::Unknown when no
 // provider declares the fact. NEVER re-parses -march.
