@@ -1,0 +1,27 @@
+# board=Linux 6.6.63 riscv64 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs CC=Bianbu clang version 18.1.8 (11bb4) load=2.20 2.05 2.01 2/451 4191246
+# cpu_md5=00267134a3e86cd4fb83e9a2cbf5185a base_md5=6f6098fa prod_md5=9d05ecad
+# arm3 fault_leaf differing_bytes=1 (must be exactly 1)
+=== [PRE-CHECK] structure self-probe (compiled leaf .o · @k1 VLEN256) ===
+# iq3_xxs_dequant_baseline       vlux=8 vloxei=0 vrgather=0 vsext=8 vfcvt=8 vfmul=8 vslide=24 vset=41 bytes=5760
+# iq3_xxs_dequant_prod           vlux=0 vloxei=0 vrgather=0 vsext=64 vfcvt=64 vfmul=64 vslide=0 vset=129 bytes=8104
+# LOAD_GATE_OK pin_core=0 idle=98% gov=performance
+=== [A] byte-exact VERIFY (reps=0) — BASE + PROD ===
+--- BASELINE ---
+  BYTE-EXACT ours-vs-oracle: mism=0/131072 first=-1 -> PASS
+  CROSSCHECK ggml-vs-oracle: mism=0/131072 -> PASS
+  CORPUS grid_idx=256/256 sign_sel=128/128 -> COMPLETE
+--- PROD     ---
+  BYTE-EXACT ours-vs-oracle: mism=0/131072 first=-1 -> PASS
+  CROSSCHECK ggml-vs-oracle: mism=0/131072 -> PASS
+  CORPUS grid_idx=256/256 sign_sel=128/128 -> COMPLETE
+=== [A2] 3-arm anti-hollow (each MUST go VOID-CORRECTNESS / RED on ours-vs-oracle) ===
+arm1 oracle-fault  :   BYTE-EXACT ours-vs-oracle: mism=1/131072 first=0 -> VOID-CORRECTNESS
+arm2 DUT-fault     :   BYTE-EXACT ours-vs-oracle: mism=1/131072 first=65536 -> VOID-CORRECTNESS
+arm3 leaf-byte-flip:   BYTE-EXACT ours-vs-oracle: mism=135/131072 first=228 -> VOID-CORRECTNESS
+=== [B] 2-seed cold timing (flush 224MiB, reps=25, nb=512 · ratio_cold=ggml/ours >1=WIN) ===
+BASE DEQUANT_ROW fmt=iq3_xxs nb=512 k=131072 reps=25 seed=0x1 | ours_med_ns=732869(iqr0.34%) ggml_med_ns=1056742(iqr4.01%) | ratio_cold=1.4419 sink=4862771200
+PROD DEQUANT_ROW fmt=iq3_xxs nb=512 k=131072 reps=25 seed=0x1 | ours_med_ns=650204(iqr0.59%) ggml_med_ns=1054700(iqr3.77%) | ratio_cold=1.6221 sink=4862771200
+BASE DEQUANT_ROW fmt=iq3_xxs nb=512 k=131072 reps=25 seed=0x2 | ours_med_ns=732203(iqr0.53%) ggml_med_ns=1054243(iqr0.17%) | ratio_cold=1.4398 sink=4862771200
+PROD DEQUANT_ROW fmt=iq3_xxs nb=512 k=131072 reps=25 seed=0x2 | ours_med_ns=648412(iqr0.25%) ggml_med_ns=1056201(iqr0.32%) | ratio_cold=1.6289 sink=4862771200
+# loadavg_end=2.80 2.26 2.09 1/453 4191466 cpu_md5_after=00267134a3e86cd4fb83e9a2cbf5185a
+# DONE

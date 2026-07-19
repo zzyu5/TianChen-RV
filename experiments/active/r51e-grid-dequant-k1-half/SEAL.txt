@@ -1,0 +1,113 @@
+# r51e-grid-dequant-k1-half SEAL — grid dequant 全族翻 k1 半 (补 r5.1-c/d @rvv 的 k1 缺口)
+# board = k1 (ssh k1 · SpaceMiT X60 · TRUE VLEN256 · clang-18.1.8 Bianbu · rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+#         · flush 224MiB · idle-core auto-pinned · performance governor · 8GB · NO PMU=>cold-flush timing)
+# date_utc = 2026-07-19 · base = main HEAD (r51d archived · iq2_xs/iq1_m emitters deployed)
+# ggml opponent lib = /data/k1build-stock/bin/libggml-base.so  md5=00267134a3e86cd4fb83e9a2cbf5185a
+# PURE board re-test / deployment: consumes the ALREADY-flipped emitter (r5.1-c/d/W4). ZERO source change
+#   (git status lib/ test/ include/ = clean). Two-board no-regression = trivially held (no source touched).
+#   W4/r5.1-c/d lever板无关 (same emit) — the flip hypothesis "@k1 VLEN256 彩票叶更爆" is CONFIRMED below.
+
+## HEADLINE: k1 翻了 3 格 / 1 格 lever-N/A honest-null  (mirrors the rvv half exactly)
+#   iq3_xxs dequant = FLIP  (ratio_cold ~1.62 vs ggml · gather-free vlux=0 vs baseline vlux=8 · 1.13x baseline)
+#   iq3_s   dequant = FLIP  (ratio_cold ~1.86 vs ggml · baseline explodes to vslide=320 & LOSES 0.74 · 2.5x baseline)
+#   iq2_xs  dequant = FLIP  (ratio_cold ~2.19 vs ggml · gather-free vs baseline vlux=32/vslide=96 · 2.2x baseline)
+#   iq1_m   dequant = lever-N/A honest-null (baseline ALREADY gather-free+narrow @k1 · PROD 0.95x baseline PARITY
+#                     · deployed as de-lottery [L-8] robustness · NOT a codegen-structure flip · CONFIRMS pre-check)
+
+## CORE==PROD (host regen · byte-identical · == r5.1-c/d/W4 SEALs)
+#   direct route  (weft-opt --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp)
+#   == front-door (weft-opt --weft-rvv-materialize-dequantize-row-stream-front-door --weft-rvv-lower-to-emitc | ...)
+#   == committed prod leaf == the .c compiled on k1:
+#     iq3_xxs 9d05ecad695be54d6364e3b3db0d43d6   iq3_s ca6bd4150dcfb0f42062659ecd6d8449
+#     iq2_xs  6fc3560e47987083f841835f28a053cd   iq1_m 124450af91b24fa2e3a452071c944fe0
+#   NO sealed md5 CHANGE (emitter untouched; no committed golden .c regen'd/committed here).
+
+## ============ CELL 1: iq3_xxs dequantize_row @k1 VLEN256 — FLIP ============
+# opponent = ggml dequantize_row_iq3_xxs (libggml-base.so · host-autovec 标量类档)
+# BASE = pre-flip committed leaf candidate ② (r-dequant, md5 6f6098fa)  PROD = owned narrow (W4, 9d05ecad)
+# PRE-CHECK objdump (compiled leaf .o @k1 VLEN256):
+#   baseline: vlux=8  vsext=8  vfcvt=8  vfmul=8  vslide=24 vset=41  5760B   (HW-gather present)
+#   PROD    : vlux=0  vsext=64 vfcvt=64 vfmul=64 vslide=0  vset=129 8104B   (GATHER-FREE narrow-per-entry)
+# byte-exact (ZERO-MODEL · reps=0 · CORPUS complete): PROD ours-vs-oracle=0/131072  ggml-vs-oracle=0
+#   grid_idx 256/256 sign_sel 128/128 COMPLETE.  3-arm anti-hollow: arm1(oracle-fault) mism=1 RED ·
+#   arm2(DUT-fault) mism=1 RED · arm3(leaf 1-byte grid flip · cmp -l=1) mism=135 RED — all BITE.
+# 2-seed cold N=25 nb=512 (ratio_cold = ggml/ours; >1 = WIN vs opponent):
+#   seed:              0x1      0x2
+#   BASE ratio vs ggml: 1.442   1.440  (ours_med ~732us · iqr<0.6%)
+#   PROD ratio vs ggml: 1.622   1.629  (ours_med ~649us · iqr<0.6%)
+#   PROD/BASE throughput = 1.13x (>= 0.8 入账 floor).
+# WALL-TYPE VERDICT: FLIP — codegen-STRUCTURE wall. Baseline cand② keeps the HW-gather (vlux=8) + slide (24);
+#   the owned narrow-per-entry body is gather-free and 1.13x faster AND 1.62x the ggml opponent. Same as rvv
+#   (rvv ratio 1.39). Board-independence of the emitter flip CONFIRMED on VLEN256 silicon.
+
+## ============ CELL 2: iq3_s dequantize_row @k1 VLEN256 — FLIP (strongest) ============
+# opponent = ggml dequantize_row_iq3_s (libggml-base.so · host-autovec 标量类档)
+# BASE = pre-flip SCALAR AoS forwarder (clang-autovec lottery, md5 a5a58630)  PROD = owned narrow (ca6bd415)
+# PRE-CHECK objdump (@k1 VLEN256):
+#   baseline: vlux=32 vsext=32 vfcvt=32 vfmul=64 vslide=320 vset=321 11504B  (32-gather / 320-SLIDE EXPLOSION)
+#   PROD    : vlux=0  vsext=64 vfcvt=64 vfmul=64 vslide=0   vset=129 8912B   (GATHER-FREE)
+#   -> @k1 VLEN256 the scalar-autovec lottery leaf is EVEN WORSE than @rvv (320 vslidedown), i.e. "彩票叶更爆".
+# byte-exact: PROD ours-vs-oracle=0/131072  ggml-vs-oracle=0  ours-vs-ggml=0  grid 512/512 sign_byte 256/256 COMPLETE.
+#   3-arm anti-hollow inject 1/2/3 all BITES-OK (both BASE and PROD leaves).
+# 2-seed cold N=25 nb=512:
+#   seed:              0x1      0x2
+#   BASE ratio vs ggml: 0.739   0.736  (ours_med ~1453us — the autovec lottery LOSES to ggml @k1)
+#   PROD ratio vs ggml: 1.858   1.862  (ours_med ~578us · iqr<0.6% s2)
+#   PROD/BASE throughput = 2.51x.
+# WALL-TYPE VERDICT: FLIP — the clang -O3 autovec of the scalar emit explodes to a 32-vluxei/320-vslidedown
+#   leaf that LOSES to ggml (0.74) @k1; flipped at the EMISSION layer to a gather-free 1.86x WIN. Same lever
+#   as rvv (rvv ratio 2.08). The dramatic 0.74->1.86 swing is the clearest codegen-STRUCTURE flip in the family.
+
+## ============ CELL 3: iq2_xs dequantize_row @k1 VLEN256 — FLIP ============
+# opponent = ggml dequantize_row_iq2_xs (libggml-base.so · host-autovec 标量类档)
+# BASE = pre-flip scalar forwarder (md5 b79aef50)  PROD = owned narrow grid-of-8 (6fc3560e)
+# PRE-CHECK objdump (@k1 VLEN256):
+#   baseline: vlux=32 vsext=64 vfcvt=0  vfmul=64 vslide=96 vset=385 13440B  (32-gather / 96-slide)
+#   PROD    : vlux=0  vsext=32 vfcvt=32 vfmul=32 vslide=0  vset=64  10000B  (GATHER-FREE)
+# byte-exact: PROD ours-vs-oracle=0/131072  ggml-vs-oracle=0  ours-vs-ggml=0  grid 512/512 sign_sel 128/128 COMPLETE.
+#   3-arm anti-hollow inject 1/2/3 all BITES-OK.
+# 2-seed cold N=25 nb=512:
+#   seed:              0x1      0x2
+#   BASE ratio vs ggml: 0.995   0.996  (ours_med ~1189us — baseline ~parity with ggml)
+#   PROD ratio vs ggml: 2.180   2.187  (ours_med ~542us · iqr<1.1%)
+#   PROD/BASE throughput = 2.20x.
+# WALL-TYPE VERDICT: FLIP — codegen-STRUCTURE wall (32-gather/96-slide lottery leaf ~parity with ggml), flipped
+#   to a gather-free 2.19x WIN. Same lever as rvv (rvv ratio 3.88; k1 lower because the k1 ggml iq2_xs path is
+#   relatively faster, but PROD is still a clean 2.2x board win). 扩 iq2 面 confirmed on VLEN256.
+
+## ============ CELL 4: iq1_m dequantize_row @k1 VLEN256 — lever-N/A honest-null (de-lottery) ============
+# opponent = ggml dequantize_row_iq1_m (libggml-base.so · host-autovec 标量类档)
+# BASE = pre-flip scalar forwarder (md5 0998be75)  PROD = owned narrow ternary-grid (124450af)
+# PRE-CHECK objdump (@k1 VLEN256):
+#   baseline: vlux=0 vsext=32 vfcvt=0  vfmul=32 vslide=0 vset=65 21200B  (ALREADY gather-free + narrow)
+#   PROD    : vlux=0 vsext=32 vfcvt=32 vfmul=32 vslide=0 vset=1  20992B  (gather-free; fewer vsetvli)
+#   -> clang already lands the good codegen for iq1_m's CONTIGUOUS-grid decode => the W4 dominant lever
+#      (eliminate a gather / m8-wide widen) has NOTHING to eliminate @k1 (same finding as @rvv).
+# byte-exact (BIT-exact — packed iq1m scale can be Inf/NaN; RISC-V canonical qNaN matches): PROD
+#   ours-vs-oracle=0/131072  ggml-vs-oracle=0  ours-vs-ggml=0  grid_idx 2048/2048 delta{+,-} COMPLETE.
+#   3-arm anti-hollow inject 1/2/3 all BITES-OK.
+# 2-seed cold N=25 nb=512:
+#   seed:              0x1      0x2
+#   BASE ratio vs ggml: 2.396   2.371  (ours_med ~509us)
+#   PROD ratio vs ggml: 2.271   2.282  (ours_med ~533us)
+#   PROD/BASE throughput = 0.95x => PARITY (within ~1-5% IQR; >= 0.8 入账 floor).
+# WALL-TYPE VERDICT: lever-N/A honest-null — pre-check proved the deployed leaf is ALREADY gather-free+narrow
+#   @k1; the owned body is board-PARITY (0.95x baseline / >=parity vs ggml 2.27x). Deployed as de-lottery [L-8]
+#   robustness (own the codegen instead of riding clang's autovec lottery), NOT a perf/structure flip. CONFIRMS
+#   (走完攻坚环) the pre-check verdict, matching the rvv iq1_m result (rvv 0.98x parity).
+
+## SUMMARY (grid dequant 全族翻 · BOTH boards now complete)
+#   fmt      | rvv (r5.1-c/d/W4)          | k1 (this seal, VLEN256)
+#   iq3_xxs  | FLIP  ratio 1.39           | FLIP  ratio ~1.62  (gather-free vlux 8->0)
+#   iq3_s    | FLIP  ratio 2.08           | FLIP  ratio ~1.86  (baseline 0.74->PROD 1.86; vslide 320->0)
+#   iq2_xs   | FLIP  ratio 3.88           | FLIP  ratio ~2.19  (gather-free vlux 32->0)
+#   iq1_m    | lever-N/A honest-null 0.98 | lever-N/A honest-null 0.95  (already gather-free+narrow both boards)
+#   => k1 half: 3 FLIP / 1 lever-N/A honest-null. Emitter board-independence CONFIRMED on TRUE VLEN256 silicon.
+#      ZERO source change (pure consume). 0 造数. board reachable (loadavg ~2.0-2.9, idle-core auto-pinned>=98%).
+
+## reproduce
+#   iq3_xxs : REPS=25 NB=512 ./run_iq3xxs.sh   (baseline cand② vs PROD owned · compile-time INJECT anti-hollow)
+#   iq3_s   : REPS=25 NB=512 ./run.sh iq3_s     (baseline scalar vs PROD owned · runtime INJECT anti-hollow)
+#   iq2_xs  : REPS=25 NB=512 ./run.sh iq2_xs
+#   iq1_m   : REPS=25 NB=512 ./run.sh iq1_m
+#   raw logs: raw/{iq3_xxs,iq3_s,iq2_xs,iq1_m}_k1.log

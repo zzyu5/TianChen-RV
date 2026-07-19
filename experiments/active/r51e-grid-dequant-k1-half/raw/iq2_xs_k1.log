@@ -1,0 +1,30 @@
+# board=Linux 6.6.63 riscv64 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs CC=Bianbu clang version 18.1.8 (11bb4) load=2.68 2.36 2.14 3/457 4192311
+# cpu_md5=00267134a3e86cd4fb83e9a2cbf5185a base_md5=b79aef50 prod_md5=6fc3560e
+=== [PRE-CHECK] structure self-probe (compiled leaf .o · @k1 VLEN256) ===
+# iq2_xs_dequant_baseline        vlux=32 vloxei=0 vrgather=0 vsext=64 vfcvt=0 vfmul=64 vslide=96 vset=385 bytes=13440
+# iq2_xs_dequant_prod            vlux=0 vloxei=0 vrgather=0 vsext=32 vfcvt=32 vfmul=32 vslide=0 vset=64 bytes=10000
+# LOAD_GATE_OK pin_core=0 idle=100% gov=performance
+=== [A] byte-exact VERIFY (reps=0) + 3-arm anti-hollow ===
+--- BASELINE ---
+  BYTE-EXACT ours-vs-oracle: mism=0/131072 first=-1 -> PASS
+  CROSSCHECK ggml-vs-oracle: mism=0/131072 -> PASS
+  CROSSCHECK ours-vs-ggml  : mism=0/131072 -> PASS
+  CORPUS grid_idx=512/512 sign_sel=128/128 -> COMPLETE
+  ANTIHOLLOW inject=1 -> BITES-OK
+  ANTIHOLLOW inject=2 -> BITES-OK
+  ANTIHOLLOW inject=3 -> BITES-OK
+--- PROD ---
+  BYTE-EXACT ours-vs-oracle: mism=0/131072 first=-1 -> PASS
+  CROSSCHECK ggml-vs-oracle: mism=0/131072 -> PASS
+  CROSSCHECK ours-vs-ggml  : mism=0/131072 -> PASS
+  CORPUS grid_idx=512/512 sign_sel=128/128 -> COMPLETE
+  ANTIHOLLOW inject=1 -> BITES-OK
+  ANTIHOLLOW inject=2 -> BITES-OK
+  ANTIHOLLOW inject=3 -> BITES-OK
+=== [B] 2-seed cold timing (flush 224MiB, reps=25, nb=512 · ratio_cold=ggml/ours >1=WIN) ===
+BASE DEQUANT_ROW fmt=iq2_xs nb=512 k=131072 reps=25 seed=0x1 | ours_med_ns=1189241(iqr3.32%) ggml_med_ns=1182991(iqr3.51%) | ratio_cold=0.9947 sink=4862771200
+PROD DEQUANT_ROW fmt=iq2_xs nb=512 k=131072 reps=25 seed=0x1 | ours_med_ns=541745(iqr0.65%) ggml_med_ns=1180991(iqr3.64%) | ratio_cold=2.1800 sink=4862771200
+BASE DEQUANT_ROW fmt=iq2_xs nb=512 k=131072 reps=25 seed=0x2 | ours_med_ns=1185992(iqr3.35%) ggml_med_ns=1181491(iqr0.57%) | ratio_cold=0.9962 sink=4862771200
+PROD DEQUANT_ROW fmt=iq2_xs nb=512 k=131072 reps=25 seed=0x2 | ours_med_ns=541246(iqr1.04%) ggml_med_ns=1183824(iqr0.17%) | ratio_cold=2.1872 sink=4862771200
+# loadavg_end=2.84 2.44 2.18 1/457 4192493 cpu_md5_after=00267134a3e86cd4fb83e9a2cbf5185a
+# DONE
