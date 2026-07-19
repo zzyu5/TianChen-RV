@@ -1,0 +1,52 @@
+# PRE_STRAY=0
+# loadavg_begin=2.35 2.20 2.12 1/1021 2586790
+# core=8 (verify-only: correctness, no timing => no load-gate needed)
+=== [A] ZERO-MODEL 3-way gate, CLEAN build (INJECT=0) — expect GATE-OURS PASS ===
+ZERO-MODEL K=2048 nr=16 nc=512 VLEN=128 seed=0xD00D INJECT=0 TOLK=4.0 outputs=8192
+  ours  vs oracle: mism=0/8192 worst_tolratio=6.652e-03 max_rel=4.598e-04
+  OPP-X vs oracle: mism=0/8192 worst_tolratio=6.652e-03 max_rel=4.598e-04
+  OPP-S vs oracle: mism=8189/8192 worst_tolratio=2.265e+04 max_rel=8.502e+02
+  xcheck: ours==OPP-X bitexact 8192/8192 | ours==OPP-S bitexact 0/8192
+  GATE-OURS = PASS     (correct kernel; perf reportable)
+  GATE-OPPX = PASS     (CROSSOP opponent numerically valid on this board)
+  GATE-OPPS = FAIL     (PREREG §3.3 => VOID-S: same-operator opponent numbers forbidden; report OPP-X only, tagged CROSSOP)
+=== [B] ANTI-HOLLOW #1: oracle-constant fault (INJECT=1, ORACLE_KV[3] -65->-64) — expect ALL THREE RED ===
+ZERO-MODEL K=2048 nr=16 nc=512 VLEN=128 seed=0xD00D INJECT=1 TOLK=4.0 outputs=8192
+  ours  vs oracle: mism=7942/8192 worst_tolratio=1.182e+02 max_rel=1.614e+02
+  OPP-X vs oracle: mism=7942/8192 worst_tolratio=1.182e+02 max_rel=1.614e+02
+  OPP-S vs oracle: mism=8190/8192 worst_tolratio=2.265e+04 max_rel=8.246e+03
+  xcheck: ours==OPP-X bitexact 8192/8192 | ours==OPP-S bitexact 0/8192
+  GATE-OURS = FAIL     (VOID-CORRECTNESS => perf numbers forbidden)
+  GATE-OPPX = FAIL     (OPP-X invalid on this board => OPP-X ratio forbidden)
+  GATE-OPPS = FAIL     (PREREG §3.3 => VOID-S: same-operator opponent numbers forbidden; report OPP-X only, tagged CROSSOP)
+=== [C] ANTI-HOLLOW #2: DUT-output fault (INJECT=2, ours[mid]+=1.0f) — expect OURS RED ONLY ===
+ZERO-MODEL K=2048 nr=16 nc=512 VLEN=128 seed=0xD00D INJECT=2 TOLK=4.0 outputs=8192
+  ours  vs oracle: mism=1/8192 worst_tolratio=4.481e+01 max_rel=1.115e-02
+  OPP-X vs oracle: mism=0/8192 worst_tolratio=6.652e-03 max_rel=4.598e-04
+  OPP-S vs oracle: mism=8189/8192 worst_tolratio=2.265e+04 max_rel=8.502e+02
+  xcheck: ours==OPP-X bitexact 8191/8192 | ours==OPP-S bitexact 0/8192
+  GATE-OURS = FAIL     (VOID-CORRECTNESS => perf numbers forbidden)
+  GATE-OPPX = PASS     (CROSSOP opponent numerically valid on this board)
+  GATE-OPPS = FAIL     (PREREG §3.3 => VOID-S: same-operator opponent numbers forbidden; report OPP-X only, tagged CROSSOP)
+=== [D] ANTI-HOLLOW #3: leaf single-byte codebook fault — expect OURS RED ONLY ===
+ZERO-MODEL K=2048 nr=16 nc=512 VLEN=128 seed=0xD00D INJECT=0 TOLK=4.0 outputs=8192
+  ours  vs oracle: mism=7942/8192 worst_tolratio=1.180e+02 max_rel=3.131e+01
+  OPP-X vs oracle: mism=0/8192 worst_tolratio=6.652e-03 max_rel=4.598e-04
+  OPP-S vs oracle: mism=8189/8192 worst_tolratio=2.265e+04 max_rel=8.502e+02
+  xcheck: ours==OPP-X bitexact 0/8192 | ours==OPP-S bitexact 0/8192
+  GATE-OURS = FAIL     (VOID-CORRECTNESS => perf numbers forbidden)
+  GATE-OPPX = PASS     (CROSSOP opponent numerically valid on this board)
+  GATE-OPPS = FAIL     (PREREG §3.3 => VOID-S: same-operator opponent numbers forbidden; report OPP-X only, tagged CROSSOP)
+=== [E] second seed, CLEAN — expect GATE-OURS PASS ===
+ZERO-MODEL K=2048 nr=16 nc=512 VLEN=128 seed=0x1357 INJECT=0 TOLK=4.0 outputs=8192
+  ours  vs oracle: mism=0/8192 worst_tolratio=7.920e-03 max_rel=5.267e-04
+  OPP-X vs oracle: mism=0/8192 worst_tolratio=7.920e-03 max_rel=5.267e-04
+  OPP-S vs oracle: mism=8192/8192 worst_tolratio=2.120e+04 max_rel=6.977e+03
+  xcheck: ours==OPP-X bitexact 8192/8192 | ours==OPP-S bitexact 0/8192
+  GATE-OURS = PASS     (correct kernel; perf reportable)
+  GATE-OPPX = PASS     (CROSSOP opponent numerically valid on this board)
+  GATE-OPPS = FAIL     (PREREG §3.3 => VOID-S: same-operator opponent numbers forbidden; report OPP-X only, tagged CROSSOP)
+# loadavg_end=2.40 2.22 2.13 1/1021 2586818
+# cpu_md5_after=e85fceda47606a115c5fbb0021817cdc base_md5_after=d9c07980cd3d6796e3e9750af7778140
+# STRAY=0
+# ALL_DONE

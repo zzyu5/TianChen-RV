@@ -1,0 +1,14 @@
+# BUILD gemm-prefill-p1r@rvv CC=clang version 18.1.8 march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zba_zbb_zbc_zbs_zicbom_zicboz_zawrs_zicond_zfa_zihintntl_zihintpause flush=224MiB
+# cflags=-fno-integrated-as -ffp-contract=on ldextra=--gcc-install-dir=/opt/tcrv-toolchains/gcc-15.2.0/lib/gcc/riscv64-unknown-linux-gnu/15.2.0
+# cpu_md5_before=e85fceda47606a115c5fbb0021817cdc base_md5_before=d9c07980cd3d6796e3e9750af7778140
+# leaf_md5=2cc64970f65a0b0453b0bc0cca818a42 drv_md5=9b5fe4bd3d68f878bc7098f778b401fb
+# fault_leaf_md5=01b60906c5d2fa1d018914fcba579576 differing_bytes=1 (must be 1)
+# linked OK md5=e05989e05ecc6747e356bf72898bf131
+# linked FAULT md5=3fd8aaf9d3c34dc0cfe7043581eb7378
+# OURS_gemm_leaf [ins=1784 rvv=1458 gather=64 vset=656] size=10408B
+# OURS_gemm_leaf_FAULT [ins=1784 rvv=1458 gather=64 vset=656] size=10416B
+# OPP ggml_vec_dot_iq4_nl_q8_0 @00000000000c1658 m1[ins=9 rvv=0 gather=0 vset=0] m2[ins=9 rvv=0 gather=0 vset=0] DUAL-AGREE
+# OPP ggml_vec_dot_iq4_nl_q8_0_vl128 @00000000000c1670 m1[ins=76 rvv=29 gather=2 vset=11] m2[ins=76 rvv=29 gather=2 vset=11] DUAL-AGREE
+# OPP ggml_vec_dot_iq4_nl_q8_0_vl256 @00000000000c178a m1[ins=78 rvv=30 gather=4 vset=6] m2[ins=78 rvv=30 gather=4 vset=6] DUAL-AGREE
+# OPP ggml_gemm_iq4_nl_16x1_q8_0 @00000000000c5774 m1[ins=225 rvv=65 gather=2 vset=12] m2[ins=225 rvv=65 gather=2 vset=12] DUAL-AGREE
+# OPP ggml_gemm_iq4_nl_16x1_q8_0_generic @0000000000050fa0 m1[ins=509 rvv=118 gather=8 vset=28] m2[ins=509 rvv=118 gather=8 vset=28] DUAL-AGREE

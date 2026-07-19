@@ -1,0 +1,5 @@
+HEAD=4533fe567cf03475290abda3aa283a11e81b2c63
+gemv OK md5=a911818ceb301d4858d9698153673d6d lines=1242
+gemm OK md5=2cc64970f65a0b0453b0bc0cca818a42 lines=2683
+recipe: weft-opt test/Conversion/RVV/rvv-to-emitc-repack-gem{v,m}-iq4-nl-q8-0.mlir --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
+byte-exact-vs-prior-seal: gemv a911818c==a911818c PASS / gemm 2cc64970==2cc64970 PASS
