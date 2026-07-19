@@ -105,6 +105,8 @@
 
 > **★诚实**：θ 精确重分类（尤其 θ1 是 (a-含-d-fact) 还是 (d)·θ5 先例算 a）**待 census-v3 re-pin**（需重跑 pkg 六包 agent·本账本只记 delta 事实与 supervisor 裁·不擅自重算 35 分布）。
 
+> **★census2 breadth 判定（2026-07-20·增加公式 breadth·`experiments/active/census2-singlesided-f-zeroconsume-judgment.md`）**：census v2「欠账」多半已消/低值——**18 单侧 f = 13 legit / 2 真 fake（F7 dead-param 删·F25 baked blockLen invariant-guarded）/ 3 零输入 OK**（'18 单侧 f 欠账'多半假警报·禁误伤 legit）；**11 零消费键 = 1 已接(vlenb/T1) / 10 删**（cachelineBytes/imePresent/deriveIMEPresent 已删@HEAD·grep=0 verified·+8 provider provenance echo 低值可删）。**census pin drift 确认**：pkg2「零消费 9」现为 8。⟹ **高值「增加公式」= 结构迁移（phase-1/phase-2 DequantMechanismPlan）·非 breadth cleanup**（breadth 多是 no-op/低值 provenance 删）。
+
 ---
 
 ## 四 · 迁移队列（增量迁移·排序·依赖标注）
