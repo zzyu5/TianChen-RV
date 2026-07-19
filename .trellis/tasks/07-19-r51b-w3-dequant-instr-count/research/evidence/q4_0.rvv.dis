@@ -1,0 +1,40 @@
+
+/tmp/w3-dequant/out/q4_0.rvv.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <weft_emitc_dequant_q4_0_kernel_dequant_q4_0>:
+   0:	8115                	srl	a0,a0,0x5
+   2:	c101                	beqz	a0,2 <weft_emitc_dequant_q4_0_kernel_dequant_q4_0+0x2>
+   4:	0589                	add	a1,a1,2
+   6:	20a56533          	sh3add	a0,a0,a0
+   a:	20b52533          	sh1add	a0,a0,a1
+
+000000000000000e <.LBB0_2>:
+   e:	ffe59787          	flh	fa5,-2(a1)
+  12:	cc087057          	vsetivli	zero,16,e8,m1,ta,ma
+  16:	02058407          	vle8.v	v8,(a1)
+  1a:	402787d3          	fcvt.s.h	fa5,fa5
+  1e:	2687b4d7          	vand.vi	v9,v8,15
+  22:	0d207057          	vsetvli	zero,zero,e32,m4,ta,ma
+  26:	4a922657          	vzext.vf4	v12,v9
+  2a:	02cc3657          	vadd.vi	v12,v12,-8
+  2e:	4ac19657          	vfcvt.f.x.v	v12,v12
+  32:	92c7d657          	vfmul.vf	v12,v12,fa5
+  36:	02066627          	vse32.v	v12,(a2)
+  3a:	0c007057          	vsetvli	zero,zero,e8,m1,ta,ma
+  3e:	a2823457          	vsrl.vi	v8,v8,4
+  42:	04060693          	add	a3,a2,64
+  46:	0d207057          	vsetvli	zero,zero,e32,m4,ta,ma
+  4a:	4a822657          	vzext.vf4	v12,v8
+  4e:	02cc3457          	vadd.vi	v8,v12,-8
+  52:	4a819457          	vfcvt.f.x.v	v8,v8
+  56:	9287d457          	vfmul.vf	v8,v8,fa5
+  5a:	0206e427          	vse32.v	v8,(a3)
+  5e:	05c9                	add	a1,a1,18
+  60:	08060613          	add	a2,a2,128
+  64:	00a59063          	bne	a1,a0,64 <.LBB0_2+0x56>
+
+0000000000000068 <.LBB0_3>:
+  68:	8082                	ret

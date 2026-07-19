@@ -1,0 +1,169 @@
+########################################################################
+# RUN-ID: w5-rvvAprime-boardbytecorrect-20260719T130619Z
+# repo-HEAD-context: 0e9faee0ac1644ec7bd84428aafba4059e0c5f54
+# board: ssh rvv  (openEuler riscv64, VLEN128/VLENB=16, 64c, clang 17.0.6-16.oe2403)
+#   isa: rv64imafdcv_zicbom_zicboz_...zvfh_zvfhmin_... (see /proc/cpuinfo)
+# host emit: build/weft/bin/weft-opt + /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp
+# W5 board byte-correct: q3_K repack GEMM/GEVM, A' dual-VLEN dual-body on rvv silicon.
+#
+# EXPORT RECIPE (per-body, march = ONLY variable for the two GEMM bodies):
+#  body_A (VLEN128): weft-opt rvv-emit-quant-contraction-q3-K-repack-gemm-prefill-vlen128.mlir \
+#      --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp
+#  body_B (VLEN256): ... --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | ...
+#  gevm (VLEN128): weft-opt rvv-to-emitc-repack-gemv-q3-K-q8-K.mlir --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp
+#
+# HOST kernel.c md5 (== BOARD md5, byte-identical scp):
+#   gemm_bodyA_vlen128.kernel.c  074af2a335f32064749d8e06f6c14d17  (20934 lines)
+#   gemm_bodyB_vlen256.kernel.c  b534e5fd62172ccac58aa688b2d0ff91  (10480 lines)
+#   gevm.kernel.c                338ec8a4db9a1ccd31a4d49cfd7a9817  (9589 lines)
+#   abi_shim_weft_to_tcrv.c      0c1ea75d0c6d92e6bdd0de9d6da6806f
+#   kquant_repack_verify_q3K.c   be81008fd0e58abad9383809109a0133  (validated harness, HEAD 924dc31f)
+#
+# BOARD .o vwmacc.vx counts (ties running silicon binary to structural pin):
+#   gemmA.o vwmacc.vx = 2048  (== VLEN128 structural pin)  board-md5 0b712d735efc8cdba3c75b15efe28399
+#   gemmB.o vwmacc.vx = 1024  (== VLEN256 structural pin)  board-md5 28b1510b81f9325b9a1cbb9e813abfa9
+# BOARD binary md5: verifyA 16f83dcfd360ae5dc3626ab9767c1847 | verifyB bea5004b7cfc099be15d60338860339f
+########################################################################
+
+############################ BODY_A (VLEN128 native, march=rv64gcv) on rvv VLEN128 ############################
+# 4 seeds {20260708, 0xC0FFEE, 12345, 0xABCDEF01} -- ALL: INT_mismatch_total=0 => SILICON BYTE-EXACT-INTEGER
+
+
+Authorized users only. All activities may be monitored and reported.
+=== board id ===
+isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifence
+===== body_A VLEN128 seed=20260708 =====
+# q3_K x q8_K REPACK GEVM+GEMM SILICON verify (kernel emitted @924dc31f)
+
+== INT (unit d, magnitude-bounded, byte-exact-integer) ==
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+
+== NORM (adversarial fp16 d, f64 ref, bounded-ULP) ==
+  GEVM nr=1  nc=16   n=256   worst_ulp=1      norm=8.347e-08 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=7      norm=2.004e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=1      norm=2.647e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=917132 norm=1.649e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=23     norm=1.848e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=1      norm=4.364e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=4.328e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=124    norm=4.044e-07 (maxAbsErr/rms)
+
+VERDICT q3_K: INT_mismatch_total=0  NORM worst_ulp=917132 worst_norm=4.364e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+exit=0
+===== body_A VLEN128 seed=0xC0FFEE =====
+# q3_K x q8_K REPACK GEVM+GEMM SILICON verify (kernel emitted @924dc31f)
+
+== INT (unit d, magnitude-bounded, byte-exact-integer) ==
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+
+== NORM (adversarial fp16 d, f64 ref, bounded-ULP) ==
+  GEVM nr=1  nc=16   n=256   worst_ulp=1      norm=1.464e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=2      norm=9.001e-08 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=1      norm=2.439e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=22     norm=1.366e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=29     norm=1.663e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=1      norm=1.964e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=4.962e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=760    norm=4.973e-07 (maxAbsErr/rms)
+
+VERDICT q3_K: INT_mismatch_total=0  NORM worst_ulp=760 worst_norm=4.973e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+exit=0
+===== body_A VLEN128 seed=12345 =====
+# q3_K x q8_K REPACK GEVM+GEMM SILICON verify (kernel emitted @924dc31f)
+
+== INT (unit d, magnitude-bounded, byte-exact-integer) ==
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+
+== NORM (adversarial fp16 d, f64 ref, bounded-ULP) ==
+  GEVM nr=1  nc=16   n=256   worst_ulp=1      norm=1.170e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=16     norm=1.536e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=1      norm=2.068e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=20     norm=2.275e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=3      norm=2.733e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=1      norm=3.809e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=4.004e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=705    norm=3.151e-07 (maxAbsErr/rms)
+
+VERDICT q3_K: INT_mismatch_total=0  NORM worst_ulp=705 worst_norm=4.004e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+exit=0
+===== body_A VLEN128 seed=0xABCDEF01 =====
+# q3_K x q8_K REPACK GEVM+GEMM SILICON verify (kernel emitted @924dc31f)
+
+== INT (unit d, magnitude-bounded, byte-exact-integer) ==
+  GEVM nr=1  nc=16   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEVM nr=1  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=32   n=512   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=8  nc=64   n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=16 nc=256  n=256   int-mismatch=0    BYTE-EXACT-INT
+  GEMM nr=4  nc=160  n=2560  int-mismatch=0    BYTE-EXACT-INT
+
+== NORM (adversarial fp16 d, f64 ref, bounded-ULP) ==
+  GEVM nr=1  nc=16   n=256   worst_ulp=1      norm=7.490e-08 (maxAbsErr/rms)
+  GEVM nr=1  nc=32   n=512   worst_ulp=6      norm=1.072e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=256  n=256   worst_ulp=1      norm=1.568e-07 (maxAbsErr/rms)
+  GEVM nr=1  nc=160  n=2560  worst_ulp=74     norm=2.331e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=32   n=512   worst_ulp=20     norm=2.579e-07 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=1      norm=2.855e-07 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=5.133e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=728    norm=3.328e-07 (maxAbsErr/rms)
+
+VERDICT q3_K: INT_mismatch_total=0  NORM worst_ulp=728 worst_norm=5.133e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+exit=0
+
+############################ BODY_B (VLEN256-form, march=rv64gcv_zvl256b) on rvv VLEN128 ############################
+# WRONG-VLEN FALSIFIER: half_lanes=16 assumes VLEN256; on VLEN128 hw => systematic INT-BUG (mism=2687).
+# Proves the two bodies are GENUINELY VLEN-specialized (not interchangeable). body_B's own byte-correct
+# verification belongs on its native VLEN256 board (k1, scheduled 2026-07-21, separate window). GEVM half=8
+# stays byte-exact here (shared VLEN128 GEVM); only the VLEN256 GEMM body mismatches.
+
+
+Authorized users only. All activities may be monitored and reported.
+[compile body_B VLEN256-form] march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs (running on VLEN128 hw)
+[bodyB link OK]
+===== body_B VLEN256-form on VLEN128hw seed=20260708 =====
+# q3_K x q8_K REPACK GEVM+GEMM SILICON verify (kernel emitted @924dc31f)
+  GEMM nr=4  nc=32   n=512   int-mismatch=64   INT-BUG
+  GEMM nr=8  nc=64   n=256   int-mismatch=256  INT-BUG
+  GEMM nr=16 nc=256  n=256   int-mismatch=2047 INT-BUG
+  GEMM nr=4  nc=160  n=2560  int-mismatch=320  INT-BUG
+  GEMM nr=4  nc=32   n=512   worst_ulp=34597376 norm=4.324e+00 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=2146515353 norm=6.184e+00 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=2146584805 norm=6.578e+00 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=45375803 norm=4.013e+00 (maxAbsErr/rms)
+VERDICT q3_K: INT_mismatch_total=2687  NORM worst_ulp=2146584805 worst_norm=6.578e+00  => CHECK
+exit=1
+===== body_B VLEN256-form on VLEN128hw seed=12345 =====
+# q3_K x q8_K REPACK GEVM+GEMM SILICON verify (kernel emitted @924dc31f)
+  GEMM nr=4  nc=32   n=512   int-mismatch=64   INT-BUG
+  GEMM nr=8  nc=64   n=256   int-mismatch=256  INT-BUG
+  GEMM nr=16 nc=256  n=256   int-mismatch=2047 INT-BUG
+  GEMM nr=4  nc=160  n=2560  int-mismatch=320  INT-BUG
+  GEMM nr=4  nc=32   n=512   worst_ulp=40218177 norm=3.640e+00 (maxAbsErr/rms)
+  GEMM nr=8  nc=64   n=256   worst_ulp=2146568736 norm=5.846e+00 (maxAbsErr/rms)
+  GEMM nr=16 nc=256  n=256   worst_ulp=2147295200 norm=7.870e+00 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=2145283370 norm=2.891e+00 (maxAbsErr/rms)
+VERDICT q3_K: INT_mismatch_total=2687  NORM worst_ulp=2147295200 worst_norm=7.870e+00  => CHECK
+exit=1

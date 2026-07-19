@@ -11,7 +11,7 @@
 | ① | L3/L4 硅证 FINDING + 定案报告入库 | **DONE**（真硅重跑·byte-exact mism=0·fp16-9/9·anti-hollow 双臂 BITES-OK·run-id 钉死不靠祖先性）| `L3L4-scalar-silicon-byteexact-FINDING.md` |
 | ② | scalar 四路机检 → tracked FINDING（run-id 原始输出）| **DONE**（唯一允许补测一次·四路独立 + SIGILL 硬件陷阱·PHYSICAL_NO_V_CONFIRMED）| `scalar-noV-fourway-machinecheck-FINDING.md` |
 | ③ | PR-1 事实更正重开（状态行改写·不推翻采购否决）| **DONE**（REOPENED-BY-FACT-CORRECTION·git-可查·板=到货非采购·采购否决未触）| `PR-1-reopen-by-fact-correction.md` + B4 tracked 修正 |
-| ④ | rvv A′ 双 VLEN 双 body + D4 | **结构半 pin·板半排期**（emit+object march-唯一变量双 body 确定性证已 pin；rvv byte-correct 排期 2026-07-20 / k1 2026-07-21）| `rvv-Aprime-dualVLEN-dualbody-FINDING.md` |
+| ④ | rvv A′ 双 VLEN 双 body + D4 | **结构半 pin·★rvv 板半已兑现（W5·2026-07-19）·k1 板半排期 2026-07-21**（结构：emit+object march-唯一变量双 body 确定性证；rvv 板：body_A VLEN128 silicon mism=0×4 seeds + 指令回绑 vwmacc 2048/1024 + wrong-VLEN falsifier；run-id `w5-rvvAprime-boardbytecorrect-20260719T130619Z`）| `rvv-Aprime-dualVLEN-dualbody-FINDING.md` |
 
 ## 三命令（完成判据·预期输出）
 

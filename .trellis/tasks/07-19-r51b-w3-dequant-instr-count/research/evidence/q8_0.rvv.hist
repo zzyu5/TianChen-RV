@@ -1,0 +1,6 @@
+      1 vfcvt.f.x.v
+      1 vfmul.vf
+      1 vle8.v
+      1 vse32.v
+      1 vsetvli
+      1 vsext.vf4
