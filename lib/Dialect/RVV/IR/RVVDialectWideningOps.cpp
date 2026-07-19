@@ -8919,17 +8919,46 @@ mlir::LogicalResult GgmlBlockDotNVFP4Q80CodebookCoreOp::verify() {
               "nibble->int8 lookup table kvalues_mxfp4[16]); got "
            << getCodebook().size();
 
-  // The codebook gather pins the m1 integer-core anchor: to index ALL 16 table
-  // entries the broadcast `values` register's VLMAX must be >= 16. Reject a non-m1
-  // anchor fail-closed (I7).
+  // The codebook gather's legal integer-core anchor is a VLEN-CAPABILITY fact, not a
+  // fixed "m1" (the SAME rule as the mxfp4 sibling): to index ALL codebook.size()
+  // table entries the broadcast `values` register's i8 gather VLMAX must be >=
+  // codebook.size(), and WHICH anchor reaches that MOVES with VLEN. Recomputed from
+  // the SAME getRVVStripVLMAXElements truth source the codebook emitter's anchor
+  // formula (getRVVCodebookGatherAnchorLMUL) selects with -- VLMAX >= codebook.size()
+  // REPLACES the old `== "m1"` literal. The nvfp4 core brick carries NO minimum_vlen,
+  // so it gates at the byte-exact anchor VLEN (128): only m1 -> VLMAX 16 covers a
+  // 16-entry table (mf2 -> VLMAX 8 < 16), so today's schedules stay byte-identical.
+  // Reject VLMAX < codebook.size() fail-closed (I7). The vwredsum destination + seed
+  // stay m1 regardless of the i8 anchor.
   if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
-    if (*coreLmul != "m1")
+    constexpr std::int64_t kCodebookByteExactMinVLEN = 128;
+    std::int64_t codebookEntries =
+        static_cast<std::int64_t>(getCodebook().size());
+    std::int64_t gatherVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
+        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(*coreLmul),
+        ::weft::plugin::rvv::getRVVBlockDotStripSEW(*coreLmul),
+        kCodebookByteExactMinVLEN);
+    if (gatherVLMAX < codebookEntries)
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" for the ggml NVFP4 x "
-                "Q8_0 super-block CODEBOOK scalar integer-core (the 16-entry "
-                "codebook gather requires the broadcast table register's VLMAX "
-                ">= 16, which mf4 cannot provide at VLEN=128); got \""
-             << *coreLmul << "\"";
+             << "integer_core_lmul \"" << *coreLmul << "\" cannot host the "
+             << codebookEntries << "-entry codebook gather at VLEN "
+             << kCodebookByteExactMinVLEN
+             << ": the broadcast table register's VLMAX is " << gatherVLMAX
+             << " (< " << codebookEntries
+             << ", so a nibble index >= VLMAX silently reads 0). At VLEN128 the "
+                "gather requires m1; a narrower anchor is legal only on a wider VLEN "
+                "(mf2 reaches VLMAX 16 at VLEN256, the ggml _vl256 shape)";
+    // The VLMAX >= codebook.size() fact admits m1/mf2 but ALSO any wider anchor (m2
+    // -> VLMAX 32 at VLEN128). The emitter handles ONLY m1 (i16 product m2) and mf2
+    // (i16 product m1): a wider anchor would be mis-widened. Restrict to the
+    // emitter-supported set fail-closed (I7) -- the same guard the old m1-pin carried.
+    if (*coreLmul != "m1" && *coreLmul != "mf2")
+      return emitOpError()
+             << "integer_core_lmul \"" << *coreLmul
+             << "\" is not an emitter-supported codebook anchor: the ggml NVFP4 x "
+                "Q8_0 super-block CODEBOOK emits only m1 (the VLEN128 form, i16 "
+                "product m2) or mf2 (the VLEN256 _vl256 form, i16 product m1); a "
+                "wider anchor would be mis-widened";
   }
 
   // The OPTIONAL loop-form `block_index` operand adds a 5th operand (the

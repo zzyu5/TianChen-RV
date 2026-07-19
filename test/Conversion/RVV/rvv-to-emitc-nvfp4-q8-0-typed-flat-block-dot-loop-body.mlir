@@ -11,6 +11,12 @@
 // RUN: sed 's/%%block_index: index, %%acc: f32/%%block_index: index, %%acc: f32, %%extra: f32/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADARGS
 // RUN: sed 's/kind = "typed_flat_block_dot_loop_body"/kind = "plain_flat_loop"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADKIND
 // RUN: sed 's/0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12/0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=BADCODEBOOK
+// The codebook anchor is a VLMAX >= codebook.size() CAPABILITY predicate, NOT a
+// hardcoded `== "m1"` literal: at the byte-exact VLEN128 a narrow mf2 anchor's gather
+// VLMAX is 8 < 16, so it is rejected fail-closed WITH THE VLMAX REASON (NARROWANCHOR);
+// the m1 anchor (VLMAX 16) verifies clean and round-trips the attr (WIDEANCHOR).
+// RUN: sed 's/-8, -12>}/-8, -12>, integer_core_lmul = "mf2"}/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=NARROWANCHOR
+// RUN: sed 's/-8, -12>}/-8, -12>, integer_core_lmul = "m1"}/' %s | weft-opt | FileCheck %s --check-prefix=WIDEANCHOR
 
 // nvfp4 (NVIDIA's FP4, the SECOND FP4-CODEBOOK sibling) constructed FLAT-loop emit
 // (the flip lowering + the emitter-inlined per-super-block codebook body). nvfp4 is a
@@ -170,3 +176,11 @@ module {
 // BADARGS: requires the region to carry exactly two entry arguments
 // BADKIND: currently supports only kind "typed_flat_block_dot_loop_body"
 // BADCODEBOOK: requires codebook to carry exactly 16 int8 entries
+
+// The codebook anchor de-lottery: the verifier gates the anchor on the VLMAX >=
+// codebook.size() CAPABILITY fact (the SAME getRVVStripVLMAXElements truth source the
+// codebook emitter's getRVVCodebookGatherAnchorLMUL formula selects with), NOT a
+// literal `== "m1"`. mf2's gather VLMAX 8 < 16 at VLEN128 is rejected fail-closed WITH
+// THE VLMAX REASON; the m1 anchor (VLMAX 16) verifies clean and round-trips.
+// NARROWANCHOR: integer_core_lmul "mf2" cannot host the 16-entry codebook gather at VLEN 128
+// WIDEANCHOR: integer_core_lmul = "m1"

@@ -2695,6 +2695,32 @@ inline std::int64_t getRVVStripVLMAXElements(llvm::StringRef coreLMUL,
   return (minimumVLEN * frac.first) / (frac.second * stripSEW);
 }
 
+/// The codebook-gather anchor LMUL as a CLOSED FORM f(VLEN, SEW, codebookEntries):
+/// the NARROWEST LMUL whose i8 gather VLMAX covers a `codebookEntries`-entry
+/// broadcast lookup table at `minimumVLEN`. A codebook decode gathers each nibble
+/// index [0, codebookEntries) through a broadcast table register; the gather is
+/// silently WRONG (a high index reads 0) unless that register's VLMAX >=
+/// codebookEntries. WHICH LMUL first reaches that MOVES with VLEN: at VLEN128 a
+/// 16-entry table needs m1 (VLMAX 16); at VLEN256 mf2 already reaches VLMAX 16 (the
+/// ggml `_vl256` shape). This is the closed form that REPLACES the codebook emitter's
+/// hardcoded "m1" literal: it enumerates the constructible anchor rungs narrow->wide
+/// and returns the first whose getRVVStripVLMAXElements (the SINGLE VLMAX truth source
+/// -- NOT re-derived here) reaches codebookEntries. The i8 gather runs at SEW8, so
+/// `sew` is 8; it stays a parameter to keep the closed form f(VLEN, SEW,
+/// codebookEntries) explicit (a wider codebook demands a wider anchor). Returns "" when
+/// no rung covers the table (a degenerate VLEN/SEW), which the caller fail-closes.
+inline llvm::StringRef
+getRVVCodebookGatherAnchorLMUL(std::int64_t minimumVLEN, std::int64_t sew,
+                              std::int64_t codebookEntries) {
+  static constexpr llvm::StringLiteral kCodebookAnchorRungs[] = {
+      llvm::StringLiteral("mf2"), llvm::StringLiteral("m1"),
+      llvm::StringLiteral("m2"), llvm::StringLiteral("m4")};
+  for (const llvm::StringLiteral &rung : kCodebookAnchorRungs)
+    if (getRVVStripVLMAXElements(rung, sew, minimumVLEN) >= codebookEntries)
+      return rung;
+  return llvm::StringRef();
+}
+
 //===----------------------------------------------------------------------===//
 // [SEL-1] capability-keyed fill-optimal LMUL prior (the FIRST capability-derived
 // schedule prior, the construction-time analogue of the exec selector). This is a

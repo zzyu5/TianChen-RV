@@ -2,6 +2,7 @@
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -104,9 +105,21 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The codebook gather REQUIRES the m1 anchor (VLMAX >= 16 to index all 16
-    // table entries); the verifier pins it. i8 source LMUL m1 -> i16 product m2.
-    llvm::StringRef coreLmul = "m1";
+    // The codebook gather anchor is a VLEN-CAPABILITY fact, not a fixed literal: to
+    // index all `codebook.size()` broadcast-table entries the gather register's i8
+    // VLMAX must be >= codebook.size(), and WHICH LMUL first reaches that MOVES with
+    // VLEN. SELECT the narrowest such anchor from the SAME getRVVStripVLMAXElements
+    // truth source the codebook verifier gates on (the closed form
+    // getRVVCodebookGatherAnchorLMUL -- do NOT re-derive the VLMAX arithmetic). At the
+    // byte-exact anchor VLEN (128) a 16-entry table resolves to m1 (VLMAX 16), so this
+    // emit is byte-identical to the former "m1" hardcode; the VLEN256 narrowing (mf2,
+    // VLMAX 16) flip is INFRA-ready but deferred behind a measured gate. i8 source
+    // LMUL -> i16 product one rung wider.
+    constexpr std::int64_t kCodebookByteExactMinVLEN = 128; // byte-exact anchor
+    constexpr std::int64_t kCodebookGatherSEW = 8;          // i8 gather lane
+    llvm::StringRef coreLmul = ::weft::plugin::rvv::getRVVCodebookGatherAnchorLMUL(
+        kCodebookByteExactMinVLEN, kCodebookGatherSEW,
+        static_cast<std::int64_t>(coreOp.getCodebook().size()));
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef wideLmul = wideningChain.l16;
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
@@ -206,8 +219,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     // equals _generic's (sumi1 + sumi2).
     auto emitSubBlockSumi =
         [&](mlir::Value qsBase, mlir::Value q8Base) -> mlir::FailureOr<mlir::Value> {
-      // The codebook anchor is m1: one vsetvl_e8m1(16) covers the half-block.
-      std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, "m1", "");
+      // The codebook anchor setvl tracks the SAME formula-selected coreLmul (one
+      // vsetvl_e8<coreLmul>(16) covers the half-block): m1 at the byte-exact VLEN128
+      // anchor, mf2 at VLEN256.
+      std::string innerSetvlCallee =
+          riscvIntrinsicName("vsetvl", 8, coreLmul, "");
       mlir::Value vl = emitOpaqueCallBuilt(
           rewriter, loc, sizeType, innerSetvlCallee, opName, role,
           [&](mlir::OpBuilder &b,

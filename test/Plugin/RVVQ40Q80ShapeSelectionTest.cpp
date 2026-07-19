@@ -42,6 +42,7 @@ using weft::plugin::rvv::deriveHasZvl128b;
 using weft::plugin::rvv::deriveMinimumVLEN;
 using weft::plugin::rvv::getRVVBlockDotStripLMUL;
 using weft::plugin::rvv::getRVVBlockDotStripSEW;
+using weft::plugin::rvv::getRVVCodebookGatherAnchorLMUL;
 using weft::plugin::rvv::getRVVStripVLMAXElements;
 using weft::plugin::rvv::getRVVBlockDotCoreLatencyDepth;
 using weft::plugin::rvv::getRVVBlockDotDecodePrefixLength;
@@ -824,6 +825,47 @@ int runNibbleKernelsVLENInvariantTest() {
   return 0;
 }
 
+// THE CODEBOOK-GATHER ANCHOR IS A CLOSED FORM f(VLEN, SEW, codebookEntries), NOT a
+// hardcoded "m1" literal: getRVVCodebookGatherAnchorLMUL returns the NARROWEST anchor
+// whose i8 gather VLMAX (the SAME getRVVStripVLMAXElements truth source) covers the
+// codebook table. The formula MOVES with BOTH inputs -- the decision experiment the
+// codebook emitter's de-lottery (RVVToEmitCCodebookFp4.cpp:109) rides.
+int runCodebookGatherAnchorIsClosedFormTest() {
+  constexpr std::int64_t kSEW8 = 8; // the i8 gather lane.
+  // 改 VLEN (fixed 16-entry table): VLEN128 => m1 (VLMAX 16), VLEN256 => mf2 (VLMAX
+  // 16, the ggml `_vl256` shape). This is the m1@128 -> mf2@256 flip.
+  if (getRVVCodebookGatherAnchorLMUL(128, kSEW8, 16) != "m1")
+    return fail("codebook anchor at VLEN128, 16 entries must be m1 (VLMAX 16)");
+  if (getRVVCodebookGatherAnchorLMUL(256, kSEW8, 16) != "mf2")
+    return fail("codebook anchor at VLEN256, 16 entries must be mf2 (VLMAX 16, "
+                "the _vl256 shape)");
+  // 改 codebook_size (fixed VLEN128): a WIDER table demands a WIDER anchor (32 => m2
+  // VLMAX 32, 64 => m4 VLMAX 64); a NARROWER table frees a narrower anchor (8 => mf2
+  // VLMAX 8). The literal "m1" could express NONE of these.
+  if (getRVVCodebookGatherAnchorLMUL(128, kSEW8, 32) != "m2")
+    return fail("codebook anchor at VLEN128, 32 entries must be m2 (VLMAX 32)");
+  if (getRVVCodebookGatherAnchorLMUL(128, kSEW8, 64) != "m4")
+    return fail("codebook anchor at VLEN128, 64 entries must be m4 (VLMAX 64)");
+  if (getRVVCodebookGatherAnchorLMUL(128, kSEW8, 8) != "mf2")
+    return fail("codebook anchor at VLEN128, 8 entries must be mf2 (VLMAX 8)");
+  // The pick is genuinely the NARROWEST covering rung: the selected anchor's VLMAX
+  // reaches the table AND the next-narrower rung does NOT (mf2 VLMAX 8 < 16 at
+  // VLEN128, so m1 is forced), tying the formula to the real VLMAX arithmetic.
+  if (getRVVStripVLMAXElements("m1", kSEW8, 128) < 16 ||
+      getRVVStripVLMAXElements("mf2", kSEW8, 128) >= 16)
+    return fail("the VLEN128 codebook anchor must be exactly m1 (mf2 VLMAX 8 < 16 "
+                "< m1 VLMAX 16)");
+  // Degenerate VLEN tier (no guaranteed VLEN, e.g. zve32x => 0) covers no table =>
+  // "" so the emitter fail-closes rather than emitting a silently-wrong gather.
+  if (!getRVVCodebookGatherAnchorLMUL(0, kSEW8, 16).empty())
+    return fail("a 0-VLEN (no guaranteed tier) codebook anchor must be empty "
+                "(fail-closed)");
+  llvm::outs() << "N3 codebook-gather anchor is a CLOSED FORM f(VLEN, SEW, "
+                  "codebookEntries): VLEN128/16=>m1, VLEN256/16=>mf2, VLEN128/32=>m2 "
+                  "-- replaces the hardcoded \"m1\" literal\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -850,6 +892,8 @@ int main() {
   if (int result = runQ80BudgetPruneBindsTest())
     return result;
   if (int result = runQ80StripVLMAXIsDerivedTest())
+    return result;
+  if (int result = runCodebookGatherAnchorIsClosedFormTest())
     return result;
   if (int result = runQ80VLEN256SelectsM1Test())
     return result;
