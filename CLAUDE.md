@@ -32,7 +32,7 @@
 
 真实硬件 family 走板（板册与板别约束 = [measurement · 板册](.trellis/spec/measurement/板册.md)，现役 `rvv` / `k1` / `scalar`）。硬件/性能主张要真板证据；本地 build/lit 只是编译器/工具链证据。
 
-**★测量现状（如实）**：measurement 层立 `bench <格> --board <板>` 为**唯一合法测量动作**。**runner 已建**（`tools/bench/bench`·`--self-test` 11/11·干跑验收达成），**但仍无合法的正式测量通道**——两条硬前置待裁：**ISSUE-090**（每格 harness 的落点与被调契约）+ **ISSUE-091**（命令签名**不定位主表行**：行键 = 四元组 `(op,format,engine,regime)`，而 `--board` 推不出 `engine`、格名命中多 op）。三目的地中 `experiments/runs.log` 已在，`master/`·`runs/<run-id>/` 未建。**⟹ 重启测量前须先落这两裁。** 详见 [issues](.trellis/spec/issues/index.md)。测量法（板、对手、门、行 schema、目的地）一律以 [measurement](.trellis/spec/measurement/index.md) 为准，本文件不重抄。
+**★测量现状（如实）**：measurement 层立 `bench <格> --board <板>` 为**唯一合法测量动作**。**runner 已建**（`tools/bench/bench`·`--self-test` 11/11·干跑验收达成），**bench 通道 canon 已闭环**——**ISSUE-090**（每格 harness 落点与被调契约）/ **091**（命令签名带四元行键 `(op,format,engine,regime)`·歧义 fail-closed）/ **092**（对手五档）均 **RESOLVED**（2026-07-18《开测篇》§〇）；三目的地 `experiments/runs.log`/`master/`/`runs/` 均已建、`master/` 已有 recon 生成主表。**但正式判定仍差两步**：(a) 真数须**经 bench 通道**产生——r5.1 这批 grid/repack 真数走 ad-hoc `run_*.sh`、未过 bench（`runs.log` 07-19/20 零行）；(b) 须过 **T-N 噪声地板**（[canon·测量判据](.trellis/spec/canon/测量判据.md)·dequant T-N 命中 0）。**⟹ 现有 grid/repack 数 = measured 非 T-N-qualified·论文引用前须走 bench 通道复测。** 详见 [issues](.trellis/spec/issues/index.md)。测量法（板、对手、门、行 schema、目的地）一律以 [measurement](.trellis/spec/measurement/index.md) 为准，本文件不重抄。
 
 **性能判断规则**（[canon · 测量判据](.trellis/spec/canon/测量判据.md) / [对手与档位](.trellis/spec/canon/对手与档位.md) / [成色与措辞](.trellis/spec/canon/成色与措辞.md)）—— 正本在 canon，此处只列**入口提示**：
 
