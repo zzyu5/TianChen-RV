@@ -50,10 +50,14 @@ module {
 }
 
 // (VLEN128 tier) the abstract op is GONE; the typed repack-GEVM region is realized (x16), with
-// the q8_0 memory-bound decode's OWN selection reason.
+// the q8_0 memory-bound decode's OWN selection reason. The accumulator LMUL is the WIDE m1
+// whole-LMUL chain (half_lanes 16, integer_core_lmul m1) -- the [GAP-P1]-loosen board-MEASURED
+// flip (lookupRepackMeasuredM1Faster(kNibbleQ80ScaleModel)=true; the q8_0 full-i8 chain is
+// spill-free AND 1.6-2.4x faster than mf2 @rvv, byte-exact; every OTHER format stays mf2). See
+// rvv-repack-accumulator-lmul-measured-gate-q8.mlir for the per-format selector judgment.
 // VLEN128-NOT: weft_rvv.quant_contraction
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
-// VLEN128-SAME: half_lanes = 8 : i64
+// VLEN128-SAME: half_lanes = 16 : i64
 // VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
 // VLEN128-SAME: weft_rvv.path_materialization = "realized"
 // VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q8_0-memory-bound-vlen128-decode"
@@ -65,13 +69,15 @@ module {
 
 // (EMITC) the exported C leaf: block_q8_0x16 stride 544 (d[16]@0, int8 quants @32) over a PLAIN
 // block_q8_0 activation (stride 34, qs @2); FULL-int8 load (NO vand/vsrl nibble decode),
-// per-position vwmul_vx + vwadd_wv i32 accumulation, dual-fp16 d_x*d_y fold, NO min.
+// per-position vwmul_vx + vwadd_wv i32 accumulation, dual-fp16 d_x*d_y fold, NO min. The WIDE
+// m1 chain: e8m1 load -> vwmul i16m2 -> vwadd.wv i32m4 -> f32m4 fold (one 16-lane strip, vs
+// the old mf2 default's two 8-lane f32m2 strips) -- the board-measured q8_0 accumulator flip.
 // EMITC: emitc.func @weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0
 // EMITC: literal "544"
-// EMITC: call_opaque "__riscv_vle8_v_i8mf2"
-// EMITC: call_opaque "__riscv_vwmul_vx_i16m1"
-// EMITC: call_opaque "__riscv_vwadd_wv_i32m2"
-// EMITC: call_opaque "__riscv_vfwmul_vf_f32m2"
-// EMITC: call_opaque "__riscv_vfmacc_vv_f32m2"
-// EMITC: call_opaque "__riscv_vse32_v_f32m2"
+// EMITC: call_opaque "__riscv_vle8_v_i8m1"
+// EMITC: call_opaque "__riscv_vwmul_vx_i16m2"
+// EMITC: call_opaque "__riscv_vwadd_wv_i32m4"
+// EMITC: call_opaque "__riscv_vfwmul_vf_f32m4"
+// EMITC: call_opaque "__riscv_vfmacc_vv_f32m4"
+// EMITC: call_opaque "__riscv_vse32_v_f32m4"
 // EMITC-NOT: call_opaque "__riscv_vand_vx_u8mf2"

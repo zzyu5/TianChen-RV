@@ -1,0 +1,23 @@
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+== toolchain ==
+clang version 17.0.6 ( 17.0.6-16.oe2403)
+== objdump mf2 vtypes ==
+     14 e16,m1
+      9 e32,m2
+      8 e8,mf2
+== objdump m1 vtypes ==
+      4 e16,m2
+      5 e32,m4
+      4 e8,m1
+== run (GEMM prefill, 2-seed cold) ==
+footprint,seed,mf2_median_ns,m1_median_ns,m1_over_mf2,byte_exact_3arm
+M=256 N=256 K=1024,0,14795367,10268906,0.6941,PASS
+M=256 N=256 K=1024,1,14801546,10537008,0.7119,PASS
+M=512 N=256 K=2048,0,61383035,43111793,0.7023,PASS
+M=512 N=256 K=2048,1,60897653,43315394,0.7113,PASS
+M=512 N=512 K=2048,0,122157948,87524772,0.7165,PASS
+M=512 N=512 K=2048,1,121965306,86862390,0.7122,PASS
+3-arm byte-exact (GEMM, all): PASS mism=0

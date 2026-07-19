@@ -1,6 +1,6 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=FULLI8
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWHOLE
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=WIDE
 
 // G3-lode-flat FLAT-4 收官格 -- q8_0 gemm_tile (PREFILL) FRONT-DOOR construction on
 // the SUPPORTED RVV1.0 regime (march=rv64gcv => Zvl128b => VLEN128). The abstract,
@@ -19,7 +19,17 @@
 // block_q8_0x16 x16 weight facts (stride 544, quants @32) AND the block_q8_0x4
 // INTERLEAVED activation facts (stride 136, quants @8), MATERIALIZES the two GEMM ABI
 // values (nr, bs). This GEMM is NET-NEW construction (no q8_0 GEMM direct emitter ever
-// existed). NO perf/e2e claim.
+// existed).
+//
+// [GAP-P1]-loosen (2026-07-19): the repack ACCUMULATOR LMUL is the board-MEASURED
+// WIDE m1 whole-LMUL chain (integer_core_lmul m1, half_lanes 16, columnsPerPass 1,
+// f32m4) -- lookupRepackMeasuredM1Faster(kNibbleQ80ScaleModel)=true. On rvv VLEN128
+// the deployed q8_0 repack-GEMM m1 chain is ~1.40x faster than the mf2 default
+// (columnsPerPass=4, f32m2) and byte-exact (3-arm mism=0) -- the wide 16-lane strip
+// beats the mf2 4-column amortization. Every OTHER format stays mf2. NO board number
+// is PROJECTED here (see experiments/active/r51f-gapp1-q8-deployed-board/FINDING.md);
+// the per-format selector judgment lives in
+// rvv-repack-accumulator-lmul-measured-gate-q8.mlir.
 
 module {
   weft.exec.kernel @ggml_gemm_q8_0_q8_0_kernel {
@@ -48,25 +58,30 @@ module {
 // per-group weight base vx + x*nb*544 (block_q8_0x16 stride 544).
 // CHECK: literal "136"
 // CHECK: literal "544"
-// The 4x8 f32m2 accumulator set (columnsPerPass == 4 columns folded in ONE pass).
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
-// The dual-fp16 scale fold and the 4x8 vector store.
-// CHECK: call_opaque "__riscv_vfmacc_vv_f32m2"
-// CHECK: call_opaque "__riscv_vse32_v_f32m2"
+// The WIDE m1 whole-LMUL f32m4 accumulator (columnsPerPass == 1: ONE 16-lane strip,
+// the board-measured accumulator flip -- vs the old mf2 4x8 f32m2 4-column pass).
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// The dual-fp16 scale fold and the 16-lane vector store.
+// CHECK: call_opaque "__riscv_vfmacc_vv_f32m4"
+// CHECK: call_opaque "__riscv_vse32_v_f32m4"
 // CHECK: return
 
 // The q8_0 FULL-int8 integer core (GEMM RUNTIME-strip form): the SIGNED vle8 i8 strip
 // load (NO nibble unpack), the per-position/per-column vwmul (i8xi8 -> i16), and the
 // i32 IN-BLOCK accumulate vwadd_wv (NO i16 vwmacc + lo/hi vwadd_vv combine).
-// FULLI8: call_opaque "__riscv_vle8_v_i8mf2"
-// FULLI8: call_opaque "__riscv_vwmul_vx_i16m1"
-// FULLI8: call_opaque "__riscv_vwadd_wv_i32m2"
+// FULLI8: call_opaque "__riscv_vle8_v_i8m1"
+// FULLI8: call_opaque "__riscv_vwmul_vx_i16m2"
+// FULLI8: call_opaque "__riscv_vwadd_wv_i32m4"
 // FULLI8-NOT: __riscv_vwmacc_vx_i16m1
 // FULLI8-NOT: __riscv_vand_vx_u8mf2
 // FULLI8-NOT: __riscv_vfadd_vv_f32m2
 
-// The SUPPORTED RVV1.0 mf2 form -- the dropped RVV0.7 whole-LMUL m1/f32m4 spellings
-// must NOT appear, and NO cross-lane vredsum reduction wall.
-// NOWHOLE-NOT: __riscv_vfmv_v_f_f32m4
-// NOWHOLE-NOT: __riscv_vle8_v_i8m1
-// NOWHOLE-NOT: redsum
+// POST-[GAP-P1]-loosen the RVV1.0 q8_0 repack-GEMM DEPLOYS the WIDE m1 whole-LMUL
+// chain (board-measured faster, byte-exact): the f32m4 accumulator + i8m1 strip ARE
+// present, the mf2 f32m2/i8mf2 spellings are GONE, and there is still NO cross-lane
+// vredsum reduction wall (lane-wise fold, not a reduce).
+// WIDE: __riscv_vfmv_v_f_f32m4
+// WIDE: __riscv_vle8_v_i8m1
+// WIDE-NOT: __riscv_vfmv_v_f_f32m2
+// WIDE-NOT: __riscv_vle8_v_i8mf2
+// WIDE-NOT: redsum

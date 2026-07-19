@@ -1272,13 +1272,58 @@ struct RepackAccumulatorLMULChoice {
                           // reads it, so the default emit stays byte-exact.
 };
 
-// STAGE THREE populates this per-format (x board) board-measured m1-vs-mf2
-// crossover. EMPTY today: nullopt for every format => the mf2 default holds
-// (byte-exact). q4_0 is the documented m1-faster CANDIDATE and q8_0 the
-// mf2-faster candidate, but NEITHER is asserted here without a board number
-// ([GAP-P1]: no projection; the board key is threaded in at STAGE THREE).
+// STAGE THREE fill (user-adjudicated 2026-07-19: [GAP-P1] LOOSENED to permit a
+// board-measured spill-free format to take the wide m1 chain -- the IRON RULE's
+// OWN escape hatch: "ONLY a per-format BOARD MEASUREMENT recording m1-faster
+// flips it (reason measured)"). This per-format board-MEASURED m1-vs-mf2
+// crossover registry is the ONLY thing that flips the mf2 default. It is
+// registration-as-DATA -- the SAME status/metric/hook mechanism as
+// kRepackVlen256DecodeMeasurements / the IME kIMEWideFormatMeasurements registry,
+// NOT a per-format C++ switch and NEVER a VLEN/footprint PROJECTION. A row is a
+// BOARD FACT keyed on the committed decode-family scale_model WHAT; a scale_model
+// with NO row is UNMEASURED => nullopt => the mf2 default holds (byte-exact).
+// Adding a board-measured format = adding a data row (换键不改条目); the selector
+// consumes ONLY the resulting bool and stays blind to the format label.
+//
+// The a-priori PROJECTION above guessed "q8 wants mf2 (its lean core spills at
+// m1), q4 wants m1". The BOARD REFUTED it -- exactly why [GAP-P1] forbids
+// projection. (1) The register-pressure inequality (rvvRegisterPressureLegal)
+// proves the q8 m1 whole-LMUL chain is SPILL-FREE at unroll=1 (i16m2 + i32m4 =
+// 6 vregs <= 32). (2) The rvv board (VLEN128, clang 17.0.6) measured the DEPLOYED
+// (CORE==PROD) q8_0 full-int8 m1 chain FASTER than the mf2 default in BOTH
+// regimes, byte-exact (3-arm mism=0), 2-seed cold: decode-GEVM 1.6-2.4x
+// (footprint-robust THROUGH 35.6 MB DRAM-bound -- the "micro washes at e2e"
+// concern does NOT wash out within the deployed GEVM) AND prefill-GEMM ~1.40x
+// (the wide 16-lane strip beats the mf2 4-column columnsPerPass amortization).
+// q4 measured ~parity (0.95-1.005x, confounded by a scalar nibble-unpack) => left
+// UNMEASURED here (no flip). Only q8_0 (kNibbleQ80ScaleModel) is asserted.
+struct RepackMeasuredM1FasterMeasurement {
+  llvm::StringRef scaleModel;  ///< committed decode-family WHAT (registry key)
+  bool m1Faster;               ///< board-measured: m1 chain faster than mf2 default
+  llvm::StringRef metric;      ///< measured cold m1/mf2 ratio (<1 => m1 faster)
+  llvm::StringRef metricsHook; ///< board evidence provenance
+};
+constexpr RepackMeasuredM1FasterMeasurement
+    kRepackMeasuredM1FasterMeasurements[] = {
+        {kNibbleQ80ScaleModel, /*m1Faster=*/true,
+         "decode-GEVM 0.42-0.62 / prefill-GEMM 0.69-0.72 cold m1/mf2 (1.4-2.4x faster)",
+         "experiments/active/r51f-gapp1-q8-deployed-board/FINDING.md + "
+         "experiments/active/w2-widen-to-m1-board/FINDING.md "
+         "(q8_0 full-i8 DEPLOYED repack GEVM+GEMM m1 whole-LMUL chain faster than "
+         "the mf2 default @rvv VLEN128 clang-17.0.6, spill-free by "
+         "rvvRegisterPressureLegal, byte-exact 3-arm 2-seed cold, GEVM "
+         "footprint-robust THROUGH 35.6 MB DRAM-bound; CORE==PROD deployed emit)"},
+};
+
+// Pure DATA lookup: the board-measured m1-vs-mf2 disposition for the committed
+// decode-family scale_model, or nullopt when the format has NO measured row (=>
+// the mf2 default). Mirrors lookupRepackVlen256Decode / lookupWideFormatMeasured.
 inline std::optional<bool>
-lookupRepackMeasuredM1Faster(llvm::StringRef /*scaleModel*/) {
+lookupRepackMeasuredM1Faster(llvm::StringRef scaleModel) {
+  for (const RepackMeasuredM1FasterMeasurement &m :
+       kRepackMeasuredM1FasterMeasurements)
+    if (m.scaleModel == scaleModel)
+      return m.m1Faster;
   return std::nullopt;
 }
 

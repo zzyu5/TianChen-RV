@@ -1,0 +1,27 @@
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+== toolchain ==
+clang version 17.0.6 ( 17.0.6-16.oe2403)
+== compile (-O3 -march=rv64gcv_zvfh) ==
+== objdump: DEPLOYED mf2 chain vtypes (expect e8,mf2 + i16m1 + i32m2) ==
+      3 e16,m1
+      3 e32,m2
+      2 e8,mf2
+== objdump: DEPLOYED m1 chain vtypes (expect e8,m1 + i16m2 + i32m4) ==
+      1 e16,m2
+      2 e32,m4
+      1 e8,m1
+== objdump: no gather (vlux/vrgather) in either clean int8 chain ==
+mf2 gather: 0
+m1  gather: 0
+== run (2-seed cold sweep) ==
+footprint,seed,weight_bytes,mf2_median_ns,m1_median_ns,m1_over_mf2,byte_exact_3arm
+M=256 K=1024 cache-resident,0,278528,104740,64980,0.6204,PASS
+M=256 K=1024 cache-resident,1,278528,110820,46800,0.4223,PASS
+M=2048 K=4096 ~8.5MB,0,8912896,3820337,2137910,0.5596,PASS
+M=2048 K=4096 ~8.5MB,1,8912896,3452316,1913268,0.5542,PASS
+M=8192 K=4096 ~35.6MB DRAM-bound,0,35651584,15424869,8890520,0.5764,PASS
+M=8192 K=4096 ~35.6MB DRAM-bound,1,35651584,15272148,8782520,0.5751,PASS
+3-arm byte-exact (all footprints/seeds): PASS mism=0
