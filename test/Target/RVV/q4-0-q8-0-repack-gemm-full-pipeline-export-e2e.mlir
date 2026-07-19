@@ -30,7 +30,7 @@
 // symbol is the kernel+variant handoff name. NO board / NO perf claim --
 // coverage/wiring maturity; numbers pending-hardware (ssh rvv). The repacked GEMM's
 // dual-fp16 scale fold loads the per-strip fp16 weight scales as a VECTOR
-// (vle16_v_f16m1 -- the repack locality win), a Zvfh op, so the RepackGemm object
+// (vle16_v_f16m2 -- the repack locality win), a Zvfh op, so the RepackGemm object
 // packages under -march=rv64gcv_zvfh (its own packager; the block-dot families keep
 // the baseline rv64gcv packager byte-identical).
 //
@@ -42,8 +42,8 @@
 // from the REAL quant_contraction request (NOT test-authored).
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=CONSTRUCT
 
-// CORE emit: the constructed region lowers to the mf2 / half_lanes=8 / columnsPerPass=4
-// repacked GEMM kernel.
+// CORE emit: the constructed region lowers to the m1 / half_lanes=16 / columnsPerPass=4
+// repacked GEMM kernel (integer_core_lmul="m1", measured accumulator-LMUL gate).
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 
 // FULL pipeline: after construction, the weft-source-artifact-front-door-pipeline
@@ -99,36 +99,36 @@ module {
 // CONSTRUCT-NOT: weft_rvv.typed_repack_gemv_loop_body
 // CONSTRUCT-NOT: weft_rvv.q4_0_q8_0_block_dot
 // CONSTRUCT: weft_rvv.typed_repack_gemm_loop_body
-// CONSTRUCT-SAME: half_lanes = 8 : i64
+// CONSTRUCT-SAME: half_lanes = 16 : i64
+// CONSTRUCT-SAME: integer_core_lmul = "m1"
 // CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.path_materialization = "realized"
+// CONSTRUCT-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
+// CONSTRUCT-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 288 : i64
 // CONSTRUCT: weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot
 // CONSTRUCT: weft_rvv.repack_gemm_dual_fp16_scale_fold
-// CONSTRUCT: weft_rvv.repack_gemm_dual_fp16_scale_fold
-// CONSTRUCT: weft_rvv.repack_gemm_dual_fp16_scale_fold
-// CONSTRUCT: weft_rvv.repack_gemm_dual_fp16_scale_fold
 // CONSTRUCT: weft_rvv.typed_repack_gemm_loop_yield
 
 // ===================== CORE EmitC =============================================
-// The 4x8 f32m2 accumulator set (columnsPerPass == 4 columns folded in ONE pass), the
-// disjoint repacked i8mf2 sub-load, the lane-wise vwmacc accumulate (NO cross-lane
+// The 4x16 f32m4 accumulator set (columnsPerPass == 4 columns folded in ONE pass), the
+// contiguous repacked i8m1 sub-load, the lane-wise vwmacc accumulate (NO cross-lane
 // reduction wall), the lo/hi vwadd combine, the dual-fp16 scale fold, and the vector
 // stores.
 // EMIT-NOT: unrealized_conversion_cast
 // EMIT: emitc.func @weft_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel_ggml_gemm_q4_0_q8_0_repack_gemm(
 // EMIT: literal "136"
 // EMIT: literal "288"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m2"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m2"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m2"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m2"
-// EMIT: call_opaque "__riscv_vle8_v_i8mf2"
-// EMIT: call_opaque "__riscv_vwmacc_vx_i16m1"
-// EMIT: call_opaque "__riscv_vwadd_vv_i32m2"
-// EMIT: call_opaque "__riscv_vfmacc_vv_f32m2"
-// EMIT: call_opaque "__riscv_vse32_v_f32m2"
+// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
+// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
+// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
+// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
+// EMIT: call_opaque "__riscv_vle8_v_i8m1"
+// EMIT: call_opaque "__riscv_vwmacc_vx_i16m2"
+// EMIT: call_opaque "__riscv_vwadd_vv_i32m4"
+// EMIT: call_opaque "__riscv_vfmacc_vv_f32m4"
+// EMIT: call_opaque "__riscv_vse32_v_f32m4"
 // EMIT: return
 
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
