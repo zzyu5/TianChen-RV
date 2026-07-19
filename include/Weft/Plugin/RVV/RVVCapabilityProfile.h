@@ -62,19 +62,6 @@ struct RVVProbeCapabilityFacts {
   std::string architecture;
   std::uint64_t hartCount = 0;
   std::uint64_t vlenbBytes = 0;
-  // Cache-line size in BYTES -- a probed target-microarchitecture fact (ADDITIVE,
-  // mirrors vlenbBytes; 0 == the probe named no concrete cache-line size). This
-  // is a LAYOUT capability fact a later P7/IME key-blocking selector will reason
-  // over (does the repacked/interleaved weight tile fit / straddle a cache line).
-  // It is NOT consumed by any selector yet -- this task only lands the field so a
-  // future key-layout pass can read it off the Profile.
-  std::uint64_t cachelineBytes = 0;
-  // Whether the configured target implements the SpacemiT IME matrix extension
-  // (the `xsmtvdotii` envelope) -- a DERIVED capability fact (deriveIMEPresent),
-  // stored here (ADDITIVE, defaults false) so a later P7/IME key-layout selector
-  // can read it off the Profile without re-parsing the march. NOT wired to any
-  // selector by this task.
-  bool imePresent = false;
   std::string isaVectorHints;
   bool clangAvailable = false;
   std::string clangVersion;
@@ -174,29 +161,6 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
 // VLEN == 128 keeps two disjoint 8-lane halves.
 std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
                                llvm::StringRef isaVectorHints);
-
-// Derives whether the configured target implements the SpacemiT IME matrix
-// extension, from the selected -march plus the probed isa/vector-hint string.
-// This is a TARGET-CAPABILITY fact ("does this target assemble `vmadot`"), NOT a
-// plugin-selected config (I5; architecture/能力模型.md). The load-bearing IME1 march token is
-// `xsmtvdotii` -- the SINGLE canonical spelling the IME plugin's march gate
-// requires to assemble `vmadot` (kIMEMarchToken in IMEExtensionPlugin.cpp; the
-// gate there is `march.contains(kIMEMarchToken)`). Its presence in the march (or
-// the probed vector-hint string, checked as a fallback) IS the IME capability
-// fact. Header-INLINE so the probe-fact derive is visible to a header-only
-// P7/IME key-layout consumer; the "xsmtvdotii" spelling is duplicated from
-// kIMEMarchToken here (a later refactor can hoist both to one shared constant --
-// the IME token is file-local to IMEExtensionPlugin.cpp today). Returns true iff
-// the evidence names the IME envelope. NOTE: this is DISTINCT from the module-
-// body IME walk (IMEBackendEmissionDriver::moduleHasBackendBody) -- that asks
-// "does this MODULE contain IME ops", a different question from "does the TARGET
-// afford IME".
-inline bool deriveIMEPresent(llvm::StringRef selectedMarch,
-                             llvm::StringRef isaVectorHints) {
-  static constexpr llvm::StringLiteral kIMEMarchToken("xsmtvdotii");
-  return selectedMarch.contains(kIMEMarchToken) ||
-         isaVectorHints.contains(kIMEMarchToken);
-}
 
 // Builds the probe-fact capability set. Relations (currently only `provides`)
 // are minted as interned CapabilityRelationsAttr from `context`; the returned
