@@ -32,6 +32,9 @@ using weft::plugin::rvv::RVVNumericsTierReason;
 using weft::plugin::rvv::chooseNumericsTier;
 using weft::plugin::rvv::stringifyRVVNumericsTier;
 using weft::plugin::rvv::stringifyRVVNumericsTierReason;
+using weft::plugin::rvv::getRVVEffectiveWidthInvariantLMUL;
+using weft::plugin::rvv::RVVWidthInvariantLMULReason;
+using weft::plugin::rvv::stringifyRVVWidthInvariantLMULReason;
 
 namespace {
 
@@ -249,6 +252,64 @@ int runNumericsTierPolicyTest() {
   return 0;
 }
 
+// [r5.1 W3 · census-F25] BAKED blockLen=32 is LOAD-BEARING (the direct half the
+// pass-level lits cannot show). selectIntegerCoreLMUL bakes blockLen =
+// kContractionBlockLen (32) into getRVVEffectiveWidthInvariantLMUL(VLEN, sew, blockLen,
+// {m1,m2}); the census asked "is this baked g a frozen free variable (facade) or a
+// real load-bearing input?". The three front doors' dimSize==32 gate makes blockLen
+// UN-VARYABLE through the pass (rvv-widening-dot-reduce-source-front-door-f25-baked-g-
+// invariant.mlir asserts the g=16 REJECTION), so the ONLY way to prove blockLen is not
+// inert is to call the closed form DIRECTLY and vary it. Sweeping blockLen at a FIXED
+// VLEN/candidate set, the coreLMUL FLIPS -- so the baked 32 genuinely drives the pick;
+// a different blockLen would flip coreLMUL, which is exactly why threading the input is
+// deferred until non-32 int8 contraction geometry is admitted (currently gated out).
+int runWidthInvariantBlockLenLoadBearingTest() {
+  llvm::SmallVector<llvm::StringRef, 2> coreCandidates = {"m1", "m2"};
+  const std::int64_t sew8 = 8; // the i8 integer-core strip SEW (== getRVVBlockDotStripSEW).
+
+  // FIXED VLEN128, FIXED candidate set: vary ONLY blockLen. If the baked blockLen were
+  // inert (a facade), every blockLen would return the same coreLMUL. It does NOT.
+  //   blockLen 16: m1 VLMAX(128*1/8)=16 == 16          -> m1 (WidthInvariant).
+  //   blockLen 32: m1 VLMAX=16 < 32, m2 VLMAX(128*2/8)=32 == 32 -> m2 (WidthInvariant).
+  // The 16 -> 32 change FLIPS coreLMUL m1 -> m2 with EVERY other input held constant:
+  // baked blockLen=32 is LOAD-BEARING (this IS the production VLEN128 pick).
+  auto b16 = getRVVEffectiveWidthInvariantLMUL(128, sew8, 16, coreCandidates);
+  auto b32 = getRVVEffectiveWidthInvariantLMUL(128, sew8, 32, coreCandidates);
+  if (b16.lmul != "m1" ||
+      b16.reason != RVVWidthInvariantLMULReason::WidthInvariant)
+    return fail("blockLen=16 @VLEN128 should be m1/width_invariant; got " +
+                b16.lmul + "/" + stringifyRVVWidthInvariantLMULReason(b16.reason));
+  if (b32.lmul != "m2" ||
+      b32.reason != RVVWidthInvariantLMULReason::WidthInvariant)
+    return fail("blockLen=32 @VLEN128 should be m2/width_invariant; got " +
+                b32.lmul + "/" + stringifyRVVWidthInvariantLMULReason(b32.reason));
+  if (b16.lmul == b32.lmul)
+    return fail("baked blockLen is a FACADE: coreLMUL did not change 16->32 @VLEN128");
+
+  // blockLen 64 @VLEN128: neither m1 (VLMAX 16) nor m2 (VLMAX 32) covers the block ->
+  // widest sufficient default (m2), honestly FallbackWidest (not a WidthInvariant hit).
+  auto b64 = getRVVEffectiveWidthInvariantLMUL(128, sew8, 64, coreCandidates);
+  if (b64.lmul != "m2" ||
+      b64.reason != RVVWidthInvariantLMULReason::FallbackWidest)
+    return fail("blockLen=64 @VLEN128 should be m2/fallback_widest; got " +
+                b64.lmul + "/" + stringifyRVVWidthInvariantLMULReason(b64.reason));
+
+  // The c-axis crossover at the BAKED blockLen=32: VLEN256 flips the pick m2 -> m1
+  // (m1 VLMAX(256*1/8)=32 == 32). This is the deployed VLEN256 anchor; it ties this
+  // direct sweep to the pass-level width-invariant flip lit.
+  auto b32v256 = getRVVEffectiveWidthInvariantLMUL(256, sew8, 32, coreCandidates);
+  if (b32v256.lmul != "m1" ||
+      b32v256.reason != RVVWidthInvariantLMULReason::WidthInvariant)
+    return fail("blockLen=32 @VLEN256 should be m1/width_invariant; got " +
+                b32v256.lmul + "/" +
+                stringifyRVVWidthInvariantLMULReason(b32v256.reason));
+
+  llvm::outs() << "[census-F25] baked blockLen=32 LOAD-BEARING: @VLEN128 blockLen "
+                  "16->m1, 32->m2 (FLIP), 64->m2/fallback; @VLEN256 blockLen 32->m1; "
+                  "not a facade (input-threading deferred, gate-guarded at dimSize==32)\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -263,6 +324,8 @@ int main() {
   if (int result = runFillOptimalLMULPriorTest())
     return result;
   if (int result = runNumericsTierPolicyTest())
+    return result;
+  if (int result = runWidthInvariantBlockLenLoadBearingTest())
     return result;
   llvm::outs() << "RVV N3 resource-aware LMUL selection tests passed\n";
   return 0;

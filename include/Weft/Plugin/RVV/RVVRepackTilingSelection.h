@@ -146,10 +146,17 @@ priorTilingVariantForShape(RVVTilingBottleneckShape shape) {
 // lever the Stage-2 prior reasons over, not a legality gate. A degenerate board (no
 // guaranteed VLEN fact / no vreg budget) affords NO capability choice => the empty
 // feasible set (the honest no-capability behavior, resolved by the fallback below).
+//
+// [r5.1 W3 · census-F7] Feasibility is CAPABILITY-ONLY: the feasible set is CONSTANT
+// in the bottleneck shape (every VLEN>=128 / non-degenerate-vreg board admits BOTH
+// variants for EVERY shape). The bottleneck SHAPE is consumed one function over, in
+// Stage-2's prior (priorTilingVariantForShape, census-F6). The legacy `shape`
+// parameter here was a dead input (an explicit `(void)shape;`) and is REMOVED --
+// threading it back would be a 摆设 dead knob. The shape-isolation leaves in
+// rvv-sel1-t3-tiling-rollout-gate7.mlir are the byte-exact guard: shape still flips
+// the variant via F6, while this legality set stays {Plain, S6Tiled} for every shape.
 inline llvm::SmallVector<RVVRepackTilingVariant, 2>
-tilingVariantFeasibleSet(RVVTilingBottleneckShape shape, std::int64_t vlenBits,
-                         std::int64_t vregCount) {
-  (void)shape;
+tilingVariantFeasibleSet(std::int64_t vlenBits, std::int64_t vregCount) {
   llvm::SmallVector<RVVRepackTilingVariant, 2> feasible;
   if (vlenBits < 128 || vregCount <= 0)
     return feasible; // no capability fact to select on.
@@ -311,7 +318,7 @@ selectRepackTilingVariant(RVVTilingBottleneckShape shape, std::int64_t vlenBits,
                           std::int64_t vregCount,
                           std::optional<RVVTilingMeasurementHit> measurement) {
   llvm::SmallVector<RVVRepackTilingVariant, 2> feasible =
-      tilingVariantFeasibleSet(shape, vlenBits, vregCount);
+      tilingVariantFeasibleSet(vlenBits, vregCount);
 
   // Fail-safe: no guaranteed capability fact => no capability-keyed decision. Return
   // the shape's byte-exact-preserving default, HONESTLY labelled static_order.

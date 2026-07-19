@@ -766,6 +766,13 @@ buildRVVTargetCapabilitiesFromProbeFacts(
             {{"bytes", std::to_string(facts.vlenbBytes)}}))
       return std::move(error);
   }
+  // [r5.1 W3 · census zero-consume keys] The clang/cmake toolchain-VERSION stamps and
+  // the compile_run source/binary SHA-256 stamps (below) are I8 EVIDENCE-LINE
+  // provenance (build reproducibility), NOT theta selector inputs: `git grep` finds
+  // ZERO in-lib consumers. They are KEPT (not deleted) under ISSUE-121's conservative
+  // default -- whether an I8 evidence-line stamp must still be emitted when it has no
+  // reader is a GATED [I7]/[I8] canon-wording ruling (agent does not self-modify
+  // canon). Deleting them would drop provenance; the conservative law is retain-not-wire.
   if (llvm::Error error = addAvailableCapability(
           context, capabilities, getRVVClangToolchainCapabilitySymbol(),
           getRVVClangToolchainCapabilityID(), "toolchain",
@@ -777,10 +784,15 @@ buildRVVTargetCapabilitiesFromProbeFacts(
           {{"version", normalizeFactString(facts.cmakeVersion)}}))
     return std::move(error);
 
-  CapabilityProperties compileRunProperties = {
-      {"selected_march", normalizeFactString(facts.selectedMarch)}};
-  if (!facts.selectedMABI.empty())
-    compileRunProperties["selected_mabi"] = normalizeFactString(facts.selectedMABI);
+  // The compile_run op retains ONLY its I8 source/binary SHA-256 provenance (kept per
+  // ISSUE-121). Its former `selected_march` / `selected_mabi` properties -- and the two
+  // separate rvv.toolchain.march / rvv.toolchain.mabi `value` stamps that used to follow
+  // -- were REDUNDANT MIRRORS of the -march/-mabi the struct fact already carries (the
+  // load-bearing march rides the struct parameter + the minimum_vlen provider pipeline,
+  // never these in-IR property strings). Census: 0 consumers. They were originally probed
+  // as build-provenance echoes; DELETED (r5.1 W3, delete-lean set of the zero-consume
+  // key二选一) as pure redundant mirrors.
+  CapabilityProperties compileRunProperties;
   if (!facts.sourceSHA256.empty())
     compileRunProperties["source_sha256"] = normalizeFactString(facts.sourceSHA256);
   if (!facts.binarySHA256.empty())
@@ -790,19 +802,6 @@ buildRVVTargetCapabilitiesFromProbeFacts(
           getRVVProbeCompileRunCapabilityID(), "toolchain",
           std::move(compileRunProperties)))
     return std::move(error);
-
-  if (llvm::Error error = addAvailableCapability(
-          context, capabilities, getRVVSelectedMarchCapabilitySymbol(),
-          getRVVSelectedMarchCapabilityID(), "toolchain",
-          {{"value", normalizeFactString(facts.selectedMarch)}}))
-    return std::move(error);
-  if (!facts.selectedMABI.empty()) {
-    if (llvm::Error error = addAvailableCapability(
-            context, capabilities, getRVVSelectedMABICapabilitySymbol(),
-            getRVVSelectedMABICapabilityID(), "toolchain",
-            {{"value", normalizeFactString(facts.selectedMABI)}}))
-      return std::move(error);
-  }
 
   return capabilities;
 }

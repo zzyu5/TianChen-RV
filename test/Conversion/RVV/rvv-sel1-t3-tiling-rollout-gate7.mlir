@@ -182,12 +182,17 @@ module {
 // branch, regime) is byte-identical. The variant FLIPS s6_tiled <-> plain PURELY via
 // priorTilingVariantForShape (census F6, the real g/shape-consumer).
 //
-// This pins the r5.1 W1 verdict for census-F7 tilingVariantFeasibleSet: its (void)shape
-// is NOT a dropped input but the deliberate TWO-STAGE separation -- Stage-1 LEGALITY is
-// capability-only (every VLEN>=128 / 32-vreg board admits BOTH variants for EVERY shape,
-// so F7's output is CONSTANT in shape; forcing shape into it would be a 摆设 dead knob, or
-// a byte-exact regression of this prior attribution), while the shape is genuinely
-// consumed one function over in F6. Change the shape => the variant changes; else nothing.
+// This pins the r5.1 W3 verdict for census-F7 tilingVariantFeasibleSet: its former
+// `shape` parameter (an explicit `(void)shape;`) was a legacy DEAD input and is now
+// REMOVED (signature is tilingVariantFeasibleSet(vlenBits, vregCount)). Stage-1 LEGALITY
+// is capability-only -- every VLEN>=128 / 32-vreg board admits BOTH variants for EVERY
+// shape, so the feasible set is CONSTANT in shape; threading shape back would be a 摆设
+// dead knob. This file is the BYTE-EXACT-AFTER-DELETE guard: shape still genuinely flips
+// the variant one function over in F6 (priorTilingVariantForShape), while the legality
+// set stays {plain, s6_tiled} for every shape. Change the shape => the variant changes
+// (via F6); the feasible SET never changes. If deleting the dead param had altered any
+// emit, these shape-isolation CHECK lines (and every MEASURED/PRIOR leaf above) would
+// break -- they stay green, proving shape was dead in Stage-1.
 //
 //   MinFoldRegisterCliff  (fold_model "kquant_dmin_bsums_min")     --prior--> s6_tiled
 //   DualPlaneWeightBound  (fold_model "kquant_single_scale_no_min") --prior--> plain
