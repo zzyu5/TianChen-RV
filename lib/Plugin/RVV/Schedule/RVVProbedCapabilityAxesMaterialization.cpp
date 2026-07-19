@@ -35,11 +35,13 @@
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -49,21 +51,6 @@ namespace weft::transforms {
 #include "Weft/Transforms/Passes.h.inc"
 
 namespace {
-
-// True iff `op` is an RVV-kind capability/target provider, i.e. one carrying the
-// RVV capability id ("rvv") or the RVV capability kind ("isa-vector"). These are
-// the providers whose support allow-lists the EmitC legality gate queries.
-bool isRVVCapabilityProvider(mlir::Operation *op) {
-  llvm::StringRef rvvID = plugin::rvv::getRVVCapabilityID();
-  llvm::StringRef rvvKind = plugin::rvv::getRVVCapabilityKind();
-  auto id = op->getAttrOfType<mlir::StringAttr>("id");
-  if (id && id.getValue() == rvvID)
-    return true;
-  auto kind = op->getAttrOfType<mlir::StringAttr>("kind");
-  if (kind && kind.getValue() == rvvKind)
-    return true;
-  return false;
-}
 
 // Stamps `axisName` = `derived` onto `op` unless the provider already carries
 // that axis (so a hand-authored fixture attr is never clobbered) or the derived
@@ -109,20 +96,41 @@ public:
             plugin::rvv::deriveRVVVersion(march, isaVectorHints))
             .str();
 
-    // A march that names no concrete RVV tier derives no axes AND no version:
-    // nothing to materialize, leave the IR (and the historically silent gate)
-    // unchanged.
-    if (supportedSEW.empty() && supportedLMUL.empty() && rvvVersion.empty())
+    // The guaranteed minimum VLEN (bits): the TYPED quantitative capability fact
+    // the resource-aware consumers (repack strip width, block-dot schedule, the
+    // front-door bridges) read back off this provider op INSTEAD of re-parsing
+    // -march locally. This is the ONE producer of the minimum-VLEN fact; -march is
+    // parsed here and the divergence flows through the typed provider attribute
+    // (I1/I4). 0 (no concrete >= 128 floor, e.g. an embedded zve32x tier) -> no
+    // fact, mirroring the empty-allow-list silent skip: the consumer then leaves
+    // any hand-authored width intact.
+    std::int64_t minimumVLEN =
+        plugin::rvv::deriveMinimumVLEN(march, isaVectorHints);
+
+    // A march that names no concrete RVV tier derives no axes AND no version AND
+    // no VLEN floor: nothing to materialize, leave the IR (and the historically
+    // silent gate) unchanged.
+    if (supportedSEW.empty() && supportedLMUL.empty() && rvvVersion.empty() &&
+        minimumVLEN <= 0)
       return;
 
     module.walk([&](mlir::Operation *op) {
-      if (!llvm::isa<weft::exec::CapabilityOp, weft::exec::TargetOp>(op))
-        return;
-      if (!isRVVCapabilityProvider(op))
+      if (!plugin::rvv::isRVVCapabilityProvider(op))
         return;
       materializeAxis(op, "supported_sew", supportedSEW);
       materializeAxis(op, "supported_lmul", supportedLMUL);
       materializeAxis(op, "rvv_version", rvvVersion);
+      // The minimum-VLEN fact is a TYPED i64 IntegerAttr (not a string mirror):
+      // the resource-aware consumers reason over it numerically. No-clobber: a
+      // hand-authored minimum_vlen (the decisive-experiment conflict fixture)
+      // wins, so the provider fact -- not -march -- drives the divergence.
+      llvm::StringRef vlenName =
+          plugin::rvv::getRVVMinimumVLENProviderPropertyName();
+      if (minimumVLEN > 0 && !op->hasAttrOfType<mlir::IntegerAttr>(vlenName))
+        op->setAttr(vlenName,
+                    mlir::IntegerAttr::get(
+                        mlir::IntegerType::get(op->getContext(), 64),
+                        minimumVLEN));
     });
   }
 };

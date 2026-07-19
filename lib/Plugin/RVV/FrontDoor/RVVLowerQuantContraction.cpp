@@ -151,8 +151,12 @@ constexpr llvm::StringLiteral kAccumulatorLmulReasonAttr =
 
 // The RVV vector register file is 32 architectural vector registers as a HARD ISA
 // fact (rvv1.0 v0..v31), independent of VLEN -- the register-budget capability fact
-// the SP4 legality filter reasons over (alongside the derived minimum VLEN).
-constexpr std::int64_t kRVVArchVectorRegisterCount = 32;
+// the SP4 legality filter reasons over (alongside the derived minimum VLEN). Read
+// from the ONE plugin-local authority (getRVVArchitecturalVectorRegisterCount, the
+// schema `vreg_count` hardware-fact) so the budget is a named capability fact, not
+// a magic literal scattered across selectors.
+const std::int64_t kRVVArchVectorRegisterCount =
+    pluginrvv::getRVVArchitecturalVectorRegisterCount();
 
 // The repacked weight 16-way interleave (block_q4_0x16: 16 weight rows per group
 // occupy 16 distinct vector lanes). MIRRORS the op verifier's weight_interleave
@@ -1281,15 +1285,22 @@ lookupRepackMeasuredM1Faster(llvm::StringRef /*scaleModel*/) {
 // Replaces the correctness-only `isM1 = isRVV0p7` fork with the measured gate.
 // `capabilityHalfLanes` is the in-scope e16m1 strip width (nonzero on every
 // reached leaf => minVLEN >= 128), the capability witness that BOTH chains are
-// constructible on RVV1.0.
+// constructible on RVV1.0. `isRVV0p7` is the "target lacks fractional LMUL"
+// capability constraint (the schema `has_fractional_lmul` hardware-fact, false on
+// the pre-ratification RVV0.7.1 generation -- see deriveRVVHasFractionalLMUL):
+// there the whole-LMUL m1 chain is MANDATORY (no i8mf2). In-scope (minVLEN >= 128)
+// the generation is always a concrete RVV tier, so isRVV0p7 == !has_fractional_lmul.
 inline RepackAccumulatorLMULChoice
 selectRepackAccumulatorLMUL(llvm::StringRef scaleModel, bool isRVV0p7,
                             std::int64_t capabilityHalfLanes) {
   if (isRVV0p7)
     return {/*useM1=*/true, "correctness-rvv0p7"};
   // Budget legality of the m1 whole-LMUL chain, via the gate4 footprint helper:
-  // the peak-live groups are the i16m2 product + the i32m4 accumulator.
-  constexpr std::int64_t kVectorRegisterBudget = 32;
+  // the peak-live groups are the i16m2 product + the i32m4 accumulator. The budget
+  // is the vreg_count capability fact read from the ONE plugin-local authority
+  // (getRVVArchitecturalVectorRegisterCount), not a magic literal.
+  const std::int64_t kVectorRegisterBudget =
+      pluginrvv::getRVVArchitecturalVectorRegisterCount();
   const std::int64_t m1ChainRegisterFootprint =
       pluginrvv::getRVVLMULRegisterFootprint("m2") +
       pluginrvv::getRVVLMULRegisterFootprint("m4");

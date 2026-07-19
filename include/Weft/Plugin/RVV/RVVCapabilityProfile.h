@@ -3,11 +3,14 @@
 
 #include "Weft/Support/CapabilityModel.h"
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace weft::plugin::rvv {
@@ -57,6 +60,27 @@ llvm::StringRef stringifyRVVVersion(RVVVersion version);
 // are derived consistently from one ISA-evidence parse.
 RVVVersion deriveRVVVersion(llvm::StringRef selectedMarch,
                             llvm::StringRef isaVectorHints);
+
+// The RVV architectural vector-register-file size (v0..v31 = 32 registers), a
+// VLEN-INVARIANT ISA fact (the schema `vreg_count` hardware-fact). This is the
+// SINGLE plugin-local authority for the register budget every resource-aware
+// LMUL / output-tiling selector reasons over, replacing the scattered magic `32`
+// literals (kRVVArchVectorRegisterCount / kVectorRegisterBudget). Reading it here
+// keeps the budget a NAMED capability fact with one home, not an inline constant
+// buried in each selector.
+std::int64_t getRVVArchitecturalVectorRegisterCount();
+
+// Derives whether the configured target has FRACTIONAL LMUL (mf2 / mf4 / mf8) as
+// an INDEPENDENT boolean capability fact (the schema `has_fractional_lmul`
+// hardware-fact). RVV1.0 has the fractional rungs; the pre-ratification RVV0.7.1
+// generation (XuanTie xtheadvector on the C920) has NONE -- empirically proven on
+// hardware. Unknown generation -> false (conservative: assume the whole-LMUL-only
+// constraint). This surfaces, as a direct boolean, the SAME generation split
+// deriveSupportedLMULAllowList encodes on the LMUL grid, so a selector that needs
+// only "can this target realize a fractional core?" reasons over the boolean
+// instead of re-deriving the ISA generation.
+bool deriveRVVHasFractionalLMUL(llvm::StringRef selectedMarch,
+                                llvm::StringRef isaVectorHints);
 
 struct RVVProbeCapabilityFacts {
   std::string architecture;
@@ -161,6 +185,46 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
 // VLEN == 128 keeps two disjoint 8-lane halves.
 std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
                                llvm::StringRef isaVectorHints);
+
+//===----------------------------------------------------------------------===//
+// In-IR provider-op capability READERS (the pull-the-pipe consumer seam).
+//
+// The guaranteed minimum VLEN is materialized ONCE, at the probe layer
+// (MaterializeRVVProbedCapabilityAxes), onto the in-kernel
+// weft.exec.capability / weft.exec.target provider op as a TYPED i64
+// `minimum_vlen` IntegerAttr -- an in-IR capability FACT, not a re-parsed -march
+// string. Every downstream resource-aware consumer (repack strip width, block-dot
+// schedule, the front-door bridges) READS that in-IR fact through these helpers
+// instead of re-calling deriveMinimumVLEN(march) locally, so -march is parsed at
+// ONE producer and the divergence flows through the typed capability object
+// (I1/I4: capability stays a queryable object; the provider op is the source the
+// consumer reads).
+//===----------------------------------------------------------------------===//
+
+// The stable on-IR property name of the guaranteed-minimum-VLEN capability fact
+// (a typed i64 IntegerAttr) the probe layer stamps onto the RVV provider op and
+// the resource-aware consumers read back.
+llvm::StringRef getRVVMinimumVLENProviderPropertyName();
+
+// True iff `op` is an RVV-kind capability/target provider (weft.exec.capability /
+// weft.exec.target carrying the RVV capability id "rvv" or kind "isa-vector") --
+// the provider whose materialized capability facts the consumers query. Shared by
+// the materializer (write side) and the readers (read side) so the provider
+// predicate has one home.
+bool isRVVCapabilityProvider(mlir::Operation *op);
+
+// Reads the guaranteed minimum VLEN (bits) OFF the first in-IR RVV capability/
+// target provider op in `module` (the typed `minimum_vlen` IntegerAttr the probe
+// layer materialized). Returns std::nullopt when no RVV provider carries the fact
+// (an unstamped module, or an ISA tier that guarantees no >= 128 floor) -- the
+// consumer then leaves any hand-authored resource-aware width intact, mirroring
+// the historical empty-derive skip. NEVER re-parses -march.
+std::optional<std::int64_t> readRVVProviderMinimumVLEN(mlir::ModuleOp module);
+
+// Reads the RVV ISA generation OFF the first in-IR RVV provider op's `rvv_version`
+// fact (materialized by the same probe layer). Returns RVVVersion::Unknown when no
+// provider declares the fact. NEVER re-parses -march.
+RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module);
 
 // Returns true iff the ISA/vector-hint string names concrete RVV vector
 // evidence: a zve* / zvl* / zvfh embedded-vector token, a full-V "gcv" spelling,

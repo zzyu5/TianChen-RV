@@ -5,7 +5,10 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/Visitors.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
@@ -344,6 +347,68 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
   return deriveMinimumVLEN(selectedMarch, isaVectorHints) >= 128;
 }
 
+//===----------------------------------------------------------------------===//
+// In-IR provider-op capability readers.
+//===----------------------------------------------------------------------===//
+
+llvm::StringRef getRVVMinimumVLENProviderPropertyName() {
+  return "minimum_vlen";
+}
+
+bool isRVVCapabilityProvider(mlir::Operation *op) {
+  if (!llvm::isa<weft::exec::CapabilityOp, weft::exec::TargetOp>(op))
+    return false;
+  llvm::StringRef rvvID = getRVVCapabilityID();
+  llvm::StringRef rvvKind = getRVVCapabilityKind();
+  if (auto id = op->getAttrOfType<mlir::StringAttr>("id"))
+    if (id.getValue() == rvvID)
+      return true;
+  if (auto kind = op->getAttrOfType<mlir::StringAttr>("kind"))
+    if (kind.getValue() == rvvKind)
+      return true;
+  return false;
+}
+
+std::optional<std::int64_t> readRVVProviderMinimumVLEN(mlir::ModuleOp module) {
+  if (!module)
+    return std::nullopt;
+  llvm::StringRef propertyName = getRVVMinimumVLENProviderPropertyName();
+  std::optional<std::int64_t> found;
+  module.walk([&](mlir::Operation *op) {
+    if (found)
+      return;
+    if (!isRVVCapabilityProvider(op))
+      return;
+    if (auto vlen = op->getAttrOfType<mlir::IntegerAttr>(propertyName))
+      found = vlen.getInt();
+  });
+  return found;
+}
+
+RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module) {
+  if (!module)
+    return RVVVersion::Unknown;
+  RVVVersion found = RVVVersion::Unknown;
+  bool seen = false;
+  module.walk([&](mlir::Operation *op) {
+    if (seen)
+      return;
+    if (!isRVVCapabilityProvider(op))
+      return;
+    if (auto version = op->getAttrOfType<mlir::StringAttr>("rvv_version")) {
+      llvm::StringRef value = version.getValue().trim();
+      if (value == "0.7") {
+        found = RVVVersion::RVV0p7;
+        seen = true;
+      } else if (value == "1.0") {
+        found = RVVVersion::RVV1p0;
+        seen = true;
+      }
+    }
+  });
+  return found;
+}
+
 llvm::StringRef stringifyRVVVersion(RVVVersion version) {
   switch (version) {
   case RVVVersion::RVV1p0:
@@ -378,6 +443,24 @@ RVVVersion deriveRVVVersion(llvm::StringRef selectedMarch,
   // (3) No concrete RVV generation named -> Unknown (the version fact stays
   // silent; the downstream version gate is then a no-op on the version axis).
   return RVVVersion::Unknown;
+}
+
+std::int64_t getRVVArchitecturalVectorRegisterCount() {
+  // The RVV ISA mandates a 32-entry architectural vector register file
+  // (v0..v31), invariant across VLEN and across the 0.7.1 / 1.0 generations.
+  // This is the schema `vreg_count` hardware-fact; the single home for the
+  // register budget the resource-aware selectors reason over.
+  return 32;
+}
+
+bool deriveRVVHasFractionalLMUL(llvm::StringRef selectedMarch,
+                                llvm::StringRef isaVectorHints) {
+  // Fractional LMUL (mf2/mf4/mf8) exists on the ratified RVV1.0 generation and is
+  // ABSENT on the pre-ratification RVV0.7.1 (xtheadvector / C920). Unknown ->
+  // false (conservative whole-LMUL-only). Driven off the SAME generation fact
+  // (deriveRVVVersion), never a raw march substring, so the boolean and the LMUL
+  // allow-list agree by construction.
+  return deriveRVVVersion(selectedMarch, isaVectorHints) == RVVVersion::RVV1p0;
 }
 
 llvm::StringRef getRVVHartCountCapabilityID() {

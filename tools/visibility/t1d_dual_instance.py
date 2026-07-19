@@ -454,9 +454,12 @@ def collect(weft_opt, workdir):
             probe_rows.append(dict(
                 probe_id="P4-march-channel", instance="rvv|k1",
                 verdict="PASS" if ok else "FAIL",
-                detail="march= is a PASS OPTION, not an in-IR fact: minimum_vlen "
-                       "%s->%s flips chosen LMUL %s->%s (reason=%s) while "
-                       "declared_instance_hash stays %s (%s...)" % (
+                detail="march= is a PASS OPTION that MATERIALIZES the in-IR "
+                       "minimum_vlen provider fact (W3 pull-the-pipe: the probe "
+                       "layer parses march ONCE and stamps minimum_vlen; consumers "
+                       "read that in-IR fact): minimum_vlen %s->%s flips chosen "
+                       "LMUL %s->%s (reason=%s) while declared_instance_hash stays "
+                       "%s (%s...)" % (
                            march_seen["rvv"]["minimum_vlen"],
                            march_seen["k1"]["minimum_vlen"],
                            march_seen["rvv"]["chosen"], march_seen["k1"]["chosen"],

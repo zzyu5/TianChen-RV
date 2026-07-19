@@ -14,11 +14,13 @@
 // lane count the configured target's VLEN affords), not a plugin-selected dtype/
 // route. Per core-invariants:
 //   * I1 -- capability stays a first-class queryable object; the strip width is
-//     derived from the VLEN capability fact via the SAME plugin-local authority
-//     (deriveMinimumVLEN) the probe->capability conversion uses.
-//   * I4 -- the materialized half_lanes MIRRORS the plugin-local C++ authority;
-//     the authority (deriveMinimumVLEN) is the source of truth, the op attribute
-//     is the mirror the emitter reads.
+//     derived from the VLEN capability fact READ off the in-IR provider op (the
+//     typed minimum_vlen attr the probe layer materialized), not a local -march
+//     re-parse.
+//   * I4 -- the materialized half_lanes MIRRORS the in-IR capability fact; the
+//     provider op's minimum_vlen (materialized once at the probe layer) is the
+//     source this pass reads, the half_lanes op attribute is the mirror the
+//     emitter reads.
 //   * I5 -- the width is derived from the validated ISA tier (the -march /
 //     isa-vector-hints evidence), never inferred from ABI strings, family names,
 //     route ids, or fabricated config; the pass probes no hardware and consults
@@ -41,8 +43,8 @@
 // (half_lanes = 16). The whole-LMUL core reads the SAME interleaved bytes (the
 // i8m1 strip is 16 i8 lanes at VLEN=128), so it is numerically identical to the
 // VLEN=256 fractional one-strip form; the win is using the whole LMUL the ISA
-// supports. The RVV-generation fact is derived through the SAME plugin-local
-// authority (deriveRVVVersion), not a march-string branch in a core pass (I3).
+// supports. The RVV-generation fact is READ off the provider op's rvv_version
+// fact (materialized once at the probe layer), not a march-string branch (I3).
 //
 //===----------------------------------------------------------------------===//
 
@@ -93,28 +95,32 @@ public:
   void runOnOperation() override {
     mlir::ModuleOp module = getOperation();
 
-    // Derive the guaranteed minimum VLEN ONCE from the selected -march (+ optional
-    // probed isa/vector hints) through the SAME plugin-local authority the
-    // probe->capability conversion uses. No toolchain-probe facts are consulted.
+    // READ the guaranteed minimum VLEN off the in-IR RVV capability provider op
+    // (the TYPED minimum_vlen fact the probe layer -- MaterializeRVVProbedCapability
+    // Axes -- materialized ONCE from -march). This pass does NOT re-parse -march:
+    // the divergence flows through the typed capability object (I1/I4), not a local
+    // deriveMinimumVLEN(march) re-parse. The pass's -march/isa-vector-hints options
+    // are retained ONLY so a conflicting -march can be threaded for the decisive
+    // experiment (provider minimum_vlen=256 vs -march zvl128b) -- they are NOT
+    // consulted for the width; the provider fact is authoritative.
     std::int64_t vlenBits =
-        plugin::rvv::deriveMinimumVLEN(march, isaVectorHints);
+        plugin::rvv::readRVVProviderMinimumVLEN(module).value_or(0);
 
-    // Derive the RVV ISA generation through the SAME plugin-local authority. The
-    // pre-ratification RVV0.7.1 generation (XuanTie xtheadvector on the C920) has
-    // NO fractional LMUL, so the repack's default fractional core (i8mf2) is NOT
-    // emittable there: the whole-LMUL form (i8m1 -> i16m2 -> i32m4 -> f32m4) is
-    // required, which is ONE 16-lane strip (half_lanes 16) per 16-block group. So
-    // on RVV0.7 the stamp pins BOTH the whole-LMUL core anchor (integer_core_lmul
-    // = "m1") AND its mandatory strip width (half_lanes = 16), overriding the
-    // VLEN-derived width (deriveMinimumVLEN floors xtheadvector at 128, which
-    // would otherwise derive 8). RVV1.0 leaves integer_core_lmul unset (the
-    // emitter defaults to the fractional "mf2" chain, byte-identical to HEAD).
-    bool isRVV0p7 = plugin::rvv::deriveRVVVersion(march, isaVectorHints) ==
+    // READ the RVV ISA generation off the SAME provider op. The pre-ratification
+    // RVV0.7.1 generation (XuanTie xtheadvector on the C920) has NO fractional
+    // LMUL, so the repack's default fractional core (i8mf2) is NOT emittable there:
+    // the whole-LMUL form (i8m1 -> i16m2 -> i32m4 -> f32m4) is required, which is
+    // ONE 16-lane strip (half_lanes 16) per 16-block group. So on RVV0.7 the stamp
+    // pins BOTH the whole-LMUL core anchor (integer_core_lmul = "m1") AND its
+    // mandatory strip width (half_lanes = 16), overriding the VLEN-derived width.
+    // RVV1.0 leaves integer_core_lmul unset (the emitter defaults to the fractional
+    // "mf2" chain, byte-identical to HEAD).
+    bool isRVV0p7 = plugin::rvv::readRVVProviderRVVVersion(module) ==
                     plugin::rvv::RVVVersion::RVV0p7;
 
-    // A march that guarantees no >= 128 minimum (empty march, or a constrained
-    // tier) derives no strip width: leave any hand-authored half_lanes intact
-    // (no-clobber, mirroring the probed-axes materializer's empty-derive skip).
+    // A provider that guarantees no >= 128 minimum (no minimum_vlen fact, or a
+    // constrained tier) yields no strip width: leave any hand-authored half_lanes
+    // intact (no-clobber, mirroring the probed-axes materializer's empty skip).
     if (vlenBits < 128)
       return;
 
