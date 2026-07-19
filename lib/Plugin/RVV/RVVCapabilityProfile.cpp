@@ -137,30 +137,6 @@ bool containsIsaToken(llvm::StringRef text, llvm::StringRef token) {
   return false;
 }
 
-bool hasRVVVectorHint(llvm::StringRef hints) {
-  std::string lower = hints.lower();
-  llvm::StringRef normalized(lower);
-  if (normalized.contains("zve") || normalized.contains("zvl") ||
-      normalized.contains("zvfh") || normalized.contains("gcv") ||
-      normalized.contains("xtheadvector"))
-    return true;
-
-  std::size_t position = lower.find("rv64");
-  while (position != std::string::npos) {
-    std::size_t end = position;
-    while (end < lower.size()) {
-      unsigned char byte = static_cast<unsigned char>(lower[end]);
-      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
-        break;
-      ++end;
-    }
-    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
-      return true;
-    position = lower.find("rv64", position + 4);
-  }
-  return false;
-}
-
 bool isHexDigest(llvm::StringRef digest) {
   if (digest.empty())
     return true;
@@ -201,6 +177,36 @@ llvm::Error addAvailableCapability(mlir::MLIRContext &context,
 }
 
 } // namespace
+
+// Exported ISA-evidence predicate (declared in RVVCapabilityProfile.h): true iff
+// the hint string names concrete RVV vector evidence. This is the single
+// plugin-local authority both the probe->capability validation
+// (validateRVVProbeCapabilityFacts, below) and the EmitC route-planning
+// capability-property gate reason over, so the RVV vector-hint tokenization lives
+// in ONE place (core-invariants I1/I3).
+bool hasRVVVectorHint(llvm::StringRef hints) {
+  std::string lower = hints.lower();
+  llvm::StringRef normalized(lower);
+  if (normalized.contains("zve") || normalized.contains("zvl") ||
+      normalized.contains("zvfh") || normalized.contains("gcv") ||
+      normalized.contains("xtheadvector"))
+    return true;
+
+  std::size_t position = lower.find("rv64");
+  while (position != std::string::npos) {
+    std::size_t end = position;
+    while (end < lower.size()) {
+      unsigned char byte = static_cast<unsigned char>(lower[end]);
+      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
+        break;
+      ++end;
+    }
+    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
+      return true;
+    position = lower.find("rv64", position + 4);
+  }
+  return false;
+}
 
 // Derives the RVV element-width (SEW) SUPPORT allow-list from the validated ISA
 // evidence (selected -march plus the probed isa/vector hint string). This is a

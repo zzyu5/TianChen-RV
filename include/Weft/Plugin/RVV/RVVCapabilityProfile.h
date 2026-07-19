@@ -162,6 +162,16 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
 std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
                                llvm::StringRef isaVectorHints);
 
+// Returns true iff the ISA/vector-hint string names concrete RVV vector
+// evidence: a zve* / zvl* / zvfh embedded-vector token, a full-V "gcv" spelling,
+// the XuanTie xtheadvector (RVV0.7) unit, or an "rv64...v..." vector-extension
+// token. This is the SAME plugin-local ISA-evidence authority the
+// probe->capability validation (validateRVVProbeCapabilityFacts) uses, exported
+// so the EmitC route-planning capability-property gate reasons over the ONE
+// tokenization instead of re-splitting the march string locally (core-invariants
+// I1/I3: single ISA-evidence parse). The match is case-insensitive.
+bool hasRVVVectorHint(llvm::StringRef isaVectorHints);
+
 // Builds the probe-fact capability set. Relations (currently only `provides`)
 // are minted as interned CapabilityRelationsAttr from `context`; the returned
 // TargetCapabilitySet must therefore not outlive `context`. The WEFT Exec

@@ -4,6 +4,7 @@
 
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
@@ -98,14 +99,6 @@ bool capabilityPropertyListContains(llvm::StringRef value,
   return false;
 }
 
-bool containsRVVVectorISAHint(llvm::StringRef hints) {
-  std::string lower = hints.lower();
-  llvm::StringRef text(lower);
-  return text.contains("rv64gcv") || text.contains("rv32gcv") ||
-         text.contains("zve") || text.contains("zvl") ||
-         text.contains("zvfh") || text.contains("rvv");
-}
-
 std::string formatRVVSelectedCapabilityProviderMirror(
     const support::CapabilityDescriptor &capability) {
   std::string mirror;
@@ -145,7 +138,7 @@ llvm::Error verifyRVVCapabilityProfileProperties(
 
   llvm::StringRef isaVectorHints =
       capability.getProperty(kISAVectorHintsPropertyName).trim();
-  if (!isaVectorHints.empty() && !containsRVVVectorISAHint(isaVectorHints))
+  if (!isaVectorHints.empty() && !hasRVVVectorHint(isaVectorHints))
     return makeRVVSelectedTargetCapabilityError(
         llvm::Twine(context) + " selected RVV capability provider @" +
         capability.getSymbolName() + " isa_vector_hints fact '" +
