@@ -1,0 +1,27 @@
+# board=Linux 6.6.63 riscv64 march=rv64gcv_zvl256b_zfh_zvfh pin=4 loadavg=2.09 2.06 2.02 2/452 23503
+# ggml_cpu_md5=dff7bc311a5de61a37f8fe1f47601e62
+=== [A] compile OURS + self-probe ===
+# OURS_iq2_xxs(iq2_xxs): vlux=12 vredsum=8 vsetvli=42 vslidedown=0 vmul=12 size=7568B
+# OURS_iq2_xs(iq2_xs_new): vlux=8 vredsum=16 vsetvli=73 vslidedown=24 vmul=20 size=8880B
+# OURS_iq2_s(iq2_s_new): vlux=8 vredsum=16 vsetvli=79 vslidedown=24 vmul=20 size=14072B
+=== [C] driver+link ===
+# linked OK
+=== [D+E] PER-FORMAT byte-exact gate THEN cold (skip cold if broken) ===
+# BYTE_EXACT ours_vs_ggml_deployed=false ours_vs_int_oracle=false ggml_vs_int_oracle=true ALL=false (grid mism og=512 oi=512 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=false ours_vs_int_oracle=false ggml_vs_int_oracle=true ALL=false (grid mism og=512 oi=512 gi=0)
+# CORRECTNESS-X iq2_xxs byte-broken@_vl256 -> NO timing (0-fabrication)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# VECDOT_COLD fmt=iq2_xs seed=0x1 reps=25 | ours_med_ns=2740718(iqr0.32%) oppX_med_ns=1201278(iqr3.27%) | ratio_cold_X=0.4383 | opp=ggml_vec_dot_iq2_xs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_xs seed=0x2 reps=25 | ours_med_ns=2737843(iqr1.49%) oppX_med_ns=1201819(iqr0.23%) | ratio_cold_X=0.4390 | opp=ggml_vec_dot_iq2_xs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# VECDOT_COLD fmt=iq2_s seed=0x1 reps=25 | ours_med_ns=2762760(iqr0.38%) oppX_med_ns=1490733(iqr2.70%) | ratio_cold_X=0.5396 | opp=ggml_vec_dot_iq2_s_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_s seed=0x2 reps=25 | ours_med_ns=2766635(iqr1.47%) oppX_med_ns=1495567(iqr2.66%) | ratio_cold_X=0.5406 | opp=ggml_vec_dot_iq2_s_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# DONE

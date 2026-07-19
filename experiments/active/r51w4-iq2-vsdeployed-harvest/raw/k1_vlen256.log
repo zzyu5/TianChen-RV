@@ -1,0 +1,32 @@
+# board=Linux 6.6.63 riscv64 march=rv64gcv_zvl256b_zfh_zvfh pin=4 loadavg=2.16 2.03 2.01 2/453 22835
+# CC=Bianbu clang version 18.1.8 (11bb4)
+# ggml_cpu_md5=dff7bc311a5de61a37f8fe1f47601e62
+=== [A] compile OURS sealed weft emits clang-18 -O3 (symmetric) + self-probe ===
+# OURS_iq2_xxs: fp=cleanfp vlux=12 vredsum=8 vsetvli=42 vslidedown=0 vmul=12 size=7568B
+# OURS_iq2_xs: fp=cleanfp vlux=8 vredsum=16 vsetvli=73 vslidedown=24 vmul=20 size=8880B
+# OURS_iq2_s: fp=cleanfp vlux=8 vredsum=16 vsetvli=79 vslidedown=24 vmul=20 size=14072B
+=== [B] OPP deployed-symbol machine-probe (which _vlNNN ships + dispatched-variant structure) ===
+# OPP_iq2_xxs: dispatch=[ggml_vec_dot_iq2_xxs_q8_K,ggml_vec_dot_iq2_xxs_q8_K_generic,ggml_vec_dot_iq2_xxs_q8_K_vl128,ggml_vec_dot_iq2_xxs_q8_K_vl256,ggml_vec_dot_iq2_xxs_q8_K_vl512,] measured=_vl256 tier=hand | opp_vl256: vredsum=8 vsetvli=34 vlux=16 vmul=16 lines=334
+# OPP_iq2_xs: dispatch=[ggml_vec_dot_iq2_xs_q8_K,ggml_vec_dot_iq2_xs_q8_K_generic,ggml_vec_dot_iq2_xs_q8_K_vl128,ggml_vec_dot_iq2_xs_q8_K_vl256,ggml_vec_dot_iq2_xs_q8_K_vl512,] measured=_vl256 tier=hand | opp_vl256: vredsum=16 vsetvli=41 vlux=4 vmul=4 lines=217
+# OPP_iq2_s: dispatch=[ggml_vec_dot_iq2_s_q8_K,ggml_vec_dot_iq2_s_q8_K_generic,ggml_vec_dot_iq2_s_q8_K_vl128,ggml_vec_dot_iq2_s_q8_K_vl256,ggml_vec_dot_iq2_s_q8_K_vl512,] measured=_vl256 tier=hand | opp_vl256: vredsum=16 vsetvli=62 vlux=4 vmul=4 lines=345
+=== [C] compile driver + link OURS + real libggml-cpu.so (clang-18) ===
+# linked OK -> ./iq2_dot
+=== [D] byte-exact GATE (reps=0, 2-seed 3-way + anti-hollow inject 1/2/3) ===
+# BYTE_EXACT ours_vs_ggml_deployed=false ours_vs_int_oracle=false ggml_vs_int_oracle=true ALL=false (grid mism og=512 oi=512 gi=0)
+# GATE_FAIL iq2_xxs seed=0x1
+# BYTE_EXACT ours_vs_ggml_deployed=false ours_vs_int_oracle=false ggml_vs_int_oracle=true ALL=false (grid mism og=512 oi=512 gi=0)
+# GATE_FAIL iq2_xxs seed=0x2
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE-EXACT GATE FAILED -> NO perf (0-fabrication)

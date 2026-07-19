@@ -1,0 +1,42 @@
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs pin=40 loadavg=2.13 2.12 2.09 1/1020 2592107
+# CC=clang version 18.1.8
+# ggml_cpu_md5=e85fceda47606a115c5fbb0021817cdc
+=== [A] compile OURS sealed weft emits clang-18 -O3 (symmetric) + self-probe ===
+# OURS_iq2_xxs: fp=cleanfp vlux=12 vredsum=8 vsetvli=42 vslidedown=0 vmul=12 size=7568B
+# OURS_iq2_xs: fp=cleanfp vlux=8 vredsum=16 vsetvli=73 vslidedown=24 vmul=20 size=8880B
+# OURS_iq2_s: fp=cleanfp vlux=8 vredsum=16 vsetvli=79 vslidedown=24 vmul=20 size=14080B
+=== [B] OPP deployed-symbol machine-probe (which _vlNNN ships + dispatched-variant structure) ===
+# OPP_iq2_xxs: dispatch=[ggml_vec_dot_iq2_xxs_q8_K,ggml_vec_dot_iq2_xxs_q8_K_generic,ggml_vec_dot_iq2_xxs_q8_K_vl128,ggml_vec_dot_iq2_xxs_q8_K_vl256,ggml_vec_dot_iq2_xxs_q8_K_vl512,] measured=_vl128 tier=hand | opp_vl128: vredsum=2 vsetvli=10 vlux=4 vmul=4 lines=133
+# OPP_iq2_xs: dispatch=[ggml_vec_dot_iq2_xs_q8_K,ggml_vec_dot_iq2_xs_q8_K_generic,ggml_vec_dot_iq2_xs_q8_K_vl128,ggml_vec_dot_iq2_xs_q8_K_vl256,ggml_vec_dot_iq2_xs_q8_K_vl512,] measured=_vl128 tier=hand | opp_vl128: vredsum=16 vsetvli=49 vlux=8 vmul=8 lines=252
+# OPP_iq2_s: dispatch=[ggml_vec_dot_iq2_s_q8_K,ggml_vec_dot_iq2_s_q8_K_generic,ggml_vec_dot_iq2_s_q8_K_vl128,ggml_vec_dot_iq2_s_q8_K_vl256,ggml_vec_dot_iq2_s_q8_K_vl512,] measured=_vl128 tier=hand | opp_vl128: vredsum=16 vsetvli=82 vlux=8 vmul=8 lines=413
+=== [C] compile driver + link OURS + real libggml-cpu.so (clang-18) ===
+# linked OK -> ./iq2_dot
+=== [D] byte-exact GATE (reps=0, 2-seed 3-way + anti-hollow inject 1/2/3) ===
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+# BYTE-EXACT GATE PASS -> proceed to cold
+=== [E] cold timing (reps=25 2-seed, 224MiB flush paired A/B median) ===
+# VECDOT_COLD fmt=iq2_xxs seed=0x1 reps=25 | ours_med_ns=637483(iqr1.20%) oppX_med_ns=550822(iqr1.17%) | ratio_cold_X=0.8641 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_xxs seed=0x2 reps=25 | ours_med_ns=635362(iqr0.78%) oppX_med_ns=551522(iqr1.06%) | ratio_cold_X=0.8680 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_xs seed=0x1 reps=25 | ours_med_ns=1081265(iqr0.12%) oppX_med_ns=524482(iqr2.68%) | ratio_cold_X=0.4851 | opp=ggml_vec_dot_iq2_xs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_xs seed=0x2 reps=25 | ours_med_ns=1086884(iqr0.72%) oppX_med_ns=551502(iqr6.06%) | ratio_cold_X=0.5074 | opp=ggml_vec_dot_iq2_xs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_s seed=0x1 reps=25 | ours_med_ns=1065885(iqr1.20%) oppX_med_ns=1059765(iqr4.81%) | ratio_cold_X=0.9943 | opp=ggml_vec_dot_iq2_s_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_s seed=0x2 reps=25 | ours_med_ns=1067784(iqr1.27%) oppX_med_ns=1107965(iqr4.58%) | ratio_cold_X=1.0376 | opp=ggml_vec_dot_iq2_s_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# DONE

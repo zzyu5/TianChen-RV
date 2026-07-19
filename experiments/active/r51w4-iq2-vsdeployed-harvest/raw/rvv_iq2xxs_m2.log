@@ -1,0 +1,16 @@
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+# board=Linux 6.12.66-0.0.0.0.riscv64 riscv64 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs leaf=iq2_xxs_m2_vlen128 ggml_md5=e85fceda47606a115c5fbb0021817cdc
+# OURS_iq2_xxs(iq2_xxs_m2_vlen128): vslidedown=0 vredsum=8 vsetvli=42 vlux=12
+=== byte-exact gate (iq2_xxs, 2-seed + anti-hollow) ===
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+=== cold (reps=25 2-seed) ===
+# VECDOT_COLD fmt=iq2_xxs seed=0x1 reps=25 | ours_med_ns=660663(iqr2.18%) oppX_med_ns=542882(iqr2.28%) | ratio_cold_X=0.8217 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_xxs seed=0x2 reps=25 | ours_med_ns=662623(iqr2.63%) oppX_med_ns=540262(iqr2.03%) | ratio_cold_X=0.8153 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# DONE

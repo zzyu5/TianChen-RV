@@ -1,0 +1,58 @@
+# W4 B线 iq2 面 vs 部署 · cold harvest + VLEN-adaptive lever (post ISSUE-120) — SEAL (v2, supersedes v1)
+# task 07-20-w4-issue120-iq2-expand-vsdeployed · worktree base 60bcd014a (branch tip)
+# 哲学锁①: vs 部署路径 ≥0.8 即赢入账·不问强弱. byte-exact 先于计时. 2-seed cold. clang-18 对称. 0 造数. 无 inline-asm.
+
+--- OPPONENT (成色) ---
+opp = board-DEPLOYED ggml_vec_dot_iq2_{xxs,xs,s}_q8_K, dispatch-by-VLEN -> hand-tuned _vl128(rvv)/_vl256(k1).
+All 3 formats ship {_vl128,_vl256,_vl512,_generic} on BOTH boards -> opp = 手调档 (NOT cheap _generic).
+=> a PASS = genuine 成色 (within 0.8x of a hand-tuned strong opponent). ggml_cpu_md5 rvv=e85fceda k1=dff7bc31.
+K=2048 M=1 nc=512, 224MiB flush, reps=25, seeds 0x1/0x2. M=1 kernel-axis, NOT e2e ([NG-4]).
+
+============================ FINAL RESULT (byte-exact all cells) ============================
+| format  | rvv VLEN128 (opp _vl128)          | k1 VLEN256 (opp _vl256)                     |
+|---------|-----------------------------------|---------------------------------------------|
+| iq2_xxs | m2 leaf 0.822/0.815  PASS 入账     | m1 leaf 0.841/0.849  PASS 入账 (NEW flip)   |
+| iq2_xs  | universal 0.485/0.507  具名-X     | universal 0.438/0.440  具名-X               |
+| iq2_s   | universal 0.994/1.038  PASS 入账  | universal 0.540/0.541  具名-X               |
+
+入账 (byte-exact ∧ ≥0.8) = 3: iq2_xxs@rvv, iq2_xxs@k1, iq2_s@rvv.
+具名-X (byte-exact ∧ <0.8) = 3: iq2_xs@rvv, iq2_xs@k1, iq2_s@k1.
+byte-exact: ALL 6 cells GREEN (ZERO-MODEL 3-way + 3-arm anti-hollow, 2-seed).
+
+======================= VLEN-ADAPTIVE LEVER: the DESIGNED coreLmul mechanism =======================
+The RIGHT VLEN-adaptivity was ALREADY in the compiler — integer_core_lmul is a VLEN-CORRECTNESS
+selector (RVVToEmitCKQuant.cpp:5971-5981; r51g-theta20-iq2xxs-measured/FINDING.md): the schedule
+autotuner stamps m2@VLEN128 / m1@VLEN256, and the pair-batched vget register-subgroup is byte-exact
+at exactly ONE VLEN per anchor. The ISSUE-120 brokenness was NOT an emitter bug — it was the harness/
+GEN_SEAL emitting the m2 (VLEN128) leaf for ALL boards and running it on k1's VLEN256 (the "半宽欠用
+根因" the iq3_xxs run flagged). FIX = emit PER-BOARD via the schedule march (zero emitter source change):
+  rvv: weft-opt <fixture> --...-front-door --weft-rvv-materialize-schedule=march=rv64gcv        -> m2 leaf (md5 db1bfdcd == committed)
+  k1 : weft-opt <fixture> --...-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b -> m1 leaf (md5 6a2e4ae9, i8m2 pair, native widening = ggml's shipped _vl256 CORE shape)
+Both leaves plain vget, ZERO vslidedown. Board-proven byte-exact BOTH boards (mism og=0 oi=0, worst_ulp=0,
+anti-hollow 1/2/3 bite, 2-seed). k1 self-probe: vslidedown=0 vredsum=8 vsetvli=42 vlux=12.
+
+★ iq2_xxs@k1 FLIP: 0.593 具名-X (m2+vslidedown, my v1 fix) -> 0.841/0.849 PASS (m1 native widening).
+  The m1 leaf halves ours_med_ns 2110k->1498k (widens with VLEN; opponent _vl256 ~1265k). NEW 入账 cell.
+=> v1's vslidedown correctness-fix (worktree, uncommitted) is SUPERSEDED and REVERTED. iq2_xxs needs
+   NO emitter source change; the deployment fix = emit m1 for VLEN256 boards. Worktree source = CLEAN.
+   (The "vslidedown-VLEN128-cost deployment tension" from v1 is MOOT — per-board emit has no tension.)
+
+======================= iq2_xs / iq2_s: VLEN-adaptivity BLOCKED (architectural) =======================
+iq2_xs/iq2_s decode 16-lane halves (dual per-half scale ls1/ls2) on a FIXED i8m4/i8m1 anchor. They have
+NO schedule descriptor and NO coreLmul flip (RVVScheduleDescriptorRegistry only stamps iq2_xxs). At VLEN256
+even m1 (32-lane regs) does not align the 16-lane halves -> vslidedown is the ONLY correctness fix, and
+dcbace2c9 made it UNIVERSAL (=> the VLEN128 perf regression: block2-p2 iq2_xs 0.62 -> now 0.50).
+To recover their VLEN128 perf (vget@128) + keep VLEN256 correct (vslidedown@256) needs a minVLEN signal
+threaded to the lowering. FINDING: that signal is NOT plumbed — the iq2_xs grid-core op carries no
+minimum_vlen; the module capability @rvv carries no provider fact after the export pipeline; the codebook
+lowering class is anchor-128 by design (RVVToEmitCCodebookFp4.cpp:705). Making them VLEN-adaptive requires
+a SCHEDULE-DESCRIPTOR + front-door stamp + caller thread (beyond the "3 vec_dot bodies" scope), for a NET
+入账 gain of ZERO (iq2_xs@rvv recovers 0.50->~0.62 but stays 具名-X; iq2_s@rvv already PASS 0.99).
+=> REGISTERED, not attempted (respects the 3-body scope + avoids a speculative autotuner change for 0 gain).
+   Named lever for a future scope: give iq2_xs/iq2_s a minimum_vlen schedule-descriptor stamp -> read in
+   RVVToEmitCKQuant caller -> conditional vget/vslidedown in the body.
+
+# reproduce iq2_xxs per-board: BOARD=rvv|k1 ./run_iq2xxs_perboard.sh  (raw/{rvv_iq2xxs_m2,k1_iq2xxs_m1}.log)
+# reproduce iq2_xs/iq2_s (universal committed leaves): BOARD=rvv|k1 ./run_v2.sh  (raw/*_v2.log,*_fixed.log)
+# kernels/: iq2_xxs_m2_vlen128 (db1bfdcd), iq2_xxs_m1_vlen256 (6a2e4ae9), iq2_xs_new (06e44714), iq2_s_new (32cf1645)
+#           iq2_xxs_new (vslidedown, SUPERSEDED by m1 path), iq2_xxs (== m2, legacy name)

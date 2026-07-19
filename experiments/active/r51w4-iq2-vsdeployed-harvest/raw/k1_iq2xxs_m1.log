@@ -1,0 +1,12 @@
+# board=Linux 6.6.63 riscv64 march=rv64gcv_zvl256b_zfh_zvfh leaf=iq2_xxs_m1_vlen256 ggml_md5=dff7bc311a5de61a37f8fe1f47601e62
+# OURS_iq2_xxs(iq2_xxs_m1_vlen256): vslidedown=0 vredsum=8 vsetvli=42 vlux=12
+=== byte-exact gate (iq2_xxs, 2-seed + anti-hollow) ===
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+# ANTIHOLLOW inject=3 expect_byte_exact=false observed=false -> BITES-OK
+=== cold (reps=25 2-seed) ===
+# VECDOT_COLD fmt=iq2_xxs seed=0x1 reps=25 | ours_med_ns=1498646(iqr2.73%) oppX_med_ns=1260691(iqr3.16%) | ratio_cold_X=0.8412 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# VECDOT_COLD fmt=iq2_xxs seed=0x2 reps=25 | ours_med_ns=1498104(iqr2.44%) oppX_med_ns=1272316(iqr2.71%) | ratio_cold_X=0.8493 | opp=ggml_vec_dot_iq2_xxs_q8_K(deployed _vl128) flush=224MiB fsink=9351200768
+# DONE
