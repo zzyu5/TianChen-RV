@@ -73,11 +73,11 @@
     PASS    dequantize|q4_K cold=1.01
     PASS    dequantize|q5_K cold=2.19
     PASS    dequantize|q6_K cold=1.49
-    PASS    dequantize|iq1_s
+    PASS    dequantize|iq1_s cold=0.99
     PASS    dequantize|iq1_m cold=1.03
-    PASS    dequantize|iq2_xxs
+    PASS    dequantize|iq2_xxs cold=2.26
     PASS    dequantize|iq2_xs cold=3.88
-    PASS    dequantize|iq2_s cold=1.7534
+    PASS    dequantize|iq2_s cold=2.18
     PASS    dequantize|iq3_xxs cold=1.39
     PASS    dequantize|iq3_s cold=1.71
     PASS    dequantize|iq4_nl cold=5.51

@@ -8,15 +8,21 @@
 // dequantize_row_decode_core (decode_model "iq1_s", qk=256, stride=50);
 // typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the typed
 // region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
-// string). The emitted C is BYTE-IDENTICAL to the dispatch-wired iq1_s monolith modulo
-// ONLY the source-op provenance token (the SHARED decode emitGgmlDequantizeRowExtended,
-// reached via emitDequantizeRowCodebookGridBodyShared, is the SAME code both paths run) --
-// the 2048-entry ternary iq1s_grid (int8) indexed by qs|((qh>>3l)&7)<<8, dl=d*(2*((qh>>12)
-// &7)+1), delta=+-0.125, and the fp16 d via the (float)*(const _Float16 *) seam. The grid
-// table is DERIVED at emit as a function-local static (NO grid op-attr; that blocker is
-// block-dot-repack-only, not this streaming dequant path). REUSES the iq1_s block-dot
-// vec_dot grid decl. Byte-exact-vs-ggml-reference dequantize_row_iq1_s (a scalar AoS
-// super-block loop; no reduction).
+// string). iq1_s dequant now FANS OUT to its OWNED narrow-per-entry REAL-VECTOR body
+// (emitDequantizeRowIQ1SVectorBody, W5 grid family de-lottery -- the iq1_m ternary sibling
+// completing the ternary-grid flip): each 8-value entry of the 2048-entry SIGNED ternary
+// iq1s_grid (int8) decoded by ONE narrow OWNED pipeline over its 8 CONTIGUOUS grid bytes --
+// a SCALAR-computed grid pointer (gridb + idx*8 where idx = qs[l]|(((qh>>3l)&7)<<8), NO
+// indexed gather) + a unit-stride vle8 (vl=8, SIGNED read == ggml's (const int8_t *) read)
+// + vsext_vf4->i32m2 + vfcvt + vfadd(delta) + vfmul(dl) + vse32, dl=d*(2*((qh>>12)&7)+1),
+// delta=(qh&0x8000)?-0.125:0.125 (fp16 d read DIRECTLY @0). The vfadd(delta) then vfmul(dl)
+// keeps the TWO separate roundings (NO fused vfmacc), so ggml's dl*(grid[j]+delta) matches
+// byte-exact. The 2048-entry ternary grid is DERIVED at emit as a function-local static (NO
+// grid op-attr; that blocker is block-dot-repack-only, not this streaming dequant path;
+// REUSES the iq1_s block-dot vec_dot grid decl) and the fp16 d arrives via the (float)*(const
+// _Float16 *) seam. This REPLACES the prior scalar-AoS forwarder that clang's -O3 autovec
+// leaves to its codegen-lottery (ISSUE-001/002); gather-free. Byte-exact-vs-ggml-reference
+// by construction (no reduction).
 
 module {
   weft.exec.kernel @dequant_iq1_s_kernel {
@@ -43,3 +49,15 @@ module {
 // The super-block loop, then the fp16 block-scale seam inside it.
 // CHECK: for %
 // CHECK: call_opaque "(float)*(const _Float16 *)"
+// The OWNED narrow-per-entry real-vector pipeline (gather-free): unit-stride SIGNED vle8 of
+// the 8 CONTIGUOUS ternary grid bytes, the m2 widen / convert, the delta ADD then dl MUL
+// (TWO separate roundings, NO fused vfmacc), and the unit store. NO __riscv_vluxei (the
+// de-lottery). NO sign-fold vmul (iq1_s grid is sign-free ternary).
+// CHECK: __riscv_vle8_v_i8mf2
+// CHECK: __riscv_vsext_vf4_i32m2
+// CHECK: __riscv_vfcvt_f_x_v_f32m2
+// CHECK: __riscv_vfadd_vf_f32m2
+// CHECK: __riscv_vfmul_vf_f32m2
+// CHECK: __riscv_vse32_v_f32m2
+// CHECK-NOT: __riscv_vluxei
+// CHECK-NOT: __riscv_vloxei

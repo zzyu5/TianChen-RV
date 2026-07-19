@@ -1,0 +1,84 @@
+========================================================================
+W5 · B线 grid-family-tail dequantize_row OWNED-vector flip — SEAL
+   iq2_xxs · iq2_s · iq1_s  (completes the grid family 全族翻)
+========================================================================
+
+WHAT
+  Ported the PROVEN "narrow-per-entry gather-free" grid-dequant lever (already deployed for
+  iq3_xxs / iq3_s / iq2_xs / iq1_m) to the THREE remaining grid-family dequantize_row leaves.
+  Before W5 these three routed to the scalar AoS forwarder (emitGgmlDequantizeRowExtended),
+  left to clang -O3's codegen-lottery (ISSUE-001/002 HW-gather explosion). After W5 each
+  lowers to its OWNED real-vector body:
+    - iq2_xxs -> emitDequantizeRowIQ2XXSVectorBody  (grid-of-8 int64, 256-entry · ksigns sel)
+    - iq2_s   -> emitDequantizeRowIQ2SVectorBody    (grid-of-8 int64, 1024-entry · EXPLICIT sign bytes)
+    - iq1_s   -> emitDequantizeRowIQ1SVectorBody    (SIGNED ternary iq1s_grid, 2048-entry · delta)
+  Grid family dequant is now 全族翻: iq2_xxs / iq2_xs / iq2_s / iq3_xxs / iq3_s / iq1_s / iq1_m
+  ALL own their real-vector decode body (gather-free).
+
+LEVER (律3 · one lever, whole family)
+  Same as W4/R5.1: (a) gather-free assembly [the dominant lever — the deployed scalar
+  forwarder's clang autovec exploded into vluxei HW-gathers + vslidedown] + (b) narrow
+  per-entry m1/m2 widening. Each 8-value grid entry is decoded by ONE narrow OWNED pipeline
+  over its 8 CONTIGUOUS grid bytes: a SCALAR-computed grid pointer (gridb + idx*8, NO indexed
+  gather) + a unit-stride vle8 (vl=8) [+ INTEGER vmul_vv sign fold vs the signs plane for
+  iq2_xxs/iq2_s; iq1_s is sign-free ternary] + vsext_vf4->i32m2 + vfcvt + [vfadd(delta) for
+  iq1_s] + vfmul(scale) + vse32. entryLanes(=8) is READ from the codebook_entry_lanes
+  descriptor stamped by the dequant-stream front door (律2: g-axis geometry NOT baked).
+
+STRUCTURE (source-level; board objdump 分拣 in run.sh)
+  format    unique-owned-families   gather (vlux/vlox/vrgather/vslidedown)
+  iq2_xxs   6  {vle8,vmul,vsext,vfcvt,vfmul,vse32}         0 / 0 / 0 / 0
+  iq2_s     6  {vle8,vmul,vsext,vfcvt,vfmul,vse32}         0 / 0 / 0 / 0
+  iq1_s     6  {vle8,vsext,vfcvt,vfadd,vfmul,vse32}        0 / 0 / 0 / 0
+  Intrinsic profile is IDENTICAL to the board-proven references:
+    iq2_xxs / iq2_s == iq2_xs   (grid-of-8 + sign fold)
+    iq1_s           == iq1_m    (ternary + delta)
+
+BYTE-EXACTNESS  (by construction · locally validated · board seals the leaf `==`)
+  iq2_xxs/iq2_s: grid[j]*sign is EXACT integer (grid bytes < 128, sign +-1); the single
+    rounding db*float(grid*sign) == (db*float(grid))*(+-1) [float sign-flip is bitwise-exact];
+    grid bytes < 128 so the signed-i8 view == ggml's (const uint8_t *) read.
+  iq1_s: dl*(float(grid)+delta) = ONE add + ONE mul, the SAME two roundings as ggml
+    (vfadd(delta) then vfmul(dl), NEVER a fused vfmacc); grid is a SIGNED int8 ternary read.
+  LOCAL validation (x86, against the REAL ggml reference + REAL ggml tables via ggml-common.h):
+    - decode-arithmetic cross-check (my scalar-equivalent vs ggml reference): 0 mismatch /
+      1,048,576 elements EACH format; struct offsets confirmed (iq2_xxs qs@2/66B;
+      iq2_s qs@2 qh@66 scales@74 signs@34/82B; iq1_s qs@2 qh@34/50B).
+    - driver harness end-to-end (oracle vs REAL ggml, corpus, anti-hollow): CROSSCHECK
+      ggml-vs-oracle = 0 mismatch / 2-4M elem EACH; CORPUS COMPLETE (iq2_xxs 256grid/128sign;
+      iq2_s 1024grid/256sign; iq1_s 2048grid/both-delta); all 3 anti-hollow arms BITE.
+  The ours-vs-oracle byte-exact `==` with the REAL board-compiled RVV leaf is the board seal
+  (parent to verify on rvv); the leaf is a mechanical transcription of the same arithmetic.
+
+ARTIFACTS  (md5)
+  kernels/iq2_xxs_dequant.c   6a9bdc4d8be0a70846fa725fcc6aaa31   (weft-opt --weft-rvv-lower-to-emitc | mlir-translate)
+  kernels/iq2_s_dequant.c     13ca4316454b47efa7385210c1e338b5
+  kernels/iq1_s_dequant.c     55378f937128fe68ba63f17740c4033f
+  tables/iq2_xxs_grid_tables.h eacb7cdfb8ee572d55d81cd0de22c171   (weft_iq2xxs_grid[256] + weft_iq2xxs_signs64[1024])
+  tables/iq2_s_grid_tables.h   4b6cf07670e9549b2dbeca165a3ecab9   (weft_iq2s_grid[1024] + weft_iq2s_signs256[2048])
+  tables/iq1_s_grid_tables.h   7f362ce65402ca10b34080ca6fc53a6f   (weft_iq1s_grid[2048])
+
+DISCIPLINE
+  NO inline-asm · NO hand-scheduling (gather-free real-vector via owned __riscv_ intrinsics).
+  NO A-line / vec_dot edits. NO git commit. Compiler-symmetric opponent (both clang-18).
+  Opponent = ggml DEPLOYED dequantize_row_<fmt> (libggml-base.so). vs-deployed >=0.8 => WIN
+  入账 (不问强弱); cheap-tier standby = opp-immaturity (never called a hard win).
+
+SOURCE CHANGES (compiler)
+  lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp        +3 owned vector bodies
+  lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp  +3 dispatch branches (fail-closed on entryLanes)
+  lib/Conversion/RVV/RVVToEmitCInternal.h              +3 declarations
+  lib/Dialect/RVV/IR/RVVDequantizeRowConstruction.cpp  entryLanes=8 for iq2_xxs/iq2_s/iq1_s
+  lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp         verifier consumesEntryLanes += 3 formats
+  test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-{iq2-xxs,iq2-s,iq1-s}.mlir  CHECK owned body
+  lit: 786/786 pass (0 regressions, e2e excluded).
+========================================================================
+
+=== BOARD VERDICT (rvv · 2026-07-20 · run.sh · compiler-symmetric clang-18 · 2-seed cold N=25 flush=224MiB) ===
+# opponent = deployed dequantize_row_<fmt> (libggml-base.so, host-autovec scalar-C, gather=0)
+# byte-exact 3-way (ours-vs-oracle / ggml-vs-oracle / ours-vs-ggml) = mism 0/524288 ALL; CORPUS COMPLETE; 3-arm anti-hollow BITE; CORE==PROD md5-regen-identical
+iq2_xxs : ratio_cold 2.2565 / 2.2624  (ours~720us vs ggml~1625us · iqr<1%) -> WIN 入账  [HEAVY-tier opp vec=74/vset=33 flipped · owned gather-free vsext32/vfcvt32/vfmul32]
+iq2_s   : ratio_cold 2.1832 / 2.1754  (ours~773us vs ggml~1684us · iqr<1%) -> WIN 入账  [was scalar-forwarder 1.75 lottery -> owned de-lottery · HEAVY opp vec=74]
+iq1_s   : ratio_cold 0.9936 / 0.9965  (ours~731us vs ggml~727us · iqr<1%)  -> PASS 入账 [near-parity · MODERATE opp vec=24 (~iq1_m) · lever-N/A honest-null de-lottery parity]
+# wall-type ALL = compiler-behavior/codegen-STRUCTURE (opp gather=0 => NOT microarch/HW-gather). Family lever = narrow-per-entry gather-free assembly (proven iq3_xxs/iq3_s/iq2_xs, extended here). grid dequant family now 7/7 owned real-vector @rvv.
+# QUALIFICATION: ad-hoc run.sh (NOT bench channel · runs.log ad-hoc) · no T-N floor => measured, NOT T-N-qualified (same as iq3_s; paper cite requires bench-channel + T-N re-measure).

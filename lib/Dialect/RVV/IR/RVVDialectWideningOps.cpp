@@ -11180,14 +11180,15 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (bias.getInt() < 0)
       return emitOpError() << "requires nibble_bias >= 0 when present; got "
                            << bias.getInt();
-  // The three OWNED grid-codebook decode leaves (iq3_s grid-of-4 uint32; iq2_xs / iq1_m
-  // grid-of-8 uint64) reconstruct a codebook grid ENTRY whose byte-width IS the g-axis
-  // geometry: they MUST carry the codebook_entry_lanes descriptor so the mechanism body
-  // READS it instead of baking the format constant (律2). Fail closed here at verify
-  // time (never value_or self-supplied) if a consuming leaf is missing it; every other
-  // decode leaf leaves the OptionalAttr absent.
+  // The OWNED grid-codebook decode leaves (iq3_s grid-of-4 uint32; iq2_xxs / iq2_xs /
+  // iq2_s / iq1_s / iq1_m grid-of-8 uint64) reconstruct a codebook grid ENTRY whose
+  // byte-width IS the g-axis geometry: they MUST carry the codebook_entry_lanes
+  // descriptor so the mechanism body READS it instead of baking the format constant
+  // (律2). Fail closed here at verify time (never value_or self-supplied) if a consuming
+  // leaf is missing it; every other decode leaf leaves the OptionalAttr absent.
   llvm::StringRef dm = getDecodeModel();
-  bool consumesEntryLanes = dm == "iq3_s" || dm == "iq2_xs" || dm == "iq1_m";
+  bool consumesEntryLanes = dm == "iq3_s" || dm == "iq2_xs" || dm == "iq1_m" ||
+                            dm == "iq2_xxs" || dm == "iq2_s" || dm == "iq1_s";
   if (consumesEntryLanes && !getCodebookEntryLanesAttr())
     return emitOpError()
            << "decode_model '" << dm

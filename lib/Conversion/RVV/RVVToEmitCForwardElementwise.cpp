@@ -4211,9 +4211,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
     std::optional<int64_t> codebookEntryLanes) const {
   // iq3_xxs is the FIRST cell of the dequant true-vector emitter (PR-31): it lowers
   // to the OWNED real-vector body (vluxei16 grid gather + sign fold + vfcvt + vfmul
-  // + vse32), NOT the shared scalar dispatch-wired decode. The other IQ grid formats
-  // (iq2_xxs/iq2_xs/iq2_s) stay on the scalar forwarder until they fan out (iq3_s
-  // fanned out below).
+  // + vse32), NOT the shared scalar dispatch-wired decode. Every OTHER IQ grid format
+  // (iq2_xxs/iq2_xs/iq2_s) has now fanned out to its OWNED narrow-per-entry body below.
   if (format == "iq3_xxs")
     return emitDequantizeRowIQ3XXSVectorBody(rewriter, loc, input, output, avlArg,
                                              sizeType, opName, role);
@@ -4239,8 +4238,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
   // (int64, 512-entry) sibling lowers to its OWNED narrow-per-entry real-vector body
   // (gather-free -- the deployed scalar forwarder's clang autovec exploded to 32 vluxei /
   // 96 vslidedown, pre-check objdump verified -- board-proven vs the codegen-lottery leaf).
-  // The remaining IQ grid formats (iq2_xxs/iq2_s) stay on the scalar forwarder until they
-  // fan out. Same g-axis descriptor read + fail-closed contract as iq3_s.
+  // Same g-axis descriptor read + fail-closed contract as iq3_s.
   if (format == "iq2_xs") {
     if (!codebookEntryLanes)
       return rewriter.notifyMatchFailure(
@@ -4251,6 +4249,37 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
     return emitDequantizeRowIQ2XSVectorBody(rewriter, loc, input, output, avlArg,
                                             sizeType, opName, role,
                                             *codebookEntryLanes);
+  }
+  // iq2_xxs FANS OUT (W5 grid family de-lottery · the iq2_xs grid-of-8 sibling
+  // completing the grid family flip): the grid-of-8 (int64, 256-entry) sibling with the
+  // aux-packed ksigns selectors lowers to its OWNED narrow-per-entry real-vector body
+  // (gather-free). Same g-axis descriptor read + fail-closed contract as iq2_xs.
+  if (format == "iq2_xxs") {
+    if (!codebookEntryLanes)
+      return rewriter.notifyMatchFailure(
+          loc, "iq2_xxs owned grid dequant body requires the codebook_entry_lanes "
+               "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
+               "dequant-stream front door; it must NOT be baked into the mechanism "
+               "body and is never value_or self-supplied");
+    return emitDequantizeRowIQ2XXSVectorBody(rewriter, loc, input, output, avlArg,
+                                             sizeType, opName, role,
+                                             *codebookEntryLanes);
+  }
+  // iq2_s FANS OUT (W5 grid family de-lottery · the iq2_xs grid-of-8 sibling with
+  // EXPLICIT sign bytes): the grid-of-8 (int64, 1024-entry) sibling whose 8-bit sign
+  // bytes index the universal signs256 plane directly lowers to its OWNED narrow-per-
+  // entry real-vector body (gather-free). Same g-axis descriptor read + fail-closed
+  // contract as iq2_xs.
+  if (format == "iq2_s") {
+    if (!codebookEntryLanes)
+      return rewriter.notifyMatchFailure(
+          loc, "iq2_s owned grid dequant body requires the codebook_entry_lanes "
+               "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
+               "dequant-stream front door; it must NOT be baked into the mechanism "
+               "body and is never value_or self-supplied");
+    return emitDequantizeRowIQ2SVectorBody(rewriter, loc, input, output, avlArg,
+                                           sizeType, opName, role,
+                                           *codebookEntryLanes);
   }
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
@@ -4303,10 +4332,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
   // the narrow-per-entry shape), so this OWNED body is a de-lottery robustness hardening at
   // PARITY throughput (lever-N/A honest-null), NOT a codegen-STRUCTURE flip -- the sign-free
   // ternary grid + per-group delta decode is rendered EXPLICITLY so it no longer rides
-  // clang's codegen-lottery. iq1_s stays on the scalar forwarder until it fans out.
-  // The grid ENTRY byte-width (g-axis geometry) is READ from the codebook_entry_lanes
-  // descriptor, NOT baked into the body (律2); fail closed if the front door did not
-  // stamp it (no value_or self-supply to the g-axis).
+  // clang's codegen-lottery. The grid ENTRY byte-width (g-axis geometry) is READ from the
+  // codebook_entry_lanes descriptor, NOT baked into the body (律2); fail closed if the
+  // front door did not stamp it (no value_or self-supply to the g-axis).
   if (format == "iq1_m") {
     if (!codebookEntryLanes)
       return rewriter.notifyMatchFailure(
@@ -4315,6 +4343,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ1MVectorBody(rewriter, loc, input, output, avlArg,
+                                           sizeType, opName, role,
+                                           *codebookEntryLanes);
+  }
+  // iq1_s FANS OUT (W5 grid family de-lottery · the iq1_m ternary sibling completing the
+  // ternary-grid flip): the SIGNED ternary iq1s_grid (2048-entry) sibling -- fp16 d read
+  // DIRECTLY, ONE scale + ONE delta per group, an 11-bit grid index -- lowers to its OWNED
+  // narrow-per-entry real-vector body (gather-free; vfadd(delta)+vfmul(dl), NO fused
+  // vfmacc, so the two roundings match ggml). Same g-axis descriptor read + fail-closed
+  // contract as iq1_m.
+  if (format == "iq1_s") {
+    if (!codebookEntryLanes)
+      return rewriter.notifyMatchFailure(
+          loc, "iq1_s owned grid dequant body requires the codebook_entry_lanes "
+               "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
+               "dequant-stream front door; it must NOT be baked into the mechanism "
+               "body and is never value_or self-supplied");
+    return emitDequantizeRowIQ1SVectorBody(rewriter, loc, input, output, avlArg,
                                            sizeType, opName, role,
                                            *codebookEntryLanes);
   }

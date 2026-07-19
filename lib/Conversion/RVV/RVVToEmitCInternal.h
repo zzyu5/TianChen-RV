@@ -5105,6 +5105,40 @@ private:
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
       int64_t entryLanes) const;
 
+  /// The OWNED REAL-VECTOR iq2_xxs dequantize_row block-decode body (W5 grid family
+  /// de-lottery, the iq2_xs sibling completing the grid-of-8 fan-out). Same
+  /// narrow-per-entry lever as iq2_xs: each 8-value grid entry (grid-of-8 int64,
+  /// 256-entry) decoded by ONE narrow OWNED pipeline over its 8 CONTIGUOUS grid bytes
+  /// -- a SCALAR-computed grid pointer (gridb + aux8[l]*8, NO indexed gather) + a
+  /// unit-stride vle8 (vl=8) + the per-lane +-1 sign applied by an INTEGER vmul_vv
+  /// against the SAME expanded signs64 +-1 plane (selector (aux32_1>>7l)&127; 8
+  /// CONTIGUOUS +-1 bytes, also a unit-stride vle8) + vsext_vf4->i32m2 + vfcvt +
+  /// vfmul(db) + vse32, db = d*(0.5+(aux32_1>>28))*0.25 (ONE scale per ib32). Byte-exact
+  /// to ggml's dequantize_row_iq2_xxs by construction (grid[j]*sign EXACT integer, grid
+  /// bytes < 128 so signed i8 view == ggml's (const uint8_t *) read; float sign-flip and
+  /// mul-by-+-1 are bitwise-exact). LMULs (i8mf2/i32m2/f32m2) DERIVED from the 8-lane
+  /// grid entry width, NOT tunable knobs. OWNED __riscv_ intrinsics, gather-free.
+  mlir::LogicalResult emitDequantizeRowIQ2XXSVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t entryLanes) const;
+
+  /// The OWNED REAL-VECTOR iq2_s dequantize_row block-decode body (W5 grid family
+  /// de-lottery, the iq2_xs sibling completing the grid-of-8 fan-out). Same
+  /// narrow-per-entry lever as iq2_xs but with EXPLICIT sign bytes (universal signs256
+  /// plane, indexed by the raw 8-bit sign byte at qs+32, NOT a ksigns selector) and a
+  /// 10-bit grid index qs[l]|((qh[ib32]<<(8-2l))&0x300) into the 1024-entry (int64)
+  /// grid: SCALAR grid pointer (gridb + idx*8, NO gather) + vle8 grid + vle8 signs +
+  /// INTEGER vmul_vv + vsext_vf4->i32m2 + vfcvt + vfmul(db) + vse32, db =
+  /// d*(0.5+scale_nibble)*0.25. Byte-exact to ggml's dequantize_row_iq2_s by
+  /// construction. LMULs DERIVED from the 8-lane grid entry width. OWNED, gather-free.
+  mlir::LogicalResult emitDequantizeRowIQ2SVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t entryLanes) const;
+
   /// The OWNED REAL-VECTOR iq1_m dequantize_row block-decode body (R5.1-D grid family
   /// de-lottery, the iq1s_grid ternary sibling). UNLIKE iq2_xs/iq3_s, the deployed iq1_m
   /// scalar forwarder is ALREADY gather-free after clang -O3 autovec (pre-check objdump:
@@ -5123,6 +5157,23 @@ private:
   /// vfadd(delta) + vfmul(dl) + vse32. Byte-exact to ggml's dequantize_row_iq1_m by
   /// construction (dl*(float(grid)+delta) = one add + one mul, same rounding order).
   mlir::LogicalResult emitDequantizeRowIQ1MVectorBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t entryLanes) const;
+
+  /// The OWNED REAL-VECTOR iq1_s dequantize_row block-decode body (W5 grid family
+  /// de-lottery, the iq1_m ternary sibling completing the ternary-grid fan-out).
+  /// Simpler than iq1_m: the fp16 d is read DIRECTLY @0 (no packed iq1m_scale
+  /// reconstruct), ONE scale dl = d*(2*((qh>>12)&7)+1) and ONE delta =
+  /// (qh&0x8000)?-0.125:0.125 per group ib, an 11-bit grid index qs[l]|(((qh>>3l)&7)<<8)
+  /// into the 2048-entry SIGNED ternary iq1s_grid (int8): SCALAR grid pointer (gridb +
+  /// idx*8, NO gather) + vle8 (vl=8, SIGNED == ggml's (const int8_t *) read) +
+  /// vsext_vf4->i32m2 + vfcvt + vfadd(delta) + vfmul(dl) + vse32. Byte-exact to ggml's
+  /// dequantize_row_iq1_s by construction (dl*(float(grid)+delta) = one add + one mul,
+  /// same rounding order, NO fused vfmacc). LMULs DERIVED from the 8-lane grid entry
+  /// width. OWNED __riscv_ intrinsics, gather-free.
+  mlir::LogicalResult emitDequantizeRowIQ1SVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,

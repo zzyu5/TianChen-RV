@@ -34,9 +34,9 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
   // codebook_entry_lanes (the g-axis grid geometry) is the ONE exception the owned
   // narrow-per-entry grid dequant bodies need at emit but must NOT bake into the
   // mechanism body (律2): it is the codebook grid ENTRY byte-width, stamped ONLY for
-  // the three owned grid-codebook decode leaves (iq3_s grid-of-4 uint32 = 4;
-  // iq2_xs / iq1_m grid-of-8 uint64 = 8). It stays 0 (unstamped) for every flat /
-  // K-quant / non-grid leaf, which never reads an entry width.
+  // the owned grid-codebook decode leaves (iq3_s grid-of-4 uint32 = 4; iq2_xxs / iq2_xs
+  // / iq2_s / iq1_s / iq1_m grid-of-8 uint64 = 8). It stays 0 (unstamped) for every
+  // flat / K-quant / non-grid leaf, which never reads an entry width.
   std::int64_t qk = 32, stride = 0, dOff = 0, qsOff = 0, entryLanes = 0;
   // Phase-1 nibble-family decode-mechanism descriptor (unset == NotNibbleFamily /
   // absent for every non-nibble leaf; the flat nibble arms below set them).
@@ -79,12 +79,14 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
   } else if (format == "q6_K") {
     qk = 256; stride = 210; dOff = 208; qsOff = 0;
   } else if (format == "iq2_xxs") {
-    qk = 256; stride = 66; dOff = 0; qsOff = 2;
+    // grid-of-8 (int64, 256-entry): each grid entry = 8 contiguous grid bytes.
+    qk = 256; stride = 66; dOff = 0; qsOff = 2; entryLanes = 8;
   } else if (format == "iq2_xs") {
     // grid-of-8 (int64, 512-entry): each grid entry = 8 contiguous grid bytes.
     qk = 256; stride = 74; dOff = 0; qsOff = 2; entryLanes = 8;
   } else if (format == "iq2_s") {
-    qk = 256; stride = 82; dOff = 0; qsOff = 2;
+    // grid-of-8 (int64, 1024-entry): each grid entry = 8 contiguous grid bytes.
+    qk = 256; stride = 82; dOff = 0; qsOff = 2; entryLanes = 8;
   } else if (format == "iq3_xxs") {
     qk = 256; stride = 98; dOff = 0; qsOff = 2;
   } else if (format == "iq3_s") {
@@ -92,7 +94,8 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
     qk = 256; stride = 110; dOff = 0; qsOff = 2; entryLanes = 4;
   } else if (format == "iq1_s") {
     // block_iq1_s: fp16 d @0, qs[32] @2, qh[8] u16 @34 (ternary iq1s_grid + delta).
-    qk = 256; stride = 50; dOff = 0; qsOff = 2;
+    // grid-of-8 (2048-entry iq1s_grid): each grid entry = 8 contiguous ternary bytes.
+    qk = 256; stride = 50; dOff = 0; qsOff = 2; entryLanes = 8;
   } else if (format == "iq1_m") {
     // block_iq1_m: NO fp16 d -- qs[32] LEAD the block @0, qh[16] @32, packed scale
     // words @48 (the super-block d is the reconstructed iq1m_scale fp16). grid-of-8
