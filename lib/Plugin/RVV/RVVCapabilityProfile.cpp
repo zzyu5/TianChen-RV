@@ -386,6 +386,42 @@ std::optional<std::int64_t> readRVVProviderMinimumVLEN(mlir::ModuleOp module) {
   return found;
 }
 
+std::optional<std::int64_t> readRVVProviderVLenBBytes(mlir::ModuleOp module) {
+  // Reads the PROBED real-board VLENB fact (bytes-per-vector-register) OFF the in-IR
+  // `rvv.vlenb_bytes` capability op -- the fact the probe mints from the hardware
+  // (its `bytes` property). Real-board VLEN(bits) = VLENB * 8. Matched by its own
+  // capability id (kind "uarch", NOT an isRVVCapabilityProvider). Returns nullopt
+  // when no rvv.vlenb_bytes op carries a positive `bytes` fact, so the caller falls
+  // back to deriveMinimumVLEN(-march) byte-for-byte. Accepts a typed i64 or the
+  // probe's decimal-string `bytes` (CapabilityProperties are string-valued). NEVER
+  // re-parses -march. (Retires the zero-reader status of the vlenb producer.)
+  if (!module)
+    return std::nullopt;
+  llvm::StringRef vlenbID = getRVVVLenBBytesCapabilityID();
+  std::optional<std::int64_t> found;
+  module.walk([&](mlir::Operation *op) {
+    if (found)
+      return;
+    if (!llvm::isa<weft::exec::CapabilityOp, weft::exec::TargetOp>(op))
+      return;
+    auto id = op->getAttrOfType<mlir::StringAttr>("id");
+    if (!id || id.getValue() != vlenbID)
+      return;
+    std::int64_t bytes = 0;
+    if (auto bytesInt = op->getAttrOfType<mlir::IntegerAttr>("bytes")) {
+      bytes = bytesInt.getInt();
+    } else if (auto bytesStr = op->getAttrOfType<mlir::StringAttr>("bytes")) {
+      if (bytesStr.getValue().trim().getAsInteger(10, bytes))
+        return;
+    } else {
+      return;
+    }
+    if (bytes > 0)
+      found = bytes;
+  });
+  return found;
+}
+
 std::int64_t resolveRVVMinimumVLEN(mlir::ModuleOp module, llvm::StringRef march,
                                    llvm::StringRef isaVectorHints) {
   // PREFER the in-IR typed provider fact (the probe layer / a decisive-experiment
@@ -413,6 +449,13 @@ int materializeRVVProviderCapabilityAxes(mlir::ModuleOp module,
   std::string rvvVersion =
       stringifyRVVVersion(deriveRVVVersion(march, isaVectorHints)).str();
   std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+  // PREFER the PROBED real-board VLEN fact when rvv.vlenb_bytes is present:
+  // VLEN(bits) = VLENB(bytes) * 8 -- minimum_vlen consumes the HARDWARE capability
+  // fact, not the -march guess. The -march derivation stays the un-probed fallback.
+  // A real board whose VLENB agrees with -march stamps a byte-identical value; only
+  // a CONFLICTING fixture makes the probed fact win (the decisive experiment).
+  if (std::optional<std::int64_t> vlenbBytes = readRVVProviderVLenBBytes(module))
+    minimumVLEN = *vlenbBytes * 8;
 
   // A march that names no concrete RVV tier derives no axes AND no version AND no
   // VLEN floor: nothing to materialize, leave the IR (and the historically silent
