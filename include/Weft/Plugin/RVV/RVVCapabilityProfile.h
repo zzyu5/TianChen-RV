@@ -226,6 +226,18 @@ std::optional<std::int64_t> readRVVProviderMinimumVLEN(mlir::ModuleOp module);
 // provider declares the fact. NEVER re-parses -march.
 RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module);
 
+// PRODUCTION resolver seam (the pulled pipe for the resource-aware consumers).
+// PREFERS the in-IR typed provider fact (readRVVProviderMinimumVLEN) and only
+// falls back to deriving from -march ONCE here when NO provider carries the fact
+// (an un-probed module). So the front-door / schedule consumers call THIS instead
+// of deriveMinimumVLEN(-march) locally: the LOAD-BEARING value is the provider
+// fact, -march is a mere absent-fallback -- a decisive-experiment provider
+// minimum_vlen=256 WINS over -march zvl128b (the consumer follows the provider,
+// proving the pipe carries the fact, not the -march bypass). This is the ONE
+// remaining production deriveMinimumVLEN(-march) call site outside the probe layer.
+std::int64_t resolveRVVMinimumVLEN(mlir::ModuleOp module, llvm::StringRef march,
+                                   llvm::StringRef isaVectorHints);
+
 // Returns true iff the ISA/vector-hint string names concrete RVV vector
 // evidence: a zve* / zvl* / zvfh embedded-vector token, a full-V "gcv" spelling,
 // the XuanTie xtheadvector (RVV0.7) unit, or an "rv64...v..." vector-extension

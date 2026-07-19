@@ -385,6 +385,20 @@ std::optional<std::int64_t> readRVVProviderMinimumVLEN(mlir::ModuleOp module) {
   return found;
 }
 
+std::int64_t resolveRVVMinimumVLEN(mlir::ModuleOp module, llvm::StringRef march,
+                                   llvm::StringRef isaVectorHints) {
+  // PREFER the in-IR typed provider fact (the probe layer / a decisive-experiment
+  // fixture stamped it). Only when NO provider carries the fact do we derive from
+  // -march ONCE here -- so the LOAD-BEARING value flows through the typed capability
+  // object, and a provider minimum_vlen=256 that CONFLICTS with -march zvl128b wins
+  // (the consumer follows the pipe, not the -march bypass). Un-probed modules
+  // (no provider or no stamp) reproduce the historical deriveMinimumVLEN(-march)
+  // value byte-for-byte.
+  if (std::optional<std::int64_t> provided = readRVVProviderMinimumVLEN(module))
+    return *provided;
+  return deriveMinimumVLEN(march, isaVectorHints);
+}
+
 RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module) {
   if (!module)
     return RVVVersion::Unknown;

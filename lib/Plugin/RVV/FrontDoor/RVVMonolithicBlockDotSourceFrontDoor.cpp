@@ -3392,7 +3392,8 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     typedFlatLMULCandidates = {"m1", "m2"};
   else
     typedFlatLMULCandidates = {"m1"};
-  const std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+  const std::int64_t minimumVLEN = resolveRVVMinimumVLEN(
+      source.func->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
   const RVVFillLMULChoice fillChoice = chooseFillOptimalLMUL(
       static_cast<unsigned>(minimumVLEN < 0 ? 0 : minimumVLEN), /*sew=*/8,
       static_cast<unsigned>(typedFlatBlockLen < 0 ? 0 : typedFlatBlockLen),

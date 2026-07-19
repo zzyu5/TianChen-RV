@@ -341,8 +341,9 @@ matchBoundedWideningDotReduceSourceFunc(mlir::func::FuncOp func) {
 // and wins on the lighter vreg footprint tiebreak. So the anchor FLIPS m2->m1
 // with the VLEN fact -- the e8m2 vs e8m1 emitted-body divergence.
 std::optional<std::string>
-selectIntegerCoreLMUL(llvm::StringRef march, llvm::StringRef isaVectorHints) {
-  std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
+                      llvm::StringRef isaVectorHints) {
+  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
 
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"m1", "m2"};
   RVVBlockDotKernelDescriptor descriptor{
@@ -879,7 +880,7 @@ public:
     }
 
     std::optional<std::string> integerCoreLMUL =
-        selectIntegerCoreLMUL(march, isaVectorHints);
+        selectIntegerCoreLMUL(module, march, isaVectorHints);
     if (!integerCoreLMUL) {
       (void)fail(module, llvm::Twine("the capability profile (march='") + march +
                              "') prunes every legal K=32 integer-core anchor; "

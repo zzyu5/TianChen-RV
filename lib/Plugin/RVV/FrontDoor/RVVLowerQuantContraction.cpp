@@ -1412,10 +1412,12 @@ private:
     }
 
     // The DERIVED capability facts: the guaranteed minimum VLEN of the configured
-    // target (the SAME authority lowerOne derives) + the HARD 32-vector-register ISA
-    // fact. Shared by both axes.
-    std::int64_t minVLEN =
-        pluginrvv::deriveMinimumVLEN(march, isaVectorHints);
+    // target + the HARD 32-vector-register ISA fact. Shared by both axes. PULLED to
+    // the in-IR provider fact (resolveRVVMinimumVLEN reads the typed minimum_vlen off
+    // the RVV capability provider op; -march is only the un-probed fallback) -- so a
+    // decisive-experiment provider minimum_vlen wins over -march.
+    std::int64_t minVLEN = pluginrvv::resolveRVVMinimumVLEN(
+        op->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
 
     // ---- AXIS 1: the loop-order schedule axis. INDEPENDENT of the SP4 output-tiling
     // bottleneck shape below: the outer group-loop order is afforded by the two-group
@@ -1534,12 +1536,13 @@ private:
                           /*noTimestamp=*/true)));
   }
 
-  // The IN-COMPILER selection: derive the target VLEN from the pass's -march (the
-  // capability authority -- NOT the op's advisory min_vlen attr), lift the
-  // committed WHAT axes, and ask the pure fact-driven selector which algorithm to
-  // commit to. Both branches emit the byte-identical block-dot body (Option (i)),
-  // differentiated only by the inert audit attrs -- so the emitted C is unchanged
-  // on every cell and the repack EFFECT is honestly deferred to stage C.
+  // The IN-COMPILER selection: resolve the target VLEN off the in-IR RVV capability
+  // provider op (the pulled pipe -- resolveRVVMinimumVLEN; -march is the un-probed
+  // fallback, NOT the op's advisory min_vlen attr), lift the committed WHAT axes,
+  // and ask the pure fact-driven selector which algorithm to commit to. Both
+  // branches emit the byte-identical block-dot body (Option (i)), differentiated
+  // only by the inert audit attrs -- so the emitted C is unchanged on every cell
+  // and the repack EFFECT is honestly deferred to stage C.
   mlir::LogicalResult lowerOne(weftrvv::GgmlQuantContractionOp op) {
     // Read the per-format OPPONENT FACTS from the op's structured attrs -- routing
     // is fact-driven, NOT keyed on the (now optional) quant format label.
@@ -1549,10 +1552,11 @@ private:
       return mlir::failure();
 
     // The DERIVED capability fact: the guaranteed minimum VLEN of the configured
-    // target, from the SAME plugin-local authority deriveHasZvl128b /
-    // MaterializeRVVQ40Schedule consume (default -march "" => 0 => no capability
+    // target, PULLED off the in-IR RVV capability provider op (resolveRVVMinimumVLEN;
+    // -march is the un-probed fallback -- default -march "" => 0 => no capability
     // => block-dot, the honest no-capability behavior).
-    std::int64_t minVLEN = pluginrvv::deriveMinimumVLEN(march, isaVectorHints);
+    std::int64_t minVLEN = pluginrvv::resolveRVVMinimumVLEN(
+        op->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
 
     pluginrvv::ContractionSelection selection =
         pluginrvv::selectContractionAlgorithm(facts, *mRegime, minVLEN);

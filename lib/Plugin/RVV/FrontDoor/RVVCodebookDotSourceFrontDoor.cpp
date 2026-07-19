@@ -206,8 +206,9 @@ matchCodebookDotSourceFunc(mlir::func::FuncOp func) {
 // VLEN256 (both legal, the lighter footprint wins). Fail-closed (nullopt -> I7)
 // at VLEN0 where every candidate is pruned (the codebook class is Zvl128b-gated).
 std::optional<std::string>
-selectCodebookCoreLMUL(llvm::StringRef march, llvm::StringRef isaVectorHints) {
-  std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+selectCodebookCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
+                       llvm::StringRef isaVectorHints) {
+  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
 
   llvm::SmallVector<RVVBlockDotShapeCandidate, 12> typed =
       enumerateRVVCodebookShapeCandidates(
@@ -765,7 +766,7 @@ public:
     // VLEN128, mf2 at VLEN256, fail-closed (I7) at VLEN0 where every codebook
     // candidate is pruned (the codebook gather needs VLMAX >= 16).
     std::optional<std::string> coreLMUL =
-        selectCodebookCoreLMUL(march, isaVectorHints);
+        selectCodebookCoreLMUL(module, march, isaVectorHints);
     if (!coreLMUL) {
       (void)fail(module, llvm::Twine("the capability profile (march='") + march +
                              "') prunes every legal codebook i8 gather anchor "

@@ -447,14 +447,15 @@ void runRVVScheduleMaterializationViaInterface(
     std::optional<mlir::TypeID> onlyOpType) {
   mlir::MLIRContext *ctx = module.getContext();
 
-  // (1) Derive the capability VLEN facts ONCE. The block-dot enumerations now
-  // reason over the REAL minimum VLEN bits (deriveMinimumVLEN: 0/128/256/512...),
-  // which drives the per-anchor reduction count AND the elided-cover legality via
-  // VLMAX -- replacing the old 1-bit Zvl128b boolean as the selection input. The
-  // boolean is still derived (== minimumVLEN >= 128) for the audit stamp's
-  // `has_zvl128b` attr (the cost FORMULA itself remains capability-blind). For
-  // GEMM both are audit-only.
-  std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+  // (1) Resolve the capability VLEN fact ONCE, PULLED off the in-IR RVV capability
+  // provider op (resolveRVVMinimumVLEN reads the typed minimum_vlen; -march is only
+  // the un-probed fallback). The block-dot enumerations reason over the REAL minimum
+  // VLEN bits (0/128/256/512...), which drives the per-anchor reduction count AND the
+  // elided-cover legality via VLMAX -- replacing the old 1-bit Zvl128b boolean as the
+  // selection input. The boolean is still derived (== minimumVLEN >= 128) for the
+  // audit stamp's `has_zvl128b` attr (the cost FORMULA itself remains capability-
+  // blind). For GEMM both are audit-only.
+  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
   bool hasZvl128b = deriveHasZvl128b(march, isaVectorHints);
 
   // (4) Load the optional measurement record ONCE (absent/unreadable => static

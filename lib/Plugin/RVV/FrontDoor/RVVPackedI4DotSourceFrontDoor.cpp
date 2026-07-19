@@ -205,8 +205,9 @@ matchPackedI4DotSourceFunc(mlir::func::FuncOp func) {
 // nullopt -> I7 when every candidate is pruned), NOT the nibble anchor source --
 // the q4_0 nibble core is the no-flip mf4 form, pinned below.
 std::optional<std::string>
-selectIntegerCoreLMUL(llvm::StringRef march, llvm::StringRef isaVectorHints) {
-  std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
+                      llvm::StringRef isaVectorHints) {
+  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
 
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"m1", "m2"};
   RVVBlockDotKernelDescriptor descriptor{
@@ -755,7 +756,7 @@ public:
     // The selected plain-int8 anchor is NOT the nibble anchor (pinned mf4); this
     // call is the legality gate only.
     std::optional<std::string> integerCoreLMUL =
-        selectIntegerCoreLMUL(march, isaVectorHints);
+        selectIntegerCoreLMUL(module, march, isaVectorHints);
     if (!integerCoreLMUL) {
       (void)fail(module, llvm::Twine("the capability profile (march='") + march +
                              "') prunes every legal integer-core anchor; no "
