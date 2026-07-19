@@ -2840,6 +2840,117 @@ chooseFillOptimalLMUL(unsigned vlenBits, unsigned sew, unsigned blockLen,
 }
 
 //===----------------------------------------------------------------------===//
+// Effective-register-group-width-invariant LMUL -- the family/width selector as an
+// EXPLICIT CLOSED FORM f(VLEN, sew, blockLen, candidates). This is the named
+// gearbox equation that REPLACES the K=32 int8 dot-reduce front door's
+// enumerateBlockDotShapeCandidates + selectGenericSchedule ARGMIN fallback (the
+// census2 "turn the argmin into a named f" mandate).
+//
+// A fixed-length block contraction (blockLen elements of `sew`-bit integers -- the
+// K=32 signed-int8 dot-reduce is blockLen=32, sew=8) wants ONE vector register
+// GROUP to span the whole block in a single strip. The register group a strip
+// occupies has EFFECTIVE WIDTH VLMAX*sew bits = VLEN*LMUL bits
+// (getRVVStripVLMAXElements(L)*sew). Pinning that width to the block --
+//     VLMAX == blockLen   <=>   VLMAX*sew == blockLen*sew bits CONSTANT (VLEN-free)
+// -- is the width-invariant rule, whose closed form is
+//     LMUL = blockLen*sew / VLEN.
+// A WIDER VLEN needs a NARROWER LMUL to hold the group width fixed, so the anchor
+// FLIPS with the capability fact:
+//     blockLen=32, sew=8:  VLEN128 => LMUL 2 (m2);  VLEN256 => LMUL 1 (m1).
+// m2@VLEN128 and m1@VLEN256 are the SAME 256-bit effective group -- the invariant
+// (VLMAX*sew = 32*8 = 256 bits either way). This IS the capability flip the
+// reduction front door emits (e8m2 body at VLEN128, e8m1 body at VLEN256).
+//
+// PURE + COST-MODEL-FREE: it reuses getRVVStripVLMAXElements (the SINGLE VLMAX truth
+// source) over the LMUL width arithmetic ALONE -- no cost model, no measured_ns, no
+// vreg budget. It AGREES with chooseFillOptimalLMUL wherever both apply (util==1.0
+// is exactly VLMAX==blockLen), but it is stated as the DIRECT width-invariant
+// equation the census asked to name, and carries a reason that is the invariant
+// itself, never a cost-model `static_order`.
+//===----------------------------------------------------------------------===//
+
+/// Why the effective-width-invariant LMUL was chosen -- carried on the output ONLY
+/// (the static_order attribution discipline: this enumerates a capability-derived
+/// pick, never a cost-model argmin). `WidthInvariant`: a candidate's VLMAX exactly
+/// equals blockLen, so its register group holds the constant blockLen*sew-bit width
+/// -- the pure invariant, and the flip case (m2@VLEN128 / m1@VLEN256).
+/// `NarrowestCovering`: no candidate hits the invariant exactly, but at least one
+/// covers the block in one strip (VLMAX >= blockLen); the NARROWEST such (fewest
+/// vregs, least idle) is returned. `FallbackWidest`: no guaranteed VLEN >= 128
+/// fact exists to key on (unknown board / embedded tier / no -march), so the widest
+/// sufficient default is returned for zero regression -- HONESTLY not a prior.
+enum class RVVWidthInvariantLMULReason {
+  WidthInvariant,
+  NarrowestCovering,
+  FallbackWidest
+};
+
+inline llvm::StringRef
+stringifyRVVWidthInvariantLMULReason(RVVWidthInvariantLMULReason reason) {
+  switch (reason) {
+  case RVVWidthInvariantLMULReason::WidthInvariant:
+    return "effective_width_invariant";
+  case RVVWidthInvariantLMULReason::NarrowestCovering:
+    return "narrowest_covering";
+  case RVVWidthInvariantLMULReason::FallbackWidest:
+    return "fallback_widest";
+  }
+  return "";
+}
+
+struct RVVWidthInvariantLMULChoice {
+  llvm::StringRef lmul; // "" iff `candidates` was empty.
+  RVVWidthInvariantLMULReason reason =
+      RVVWidthInvariantLMULReason::FallbackWidest;
+};
+
+/// The effective-register-group-width-invariant LMUL as a CLOSED FORM
+/// f(minimumVLEN, sew, blockLen, candidates) (see the block comment). `candidates`
+/// is the constructible LMUL set (the reduction/K=32 int8 core passes {m1,m2} at
+/// sew=8). Returns the chosen LMUL + attribution reason. Matches the OLD argmin at
+/// every point: VLEN128 -> m2 (WidthInvariant), VLEN256 -> m1 (WidthInvariant),
+/// no guaranteed VLEN >= 128 -> widest (FallbackWidest, the byte-exact no-march
+/// default). "" only when `candidates` is empty (the caller then fail-closes, I7).
+inline RVVWidthInvariantLMULChoice
+getRVVEffectiveWidthInvariantLMUL(std::int64_t minimumVLEN, std::int64_t sew,
+                                  std::int64_t blockLen,
+                                  llvm::ArrayRef<llvm::StringRef> candidates) {
+  // The widest candidate: the fail-safe default AND the "no candidate covers" tail.
+  llvm::StringRef widest =
+      candidates.empty() ? llvm::StringRef() : candidates.front();
+  for (llvm::StringRef candidate : candidates.drop_front())
+    if (isRVVLMULWider(candidate, widest))
+      widest = candidate;
+
+  // No guaranteed VLEN >= 128 => no capability fact to select on: return the widest
+  // sufficient default (zero-regression no-march path). HONESTLY not a prior.
+  if (minimumVLEN < 128 || sew <= 0 || blockLen <= 0)
+    return {widest, RVVWidthInvariantLMULReason::FallbackWidest};
+
+  // (1) The pure invariant: VLMAX == blockLen <=> VLMAX*sew == blockLen*sew bits.
+  // VLMAX is monotone in LMUL, so AT MOST ONE candidate hits it (order-independent).
+  for (llvm::StringRef candidate : candidates)
+    if (getRVVStripVLMAXElements(candidate, sew, minimumVLEN) == blockLen)
+      return {candidate, RVVWidthInvariantLMULReason::WidthInvariant};
+
+  // (2) No exact invariant in the candidate set: the NARROWEST candidate that still
+  // covers the block in one strip (VLMAX >= blockLen) -- fewest vregs, least idle.
+  llvm::StringRef narrowest;
+  for (llvm::StringRef candidate : candidates) {
+    if (getRVVStripVLMAXElements(candidate, sew, minimumVLEN) < blockLen)
+      continue;
+    if (narrowest.empty() || isRVVLMULWider(narrowest, candidate))
+      narrowest = candidate;
+  }
+  if (!narrowest.empty())
+    return {narrowest, RVVWidthInvariantLMULReason::NarrowestCovering};
+
+  // (3) Even at VLEN >= 128 no candidate covers the block (a huge blockLen vs a
+  // narrow candidate set): the widest sufficient default, honestly a fallback.
+  return {widest, RVVWidthInvariantLMULReason::FallbackWidest};
+}
+
+//===----------------------------------------------------------------------===//
 // [GAP-NUM] capability-keyed NUMERICS-TIER selection (the schedule-stage sibling
 // of chooseFillOptimalLMUL). A PURE, COST-MODEL-FREE decision over exactly two
 // boolean facts: (1) whether the `numerics.reassoc_ok` (kind=policy) capability

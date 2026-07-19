@@ -326,57 +326,39 @@ matchBoundedWideningDotReduceSourceFunc(mlir::func::FuncOp func) {
 // (2) The capability-fact-driven integer-core LMUL anchor.
 //===----------------------------------------------------------------------===//
 
-// Select the integer-core LMUL anchor for the K=32 signed-int8 dot-reduce by
-// running the SHARED block-dot schedule authority. This is the maturity claim:
-// the LMUL string is the RETURN VALUE of enumerateBlockDotShapeCandidates +
-// selectGenericSchedule fed the REAL VLEN fact (deriveMinimumVLEN(march)), NOT
-// a hand `vlen<256 ? "m2" : "m1"` switch. The descriptor is built inline (its
-// own {m1,m2} anchor set + blockLen=32 + factorCap=1) so the engine is reused
-// without impersonating q8_0's {mf4,m1,m2}+factor descriptor (whose knobs this
-// robust single-block body cannot honor).
-//
-// At VLEN128: m2's strip VLMAX (e8m2 = 32) spans the 32-block in ONE reduce
-// (reductions=1); m1's VLMAX (16) needs 2 -> m2 wins on the lower static cost.
-// At VLEN256: m1's VLMAX reaches 32 (reductions drops 2->1), ties m2 on cost,
-// and wins on the lighter vreg footprint tiebreak. So the anchor FLIPS m2->m1
-// with the VLEN fact -- the e8m2 vs e8m1 emitted-body divergence.
+// Select the integer-core LMUL anchor for the K=32 signed-int8 dot-reduce from the
+// NAMED closed form getRVVEffectiveWidthInvariantLMUL(VLEN, sew, blockLen) in the
+// gearbox header -- NOT a hand `vlen<256 ? "m2" : "m1"` switch and NO LONGER the
+// enumerateBlockDotShapeCandidates + selectGenericSchedule argmin fallback (census2
+// "turn the argmin into a named f"). The robust single-block body consumes ONLY the
+// integer_core_lmul knob, so for this FIXED K=32 int8 block the resource-best legal
+// anchor is exactly the WIDTH-INVARIANT one: the LMUL whose per-strip VLMAX equals
+// the 32-block, so its vector register group holds a CONSTANT 256-bit effective
+// width (VLMAX*sew = 32*8) independent of VLEN. That IS the capability flip:
+//   * VLEN128: LMUL 2 (e8m2, VLMAX 32) -- one strip spans the 32-block.
+//   * VLEN256: LMUL 1 (e8m1, VLMAX 32) -- the SAME 256-bit group, one strip.
+// A wider VLEN pins the same group at a NARROWER LMUL, so the anchor FLIPS m2->m1
+// (the e8m2 vs e8m1 emitted-body divergence) -- byte-for-byte the old argmin's pick
+// (m2@VLEN128 / m1@VLEN256), now the RETURN VALUE of the explicit width-invariant
+// equation (reason `effective_width_invariant`, never a cost-model `static_order`)
+// instead of an enumerate+rank fallback.
 std::optional<std::string>
 selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
                       llvm::StringRef isaVectorHints) {
   std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
 
-  static constexpr llvm::StringLiteral kCoreLMULs[] = {"m1", "m2"};
-  RVVBlockDotKernelDescriptor descriptor{
-      /*coreLMULs=*/kCoreLMULs,
-      /*quantFormat=*/"plain-int8",
-      /*blockLen=*/kContractionBlockLen,
-      /*stripSEW=*/getRVVBlockDotStripSEW,
-      /*vectorRegisterCost=*/getRVVQ80ShapeVectorRegisterCost};
-  // factorCap=1: this first block emits the single-block robust form; the
-  // multi_block unroll axis is a separate Win-A brick, not folded in here.
-  descriptor.factorCap = 1;
-
-  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> typed =
-      enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
-                                       kRVVQ80ShapeVectorRegisterBudget);
-  llvm::SmallVector<GenericScheduleCandidate> candidates;
-  for (const RVVBlockDotShapeCandidate &candidate : typed)
-    candidates.push_back(toGenericBlockDotCandidate(candidate));
-
-  // No measurement record is consulted on this generic block-dot (static argmin
-  // only). Consume ONLY the integer_core_lmul knob: the body is the robust
-  // setvl-loop form, so factor/elision are not honored here.
-  static constexpr llvm::StringRef kRequiredKnobKeys[] = {"lmul"};
-  std::optional<GenericScheduleSelection> selected = selectGenericSchedule(
-      candidates, /*recordText=*/std::nullopt, /*kernelKey=*/"widening_dot_reduce_i8",
-      march, kRequiredKnobKeys);
-  if (!selected)
-    return std::nullopt; // every candidate pruned -> fail-closed (I7).
-
-  for (const NamedKnob &knob : selected->candidate.knobs)
-    if (knob.recordKey == "lmul")
-      return knob.value;
-  return std::nullopt;
+  // The K=32 int8 integer core strips at SEW8 (the i8 load -- getRVVBlockDotStripSEW
+  // on the m1/m2 anchors), over the anchor set {m1, m2}. The width-invariant closed
+  // form returns the LMUL whose VLMAX == kContractionBlockLen (32); it fail-closes
+  // to "" only on an empty candidate set, and returns the widest default when no
+  // guaranteed VLEN >= 128 fact exists (byte-exact no-march path).
+  static constexpr llvm::StringRef kCoreLMULs[] = {"m1", "m2"};
+  RVVWidthInvariantLMULChoice choice = getRVVEffectiveWidthInvariantLMUL(
+      minimumVLEN, /*sew=*/getRVVBlockDotStripSEW("m1"),
+      /*blockLen=*/kContractionBlockLen, kCoreLMULs);
+  if (choice.lmul.empty())
+    return std::nullopt; // empty candidate set -> fail-closed (I7).
+  return choice.lmul.str();
 }
 
 //===----------------------------------------------------------------------===//
