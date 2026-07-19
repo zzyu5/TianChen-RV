@@ -79,7 +79,7 @@
     PASS    dequantize|iq2_xs cold=3.88
     PASS    dequantize|iq2_s cold=1.7534
     PASS    dequantize|iq3_xxs cold=1.39
-    PASS    dequantize|iq3_s cold=2.08
+    PASS    dequantize|iq3_s cold=1.71
     PASS    dequantize|iq4_nl cold=5.51
     PASS    dequantize|iq4_xs cold=5.17
     PASS    dequantize|mxfp4 cold=6.42
