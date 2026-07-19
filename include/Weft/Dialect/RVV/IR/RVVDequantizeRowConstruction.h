@@ -95,7 +95,7 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format);
 // Construct the typed weft_rvv.typed_dequantize_row_loop_body region
 //   { dequantize_row_decode_core; typed_dequantize_row_loop_yield }
 // in place of `deqOp` (stamped with `facts`), then erase `deqOp`. The caller must
-// have confirmed `deqOp.getFormat()` is one of the 21 constructed formats
+// have confirmed `deqOp.getFormat()` is one of the 24 constructed formats
 // (lookupDequantizeRowStreamFacts != nullopt). Takes mlir::RewriterBase so BOTH a
 // plain IRRewriter (the pre-emitc pass) and a ConversionPatternRewriter (the
 // in-emitc fallback) drive the identical construction.

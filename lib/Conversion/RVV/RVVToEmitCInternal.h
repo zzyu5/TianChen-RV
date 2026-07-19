@@ -16,6 +16,7 @@
 
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Support/NibbleDecodePlan.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Support/GridDecodePlan.h"
 
@@ -4910,12 +4911,15 @@ private:
   /// monolith fallback stays on the scalar shared body (the q8_0/iq3_xxs precedent). The
   /// 16-lane half-block width + u8m1/u32m4/i32m4/f32m4 pipeline LMULs are DERIVED from the
   /// fixed QK/2 nibble geometry, NOT tunable knobs. opName/role thread the provenance.
+  /// Phase-2: reads the decode 8-tuple + strip geometry from the NibbleDecode
+  /// MechanismPlan (weft::NibbleDecodePlan) the FormulaProvider produced, INSTEAD of the
+  /// per-format scalars the caller used to scatter-read off the descriptor. Byte-exact
+  /// reproduce-current (the plan re-packages the identical phase-1 tuple).
   mlir::LogicalResult emitDequantizeRowNibbleVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
-      int64_t sub, bool hasMin, bool hasQh) const;
+      const ::weft::NibbleDecodePlan &plan) const;
 
   /// The per-format OWNED REAL-VECTOR nibble leaves (q4_0/q5_0/q4_1/q5_1) were RETIRED
   /// in phase-1 step (ii): emitTypedDequantizeRowLoopBody reads the decode 8-tuple from

@@ -1,6 +1,8 @@
 #ifndef WEFT_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H
 #define WEFT_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H
 
+#include "Weft/Support/NibbleDecodePlan.h"
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -13,6 +15,13 @@
 #include <optional>
 #include <string>
 #include <utility>
+
+// The flat nibble-family decode descriptor facts (Dialect side) the phase-2
+// FormulaProvider consumes. Forward-declared (const-ref parameter only) so this
+// heavily-included formula-layer header stays free of the Dialect/MLIR include weight.
+namespace weft::rvv {
+struct DequantizeRowStreamFacts;
+} // namespace weft::rvv
 
 namespace weft::plugin::rvv {
 
@@ -2720,6 +2729,27 @@ getRVVCodebookGatherAnchorLMUL(std::int64_t minimumVLEN, std::int64_t sew,
       return rung;
   return llvm::StringRef();
 }
+
+//===----------------------------------------------------------------------===//
+// DequantMechanismPlan FormulaProvider (§〇 formula-layer home): the flat nibble
+// family's NibbleDecode MechanismPlan producer. Declaration only -- defined in
+// RVVToEmitCSupport.cpp so this header stays free of the Dialect facts include.
+//===----------------------------------------------------------------------===//
+
+/// The FormulaProvider f(g, c) for the flat nibble dequant family (phase-2): produce
+/// the NibbleDecode MechanismPlan (weft::NibbleDecodePlan, Support) from the stamped
+/// decode_core descriptor facts `g` and the minimum-VLEN capability `c`. Phase-2 is
+/// REPRODUCE-CURRENT: the plan re-packages the phase-1 decode 8-tuple byte-for-byte and
+/// pins the PARAMETRIC geometry (load_lmul / strip_lanes) to the FIXED ggml-ABI
+/// half-block anchor (m1, qk/2). `minimumVLEN` is the phase-3 c-driving seam (phase-3
+/// selects load_lmul = f(VLEN) via getRVVStripVLMAXElements and widens the strip); this
+/// cut's derivation is VLEN-independent. The nibble emitter reads plan.* INSTEAD of
+/// scatter-reading the descriptor 8-tuple. [K-10]: this returns the NibbleDecode plan
+/// ONLY; it never selects among the five mechanisms by a discriminant (each mechanism
+/// gets its own FormulaProvider + plan struct).
+weft::NibbleDecodePlan
+nibbleDecodePlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
+                         std::int64_t minimumVLEN);
 
 //===----------------------------------------------------------------------===//
 // [SEL-1] capability-keyed fill-optimal LMUL prior (the FIRST capability-derived

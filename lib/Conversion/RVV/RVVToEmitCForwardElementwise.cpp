@@ -4,6 +4,8 @@
 #include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/NibbleDecodePlan.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -2967,12 +2969,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
-    int64_t sub, bool hasMin, bool hasQh) const {
+    const ::weft::NibbleDecodePlan &plan) const {
+  // Phase-2: the decode 8-tuple + strip geometry are READ from the NibbleDecode plan
+  // (weft::NibbleDecodePlan, produced by nibbleDecodePlanFromFacts) INSTEAD of the
+  // retired per-format scalar params. Byte-exact reproduce-current: plan.* re-packages
+  // the identical phase-1 descriptor tuple.
+  const int64_t stride = plan.weightBlockStride;
+  const int64_t dOff = plan.scaleByteOffset;
+  const int64_t mOff = plan.minByteOffset;
+  const int64_t qhOff = plan.qhByteOffset;
+  const int64_t qsOff = plan.quantByteOffset;
+  const int64_t sub = plan.nibbleBias;
+  const bool hasMin = plan.hasMin;
+  const bool hasQh = plan.hasQh;
   // block_q4_0/q4_1/q5_0/q5_1 AoS facts: qk=32 lanes per block, 16 packed nibble bytes
   // (the byte-exact ggml ABI shape constants, NOT tunable knobs -- the SAME facts the
-  // scalar emitDequantizeRowNibbleBodyShared hard-codes).
+  // scalar emitDequantizeRowNibbleBodyShared hard-codes). The half-block strip lane
+  // count rides the plan (plan.stripLanes == qk/2 == 16, reproduce-current -- phase-3
+  // will c-drive it), so a plan change to stripLanes CHANGES the emitted per-strip vl.
   const int64_t qk = 32, half = qk / 2;
+  const int64_t stripLanes = plan.stripLanes;
 
   mlir::MLIRContext *ctx = rewriter.getContext();
   mlir::Type inputPtrType = input.getType();   // const uint8_t *
@@ -3011,7 +3027,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleVectorBody(
   auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) {
     return emitLoadByteAsUint(rewriter, loc, constU8Type, uintType, ptr, i);
   };
-  mlir::Value halfVl = sizeLit(half);
+  // The per-strip vl rides the plan (plan.stripLanes, reproduce-current == half == 16):
+  // the load-bearing witness that the emit consumes the PLAN's DERIVED geometry.
+  mlir::Value halfVl = sizeLit(stripLanes);
 
   rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -4818,51 +4836,60 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   if (mlir::IntegerAttr entryLanesAttr =
           coreOp->getAttrOfType<mlir::IntegerAttr>("codebook_entry_lanes"))
     codebookEntryLanes = entryLanesAttr.getInt();
-  // Phase-1: the flat nibble-family decode-mechanism 8-tuple, READ from the stamped
-  // decode_core descriptor (RVVDequantizeRowConstruction centralizes it) instead of
-  // re-baked from the format string in the per-format vector leaf. hasMin / hasQh are
-  // the OPTIONAL min / qh byte-offset PRESENCE (the shared body reads mOff only under
-  // hasMin, qhOff only under hasQh; an absent nibble_bias == sub 0). Reconstructs
-  // EXACTLY the tuple the per-format leaf used to hard-code (risk point 4: the stamped
-  // attr IS the descriptor value the shared body consumes).
-  int64_t nibbleStride = coreOp.getWeightBlockStrideAttr().getInt();
-  int64_t nibbleScaleOff = coreOp.getScaleByteOffsetAttr().getInt();
-  int64_t nibbleQuantOff = coreOp.getQuantByteOffsetAttr().getInt();
-  int64_t nibbleBias =
-      coreOp.getNibbleBiasAttr() ? coreOp.getNibbleBiasAttr().getInt() : 0;
-  bool hasMin = static_cast<bool>(coreOp.getMinByteOffsetAttr());
-  bool hasQh = static_cast<bool>(coreOp.getQhByteOffsetAttr());
-  int64_t nibbleMinOff = hasMin ? coreOp.getMinByteOffsetAttr().getInt() : 0;
-  int64_t nibbleQhOff = hasQh ? coreOp.getQhByteOffsetAttr().getInt() : 0;
-  // Dispatch on decode_model to the per-format leaf: each re-emits the whole nb
-  // block loop + per-block decode via the SHARED body emitter, byte-exact to the
-  // dispatch-wired monolith.
-  // The flat nibble leaves (q4_0/q5_0 the single-mul SAFE set, q4_1/q5_1 the min-add
-  // FMA set) are the THIRD..SIXTH cells of the dequant true-vector emitter (R线 §四.1,
-  // fan-out over the q8_0 non-grid precedent): the CONSTRUCTED path lowers to the OWNED
-  // real-vector body (vle8 + vand/vsrl nibble split + vzext + [q5 5th-bit spread] +
-  // vfcvt + vfmul_vf / [q4_1/q5_1 fused vfmacc_vf] + vse32, NO gather), NOT the scalar
-  // per-element loop the dispatch-wired monolith fallback still runs. Byte-exact to the
-  // ggml reference by construction (q4_0/q5_0 single-mul -> no fp-contraction ambiguity;
-  // q4_1/q5_1 single fused mul-add -> matches the contracted opponent autovec vfmadd).
-  // The monolith fallback keeps the scalar emitDequantizeRow<FMT>BodyShared.
-  // Phase-1 step (ii): the flat-nibble-family dispatch is now KEYED ON the carrier_kind
-  // descriptor, NOT the format-name string -- the format name has lost dispatch power
-  // over the decode leaf. carrier_kind selects between the TWO ALREADY-SEPARATE leaves
-  // ([K-10] leaf selection, NOT a plan-internal mechanism switch): "nibble4" -> the
-  // shared 4-bit nibble vector body (sourced from the descriptor 8-tuple), "bare_int8"
-  // -> the separate q8_0 signed-int8 leaf (below). Every K-quant / IQ / codebook /
-  // ternary decode_core leaves carrier_kind absent, so it falls through to its own
-  // decode_model branch. Byte-exact: the descriptor 8-tuple IS the value the retired
-  // per-format leaf used to re-bake (risk point 4).
+  // Phase-2: the flat nibble family's decode is assembled into a NibbleDecode
+  // MechanismPlan (weft::NibbleDecodePlan) by the FormulaProvider
+  // nibbleDecodePlanFromFacts (RVVGearboxSchedule.h -- the §〇 formula-layer home) from
+  // the stamped decode_core descriptor facts, and the nibble emitter READS plan.* --
+  // NOT the scattered descriptor 8-tuple (phase-1's per-attr reads are RETIRED here).
+  // Byte-exact reproduce-current: the plan re-packages the identical phase-1 tuple;
+  // loadLMUL/stripLanes are pinned to the FIXED ggml-ABI geometry (phase-3 c-drives
+  // them). [K-10]: NibbleDecodePlan is the NibbleDecode mechanism's OWN plan; the ONE
+  // in-plan choice, plan.carrier, selects between the two ALREADY-SEPARATE leaves
+  // (bare_int8 q8_0 vs the shared nibble4 body) -- a leaf SELECTION, NOT a plan-internal
+  // mechanism switch. Only the flat nibble family stamps carrier_kind; every K-quant /
+  // IQ / grid / ternary decode_core leaves it absent and falls through to its own
+  // decode_model branch below.
   mlir::StringAttr carrierAttr = coreOp.getCarrierKindAttr();
-  llvm::StringRef carrierKind =
-      carrierAttr ? carrierAttr.getValue() : llvm::StringRef();
-  if (carrierKind == "nibble4")
-    return emitDequantizeRowNibbleVectorBody(
-        rewriter, loc, weightBase, output, avlArg, sizeType, opName, role,
-        nibbleStride, nibbleScaleOff, nibbleMinOff, nibbleQhOff, nibbleQuantOff,
-        nibbleBias, hasMin, hasQh);
+  std::optional<::weft::NibbleDecodePlan> nibblePlan;
+  if (carrierAttr) {
+    // Rebuild the descriptor facts `g` the front door stamped, then run the provider.
+    weftrvv::DequantizeRowStreamFacts nibbleFacts{};
+    nibbleFacts.qk = coreOp.getQkAttr().getInt();
+    nibbleFacts.weightBlockStride = coreOp.getWeightBlockStrideAttr().getInt();
+    nibbleFacts.scaleByteOffset = coreOp.getScaleByteOffsetAttr().getInt();
+    nibbleFacts.quantByteOffset = coreOp.getQuantByteOffsetAttr().getInt();
+    nibbleFacts.codebookEntryLanes = codebookEntryLanes.value_or(0);
+    nibbleFacts.carrier = carrierAttr.getValue() == "bare_int8"
+                              ? weftrvv::NibbleCarrierKind::BareInt8
+                              : weftrvv::NibbleCarrierKind::Nibble4;
+    if (mlir::IntegerAttr bias = coreOp.getNibbleBiasAttr())
+      nibbleFacts.nibbleBias = bias.getInt();
+    if (mlir::IntegerAttr minOff = coreOp.getMinByteOffsetAttr())
+      nibbleFacts.minByteOffset = minOff.getInt();
+    if (mlir::IntegerAttr qhOff = coreOp.getQhByteOffsetAttr())
+      nibbleFacts.qhByteOffset = qhOff.getInt();
+    ::weft::NibbleDecodePlan plan =
+        ::weft::plugin::rvv::nibbleDecodePlanFromFacts(nibbleFacts,
+                                                       /*minimumVLEN=*/128);
+    plan.provenanceFormat = decodeModel; // diagnostic only (name AS DATA, [F-1])
+    // Reproduce-current geometry gate (fail-closed, the GridDecodePlan discipline):
+    // phase-2 realizes ONLY the m1 half-block anchor; a future non-m1 plan fail-CLOSES
+    // here rather than silently emitting an inconsistent widening chain.
+    if (plan.loadLMUL != "m1")
+      return rewriter.notifyMatchFailure(
+          loopBody, llvm::Twine("nibble decode plan [") +
+                        ::weft::dequantMechanismName(plan.mechanism) + " " +
+                        plan.reason + "] for format '" + plan.provenanceFormat +
+                        "' pins the reproduce-current m1 load anchor; a non-m1 "
+                        "loadLMUL is phase-3 (c-driven) and not yet realized");
+    nibblePlan = plan;
+    // [K-10] leaf selection: the nibble4 carrier routes to the shared 4-bit nibble
+    // vector body (which now reads plan.*); the bare_int8 (q8_0) carrier falls through
+    // to its own leaf below (after the K-quant / IQ / grid branches).
+    if (plan.carrier == ::weft::NibbleCarrier::Nibble4)
+      return emitDequantizeRowNibbleVectorBody(rewriter, loc, weightBase, output,
+                                               avlArg, sizeType, opName, role, plan);
+  }
   // The K-quant QK_K=256 super-block leaves (q2_K/q3_K/q4_K/q5_K/q6_K) are the R线
   // §四.2 K-quant fan-out cells of the dequant true-vector emitter: the CONSTRUCTED
   // path lowers to the OWNED real-vector body (per-super-sub vle8 + vand/vsrl bit
@@ -4924,7 +4951,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   // ggml's dequantize_row_q8_0 by construction (q8_0 has no add/min => no
   // fp-contraction ambiguity). The iq3_xxs precedent: the vector body lives only on
   // the constructed leaf; the monolith fallback keeps the scalar shared body.
-  if (carrierKind == "bare_int8")
+  if (nibblePlan && nibblePlan->carrier == ::weft::NibbleCarrier::BareInt8)
     return emitDequantizeRowQ8_0VectorBody(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
   return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,
