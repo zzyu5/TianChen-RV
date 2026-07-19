@@ -166,3 +166,81 @@ module {
     }
   }
 }
+
+// -----
+
+// ========= DECISIVE (r5.1 W1 · census-F7/F6 shape-isolation): shape ALONE moves θ =====
+// The tiling classifier's θ (tiling_variant) genuinely MOVES with the bottleneck SHAPE,
+// isolated from the offline-measurement confound the MEASURED rows above carry. BOTH
+// leaves below share the SAME capability -- an @rvv provider carrying minimum_vlen = 256
+// -- whose declared-instance hash DIVERGES from the offline-seeded rvv/VLEN128 board
+// (3cd23a4e...), so BOTH MISS the measurement library => BOTH cold-start at reason=prior
+// (the measurement branch is held CONSTANT, unlike the seeded K-quant above). VLEN 256 >=
+// 128 keeps the Stage-1 feasible set {plain, s6_tiled} (size 2, so never only_feasible /
+// static_order). The ONLY differing selection input across the two leaves is the
+// fold_model-derived SHAPE; every other input (capability, VLEN, vreg budget, measurement
+// branch, regime) is byte-identical. The variant FLIPS s6_tiled <-> plain PURELY via
+// priorTilingVariantForShape (census F6, the real g/shape-consumer).
+//
+// This pins the r5.1 W1 verdict for census-F7 tilingVariantFeasibleSet: its (void)shape
+// is NOT a dropped input but the deliberate TWO-STAGE separation -- Stage-1 LEGALITY is
+// capability-only (every VLEN>=128 / 32-vreg board admits BOTH variants for EVERY shape,
+// so F7's output is CONSTANT in shape; forcing shape into it would be a 摆设 dead knob, or
+// a byte-exact regression of this prior attribution), while the shape is genuinely
+// consumed one function over in F6. Change the shape => the variant changes; else nothing.
+//
+//   MinFoldRegisterCliff  (fold_model "kquant_dmin_bsums_min")     --prior--> s6_tiled
+//   DualPlaneWeightBound  (fold_model "kquant_single_scale_no_min") --prior--> plain
+// (cold-start prior, NOT static_order -- the capability-afforded feasible set is size 2.)
+// NOSTATIC-NOT: static_order
+
+// DECISIVE min-fold register-cliff SHAPE: cold-start => prior => s6_tiled.
+// CHECK-LABEL: weft.exec.variant @tiling_shape_iso_mincliff
+// CHECK: weft_rvv.typed_repack_gemm_loop_body
+// CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "prior"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}reason{{.*}}prior
+// CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
+module {
+  weft.exec.kernel @tiling_shape_iso_mincliff_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available", minimum_vlen = 256 : i64}
+    weft.exec.variant @tiling_shape_iso_mincliff attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q2-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @tiling_shape_iso_mincliff, sew = 32 : i64, source_kernel = "tiling_shape_iso_mincliff_kernel", status = "selected-lowering-boundary"} {
+        %dot = weft_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q2_K", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-16-subblocks-2bit", m_regime = "prefill", qk = 256 : i64, weight_layout = "plain", weight_block_stride = 84 : i64, activation_block_stride = 292 : i64, quant_byte_offset = 16 : i64, activation_high_byte_offset = 0 : i64, block_dot_compute_heavy = true} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
+    }
+  }
+}
+
+// -----
+
+// DECISIVE dual-plane weight-bound SHAPE: SAME cold-start capability => prior => plain.
+// Only the fold_model differs from the min-cliff leaf above; the variant flips to plain.
+// CHECK-LABEL: weft.exec.variant @tiling_shape_iso_weightbound
+// CHECK: weft_rvv.typed_repack_gemm_loop_body
+// CHECK-SAME: fold_model = "kquant_single_scale_no_min"
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "prior"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}reason{{.*}}prior
+// CHECK-SAME: weft_rvv.tiling_variant = "plain"
+module {
+  weft.exec.kernel @tiling_shape_iso_weightbound_kernel {
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available", minimum_vlen = 256 : i64}
+    weft.exec.variant @tiling_shape_iso_weightbound attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
+      %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q6-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @tiling_shape_iso_weightbound, sew = 32 : i64, source_kernel = "tiling_shape_iso_weightbound_kernel", status = "selected-lowering-boundary"} {
+        %dot = weft_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q6_K", scale_model = "superblock-d.fp16-signed8-scale-16-subblocks-6bit-nomin", m_regime = "prefill", qk = 256 : i64, weight_layout = "plain", weight_block_stride = 210 : i64, activation_block_stride = 292 : i64, quant_byte_offset = 0 : i64, activation_high_byte_offset = 0 : i64, block_dot_compute_heavy = true} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
+    }
+  }
+}
