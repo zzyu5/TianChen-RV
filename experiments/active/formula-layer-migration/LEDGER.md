@@ -68,6 +68,13 @@
 - **判决 lit**：`test/Conversion/RVV/rvv-repack-accumulator-lmul-measured-gate-q8.mlir`（q8→m1·q4_1→mf2）。
 - **★资格注（audit C2/B4）**：perf 幅度走 ad-hoc·无 T-N·= measured 非 T-N-qualified·pending bench 复测（[[ISSUE-107]] 同注）。**结构（measured-gate 通道活了·byte-exact）是硬事实**。
 
+### MIG-C2 · measured-table 扩到 repack 家族（`a230adc61`·W5/B1 board-sweep）
+- **动作**：B1 [GAP-P1] repack 家族 @rvv VLEN128 board-sweep·`kRepackMeasuredM1FasterMeasurements` 加 2 行。
+- **计数**：**measured-table (d) 1→3**（q8 + **q4_0** + **q4_1**·全 registration-as-DATA·无 format-switch）。
+- **board 证**：q4_0 m1 双 regime 赢（decode 2.3-2.5× / prefill 1.24×·spill=0）；q4_1 m1 decode 2.3× 赢·prefill parity·spill=0。全 3-arm byte-exact mism=0·CORE==PROD·9 lit PASS。
+- **★[GAP-P1] 不等式 VINDICATED**：q5_0/q5_1 **KEEP mf2**（honest-null·非硬塞）——decode m1 赢但 prefill GEMM m1 emit **SPILL**（objdump 1-2 whole-reg reload·2.3-2.4× SLOWER）·`rvvRegisterPressureLegal`(MIG-0) 的 spill 预测**兑现**·一行翻双 regime ⟹ 保 mf2。
+- **★q8 vs-对手 = honest-null**（naive 投影证伪·未造数）：ggml x16 对手 VLEN256-tuned·VLEN128 byte-INEXACT=非合法对手·~4-5× 无效。真 VLEN128 对手识别 = 余项。
+
 ### MIG-T3 · θ20 iq2_xxs 试迁 = 诚实-null（`6bc02a7cc`）（= T3）
 - **动作**：试把 θ20 `RVVToEmitCKQuant.cpp:5971 value_or("m2")` 提为 measured gearbox。
 - **结论**：**honest-null**——board 证伪前提（VLEN-correctness 墙·非 measured gearbox 可翻）。**无计数变化**（θ20 维持 (c) value_or）·记「试过·held」防复试。emit-neutral 注释入 `RVVToEmitCKQuant.cpp`。
@@ -87,7 +94,7 @@
 |---|---|---|---|
 | θ (a) f 算出 | 11 | **12** | +θ14（MIG-B） |
 | θ (c) 焊死 | 21 | **20** | −θ14（MIG-B）；MIG-1 在飞不改 θ 类（改 g-焊死处计数） |
-| θ (d) measured-table | 0 | **≥1** | +θ1 q8（MIG-C·supervisor 裁） |
+| θ (d) measured-table 行数 | 0 | **3**（q8/q4_0/q4_1） | MIG-C(q8) + MIG-C2/B1(q4_0/q4_1)·q5 spill-KEEP mf2 |
 | 残余焊死 g | 18 | **18→≤15**（MIG-1 落后） | GridCodebook entryLanes/groupLanes |
 | provider 零消费 | 9 | **8** | −vlenb:bytes（MIG-A） |
 | 家里 closed-form f 族 | 0（家未立） | **2**（codebook-anchor + reg-pressure） | MIG-B + MIG-0 |
@@ -103,7 +110,7 @@
 | MIG-1 | 律2 entryLanes→描述符（GridCodebook） | 焊死 g 18→≤15 | §四.5 三闸 | **在飞** |
 | MIG-2 | coreLmul 真焊死 θ9-13→f（GridCodebook 497/995·Ternary 862·BQL 111/404） | 焊死(c) 20→15 | **BLOCKED**：[K-10] MAINTAIN——Context **无 coreLmul 字段·无 IR 宽度可读**·强 lift=造假旋钮。**须先给描述符加 coreLmul typed 字段**（MIG-1 的 entryLanes→descriptor 机制可复用铺路） | 阻塞·待 MIG-1 |
 | MIG-3 | `selectRepackAccumulatorLMUL` 家族→搬进 `RVVGearboxSchedule.h` 家 | f 集中化（现散在前门 `RVVLowerQuantContraction.cpp:1285`） | byte-exact·消费侧 18 fail-closed 读不变 | 待排 |
-| MIG-4 | measured-table 扩行（更多格式入 `kRepackMeasuredM1FasterMeasurements`） | (d) ≥1→≥N | **gated on bench 通道 + T-N**（audit B4·CLAUDE.md:35 现行法：现数 ad-hoc 无资格） | 待排·卡 bench |
+| MIG-4 | measured-table 扩行（更多格式入 `kRepackMeasuredM1FasterMeasurements`） | (d) 3→≥N | **repack 家族已扫**（B1·a230adc61·q4_0/q4_1 FLIP·q5 spill-KEEP·q8 vs-对手 honest-null）。**余 = K-quant decode repack-GEVM**（q2/q3/q4/q6_K·路由确经 selectRepackAccumulatorLMUL:3910·未板扫·据 q5 GEMM-spill 律预测多半 mf2）+ q8/q4 **vs-真-VLEN128-对手**（4x8/SpacemiT/block-dot 识别·gated on bench+T-N） | 部分完成·余卡 board+bench |
 
 ---
 
