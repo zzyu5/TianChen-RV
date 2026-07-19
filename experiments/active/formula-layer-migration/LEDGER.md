@@ -50,7 +50,8 @@
 - **计数**：f 家 +1 族；接入 dot-reduce enumerator + repack accumulator（byte-exact·产物不变）。
 - **判决 lit**：`test/Conversion/RVV/rvv-register-pressure-inequality-decisive.mlir`（budget 32→i32m8 / budget 9→i32m1·合法集随输入真变）。
 
-### MIG-A · vlenb_bytes → 承重 minimum_vlen 源（`17fb314e2` + `.h` 补 `bcde2212c`）（= T1）
+### MIG-A · vlenb_bytes → 承重 minimum_vlen 源（真封口 `abb7e0304`·.h `bcde2212c`）（= T1）
+> ⚠**封口订正**：`17fb314e2`（原记）**只提交了 task 元数据**（check/implement.jsonl/prd/task.json）·**.cpp 定义+wiring+判决 lit 从未入库**（误提交·遗漏工作树）。真封口 = `abb7e0304`（byte-exact + FileCheck 2/2 DECISIVE PASS·2026-07-20 核出）。
 - **动作**：真板 VLEN 事实 `rvv.vlenb_bytes`（probe 盖章）成为 minimum_vlen 承重源·**优先于 -march 猜**（VLEN = VLENB×8）。
 - **计数**：provider 零消费 **9→8**（vlenb:bytes 从"声明未消费"→真消费）；c 输入「VLEN」从"march 解析猜"→"吃板事实"。
 - **判决 lit**：`test/Conversion/RVV/rvv-vlenb-source-vlen-decisive.mlir`（vlenb=32⊥march=zvl128b/zvl512b·θ 恒 half_lanes=16 跟 vlenb 非 march）。
