@@ -111,8 +111,10 @@
 
 | # | 迁移 | 目标 | 依赖/闸 | 状态 |
 |---|---|---|---|---|
-| MIG-1 | 律2 entryLanes→描述符（GridCodebook） | 焊死 g 18→≤15 | §四.5 三闸 | **在飞** |
-| MIG-2 | coreLmul 真焊死 θ9-13→f（GridCodebook 497/995·Ternary 862·BQL 111/404） | 焊死(c) 20→15 | **BLOCKED**：[K-10] MAINTAIN——Context **无 coreLmul 字段·无 IR 宽度可读**·强 lift=造假旋钮。**须先给描述符加 coreLmul typed 字段**（MIG-1 的 entryLanes→descriptor 机制可复用铺路） | 阻塞·待 MIG-1 |
+| MIG-1 | 律2 entryLanes→描述符（GridCodebook·grid 3 格） | 焊死 −3 | §四.5 三闸 | **✓ 完成**`06cc93fb3` |
+| **phase-1** | **nibble 家 vertical slice**（q8_0/q4_0/q4_1/q5_0/q5_1·结构化 descriptor·decode-mechanism 8-tuple 中心化·删 emitter re-bake）·= §六.3·**F1 falsifier=验收门**（合成格式只加 descriptor 行·C1/C2 度量） | phase-① 第二步·来源解耦 | byte-exact by-construction·5 风险点 assert·**与 MIG-5 文件不相交可并行**（不碰 RVVGearboxSchedule.h） | **下一个可派** |
+| MIG-5 | 家族/宽度选择器 argmin→具名闭式 f（reduction/contraction 轴·θ_width=f(VLEN,dataWidth)） | phase-③ 原语 | 判决实验=翻 VLEN→输出翻·防假重构 | **在飞** |
+| MIG-2 | coreLmul 真焊死 θ9-13→f（GridCodebook 497/995·Ternary 862·BQL 111/404） | 焊死(c) 20→15 | **BLOCKED**：[K-10] MAINTAIN——Context **无 coreLmul 字段·无 IR 宽度可读**·强 lift=造假旋钮。**须先给描述符加 coreLmul typed 字段**（= phase-② plan.load_lmul·MIG-1 机制铺路） | 阻塞·待 phase-② |
 | MIG-3 | `selectRepackAccumulatorLMUL` 家族→搬进 `RVVGearboxSchedule.h` 家 | f 集中化（现散在前门 `RVVLowerQuantContraction.cpp:1285`） | byte-exact·消费侧 18 fail-closed 读不变 | 待排 |
 | MIG-4 | measured-table 扩行（更多格式入 `kRepackMeasuredM1FasterMeasurements`） | (d) 3→≥N | **repack 家族已扫**（B1·a230adc61·q4_0/q4_1 FLIP·q5 spill-KEEP·q8 vs-对手 honest-null）。**余 = K-quant decode repack-GEVM**（q2/q3/q4/q6_K·路由确经 selectRepackAccumulatorLMUL:3910·未板扫·据 q5 GEMM-spill 律预测多半 mf2）+ q8/q4 **vs-真-VLEN128-对手**（4x8/SpacemiT/block-dot 识别·gated on bench+T-N） | 部分完成·余卡 board+bench |
 
@@ -128,3 +130,158 @@
 ---
 
 **账本维护**：每完成一 MIG·在 §二 追一节 + §三/§四 更计数与队列。**基线（§一）钉死不动**·只在 census-v3 re-pin 时整体翻页。
+
+
+---
+
+## 六 · 升级目标节 · dequant 模块化统一链（DequantMechanismPlan）
+
+> **来源**：外部 agent 架构建议（待核实非照搬）+ 4 份只读研究 + supervisor 4 项已核实事实。
+> **主线归属**：论文柱一（工程证据·C1 可扩展性 / C2 边际成本）。**本节 = 升级目标·非承诺已落**。落地仍走 §二 逐 MIG + §五 三闸。
+> **一句话目标**：把 dequant 的执行分派权从「格式名字符串」搬到「结构化 g 描述符 → FormulaProvider(g,c) → MechanismPlan → emitter 只读 plan」的链上；格式名降级为纯 provenance/诊断。**当前诚实态 = 来源部分解耦·推导与消费仍耦合在 `format`/`decode_model` 字符串**（研究 2 分级图）。
+
+---
+
+### 六.1 · 目标架构（MechanismPlan 字段形态 + 住址 + canon 依据 + 复用面）
+
+**canon 合规支点（研究 1 权威边界·已核实）**：
+- FormulaProvider(g,c)→MechanismPlan 的 canon 类别 = **Selected-Body Realization**（transient C++ 编译期操作·`插件协议.md:83,93-105,144` 明列 Plugin-Owned）。**非** weft.exec（I2·计算语义属 extension family）、**非** schema.def 第六件 shape（[S-5]·插件内部代码不入 shape·改它不触 `schema.def`）、**非** route provider 自建 route（plan 喂 realized body 给 route provider）。
+- ⚠**hook 名订正（load-bearing）**：外部建议的 `realizeSelectedVariantBody` 只是 spec 散文通用名。真实可覆写 hook = **`materializeSelectedLoweringBoundary` / `validateSelectedLoweringBoundary`**（`include/Weft/Plugin/ExtensionPlugin.h:684-688`·registry 侧 `:745-749`·**已核实**）。
+- ⚠**代码-locus vs canon-类别 的诚实区分**：dequant-row 的实际下降走 `--weft-rvv-lower-to-emitc` 转换 pass + 前门 pass（`RVVDequantizeRowStreamFrontDoor.cpp`），是 **RVV 插件内部 pass**，今天**并未**穿过 `ExtensionPlugin` 的虚 hook。故：**canon-类别 = realization**（授权本工作为 plugin-owned·合法性来源），**代码-住址 = RVV 插件内部构造/发射 pass 内联**。MechanismPlan 是插件内部 transient C++ 对象·在构造↔发射之间流动·**禁**抬进 `VariantLoweringBoundaryRequest/Result` 等跨-ABI 结构（[P-1] 准-ABI·一旦跨 hook 边界即触 RFC）。
+
+**MechanismPlan 字段形态**（研究 3 · 每字段标 复用/新增 + 来源 file:line）：
+
+| 字段 | 类型 | 复用/新增 | 来源（现存·已核实） | 备注 |
+|---|---|---|---|---|
+| `mechanism` | `enum {NibbleDecode, KQuantScaleMin, CodebookGather, GridLookup, TernaryDecode}` | **新增** | 从 g 派生（`DequantizeRowStreamFacts` + `GridDecodePlan` 在场/entryWidth）·**永不从格式名派生分派** | **替** `RVVToEmitCForwardElementwise.cpp:4875-4952` 的 decode_model 字符串 if-链 |
+| `load_lmul` | `StringRef` | **复用** | `getRVVCodebookGatherAnchorLMUL`（`RVVGearboxSchedule.h:2713`）/ `chooseFillOptimalLMUL`（同文件 `:2798`·研究3） | 闭式·无 `"m1"` 硬编码字面量 |
+| `widen_chain` | `WideningChain {l8,l16,l32,stripWidth,foldGroups}` | **复用 struct + derive** | `deriveWideningChain(base)`（`RVVToEmitCSupport.h:419`·struct `:411`·`stripWidth:415`/`foldGroups:416`·**已核实**） | 已是 q4_K/q6_K/FP4 核的 single-source-of-truth |
+| `strip_lanes` | `int64` | **复用** | `getRVVStripVLMAXElements(lmul,sew,minVLEN)`（`RVVGearboxSchedule.h:2689`·**已核实**）；repack 核用 `deriveRepackHalfLanes`（研究3） | = `min(g.group_lanes, VLMAX)`·minVLEN<128 fail-close 到 0 |
+| `legality` | `struct {bool isLegal; enum LegalityReason;}` | **复用逻辑** | whole-block cover ∧ gather span ∧ `rvvRegisterPressureLegal`（`RVVGearboxSchedule.h:2141-2185`） | **verifier 用同一 `getRVVStripVLMAXElements` 独立重算**（见六.1 末尾·已核实此模式在 verifier 在用） |
+| `reason` | reason-trace（聚合 `RVVFillLMULReason` 等·研究3） | **新增聚合·复用成员** | 先例 = `RVVFillLMULChoice.reason` / `RVVNumericsTierChoice.reason`（`{value,reason}` 形·研究3） | 论文取的 reason trace |
+| `provenanceFormat` | `StringRef` | **新增（仅诊断）** | `deqOp.getFormat()`/`decodeModel` | **[F-1] 声明式假阳性合规**：名作数据·**非**执行键 |
+
+> **净新增字段 = `mechanism` / `reason` / `provenanceFormat` 三个**；`load_lmul`/`widen_chain`/`strip_lanes`/`legality` 全是既存闭式的薄封装（各自几何的 single-source-of-truth 已在）。
+
+**verifier 独立重算已有先例（已核实·非新造模式）**：`getRVVStripVLMAXElements` **已被 Dialect verifier `lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp` include 并调用**（grep 命中·resolves 研究3 的「Dialect→Gearbox 是否合法」open flag = **合法且在用**）。`RVVBlockDotKernelDescriptor`（`RVVGearboxSchedule.h:2942-2972`·研究3）的 verifier 从**同一** VLMAX 公式独立重算 `gatherLegal`（`:2953`）= 提案 stage② 「verifier 可独立重算·fail-closed」要复用的正是此模式。
+
+**MechanismPlan 住址（决策点·phase-2 kickoff 确认·非 phase-1 引入·非自决）**：
+- 选项 A：struct 住 `include/Weft/Support/`（比照 `GridDecodePlan.h:21-23` 明写「因 verifier 与 emitter 都 link Support·Conversion→Dialect 是唯一合法方向」）；FormulaProvider 函数住 `RVVGearboxSchedule.h`（§〇 公式层家）。
+- 选项 B：struct + 函数全住 `RVVGearboxSchedule.h`（该文件**已**被 verifier + emitter 双消费·保 §〇「唯一 closed-form-f 宿主」不变量）。
+- **倾向 B**（一致于 §〇 + 已双消费实证）·但 struct 是数据类型非公式·按 `GridDecodePlan.h` 明规也可入 Support。**phase-1 不创建此 struct·故此决策安全延后到 phase-2**。
+
+**emitter 消费 plan · 格式名降级的边界**：找 op 靠 **op-identity**（`dyn_cast<TypedDequantizeRowLoopBodyOp>`/`<DequantizeRowDecodeCoreOp>`·研究2·已解耦）；选执行叶靠 **plan.mechanism（5 类枚举）**（替 `:4875-4952` 的 decode_model 24 路字符串）；`provenanceFormat` 只进诊断注释·**不进任何分派/地址算术**。
+
+---
+
+### 六.2 · 5 阶段路线映射现状 + MIG-* 映射（phase-1 = 下一步）
+
+| 外部 phase | 现状完成度 | 已落 MIG-* 映射 | 备注 |
+|---|---|---|---|
+| **① 统一 g（nibble descriptor·结构化·删重复格式名单·byte-exact）** | **PARTIAL** | **MIG-1**（律2 entryLanes→`codebook_entry_lanes` OptionalAttr·grid 3 格·证 descriptor-stamp→emitter-read 范式`06cc93fb3`）+ **MIG-1b**（ISSUE-119 census·分母=59·= 本 phase 的 inventory） | 已证「1 字段/3 grid 格」的贯通链；**nibble 家（q8_0/q4_0/q4_1/q5_0/q5_1）vertical slice = 下一步**（六.3） |
+| **② DequantMechanismPlan（emitter 只读 plan·verifier 独立重算）** | **未起**（`MechanismPlan`/`DequantMechanismPlan` grep=0·supervisor 已核实事实④） | 公式**原语**已由 **MIG-B**（codebook-anchor 闭式`0f7556199`）+ **MIG-0**（reg-pressure 不等式`0e9faee0a`）铺好 | plan = 把这些原语聚合成 `{mechanism,load_lmul,widen_chain,strip_lanes,legality,reason}`·并让 verifier 独立重算 |
+| **③ c 真驱动 θ（VLEN→LMUL/strip·measured 只在合法候选中选）** | **dequant-row 轴 = NONE**（census：dequant 路 0 处 VLEN 分叉/0 strip-LMUL θ·全 board-invariant） | **MIG-A**（vlenb→承重 VLEN 源`abb7e0304`）+ **MIG-C/C2**（measured-table q8/q4_0/q4_1·**repack 轴**`2ab1f9d4d`/`a230adc61`）+ **MIG-5**（selector 闭式 `θ_width=f(VLEN,dataWidth)`·**reduction/contraction 轴**·**在飞**）；**MIG-2**（grid coreLmul θ9-13→f）**BLOCKED** | ⚠所有已落 c-驱动 θ 在 **repack/block-dot/reduction 轴**·**非 dequant-row 轴**（诚实边界·研究2 stage4：block-dot 路比 dequant 路更 plan-driven）。**MIG-2 解阻依赖 = phase-② 给描述符加 `coreLmul` typed 字段**（plan.load_lmul 正是此字段） |
+| **④ 扩 grid/ternary/KQuant** | **多数未起** | **MIG-1**（grid entry-lane·3 格）= 首付 | ternary/KQuant geometry 仍 L3 焊死（`:5366-5386` 19-format stride switch 等·census 候选） |
+| **⑤ 外部可扩展 2 falsifier** | **未起** | — | 见六.4 |
+
+> **phase-1 明确 = 下一个可派 task**（nibble 家 vertical slice·六.3）。它是 phase-① 的第二步（MIG-1 是第一步·grid entry-lane）。
+> ⚠**MIG-5 并行文件不相交纪律**：MIG-5 在改 `RVVGearboxSchedule.h` + 选择器前门（`RVVReductionSourceFrontDoor.cpp`/`RVVContractionPathSelection.cpp`）·其 prd `:24` **明令禁碰** dequant 三文件（ForwardElementwise/GridCodebook/LowerQuantContraction）。**phase-1 触碰集（六.3）与 MIG-5 不相交**（phase-1 只碰 Construction + ForwardElementwise + verifier·**不碰 RVVGearboxSchedule.h**）⟹ 可并行。**phase-2 起需碰 RVVGearboxSchedule.h·必须与 MIG-5 串行**（共享文件·记忆律「并行线需文件集不相交」）。
+
+---
+
+### 六.3 · phase-1 具体 scope（nibble 家 vertical slice · 下一个可派 task）
+
+**Scope 格式**：q8_0 / q4_0 / q4_1 / q5_0 / q5_1（QK=32·flat·非 grid）。**crux**：来源已统一（构造表一处·`RVVDequantizeRowConstruction.cpp:23-111`·**已核实**），但该表**只带 5 facts**（`{qk,stride,scaleByteOffset,quantByteOffset,codebookEntryLanes}`·`.h:53-59` 已核实）；**decode-mechanism facts**（`mOff/qhOff/sub/hasMin/hasQh/bareInt8`）**未入表**，在 emitter re-bake（构造 `.cpp:28-32` 注释自证「remaining offsets baked into per-format decode leaf at emit」·**已核实**）。→ 一个常量两处源 = 编辑分家即 silent byte-exact break。
+
+**触碰集**（file:line·**已核实**标 ✓·**研究 4 已读我未复核**标 ⚠·phase-1 首步须机核自验·照 MIG-1/MIG-5 范式「PRD 锚点可能 naive-grep 误判·按实际重路由」）：
+
+| # | 动作 | file:line | 核实 |
+|---|---|---|---|
+| A | 扩构造表 5-format 臂 + `DequantizeRowStreamFacts` struct·加 `min_byte_offset/min_present/qh_byte_offset/qh_present/nibble_bias/carrier_kind/fold_kind`（superset）·stamp 到 decode_core | 表 `:41-50` ✓·struct `.h:53-59` ✓·stamp `:133-163` ✓ | ✓ |
+| B | emitter α（monolith fallback switch·全 5 格全 tuple·唯一携 bareInt8/sub/hasMin/hasQh 处） | `RVVToEmitCForwardElementwise.cpp:2658-2674` | ⚠ |
+| C | emitter β（owned real-vector 叶·**DEPLOYED** 路·re-bake 字面量为 `emitDequantizeRowNibbleVectorBody` call args） | `:3209-3244`（q8_0 分离 `:3387`） | ⚠ |
+| D | emitter γ（scalar shared 叶·re-bake 同字面量） | `:3500-3543`（q8_0 `:3254`） | ⚠ |
+| E | dispatch δ（decode_model 字符串→叶·nibble）→ 改键 `carrier_kind` | `:4875-4884`（q8_0 `:4948`）✓ | ✓ |
+| F | header per-format 方法声明 | `RVVToEmitCInternal.h:4925-4963` | ⚠ |
+| G | verifier 白名单（**留作名门·第二步从表 key-set 派生·律1 分步**） | `isWiredDequantizeRowFormat:10902-10919` / `isConstructedDequantizeRowDecodeModel:11006-11020` | ⚠ |
+
+> **不碰**（byte-exact 的支点）：两个 8-param sink 共享体 `emitDequantizeRowNibbleVectorBody`（`:2966`⚠）/ `…NibbleBodyShared`（`:2702`⚠）**phase-1 不动**。phase-1 只改「8-tuple 从哪来」（一处 descriptor 读 vs 3 处硬编码 call site）。
+> **不入 phase-1**：extended `enum Fmt` StringSwitch（`:5023-5045`/stride switch `:5366-5386`）= K-quant/IQ/codebook 家 = **phase-④**；`GgmlQuantContractionOp::verify` 的 per-format numeric switch（研究4 `:2172-2303`）= **vec_dot/contraction 家·非 dequant-row**（记忆：dequant≠vec_dot·iq2_xs vec_dot 是 ISSUE-120 byte-broken）·**严禁 fold-in**。
+
+**结构化 nibble 描述符字段**（研究4·全是 ggml ABI-shape 事实·同 `codebook_entry_lanes` 类别·律2 合规）：
+`name`（仅 provenance·无分派权）· `qk(=32)` · `weight_block_stride` · `scale_byte_offset(dOff)` · `quant_byte_offset(qsOff)` · `min_byte_offset(mOff)+min_present(hasMin)` · `qh_byte_offset(qhOff)+qh_present(hasQh)` · `nibble_bias(sub)` · `carrier_kind∈{bare_int8,nibble4}` · `fold_kind∈{single_mul,fused_mac_min}`（**DERIVED from hasMin·不裸存**·选 `vfmul_vf` vs `vfmv+vfmacc_vf`）。
+> **律2 合规注**：`hasMin/hasQh` 只存为 offset-present 位·fold 形状与 `vfmul/vfmacc` 的**机制体实现留在 emitter**（不入源）。
+
+**per-format ground truth**（研究4 表·⚠ `stride/dOff/qsOff` 我已从构造表复核一致：q8_0 34/0/2·q4_0 18/0/2·q4_1 20/0/4·q5_0 22/0/6·q5_1 24/0/8；`mOff/qhOff/sub/hasMin/hasQh` 研究4 从 emitter 读·**phase-1 须从 loci B 复核后再中心化**）：
+
+| fmt | stride | dOff | mOff | qhOff | qsOff | sub | hasMin | hasQh | carrier |
+|-----|--------|------|------|-------|-------|-----|--------|-------|---------|
+| q8_0 | 34 | 0 | — | — | 2 | 0 | F | F | bare_int8 |
+| q4_0 | 18 | 0 | 0 | 0 | 2 | 8 | F | F | nibble4 |
+| q4_1 | 20 | 0 | 2 | 0 | 4 | 0 | T | F | nibble4 |
+| q5_0 | 22 | 0 | 0 | 2 | 6 | 16 | F | T | nibble4 |
+| q5_1 | 24 | 0 | 2 | 4 | 8 | 0 | T | T | nibble4 |
+
+**byte-exact 策略（by-construction 可证）**：共享体不动 ⟹ 若 descriptor 产出与叶子现硬编码**逐字节相同的 8-tuple**·emitted C **by construction byte-identical**。验证 = 5 格各跑「constructed 前门路 + monolith fallback 路」过 `--weft-rvv-lower-to-emitc`·diff emitted C vs 现役 lit golden = **0-byte**。三闸 ZERO-MODEL + 3-arm anti-hollow + CORPUS（§五）·**独立复核跑判决不看 diff**。
+**5 个 byte-exact 风险点**（研究4·须逐点 assert）：① fold 形状 `y=val*d`(q4_0/q5_0/q8_0) vs `y=val*d+m`(q4_1/q5_1)·不同 C + 不同 fp 舍入·② bias `-=sub` 精确 −8/−16 · ③ 5th-bit qh merge gated on hasQh · ④ byte offset 喂地址算术（错字面量读错字节·shape-diff 看不出·**须 assert stamped-attr==descriptor value**）· ⑤ q8_0 signed `vsext` vs nibble `vzext`+bias（**q8_0 留独立叶·禁 fold 进 nibble 体**）。
+
+**律1 分步（一次一变化）**：(i) 扩表+struct+stamp·β/γ 改读 stamped attr·证 0-byte golden diff → (ii) 塌 δ dispatch 到 `carrier_kind`（一 nibble4 支 + 一 bare_int8 支）→ (iii) verifier 白名单从表 key-set 派生 + 落 F1 falsifier。**每步独立 byte-exact + 独立复核**。
+
+---
+
+### 六.4 · C1/C2 两 falsifier（各带验收命令 + LOC 记录法）
+
+**F1 —— 合成格式 = descriptor 行 + test only·emitter/verifier-机制零改（phase-1 交付·= phase-1 验收门本身）**
+- 合成 `q4_synth`（4-bit nibble·distinct-but-legal tuple·如 stride=19/dOff=0/qsOff=3/sub=8/hasMin=F/hasQh=F·q4_0-shaped 偏移移位）。加它应**只**碰：① 构造表一行·②（若白名单表-派生）verifier **零**行·③ 一条 lit（`weft_rvv.dequantize_row {format="q4_synth"}` + FileCheck）。
+- **双跑对照 = C1/C2 度量**：
+  - **before phase-1**：加 q4_synth 需编辑 α+β+γ+δ+header = **5 处 emitter 改** → F1 **FAIL**（证今日耦合）。
+  - **after phase-1**：descriptor 行 + test·dispatch 命中共享 `nibble4` 支无新 if → F1 **PASS**（证来源解耦）。
+  - **记录法**：两跑各记 `git diff --stat` 触碰文件集 + LOC delta（before ≈ 5 文件 / after = Construction.cpp + test 共 2 文件·0 emitter/verifier-机制行）= 论文 C1/C2 数字。
+- **无真 ggml block 的 oracle（name-relative）**：assert「descriptor tuple == q4_0's 的合成格式·emit C 与 q4_0 **逐字节相同**（除 provenance 注释 token）」·且「格式名在可执行 C 中**只作注释出现**」= 直测「格式名不再承担分派权」·**零手写 oracle**。
+- **负控（防橡皮图章）**：非法组合（`bareInt8 && hasMin`·或 stride < layout 最小）**须 fail verify closed**·证 legality 门是真的。
+- **验收命令**：`ninja weft-opt && llvm-lit -v test/Conversion/RVV/rvv-dequantize-row-q4-synth-descriptor-only.mlir`·且 `git diff --stat` 仅 2 文件。
+
+**F2 —— 独立 family = 插件领地 + 注册表·core 零家族分支（phase-⑤·非 phase-1）**
+- 新 backend/family 只改插件领地 + 注册表·`git grep` core 家族分支 = **零新增**。
+- **记录法**：触碰文件集须 ⊆ `lib/Plugin/<family>/` + 注册表·`lib/Dialect`/`lib/Conversion` core 零家族名分支新增（LOC delta 记于交付）。
+- **noted·out of phase-1 scope**（研究4·属 phase-⑤）。
+
+---
+
+### 六.5 · 风险与纪律
+
+1. **byte-exact 先于一切**：phase-1 的 by-construction 支点 = 共享 8-param 体不动·只迁 8-tuple 来源。任一叶子若「shape 相同但读错字节」= shape-diff 看不出 → **必须 assert stamped-attr == descriptor value**（风险点④）。
+2. **不一次性重写 ForwardElementwise**：律1 分三步（表→dispatch→白名单）·每步独立 byte-exact + 独立复核。**禁**把 α/β/γ/δ 一把梭。
+3. **律2（机制体点不入源）**：只中心化 ggml ABI-shape 事实（offset/stride/bias/present-bit）；`vfmul/vfmacc` 机制体、5th-bit merge 实现**留 emitter**。加描述符字段**不得改各格现有强/弱义 provenance 状态**（[L-8]·原语 ID 清单不变）。
+4. **[K-10] 硬约束（研究1）**：5 mechanism 因数据消费契约/迭代拓扑互异 = **结构级**·必须 5 个分立 Plan/typed region·**禁**收进单一 plan 用 `mechanism` 判别式在 emitter switch（那是 GEMM/GEMV 判例所禁的「结构级当旋钮」）。FormulaProvider 的职责 = **选哪个结构级 Plan**·非 plan 内切 mechanism。**只有** `{load_lmul,strip_lanes,unroll,lane-width}` 是参数级 capability 键（phase-③）。**注**：phase-1 的 `carrier_kind`(bare_int8/nibble4) 选的是**两个已分立的叶**（q8_0 独立叶 vs nibble 共享体）·非 plan 内 switch·合规；`fold_kind` 的 [K-10] 结构/参数 定性是**既存共享体状态**（phase-1 不动不重裁）。
+5. **measured 住测量库·不焊公式常量**（[S-5]·phase-③）：「合法候选枚举」=公式（capability→合法 θ 集）；「候选中选哪个」=测量库标定事实（如 `kRepackMeasuredM1FasterMeasurements`）。两者分家·**不烧进 schema.def 也不当 FormulaProvider 硬编码常量**。
+6. **reason/plan = mirror·非 authority**（I4·插件协议.md:105）：论文的 reason trace 只能是 transient 结果或 route 后 `weft.exec.diagnostic{reason="emission_plan"}` 镜像·**禁**持久成 readiness 状态机/进度工件。
+7. **canon 措辞变更须入 ISSUES 待裁（非自决）**：
+   - **phase-② verifier 独立重算**从「bounds-check + 白名单」升级为「从公式重算几何并拒绝 stamped≠recomputed」= **改 dequant 家 verifier 行为类**·触及 [D-1]「unknown=reject」门的 fail-closed 措辞 → **落地前登记 ISSUE / 报 supervisor·非静默强化**。
+   - **构造表头注释已 stale**（`.h:61-69` 说「21 CONSTRUCTED·nullopt for tq1_0/tq2_0」·但 `.cpp:97-104` 实已构造 tq1_0/tq2_0·今 = **24 格全构造**）= 文档漂移·**记为 cleanup 观察**（非 canon 变更·可随 phase-1 顺手订正或单开 doc-fix）。
+   - MechanismPlan 住址（Support vs RVVGearboxSchedule.h·六.1）= 触及 §〇「唯一 closed-form-f 宿主」不变量措辞 → **phase-2 kickoff 报 supervisor 确认·非自决**。
+8. **并行纪律**：phase-1 触碰集与在飞 MIG-5 不相交（phase-1 不碰 RVVGearboxSchedule.h）⟹ 可并行；**phase-2 起碰 RVVGearboxSchedule.h·必与 MIG-5 串行**。
+9. 🔴 **禁内联汇编 / 禁钉死调度绕 clang**。
+
+---
+
+### 六.6 · 诚实边界（研究主张 已核实 / 待验）
+
+**已核实（supervisor 主会话直读·本节标 ✓ 的 file:line）**：
+- 真 realization hook = `materializeSelectedLoweringBoundary`/`validateSelectedLoweringBoundary`（`ExtensionPlugin.h:684-688,745-749`）·**订正**外部建议的 `realizeSelectedVariantBody` 通用名。
+- 三 typed op 链真在（`RVVOps.td:9549/9600/9683/9703`）。
+- 构造表 = 单一 24-arm format lookup（`RVVDequantizeRowConstruction.cpp:23-111`）·**只 stamp 5 facts**·nibble decode-mechanism facts 未入表（构造 `.cpp:28-32` 注释自证）。
+- `DequantizeRowStreamFacts` 5 字段（`.h:53-59`）；`codebook_entry_lanes` 条件 stamp（`.cpp:160-163`）。
+- decode_model 字符串 dispatch（`ForwardElementwise.cpp:4875-4952`·nibble `:4875-4884`·q8_0 `:4948`）。
+- `WideningChain` struct + `deriveWideningChain`（`RVVToEmitCSupport.h:411/419`）。
+- 公式原语 `getRVVStripVLMAXElements:2689`/`getRVVCodebookGatherAnchorLMUL:2713`/`rvvRegisterPressure*:2141-2185`（`RVVGearboxSchedule.h`）。
+- **研究3 open flag RESOLVED**：`getRVVStripVLMAXElements` **已被 Dialect verifier `RVVDialectWideningOps.cpp` include+调用** ⟹ Dialect→Gearbox 独立重算合法且**已在用**（verifier 独立重算是既存模式非新造）。
+- `GridDecodePlan.h` = Support 家·dual-consumer·fail-closed registry（`unknown→nullptr→REJECT`·[D-1]）= plan siting/lifecycle 的结构模板。
+- MIG-5 = 真在飞并行 A 线 task（selector 闭式 `θ_width=f(VLEN,dataWidth)`·`.trellis/tasks/07-20-07-20-r51h-mig5-widthsel-closedform/prd.md`）·明令禁碰 dequant 三文件。
+- `MechanismPlan`/`DequantMechanismPlan` 类 grep=0（supervisor 已核实事实④）= 全新抽象。
+
+**仍待验/存疑（phase-1 首步须机核自验·标 ⚠ 者 = 研究 4/2 已读·我未逐一复核·PRD 锚点可能 naive-grep 误判）**：
+- emitter loci **α `:2658-2674` / β `:3209-3244` / γ `:3500-3543`** + header decls `:4925-4963` + 共享体 `:2966`/`:2702`（研究4 line-number·phase-1 须按实际重路由·照 MIG-1/MIG-5 范式在交付标「PRD 锚点误判·实际在 X」）。
+- per-format `mOff/qhOff/sub/hasMin/hasQh` tuple（研究4 从 emitter 读·`stride/dOff/qsOff` 我已复核一致·**decode-mechanism 5 列 phase-1 须从 loci α 复核后再中心化**）。
+- verifier「今日只 bounds-check + 白名单·不重算几何」（研究2 读 `RVVDialectWideningOps.cpp:11131-11217`）·⟹「verifier 可独立重算」是 **phase-② 新能力·今日不在**（研究2 明判）。
+- **诚实边界（研究2 stage4·非 dequant）**：block-dot/vec_dot 路（`RVVToEmitCKQuant.cpp` 的 `emitIQ*SuperBlockGridBody`）**已**读 typed brick attr（`getIntegerCoreLmul().value_or("mf2")` 等·带 value_or 焊死默认）·比 dequant-row 路**更 plan-driven 一档**。dequant-row 落后 = geometry typed 化了但 emit 不读（re-bake）·LMUL 从固定 geometry 派生而非从 c。**⟹ 本升级 = 让 dequant-row 追平 block-dot 的 plan-driven 度·并把两者的 value_or 焊死默认都升为真 c-驱动**（MIG-2 解阻同此依赖）。
