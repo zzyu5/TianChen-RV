@@ -42,7 +42,7 @@ module {
           // The per-block decode leaf (decode_model "q8_0"): the whole per-block
           // scalar decode is emitter-inlined by the brick lowering (the streaming
           // analog of q1_0/nvfp4's flat single-core-brick emit).
-          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {carrier_kind = "bare_int8", decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
           weft_rvv.typed_dequantize_row_loop_yield
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl

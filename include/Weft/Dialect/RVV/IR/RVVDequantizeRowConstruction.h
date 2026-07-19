@@ -50,23 +50,45 @@ namespace weft::rvv {
 //                       iq2_xs/iq1_m); 0 = not a grid-codebook owned-vector body (the
 //                       flat / K-quant / non-grid leaves do NOT carry an entry width,
 //                       so the descriptor is left unstamped for them).
+// The flat nibble-family decode carrier: which ALREADY-SEPARATE decode leaf the flat
+// streaming family routes to -- the bare signed-int8 q8_0 leaf vs the shared 4-bit
+// nibble body ([K-10] selection between two separate leaves, NOT a plan-internal
+// mechanism switch). NotNibbleFamily for every K-quant / IQ / codebook / ternary
+// format (they are not part of the flat nibble family and leave the descriptor
+// unstamped).
+enum class NibbleCarrierKind { NotNibbleFamily, BareInt8, Nibble4 };
+
 struct DequantizeRowStreamFacts {
   std::int64_t qk;
   std::int64_t weightBlockStride;
   std::int64_t scaleByteOffset;
   std::int64_t quantByteOffset;
   std::int64_t codebookEntryLanes;
+  // The flat nibble-family decode-mechanism descriptor (phase-1): the carrier leaf
+  // selector + the 4-bit nibble decode facts. carrier == NotNibbleFamily leaves ALL of
+  // these unstamped (every non-nibble leaf). For the nibble family:
+  //   nibbleBias    = the pre-scale bias `sub` subtracted from the nibble (8 for q4_0,
+  //                   16 for q5_0, 0 for the min-fold q4_1/q5_1); present for the
+  //                   nibble4 carrier only (the bare-int8 q8_0 has no nibble bias).
+  //   minByteOffset = the fp16 min m byte offset; its PRESENCE is the hasMin gate
+  //                   (q4_1/q5_1). Absent (== no min) otherwise.
+  //   qhByteOffset  = the qh 5th-bit plane byte offset; its PRESENCE is the hasQh gate
+  //                   (q5_0/q5_1). Absent (== no 5th bit) otherwise.
+  NibbleCarrierKind carrier;
+  std::optional<std::int64_t> nibbleBias;
+  std::optional<std::int64_t> minByteOffset;
+  std::optional<std::int64_t> qhByteOffset;
 };
 
-// Look up the AoS block-layout facts for one of the 21 CONSTRUCTED streaming
-// dequantize_row formats (the flat q8_0 family-head + the q4_0/q4_1/q5_0/q5_1
-// 4-bit nibble leaves, the q2_K/q3_K/q4_K/q5_K/q6_K QK_K=256 K-quant super-blocks,
-// the iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s IQ grid-table super-blocks, and the
-// iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 codebook/ternary-grid extended leaves).
-// Returns std::nullopt for tq1_0/tq2_0 -- the dispatch-wired monolith formats the
-// front door does NOT construct (they stay the abstract weft_rvv.dequantize_row
-// hand-written per-format decode). This allowlist MUST mirror the verifier's
-// isConstructedDequantizeRowDecodeModel gate (RVVDialectWideningOps.cpp).
+// Look up the AoS block-layout facts for one of the 24 CONSTRUCTED streaming
+// dequantize_row formats (the flat q8_0 family-head + the q4_0/q4_1/q5_0/q5_1 4-bit
+// nibble leaves + the flat 1-bit binary-sign leaf q1_0, the q2_K/q3_K/q4_K/q5_K/q6_K
+// QK_K=256 K-quant super-blocks, the iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s IQ grid-table
+// super-blocks, the iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 codebook/ternary-grid
+// extended leaves, and the tq1_0/tq2_0 ternary super-blocks). Returns std::nullopt
+// only for an unrecognized format -- it falls through to the dispatch-wired monolith.
+// This allowlist MUST mirror the verifier's isConstructedDequantizeRowDecodeModel gate
+// (RVVDialectWideningOps.cpp).
 std::optional<DequantizeRowStreamFacts>
 lookupDequantizeRowStreamFacts(llvm::StringRef format);
 

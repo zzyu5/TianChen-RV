@@ -38,16 +38,32 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
   // iq2_xs / iq1_m grid-of-8 uint64 = 8). It stays 0 (unstamped) for every flat /
   // K-quant / non-grid leaf, which never reads an entry width.
   std::int64_t qk = 32, stride = 0, dOff = 0, qsOff = 0, entryLanes = 0;
+  // Phase-1 nibble-family decode-mechanism descriptor (unset == NotNibbleFamily /
+  // absent for every non-nibble leaf; the flat nibble arms below set them).
+  NibbleCarrierKind carrier = NibbleCarrierKind::NotNibbleFamily;
+  std::optional<std::int64_t> nibbleBias, minOff, qhOff;
   if (format == "q8_0") {
-    stride = 34; qsOff = 2;
+    stride = 34; qsOff = 2; carrier = NibbleCarrierKind::BareInt8;
   } else if (format == "q4_0") {
-    stride = 18; qsOff = 2;
+    stride = 18; qsOff = 2; carrier = NibbleCarrierKind::Nibble4; nibbleBias = 8;
   } else if (format == "q4_1") {
-    stride = 20; qsOff = 4;
+    stride = 20; qsOff = 4; carrier = NibbleCarrierKind::Nibble4; nibbleBias = 0;
+    minOff = 2;
   } else if (format == "q5_0") {
-    stride = 22; qsOff = 6;
+    stride = 22; qsOff = 6; carrier = NibbleCarrierKind::Nibble4; nibbleBias = 16;
+    qhOff = 2;
   } else if (format == "q5_1") {
-    stride = 24; qsOff = 8;
+    stride = 24; qsOff = 8; carrier = NibbleCarrierKind::Nibble4; nibbleBias = 0;
+    minOff = 2; qhOff = 4;
+  } else if (format == "q4_synth") {
+    // F1 FALSIFIER (phase-1 C1/C2): a synthetic 4-bit nibble dequant leaf added by THIS
+    // SINGLE descriptor row (+ its lit) -- ZERO emitter / verifier mechanism lines. It
+    // carries q4_0's EXACT decode tuple (stride 18, quant_byte_offset 2, nibble_bias 8,
+    // carrier nibble4, no min / no qh), so its emitted C is BYTE-IDENTICAL to
+    // dequantize_row_q4_0 modulo only the provenance token: the constructed typed region
+    // dispatches on carrier_kind == "nibble4" (NOT the format name) into the shared
+    // nibble body. Directly falsifies "the format name drives dispatch".
+    stride = 18; qsOff = 2; carrier = NibbleCarrierKind::Nibble4; nibbleBias = 8;
   } else if (format == "q1_0") {
     // block_q1_0: fp16 d @0, qs[16] @2 (QK1_0=128 packed 1-bit binary {-1,+1}
     // signs, 8 weights/byte). The flat binary-sign leaf: y[j] = bit ? d : -d.
@@ -107,7 +123,8 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
     // unrecognized format falls through to the dispatch-wired monolith.
     return std::nullopt;
   }
-  return DequantizeRowStreamFacts{qk, stride, dOff, qsOff, entryLanes};
+  return DequantizeRowStreamFacts{qk,         stride, dOff,      qsOff,   entryLanes,
+                                  carrier, nibbleBias, minOff, qhOff};
 }
 
 mlir::LogicalResult
@@ -161,6 +178,26 @@ constructTypedDequantizeRowLoopBody(mlir::RewriterBase &rewriter,
       coreState.addAttribute(
           "codebook_entry_lanes",
           rewriter.getI64IntegerAttr(facts.codebookEntryLanes));
+    // Phase-1 nibble-family decode-mechanism descriptor: the carrier leaf selector
+    // ([K-10] selects between the ALREADY-SEPARATE bare-int8 q8_0 leaf and the shared
+    // nibble body, NOT a plan-internal mechanism switch) + the pre-scale bias, and the
+    // OPTIONAL min / qh byte offsets whose PRESENCE is the hasMin / hasQh gate. Stamped
+    // ONLY for the flat nibble family (q8_0/q4_0/q4_1/q5_0/q5_1); every K-quant / IQ /
+    // codebook / ternary leaf leaves carrier == NotNibbleFamily so ALL stay absent.
+    if (facts.carrier == NibbleCarrierKind::BareInt8)
+      coreState.addAttribute("carrier_kind",
+                             rewriter.getStringAttr("bare_int8"));
+    else if (facts.carrier == NibbleCarrierKind::Nibble4)
+      coreState.addAttribute("carrier_kind", rewriter.getStringAttr("nibble4"));
+    if (facts.nibbleBias)
+      coreState.addAttribute("nibble_bias",
+                             rewriter.getI64IntegerAttr(*facts.nibbleBias));
+    if (facts.minByteOffset)
+      coreState.addAttribute("min_byte_offset",
+                             rewriter.getI64IntegerAttr(*facts.minByteOffset));
+    if (facts.qhByteOffset)
+      coreState.addAttribute("qh_byte_offset",
+                             rewriter.getI64IntegerAttr(*facts.qhByteOffset));
     rewriter.create(coreState);
     rewriter.create<TypedDequantizeRowLoopYieldOp>(loc);
   }

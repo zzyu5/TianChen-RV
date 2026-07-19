@@ -17,6 +17,7 @@
 #include "Weft/Conversion/EmitC/TunableScheduleOpInterface.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
+#include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Support/CapabilityModel.h"
@@ -10900,22 +10901,11 @@ mlir::LogicalResult GgmlForwardElementwiseOp::verify() {
 // hand-written monolith body + a conversion lit) are accepted, so no six-state
 // row can claim dispatch-wired without a real decode behind it (fail-closed, I7).
 static bool isWiredDequantizeRowFormat(llvm::StringRef format) {
-  return format == "q4_0" || format == "q4_1" || format == "q5_0" ||
-         format == "q5_1" || format == "q8_0" ||
-         // Flat 1-bit binary-sign leaf (block_q1_0: y[j] = bit ? d : -d).
-         format == "q1_0" ||
-         // K-quant super-blocks (get_scale_min_k4 / aux 6-bit scale shuffle).
-         format == "q2_K" || format == "q3_K" || format == "q4_K" ||
-         format == "q5_K" || format == "q6_K" ||
-         // FP4 codebooks (E8M0 / UE4M3 scale + kvalues_mxfp4 gather).
-         format == "mxfp4" || format == "nvfp4" ||
-         // Ternary (base-3 tq1_0 / 2-bit tq2_0) + 16-entry non-linear codebook.
-         format == "tq1_0" || format == "tq2_0" || format == "iq4_nl" ||
-         // IQ grid-table super-blocks (2/3-bit grid codebooks + sign planes;
-         // each reuses its block-dot vec_dot canonical grid/signs decl).
-         format == "iq2_xxs" || format == "iq2_xs" || format == "iq2_s" ||
-         format == "iq3_xxs" || format == "iq3_s" || format == "iq1_s" ||
-         format == "iq1_m" || format == "iq4_xs";
+  // Phase-1: the wired-format allowlist is DERIVED from the single construction facts
+  // table (lookupDequantizeRowStreamFacts) -- the ONE source of the constructed
+  // dequantize_row family. Adding a format (its descriptor row) auto-extends this gate;
+  // no per-format verifier arm. Fail-closed: an unrecognized format has no facts.
+  return lookupDequantizeRowStreamFacts(format).has_value();
 }
 
 mlir::LogicalResult GgmlDequantizeRowOp::verify() {
@@ -11004,19 +10994,10 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
 // Shared by the typed loop body op and its per-block decode brick so both fail
 // closed on an unconstructed decode_model (I7).
 static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
-  return decodeModel == "q8_0" || decodeModel == "q4_0" ||
-         decodeModel == "q4_1" || decodeModel == "q5_0" ||
-         decodeModel == "q5_1" || decodeModel == "q1_0" ||
-         decodeModel == "q2_K" ||
-         decodeModel == "q3_K" || decodeModel == "q4_K" ||
-         decodeModel == "q5_K" || decodeModel == "q6_K" ||
-         decodeModel == "iq2_xxs" || decodeModel == "iq2_xs" ||
-         decodeModel == "iq2_s" || decodeModel == "iq3_xxs" ||
-         decodeModel == "iq3_s" || decodeModel == "iq1_s" ||
-         decodeModel == "iq1_m" || decodeModel == "iq4_nl" ||
-         decodeModel == "iq4_xs" || decodeModel == "mxfp4" ||
-         decodeModel == "nvfp4" || decodeModel == "tq1_0" ||
-         decodeModel == "tq2_0";
+  // Phase-1: DERIVED from the single construction facts table (the ONE source of the
+  // constructed dequantize_row family); adding a format's descriptor row auto-extends
+  // this gate. Fail-closed: an unconstructed decode_model has no facts.
+  return lookupDequantizeRowStreamFacts(decodeModel).has_value();
 }
 
 mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
@@ -11136,7 +11117,9 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "decode_model" || name == "qk" ||
            name == "weight_block_stride" || name == "scale_byte_offset" ||
-           name == "quant_byte_offset" || name == "codebook_entry_lanes";
+           name == "quant_byte_offset" || name == "codebook_entry_lanes" ||
+           name == "carrier_kind" || name == "nibble_bias" ||
+           name == "min_byte_offset" || name == "qh_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -11148,7 +11131,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (!isAllowedAttr(attrName))
       return emitOpError()
              << "only accepts the bounded {decode_model, qk, weight_block_stride, "
-                "scale_byte_offset, quant_byte_offset, codebook_entry_lanes} "
+                "scale_byte_offset, quant_byte_offset, codebook_entry_lanes, "
+                "carrier_kind, nibble_bias, min_byte_offset, qh_byte_offset} "
                 "attributes; unexpected attribute '"
              << attr.getName() << "'";
   }
@@ -11180,6 +11164,22 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (entryLanes.getInt() <= 0)
       return emitOpError() << "requires codebook_entry_lanes > 0 when present; got "
                            << entryLanes.getInt();
+  // Phase-1 nibble-family descriptor: the OPTIONAL min / qh byte offsets are
+  // non-negative AoS byte offsets (their PRESENCE is the hasMin / hasQh gate); the
+  // pre-scale bias is a non-negative subtractive constant. Read the SIGNED attr view
+  // so a NEGATIVE spelling fail-CLOSES (a uint accessor would zero-extend, fail-OPEN).
+  if (mlir::IntegerAttr minOff = getMinByteOffsetAttr())
+    if (minOff.getInt() < 0)
+      return emitOpError() << "requires min_byte_offset >= 0 when present; got "
+                           << minOff.getInt();
+  if (mlir::IntegerAttr qhOff = getQhByteOffsetAttr())
+    if (qhOff.getInt() < 0)
+      return emitOpError() << "requires qh_byte_offset >= 0 when present; got "
+                           << qhOff.getInt();
+  if (mlir::IntegerAttr bias = getNibbleBiasAttr())
+    if (bias.getInt() < 0)
+      return emitOpError() << "requires nibble_bias >= 0 when present; got "
+                           << bias.getInt();
   // The three OWNED grid-codebook decode leaves (iq3_s grid-of-4 uint32; iq2_xs / iq1_m
   // grid-of-8 uint64) reconstruct a codebook grid ENTRY whose byte-width IS the g-axis
   // geometry: they MUST carry the codebook_entry_lanes descriptor so the mechanism body
@@ -11195,6 +11195,37 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
               "codebook_entry_lanes descriptor (the grid ENTRY byte-width g-axis "
               "geometry); it must be stamped by the dequant-stream front door, never "
               "baked into the mechanism body or value_or self-supplied";
+  // Phase-1 nibble-family descriptor legality (fail-closed, I7; the SAME consuming-leaf
+  // pattern as codebook_entry_lanes above). The flat nibble family MUST carry the
+  // carrier_kind leaf selector so the carrier-keyed emit dispatch never silently falls
+  // through; carrier_kind is limited to the two ALREADY-SEPARATE leaves; and the
+  // bare_int8 carrier (q8_0, a bare signed-int8 scale) MUST NOT carry any 4-bit nibble
+  // decode fact. nibbleFamily is DERIVED from the same facts table (not a re-baked name
+  // list) so it tracks the descriptor family membership.
+  std::optional<DequantizeRowStreamFacts> tableFacts =
+      lookupDequantizeRowStreamFacts(dm);
+  bool nibbleFamily =
+      tableFacts && tableFacts->carrier != NibbleCarrierKind::NotNibbleFamily;
+  mlir::StringAttr carrier = getCarrierKindAttr();
+  if (nibbleFamily && !carrier)
+    return emitOpError()
+           << "decode_model '" << dm
+           << "' is a flat nibble-family dequant leaf and requires the carrier_kind "
+              "descriptor (\"bare_int8\" for q8_0, \"nibble4\" for the 4-bit nibble "
+              "leaves); it must be stamped by the dequant-stream front door, never "
+              "omitted or value_or self-supplied";
+  if (carrier && carrier.getValue() != "bare_int8" &&
+      carrier.getValue() != "nibble4")
+    return emitOpError()
+           << "requires carrier_kind in {\"bare_int8\", \"nibble4\"} when present; "
+              "got '"
+           << carrier.getValue() << "'";
+  if (carrier && carrier.getValue() == "bare_int8" &&
+      (getMinByteOffsetAttr() || getQhByteOffsetAttr() || getNibbleBiasAttr()))
+    return emitOpError()
+           << "the bare_int8 carrier (q8_0) is a bare signed-int8 scale leaf and must "
+              "NOT carry a 4-bit nibble decode fact (min_byte_offset / qh_byte_offset / "
+              "nibble_bias); those belong only to the nibble4 carrier";
 
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();

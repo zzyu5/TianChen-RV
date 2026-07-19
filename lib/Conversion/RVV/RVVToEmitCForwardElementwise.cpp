@@ -3202,46 +3202,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleVectorBody(
   return mlir::success();
 }
 
-// The per-format OWNED REAL-VECTOR nibble leaves: each hard-codes its ggml block_qX AoS
-// layout facts (the byte-exact ABI shape constants, NOT tunable knobs) and calls the
-// SHARED vector body. Only the CONSTRUCTED path routes here; the monolith fallback keeps
-// the scalar emitDequantizeRow<FMT>BodyShared. Siblings of emitDequantizeRowQ8_0VectorBody.
-mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ4_0VectorBody(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
-  return emitDequantizeRowNibbleVectorBody(
-      rewriter, loc, input, output, avlArg, sizeType, opName, role,
-      /*stride=*/18, /*dOff=*/0, /*mOff=*/0, /*qhOff=*/0, /*qsOff=*/2,
-      /*sub=*/8, /*hasMin=*/false, /*hasQh=*/false);
-}
-mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_0VectorBody(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
-  return emitDequantizeRowNibbleVectorBody(
-      rewriter, loc, input, output, avlArg, sizeType, opName, role,
-      /*stride=*/22, /*dOff=*/0, /*mOff=*/0, /*qhOff=*/2, /*qsOff=*/6,
-      /*sub=*/16, /*hasMin=*/false, /*hasQh=*/true);
-}
-mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ4_1VectorBody(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
-  return emitDequantizeRowNibbleVectorBody(
-      rewriter, loc, input, output, avlArg, sizeType, opName, role,
-      /*stride=*/20, /*dOff=*/0, /*mOff=*/2, /*qhOff=*/0, /*qsOff=*/4,
-      /*sub=*/0, /*hasMin=*/true, /*hasQh=*/false);
-}
-mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_1VectorBody(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
-  return emitDequantizeRowNibbleVectorBody(
-      rewriter, loc, input, output, avlArg, sizeType, opName, role,
-      /*stride=*/24, /*dOff=*/0, /*mOff=*/2, /*qhOff=*/4, /*qsOff=*/8,
-      /*sub=*/0, /*hasMin=*/true, /*hasQh=*/true);
-}
+// The per-format OWNED REAL-VECTOR nibble leaves (emitDequantizeRowQ4_0VectorBody etc.)
+// were RETIRED in phase-1 step (ii): the nibble dispatch (emitTypedDequantizeRowLoopBody)
+// now READS the decode 8-tuple straight from the stamped decode_core descriptor and
+// calls the SHARED emitDequantizeRowNibbleVectorBody directly, keyed on
+// carrier_kind == "nibble4", so the per-format re-bake leaves carried no distinct
+// behavior. The bare-int8 q8_0 leaf (emitDequantizeRowQ8_0VectorBody) stays separate
+// ([K-10] leaf selection between the two already-separate leaves).
 
 // The SHARED q8_0 dequantize_row block-decode body: the AoS `nb = k/32` block loop,
 // the fp16 block scale via the `(float)*(const _Float16 *)` seam, and the bare
@@ -4794,26 +4761,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   // (FP4 e2m1 codebook, E8M0 / UE4M3 scales)}. The verifier already gates
   // decode_model; this fails the emit closed if a not-yet-lowered decode leaf slips a
   // valid-verify region here.
+  // Phase-1: the constructed-decode_model surface gate (I7) is DERIVED from the single
+  // construction facts table (lookupDequantizeRowStreamFacts) -- the ONE source of the
+  // constructed dequantize_row family. Adding a format's descriptor row auto-extends
+  // this gate; no per-format emitter arm. Fail-closed (unknown == no facts).
   llvm::StringRef decodeModel = loopBody.getDecodeModel();
-  if (decodeModel != "q8_0" && decodeModel != "q4_0" && decodeModel != "q4_1" &&
-      decodeModel != "q5_0" && decodeModel != "q5_1" && decodeModel != "q1_0" &&
-      decodeModel != "q2_K" &&
-      decodeModel != "q3_K" && decodeModel != "q4_K" && decodeModel != "q5_K" &&
-      decodeModel != "q6_K" && decodeModel != "iq2_xxs" &&
-      decodeModel != "iq2_xs" && decodeModel != "iq2_s" &&
-      decodeModel != "iq3_xxs" && decodeModel != "iq3_s" &&
-      decodeModel != "iq1_s" && decodeModel != "iq1_m" &&
-      decodeModel != "iq4_nl" && decodeModel != "iq4_xs" &&
-      decodeModel != "mxfp4" && decodeModel != "nvfp4" &&
-      decodeModel != "tq1_0" && decodeModel != "tq2_0")
+  if (!weftrvv::lookupDequantizeRowStreamFacts(decodeModel))
     return rewriter.notifyMatchFailure(
-        loopBody, "typed dequantize_row loop body only lowers the constructed "
-                  "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1 + the flat "
-                  "binary-sign leaf q1_0 + the K-quant "
-                  "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table "
-                  "super-blocks iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s + the codebook / "
-                  "ternary-grid leaves iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the "
-                  "ternary super-blocks tq1_0/tq2_0");
+        loopBody, "typed dequantize_row loop body only lowers a CONSTRUCTED "
+                  "dequantize_row decode_model (one carried by the shared "
+                  "RVVDequantizeRowConstruction facts table); an unconstructed "
+                  "decode_model stays dispatch-wired via the abstract monolith");
 
   weftrvv::DequantizeRowDecodeCoreOp coreOp;
   weftrvv::TypedDequantizeRowLoopYieldOp yieldOp;
@@ -4860,6 +4818,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   if (mlir::IntegerAttr entryLanesAttr =
           coreOp->getAttrOfType<mlir::IntegerAttr>("codebook_entry_lanes"))
     codebookEntryLanes = entryLanesAttr.getInt();
+  // Phase-1: the flat nibble-family decode-mechanism 8-tuple, READ from the stamped
+  // decode_core descriptor (RVVDequantizeRowConstruction centralizes it) instead of
+  // re-baked from the format string in the per-format vector leaf. hasMin / hasQh are
+  // the OPTIONAL min / qh byte-offset PRESENCE (the shared body reads mOff only under
+  // hasMin, qhOff only under hasQh; an absent nibble_bias == sub 0). Reconstructs
+  // EXACTLY the tuple the per-format leaf used to hard-code (risk point 4: the stamped
+  // attr IS the descriptor value the shared body consumes).
+  int64_t nibbleStride = coreOp.getWeightBlockStrideAttr().getInt();
+  int64_t nibbleScaleOff = coreOp.getScaleByteOffsetAttr().getInt();
+  int64_t nibbleQuantOff = coreOp.getQuantByteOffsetAttr().getInt();
+  int64_t nibbleBias =
+      coreOp.getNibbleBiasAttr() ? coreOp.getNibbleBiasAttr().getInt() : 0;
+  bool hasMin = static_cast<bool>(coreOp.getMinByteOffsetAttr());
+  bool hasQh = static_cast<bool>(coreOp.getQhByteOffsetAttr());
+  int64_t nibbleMinOff = hasMin ? coreOp.getMinByteOffsetAttr().getInt() : 0;
+  int64_t nibbleQhOff = hasQh ? coreOp.getQhByteOffsetAttr().getInt() : 0;
   // Dispatch on decode_model to the per-format leaf: each re-emits the whole nb
   // block loop + per-block decode via the SHARED body emitter, byte-exact to the
   // dispatch-wired monolith.
@@ -4872,18 +4846,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   // ggml reference by construction (q4_0/q5_0 single-mul -> no fp-contraction ambiguity;
   // q4_1/q5_1 single fused mul-add -> matches the contracted opponent autovec vfmadd).
   // The monolith fallback keeps the scalar emitDequantizeRow<FMT>BodyShared.
-  if (decodeModel == "q4_0")
-    return emitDequantizeRowQ4_0VectorBody(rewriter, loc, weightBase, output,
-                                           avlArg, sizeType, opName, role);
-  if (decodeModel == "q4_1")
-    return emitDequantizeRowQ4_1VectorBody(rewriter, loc, weightBase, output,
-                                           avlArg, sizeType, opName, role);
-  if (decodeModel == "q5_0")
-    return emitDequantizeRowQ5_0VectorBody(rewriter, loc, weightBase, output,
-                                           avlArg, sizeType, opName, role);
-  if (decodeModel == "q5_1")
-    return emitDequantizeRowQ5_1VectorBody(rewriter, loc, weightBase, output,
-                                           avlArg, sizeType, opName, role);
+  // Phase-1 step (ii): the flat-nibble-family dispatch is now KEYED ON the carrier_kind
+  // descriptor, NOT the format-name string -- the format name has lost dispatch power
+  // over the decode leaf. carrier_kind selects between the TWO ALREADY-SEPARATE leaves
+  // ([K-10] leaf selection, NOT a plan-internal mechanism switch): "nibble4" -> the
+  // shared 4-bit nibble vector body (sourced from the descriptor 8-tuple), "bare_int8"
+  // -> the separate q8_0 signed-int8 leaf (below). Every K-quant / IQ / codebook /
+  // ternary decode_core leaves carrier_kind absent, so it falls through to its own
+  // decode_model branch. Byte-exact: the descriptor 8-tuple IS the value the retired
+  // per-format leaf used to re-bake (risk point 4).
+  mlir::StringAttr carrierAttr = coreOp.getCarrierKindAttr();
+  llvm::StringRef carrierKind =
+      carrierAttr ? carrierAttr.getValue() : llvm::StringRef();
+  if (carrierKind == "nibble4")
+    return emitDequantizeRowNibbleVectorBody(
+        rewriter, loc, weightBase, output, avlArg, sizeType, opName, role,
+        nibbleStride, nibbleScaleOff, nibbleMinOff, nibbleQhOff, nibbleQuantOff,
+        nibbleBias, hasMin, hasQh);
   // The K-quant QK_K=256 super-block leaves (q2_K/q3_K/q4_K/q5_K/q6_K) are the R线
   // §四.2 K-quant fan-out cells of the dequant true-vector emitter: the CONSTRUCTED
   // path lowers to the OWNED real-vector body (per-super-sub vle8 + vand/vsrl bit
@@ -4945,7 +4924,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   // ggml's dequantize_row_q8_0 by construction (q8_0 has no add/min => no
   // fp-contraction ambiguity). The iq3_xxs precedent: the vector body lives only on
   // the constructed leaf; the monolith fallback keeps the scalar shared body.
-  if (decodeModel == "q8_0")
+  if (carrierKind == "bare_int8")
     return emitDequantizeRowQ8_0VectorBody(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
   return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,

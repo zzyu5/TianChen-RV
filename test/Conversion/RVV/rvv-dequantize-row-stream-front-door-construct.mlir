@@ -43,7 +43,7 @@ module {
 // REALIZE-NOT: emitc.
 // REALIZE: weft_rvv.typed_dequantize_row_loop_body %{{.*}}, %{{.*}}, %{{.*}} attributes {decode_model = "q8_0", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64}
 // REALIZE: ^bb0(%[[BI:.*]]: index):
-// REALIZE: weft_rvv.dequantize_row_decode_core %{{.*}}, %{{.*}}, %[[BI]] {decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64}
+// REALIZE: weft_rvv.dequantize_row_decode_core %{{.*}}, %{{.*}}, %[[BI]] {carrier_kind = "bare_int8", decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64}
 // REALIZE: weft_rvv.typed_dequantize_row_loop_yield
 
 // Front door THEN emitc == the atomic construct+emit path: the emit is DRIVEN by the typed

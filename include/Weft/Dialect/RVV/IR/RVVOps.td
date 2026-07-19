@@ -9741,7 +9741,14 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     bodies READ the entry lane count from this descriptor instead of baking the format
     constant into the mechanism body; it is stamped ONLY for the three consuming
     grid-codebook decode models and the emitter fails closed (never value_or
-    self-supply) if a consuming leaf reaches emit without it. For the current
+    self-supply) if a consuming leaf reaches emit without it. The OPTIONAL
+    nibble-family decode-mechanism descriptor (carrier_kind = the ALREADY-SEPARATE
+    leaf selector "bare_int8" (q8_0) vs "nibble4" (q4_0/q4_1/q5_0/q5_1) -- [K-10]
+    leaf selection between two separate leaves, NOT a plan-internal mechanism switch;
+    nibble_bias = the pre-scale bias `sub`; the OPTIONAL min_byte_offset /
+    qh_byte_offset whose PRESENCE is the hasMin / hasQh gate) is stamped ONLY for the
+    flat nibble family so the shared nibble decode body READS the 8-tuple from this
+    descriptor instead of re-baking the ggml format constants at emit. For the current
     bounded surface decode_model is limited to the flat streaming family
     "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1" + the flat binary-sign leaf "q1_0" + the
     K-quant super-blocks
@@ -9767,7 +9774,11 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     I64Attr:$weight_block_stride,
     I64Attr:$scale_byte_offset,
     I64Attr:$quant_byte_offset,
-    OptionalAttr<I64Attr>:$codebook_entry_lanes
+    OptionalAttr<I64Attr>:$codebook_entry_lanes,
+    OptionalAttr<StrAttr>:$carrier_kind,
+    OptionalAttr<I64Attr>:$nibble_bias,
+    OptionalAttr<I64Attr>:$min_byte_offset,
+    OptionalAttr<I64Attr>:$qh_byte_offset
   );
 
   let assemblyFormat =

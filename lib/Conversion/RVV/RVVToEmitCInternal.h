@@ -4917,27 +4917,10 @@ private:
       int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
       int64_t sub, bool hasMin, bool hasQh) const;
 
-  /// The per-format OWNED REAL-VECTOR nibble leaves (q4_0/q5_0/q4_1/q5_1): each
-  /// hard-codes its ggml block_qX AoS layout facts and calls the shared vector body
-  /// emitDequantizeRowNibbleVectorBody. Only the CONSTRUCTED typed lowering routes here;
-  /// the monolith fallback keeps the scalar emitDequantizeRow<FMT>BodyShared. Siblings of
-  /// emitDequantizeRowQ8_0VectorBody.
-  mlir::LogicalResult emitDequantizeRowQ4_0VectorBody(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-  mlir::LogicalResult emitDequantizeRowQ5_0VectorBody(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-  mlir::LogicalResult emitDequantizeRowQ4_1VectorBody(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-  mlir::LogicalResult emitDequantizeRowQ5_1VectorBody(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  /// The per-format OWNED REAL-VECTOR nibble leaves (q4_0/q5_0/q4_1/q5_1) were RETIRED
+  /// in phase-1 step (ii): emitTypedDequantizeRowLoopBody reads the decode 8-tuple from
+  /// the stamped decode_core descriptor and calls the shared
+  /// emitDequantizeRowNibbleVectorBody directly (keyed on carrier_kind == "nibble4").
 
   /// The per-format CONSTRUCTED dequantize_row decode leaves for the flat nibble
   /// family (q4_0/q4_1/q5_0/q5_1): each hard-codes its ggml block_qX AoS layout
