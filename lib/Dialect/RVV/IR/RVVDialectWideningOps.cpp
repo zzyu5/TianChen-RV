@@ -11136,7 +11136,7 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "decode_model" || name == "qk" ||
            name == "weight_block_stride" || name == "scale_byte_offset" ||
-           name == "quant_byte_offset";
+           name == "quant_byte_offset" || name == "codebook_entry_lanes";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -11148,8 +11148,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (!isAllowedAttr(attrName))
       return emitOpError()
              << "only accepts the bounded {decode_model, qk, weight_block_stride, "
-                "scale_byte_offset, quant_byte_offset} attributes; unexpected "
-                "attribute '"
+                "scale_byte_offset, quant_byte_offset, codebook_entry_lanes} "
+                "attributes; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -11174,6 +11174,27 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   if (getQuantByteOffsetAttr().getInt() < 0)
     return emitOpError() << "requires quant_byte_offset >= 0; got "
                          << getQuantByteOffsetAttr().getInt();
+  // The OPTIONAL codebook grid ENTRY byte-width descriptor (g-axis geometry): when
+  // present it must name a positive lane count.
+  if (mlir::IntegerAttr entryLanes = getCodebookEntryLanesAttr())
+    if (entryLanes.getInt() <= 0)
+      return emitOpError() << "requires codebook_entry_lanes > 0 when present; got "
+                           << entryLanes.getInt();
+  // The three OWNED grid-codebook decode leaves (iq3_s grid-of-4 uint32; iq2_xs / iq1_m
+  // grid-of-8 uint64) reconstruct a codebook grid ENTRY whose byte-width IS the g-axis
+  // geometry: they MUST carry the codebook_entry_lanes descriptor so the mechanism body
+  // READS it instead of baking the format constant (律2). Fail closed here at verify
+  // time (never value_or self-supplied) if a consuming leaf is missing it; every other
+  // decode leaf leaves the OptionalAttr absent.
+  llvm::StringRef dm = getDecodeModel();
+  bool consumesEntryLanes = dm == "iq3_s" || dm == "iq2_xs" || dm == "iq1_m";
+  if (consumesEntryLanes && !getCodebookEntryLanesAttr())
+    return emitOpError()
+           << "decode_model '" << dm
+           << "' is an owned grid-codebook dequant leaf and requires the "
+              "codebook_entry_lanes descriptor (the grid ENTRY byte-width g-axis "
+              "geometry); it must be stamped by the dequant-stream front door, never "
+              "baked into the mechanism body or value_or self-supplied";
 
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();

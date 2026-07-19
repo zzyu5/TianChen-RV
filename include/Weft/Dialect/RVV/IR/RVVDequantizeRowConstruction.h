@@ -45,11 +45,17 @@ namespace weft::rvv {
 //   weightBlockStride = the AoS weight block byte stride
 //   scaleByteOffset   = the fp16/scale byte offset within the block
 //   quantByteOffset   = the packed-quant byte offset within the block
+//   codebookEntryLanes= the codebook grid ENTRY byte-width (the g-axis geometry:
+//                       grid-of-4 uint32 = 4 for iq3_s, grid-of-8 uint64 = 8 for
+//                       iq2_xs/iq1_m); 0 = not a grid-codebook owned-vector body (the
+//                       flat / K-quant / non-grid leaves do NOT carry an entry width,
+//                       so the descriptor is left unstamped for them).
 struct DequantizeRowStreamFacts {
   std::int64_t qk;
   std::int64_t weightBlockStride;
   std::int64_t scaleByteOffset;
   std::int64_t quantByteOffset;
+  std::int64_t codebookEntryLanes;
 };
 
 // Look up the AoS block-layout facts for one of the 21 CONSTRUCTED streaming

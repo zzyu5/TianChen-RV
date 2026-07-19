@@ -2811,7 +2811,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3XXSVectorBody(
 mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3SVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    int64_t entryLanes) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
 
   mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -2828,8 +2829,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3SVectorBody(
   // sub-group l holds a grid-entry PAIR (entry1 low signs / entry2 high signs) sharing one
   // explicit sign byte, an outer group g = 4 sub-groups x 2 passes, and there are 4 outer
   // groups. `db` is CONSTANT across a pass. Every LMUL (i8mf4/i32m1/f32m1, u8mf4 selector)
-  // is DERIVED from the 4-lane grid entry width.
-  const int64_t entryLanes = 4;
+  // is DERIVED from the 4-lane grid entry width. `entryLanes` (= 4 for iq3_s) arrives from
+  // the codebook_entry_lanes descriptor the dequant-stream front door stamps on the decode
+  // core brick -- the g-axis grid geometry is READ, NOT baked into this mechanism body
+  // (律2); the caller fails closed if the descriptor is absent (no value_or self-supply).
   mlir::Type u8ScalarType = emitc::OpaqueType::get(ctx, "uint8_t");
   mlir::Type i8NarrowType = emitc::OpaqueType::get(ctx, "vint8mf4_t");
   mlir::Type u8NarrowType = emitc::OpaqueType::get(ctx, "vuint8mf4_t");
@@ -3070,7 +3073,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ3SVectorBody(
 mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ2XSVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    int64_t entryLanes) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
 
   mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -3087,8 +3091,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ2XSVectorBody(
   // The FIXED iq2_xs grid-of-8 geometry: a grid entry = 8 grid bytes (1 grid int64 / 8
   // grid values), a sub-block ib32 holds 4 grid entries, `sc` (one byte per ib32) carries
   // two 4-bit scales (l<2 -> low nibble, l>=2 -> high nibble). Every LMUL (i8mf2/i32m2/
-  // f32m2) is DERIVED from the 8-lane grid entry width.
-  const int64_t entryLanes = 8;
+  // f32m2) is DERIVED from the 8-lane grid entry width. `entryLanes` (= 8 for iq2_xs)
+  // arrives from the codebook_entry_lanes descriptor the dequant-stream front door stamps
+  // on the decode core brick -- the g-axis grid geometry is READ, NOT baked into this
+  // mechanism body (律2); the caller fails closed if the descriptor is absent (no value_or
+  // self-supply).
   mlir::Type i8NarrowType = emitc::OpaqueType::get(ctx, "vint8mf2_t");
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
   mlir::Type f32Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
@@ -3282,7 +3289,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ2XSVectorBody(
 mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ1MVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
-    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    int64_t entryLanes) const {
   mlir::MLIRContext *ctx = rewriter.getContext();
 
   mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
@@ -3298,7 +3306,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQ1MVectorBody(
   mlir::Type u64PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint64_t"));
 
-  const int64_t entryLanes = 8;
+  // The FIXED iq1_m grid-of-8 geometry: a 2048-entry iq1s_grid entry = 8 contiguous
+  // ternary grid bytes. `entryLanes` (= 8 for iq1_m) arrives from the
+  // codebook_entry_lanes descriptor the dequant-stream front door stamps on the decode
+  // core brick -- the g-axis grid geometry is READ, NOT baked into this mechanism body
+  // (律2); the caller fails closed if the descriptor is absent (no value_or self-supply).
   mlir::Type i8NarrowType = emitc::OpaqueType::get(ctx, "vint8mf2_t");
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
   mlir::Type f32Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");

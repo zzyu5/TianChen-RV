@@ -5043,7 +5043,8 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format) const;
+      llvm::StringRef format,
+      std::optional<int64_t> codebookEntryLanes) const;
 
   /// The OWNED REAL-VECTOR iq3_xxs dequantize_row block-decode body (PR-31, the
   /// dequant true-vector emitter first cell): the AoS `nb = k / 256` super-block
@@ -5091,7 +5092,8 @@ private:
   mlir::LogicalResult emitDequantizeRowIQ3SVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t entryLanes) const;
 
   /// The OWNED REAL-VECTOR iq2_xs dequantize_row block-decode body (R5.1-D grid family
   /// de-lottery, the iq3_xxs/iq3_s dequant sibling fan-out · 扩 iq2 面): iq2_xs dequant
@@ -5113,7 +5115,8 @@ private:
   mlir::LogicalResult emitDequantizeRowIQ2XSVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t entryLanes) const;
 
   /// The OWNED REAL-VECTOR iq1_m dequantize_row block-decode body (R5.1-D grid family
   /// de-lottery, the iq1s_grid ternary sibling). UNLIKE iq2_xs/iq3_s, the deployed iq1_m
@@ -5135,7 +5138,8 @@ private:
   mlir::LogicalResult emitDequantizeRowIQ1MVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t entryLanes) const;
 
   /// The SHARED codebook / ternary-grid super-block dequantize_row block-decode body
   /// for the remaining extended formats (iq1_s/iq1_m ternary iq1s_grid + delta,
@@ -5158,7 +5162,8 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format) const;
+      llvm::StringRef format,
+      std::optional<int64_t> codebookEntryLanes) const;
 
   /// The OWNED REAL-VECTOR tiny-codebook (16-entry) dequantize_row body (B线批2
   /// tiny-codebook de-lottery · [L-8] · ISSUE-001 reverse · closes the ISSUE-002

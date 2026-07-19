@@ -9734,7 +9734,14 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     per-format scale seam + the codebook / grid / ternary
     gather (all DERIVED at emit as function-local statics), folded d*scale*value. The
     block-layout facts (qk, weight_block_stride, scale_byte_offset, quant_byte_offset)
-    are the ggml ABI constants; decode_model pins WHICH decode leaf. For the current
+    are the ggml ABI constants; decode_model pins WHICH decode leaf. The OPTIONAL
+    codebook_entry_lanes descriptor carries the per-format codebook grid ENTRY
+    byte-width (the g-axis geometry: grid-of-4 uint32 = 4 lanes for iq3_s, grid-of-8
+    uint64 = 8 lanes for iq2_xs/iq1_m) so the owned narrow-per-entry grid dequant
+    bodies READ the entry lane count from this descriptor instead of baking the format
+    constant into the mechanism body; it is stamped ONLY for the three consuming
+    grid-codebook decode models and the emitter fails closed (never value_or
+    self-supply) if a consuming leaf reaches emit without it. For the current
     bounded surface decode_model is limited to the flat streaming family
     "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1" + the flat binary-sign leaf "q1_0" + the
     K-quant super-blocks
@@ -9759,7 +9766,8 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     I64Attr:$qk,
     I64Attr:$weight_block_stride,
     I64Attr:$scale_byte_offset,
-    I64Attr:$quant_byte_offset
+    I64Attr:$quant_byte_offset,
+    OptionalAttr<I64Attr>:$codebook_entry_lanes
   );
 
   let assemblyFormat =

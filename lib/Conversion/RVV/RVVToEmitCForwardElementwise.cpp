@@ -4222,7 +4222,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef format) const {
+    llvm::StringRef format,
+    std::optional<int64_t> codebookEntryLanes) const {
   // iq3_xxs is the FIRST cell of the dequant true-vector emitter (PR-31): it lowers
   // to the OWNED real-vector body (vluxei16 grid gather + sign fold + vfcvt + vfmul
   // + vse32), NOT the shared scalar dispatch-wired decode. The other IQ grid formats
@@ -4234,19 +4235,38 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
   // iq3_s FANS OUT next (R5.1-C grid family de-lottery): the grid-of-4 EXPLICIT-SIGNS
   // sibling lowers to its OWNED narrow-per-entry real-vector body (gather-free ~2x the
   // clang-autovec scalar-lottery leaf, board-proven). The remaining IQ grid formats
-  // (iq2_xxs/iq2_xs/iq2_s) stay on the scalar forwarder until they fan out.
-  if (format == "iq3_s")
+  // (iq2_xxs/iq2_xs/iq2_s) stay on the scalar forwarder until they fan out. The grid
+  // ENTRY byte-width (g-axis geometry) is READ from the codebook_entry_lanes descriptor,
+  // NOT baked into the body (律2); fail closed if the front door did not stamp it (no
+  // value_or self-supply to the g-axis).
+  if (format == "iq3_s") {
+    if (!codebookEntryLanes)
+      return rewriter.notifyMatchFailure(
+          loc, "iq3_s owned grid dequant body requires the codebook_entry_lanes "
+               "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
+               "dequant-stream front door; it must NOT be baked into the mechanism "
+               "body and is never value_or self-supplied");
     return emitDequantizeRowIQ3SVectorBody(rewriter, loc, input, output, avlArg,
-                                           sizeType, opName, role);
+                                           sizeType, opName, role,
+                                           *codebookEntryLanes);
+  }
   // iq2_xs FANS OUT next (R5.1-D 扩 iq2 面 · grid family de-lottery): the grid-of-8
   // (int64, 512-entry) sibling lowers to its OWNED narrow-per-entry real-vector body
   // (gather-free -- the deployed scalar forwarder's clang autovec exploded to 32 vluxei /
   // 96 vslidedown, pre-check objdump verified -- board-proven vs the codegen-lottery leaf).
   // The remaining IQ grid formats (iq2_xxs/iq2_s) stay on the scalar forwarder until they
-  // fan out.
-  if (format == "iq2_xs")
+  // fan out. Same g-axis descriptor read + fail-closed contract as iq3_s.
+  if (format == "iq2_xs") {
+    if (!codebookEntryLanes)
+      return rewriter.notifyMatchFailure(
+          loc, "iq2_xs owned grid dequant body requires the codebook_entry_lanes "
+               "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
+               "dequant-stream front door; it must NOT be baked into the mechanism "
+               "body and is never value_or self-supplied");
     return emitDequantizeRowIQ2XSVectorBody(rewriter, loc, input, output, avlArg,
-                                            sizeType, opName, role);
+                                            sizeType, opName, role,
+                                            *codebookEntryLanes);
+  }
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
 }
@@ -4272,7 +4292,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef format) const {
+    llvm::StringRef format,
+    std::optional<int64_t> codebookEntryLanes) const {
   // The four 16-entry codebook leaves (mxfp4/nvfp4 FP4 e2m1, iq4_nl/iq4_xs non-linear)
   // lower to the OWNED vrgather codebook vector body (B线批2 tiny-codebook de-lottery,
   // the FP4/non-linear fan-out over the q8_0/nibble non-grid precedent · [L-8] ·
@@ -4298,9 +4319,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
   // PARITY throughput (lever-N/A honest-null), NOT a codegen-STRUCTURE flip -- the sign-free
   // ternary grid + per-group delta decode is rendered EXPLICITLY so it no longer rides
   // clang's codegen-lottery. iq1_s stays on the scalar forwarder until it fans out.
-  if (format == "iq1_m")
+  // The grid ENTRY byte-width (g-axis geometry) is READ from the codebook_entry_lanes
+  // descriptor, NOT baked into the body (律2); fail closed if the front door did not
+  // stamp it (no value_or self-supply to the g-axis).
+  if (format == "iq1_m") {
+    if (!codebookEntryLanes)
+      return rewriter.notifyMatchFailure(
+          loc, "iq1_m owned grid dequant body requires the codebook_entry_lanes "
+               "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
+               "dequant-stream front door; it must NOT be baked into the mechanism "
+               "body and is never value_or self-supplied");
     return emitDequantizeRowIQ1MVectorBody(rewriter, loc, input, output, avlArg,
-                                           sizeType, opName, role);
+                                           sizeType, opName, role,
+                                           *codebookEntryLanes);
+  }
   return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
                                        avlArg, sizeType, opName, role);
 }
@@ -4817,6 +4849,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
 
   llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
   llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
+  // The OPTIONAL g-axis grid geometry descriptor (codebook grid ENTRY byte-width),
+  // stamped by the dequant-stream front door ONLY for the three owned grid-codebook
+  // decode leaves (iq3_s / iq2_xs / iq1_m). The owned narrow-per-entry grid dequant
+  // bodies READ this entry lane count from the descriptor instead of baking the format
+  // constant into the mechanism body (律2); the shared IQ-grid / codebook-grid
+  // dispatchers fail closed (no value_or self-supply) if a consuming leaf reaches emit
+  // without it. Absent for every flat / K-quant / non-grid leaf (they never read it).
+  std::optional<int64_t> codebookEntryLanes;
+  if (mlir::IntegerAttr entryLanesAttr =
+          coreOp->getAttrOfType<mlir::IntegerAttr>("codebook_entry_lanes"))
+    codebookEntryLanes = entryLanesAttr.getInt();
   // Dispatch on decode_model to the per-format leaf: each re-emits the whole nb
   // block loop + per-block decode via the SHARED body emitter, byte-exact to the
   // dispatch-wired monolith.
@@ -4874,7 +4917,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
       decodeModel == "iq3_s")
     return emitDequantizeRowIQGridBodyShared(rewriter, loc, weightBase, output,
                                              avlArg, sizeType, opName, role,
-                                             decodeModel);
+                                             decodeModel, codebookEntryLanes);
   // The remaining codebook / ternary-grid extended leaves (iq1_s/iq1_m ternary
   // iq1s_grid, iq4_nl/iq4_xs non-linear codebook, mxfp4/nvfp4 FP4 codebook, and the
   // tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks) forward to the SAME hand-written
@@ -4886,7 +4929,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
       decodeModel == "tq1_0" || decodeModel == "tq2_0")
     return emitDequantizeRowCodebookGridBodyShared(rewriter, loc, weightBase,
                                                    output, avlArg, sizeType,
-                                                   opName, role, decodeModel);
+                                                   opName, role, decodeModel,
+                                                   codebookEntryLanes);
   // The flat 1-bit binary-sign leaf (q1_0) forwards to the SAME hand-written
   // binary-sign decode the dispatch-wired monolith fallback runs (via the shared
   // emitGgmlDequantizeRowExtended, keyed by the format string alone), so the
