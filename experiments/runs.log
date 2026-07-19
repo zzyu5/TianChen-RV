@@ -17,3 +17,5 @@
 20260718T064843Z-iq3_s-k1-a6ad-widen·2026-07-18T06:48:43+00:00·iq3_s·WIN·cold_X=1.2025/1.2030(k1·VLEN256宽化half_lanes=16·flip 0.61→1.20·真宽AVL8→16/vset5397→2515/gather1024→512非re-roll·CROSSOP系统账vs手调vl256·byte-exact 4-arm)·PROVEN·a6ad trellis-check独立CONFIRMED·deploy裁准(裁决1·ISSUE-105·task施工中)·master待deploy转PASS
 20260718T064843Z-iq1_s-k1-a6ad-widen·2026-07-18T06:48:43+00:00·iq1_s·WIN·cold_X=1.3375/1.3517(k1·VLEN256宽化·flip 0.59→1.34·2.27×·真宽AVL8→16非re-roll·CROSSOP vs手调vl256·byte-exact)·PROVEN·a6ad独立CONFIRMED·deploy裁准(裁决1·ISSUE-105)
 20260718T064843Z-iq1_m-k1-a6ad-widen·2026-07-18T06:48:43+00:00·iq1_m·WIN·cold_X=1.7270/1.7738(k1·VLEN256宽化·flip 0.59→1.77·2.94×compound=宽化+spill-storm810→42清零·真宽AVL8→16非re-roll·CROSSOP vs手调vl256·byte-exact)·PROVEN·a6ad独立CONFIRMED·deploy裁准(裁决1·ISSUE-105)
+20260719T183551Z-q4_K-k1-f8cdae04·2026-07-19T18:35:51+00:00·q4_K·DRY-RUN(演示·未测量·无行更新)
+20260719T183819Z-q4_K-k1-fe7eb556·2026-07-19T18:38:22+00:00·q4_K·VOID-我方错(verify harness rc=2)

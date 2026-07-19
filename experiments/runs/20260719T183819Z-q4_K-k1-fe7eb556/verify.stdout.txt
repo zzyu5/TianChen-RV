@@ -1,0 +1,2 @@
+# HARNESS gemm_tile board=k1 mode=verify fmt=q4_K assets=/home/kingdom/phdworks/TianchenRV/experiments/active/g8-stage3-attack/P2-grid4-raw
+# HARNESS-VOID bad fmt q4_K (gemm_tile 族仅 iq1_s|iq1_m|iq3_xxs|iq3_s|iq2_xxs|iq2_xs|iq2_s)
