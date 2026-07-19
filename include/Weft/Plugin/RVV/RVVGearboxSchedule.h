@@ -2113,6 +2113,85 @@ selectRVVLowPrecisionMaxLegalAccumulatorLMULRung(
 /// One enumerated accumulator-LMUL rung for the i16 single-widening dot-reduce
 /// deferred-wide chain. `accumulatorLMUL == productLMUL` (the i32 product IS the
 /// deferred accumulator); `sourceLMUL` is the i16 strip-mine load LMUL.
+//===----------------------------------------------------------------------===//
+// Register-pressure feasibility inequality (width-selection STEP ②: WHICH
+// (unroll x widening-chain-LMUL) combinations FIT the architectural vector-register
+// file -- the register-LEGALITY step, DISTINCT from the [GAP-P1]-blocked STEP ④
+// speed-choice AMONG the fitting ones). This is the ONE closed-form home for the
+// vreg-budget legality the resource-aware selectors reason over; before it the
+// inequality was implicit/scattered (the per-rung `acc + reserve <= budget` below,
+// the repack m1-chain footprint check, the resource-candidate legal-count strings).
+//
+//   peakCost(combo) = Σ_levels  footprint(LMUL_level) · unroll · liveVars_level
+//   legal(combo)    ⟺  peakCost(combo)  ≤  vregBudget − fixedOccupancy
+//
+// ALL inputs are declared quantities: the per-level LMULs come from the widening-
+// chain f, the unroll degree + per-level live-variable counts from the kernel
+// structure, vregBudget is the ISA vreg_count capability fact (32,
+// getRVVArchitecturalVectorRegisterCount), fixedOccupancy the loop-invariant
+// reserve. Output = the legal (unroll x chain) combination SET -- pruning the
+// enumeration from dozens to the few that fit BEFORE any measured speed probe
+// ("search被收编" made literal). This is a formula the width search reads, not a
+// tune knob: change any input and the legal set changes deterministically.
+//===----------------------------------------------------------------------===//
+
+/// One level of the widening pipeline: a vector LMUL and how many groups of it are
+/// simultaneously LIVE at the register-pressure peak (e.g. 2 i16 source loads +
+/// 1 i32 accumulator).
+struct RVVRegisterPressureLevel {
+  llvm::StringRef lmul;   ///< the level's vector LMUL (mf8..m8).
+  std::int64_t liveVars;  ///< groups of this LMUL live at the peak.
+};
+
+/// The peak-live vector-register footprint of a (levels x unroll) combination:
+/// Σ_levels footprint(LMUL_level) · unroll · liveVars_level.
+inline std::int64_t
+rvvRegisterPressurePeakCost(llvm::ArrayRef<RVVRegisterPressureLevel> levels,
+                            std::int64_t unroll) {
+  std::int64_t cost = 0;
+  for (const RVVRegisterPressureLevel &level : levels)
+    cost += getRVVLMULRegisterFootprint(level.lmul) * unroll * level.liveVars;
+  return cost;
+}
+
+/// The register-pressure legality PREDICATE (STEP ②): the combination FITS iff its
+/// peak footprint leaves room within the budget after the fixed occupancy.
+inline bool
+rvvRegisterPressureLegal(llvm::ArrayRef<RVVRegisterPressureLevel> levels,
+                         std::int64_t unroll, std::int64_t vectorRegisterBudget,
+                         std::int64_t fixedOccupancy) {
+  return rvvRegisterPressurePeakCost(levels, unroll) <=
+         vectorRegisterBudget - fixedOccupancy;
+}
+
+/// One (unroll x chain) combination with its peak footprint and STEP ② legality.
+struct RVVRegisterPressureCombination {
+  std::int64_t unroll = 0;
+  std::int64_t peakCost = 0;
+  bool isLegal = false;
+};
+
+/// Enumerate the (unroll x chain) combinations and tag each with its STEP ②
+/// register legality: the feasible set the STEP ④ speed-choice then picks from.
+/// `levelsPerUnit` is the widening chain of ONE unroll unit (its footprint scales
+/// by `unroll`); `candidateUnrolls` the unroll degrees to consider.
+inline llvm::SmallVector<RVVRegisterPressureCombination, 8>
+enumerateRVVRegisterPressureLegalCombinations(
+    llvm::ArrayRef<RVVRegisterPressureLevel> levelsPerUnit,
+    llvm::ArrayRef<std::int64_t> candidateUnrolls,
+    std::int64_t vectorRegisterBudget, std::int64_t fixedOccupancy) {
+  llvm::SmallVector<RVVRegisterPressureCombination, 8> combos;
+  for (std::int64_t unroll : candidateUnrolls) {
+    RVVRegisterPressureCombination combo;
+    combo.unroll = unroll;
+    combo.peakCost = rvvRegisterPressurePeakCost(levelsPerUnit, unroll);
+    combo.isLegal =
+        combo.peakCost <= vectorRegisterBudget - fixedOccupancy;
+    combos.push_back(combo);
+  }
+  return combos;
+}
+
 struct RVVDotReduceDeferredWideLMULRung {
   llvm::StringRef sourceLMUL;       // i16 strip-mine load LMUL (mf2..m4).
   llvm::StringRef accumulatorLMUL;  // i32 product/accumulator LMUL (m1..m8), 2x.
@@ -2143,11 +2222,15 @@ enumerateRVVDotReduceDeferredWideLMULRungs(std::int64_t vectorRegisterBudget,
     rung.accumulatorLMUL = accumulatorLMUL;
     rung.accumulatorRegisterCost = getRVVLMULRegisterFootprint(accumulatorLMUL);
     rung.reserveRegisterCost = reserveRegisterCost;
-    // Peak-live = the i32 accumulator (the deferred vadd aliases the product
-    // into it -- one i32 group, not two) + the load/temp reserve.
-    const std::int64_t totalRegisterCost =
-        rung.accumulatorRegisterCost + rung.reserveRegisterCost;
-    rung.isLegal = totalRegisterCost <= vectorRegisterBudget;
+    // Peak-live = the i32 accumulator (the deferred vadd aliases the product into
+    // it -- ONE i32 group, not two) at unroll 1; the load/temp reserve is the fixed
+    // occupancy. Routed through the ONE register-pressure inequality home (STEP ②):
+    // legal ⟺ footprint(acc)·1·1 ≤ budget − reserve, byte-identical to the prior
+    // `acc + reserve <= budget`.
+    const RVVRegisterPressureLevel accLevel{accumulatorLMUL, /*liveVars=*/1};
+    rung.isLegal = rvvRegisterPressureLegal(accLevel, /*unroll=*/1,
+                                            vectorRegisterBudget,
+                                            /*fixedOccupancy=*/reserveRegisterCost);
     rungs.push_back(rung);
   }
   return rungs;

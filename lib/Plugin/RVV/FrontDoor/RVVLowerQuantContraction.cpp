@@ -1301,11 +1301,18 @@ selectRepackAccumulatorLMUL(llvm::StringRef scaleModel, bool isRVV0p7,
   // (getRVVArchitecturalVectorRegisterCount), not a magic literal.
   const std::int64_t kVectorRegisterBudget =
       pluginrvv::getRVVArchitecturalVectorRegisterCount();
-  const std::int64_t m1ChainRegisterFootprint =
-      pluginrvv::getRVVLMULRegisterFootprint("m2") +
-      pluginrvv::getRVVLMULRegisterFootprint("m4");
-  const bool m1Constructible = capabilityHalfLanes != 0 &&
-                               m1ChainRegisterFootprint <= kVectorRegisterBudget;
+  // The m1 whole-LMUL chain's peak-live levels: the i16m2 product + the i32m4
+  // accumulator (both live at the fold peak, 1 group each). Routed through the ONE
+  // register-pressure inequality home (STEP ②, the MULTI-LEVEL closed form):
+  // legal ⟺ footprint(m2)·1·1 + footprint(m4)·1·1 ≤ budget − 0, byte-identical to
+  // the prior `footprint(m2) + footprint(m4) <= budget`.
+  const pluginrvv::RVVRegisterPressureLevel m1ChainLevels[] = {
+      {/*lmul=*/"m2", /*liveVars=*/1}, {/*lmul=*/"m4", /*liveVars=*/1}};
+  const bool m1Constructible =
+      capabilityHalfLanes != 0 &&
+      pluginrvv::rvvRegisterPressureLegal(m1ChainLevels, /*unroll=*/1,
+                                          kVectorRegisterBudget,
+                                          /*fixedOccupancy=*/0);
   if (m1Constructible)
     if (std::optional<bool> measuredM1Faster =
             lookupRepackMeasuredM1Faster(scaleModel))
