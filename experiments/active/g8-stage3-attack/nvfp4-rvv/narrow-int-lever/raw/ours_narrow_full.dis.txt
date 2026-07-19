@@ -1,0 +1,408 @@
+
+attack.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <weft_emitc_ggml_vec_dot_nvfp4_q8_0_kernel_rvv_nvfp4_q8_0_block_dot_ATTACK>:
+   0:	7171                	addi	sp,sp,-176
+   2:	f506                	sd	ra,168(sp)
+   4:	f122                	sd	s0,160(sp)
+   6:	ed26                	sd	s1,152(sp)
+   8:	e94a                	sd	s2,144(sp)
+   a:	e54e                	sd	s3,136(sp)
+   c:	e152                	sd	s4,128(sp)
+   e:	fcd6                	sd	s5,120(sp)
+  10:	f8da                	sd	s6,112(sp)
+  12:	b4a2                	fsd	fs0,104(sp)
+  14:	b0a6                	fsd	fs1,96(sp)
+  16:	acca                	fsd	fs2,88(sp)
+  18:	a8ce                	fsd	fs3,80(sp)
+  1a:	a4d2                	fsd	fs4,72(sp)
+  1c:	a0d6                	fsd	fs5,64(sp)
+  1e:	bc5a                	fsd	fs6,56(sp)
+  20:	b85e                	fsd	fs7,48(sp)
+  22:	b462                	fsd	fs8,40(sp)
+  24:	b066                	fsd	fs9,32(sp)
+  26:	ac6a                	fsd	fs10,24(sp)
+  28:	a86e                	fsd	fs11,16(sp)
+  2a:	c2202773          	csrr	a4,vlenb
+  2e:	070a                	slli	a4,a4,0x2
+  30:	20e72733          	sh1add	a4,a4,a4
+  34:	40e10133          	sub	sp,sp,a4
+  38:	8119                	srli	a0,a0,0x6
+  3a:	892e                	mv	s2,a1
+  3c:	46050f63          	beqz	a0,4ba <.LBB0_19>
+
+0000000000000040 <.Lpcrel_hi0>:
+  40:	00000597          	auipc	a1,0x0
+  44:	00058593          	mv	a1,a1
+  48:	cc087057          	vsetivli	zero,16,e8,m1,ta,ma
+  4c:	02058407          	vle8.v	v8,(a1)
+  50:	c22025f3          	csrr	a1,vlenb
+  54:	958a                	add	a1,a1,sp
+  56:	05c1                	addi	a1,a1,16 # 50 <.Lpcrel_hi0+0x10>
+  58:	02858427          	vs1r.v	v8,(a1)
+  5c:	cd2479d7          	vsetivli	s3,8,e32,m4,ta,ma
+  60:	42006457          	vmv.s.x	v8,zero
+  64:	080c                	addi	a1,sp,16
+  66:	02858427          	vs1r.v	v8,(a1)
+  6a:	01c60a93          	addi	s5,a2,28
+  6e:	02268b13          	addi	s6,a3,34
+  72:	20a56533          	sh3add	a0,a0,a0
+  76:	21554a33          	sh2add	s4,a0,s5
+  7a:	f0000953          	fmv.w.x	fs2,zero
+  7e:	f01389d3          	fli.s	fs3,0x1p-3
+  82:	f0180a53          	fli.s	fs4,0x1p+0
+  86:	21290b53          	fmv.s	fs6,fs2
+  8a:	a2e9                	j	254 <.LBB0_3>
+
+000000000000008c <.LBB0_2>:
+  8c:	402c0753          	fcvt.s.h	fa4,fs8
+  90:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+  94:	c2202573          	csrr	a0,vlenb
+  98:	0506                	slli	a0,a0,0x1
+  9a:	20a54533          	sh2add	a0,a0,a0
+  9e:	950a                	add	a0,a0,sp
+  a0:	0541                	addi	a0,a0,16
+  a2:	02850487          	vl1r.v	v9,(a0)
+  a6:	2697b457          	vand.vi	v8,v9,15
+  aa:	a29234d7          	vsrl.vi	v9,v9,4
+  ae:	c2202573          	csrr	a0,vlenb
+  b2:	950a                	add	a0,a0,sp
+  b4:	0541                	addi	a0,a0,16
+  b6:	02850687          	vl1r.v	v13,(a0)
+  ba:	32d40557          	vrgather.vv	v10,v13,v8
+  be:	32d48457          	vrgather.vv	v8,v13,v9
+  c2:	0c79f057          	vsetvli	zero,s3,e8,mf2,ta,ma
+  c6:	c2202573          	csrr	a0,vlenb
+  ca:	050e                	slli	a0,a0,0x3
+  cc:	950a                	add	a0,a0,sp
+  ce:	0541                	addi	a0,a0,16
+  d0:	02850587          	vl1r.v	v11,(a0)
+  d4:	eea5a4d7          	vwmul.vv	v9,v10,v11
+  d8:	c2202573          	csrr	a0,vlenb
+  dc:	20a56533          	sh3add	a0,a0,a0
+  e0:	950a                	add	a0,a0,sp
+  e2:	0541                	addi	a0,a0,16
+  e4:	02850507          	vl1r.v	v10,(a0)
+  e8:	f6a424d7          	vwmacc.vv	v9,v8,v10
+  ec:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+  f0:	0808                	addi	a0,sp,16
+  f2:	02850707          	vl1r.v	v14,(a0)
+  f6:	c6970457          	vwredsum.vs	v8,v9,v14
+  fa:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+  fe:	42802557          	vmv.x.s	a0,v8
+ 102:	10ebf753          	fmul.s	fa4,fs7,fa4
+ 106:	d00576d3          	fcvt.s.w	fa3,a0
+ 10a:	b0d77743          	fmadd.s	fa4,fa4,fa3,fs6
+ 10e:	402d06d3          	fcvt.s.h	fa3,fs10
+ 112:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+ 116:	c2202573          	csrr	a0,vlenb
+ 11a:	00351593          	slli	a1,a0,0x3
+ 11e:	40a58533          	sub	a0,a1,a0
+ 122:	950a                	add	a0,a0,sp
+ 124:	0541                	addi	a0,a0,16
+ 126:	02850487          	vl1r.v	v9,(a0)
+ 12a:	2697b457          	vand.vi	v8,v9,15
+ 12e:	a29234d7          	vsrl.vi	v9,v9,4
+ 132:	32d40557          	vrgather.vv	v10,v13,v8
+ 136:	32d48457          	vrgather.vv	v8,v13,v9
+ 13a:	0c79f057          	vsetvli	zero,s3,e8,mf2,ta,ma
+ 13e:	c2202573          	csrr	a0,vlenb
+ 142:	20a54533          	sh2add	a0,a0,a0
+ 146:	950a                	add	a0,a0,sp
+ 148:	0541                	addi	a0,a0,16
+ 14a:	02850587          	vl1r.v	v11,(a0)
+ 14e:	eea5a4d7          	vwmul.vv	v9,v10,v11
+ 152:	c2202573          	csrr	a0,vlenb
+ 156:	0506                	slli	a0,a0,0x1
+ 158:	20a52533          	sh1add	a0,a0,a0
+ 15c:	950a                	add	a0,a0,sp
+ 15e:	0541                	addi	a0,a0,16
+ 160:	02850507          	vl1r.v	v10,(a0)
+ 164:	f6a424d7          	vwmacc.vv	v9,v8,v10
+ 168:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+ 16c:	c6970457          	vwredsum.vs	v8,v9,v14
+ 170:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+ 174:	42802557          	vmv.x.s	a0,v8
+ 178:	10dcf6d3          	fmul.s	fa3,fs9,fa3
+ 17c:	d0057653          	fcvt.s.w	fa2,a0
+ 180:	70c6f743          	fmadd.s	fa4,fa3,fa2,fa4
+ 184:	402a86d3          	fcvt.s.h	fa3,fs5
+ 188:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+ 18c:	c2202573          	csrr	a0,vlenb
+ 190:	050a                	slli	a0,a0,0x2
+ 192:	950a                	add	a0,a0,sp
+ 194:	0541                	addi	a0,a0,16
+ 196:	02850487          	vl1r.v	v9,(a0)
+ 19a:	2697b457          	vand.vi	v8,v9,15
+ 19e:	a29234d7          	vsrl.vi	v9,v9,4
+ 1a2:	32d40557          	vrgather.vv	v10,v13,v8
+ 1a6:	32d48457          	vrgather.vv	v8,v13,v9
+ 1aa:	0c79f057          	vsetvli	zero,s3,e8,mf2,ta,ma
+ 1ae:	c2202573          	csrr	a0,vlenb
+ 1b2:	0506                	slli	a0,a0,0x1
+ 1b4:	950a                	add	a0,a0,sp
+ 1b6:	0541                	addi	a0,a0,16
+ 1b8:	02850587          	vl1r.v	v11,(a0)
+ 1bc:	eea5a4d7          	vwmul.vv	v9,v10,v11
+ 1c0:	c2202573          	csrr	a0,vlenb
+ 1c4:	20a52533          	sh1add	a0,a0,a0
+ 1c8:	950a                	add	a0,a0,sp
+ 1ca:	0541                	addi	a0,a0,16
+ 1cc:	02850507          	vl1r.v	v10,(a0)
+ 1d0:	f6a424d7          	vwmacc.vv	v9,v8,v10
+ 1d4:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+ 1d8:	c6970457          	vwredsum.vs	v8,v9,v14
+ 1dc:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+ 1e0:	42802557          	vmv.x.s	a0,v8
+ 1e4:	000b1607          	flh	fa2,0(s6)
+ 1e8:	10ddf6d3          	fmul.s	fa3,fs11,fa3
+ 1ec:	d00575d3          	fcvt.s.w	fa1,a0
+ 1f0:	70b6f743          	fmadd.s	fa4,fa3,fa1,fa4
+ 1f4:	402606d3          	fcvt.s.h	fa3,fa2
+ 1f8:	012b0513          	addi	a0,s6,18
+ 1fc:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+ 200:	020a8407          	vle8.v	v8,(s5)
+ 204:	01ab0593          	addi	a1,s6,26
+ 208:	02050487          	vle8.v	v9,(a0)
+ 20c:	02058507          	vle8.v	v10,(a1)
+ 210:	2687b5d7          	vand.vi	v11,v8,15
+ 214:	a2823457          	vsrl.vi	v8,v8,4
+ 218:	32d58657          	vrgather.vv	v12,v13,v11
+ 21c:	32d405d7          	vrgather.vv	v11,v13,v8
+ 220:	0c79f057          	vsetvli	zero,s3,e8,mf2,ta,ma
+ 224:	eec4a457          	vwmul.vv	v8,v12,v9
+ 228:	f6a5a457          	vwmacc.vv	v8,v11,v10
+ 22c:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+ 230:	c6870457          	vwredsum.vs	v8,v8,v14
+ 234:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+ 238:	42802557          	vmv.x.s	a0,v8
+ 23c:	10d7f7d3          	fmul.s	fa5,fa5,fa3
+ 240:	d00576d3          	fcvt.s.w	fa3,a0
+ 244:	70d7fb43          	fmadd.s	fs6,fa5,fa3,fa4
+ 248:	024a8a93          	addi	s5,s5,36
+ 24c:	044b0b13          	addi	s6,s6,68
+ 250:	274a8763          	beq	s5,s4,4be <.LBB0_20>
+
+0000000000000254 <.LBB0_3>:
+ 254:	fe4ac403          	lbu	s0,-28(s5)
+ 258:	03941513          	slli	a0,s0,0x39
+ 25c:	03c55493          	srli	s1,a0,0x3c
+ 260:	00747513          	andi	a0,s0,7
+ 264:	d00574d3          	fcvt.s.w	fs1,a0
+ 268:	555d                	li	a0,-9
+ 26a:	20948553          	fmv.s	fa0,fs1
+ 26e:	00000097          	auipc	ra,0x0
+ 272:	000080e7          	jalr	ra # 26e <.LBB0_3+0x1a>
+ 276:	20a50453          	fmv.s	fs0,fa0
+ 27a:	1134f7d3          	fmul.s	fa5,fs1,fs3
+ 27e:	0147f553          	fadd.s	fa0,fa5,fs4
+ 282:	ff948513          	addi	a0,s1,-7
+ 286:	00000097          	auipc	ra,0x0
+ 28a:	000080e7          	jalr	ra # 286 <.LBB0_3+0x32>
+ 28e:	c099                	beqz	s1,294 <.LBB0_5>
+ 290:	20a50453          	fmv.s	fs0,fa0
+
+0000000000000294 <.LBB0_5>:
+ 294:	00143513          	seqz	a0,s0
+ 298:	f8140593          	addi	a1,s0,-127
+ 29c:	0015b593          	seqz	a1,a1
+ 2a0:	8d4d                	or	a0,a0,a1
+ 2a2:	21290bd3          	fmv.s	fs7,fs2
+ 2a6:	e509                	bnez	a0,2b0 <.LBB0_7>
+ 2a8:	f01607d3          	fli.s	fa5,0x1p-1
+ 2ac:	10f47bd3          	fmul.s	fs7,fs0,fa5
+
+00000000000002b0 <.LBB0_7>:
+ 2b0:	fe8a8513          	addi	a0,s5,-24
+ 2b4:	fdeb1c07          	flh	fs8,-34(s6)
+ 2b8:	fe0b0593          	addi	a1,s6,-32
+ 2bc:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+ 2c0:	02050407          	vle8.v	v8,(a0)
+ 2c4:	c2202573          	csrr	a0,vlenb
+ 2c8:	0506                	slli	a0,a0,0x1
+ 2ca:	20a54533          	sh2add	a0,a0,a0
+ 2ce:	950a                	add	a0,a0,sp
+ 2d0:	0541                	addi	a0,a0,16
+ 2d2:	02850427          	vs1r.v	v8,(a0)
+ 2d6:	fe5ac403          	lbu	s0,-27(s5)
+ 2da:	fe8b0513          	addi	a0,s6,-24
+ 2de:	02058407          	vle8.v	v8,(a1)
+ 2e2:	c22025f3          	csrr	a1,vlenb
+ 2e6:	058e                	slli	a1,a1,0x3
+ 2e8:	958a                	add	a1,a1,sp
+ 2ea:	05c1                	addi	a1,a1,16
+ 2ec:	02858427          	vs1r.v	v8,(a1)
+ 2f0:	02050407          	vle8.v	v8,(a0)
+ 2f4:	c2202573          	csrr	a0,vlenb
+ 2f8:	20a56533          	sh3add	a0,a0,a0
+ 2fc:	950a                	add	a0,a0,sp
+ 2fe:	0541                	addi	a0,a0,16
+ 300:	02850427          	vs1r.v	v8,(a0)
+ 304:	03941513          	slli	a0,s0,0x39
+ 308:	03c55493          	srli	s1,a0,0x3c
+ 30c:	00747513          	andi	a0,s0,7
+ 310:	d00574d3          	fcvt.s.w	fs1,a0
+ 314:	555d                	li	a0,-9
+ 316:	20948553          	fmv.s	fa0,fs1
+ 31a:	00000097          	auipc	ra,0x0
+ 31e:	000080e7          	jalr	ra # 31a <.LBB0_7+0x6a>
+ 322:	20a50453          	fmv.s	fs0,fa0
+ 326:	1134f7d3          	fmul.s	fa5,fs1,fs3
+ 32a:	0147f553          	fadd.s	fa0,fa5,fs4
+ 32e:	ff948513          	addi	a0,s1,-7
+ 332:	00000097          	auipc	ra,0x0
+ 336:	000080e7          	jalr	ra # 332 <.LBB0_7+0x82>
+ 33a:	c099                	beqz	s1,340 <.LBB0_9>
+ 33c:	20a50453          	fmv.s	fs0,fa0
+
+0000000000000340 <.LBB0_9>:
+ 340:	00143513          	seqz	a0,s0
+ 344:	f8140593          	addi	a1,s0,-127
+ 348:	0015b593          	seqz	a1,a1
+ 34c:	8d4d                	or	a0,a0,a1
+ 34e:	21290cd3          	fmv.s	fs9,fs2
+ 352:	e509                	bnez	a0,35c <.LBB0_11>
+ 354:	f01607d3          	fli.s	fa5,0x1p-1
+ 358:	10f47cd3          	fmul.s	fs9,fs0,fa5
+
+000000000000035c <.LBB0_11>:
+ 35c:	ff0a8513          	addi	a0,s5,-16
+ 360:	fdeb1d07          	flh	fs10,-34(s6)
+ 364:	ff0b0593          	addi	a1,s6,-16
+ 368:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+ 36c:	02050407          	vle8.v	v8,(a0)
+ 370:	c2202573          	csrr	a0,vlenb
+ 374:	00351613          	slli	a2,a0,0x3
+ 378:	40a60533          	sub	a0,a2,a0
+ 37c:	950a                	add	a0,a0,sp
+ 37e:	0541                	addi	a0,a0,16
+ 380:	02850427          	vs1r.v	v8,(a0)
+ 384:	fe6ac403          	lbu	s0,-26(s5)
+ 388:	ff8b0513          	addi	a0,s6,-8
+ 38c:	02058407          	vle8.v	v8,(a1)
+ 390:	c22025f3          	csrr	a1,vlenb
+ 394:	20b5c5b3          	sh2add	a1,a1,a1
+ 398:	958a                	add	a1,a1,sp
+ 39a:	05c1                	addi	a1,a1,16
+ 39c:	02858427          	vs1r.v	v8,(a1)
+ 3a0:	02050407          	vle8.v	v8,(a0)
+ 3a4:	c2202573          	csrr	a0,vlenb
+ 3a8:	0506                	slli	a0,a0,0x1
+ 3aa:	20a52533          	sh1add	a0,a0,a0
+ 3ae:	950a                	add	a0,a0,sp
+ 3b0:	0541                	addi	a0,a0,16
+ 3b2:	02850427          	vs1r.v	v8,(a0)
+ 3b6:	03941513          	slli	a0,s0,0x39
+ 3ba:	03c55493          	srli	s1,a0,0x3c
+ 3be:	00747513          	andi	a0,s0,7
+ 3c2:	d00574d3          	fcvt.s.w	fs1,a0
+ 3c6:	555d                	li	a0,-9
+ 3c8:	20948553          	fmv.s	fa0,fs1
+ 3cc:	00000097          	auipc	ra,0x0
+ 3d0:	000080e7          	jalr	ra # 3cc <.LBB0_11+0x70>
+ 3d4:	20a50453          	fmv.s	fs0,fa0
+ 3d8:	1134f7d3          	fmul.s	fa5,fs1,fs3
+ 3dc:	0147f553          	fadd.s	fa0,fa5,fs4
+ 3e0:	ff948513          	addi	a0,s1,-7
+ 3e4:	00000097          	auipc	ra,0x0
+ 3e8:	000080e7          	jalr	ra # 3e4 <.LBB0_11+0x88>
+ 3ec:	c099                	beqz	s1,3f2 <.LBB0_13>
+ 3ee:	20a50453          	fmv.s	fs0,fa0
+
+00000000000003f2 <.LBB0_13>:
+ 3f2:	00143513          	seqz	a0,s0
+ 3f6:	f8140593          	addi	a1,s0,-127
+ 3fa:	0015b593          	seqz	a1,a1
+ 3fe:	8d4d                	or	a0,a0,a1
+ 400:	21290dd3          	fmv.s	fs11,fs2
+ 404:	e509                	bnez	a0,40e <.LBB0_15>
+ 406:	f01607d3          	fli.s	fa5,0x1p-1
+ 40a:	10f47dd3          	fmul.s	fs11,fs0,fa5
+
+000000000000040e <.LBB0_15>:
+ 40e:	ff8a8513          	addi	a0,s5,-8
+ 412:	000b1a87          	flh	fs5,0(s6)
+ 416:	002b0593          	addi	a1,s6,2
+ 41a:	cc047057          	vsetivli	zero,8,e8,m1,ta,ma
+ 41e:	02050407          	vle8.v	v8,(a0)
+ 422:	c2202573          	csrr	a0,vlenb
+ 426:	050a                	slli	a0,a0,0x2
+ 428:	950a                	add	a0,a0,sp
+ 42a:	0541                	addi	a0,a0,16
+ 42c:	02850427          	vs1r.v	v8,(a0)
+ 430:	fe7ac403          	lbu	s0,-25(s5)
+ 434:	00ab0513          	addi	a0,s6,10
+ 438:	02058407          	vle8.v	v8,(a1)
+ 43c:	c22025f3          	csrr	a1,vlenb
+ 440:	0586                	slli	a1,a1,0x1
+ 442:	958a                	add	a1,a1,sp
+ 444:	05c1                	addi	a1,a1,16
+ 446:	02858427          	vs1r.v	v8,(a1)
+ 44a:	02050407          	vle8.v	v8,(a0)
+ 44e:	c2202573          	csrr	a0,vlenb
+ 452:	20a52533          	sh1add	a0,a0,a0
+ 456:	950a                	add	a0,a0,sp
+ 458:	0541                	addi	a0,a0,16
+ 45a:	02850427          	vs1r.v	v8,(a0)
+ 45e:	03941513          	slli	a0,s0,0x39
+ 462:	03c55493          	srli	s1,a0,0x3c
+ 466:	00747513          	andi	a0,s0,7
+ 46a:	d00574d3          	fcvt.s.w	fs1,a0
+ 46e:	555d                	li	a0,-9
+ 470:	20948553          	fmv.s	fa0,fs1
+ 474:	00000097          	auipc	ra,0x0
+ 478:	000080e7          	jalr	ra # 474 <.LBB0_15+0x66>
+ 47c:	20a50453          	fmv.s	fs0,fa0
+ 480:	1134f7d3          	fmul.s	fa5,fs1,fs3
+ 484:	0147f553          	fadd.s	fa0,fa5,fs4
+ 488:	ff948513          	addi	a0,s1,-7
+ 48c:	00000097          	auipc	ra,0x0
+ 490:	000080e7          	jalr	ra # 48c <.LBB0_15+0x7e>
+ 494:	c099                	beqz	s1,49a <.LBB0_17>
+ 496:	20a50453          	fmv.s	fs0,fa0
+
+000000000000049a <.LBB0_17>:
+ 49a:	00143513          	seqz	a0,s0
+ 49e:	f8140593          	addi	a1,s0,-127
+ 4a2:	0015b593          	seqz	a1,a1
+ 4a6:	8d4d                	or	a0,a0,a1
+ 4a8:	212907d3          	fmv.s	fa5,fs2
+ 4ac:	be0510e3          	bnez	a0,8c <.LBB0_2>
+ 4b0:	f01607d3          	fli.s	fa5,0x1p-1
+ 4b4:	10f477d3          	fmul.s	fa5,fs0,fa5
+ 4b8:	bed1                	j	8c <.LBB0_2>
+
+00000000000004ba <.LBB0_19>:
+ 4ba:	f0000b53          	fmv.w.x	fs6,zero
+
+00000000000004be <.LBB0_20>:
+ 4be:	01692027          	fsw	fs6,0(s2)
+ 4c2:	c2202573          	csrr	a0,vlenb
+ 4c6:	050a                	slli	a0,a0,0x2
+ 4c8:	20a52533          	sh1add	a0,a0,a0
+ 4cc:	912a                	add	sp,sp,a0
+ 4ce:	70aa                	ld	ra,168(sp)
+ 4d0:	740a                	ld	s0,160(sp)
+ 4d2:	64ea                	ld	s1,152(sp)
+ 4d4:	694a                	ld	s2,144(sp)
+ 4d6:	69aa                	ld	s3,136(sp)
+ 4d8:	6a0a                	ld	s4,128(sp)
+ 4da:	7ae6                	ld	s5,120(sp)
+ 4dc:	7b46                	ld	s6,112(sp)
+ 4de:	3426                	fld	fs0,104(sp)
+ 4e0:	3486                	fld	fs1,96(sp)
+ 4e2:	2966                	fld	fs2,88(sp)
+ 4e4:	29c6                	fld	fs3,80(sp)
+ 4e6:	2a26                	fld	fs4,72(sp)
+ 4e8:	2a86                	fld	fs5,64(sp)
+ 4ea:	3b62                	fld	fs6,56(sp)
+ 4ec:	3bc2                	fld	fs7,48(sp)
+ 4ee:	3c22                	fld	fs8,40(sp)
+ 4f0:	3c82                	fld	fs9,32(sp)
+ 4f2:	2d62                	fld	fs10,24(sp)
+ 4f4:	2dc2                	fld	fs11,16(sp)
+ 4f6:	614d                	addi	sp,sp,176
+ 4f8:	8082                	ret
