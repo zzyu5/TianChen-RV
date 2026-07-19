@@ -116,11 +116,15 @@
 | MIG-1 | 律2 entryLanes→描述符（GridCodebook·grid 3 格） | 焊死 −3 | §四.5 三闸 | **✓ 完成**`06cc93fb3` |
 | **phase-1** | **nibble 家 vertical slice**（q8_0/q4_0/q4_1/q5_0/q5_1·结构化 descriptor·decode-mechanism 8-tuple 中心化·删 emitter re-bake）·= §六.3·**F1 falsifier=验收门**（合成格式只加 descriptor 行·C1/C2 度量） | phase-① 第二步·来源解耦 | byte-exact by-construction·5 风险点 assert·**与 MIG-5 文件不相交可并行**（不碰 RVVGearboxSchedule.h） | **下一个可派** |
 | MIG-5 | 家族/宽度选择器 argmin→具名闭式 f（reduction/contraction 轴·θ_width=f(VLEN,dataWidth)） | phase-③ 原语 | 判决实验=翻 VLEN→输出翻·防假重构 | **在飞** |
-| MIG-2 | coreLmul 真焊死 θ9-13→f（GridCodebook 497/995·Ternary 862·BQL 111/404） | 焊死(c) 20→15 | **BLOCKED**：[K-10] MAINTAIN——Context **无 coreLmul 字段·无 IR 宽度可读**·强 lift=造假旋钮。**须先给描述符加 coreLmul typed 字段**（= phase-② plan.load_lmul·MIG-1 机制铺路） | 阻塞·待 phase-② |
+| **phase-2** | **NibbleDecodePlan**（MechanismPlan 抽象首个·FormulaProvider→plan→emitter·byte-exact reproduce-current） | 建立 plan 抽象 | plan 承重判决 lit(MUTSTRIP qk/2 派生 裸描述符读不出) | **✓ 完成**`26b7c3e9a` |
+| MIG-2 | coreLmul 真焊死 θ9-13→f（GridCodebook 497/995·Ternary 862·BQL 111/404） | 焊死(c) 20→15 | **BLOCKED**：[K-10] MAINTAIN——Context **无 coreLmul 字段·无 IR 宽度可读**·强 lift=造假旋钮。**须先给描述符加 coreLmul typed 字段**（= plan.load_lmul·MIG-1/phase-2 机制已铺路） | 阻塞·待字段 |
+| **phase-3/4 排序洞察** | c 驱动 θ 扩到 **codebook/grid 家**（gather anchor=f(VLEN,codebook)·MIG-B 已闭式）·**非 nibble** | dequant-row c-驱动首现 | — | **待排·见下诚实注** |
 | MIG-3 | `selectRepackAccumulatorLMUL` 家族→搬进 `RVVGearboxSchedule.h` 家 | f 集中化（现散在前门 `RVVLowerQuantContraction.cpp:1285`） | byte-exact·消费侧 18 fail-closed 读不变 | 待排 |
 | MIG-4 | measured-table 扩行（更多格式入 `kRepackMeasuredM1FasterMeasurements`） | (d) 3→≥N | **repack 家族已扫**（B1·a230adc61·q4_0/q4_1 FLIP·q5 spill-KEEP·q8 vs-对手 honest-null）。**余 = K-quant decode repack-GEVM**（q2/q3/q4/q6_K·路由确经 selectRepackAccumulatorLMUL:3910·未板扫·据 q5 GEMM-spill 律预测多半 mf2）+ q8/q4 **vs-真-VLEN128-对手**（4x8/SpacemiT/block-dot 识别·gated on bench+T-N） | 部分完成·余卡 board+bench |
 
 ---
+
+> **★phase-3 排序诚实注（2026-07-20·phase-2 后）**：phase-③「c 真驱动 θ」对 **nibble 家 likely honest-null**——nibble dequant 几何是 **qk-fixed**（strip=qk/2·loadLMUL 现固定）·census 证 dequant-row 轴 0 board-fork（board-invariant）。⟹ 真 c-驱动 θ 的机会在 **codebook/grid 家**（gather anchor=`getRVVCodebookGatherAnchorLMUL(VLEN,codebook_size)`·MIG-B 已为 FP4 闭式·随 VLEN 真变）。**⟹ 高值下一刀 = 把 MechanismPlan 抽象扩到 codebook/grid 家**（那里 c-驱动真实·= phase-③+④ 合流）·而非对 nibble 强推 phase-③（会造假 c-旋钮·nibble 无此轴）。nibble phase-2 已足（抽象建立·byte-exact）。
 
 ## 五 · 每步纪律（三闸·不可绕）
 
