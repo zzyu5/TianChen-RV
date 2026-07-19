@@ -44,7 +44,7 @@ namespace weft::plugin::rvv {
 // CAPABILITY framing -- the codebook DOES flip (unlike the q4_0 no-flip core).
 // The codebook i8 gather anchor is selected by the SHARED schedule authority
 // (enumerateRVVCodebookShapeCandidates: the {m1, mf2} anchor set + the
-// gather-VLMAX>=16 prune, fed deriveMinimumVLEN(march)) and THREADED into the
+// gather-VLMAX>=16 prune, fed resolveRVVMinimumVLEN(module)) and THREADED into the
 // body types. At VLEN128 only m1 reaches VLMAX 16 (mf2 -> 8 < 16, PRUNED), so the
 // emit is vrgather_vv_i8m1 + i16m2 product; at VLEN256 mf2 is admitted and the
 // lighter footprint wins, so the emit is vrgather_vv_i8mf2 + i16m1 product. The

@@ -27,7 +27,7 @@ namespace weft::plugin::rvv {
 // EmitC emitter consumes (the existing isLowPrecisionDequantBody sink). The
 // integer-core LMUL anchor is the SAME gearbox capability fact the MVP uses
 // (enumerateBlockDotShapeCandidates + selectGenericSchedule fed
-// deriveMinimumVLEN(march)), so the SAME generic op emits an e8m2/i16m4-form
+// resolveRVVMinimumVLEN(module)), so the SAME generic op emits an e8m2/i16m4-form
 // body at VLEN128 and an e8m1/i16m2-form body at VLEN256, now with the i32->f32
 // dequant fused in. This proves the auto-lowering path scales from bare dot to
 // dot+dequant (the q8_0-style integer core + ONE runtime scale), NOT just the

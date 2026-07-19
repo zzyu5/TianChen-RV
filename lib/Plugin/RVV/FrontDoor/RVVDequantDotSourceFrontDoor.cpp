@@ -7,7 +7,7 @@
 // per-kernel hand emitter. The integer-core LMUL anchor is the RETURN VALUE of
 // the SAME shared block-dot schedule authority the MVP consumes
 // (enumerateBlockDotShapeCandidates + selectGenericSchedule fed
-// deriveMinimumVLEN(march)) -- NOT a hand switch -- so the SAME generic source
+// resolveRVVMinimumVLEN(module)) -- NOT a hand switch -- so the SAME generic source
 // emits an e8m2/i16m4-form body at VLEN128 and an e8m1/i16m2-form body at
 // VLEN256, NOW with the i32->f32 dequant fused in before the f32 store.
 //
@@ -1046,7 +1046,7 @@ public:
     return "Auto-construct the weft_rvv widening int8 dot-reduce + runtime-f32-"
            "scale dequant body from a generic vector.multi_reduction + "
            "sitofp/mulf source, with the integer-core LMUL anchor selected by "
-           "the shared block-dot schedule authority from the deriveMinimumVLEN "
+           "the shared block-dot schedule authority from the resolveRVVMinimumVLEN "
            "capability fact (the dequant rung above the bare-dot MVP)";
   }
 

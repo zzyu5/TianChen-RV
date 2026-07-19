@@ -26,7 +26,7 @@
 // CAPABILITY framing -- NO FLIP claimed. The capability consultation is the SAME
 // shared block-dot schedule authority the rung-1/2 front doors use
 // (selectIntegerCoreLMUL: enumerateBlockDotShapeCandidates + selectGenericSchedule
-// fed deriveMinimumVLEN(march)), run here as the LEGALITY GATE (fail-closed via I7
+// fed resolveRVVMinimumVLEN(module)), run as the LEGALITY GATE (fail-closed via I7
 // if the integer-core path is pruned), NOT as the nibble anchor source. q4_0's
 // nibble HALF-block integer core is pinned at i8mf4-i16mf2-i32m1 at every Zvl128b
 // tier -- there is NO VLEN128-vs-VLEN256 byte-flip here. This is the documented
@@ -697,7 +697,7 @@ public:
            "packed_i4_offset_binary_x_i8_product + standalone_reduce + store) "
            "from a marked generic nibble-core source, with the integer-core path "
            "legality gated by the shared block-dot schedule authority from the "
-           "deriveMinimumVLEN capability fact. BOUNDED Track B G1 step: the "
+           "resolveRVVMinimumVLEN capability fact. BOUNDED Track B G1 step: the "
            "nibble integer CORE only (no block loop / fp16 scale / fp32 fold).";
   }
 

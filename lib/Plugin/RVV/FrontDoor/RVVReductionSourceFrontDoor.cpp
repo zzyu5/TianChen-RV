@@ -5,7 +5,7 @@
 // vector-dialect signed widening int8 dot-reduce, instead of a per-kernel hand
 // emitter. The integer-core LMUL anchor is the RETURN VALUE of the shared
 // block-dot schedule authority (enumerateBlockDotShapeCandidates +
-// selectGenericSchedule) fed deriveMinimumVLEN(march) -- NOT a hand switch -- so
+// selectGenericSchedule) fed resolveRVVMinimumVLEN(module) -- NOT a hand switch --
 // the SAME generic op emits an e8m2-form body at VLEN128 and an e8m1-form body at
 // VLEN256 (the capability flip, exactly the q8_0 brick #1 shape, but from a
 // generic vector.multi_reduction with no per-kernel emitter).
@@ -809,7 +809,7 @@ public:
     return "Auto-construct the weft_rvv widening int8 dot-reduce body from a "
            "generic vector.multi_reduction source, with the integer-core LMUL "
            "anchor selected by the shared block-dot schedule authority from the "
-           "deriveMinimumVLEN capability fact";
+           "resolveRVVMinimumVLEN capability fact";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {

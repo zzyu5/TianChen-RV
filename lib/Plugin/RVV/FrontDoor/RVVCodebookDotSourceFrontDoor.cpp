@@ -31,7 +31,7 @@
 // CAPABILITY framing -- the codebook DOES flip (the q4_0 sibling did NOT). The
 // capability consultation is the SAME shared schedule authority the rung-1/2 front
 // doors use (selectCodebookCoreLMUL: enumerateRVVCodebookShapeCandidates +
-// selectGenericSchedule fed deriveMinimumVLEN(march)), but here the SELECTED i8
+// selectGenericSchedule fed resolveRVVMinimumVLEN(module)), but here the SELECTED i8
 // anchor is THREADED into the body types (NOT pinned). At VLEN128 only m1 reaches
 // VLMAX 16 (the 16-entry table needs every lane indexable; mf2 -> 8 < 16 is
 // PRUNED), so the emit is vrgather_vv_i8m1 + i16m2 product; at VLEN256 mf2 is
@@ -709,7 +709,7 @@ public:
            "+ standalone_reduce + store) from a marked generic codebook-core "
            "source, with the codebook i8 gather anchor SELECTED (m1/mf2 VLEN "
            "flip) by the shared codebook schedule authority from the "
-           "deriveMinimumVLEN capability fact. BOUNDED Track B G2 step: the "
+           "resolveRVVMinimumVLEN capability fact. BOUNDED Track B G2 step: the "
            "codebook integer CORE only (no block loop / fp16 scale / fp32 fold).";
   }
 
