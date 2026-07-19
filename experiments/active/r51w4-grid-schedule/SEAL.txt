@@ -1,0 +1,36 @@
+# r51w4-grid-schedule SEAL — iq3_xxs dequant grid schedule-lock (W4 / 补充令裁2 / ISSUE-107)
+# board = rvv (ssh rvv · VLEN128 · clang-18.1.8 · rv64gcv_zfh... · flush 224MiB · cores 8-15)
+# date_utc = 2026-07-19
+# CC = /opt/tcrv-toolchains/llvm-18.1.8/bin/clang  (harness -O3, exact deploy flags)
+# opponent = ggml dequantize_row_iq3_xxs (libggml-base.so · host-autovec = codegen-lottery · 标量类档)
+
+## DEPLOYED (emitter regen · CORE==PROD)
+weft_opt = build/weft/bin/weft-opt   (patched emitDequantizeRowIQ3XXSVectorBody in RVVToEmitCGridCodebook.cpp)
+regen_cmd:
+  build/weft/bin/weft-opt test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-xxs.mlir \
+    --weft-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
+    > experiments/active/r-dequant/kernels/iq3_xxs_dequant.c   (NOT executed on r-dequant — W4-禁碰)
+deployed_leaf_regen_md5  = 9d05ecad695be54d6364e3b3db0d43d6   (kernels/iq3_xxs_dequant.c here)
+prior_committed_leaf_md5 = 6f6098fa42401836b0f6af237a854d96   (candidate ② · r-dequant · RESTORED unchanged)
+  -> if deployed to r-dequant, that sealed leaf md5 CHANGES 6f6098fa -> 9d05ecad (report-only, no commit)
+
+## board (2-seed cold N=25 nb=512 k=131072 · DEQUANT_ROW_ASSET_ROOT=<this dir>)
+DEPLOYED regen  : gather=0 · byte-exact mism=0/131072 both seeds
+                  ratio_cold = 1.3898 (s1 iqr4.85%) / 1.4209 (s2 iqr4.76%)
+                  (ours_med_ns ~263281/257662 vs ggml_med_ns ~365902/366122)
+verify (nb=4096): gather=0 · [A] mism=0/1048576 PASS + CORPUS grid 256/256 sign 128/128 COMPLETE
+                  [B] oracle-fault RED(2) · [C] DUT-fault RED-ours-only · [D] leaf 1-byte fault RED-ours-only(1027)
+
+## attack-loop bisect (standalone research variants · same harness/board)
+baseline candidate ② (r-dequant committed) : gather=8 (compiled leaf.o) · ratio 0.3289/0.3294  [ISSUE-107]
+vB_slideup_gatherfree_still_0p35.c          : gather=0 · byte-exact · ratio 0.3466/0.3455
+   -> KEY NEGATIVE: removing the gather (explicit vle8+vslideup WIDE assembly) does NOT help.
+      Wall is NOT the gather instruction; it is the wide-LMUL m8 vsext_vf4/vfcvt path + slideup cost.
+vC_narrow_perentry_standalone_win.c         : gather=0 · byte-exact · ratio 1.3649/1.3612
+   -> WINNER: opponent-faithful narrow per-entry (scalar sh2add ptr + vle8 vl=4 + cheap m1 widening).
+      Deployed emitter regen matches this structure (1.39/1.42).
+
+## wall-type verdict (supersedes ISSUE-107 "HW-gather throughput ceiling · honest-null")
+compiler-behavior / codegen-STRUCTURE wall — FLIPPED at the emission layer (0.36 -> ~1.4).
+lever = (a) gather-free assembly [necessary] + (b) narrow per-entry cheap-m1 widening [dominant].
+NO inline-asm · NO hand-scheduling · OWNED __riscv_ intrinsics · byte-exact.
