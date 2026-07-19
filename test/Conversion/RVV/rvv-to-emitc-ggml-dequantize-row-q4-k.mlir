@@ -42,20 +42,22 @@ module {
 // The two fp16 super-block scales (d, dmin).
 // CHECK: call_opaque "(float)*(const _Float16 *)"
 // CHECK: call_opaque "(float)*(const _Float16 *)"
-// The get_scale_min_k4 6-bit scale/min unpack (SCALAR C, byte-exact to ggml).
+// The get_scale_min_k4 6-bit scale/min unpack (SCALAR C, byte-exact to ggml). W5 two-pass
+// scheduling lever: ALL scalar scales are hoisted before the vector pipelines (board-proven
+// q4_K dequant 0.58→1.01 @rvv), so every bitwise_and precedes the first vle8.
 // CHECK: bitwise_and
 // The OWNED REAL-VECTOR nibble decode (R线 §四.2 K-quant fan-out, PR-31 precedent): the
-// 32 packed bytes load, the low nibble split (vand_vx), the vf4 widen, the int->float
-// convert, and the FUSED d1*v - m1 fold (vfmv_v_f(m1) + vfmsac_vf(d1), ONE rounding
-// matching the -ffp-contract=on opponent's vfmsub), then the high nibble split
+// 32 packed bytes load, the low nibble split (vand_vx), the W5 vfwcvt widen-shrink
+// (vzext.vf2 u16m4 + fused vfwcvt.f.xu.v, byte-exact: nibble∈0..15<2^31 so unsigned widen
+// == old signed vfcvt), and the FUSED d1*v - m1 fold (vfmv_v_f(m1) + vfmsac_vf(d1), ONE
+// rounding matching the -ffp-contract=on opponent's vfmsub), then the high nibble split
 // (vsrl_vx). NO gather. The vector content is the EMITTER's (OWNED __riscv_v), not
 // host-autovec lottery (the ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery
 // exposure for q4_K dequant).
 // CHECK: call_opaque "__riscv_vle8_v_u8m2"
 // CHECK: call_opaque "__riscv_vand_vx_u8m2"
-// CHECK: call_opaque "__riscv_vzext_vf4_u32m8"
-// CHECK: call_opaque "__riscv_vreinterpret_v_u32m8_i32m8"
-// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m8"
+// CHECK: call_opaque "__riscv_vzext_vf2_u16m4"
+// CHECK: call_opaque "__riscv_vfwcvt_f_xu_v_f32m8"
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m8"
 // CHECK: call_opaque "__riscv_vfmsac_vf_f32m8"
 // CHECK: call_opaque "__riscv_vse32_v_f32m8"

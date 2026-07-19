@@ -3584,6 +3584,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ45KVectorBody(
   mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
   mlir::Type floatPtrType = emitc::PointerType::get(floatType);
   mlir::Type u8VecType = emitc::OpaqueType::get(ctx, "vuint8m2_t");
+  mlir::Type u16VecType = emitc::OpaqueType::get(ctx, "vuint16m4_t");
   mlir::Type u32VecType = emitc::OpaqueType::get(ctx, "vuint32m8_t");
   mlir::Type i32VecType = emitc::OpaqueType::get(ctx, "vint32m8_t");
   mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
@@ -3688,12 +3689,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ45KVectorBody(
         plane = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vor_vv_u8m2",
                                mlir::ValueRange{plane, hb, sizeLit(32)}, opName, role);
       }
-      mlir::Value n32 = emitOpaqueCall(rewriter, loc, u32VecType, "__riscv_vzext_vf4_u32m8",
+      // W5 vfwcvt widen-shrink lever (byte-exact·u8 plane∈0..31<2^31·unsigned widen convert
+      // == old signed vfcvt): vzext.vf4(u32m8)+vreinterpret+vfcvt → vzext.vf2(u16m4)+fused vfwcvt.
+      mlir::Value n16 = emitOpaqueCall(rewriter, loc, u16VecType, "__riscv_vzext_vf2_u16m4",
                                        mlir::ValueRange{plane, sizeLit(32)}, opName, role);
-      mlir::Value ni = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vreinterpret_v_u32m8_i32m8",
-                                      mlir::ValueRange{n32}, opName, role);
-      mlir::Value nF = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfcvt_f_x_v", 32, "m8", "f32"),
-                                      mlir::ValueRange{ni, sizeLit(32)}, opName, role);
+      mlir::Value nF = emitOpaqueCall(rewriter, loc, f32VecType, "__riscv_vfwcvt_f_xu_v_f32m8",
+                                      mlir::ValueRange{n16, sizeLit(32)}, opName, role);
       mlir::Value acc = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfmv_v_f", 32, "m8", "f32"),
                                        mlir::ValueRange{minML, sizeLit(32)}, opName, role);
       mlir::Value r = emitOpaqueCall(rewriter, loc, f32VecType, "__riscv_vfmsac_vf_f32m8",
@@ -3702,15 +3703,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ45KVectorBody(
                          mlir::ValueRange{yStore, r, sizeLit(32)}, opName, role);
     };
 
+    // W5 scheduling lever (board-proven q4_K dequant 0.58→1.01, q5_K 1.16→2.21 @rvv, byte-exact):
+    // TWO-PASS emit — hoist ALL scalar get_scale_min_k4 fp computation before the vector
+    // pipelines. Interleaving the scalar fmul.s into the 8-pipeline vector region stalls each
+    // vfmv.v.f/vfmsac.vf on a freshly-produced scalar on the in-order board; front-loading all
+    // 8 scales lets the vector pipelines stream uninterrupted. Same values, only emission order
+    // changes (byte-identical). This — not the vfwcvt widen-shrink — is the dominant lever.
+    mlir::Value dLo[4], mlLo[4], dHi[4], mlHi[4];
     for (int64_t jj = 0; jj < 4; ++jj) {
       mlir::Value sc0, m0, sc1, m1v;
       scaleMin((int)(2 * jj), sc0, m0);
       scaleMin((int)(2 * jj + 1), sc1, m1v);
-      mlir::Value d1 = fMul(d, i2f(sc0));
-      mlir::Value ml1 = fMul(dmin, i2f(m0));
-      mlir::Value d2 = fMul(d, i2f(sc1));
-      mlir::Value ml2 = fMul(dmin, i2f(m1v));
-
+      dLo[jj] = fMul(d, i2f(sc0));
+      mlLo[jj] = fMul(dmin, i2f(m0));
+      dHi[jj] = fMul(d, i2f(sc1));
+      mlHi[jj] = fMul(dmin, i2f(m1v));
+    }
+    for (int64_t jj = 0; jj < 4; ++jj) {
       mlir::Value qsPtr = rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsOff + jj * 32)).getResult();
       mlir::Value qsU8 = rewriter.create<emitc::CastOp>(loc, u8PtrType, qsPtr).getResult();
       mlir::Value qv = emitOpaqueCall(rewriter, loc, u8VecType, riscvIntrinsicName("vle", 8, "m2", "u8"),
@@ -3719,12 +3728,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ45KVectorBody(
       mlir::Value nlo = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vand_vx_u8m2",
                                        mlir::ValueRange{qv, u8Lit(15), sizeLit(32)}, opName, role);
       mlir::Value yLo = rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, sizeLit(jj * 64)).getResult();
-      emitHalf(nlo, 2 * jj, d1, ml1, yLo);
+      emitHalf(nlo, 2 * jj, dLo[jj], mlLo[jj], yLo);
 
       mlir::Value nhi = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vsrl_vx_u8m2",
                                        mlir::ValueRange{qv, u8Lit(4), sizeLit(32)}, opName, role);
       mlir::Value yHi = rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, sizeLit(jj * 64 + 32)).getResult();
-      emitHalf(nhi, 2 * jj + 1, d2, ml2, yHi);
+      emitHalf(nhi, 2 * jj + 1, dHi[jj], mlHi[jj], yHi);
     }
   }
   return mlir::success();

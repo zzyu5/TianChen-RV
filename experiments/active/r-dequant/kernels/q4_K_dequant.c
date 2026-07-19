@@ -49,282 +49,266 @@ extern "C" void weft_emitc_dequant_q4_K_kernel_dequant_q4_K(size_t v1, const uin
     float v40 = v12 * v39;
     float v41 = (float) v34;
     float v42 = v14 * v41;
-    const uint8_t* v43 = v8 + 16;
+    const uint8_t* v43 = v8 + 6;
     const uint8_t* v44 = (const uint8_t*) v43;
+    const uint8_t v45 = v44[0];
+    int v46 = (int) v45;
+    int v47 = v46 & 63;
+    const uint8_t* v48 = v8 + 10;
+    const uint8_t* v49 = (const uint8_t*) v48;
+    const uint8_t v50 = v49[0];
+    int v51 = (int) v50;
+    int v52 = v51 & 63;
+    const uint8_t* v53 = v8 + 7;
+    const uint8_t* v54 = (const uint8_t*) v53;
+    const uint8_t v55 = v54[0];
+    int v56 = (int) v55;
+    int v57 = v56 & 63;
+    const uint8_t* v58 = v8 + 11;
+    const uint8_t* v59 = (const uint8_t*) v58;
+    const uint8_t v60 = v59[0];
+    int v61 = (int) v60;
+    int v62 = v61 & 63;
+    float v63 = (float) v47;
+    float v64 = v12 * v63;
+    float v65 = (float) v52;
+    float v66 = v14 * v65;
+    float v67 = (float) v57;
+    float v68 = v12 * v67;
+    float v69 = (float) v62;
+    float v70 = v14 * v69;
+    const uint8_t* v71 = v8 + 4;
+    const uint8_t* v72 = (const uint8_t*) v71;
+    const uint8_t v73 = v72[0];
+    int v74 = (int) v73;
+    int v75 = v74 >> 6;
+    int v76 = v75 << 4;
+    const uint8_t* v77 = v8 + 12;
+    const uint8_t* v78 = (const uint8_t*) v77;
+    const uint8_t v79 = v78[0];
+    int v80 = (int) v79;
+    int v81 = v80 & 15;
+    int v82 = v81 | v76;
+    const uint8_t* v83 = v8 + 8;
+    const uint8_t* v84 = (const uint8_t*) v83;
+    const uint8_t v85 = v84[0];
+    int v86 = (int) v85;
+    int v87 = v86 >> 6;
+    int v88 = v87 << 4;
+    const uint8_t* v89 = v8 + 12;
+    const uint8_t* v90 = (const uint8_t*) v89;
+    const uint8_t v91 = v90[0];
+    int v92 = (int) v91;
+    int v93 = v92 >> 4;
+    int v94 = v93 | v88;
+    const uint8_t* v95 = v8 + 5;
+    const uint8_t* v96 = (const uint8_t*) v95;
+    const uint8_t v97 = v96[0];
+    int v98 = (int) v97;
+    int v99 = v98 >> 6;
+    int v100 = v99 << 4;
+    const uint8_t* v101 = v8 + 13;
+    const uint8_t* v102 = (const uint8_t*) v101;
+    const uint8_t v103 = v102[0];
+    int v104 = (int) v103;
+    int v105 = v104 & 15;
+    int v106 = v105 | v100;
+    const uint8_t* v107 = v8 + 9;
+    const uint8_t* v108 = (const uint8_t*) v107;
+    const uint8_t v109 = v108[0];
+    int v110 = (int) v109;
+    int v111 = v110 >> 6;
+    int v112 = v111 << 4;
+    const uint8_t* v113 = v8 + 13;
+    const uint8_t* v114 = (const uint8_t*) v113;
+    const uint8_t v115 = v114[0];
+    int v116 = (int) v115;
+    int v117 = v116 >> 4;
+    int v118 = v117 | v112;
+    float v119 = (float) v82;
+    float v120 = v12 * v119;
+    float v121 = (float) v94;
+    float v122 = v14 * v121;
+    float v123 = (float) v106;
+    float v124 = v12 * v123;
+    float v125 = (float) v118;
+    float v126 = v14 * v125;
+    const uint8_t* v127 = v8 + 6;
+    const uint8_t* v128 = (const uint8_t*) v127;
+    const uint8_t v129 = v128[0];
+    int v130 = (int) v129;
+    int v131 = v130 >> 6;
+    int v132 = v131 << 4;
+    const uint8_t* v133 = v8 + 14;
+    const uint8_t* v134 = (const uint8_t*) v133;
+    const uint8_t v135 = v134[0];
+    int v136 = (int) v135;
+    int v137 = v136 & 15;
+    int v138 = v137 | v132;
+    const uint8_t* v139 = v8 + 10;
+    const uint8_t* v140 = (const uint8_t*) v139;
+    const uint8_t v141 = v140[0];
+    int v142 = (int) v141;
+    int v143 = v142 >> 6;
+    int v144 = v143 << 4;
+    const uint8_t* v145 = v8 + 14;
+    const uint8_t* v146 = (const uint8_t*) v145;
+    const uint8_t v147 = v146[0];
+    int v148 = (int) v147;
+    int v149 = v148 >> 4;
+    int v150 = v149 | v144;
+    const uint8_t* v151 = v8 + 7;
+    const uint8_t* v152 = (const uint8_t*) v151;
+    const uint8_t v153 = v152[0];
+    int v154 = (int) v153;
+    int v155 = v154 >> 6;
+    int v156 = v155 << 4;
+    const uint8_t* v157 = v8 + 15;
+    const uint8_t* v158 = (const uint8_t*) v157;
+    const uint8_t v159 = v158[0];
+    int v160 = (int) v159;
+    int v161 = v160 & 15;
+    int v162 = v161 | v156;
+    const uint8_t* v163 = v8 + 11;
+    const uint8_t* v164 = (const uint8_t*) v163;
+    const uint8_t v165 = v164[0];
+    int v166 = (int) v165;
+    int v167 = v166 >> 6;
+    int v168 = v167 << 4;
+    const uint8_t* v169 = v8 + 15;
+    const uint8_t* v170 = (const uint8_t*) v169;
+    const uint8_t v171 = v170[0];
+    int v172 = (int) v171;
+    int v173 = v172 >> 4;
+    int v174 = v173 | v168;
+    float v175 = (float) v138;
+    float v176 = v12 * v175;
+    float v177 = (float) v150;
+    float v178 = v14 * v177;
+    float v179 = (float) v162;
+    float v180 = v12 * v179;
+    float v181 = (float) v174;
+    float v182 = v14 * v181;
+    const uint8_t* v183 = v8 + 16;
+    const uint8_t* v184 = (const uint8_t*) v183;
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vle8_v_u8m2
-    vuint8m2_t v45 = __riscv_vle8_v_u8m2(v44, 32);
+    vuint8m2_t v185 = __riscv_vle8_v_u8m2(v184, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vand_vx_u8m2
-    vuint8m2_t v46 = __riscv_vand_vx_u8m2(v45, 15, 32);
-    float* v47 = v11 + 0;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v48 = __riscv_vzext_vf4_u32m8(v46, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v49 = __riscv_vreinterpret_v_u32m8_i32m8(v48);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v50 = __riscv_vfcvt_f_x_v_f32m8(v49, 32);
+    vuint8m2_t v186 = __riscv_vand_vx_u8m2(v185, 15, 32);
+    float* v187 = v11 + 0;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v188 = __riscv_vzext_vf2_u16m4(v186, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v189 = __riscv_vfwcvt_f_xu_v_f32m8(v188, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v51 = __riscv_vfmv_v_f_f32m8(v38, 32);
+    vfloat32m8_t v190 = __riscv_vfmv_v_f_f32m8(v38, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v52 = __riscv_vfmsac_vf_f32m8(v51, v36, v50, 32);
+    vfloat32m8_t v191 = __riscv_vfmsac_vf_f32m8(v190, v36, v189, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v47, v52, 32);
+    __riscv_vse32_v_f32m8(v187, v191, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsrl_vx_u8m2
-    vuint8m2_t v53 = __riscv_vsrl_vx_u8m2(v45, 4, 32);
-    float* v54 = v11 + 32;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v55 = __riscv_vzext_vf4_u32m8(v53, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v56 = __riscv_vreinterpret_v_u32m8_i32m8(v55);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v57 = __riscv_vfcvt_f_x_v_f32m8(v56, 32);
+    vuint8m2_t v192 = __riscv_vsrl_vx_u8m2(v185, 4, 32);
+    float* v193 = v11 + 32;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v194 = __riscv_vzext_vf2_u16m4(v192, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v195 = __riscv_vfwcvt_f_xu_v_f32m8(v194, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v58 = __riscv_vfmv_v_f_f32m8(v42, 32);
+    vfloat32m8_t v196 = __riscv_vfmv_v_f_f32m8(v42, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v59 = __riscv_vfmsac_vf_f32m8(v58, v40, v57, 32);
+    vfloat32m8_t v197 = __riscv_vfmsac_vf_f32m8(v196, v40, v195, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v54, v59, 32);
-    const uint8_t* v60 = v8 + 6;
-    const uint8_t* v61 = (const uint8_t*) v60;
-    const uint8_t v62 = v61[0];
-    int v63 = (int) v62;
-    int v64 = v63 & 63;
-    const uint8_t* v65 = v8 + 10;
-    const uint8_t* v66 = (const uint8_t*) v65;
-    const uint8_t v67 = v66[0];
-    int v68 = (int) v67;
-    int v69 = v68 & 63;
-    const uint8_t* v70 = v8 + 7;
-    const uint8_t* v71 = (const uint8_t*) v70;
-    const uint8_t v72 = v71[0];
-    int v73 = (int) v72;
-    int v74 = v73 & 63;
-    const uint8_t* v75 = v8 + 11;
-    const uint8_t* v76 = (const uint8_t*) v75;
-    const uint8_t v77 = v76[0];
-    int v78 = (int) v77;
-    int v79 = v78 & 63;
-    float v80 = (float) v64;
-    float v81 = v12 * v80;
-    float v82 = (float) v69;
-    float v83 = v14 * v82;
-    float v84 = (float) v74;
-    float v85 = v12 * v84;
-    float v86 = (float) v79;
-    float v87 = v14 * v86;
-    const uint8_t* v88 = v8 + 48;
-    const uint8_t* v89 = (const uint8_t*) v88;
+    __riscv_vse32_v_f32m8(v193, v197, 32);
+    const uint8_t* v198 = v8 + 48;
+    const uint8_t* v199 = (const uint8_t*) v198;
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vle8_v_u8m2
-    vuint8m2_t v90 = __riscv_vle8_v_u8m2(v89, 32);
+    vuint8m2_t v200 = __riscv_vle8_v_u8m2(v199, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vand_vx_u8m2
-    vuint8m2_t v91 = __riscv_vand_vx_u8m2(v90, 15, 32);
-    float* v92 = v11 + 64;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v93 = __riscv_vzext_vf4_u32m8(v91, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v94 = __riscv_vreinterpret_v_u32m8_i32m8(v93);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v95 = __riscv_vfcvt_f_x_v_f32m8(v94, 32);
+    vuint8m2_t v201 = __riscv_vand_vx_u8m2(v200, 15, 32);
+    float* v202 = v11 + 64;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v203 = __riscv_vzext_vf2_u16m4(v201, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v204 = __riscv_vfwcvt_f_xu_v_f32m8(v203, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v96 = __riscv_vfmv_v_f_f32m8(v83, 32);
+    vfloat32m8_t v205 = __riscv_vfmv_v_f_f32m8(v66, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v97 = __riscv_vfmsac_vf_f32m8(v96, v81, v95, 32);
+    vfloat32m8_t v206 = __riscv_vfmsac_vf_f32m8(v205, v64, v204, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v92, v97, 32);
+    __riscv_vse32_v_f32m8(v202, v206, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsrl_vx_u8m2
-    vuint8m2_t v98 = __riscv_vsrl_vx_u8m2(v90, 4, 32);
-    float* v99 = v11 + 96;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v100 = __riscv_vzext_vf4_u32m8(v98, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v101 = __riscv_vreinterpret_v_u32m8_i32m8(v100);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v102 = __riscv_vfcvt_f_x_v_f32m8(v101, 32);
+    vuint8m2_t v207 = __riscv_vsrl_vx_u8m2(v200, 4, 32);
+    float* v208 = v11 + 96;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v209 = __riscv_vzext_vf2_u16m4(v207, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v210 = __riscv_vfwcvt_f_xu_v_f32m8(v209, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v103 = __riscv_vfmv_v_f_f32m8(v87, 32);
+    vfloat32m8_t v211 = __riscv_vfmv_v_f_f32m8(v70, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v104 = __riscv_vfmsac_vf_f32m8(v103, v85, v102, 32);
+    vfloat32m8_t v212 = __riscv_vfmsac_vf_f32m8(v211, v68, v210, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v99, v104, 32);
-    const uint8_t* v105 = v8 + 4;
-    const uint8_t* v106 = (const uint8_t*) v105;
-    const uint8_t v107 = v106[0];
-    int v108 = (int) v107;
-    int v109 = v108 >> 6;
-    int v110 = v109 << 4;
-    const uint8_t* v111 = v8 + 12;
-    const uint8_t* v112 = (const uint8_t*) v111;
-    const uint8_t v113 = v112[0];
-    int v114 = (int) v113;
-    int v115 = v114 & 15;
-    int v116 = v115 | v110;
-    const uint8_t* v117 = v8 + 8;
-    const uint8_t* v118 = (const uint8_t*) v117;
-    const uint8_t v119 = v118[0];
-    int v120 = (int) v119;
-    int v121 = v120 >> 6;
-    int v122 = v121 << 4;
-    const uint8_t* v123 = v8 + 12;
-    const uint8_t* v124 = (const uint8_t*) v123;
-    const uint8_t v125 = v124[0];
-    int v126 = (int) v125;
-    int v127 = v126 >> 4;
-    int v128 = v127 | v122;
-    const uint8_t* v129 = v8 + 5;
-    const uint8_t* v130 = (const uint8_t*) v129;
-    const uint8_t v131 = v130[0];
-    int v132 = (int) v131;
-    int v133 = v132 >> 6;
-    int v134 = v133 << 4;
-    const uint8_t* v135 = v8 + 13;
-    const uint8_t* v136 = (const uint8_t*) v135;
-    const uint8_t v137 = v136[0];
-    int v138 = (int) v137;
-    int v139 = v138 & 15;
-    int v140 = v139 | v134;
-    const uint8_t* v141 = v8 + 9;
-    const uint8_t* v142 = (const uint8_t*) v141;
-    const uint8_t v143 = v142[0];
-    int v144 = (int) v143;
-    int v145 = v144 >> 6;
-    int v146 = v145 << 4;
-    const uint8_t* v147 = v8 + 13;
-    const uint8_t* v148 = (const uint8_t*) v147;
-    const uint8_t v149 = v148[0];
-    int v150 = (int) v149;
-    int v151 = v150 >> 4;
-    int v152 = v151 | v146;
-    float v153 = (float) v116;
-    float v154 = v12 * v153;
-    float v155 = (float) v128;
-    float v156 = v14 * v155;
-    float v157 = (float) v140;
-    float v158 = v12 * v157;
-    float v159 = (float) v152;
-    float v160 = v14 * v159;
-    const uint8_t* v161 = v8 + 80;
-    const uint8_t* v162 = (const uint8_t*) v161;
+    __riscv_vse32_v_f32m8(v208, v212, 32);
+    const uint8_t* v213 = v8 + 80;
+    const uint8_t* v214 = (const uint8_t*) v213;
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vle8_v_u8m2
-    vuint8m2_t v163 = __riscv_vle8_v_u8m2(v162, 32);
+    vuint8m2_t v215 = __riscv_vle8_v_u8m2(v214, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vand_vx_u8m2
-    vuint8m2_t v164 = __riscv_vand_vx_u8m2(v163, 15, 32);
-    float* v165 = v11 + 128;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v166 = __riscv_vzext_vf4_u32m8(v164, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v167 = __riscv_vreinterpret_v_u32m8_i32m8(v166);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v168 = __riscv_vfcvt_f_x_v_f32m8(v167, 32);
+    vuint8m2_t v216 = __riscv_vand_vx_u8m2(v215, 15, 32);
+    float* v217 = v11 + 128;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v218 = __riscv_vzext_vf2_u16m4(v216, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v219 = __riscv_vfwcvt_f_xu_v_f32m8(v218, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v169 = __riscv_vfmv_v_f_f32m8(v156, 32);
+    vfloat32m8_t v220 = __riscv_vfmv_v_f_f32m8(v122, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v170 = __riscv_vfmsac_vf_f32m8(v169, v154, v168, 32);
+    vfloat32m8_t v221 = __riscv_vfmsac_vf_f32m8(v220, v120, v219, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v165, v170, 32);
+    __riscv_vse32_v_f32m8(v217, v221, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsrl_vx_u8m2
-    vuint8m2_t v171 = __riscv_vsrl_vx_u8m2(v163, 4, 32);
-    float* v172 = v11 + 160;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v173 = __riscv_vzext_vf4_u32m8(v171, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v174 = __riscv_vreinterpret_v_u32m8_i32m8(v173);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v175 = __riscv_vfcvt_f_x_v_f32m8(v174, 32);
+    vuint8m2_t v222 = __riscv_vsrl_vx_u8m2(v215, 4, 32);
+    float* v223 = v11 + 160;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v224 = __riscv_vzext_vf2_u16m4(v222, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v225 = __riscv_vfwcvt_f_xu_v_f32m8(v224, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v176 = __riscv_vfmv_v_f_f32m8(v160, 32);
+    vfloat32m8_t v226 = __riscv_vfmv_v_f_f32m8(v126, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v177 = __riscv_vfmsac_vf_f32m8(v176, v158, v175, 32);
+    vfloat32m8_t v227 = __riscv_vfmsac_vf_f32m8(v226, v124, v225, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v172, v177, 32);
-    const uint8_t* v178 = v8 + 6;
-    const uint8_t* v179 = (const uint8_t*) v178;
-    const uint8_t v180 = v179[0];
-    int v181 = (int) v180;
-    int v182 = v181 >> 6;
-    int v183 = v182 << 4;
-    const uint8_t* v184 = v8 + 14;
-    const uint8_t* v185 = (const uint8_t*) v184;
-    const uint8_t v186 = v185[0];
-    int v187 = (int) v186;
-    int v188 = v187 & 15;
-    int v189 = v188 | v183;
-    const uint8_t* v190 = v8 + 10;
-    const uint8_t* v191 = (const uint8_t*) v190;
-    const uint8_t v192 = v191[0];
-    int v193 = (int) v192;
-    int v194 = v193 >> 6;
-    int v195 = v194 << 4;
-    const uint8_t* v196 = v8 + 14;
-    const uint8_t* v197 = (const uint8_t*) v196;
-    const uint8_t v198 = v197[0];
-    int v199 = (int) v198;
-    int v200 = v199 >> 4;
-    int v201 = v200 | v195;
-    const uint8_t* v202 = v8 + 7;
-    const uint8_t* v203 = (const uint8_t*) v202;
-    const uint8_t v204 = v203[0];
-    int v205 = (int) v204;
-    int v206 = v205 >> 6;
-    int v207 = v206 << 4;
-    const uint8_t* v208 = v8 + 15;
-    const uint8_t* v209 = (const uint8_t*) v208;
-    const uint8_t v210 = v209[0];
-    int v211 = (int) v210;
-    int v212 = v211 & 15;
-    int v213 = v212 | v207;
-    const uint8_t* v214 = v8 + 11;
-    const uint8_t* v215 = (const uint8_t*) v214;
-    const uint8_t v216 = v215[0];
-    int v217 = (int) v216;
-    int v218 = v217 >> 6;
-    int v219 = v218 << 4;
-    const uint8_t* v220 = v8 + 15;
-    const uint8_t* v221 = (const uint8_t*) v220;
-    const uint8_t v222 = v221[0];
-    int v223 = (int) v222;
-    int v224 = v223 >> 4;
-    int v225 = v224 | v219;
-    float v226 = (float) v189;
-    float v227 = v12 * v226;
-    float v228 = (float) v201;
-    float v229 = v14 * v228;
-    float v230 = (float) v213;
-    float v231 = v12 * v230;
-    float v232 = (float) v225;
-    float v233 = v14 * v232;
-    const uint8_t* v234 = v8 + 112;
-    const uint8_t* v235 = (const uint8_t*) v234;
+    __riscv_vse32_v_f32m8(v223, v227, 32);
+    const uint8_t* v228 = v8 + 112;
+    const uint8_t* v229 = (const uint8_t*) v228;
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vle8_v_u8m2
-    vuint8m2_t v236 = __riscv_vle8_v_u8m2(v235, 32);
+    vuint8m2_t v230 = __riscv_vle8_v_u8m2(v229, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vand_vx_u8m2
-    vuint8m2_t v237 = __riscv_vand_vx_u8m2(v236, 15, 32);
-    float* v238 = v11 + 192;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v239 = __riscv_vzext_vf4_u32m8(v237, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v240 = __riscv_vreinterpret_v_u32m8_i32m8(v239);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v241 = __riscv_vfcvt_f_x_v_f32m8(v240, 32);
+    vuint8m2_t v231 = __riscv_vand_vx_u8m2(v230, 15, 32);
+    float* v232 = v11 + 192;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v233 = __riscv_vzext_vf2_u16m4(v231, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v234 = __riscv_vfwcvt_f_xu_v_f32m8(v233, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v242 = __riscv_vfmv_v_f_f32m8(v229, 32);
+    vfloat32m8_t v235 = __riscv_vfmv_v_f_f32m8(v178, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v243 = __riscv_vfmsac_vf_f32m8(v242, v227, v241, 32);
+    vfloat32m8_t v236 = __riscv_vfmsac_vf_f32m8(v235, v176, v234, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v238, v243, 32);
+    __riscv_vse32_v_f32m8(v232, v236, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vsrl_vx_u8m2
-    vuint8m2_t v244 = __riscv_vsrl_vx_u8m2(v236, 4, 32);
-    float* v245 = v11 + 224;
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf4_u32m8
-    vuint32m8_t v246 = __riscv_vzext_vf4_u32m8(v244, 32);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_u32m8_i32m8
-    vint32m8_t v247 = __riscv_vreinterpret_v_u32m8_i32m8(v246);
-    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfcvt_f_x_v_f32m8
-    vfloat32m8_t v248 = __riscv_vfcvt_f_x_v_f32m8(v247, 32);
+    vuint8m2_t v237 = __riscv_vsrl_vx_u8m2(v230, 4, 32);
+    float* v238 = v11 + 224;
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vzext_vf2_u16m4
+    vuint16m4_t v239 = __riscv_vzext_vf2_u16m4(v237, 32);
+    // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfwcvt_f_xu_v_f32m8
+    vfloat32m8_t v240 = __riscv_vfwcvt_f_xu_v_f32m8(v239, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmv_v_f_f32m8
-    vfloat32m8_t v249 = __riscv_vfmv_v_f_f32m8(v233, 32);
+    vfloat32m8_t v241 = __riscv_vfmv_v_f_f32m8(v182, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vfmsac_vf_f32m8
-    vfloat32m8_t v250 = __riscv_vfmsac_vf_f32m8(v249, v231, v248, 32);
+    vfloat32m8_t v242 = __riscv_vfmsac_vf_f32m8(v241, v180, v240, 32);
     // weft_emitc.source_op=weft_rvv.typed_dequantize_row_loop_body role=compute op_interface=WEFTEmitCLowerableOpInterface callee=__riscv_vse32_v_f32m8
-    __riscv_vse32_v_f32m8(v245, v250, 32);
+    __riscv_vse32_v_f32m8(v238, v242, 32);
   }
   return;
 }

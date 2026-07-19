@@ -1,0 +1,40 @@
+W5 B-line vfwcvt widen-shrink lever — landable emitter patch (main-session lands + independent-checks).
+Target: lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp :: emitDequantizeRowQ45KVectorBody
+Board-proven (byte-exact mism=0, cold 2-seed @rvv):
+  q4_K dequant 0.55 -> 1.02  (named-X -> vs-deployment PASS · HEADLINE FLIP)
+  q5_K dequant 1.16 -> 2.21  (improvement · shared function · no regression)
+Mechanism: vzext.vf4 (u8m2->u32m8, 4x wide-LMUL widen) + vreinterpret + vfcvt is the cold
+  throughput bottleneck on this microarch. Replace with vzext.vf2 (u8m2->u16m4, 2x) + fused
+  vfwcvt.f.xu.v (u16m4->f32m8). Byte-exact: u8 plane in 0..31 < 2^31 so unsigned widening
+  convert == the old signed vfcvt path.
+
+(1) add a u16m4 vec type near the u8/u32/i32/f32 vec type decls (~line 3586):
++  mlir::Type u16VecType = emitc::OpaqueType::get(ctx, "vuint16m4_t");
+   (u32VecType / i32VecType become unused after (2) — delete or leave.)
+
+(2) replace the 3-op widen chain (current lines 3691-3696):
+OLD:
+      mlir::Value n32 = emitOpaqueCall(rewriter, loc, u32VecType, "__riscv_vzext_vf4_u32m8",
+                                       mlir::ValueRange{plane, sizeLit(32)}, opName, role);
+      mlir::Value ni = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vreinterpret_v_u32m8_i32m8",
+                                      mlir::ValueRange{n32}, opName, role);
+      mlir::Value nF = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfcvt_f_x_v", 32, "m8", "f32"),
+                                      mlir::ValueRange{ni, sizeLit(32)}, opName, role);
+NEW:
+      mlir::Value n16 = emitOpaqueCall(rewriter, loc, u16VecType, "__riscv_vzext_vf2_u16m4",
+                                       mlir::ValueRange{plane, sizeLit(32)}, opName, role);
+      mlir::Value nF = emitOpaqueCall(rewriter, loc, f32VecType, "__riscv_vfwcvt_f_xu_v_f32m8",
+                                      mlir::ValueRange{n16, sizeLit(32)}, opName, role);
+
+Independent-check after landing (regenerate + verify + measure):
+  bash tools/bench/cells/dequantize_row.sh rvv verify  q4_K   # expect mism=0 GREEN
+  bash tools/bench/cells/dequantize_row.sh rvv measure q4_K   # expect ratio_cold ~1.02 (>=0.8)
+  bash tools/bench/cells/dequantize_row.sh rvv verify  q5_K   # expect mism=0 GREEN
+  bash tools/bench/cells/dequantize_row.sh rvv measure q5_K   # expect ratio_cold ~2.21
+Regenerated kernels must byte-equal ./kernels/*.c here (proven harness-verified leaves):
+  md5 q4_K=1f5698c3cf025df26656ca4cb329bdf8  q5_K=8ee57d776cd3d83599ba878d4d047ea9
+Three-gate: adds 0 bare-format-literal / 0 board-value+value_or / 0 march-parse (intrinsic-string
+  swap + one vec type). No new theta (LMUL/width derived, not a knob).
+Family fan-out (main session MAY extend same swap; NOT needed for any gate, all already PASS):
+  q4_1/q5_1/q2_K/q8_0 have the same clean widen->convert; q4_0/q5_0/q3_K/q6_K carry an i32
+  bias/hmask term so need the narrower-i16 variant (more care).

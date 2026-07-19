@@ -156,11 +156,11 @@ q4_0/q5_0/q4_1/q5_1 (dequantize_row · OWNED REAL-VECTOR emit · R线 §四.1 bl
 q4_K/q5_K/q2_K/q3_K/q6_K (dequantize_row · OWNED REAL-VECTOR emit · R线 §四.2 K-quant
     super-block fan-out over the q8_0/nibble non-grid precedent · de-lottery [L-8] ·
     ISSUE-001 reverse · closes the ISSUE-002 codegen-lottery exposure per format):
-  weft_opt_md5=636c05b239a33170344e5ed15402da67  HEAD=a16a913bc (+ uncommitted R线 §四.2 K-quant emit)
+  weft_opt_md5=f9a7b1670b1bfae098df502b672c68f3  HEAD=848d61f31 (+ W5 vfwcvt+two-pass q4_K/q5_K emit)
   mlir_translate=Ubuntu LLVM version 20.1.8
   leaf_md5 / lines / owned distinct-riscv-intrinsics (excludes vsetvl · grep leaf .c):
-    q4_K = 63f61a1ad458880dd7b5996179be6b61  332 lines   9 distinct (m2/m8 pipeline)
-    q5_K = fff1992b8e3f40383124116c64feec1a  400 lines  11 distinct (+ 5th-bit vsll/vor)
+    q4_K = a4e23387e648362bbf329bcbecd8842e  316 lines   8 distinct (m2/m8 pipeline · W5 vfwcvt+two-pass)
+    q5_K = f01f6ad6d3462560719cde6003fad44f  384 lines  10 distinct (+ 5th-bit vsll/vor · W5 vfwcvt+two-pass)
     q2_K = a9105841749a5dde149ebaadedeba471  525 lines   9 distinct (m1/m4 pipeline)
     q3_K = 9440d3841628c8e44ab2a9d37688e676  878 lines  11 distinct (+ hmask vrsub/vsub_vv)
     q6_K = d724789579d2727220595cd917167864  603 lines  11 distinct (+ vsub_vx bias)
@@ -176,9 +176,11 @@ q4_K/q5_K/q2_K/q3_K/q6_K (dequantize_row · OWNED REAL-VECTOR emit · R线 §四
         fallback keeps the scalar emitDequantizeRowKQuantBodyShared (the q8_0/nibble precedent).
   BODY: per QK_K=256 super-block, per super-sub OWNED pipeline (NO gather -> NO HW-gather wall):
     q4_K/q5_K: 4 super-subs x 2 halves of 32 lanes (m2/m8): vle8 (32 nibble bytes) -> vand/vsrl
-        nibble -> [q5_K per-lane 5th-bit from 32 qh bytes: vsrl/vand/vsll/vor] -> vzext_vf4
-        (u32m8) -> vreinterpret i32m8 -> vfcvt f32m8 -> vfmv_v_f(m1)+vfmsac_vf(d1) FUSED d1*v-m1
-        -> vse32.
+        nibble -> [q5_K per-lane 5th-bit from 32 qh bytes: vsrl/vand/vsll/vor] -> W5 vfwcvt
+        widen-shrink: vzext.vf2 (u16m4) -> fused vfwcvt.f.xu.v (f32m8) [byte-exact: nibble∈0..15
+        <2^31 so unsigned widen == old vzext.vf4+vreinterpret+vfcvt signed path] -> vfmv_v_f(m1)
+        +vfmsac_vf(d1) FUSED d1*v-m1 -> vse32. ★W5 two-pass emit: ALL 8 scalar get_scale_min_k4
+        fp scales are hoisted BEFORE the vector pipelines (scheduling lever, see PERF).
     q2_K: 16 groups of 16 lanes (m1/m4): vle8 -> vsrl(shift)+vand(3) 2-bit quant -> vzext_vf4 ->
         vfcvt -> vfmv_v_f(ml)+vfmsac_vf(dl) FUSED dl*q-ml -> vse32.
     q3_K: 16 groups of 16 (m1/m4): vle8 qs + vle8 hmask -> 2-bit quant + hmask high term
@@ -198,15 +200,25 @@ q4_K/q5_K/q2_K/q3_K/q6_K (dequantize_row · OWNED REAL-VECTOR emit · R线 §四
         q3_K bit_val 8/8 · q6_K combined6 64/64). All leaf.o gather=0 (NO HW gather).
   PERF: rvv cold 2-seed (标量类 scalar-class · 便宜档/cheap-tier · opponent = the SOLE deployed
         dequantize_row_<fmt> host-autovec scalar-source = codegen-lottery on the OPP side):
-        q5_K S1=1.1610 S2=1.1718 (ours~341k ns vs ggml~398k ns; OPP non_vset_vector=26 weak)
+        q5_K S1=2.1931 S2=2.1941 (ours~181k ns vs ggml~397k ns) -- ★W5 improved 1.16→2.19 (same
+              two-pass+vfwcvt lever; ours cold 341k→181k ns; no regression, shared fn)
         q2_K S1=1.2186 S2=1.2223 (ours~179k ns vs ggml~219k ns; OPP non_vset_vector=88)
         q3_K S1=2.6151 S2=2.6193 (ours~181k ns vs ggml~474k ns; OPP non_vset_vector=132)
         q6_K S1=1.4934 S2=1.4878 (ours~636k ns vs ggml~948k ns; OPP non_vset_vector=432 · noisy iqr)
-        -- these four >= parity are 便宜档 compiler-artifact ratios, NOT 硬赢 (硬赢 = 硬碰硬赢
+        -- these >= parity are 便宜档 compiler-artifact ratios, NOT 硬赢 (硬赢 = 硬碰硬赢
         手调对手); 禁外推为 win ([NG-4]/[L-1]).
-        ★q4_K S1=0.5528 S2=0.5505 (ours~332k ns vs ggml~183k ns) -- < parity, NAMED: the owned
-        m8-wide pipeline is SLOWER cold than the opponent's scalar-C (non_vset_vector=0) decode
-        on this hardware; the 便宜档 perf axis LOSES for q4_K. The DURABLE claim is unaffected.
+        ★q4_K S1=1.0055 S2=1.0156 (ours~181k ns vs ggml~182k ns) -- ★W5 HEADLINE FLIP 0.55→1.01
+              (named-X → vs-deployment PASS ≥0.8). WALL-TYPE CORRECTION: the prior 0.55 was NOT a
+              microarch wall — it was OUR codegen structure. Two levers, board-bisected on the
+              ACTUAL emitter output (not the hand kernel): (a) vfwcvt widen-shrink 0.55→0.58 (minor);
+              (b) ★TWO-PASS scalar-scale hoist 0.58→1.01 (DOMINANT). Root cause: interleaving the
+              scalar get_scale_min_k4 fmul.s into the 8-pipeline vector region stalls each
+              vfmv/vfmsac on a freshly-produced scalar on the in-order board; front-loading all 8
+              scales lets the pipelines stream. Both legal emitter-layer moves (source reorder +
+              intrinsic swap), NO inline-asm/hand-schedule. ⟹ the ISSUE-109/§四.2 "q4_K decode
+              便宜档 LOSES / perf-cold 墙" record is SUPERSEDED for q4_K: owned emit now vs-deploy
+              PASS. Opponent = SOLE deployed host-autovec scalar-C (codegen-lottery on OPP side);
+              成色 stays 便宜档 (per lock ① ≥0.8 = 入账, opp-immaturity 只作论文注记).
   ★DURABLE (CONSTRUCTION axis · the harvest value, NOT perf): de-lottery [L-8] 强义 -- OUR leaf
         no longer rides the host-autovec codegen lottery (ISSUE-002 closed per format: interim
         autovec value -> determined owned real-vector), byte-exact GREEN for ALL FIVE. Verdict
