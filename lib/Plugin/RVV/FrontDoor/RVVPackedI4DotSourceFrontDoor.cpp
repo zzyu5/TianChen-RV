@@ -774,6 +774,13 @@ public:
       return;
     }
 
+    // W2 §(1) B: the constructed body now carries an RVV provider op; materialize
+    // the c facts (typed minimum_vlen + support axes) onto it through the ONE
+    // shared producer, so a downstream resolveRVVMinimumVLEN reads the provider
+    // fact instead of re-parsing -march (I1/I4). This closes the "constructed
+    // empty provider" debt: the front door is the legitimate producer.
+    (void)materializeRVVProviderCapabilityAxes(module, march, isaVectorHints);
+
     module->removeAttr(kSourceFrontDoorAttrName);
     module->removeAttr(kSourceKernelAttrName);
   }

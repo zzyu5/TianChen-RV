@@ -206,6 +206,23 @@ std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
 // the resource-aware consumers read back.
 llvm::StringRef getRVVMinimumVLENProviderPropertyName();
 
+// PRODUCER (write side) -- the ONE materializer shared by the probe pass
+// (MaterializeRVVProbedCapabilityAxes) and the RVV source front doors.
+// Materializes the derived RVV capability support axes (supported_sew /
+// supported_lmul / rvv_version + the typed i64 minimum_vlen) onto EVERY RVV
+// capability/target provider op in `module`, derived ONCE from `march` (+ probed
+// isa/vector hints) through this plugin-local authority. No-clobber: a hand-
+// authored fixture attr (a decisive-experiment conflict) is never overwritten;
+// an empty-derived axis is skipped (the historical silent gate). A march that
+// names no concrete RVV tier materializes nothing. A source front door calls this
+// right after it CONSTRUCTS its provider op, so the constructed provider carries
+// the c facts instead of leaving minimum_vlen to a downstream -march re-parse
+// (I1/I4: the typed capability object is the fact source, not the -march bypass).
+// Returns the number of provider ops that received at least one new fact.
+int materializeRVVProviderCapabilityAxes(mlir::ModuleOp module,
+                                         llvm::StringRef march,
+                                         llvm::StringRef isaVectorHints);
+
 // True iff `op` is an RVV-kind capability/target provider (weft.exec.capability /
 // weft.exec.target carrying the RVV capability id "rvv" or kind "isa-vector") --
 // the provider whose materialized capability facts the consumers query. Shared by

@@ -52,22 +52,6 @@ namespace weft::transforms {
 
 namespace {
 
-// Stamps `axisName` = `derived` onto `op` unless the provider already carries
-// that axis (so a hand-authored fixture attr is never clobbered) or the derived
-// allow-list is empty (the evidence names no concrete RVV element-width tier ->
-// no restriction, the historical silent-gate behaviour). Returns true when the
-// pass wrote the attribute.
-bool materializeAxis(mlir::Operation *op, llvm::StringRef axisName,
-                     const std::string &derived) {
-  if (derived.empty())
-    return false;
-  if (op->hasAttrOfType<mlir::StringAttr>(axisName))
-    return false;
-  op->setAttr(axisName,
-              mlir::StringAttr::get(op->getContext(), derived));
-  return true;
-}
-
 class MaterializeRVVProbedCapabilityAxesPass final
     : public impl::MaterializeRVVProbedCapabilityAxesBase<
           MaterializeRVVProbedCapabilityAxesPass> {
@@ -77,61 +61,13 @@ public:
       MaterializeRVVProbedCapabilityAxesBase;
 
   void runOnOperation() override {
-    mlir::ModuleOp module = getOperation();
-
-    // Derive the support allow-lists once from the selected -march (+ optional
-    // probed isa/vector hints) through the SAME plugin-local authority the
-    // probe->capability conversion uses. No toolchain-probe facts are consulted.
-    std::string supportedSEW =
-        plugin::rvv::deriveSupportedSEWAllowList(march, isaVectorHints);
-    std::string supportedLMUL =
-        plugin::rvv::deriveSupportedLMULAllowList(march, isaVectorHints);
-    // The RVV ISA generation (the deepest N1 axis): RVV0.7 (xtheadvector / C920)
-    // vs RVV1.0 (rv64gcv). The version stamp drives the legality gate's
-    // ratified-policy (ta/ma) divergence -- an agnostic-policy body is RVV1.0-
-    // only, so it is gated out on an rvv_version=0.7 provider. "" (Unknown) ->
-    // no fact, mirroring the empty-allow-list silent-gate behaviour.
-    std::string rvvVersion =
-        plugin::rvv::stringifyRVVVersion(
-            plugin::rvv::deriveRVVVersion(march, isaVectorHints))
-            .str();
-
-    // The guaranteed minimum VLEN (bits): the TYPED quantitative capability fact
-    // the resource-aware consumers (repack strip width, block-dot schedule, the
-    // front-door bridges) read back off this provider op INSTEAD of re-parsing
-    // -march locally. This is the ONE producer of the minimum-VLEN fact; -march is
-    // parsed here and the divergence flows through the typed provider attribute
-    // (I1/I4). 0 (no concrete >= 128 floor, e.g. an embedded zve32x tier) -> no
-    // fact, mirroring the empty-allow-list silent skip: the consumer then leaves
-    // any hand-authored width intact.
-    std::int64_t minimumVLEN =
-        plugin::rvv::deriveMinimumVLEN(march, isaVectorHints);
-
-    // A march that names no concrete RVV tier derives no axes AND no version AND
-    // no VLEN floor: nothing to materialize, leave the IR (and the historically
-    // silent gate) unchanged.
-    if (supportedSEW.empty() && supportedLMUL.empty() && rvvVersion.empty() &&
-        minimumVLEN <= 0)
-      return;
-
-    module.walk([&](mlir::Operation *op) {
-      if (!plugin::rvv::isRVVCapabilityProvider(op))
-        return;
-      materializeAxis(op, "supported_sew", supportedSEW);
-      materializeAxis(op, "supported_lmul", supportedLMUL);
-      materializeAxis(op, "rvv_version", rvvVersion);
-      // The minimum-VLEN fact is a TYPED i64 IntegerAttr (not a string mirror):
-      // the resource-aware consumers reason over it numerically. No-clobber: a
-      // hand-authored minimum_vlen (the decisive-experiment conflict fixture)
-      // wins, so the provider fact -- not -march -- drives the divergence.
-      llvm::StringRef vlenName =
-          plugin::rvv::getRVVMinimumVLENProviderPropertyName();
-      if (minimumVLEN > 0 && !op->hasAttrOfType<mlir::IntegerAttr>(vlenName))
-        op->setAttr(vlenName,
-                    mlir::IntegerAttr::get(
-                        mlir::IntegerType::get(op->getContext(), 64),
-                        minimumVLEN));
-    });
+    // The four support axes (supported_sew / supported_lmul / rvv_version +
+    // typed minimum_vlen) are materialized through the ONE plugin-local producer
+    // (materializeRVVProviderCapabilityAxes) so this probe pass and the RVV
+    // source front doors share a single stamping home (byte-identical to the
+    // prior in-pass logic: same derivations, same no-clobber, same empty-skip).
+    (void)plugin::rvv::materializeRVVProviderCapabilityAxes(getOperation(), march,
+                                                            isaVectorHints);
   }
 };
 

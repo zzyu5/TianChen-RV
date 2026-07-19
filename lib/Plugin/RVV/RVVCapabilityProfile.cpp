@@ -6,6 +6,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Visitors.h"
@@ -397,6 +398,59 @@ std::int64_t resolveRVVMinimumVLEN(mlir::ModuleOp module, llvm::StringRef march,
   if (std::optional<std::int64_t> provided = readRVVProviderMinimumVLEN(module))
     return *provided;
   return deriveMinimumVLEN(march, isaVectorHints);
+}
+
+int materializeRVVProviderCapabilityAxes(mlir::ModuleOp module,
+                                         llvm::StringRef march,
+                                         llvm::StringRef isaVectorHints) {
+  if (!module)
+    return 0;
+  // Derive the four support axes ONCE from -march (+ probed isa/vector hints)
+  // through this plugin-local authority (the SAME derivations the probe pass
+  // uses). No toolchain-probe facts are consulted.
+  std::string supportedSEW = deriveSupportedSEWAllowList(march, isaVectorHints);
+  std::string supportedLMUL = deriveSupportedLMULAllowList(march, isaVectorHints);
+  std::string rvvVersion =
+      stringifyRVVVersion(deriveRVVVersion(march, isaVectorHints)).str();
+  std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+
+  // A march that names no concrete RVV tier derives no axes AND no version AND no
+  // VLEN floor: nothing to materialize, leave the IR (and the historically silent
+  // gate) unchanged.
+  if (supportedSEW.empty() && supportedLMUL.empty() && rvvVersion.empty() &&
+      minimumVLEN <= 0)
+    return 0;
+
+  llvm::StringRef vlenName = getRVVMinimumVLENProviderPropertyName();
+  int stamped = 0;
+  module.walk([&](mlir::Operation *op) {
+    if (!isRVVCapabilityProvider(op))
+      return;
+    bool wrote = false;
+    // The string-mirror support axes (no-clobber; empty-derived => skip).
+    auto stampStringAxis = [&](llvm::StringRef axisName,
+                               const std::string &derived) {
+      if (derived.empty() || op->hasAttrOfType<mlir::StringAttr>(axisName))
+        return;
+      op->setAttr(axisName, mlir::StringAttr::get(op->getContext(), derived));
+      wrote = true;
+    };
+    stampStringAxis("supported_sew", supportedSEW);
+    stampStringAxis("supported_lmul", supportedLMUL);
+    stampStringAxis("rvv_version", rvvVersion);
+    // The minimum-VLEN fact is a TYPED i64 IntegerAttr the resource-aware
+    // consumers reason over numerically (no-clobber: a decisive-experiment
+    // conflict fixture wins).
+    if (minimumVLEN > 0 && !op->hasAttrOfType<mlir::IntegerAttr>(vlenName)) {
+      op->setAttr(vlenName,
+                  mlir::IntegerAttr::get(
+                      mlir::IntegerType::get(op->getContext(), 64), minimumVLEN));
+      wrote = true;
+    }
+    if (wrote)
+      ++stamped;
+  });
+  return stamped;
 }
 
 RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module) {
