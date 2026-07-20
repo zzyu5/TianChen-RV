@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/bench/bench — 唯一合法测量动作 `bench <格> --board <板>`。
+# tools/bench/bench — 唯一合法测量动作使用完整四元键与具名板参数。
 #
 # 权威 = .trellis/spec/measurement/（本文件是【实现】，不是权威）：
 #   §3.2 单一目的地法       -> 哲学与目的地.md
@@ -17,22 +17,31 @@
 # WHITELIST 判 experiments/ 为数据格 —— 脚本 / +x / `^run_` 命名的 harness 一律 RED
 # （"harness lives under tools/, never in the data cell"）。
 #
-#   bench <格> --board <板> --dry-run   # 干跑演示：零 ssh · 零计时 · 零主表写
-#   bench --self-test                   # 纯函数自检（schema 绑定 / 目的地闸 / 0 造数）
-#
-# 本轮（大重构总令 §六.1）验收 = 干跑演示，不产正式数字。真实测量路径见 STEP 3/4 的
-# CellRecipeMissing —— 被 ISSUE-090 阻塞，禁伪装可用。
+#   bench <op> <format> --board <板> --engine <engine> --regime <regime>
+#                                      # 正式测量；只写 immutable run + runs.log
+#   bench <op> <format> --board <板> --engine <engine> --regime <regime> --dry-run
+#                                      # 同签名全键预检：零 ssh · 零计时 · 零文件写
+#   bench --self-test                   # 纯函数自检（schema 绑定 / 目的地闸 / dry-run 零写）
 
 import argparse
-import csv
 import datetime
-import io
 import json
 import os
 import re
 import subprocess
 import sys
 import uuid
+from pathlib import Path
+
+from measurement_keys import (
+    ENGINE_VALUES,
+    MeasurementKeyError,
+    REGIME_VALUES,
+    load_master_keys,
+    load_roster_keys,
+    self_test as measurement_key_self_test,
+    validate_registered_key,
+)
 
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 SPEC_DIR = os.path.join(ROOT, ".trellis", "spec", "measurement")
@@ -108,33 +117,32 @@ def assert_schema_bound():
 
 
 # ───────────────────────────────────────────────────────── §3.2 单一目的地法
-# 三目的地【已建·现役】（2026-07-18·ISSUE-073 迁移落地·§3.2.4）：master CSV 已迁入
-# experiments/master/（迁移前后 sha256 逐字节不变）；runs/<run-id>/ 与 runs.log 已就位。
-DEST_MASTER = os.path.join(ROOT, "experiments", "master")           # 主表（T3 CSV + rowclue）— 现役
+# 数据目的地【已建·现役】。bench 只封存不可变 run evidence；canonical master 是 recon
+# 的生成视图，bench 没有写权限（RET-1：旧 direct-cell writer 已退役，禁止双 writer）。
+DEST_MASTER = os.path.join(ROOT, "experiments", "master")           # recon-only；bench 只读
 DEST_RUNS = os.path.join(ROOT, "experiments", "runs")               # 每次运行的原始产物
 DEST_RUNSLOG = os.path.join(ROOT, "experiments", "runs.log")        # append-only 运行台账
 MASTER_INTERIM = os.path.join(ROOT, "experiments", "active", "result-tables")  # 旧址·已迁出（README-MOVED）
-MASTER_TABLE = os.path.join(DEST_MASTER, "T3_master_rebuild.csv")   # 现役主表 CSV（受控更新一行）
+MASTER_TABLE = os.path.join(DEST_MASTER, "T3_master_rebuild.csv")   # recon-only canonical view
 
 
 def guarded_open(path, mode):
     """§3.2.2 测量禁止创建三处目的地以外的任何文件。写路径不在闸内 = 中止，不是警告。
 
-    三目的地（§3.2.1·ISSUE-073 已 RESOLVED）：experiments/master/ · runs/<run-id>/ · runs.log。
-    旧址 experiments/active/result-tables/（已迁出）与任何散件路径 = 闸外，仍拒。
+    bench 的两个可写目的地：runs/<run-id>/ 与 runs.log。experiments/master/
+    由 recon 独占发布；把它加入本写闸会重新制造 ISSUE-098 双 writer。
     """
     real = os.path.realpath(path)
     allowed = (
         real == os.path.realpath(DEST_RUNSLOG)
         or real.startswith(os.path.realpath(DEST_RUNS) + os.sep)
-        or real.startswith(os.path.realpath(DEST_MASTER) + os.sep)
     )
     if not allowed:
         raise SystemExit(
             f"[destination-guard] 拒绝写入 {real}\n"
-            f"  §3.2 单一目的地法只许三处：\n"
-            f"    {DEST_MASTER}/ · {DEST_RUNS}/<run-id>/ · {DEST_RUNSLOG}\n"
-            f"  （旧址 {MASTER_INTERIM} 已迁出【README-MOVED】，闸外，拒。）"
+            f"  bench 只许：{DEST_RUNS}/<run-id>/ · {DEST_RUNSLOG}\n"
+            f"  canonical master {DEST_MASTER}/ 由 recon 独占发布；"
+            f"旧址 {MASTER_INTERIM} 同样拒绝。"
         )
     return open(real, mode, encoding="utf-8")
 
@@ -223,6 +231,7 @@ VOID_REASONS = (VOID_DIRTY_BOARD, VOID_OURS_WRONG, VOID_OPP_BAD, VOID_DISPATCH_M
 
 # §3.3 近门补充：仅当比值落在 0.7–1.0 区间，追加一次独立复测确认。
 NEAR_GATE_LO, NEAR_GATE_HI = 0.7, 1.0
+HARD_GATE_0P8 = 0.8
 
 
 def is_near_gate(ratio):
@@ -230,9 +239,6 @@ def is_near_gate(ratio):
 
 
 # ───────────────────────────────────────────────────────── run-id
-DRY_RUN_MARK = "DRY-RUN"
-
-
 def make_run_id(fmt, board):
     """run-id = 一次调用的标识，兼作 runs/<run-id>/ 目录名与行内引用锚（§术语）。
 
@@ -612,12 +618,13 @@ def step4_cold(fmt, board, cfg, execute, op=None, run_dir=None):
 
 
 def classify_verdict(cold):
-    """ratio_cold = 部署对手时间 / 我方时间。>1 我方快=WIN；[0.7,1) 近门；<0.7 明输。"""
-    if cold >= 1.0:
-        return "WIN"
-    if cold >= NEAR_GATE_LO:
-        return "near-parity"
-    return "LOSS"
+    """Return the canonical raw master disposition; noise is separate.
+
+    `WIN/LOSS/near-parity` was an event-local alias set outside the normative
+    §3.3.1.1 value domain.  The 0.8 cell gate is represented as PASS/具名-X;
+    beat/tie/opponent caliber remains an independent evidence judgment.
+    """
+    return "PASS" if cold >= HARD_GATE_0P8 else "具名-X"
 
 
 def assemble_row(op, fmt, engine, regime, r3, r4, lineage, run_id):
@@ -640,56 +647,19 @@ def assemble_row(op, fmt, engine, regime, r3, r4, lineage, run_id):
     }
 
 
-def update_master_cell(op, fmt, engine, regime, board, cold_value):
-    """§3.0 一次测量 = 主表一行受控更新。行键 (op,format,engine,regime)；只改 {board}_cold 一格。
+def step5_row(run_id, execute, row=None, run_dir=None):
+    """封存 run event；canonical master 只能由 recon 从合格证据重建。
 
-    line-based 外科式：仅重写被命中的那一行（csv 往返只作用于它），其余行逐字节保留。
-    命中值与旧值相等（4 位小数）时【不落盘】——新旧通道产同一个数 ⟹ 主表字节不变。
-    返回 (status, old, new, lineno)；无命中行返回 ("no-row", None, None, None)。
+    这里刻意没有 master writer、compatibility flag 或 best-effort mirror。尚未经过
+    correctness/T-N/freshness qualification 的 run 只是 measured evidence，不能由
+    bench 自行升格成 canonical result。
     """
-    with open(MASTER_TABLE, encoding="utf-8", newline="") as fh:
-        text = fh.read()
-    lines = text.split("\n")
-    header = next(csv.reader([lines[0]]))
-    col = f"{board}_cold"
-    if col not in header:
-        raise SchemaDrift(f"主表无列 {col}（{os.path.relpath(MASTER_TABLE, ROOT)}）")
-    cidx = header.index(col)
-    kidx = {h: header.index(h) for h in ("op", "format", "engine", "regime")}
-    new_str = f"{cold_value:.4f}"
-    for i in range(1, len(lines)):
-        if not lines[i].strip():
-            continue
-        fields = next(csv.reader([lines[i]]))
-        if len(fields) < len(header):
-            continue
-        rk = fields[kidx["regime"]]
-        if (
-            fields[kidx["op"]] == op
-            and fields[kidx["format"]] == fmt
-            and fields[kidx["engine"]] == engine
-            and (rk == regime or rk == "")     # 主表 regime 常空（数据 finding·见报告）
-        ):
-            old = fields[cidx]
-            if old == new_str:
-                return "unchanged", old, new_str, i + 1
-            fields[cidx] = new_str
-            buf = io.StringIO()
-            csv.writer(buf, lineterminator="").writerow(fields)
-            lines[i] = buf.getvalue()
-            with guarded_open(MASTER_TABLE, "w") as fh:
-                fh.write("\n".join(lines))
-            return "updated", old, new_str, i + 1
-    return "no-row", None, None, None
-
-
-def step5_row(run_id, execute, row=None, board=None, run_dir=None):
-    """入行：按 §3.3.1 字段表写一行 + 受控更新主表 {board}_cold 一格。"""
     plan = {
-        "步": "5 · 入行",
+        "步": "5 · 封存候选行",
         "字段": " / ".join(ROW_SCHEMA),
-        "目的地": f"主表（现址 {os.path.relpath(MASTER_TABLE, ROOT)}·ISSUE-073 已 RESOLVED）",
-        "VOID": "VOID 的行不存在 —— 只在 runs.log 留一行，不入主表",
+        "目的地": "runs/<run-id>/row.csv；runs.log 由调用者追加",
+        "canonical master": "recon-only；qualification 前保持字节不变",
+        "VOID": "VOID 不产 row.csv，只在 runs.log 留一行",
     }
     if not execute:
         return plan, None
@@ -697,37 +667,7 @@ def step5_row(run_id, execute, row=None, board=None, run_dir=None):
     header, values = render_row(row)
     with guarded_open(os.path.join(run_dir, "row.csv"), "w") as fh:
         fh.write(header + "\n" + values + "\n")
-    status = update_master_cell(
-        row["op"], row["format"], row["engine"], row["regime"], board, float(row["cold"]),
-    )
-    return plan, {"master": status, "row": row}
-
-
-# ───────────────────────────────────────────────────────── 演示行（0 造数）
-def dry_run_row(run_id, fmt):
-    """干跑演示行：除 run-id 与 format（= 入参回显）外每个字段都显式标 DRY-RUN。
-
-    行键四元（§3.3.1）里只有 `format` 是 `bench <格>` 真给的；`op` / `engine` / `regime`
-    **干跑不填** —— 一个格跨多 op，且 `--board` 推不出 `engine`（k1 上可为 rvv|ime）。
-    命令签名要不要带全行键 = ISSUE-091 未裁的那一半 ⟹ 保守默认【不选行、不猜键】。
-    """
-    return {
-        # 三个占位刻意【不含数字】：0 造数检查覆盖全体非 run-id 字段，含行键（连"ISSUE-〇九一"
-        # 这样的编号都会被它咬 —— 故此处以「命令签名未裁」指代，编号写在 spec 与 docstring 里）。
-        "op": f"{DRY_RUN_MARK}(未定位·roster 命中多 op·命令签名未裁)",
-        "format": fmt,
-        "engine": f"{DRY_RUN_MARK}(未定位·板推不出 engine·命令签名未裁)",
-        "regime": f"{DRY_RUN_MARK}(未定位·命令签名未裁)",
-        "cold": f"{DRY_RUN_MARK}(未计时)",
-        "判定": f"{DRY_RUN_MARK}(未判定)",
-        "对手符号": f"{DRY_RUN_MARK}(未探针)",
-        "对手档": f"{DRY_RUN_MARK}(未判档)",
-        "对手证据引用": f"{DRY_RUN_MARK}(无证据)",
-        "我方向量指令数": f"{DRY_RUN_MARK}(未计数)",
-        "世系": f"{DRY_RUN_MARK}(未探针)",
-        "run-id": run_id,
-        "噪声标": f"{DRY_RUN_MARK}(未评估)",
-    }
+    return plan, {"capture": "measured-unqualified", "row": row}
 
 
 def render_row(row):
@@ -743,28 +683,21 @@ def self_test():
     assert_schema_bound()
     ok.append(f"schema 绑定：runner {len(ROW_SCHEMA)} 字段 == spec §3.3.1 字段表 {spec_row_schema()}")
 
+    measurement_key_self_test()
+    ok.append("行键负控：空值/空白/未知枚举/缺失与重复 roster 全部 fail-closed")
+
     # 行键四元（§3.3.1 前 4 字段）—— 三元组口径已作废，四元组才唯一定位物理行。
     assert spec_row_schema()[:4] == ROW_KEY, f"spec 行键前四字段 != {ROW_KEY}"
     ok.append(f"行键 == {ROW_KEY} 四元组（spec §3.3.1 机核 · 三元组口径作废）")
 
-    # 入参回显 sentinel：刻意【不含数字】，使下面的 0 造数检查对全体非 run-id 字段保持满强度。
-    row = dry_run_row("RID", "FMT-SENTINEL")
-    assert tuple(row) == ROW_SCHEMA, "演示行字段序与 ROW_SCHEMA 不一致"
-    ok.append("演示行字段序 == ROW_SCHEMA（逐项一一对应，不增不删）")
+    # Dry-run 不再构造伪 row 或 DRY-RUN verdict；它只验证一个真实四元键并展示计划。
+    # 因而不会制造第二套行值域，也不会向 append-only runs.log 注入非测量事件。
+    ok.append("dry-run 仅做全键预检/计划展示；不构造占位 row、不分配 run-id、不写 runs.log")
 
-    assert row["format"] == "FMT-SENTINEL", "format 非入参回显（被改写 = 造键嫌疑）"
-    assert all(row[k].startswith(DRY_RUN_MARK) for k in ("op", "engine", "regime")), \
-        "干跑填了 op/engine/regime（= 猜行键；ISSUE-091 保守默认 = 不选行、不猜键）"
-    ok.append("行键：format = 入参回显不改写 · op/engine/regime 干跑不猜（ISSUE-091 保守默认）")
-
-    # 0 造数：除 run-id 外，演示行不得含任何数字（format 走 sentinel ⟹ 覆盖面不缩）。
-    digits = {k: v for k, v in row.items() if k != "run-id" and re.search(r"\d", v)}
-    assert not digits, f"演示行含数字（造数嫌疑）：{digits}"
-    ok.append("0 造数：演示行除 run-id 外零数字")
-
-    # 目的地闸真的会咬（负控）：散件 + 旧址（result-tables，已迁出）全拒。
+    # 目的地闸真的会咬（负控）：散件、旧址和 canonical master 全拒。
     for bad in (os.path.join(ROOT, "experiments", "stray.txt"),
                 os.path.join(MASTER_INTERIM, "T3_master_rebuild.csv"),
+                MASTER_TABLE,
                 os.path.join(ROOT, "tools", "bench", "cells", "leak.csv")):
         try:
             guarded_open(bad, "a")
@@ -772,22 +705,25 @@ def self_test():
             pass
         else:
             raise AssertionError(f"目的地闸未咬：{bad}")
-    ok.append("目的地闸负控：闸外路径（experiments/ 散件 · 旧址 result-tables/ · tools/ 下落数据）全部被拒")
+    ok.append("目的地闸负控：散件 · 旧址 · canonical master · tools/ 下落数据全部被拒")
 
-    # 正控：三目的地放行（master/ 已随 ISSUE-073 RESOLVED 就位）。
-    for good in (DEST_RUNSLOG, os.path.join(DEST_RUNS, "RID", "x.log"), MASTER_TABLE):
+    # 正控：bench 仅能写 immutable run 与 append-only log。
+    for good in (DEST_RUNSLOG, os.path.join(DEST_RUNS, "RID", "x.log")):
         real = os.path.realpath(good)
         allowed = (
             real == os.path.realpath(DEST_RUNSLOG)
             or real.startswith(os.path.realpath(DEST_RUNS) + os.sep)
-            or real.startswith(os.path.realpath(DEST_MASTER) + os.sep)
         )
         assert allowed, f"目的地闸误咬合法路径：{good}"
-    ok.append("目的地闸正控：runs.log · runs/<run-id>/ · master/（ISSUE-073 已 RESOLVED）放行")
+    ok.append("目的地闸正控：仅 runs.log · runs/<run-id>/ 放行；master 由 recon 独占")
 
     assert is_near_gate(0.85) and is_near_gate(0.7) and is_near_gate(1.0)
     assert not is_near_gate(0.69) and not is_near_gate(1.01)
     ok.append(f"近门区间 [{NEAR_GATE_LO}, {NEAR_GATE_HI}] 闭区间判定（含端点）")
+
+    assert classify_verdict(0.8) == "PASS" and classify_verdict(0.7999) == "具名-X"
+    assert classify_verdict(1.1) == "PASS"
+    ok.append("判定值域：0.8 hard gate → PASS/具名-X；无事件局部 alias")
 
     assert len(VOID_REASONS) == 4, "VOID 出口数与 §3.3 不符"
     ok.append(f"VOID 四出口：{' / '.join(VOID_REASONS)}")
@@ -812,14 +748,16 @@ def main(argv=None):
         prog="bench",
         description="唯一合法测量动作（.trellis/spec/measurement §3.3）。本层是权威，本 runner 是实现。",
     )
-    # 行键四元组（§3.3.1）：真跑经命令携全键定位物理行。干跑向后兼容单 positional（= format）。
-    ap.add_argument("op", nargs="?", help="算子 op，如 gemm_tile（干跑可省，只给 format）")
+    # 行键四元组（§3.3.1）：真跑与 dry-run 共用同一完整签名；没有旧式单参数入口。
+    ap.add_argument("op", nargs="?", help="算子 op，如 gemm_tile")
     ap.add_argument("format", nargs="?", help="量化格式 format，如 iq3_xxs")
     ap.add_argument("--board", help="板：" + " | ".join(BOARDS))
-    ap.add_argument("--engine", help="引擎 engine：rvv | ime（真跑须给·行键分量）")
-    ap.add_argument("--regime", help="相 regime：prefill | decode（真跑须给·行键分量）")
+    ap.add_argument("--engine", help="引擎 engine：" + " | ".join(sorted(ENGINE_VALUES))
+                    + "（真跑与 dry-run 均必填）")
+    ap.add_argument("--regime", help="相 regime：" + " | ".join(sorted(REGIME_VALUES))
+                    + "（真跑与 dry-run 均必填）")
     ap.add_argument("--dry-run", action="store_true",
-                    help="干跑演示：零 ssh · 零计时 · 零主表写；只产 runs.log 一行 + 演示行")
+                    help="无副作用全键预检：零 ssh · 零计时 · 零文件写")
     ap.add_argument("--self-test", action="store_true", help="纯函数自检（不碰板、不写盘）")
     args = ap.parse_args(argv)
 
@@ -830,13 +768,9 @@ def main(argv=None):
     board, engine, regime = args.board, args.engine, args.regime
     execute = not args.dry_run
 
-    # 向后兼容：单 positional 且是已知 format ⟹ 视作 format（op 未定，仅干跑演示合法）。
-    if fmt is None and op is not None and op in known_formats():
-        fmt, op = op, None
-
-    if not fmt or not board:
+    if not op or not fmt or not board or not engine or not regime:
         ap.error("用法（真跑）：bench <op> <format> --board <板> --engine <e> --regime <r>\n"
-                 "         （干跑）：bench <format> --board <板> --dry-run")
+                 "         （干跑）：同一全键签名再加 --dry-run；没有单参数兼容入口")
     if board not in BOARDS:
         ap.error(f"未知板 {board}（§3.1 板册只钉死四板：{' / '.join(BOARDS)}）")
 
@@ -848,21 +782,25 @@ def main(argv=None):
     if not rows:
         ap.error(f"格 {fmt} 不在 roster（{os.path.relpath(ROSTER, ROOT)}）。已知格：{' '.join(known_formats())}")
 
-    run_id = make_run_id(fmt, board)
+    requested_key = (op, fmt, engine, regime)
+    try:
+        validate_registered_key(
+            requested_key,
+            roster_keys=load_roster_keys(Path(ROSTER)),
+            master_keys=load_master_keys(Path(MASTER_TABLE)),
+        )
+    except MeasurementKeyError as exc:
+        ap.error(f"measurement row-key contract failed: {exc}")
 
-    print(f"bench {op or ''} {fmt} --board {board}"
-          + (f" --engine {engine}" if engine else "")
-          + (f" --regime {regime}" if regime else "")
+    print(f"bench {op} {fmt} --board {board}"
+          + f" --engine {engine}"
+          + f" --regime {regime}"
           + ("" if execute else "  --dry-run"))
-    print(f"  run-id  = {run_id}")
     print(f"  板      = {cfg['identity']} · {cfg['vector']} · {cfg['pmu']}")
-    print(f"  格      = {fmt} —— roster 命中 {len(rows)} 条 op：{' '.join(r['op'] for r in rows)}")
+    print(f"  行键    = ({op}, {fmt}, {engine}, {regime})")
 
-    # ── 干跑演示（ISSUE-091 保守默认：不选行、不猜键、不写主表）────────────────────
+    # ── 干跑：同一正式签名、只做预检与计划展示、零文件写 ───────────────────────────
     if not execute:
-        if len(rows) > 1:
-            print("            ★ 干跑不定位行 —— 行键 = (op, format, engine, regime) 四元组（§3.3.1）；")
-            print("              演示只回显 format，op/engine/regime 一律标 DRY-RUN。")
         print()
         print("  ── 五步流水线（干跑：只述不做）─────────────────────────")
         for plan, _ in (
@@ -870,32 +808,17 @@ def main(argv=None):
             step2_lineage(board, cfg, False),
             step3_crosscheck(fmt, board, cfg, False),
             step4_cold(fmt, board, cfg, False),
-            step5_row(run_id, False),
+            step5_row(None, False),
         ):
             print(f"  [{plan['步']}]")
             for k, v in plan.items():
                 if k != "步":
                     print(f"      {k:<12}{v}")
-        print()
-        header, values = render_row(dry_run_row(run_id, fmt))
-        print(f"  ── 演示行（§3.3.1 {len(ROW_SCHEMA)} 字段 · 逐字对齐 spec · 零正式数字）──")
-        print(f"  {header}")
-        print(f"  {values}")
-        print()
-        line = append_runs_log(run_id, fmt, f"{DRY_RUN_MARK}(演示·未测量·无行更新)")
-        print(f"  ── 台账（§3.2 唯一落盘）───────────────────────────────")
-        print(f"  {os.path.relpath(DEST_RUNSLOG, ROOT)} += {line.rstrip()}")
-        print(f"  主表：未写（干跑演示行只走 stdout）· runs/{run_id}/：未建（干跑无原始产物）")
+        print("\n  dry-run 完成：未分配 run-id；runs.log / runs/ / master 均未写。")
         return 0
 
-    # ── 真跑：命令须携全行键（§3.3.1 四元组·ISSUE-091 由命令签名兜住）────────────────
-    if not op or not engine or not regime:
-        ap.error("真跑须给全行键：bench <op> <format> --board <板> --engine <e> --regime <r>\n"
-                 f"  缺：{'op ' if not op else ''}{'--engine ' if not engine else ''}"
-                 f"{'--regime' if not regime else ''}（§3.3.1 行键 = (op,format,engine,regime)）")
-    if not any(r["op"] == op for r in rows):
-        ap.error(f"(op={op}, format={fmt}) 不在 roster。该 format 的 op：{' '.join(r['op'] for r in rows)}")
-    print(f"  行键    = ({op}, {fmt}, {engine}, {regime})")
+    run_id = make_run_id(fmt, board)
+    print(f"  run-id  = {run_id}")
     print()
 
     if cfg["block"]:
@@ -936,23 +859,19 @@ def main(argv=None):
     print(f"  cold    = ratio_cold_X {seeds}（近门={r4['near_gate']}·{r4['noise'] or '标称'}）")
 
     row = assemble_row(op, fmt, engine, regime, r3, r4, lineage, run_id)
-    _, s5 = step5_row(run_id, True, row=row, board=board, run_dir=run_dir)
-    mstatus, mold, mnew, mline = s5["master"]
+    _, s5 = step5_row(run_id, True, row=row, run_dir=run_dir)
 
-    result = f"{row['判定']}·cold_X={row['cold']}·master-{mstatus}"
+    result = f"{row['判定']}·cold_X={row['cold']}·{s5['capture']}"
     line = append_runs_log(run_id, fmt, result)
     print()
     header, values = render_row(row)
     print(f"  ── 行（§3.3.1 {len(ROW_SCHEMA)} 字段）─────────────────────────────")
     print(f"  {header}")
     print(f"  {values}")
-    print(f"  ── 三目的地 ─────────────────────────────────────────────")
+    print(f"  ── 不可变采集结果 ─────────────────────────────────────────")
     print(f"  runs.log         += {line.rstrip()}")
     print(f"  runs/{run_id}/  ← verify.stdout.txt · measure.stdout.txt · row.csv")
-    if mstatus == "no-row":
-        print(f"  主表 {os.path.relpath(MASTER_TABLE, ROOT)}：★无命中行 (op={op},format={fmt},engine={engine}) —— 未更新（见报告）")
-    else:
-        print(f"  主表 {os.path.relpath(MASTER_TABLE, ROOT)} 行{mline} {board}_cold：{mold} → {mnew}（{mstatus}）")
+    print(f"  主表 {os.path.relpath(MASTER_TABLE, ROOT)}：未写（recon-only；待显式 qualification/promotion）")
     return 0
 
 

@@ -4,8 +4,11 @@
 只重排既有数据·零新测量. 输出: T3_kernel_unit.csv + 机算计数."""
 import json, csv, sys, re
 from collections import Counter, OrderedDict
+from pathlib import Path
 
-ROOT = "/home/kingdom/phdworks/TianchenRV"
+ROOT = str(Path(__file__).resolve().parents[2])
+sys.path.insert(0, str(Path(ROOT) / "tools" / "bench"))
+from measurement_keys import ENGINE_VALUES  # noqa: E402
 COV = ROOT + "/schema/perf-covered-category.v1.json"
 T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"
 T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"
@@ -70,13 +73,17 @@ def main():
     # kernel-unit rows keyed by (op,format); engine variants (ime) folded as note
     rows = OrderedDict()
     for c in cov:
-        k = c["key"]; op, fmt, eng = k.get("op"), k.get("format"), k.get("engine") or ""
+        k = c["key"]
+        op, fmt, eng = k.get("op"), k.get("format"), k.get("engine")
+        if (not isinstance(op, str) or not op or not isinstance(fmt, str) or not fmt
+                or eng not in ENGINE_VALUES):
+            raise ValueError(f"invalid explicit folded perf key: {k!r}")
         kk = (op, fmt)
         r = rows.setdefault(kk, {"op":op,"format":fmt,"perf_cats":{}, "engines":set(),
                                  "rvv":None,"k1":None})
-        r["perf_cats"][eng or "base"] = c.get("category")
-        if c.get("green"): r["perf_cats"][eng or "base"] += "(GREEN)"
-        r["engines"].add(eng or "base")
+        r["perf_cats"][eng] = c.get("category")
+        if c.get("green"): r["perf_cats"][eng] += "(GREEN)"
+        r["engines"].add(eng)
     # attach T3 0.8-gate dispositions
     for kk, r in rows.items():
         r["rvv"] = ta.get(kk)

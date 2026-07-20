@@ -44,6 +44,7 @@
 | `tools/gates/check_retired_index.py` | RETIRED-INDEX 新鲜度门（fail-closed） | 手动；`schema/monolith-retire-whitelist.v1.json` 的 `retired_index` 字段 |
 | `tools/gates/gen_retired_index.py` | RETIRED-INDEX **生成器** → `schema/retired-index.generated.json` | 手动；被 `check_retired_index.py` 的新鲜度判据隐含约束 |
 | `tools/gates/check_pat3_registry_diff.py` | [PAT-3] 双板 registry-diff=0 门 | 手动；`schema/pattern-registry.v1.json` |
+| `tools/gates/check_measurement_control_plane.py` | B1 单 master publisher、显式四元键、qualification 轴分立与旧 writer 防复活门 | 手动/合入前；消费 roster、T3 master、measurement-memory 与 bench/recon 源码 |
 | `tools/gates/check_opponent_facts_pin.sh` | 对手事实 provenance ↔ ggml 行锚/pin_sha 门 | 手动；`experiments/sealed/c1-cleanliness/opponent-facts-provenance/`（**SEALED 登记**）+ `include/Weft/Dialect/RVV/IR/RVVOps.td` |
 | `tools/gates/check_experiments_layout.py` | `experiments/` 布局门（数据格内禁 harness/脚本/+x），fail-closed | 手动；ISSUE-069 / ISSUE-090 引其判据为准绳 |
 | `tools/gates/check_index_consistency.py` | `experiments/INDEX.md` ↔ 各 cell MANIFEST ↔ 树 三方一致性门 | 手动；`experiments/INDEX.md` 头部自述由本门把关 |
@@ -56,7 +57,10 @@
 
 | 路径 | 用途 | 被谁调用 |
 |---|---|---|
-| `tools/bench/bench` | **★唯一合法测量动作** `bench <格> --board <板>` 的本体（五步流水线 · 行 schema 与 spec 机核比对 · fail-closed） | 手动（测量入口）；[measurement](../.trellis/spec/measurement/index.md) §3.3 立法、ISSUE-067「本轮落地」节记其验收 |
+| `tools/bench/bench` | **★唯一合法板端采集动作**（五步流水线 · explicit 四元键 · immutable run event · 禁写 master） | 手动（测量入口）；[measurement](../.trellis/spec/measurement/index.md) §3.3 |
+| `tools/bench/measurement_keys.py` | roster/master 四元键闭合枚举、非空与唯一性共享检查；零 legacy normalization | 被 `bench` 与 `recon_master_rebuild.py` 调用；可独立 `--self-test` |
+| `tools/bench/tn_qualify.py` | 从预注册 noise/effect samples 生成可复算 T-N JSON：N≥10、`|Δ|>2×IQR`、bootstrap 95%CI 排零、source-run SHA 全验证 | 被 `sel3_writeback_harmonizer.py` 的 master publication gate 调用；可独立 `--self-test` |
+| `tools/bench/cells/` | `bench` 的按算子测量 recipe 集；每个脚本只负责构建/运行一个已登记 cell，不拥有 master 发布权 | 由 `tools/bench/bench` 按显式 `(op, format, engine, regime)` 调用；协议见同目录 README |
 | `tools/bench/_build-common.sh` | 并行构建/byte-exact 基建的**共享 helper**（被 source 非执行） | 被 `byte-exact-baseline.sh` · `configure-line-build.sh` · `new-line-worktree.sh` source |
 | `tools/bench/byte-exact-baseline.sh` | 产出并缓存 pinned-base 构建物供 byte-exact 比对（不碰主树、不用 `git stash`） | 手动；byte-exact 门流程 |
 | `tools/bench/configure-line-build.sh` | 为一条工作线的 worktree 配置独立 out-of-tree 构建 | 手动；被 `new-line-worktree.sh` 调用 |

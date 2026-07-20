@@ -1,34 +1,93 @@
 #!/usr/bin/env python3
-"""G8 主表重铸与对手档位自查令 · recon (机算·禁手写小计·纯案头).
+"""G8 canonical master publisher (deterministic, atomic, recon-only).
 
-唯一主表 = (op, format, engine) · 板=属性列 · q4_0 gemm decode/prefill=同行双子行不增行([K-10]).
+唯一主表 = (op, format, engine, regime) · 板=属性列；四元键分量非空、零通配。
 对手三档法 {手调|通用向量|标量类|UNRESOLVED} · autovec归标量类(用户裁·§〇.1).
 全员有对手(§〇.2·ggml标量参考兜底) · 唯一域外 q1_0.
 两板对称法(§〇.3+补充令) · N/A-hw机判(能力谓词×板实例·ime.present) · 禁手标.
 DEQ并表(§一.3·标量仗区·独立分账废止为过滤器) · 15 autovec dequant降标量类(§〇.3).
 
 溯源:
-  schema/coverage-roster.v1.json (93 roster / 91 denom)
+  schema/coverage-roster.v1.json (exact four-component row identity)
   experiments/active/g8-stage3-opponent-reparse/evidence.md (符号级对手判据·双板)
   experiments/active/g7-census/bclass-forward-ops/opponent_ggml.cpp (forward源归属)
   v2报告§3 (19 measured cold: 14 vec_dot + 5 K-quant gemm/板)
-只重排既有数据·零新测量·零新计时."""
-import json, csv, sys
+既有 T3 输入作为静态 seed；只有完整 official-run qualification 可覆盖 seed。
+本脚本不测量、不计时，也不接受部分资格或自由文本 T-N token。"""
+import json, csv, io, os, re, sys
 from collections import OrderedDict, Counter
+from contextlib import contextmanager
+from functools import wraps
+from pathlib import Path
 
-ROOT = "/home/kingdom/phdworks/TianchenRV"
-ROSTER = ROOT + "/schema/coverage-roster.v1.json"
-T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"
-T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"
-OUT = ROOT + "/experiments/master/T3_master_rebuild.csv"
-CLUE = ROOT + "/experiments/master/T3_master_rowclue.txt"
+ROOT = Path(__file__).resolve().parents[2]
+ROSTER = ROOT / "schema" / "coverage-roster.v1.json"
+T3A = ROOT / "experiments" / "master" / "T3_A_board_A_rvv1.0_vlen128.csv"
+T3B = ROOT / "experiments" / "master" / "T3_B_board_B_rvv1.0_vlen256.csv"
+OUT = ROOT / "experiments" / "master" / "T3_master_rebuild.csv"
+CLUE = ROOT / "experiments" / "master" / "T3_master_rowclue.txt"
+LOCK = ROOT / "experiments" / "master" / ".recon-master.lock"
+MEASUREMENT_MEMORY = ROOT / "schema" / "measurement-memory.v1.json"
 SNAPSHOT = "g8-master-final-clang-world"
 FWD_OPS = {"add","cpy","gelu","mul","rms_norm","rope","scale","silu","softmax"}
+
+sys.path.insert(0, str(ROOT / "tools" / "bench"))
+from measurement_keys import (  # noqa: E402 - repository root is resolved above
+    MeasurementKeyError,
+    key_from_mapping,
+    load_roster_keys,
+)
+from tn_qualify import (  # noqa: E402
+    TNQualificationError,
+    validate_evidence_file as validate_tn_evidence,
+)
+
+
+@contextmanager
+def publisher_lock():
+    """Reject concurrent canonical publication; never wait behind a stale writer."""
+    try:
+        fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except FileExistsError as exc:
+        raise RuntimeError(f"canonical master publisher already active: {LOCK}") from exc
+    try:
+        os.write(fd, f"pid={os.getpid()}\n".encode())
+        os.close(fd)
+        yield
+    finally:
+        try:
+            os.unlink(LOCK)
+        except FileNotFoundError:
+            pass
+
+
+def locked_publisher(function):
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        with publisher_lock():
+            return function(*args, **kwargs)
+    return wrapper
+
+
+def atomic_publish(path: Path, content: str) -> None:
+    """Publish one generated view without exposing a truncated intermediate."""
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
 
 def parse_t3(path):
     """(op,format) -> {'cold':float|None, 'cold_raw':str, 'disp':str} from canonical 36-col rows.
     disp derived from field[35] verdict token (not whole-row substring)."""
-    import re
     out={}
     for ln in open(path):
         if ln.startswith("#") or not ln.strip(): continue
@@ -63,6 +122,90 @@ def parse_t3(path):
         if key in out: continue
         out[key]={"cold":cold,"cold_raw":craw,"disp":d}
     return out
+
+
+def load_qualified_overrides():
+    """Load only fully qualified official-run rows from the data-plane view."""
+    doc = json.load(open(MEASUREMENT_MEMORY, encoding="utf-8"))
+    overrides = {}
+    for index, row in enumerate(doc.get("rows", [])):
+        if row.get("variant_axis") != "deployed_point":
+            continue
+        mapping = {
+            "op": row.get("op"),
+            "format": row.get("kernel"),
+            "engine": row.get("engine"),
+            "regime": row.get("regime"),
+        }
+        key = key_from_mapping(mapping, source=f"{MEASUREMENT_MEMORY}:rows[{index}]")
+        if not row.get("master_qualified_input"):
+            continue
+        requirements = {
+            "byte_exact_gate": "pass",
+            "measurement_state": "measured",
+            "freshness": "current",
+            "tn_qualification": "qualified",
+            "evidence_lane": "official-run",
+        }
+        mismatched = {name: (row.get(name), expected)
+                      for name, expected in requirements.items()
+                      if row.get(name) != expected}
+        if mismatched:
+            raise MeasurementKeyError(
+                f"qualified view row {key} violates publication requirements: {mismatched}"
+            )
+        board = row.get("measurement_board")
+        if board not in ("rvv", "k1"):
+            raise MeasurementKeyError(f"qualified view row {key} has invalid board {board!r}")
+        run_id = row.get("run_id")
+        if not isinstance(run_id, str) or not re.fullmatch(
+                rf"\d{{8}}T\d{{6}}Z-[A-Za-z0-9_.+-]+-{re.escape(board)}-[0-9a-f]{{8}}",
+                run_id):
+            raise MeasurementKeyError(
+                f"qualified view row {key} has malformed/board-mismatched run-id {run_id!r}"
+            )
+        run_row = ROOT / "experiments" / "runs" / str(run_id) / "row.csv"
+        if not run_row.is_file():
+            raise MeasurementKeyError(f"qualified view row {key} lacks immutable run {run_row}")
+        with run_row.open(encoding="utf-8", newline="") as stream:
+            events = list(csv.DictReader(stream))
+        if len(events) != 1:
+            raise MeasurementKeyError(
+                f"qualified view row {key} must link exactly one immutable event"
+            )
+        event = events[0]
+        event_key = tuple(event.get(field) for field in
+                          ("op", "format", "engine", "regime"))
+        if event_key != key or event.get("run-id") != run_id or not event.get("世系"):
+            raise MeasurementKeyError(
+                f"qualified view row {key} disagrees with immutable run lineage/key"
+            )
+        tn_evidence = ROOT / str(row.get("tn_evidence"))
+        try:
+            validate_tn_evidence(
+                tn_evidence,
+                repo_root=ROOT,
+                expected_board=board,
+                expected_run_id=run_id,
+            )
+        except (TNQualificationError, OSError, json.JSONDecodeError) as exc:
+            raise MeasurementKeyError(
+                f"qualified view row {key} has invalid T-N evidence: {exc}"
+            ) from exc
+        if row.get("cold_median") is None:
+            raise MeasurementKeyError(f"qualified view row {key} has no measured value")
+        axis = row.get("axis_extras", {})
+        for field in ("tier", "disp", "t3_note"):
+            if not axis.get(field):
+                raise MeasurementKeyError(f"qualified view row {key} lacks axis_extras.{field}")
+        opponent = row.get("opponent_symbol") or {}
+        if not opponent.get("symbol"):
+            raise MeasurementKeyError(f"qualified view row {key} lacks opponent symbol")
+        qualified_key = (*key, board)
+        if qualified_key in overrides:
+            raise MeasurementKeyError(f"duplicate qualified result for {qualified_key}")
+        overrides[qualified_key] = row
+    return overrides
 
 # ---- board capability schema-fact instances (for N/A-hw machine derivation) ----
 # rvv = openEuler VLEN128 RVV1.0 (no IME); k1 = SpacemiT X60 VLEN256 RVV1.0 + IME(xsmtvdotii)
@@ -220,7 +363,7 @@ GEMM_DECODE = {
    "·★部署成色=what-if(selector=block-dot-decline-vlen256-decode-measured-negative·出货走 block-dot·禁写成 k1 decode 部署输)"
    "·循环论证防线: registry DECLINE 由 0.248x 驱动·本轮独立复测 0.2493/0.2490 与 registry Negative 一致(未证伪)→ 无 canon 触发·selector/registry 不动")},
 }
-# ★P2-grid4 落账(2026-07-18·ISSUE-004 对手政策统一为部署事实·regime='' 单行 iq gemm prefill)
+# ★P2-grid4 落账(2026-07-18·ISSUE-004 对手政策统一为部署事实·prefill)
 #   raw = experiments/active/g8-stage3-attack/P2-grid4-raw/{rvv,k1}_<fmt>_measure.log · ratio_cold_X(部署对手·2-seed)
 #   ★对手 = 部署 VLEN 专化手调核(反汇编坐实·rvv 实跳 _vl128·k1 实跳 _vl256·thunk ggml_vec_dot_<fmt>_q8_K rvv=0 为纯分发)
 #   ★CROSSOP: 同算子 ggml_gemm_<fmt> 结构缺席(seal same-operator probe=0 符号)·我方 repack-GEMM vs 对手 per-column vec_dot
@@ -270,40 +413,40 @@ CLANG_WORLD = {
  ("gemm_tile","iq4_nl","prefill"): (0.755,"★r5.1-f iq4_nl gemm fold 收尾(b55b915ad)·honest-null(pending-fold→具名-X)·prefill 0.7537/0.7584 vs 部署 block-dot(OPP-X CROSSOP)·4/4 CI 上界<0.8 robust LOSS·前置核: rvv 无宽可窄(OURS 已满宽 vl=8=e32m2 VLMAX@VLEN128·k1 narrow-vl 协因子 rvv 上不存在)+码本 gather 墙(64× vluxei16 vs 对手 vrgather 16项常驻)·唯一 lever=码本 gather 原语=ISSUE-021 已裁禁性能名义·selector 正确 decline·部署 block-dot·非可翻·墙型=emitter 原语选择(同算术 OPP-X 快 1.3-4.4×=非 M=1 roofline)·byte-exact GREEN·零源改"),
  ("gemm_tile","iq4_nl","decode"): (0.234,"★r5.1-f iq4_nl gemm fold 收尾(b55b915ad)·honest-null decode(pending-fold→具名-X)·decode M=1 0.2251/0.2394 vs 部署 block-dot(OPP-X CROSSOP)·CI 上界<0.8 robust LOSS·同 prefill 分轴: 码本 gather 墙(ISSUE-021 declined 非可翻)+rvv 已满宽无宽可窄·byte-exact GREEN·零源改"),
  # ── 3 DEQ @rvv 翻转(A1 §2·标量类·opp=dequantize_row_* autovec 便宜档·byte-exact 0mism/0ULP)·q4_1/q8_0 本已 PASS ──
- ("dequantize_row","q4_0",""): (2.10,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned intrinsic·gather=0·ISSUE-001反转·[L-8]强义construction真赢·关ISSUE-002该格敞口)·byte-exact GREEN·PASS→PASS(0.838类lottery→owned·D1板测2.0998/2.0752)·标量类硬门·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢)·勿外推"),
- ("dequantize_row","q5_0",""): (5.96,"★R线§四.1 de-lottery·owned 真向量 emit(16 owned intrinsic·gather=0·[L-8]强义construction真赢·关ISSUE-002敞口)·byte-exact GREEN·PASS→PASS(1.007 lottery→owned·D1板测5.9557/6.0301)·标量类硬门·★opp-immaturity(5th-bit·ggml autovec差 non_vset_vec=26·§三.12·非perf硬赢·勿称6×赢)·勿外推"),
- ("dequantize_row","q5_1",""): (6.44,"★R线§四.1 de-lottery·owned 真向量 emit(16 owned·FMA-resolved fused vfmacc匹配对手 vfmadd·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.02 lottery→owned·D1板测6.4173/6.4036)·标量类硬门·★opp-immaturity(5th-bit ggml autovec差·§三.12·非硬赢)·勿外推"),
- ("dequantize_row","q4_1",""): (2.29,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned·FMA-resolved fused vfmacc匹配对手 vfmadd.vv objdump证·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.284 lottery→owned·D1板测2.2854/2.2936·ab84复现)·标量类硬门·★opp-immaturity(§三.12·非硬赢)·勿外推"),
+ ("dequantize_row","q4_0","micro-fixed"): (2.10,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned intrinsic·gather=0·ISSUE-001反转·[L-8]强义construction真赢·关ISSUE-002该格敞口)·byte-exact GREEN·PASS→PASS(0.838类lottery→owned·D1板测2.0998/2.0752)·标量类硬门·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢)·勿外推"),
+ ("dequantize_row","q5_0","micro-fixed"): (5.96,"★R线§四.1 de-lottery·owned 真向量 emit(16 owned intrinsic·gather=0·[L-8]强义construction真赢·关ISSUE-002敞口)·byte-exact GREEN·PASS→PASS(1.007 lottery→owned·D1板测5.9557/6.0301)·标量类硬门·★opp-immaturity(5th-bit·ggml autovec差 non_vset_vec=26·§三.12·非perf硬赢·勿称6×赢)·勿外推"),
+ ("dequantize_row","q5_1","micro-fixed"): (6.44,"★R线§四.1 de-lottery·owned 真向量 emit(16 owned·FMA-resolved fused vfmacc匹配对手 vfmadd·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.02 lottery→owned·D1板测6.4173/6.4036)·标量类硬门·★opp-immaturity(5th-bit ggml autovec差·§三.12·非硬赢)·勿外推"),
+ ("dequantize_row","q4_1","micro-fixed"): (2.29,"★R线§四.1 de-lottery·owned 真向量 emit(9 owned·FMA-resolved fused vfmacc匹配对手 vfmadd.vv objdump证·byte-exact真非假绿·[L-8]construction·关ISSUE-002敞口)·PASS→PASS(1.284 lottery→owned·D1板测2.2854/2.2936·ab84复现)·标量类硬门·★opp-immaturity(§三.12·非硬赢)·勿外推"),
  # ── R线 §四.1 de-lottery: iq3_xxs@rvv 从 autovec-lottery-PASS 升为 owned 真向量真测(具名-X)──
  # owned emit(非 autovec)·byte-exact GREEN·ISSUE-001 反转+ISSUE-002[L-8]满足·naive first-cut cold 0.18×(比 lottery 慢·perf 优化=批量宽gather pending)·opp=部署 dequantize_row_iq3_xxs(标量类)·trellis-check 复现 s1 0.1825/s2 0.1812·勿称 perf 赢(真测 LOSS 如实)
- ("dequantize_row","iq3_xxs",""): (1.39,"★★r5.1-W4 翻盘(9d74daa96·裁2 印证)·grid gather 墙证伪=codegen-STRUCTURE 可翻非硬件天花板·具名-X 0.36→PASS 1.3898/1.4209(打赢部署 autovec 1.4×·gather=0·byte-exact mism=0)·攻坚环 bisect(板上三点): baseline gather=8/0.33→vB slideup gather-free 但仍 0.35(★关键负结果=单纯消 gather 不解墙)→vC 窄化 per-entry(opponent 形状·owned intrinsic)gather=0/1.36·真 lever=gather-free 装配(必要)+窄化 per-entry 廉价 m1 widening(主导·旧 wide-LMUL m8 vsext_vf4/vfcvt 才是主成本中心)·🔴无 inline-asm·deployed emitDequantizeRowIQ3XXSVectorBody(regen md5 9d05ecad·CORE==PROD)·★ISSUE-107 honest-null 证伪(墙型订正 compiler-behavior)"),
- ("dequantize_row","iq2_xs",""): (3.88,"★★r5.1-d 扩iq2面主标的达成(a3f603bc1·裁2·续 grid dequant 全族翻)·真地盘 FLIP(pending→PASS)·前置核有宽/有 gather(deployed vlux=32·wide e32m2·codegen-lottery ISSUE-001/002)→W4 lever 移植(gather-free 装配+narrow m2 widening 取代 wide vsext_vf4)→PROD 3.76/4.01× vs ggml·2.0× deployed·ours_med 200us==HALF deployed 401us·gather-free(vlux=0 vslide=0)·byte-exact(三向 mism=0/131072·CORPUS grid 512/512 sign 128/128·3-arm)·CORE==PROD(md5 6fc3560e)·codegen-STRUCTURE 墙发射层翻·🔴无 inline-asm"),
- ("dequantize_row","iq1_m",""): (1.03,"★r5.1-d de-lottery 成色(a3f603bc1·非真地盘·前置核分轴)·★lever-N/A honest-null: 前置核无宽/无 gather(deployed 已 gather-free 好码 vlux=0/vslide=0)→W4 lever N/A(无宽可窄)·造 owned body 走完攻坚环得 PARITY(1.03/1.04× ggml·0.98× deployed·IQR 噪声内)·部署为 [L-8] de-lottery 加固(owned 不吃 clang autovec lottery)·byte-exact(mism=0/131072·CORPUS grid 2048/2048·3-arm·qNaN 三方一致)·CORE==PROD(md5 124450af)·★诚实标注非 perf-flip·非新地盘(deployed scalar 本已≥parity·具名-X 系 stale-verdict·de-lottery 只成色)·前置核(有无宽可窄)=grid dequant 翻/N/A 分轴键"),
- ("dequantize_row","iq3_s",""): (1.71,"★审计订正C1(paper-side self-audit·2026-07-20): 前值 2.08=max-of-7-seed(挑对手跑最差那次·方差全在对手侧 ggml IQR 17-33% vs ours 0.3-0.75%)·canon SOP 无 max-of-N 授权→改 median 1.71(7-seed)。★C2/B4 资格注: 数走 ad-hoc run_*.sh 非 bench 合法通道(runs.log 07-19/20 零行)·无 T-N 噪声地板(canon/测量判据.md:32·dequant T-N 命中 0)=按项目自己法尚无判定资格·pending bench-channel + T-N 正式确认·成色=measured 非 T-N-qualified。★★r5.1-c grid族全族翻(84150fd6e·裁2·续 W4 lever)·原无 owned body(deployed scalar 被 clang -O3 autovec 炸成 32 vlux+320 slidedown 彩票叶)→造 owned 窄化 per-entry body(W4 iq3_xxs lever 移植·gather-free 装配+廉价 m1 widening·grid-of-4 显式符号 sibling)·具名-X→PASS 1.44-2.08(~2x·全 7 seed 击败 ggml·iqr<1%·ours_med 522→257us)·byte-exact(ours-vs-oracle 0/131072·ggml-vs-oracle 0·3-arm·corpus grid 512/512 sign 256/256)·CORE==PROD(md5 ca6bd415·vlux=0 vslidedown=0 vs deployed 32/320)·🔴无 inline-asm·★推翻 GEN_SEAL iq3_s「同 gather 墙」预测·codegen-STRUCTURE 墙发射层翻"),
+ ("dequantize_row","iq3_xxs","micro-fixed"): (1.39,"★★r5.1-W4 翻盘(9d74daa96·裁2 印证)·grid gather 墙证伪=codegen-STRUCTURE 可翻非硬件天花板·具名-X 0.36→PASS 1.3898/1.4209(打赢部署 autovec 1.4×·gather=0·byte-exact mism=0)·攻坚环 bisect(板上三点): baseline gather=8/0.33→vB slideup gather-free 但仍 0.35(★关键负结果=单纯消 gather 不解墙)→vC 窄化 per-entry(opponent 形状·owned intrinsic)gather=0/1.36·真 lever=gather-free 装配(必要)+窄化 per-entry 廉价 m1 widening(主导·旧 wide-LMUL m8 vsext_vf4/vfcvt 才是主成本中心)·🔴无 inline-asm·deployed emitDequantizeRowIQ3XXSVectorBody(regen md5 9d05ecad·CORE==PROD)·★ISSUE-107 honest-null 证伪(墙型订正 compiler-behavior)"),
+ ("dequantize_row","iq2_xs","micro-fixed"): (3.88,"★★r5.1-d 扩iq2面主标的达成(a3f603bc1·裁2·续 grid dequant 全族翻)·真地盘 FLIP(pending→PASS)·前置核有宽/有 gather(deployed vlux=32·wide e32m2·codegen-lottery ISSUE-001/002)→W4 lever 移植(gather-free 装配+narrow m2 widening 取代 wide vsext_vf4)→PROD 3.76/4.01× vs ggml·2.0× deployed·ours_med 200us==HALF deployed 401us·gather-free(vlux=0 vslide=0)·byte-exact(三向 mism=0/131072·CORPUS grid 512/512 sign 128/128·3-arm)·CORE==PROD(md5 6fc3560e)·codegen-STRUCTURE 墙发射层翻·🔴无 inline-asm"),
+ ("dequantize_row","iq1_m","micro-fixed"): (1.03,"★r5.1-d de-lottery 成色(a3f603bc1·非真地盘·前置核分轴)·★lever-N/A honest-null: 前置核无宽/无 gather(deployed 已 gather-free 好码 vlux=0/vslide=0)→W4 lever N/A(无宽可窄)·造 owned body 走完攻坚环得 PARITY(1.03/1.04× ggml·0.98× deployed·IQR 噪声内)·部署为 [L-8] de-lottery 加固(owned 不吃 clang autovec lottery)·byte-exact(mism=0/131072·CORPUS grid 2048/2048·3-arm·qNaN 三方一致)·CORE==PROD(md5 124450af)·★诚实标注非 perf-flip·非新地盘(deployed scalar 本已≥parity·具名-X 系 stale-verdict·de-lottery 只成色)·前置核(有无宽可窄)=grid dequant 翻/N/A 分轴键"),
+ ("dequantize_row","iq3_s","micro-fixed"): (1.71,"★审计订正C1(paper-side self-audit·2026-07-20): 前值 2.08=max-of-7-seed(挑对手跑最差那次·方差全在对手侧 ggml IQR 17-33% vs ours 0.3-0.75%)·canon SOP 无 max-of-N 授权→改 median 1.71(7-seed)。★C2/B4 资格注: 数走 ad-hoc run_*.sh 非 bench 合法通道(runs.log 07-19/20 零行)·无 T-N 噪声地板(canon/测量判据.md:32·dequant T-N 命中 0)=按项目自己法尚无判定资格·pending bench-channel + T-N 正式确认·成色=measured 非 T-N-qualified。★★r5.1-c grid族全族翻(84150fd6e·裁2·续 W4 lever)·原无 owned body(deployed scalar 被 clang -O3 autovec 炸成 32 vlux+320 slidedown 彩票叶)→造 owned 窄化 per-entry body(W4 iq3_xxs lever 移植·gather-free 装配+廉价 m1 widening·grid-of-4 显式符号 sibling)·具名-X→PASS 1.44-2.08(~2x·全 7 seed 击败 ggml·iqr<1%·ours_med 522→257us)·byte-exact(ours-vs-oracle 0/131072·ggml-vs-oracle 0·3-arm·corpus grid 512/512 sign 256/256)·CORE==PROD(md5 ca6bd415·vlux=0 vslidedown=0 vs deployed 32/320)·🔴无 inline-asm·★推翻 GEN_SEAL iq3_s「同 gather 墙」预测·codegen-STRUCTURE 墙发射层翻"),
  # ── W5 grid族尾三格全族翻(r51h·2026-07-20·续 W4 lever·iq2_xxs/iq2_s/iq1_s owned 真向量 body·grid 族 7/7 全 owned·CORE==PROD md5-regen-identical·gather-free vlux=0/vrgather=0/vslide=0·byte-exact 3-way mism=0/524288·CORPUS COMPLETE·3-arm bite·compiler-symmetric clang-18·2seed cold iqr<1%·🔴无 inline-asm) ──
  # ★C2/B4 资格注(同 iq3_s): r51h 数走 experiments/active/r51h-grid-tail-dequant/run.sh ad-hoc 非 bench 合法通道(runs.log 零行)·无 T-N 噪声地板(canon/测量判据.md·dequant T-N 命中 0)=成色 measured 非 T-N-qualified·论文引用前须走 bench 通道 + T-N 复测·成色仍便宜档(opp host-autovec scalar-C)
- ("dequantize_row","iq2_xxs",""): (2.26,"★W5 grid族尾 de-lottery(r51h·9d... 续 W4 lever)·scalar-forwarder→owned 窄化 per-entry body(iq2_xs grid-of-8 sibling·grid idx 8-bit 256-entry+ksigns 7-bit sign-plane·gather-free 装配)·前置核 HEAVY autovec opp(objdump 部署 vec=74/vset=33/gather=0=clang autovec 非 HW-gather 墙)→owned vsext32/vfcvt32/vfmul32 gather-free·auto-promote(pending-§6)→owned PASS 2.2565/2.2624(2seed·ours~720us vs ggml~1625us·iqr<1%)·byte-exact(ours-vs-oracle/ggml-vs-oracle/ours-vs-ggml 全 0/524288·CORPUS grid 256/256 sign 128/128)·CORE==PROD md5 6a9bdc4d·标量类硬门·★opp-immaturity 便宜档(host-autovec scalar-C·§三.12·非perf硬赢)·墙型=compiler-behavior/codegen-STRUCTURE(非微架构·opp gather=0 证)·勿外推"),
- ("dequantize_row","iq2_s",""): (2.18,"★W5 grid族尾 de-lottery(r51h·续 W4 lever)·scalar-forwarder(P1-backfill7 1.75 lottery)→owned 窄化 per-entry body(grid-of-8·grid idx 10-bit 1024-entry qs|qh+explicit signs256 8-bit sign-plane·per-half scale·gather-free)·前置核 HEAVY autovec opp(objdump vec=74/vset=33/gather=0)→owned gather-free·具名-X/lottery→owned PASS 2.1832/2.1754(2seed·ours~773us vs ggml~1684us·iqr<1%)·byte-exact 全 0/524288·CORPUS grid 1024/1024 sign 256/256·CORE==PROD md5 13ca4316·标量类硬门·★opp-immaturity 便宜档(§三.12·非perf硬赢)·墙型=compiler-behavior·de-lottery 消 1.75 lottery→确定 owned·勿外推"),
- ("dequantize_row","iq1_s",""): (0.99,"★W5 grid族尾 de-lottery(r51h·续 W4 lever)·scalar-forwarder(auto-promote 0.98 lottery)→owned 窄化 per-entry body(ternary iq1s_grid 2048-entry·grid idx 11-bit qs|qh·SIGNED int8 grid·delta ADD vfadd+vfmul 双 rounding 匹配 ggml·gather-free)·★lever-N/A honest-null: 前置核 MODERATE autovec opp(objdump vec=24/vset=8/gather=0≈iq1_m opp·deployed 已 gather-free 好码)→owned body 得 PARITY(0.9936/0.9965·2seed·ours~731us vs ggml~727us·iqr<1%·同 iq1_m 1.03 定性)·部署为 [L-8] de-lottery 加固(owned 不吃 clang autovec lottery)非结构翻·byte-exact 全 0/524288·CORPUS grid 2048/2048 delta +-·CORE==PROD md5 55378f93·标量类硬门·墙型=compiler-behavior(opp gather=0)·前置核有无宽可窄=翻/N-A 分轴键(iq1_s 落 N/A 侧同 iq1_m)·勿外推"),
+ ("dequantize_row","iq2_xxs","micro-fixed"): (2.26,"★W5 grid族尾 de-lottery(r51h·9d... 续 W4 lever)·scalar-forwarder→owned 窄化 per-entry body(iq2_xs grid-of-8 sibling·grid idx 8-bit 256-entry+ksigns 7-bit sign-plane·gather-free 装配)·前置核 HEAVY autovec opp(objdump 部署 vec=74/vset=33/gather=0=clang autovec 非 HW-gather 墙)→owned vsext32/vfcvt32/vfmul32 gather-free·auto-promote(pending-§6)→owned PASS 2.2565/2.2624(2seed·ours~720us vs ggml~1625us·iqr<1%)·byte-exact(ours-vs-oracle/ggml-vs-oracle/ours-vs-ggml 全 0/524288·CORPUS grid 256/256 sign 128/128)·CORE==PROD md5 6a9bdc4d·标量类硬门·★opp-immaturity 便宜档(host-autovec scalar-C·§三.12·非perf硬赢)·墙型=compiler-behavior/codegen-STRUCTURE(非微架构·opp gather=0 证)·勿外推"),
+ ("dequantize_row","iq2_s","micro-fixed"): (2.18,"★W5 grid族尾 de-lottery(r51h·续 W4 lever)·scalar-forwarder(P1-backfill7 1.75 lottery)→owned 窄化 per-entry body(grid-of-8·grid idx 10-bit 1024-entry qs|qh+explicit signs256 8-bit sign-plane·per-half scale·gather-free)·前置核 HEAVY autovec opp(objdump vec=74/vset=33/gather=0)→owned gather-free·具名-X/lottery→owned PASS 2.1832/2.1754(2seed·ours~773us vs ggml~1684us·iqr<1%)·byte-exact 全 0/524288·CORPUS grid 1024/1024 sign 256/256·CORE==PROD md5 13ca4316·标量类硬门·★opp-immaturity 便宜档(§三.12·非perf硬赢)·墙型=compiler-behavior·de-lottery 消 1.75 lottery→确定 owned·勿外推"),
+ ("dequantize_row","iq1_s","micro-fixed"): (0.99,"★W5 grid族尾 de-lottery(r51h·续 W4 lever)·scalar-forwarder(auto-promote 0.98 lottery)→owned 窄化 per-entry body(ternary iq1s_grid 2048-entry·grid idx 11-bit qs|qh·SIGNED int8 grid·delta ADD vfadd+vfmul 双 rounding 匹配 ggml·gather-free)·★lever-N/A honest-null: 前置核 MODERATE autovec opp(objdump vec=24/vset=8/gather=0≈iq1_m opp·deployed 已 gather-free 好码)→owned body 得 PARITY(0.9936/0.9965·2seed·ours~731us vs ggml~727us·iqr<1%·同 iq1_m 1.03 定性)·部署为 [L-8] de-lottery 加固(owned 不吃 clang autovec lottery)非结构翻·byte-exact 全 0/524288·CORPUS grid 2048/2048 delta +-·CORE==PROD md5 55378f93·标量类硬门·墙型=compiler-behavior(opp gather=0)·前置核有无宽可窄=翻/N-A 分轴键(iq1_s 落 N/A 侧同 iq1_m)·勿外推"),
  # ── R线 §四.1 de-lottery: q8_0@rvv non-grid owned 真向量·PASS→PASS·cold 改善(0.838 lottery→2.33 owned)·trellis-check a81da 复现 2.3478/2.3266 ──
- ("dequantize_row","q8_0",""): (2.33,"★R线§四.1 de-lottery·owned 真向量 emit(5 owned intrinsic·ISSUE-001 反转·[L-8]强义 construction 真赢·非autovec抽签·regen-identical)·byte-exact GREEN·non-grid 无gather墙(对比 grid iq3_xxs 0.36 天花板)·cold 0.838 lottery→2.33 owned(trellis-check 复现 2.3478/2.3266·2seed)·标量类硬门 PASS·[L-8]强义construction真赢·★关ISSUE-002该格敞口(24行dequant [L-8]存疑随de-lottery逐格关)·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢·禁称重大WIN/真赢部署核)·勿外推grid/K-quant"),
+ ("dequantize_row","q8_0","micro-fixed"): (2.33,"★R线§四.1 de-lottery·owned 真向量 emit(5 owned intrinsic·ISSUE-001 反转·[L-8]强义 construction 真赢·非autovec抽签·regen-identical)·byte-exact GREEN·non-grid 无gather墙(对比 grid iq3_xxs 0.36 天花板)·cold 0.838 lottery→2.33 owned(trellis-check 复现 2.3478/2.3266·2seed)·标量类硬门 PASS·[L-8]强义construction真赢·★关ISSUE-002该格敞口(24行dequant [L-8]存疑随de-lottery逐格关)·★opp-immaturity(对手ggml dequant非热路径未手工向量化·§三.12·非perf硬赢·禁称重大WIN/真赢部署核)·勿外推grid/K-quant"),
  # ── B线第一块批1: K-quant super-block dequant de-lottery(commit ababfada9·5格 owned真向量emit·scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·byte-exact mism=0/262144·3-arm bite·CORPUS COMPLETE·FMA-contract passed·sealed整数核未动)·pending(DEQ-历史stale)→verdict·[L-8]强义construction·关ISSUE-002该格per-format敞口 ──
- ("dequantize_row","q3_K",""): (2.62,"★B线第一块批1 de-lottery·K-quant super-block owned 真向量 emit(scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·pending(DEQ-历史stale)→PASS(cold 2.62·2seed)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
- ("dequantize_row","q6_K",""): (1.49,"★B线第一块批1 de-lottery·K-quant super-block owned 真向量 emit(scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·pending(DEQ-历史stale)→PASS(cold 1.49·2seed)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
- ("dequantize_row","q2_K",""): (1.22,"★B线第一块批1 de-lottery·K-quant super-block owned 真向量 emit(scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·pending(DEQ-历史stale)→PASS(cold 1.22·2seed)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
- ("dequantize_row","q5_K",""): (2.19,"★B线 de-lottery·K-quant super-block owned 真向量 emit(gather=0 streaming·[L-8]强义construction·关ISSUE-002敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·★r5.1-W5 improved 1.16→2.19(cold 341k→181k ns·2seed·same two-pass标量前置+vfwcvt lever·shared fn 无回归)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
- ("dequantize_row","q4_K",""): (1.01,"★B线 de-lottery·K-quant super-block owned 真向量 emit(gather=0·[L-8]强义construction·关ISSUE-002敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·★r5.1-W5 HEADLINE FLIP 0.55→1.01(具名-X→vs-部署PASS·2seed 1.0055/1.0156)·标量类硬门·★WALL-TYPE更正:前0.55非微架构墙=我方codegen结构·板测三点bisect(vfcvt交错0.55→vfwcvt swap 0.58次要→two-pass标量前置1.01主导)·发射层两合法动作(源重排+intrinsic swap·无inline-asm)·supersedes ISSUE-109/§四.2「perf-cold墙」记录·首波假headline(手写kernel非emitter产出)经主会话独立check更正·opp便宜档 per锁①≥0.8=入账·勿外推"),
+ ("dequantize_row","q3_K","micro-fixed"): (2.62,"★B线第一块批1 de-lottery·K-quant super-block owned 真向量 emit(scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·pending(DEQ-历史stale)→PASS(cold 2.62·2seed)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
+ ("dequantize_row","q6_K","micro-fixed"): (1.49,"★B线第一块批1 de-lottery·K-quant super-block owned 真向量 emit(scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·pending(DEQ-历史stale)→PASS(cold 1.49·2seed)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
+ ("dequantize_row","q2_K","micro-fixed"): (1.22,"★B线第一块批1 de-lottery·K-quant super-block owned 真向量 emit(scalar-forwarder→owned body·bit-unpack super-block·gather=0 streaming·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·pending(DEQ-历史stale)→PASS(cold 1.22·2seed)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
+ ("dequantize_row","q5_K","micro-fixed"): (2.19,"★B线 de-lottery·K-quant super-block owned 真向量 emit(gather=0 streaming·[L-8]强义construction·关ISSUE-002敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·★r5.1-W5 improved 1.16→2.19(cold 341k→181k ns·2seed·same two-pass标量前置+vfwcvt lever·shared fn 无回归)·标量类硬门·★opp-immaturity(对手host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed整数核未动·勿外推vec_dot/grid"),
+ ("dequantize_row","q4_K","micro-fixed"): (1.01,"★B线 de-lottery·K-quant super-block owned 真向量 emit(gather=0·[L-8]强义construction·关ISSUE-002敞口)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS COMPLETE·FMA-contract)·★r5.1-W5 HEADLINE FLIP 0.55→1.01(具名-X→vs-部署PASS·2seed 1.0055/1.0156)·标量类硬门·★WALL-TYPE更正:前0.55非微架构墙=我方codegen结构·板测三点bisect(vfcvt交错0.55→vfwcvt swap 0.58次要→two-pass标量前置1.01主导)·发射层两合法动作(源重排+intrinsic swap·无inline-asm)·supersedes ISSUE-109/§四.2「perf-cold墙」记录·首波假headline(手写kernel非emitter产出)经主会话独立check更正·opp便宜档 per锁①≥0.8=入账·勿外推"),
  # ── B线第一块批2: tiny-codebook 16-entry dequant de-lottery(commit d24bf2038·4格 owned vrgather 码本 emit·scalar-forwarder→owned body·vrgather_vv_i8m1 REGISTER 码本 gather·vluxei=0 无 HW-gather 墙·byte-exact mism=0·3-arm bite·CORPUS 32/32·single-mul fold·sealed vec_dot 核未动·main独立验证 lit PASS)·[L-8]强义construction·关ISSUE-002该格per-format敞口 ──
- ("dequantize_row","mxfp4",""): (6.42,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本 gather·vluxei=0 无HW-gather墙·E8M0块标度bit-construction·9 owned·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/131072·3-arm·CORPUS 32/32·single-mul)·成色upgrade lottery-PASS→owned PASS(cold 6.4264/6.3683·2seed·count不动·敞口关)·标量类硬门·★opp-immaturity(host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推vec_dot/grid"),
- ("dequantize_row","iq4_nl",""): (5.51,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本·vluxei=0·flat fp16标度·9 owned·[L-8]·关ISSUE-002敞口)·byte-exact GREEN(mism=0/131072·3-arm·CORPUS 32/32·single-mul)·成色upgrade lottery-PASS→owned PASS(cold 5.5108/5.4248·2seed·count不动·敞口关)·标量类硬门·★opp-immaturity(§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推"),
- ("dequantize_row","iq4_xs",""): (5.17,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本·vluxei=0·super-block signed-6 sub scale·9 owned·[L-8]·关ISSUE-002敞口·census-F7 覆盖)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS 32/32·single-mul)·具名-X→PASS 真地盘(cold 5.1664/5.0545·2seed·census-F7 唯一真count·标量类-rvv 38→39)·标量类硬门·★opp-immaturity(§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推"),
- ("dequantize_row","nvfp4",""): (0.80,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本·vluxei=0·4×UE4M3 sub-scale ldexpf·9 owned·[L-8]·关ISSUE-002敞口)·byte-exact GREEN(mism=0/131072·3-arm·CORPUS 32/32·single-mul)·lottery-PASS 2.1736→owned PASS(cold 0.8037/0.8034·2seed·marginal 刚过0.8门)·成色upgrade非涨数(owned cold<lottery·UE4M3 ldexpf scalar seam per-sub 稀释·未试杠杆=UE4M3 bit-construction/LUT向量化·PASS故非具名-X)·标量类硬门·opp-immaturity·非perf硬赢·勿外推"),
+ ("dequantize_row","mxfp4","micro-fixed"): (6.42,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本 gather·vluxei=0 无HW-gather墙·E8M0块标度bit-construction·9 owned·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/131072·3-arm·CORPUS 32/32·single-mul)·成色upgrade lottery-PASS→owned PASS(cold 6.4264/6.3683·2seed·count不动·敞口关)·标量类硬门·★opp-immaturity(host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推vec_dot/grid"),
+ ("dequantize_row","iq4_nl","micro-fixed"): (5.51,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本·vluxei=0·flat fp16标度·9 owned·[L-8]·关ISSUE-002敞口)·byte-exact GREEN(mism=0/131072·3-arm·CORPUS 32/32·single-mul)·成色upgrade lottery-PASS→owned PASS(cold 5.5108/5.4248·2seed·count不动·敞口关)·标量类硬门·★opp-immaturity(§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推"),
+ ("dequantize_row","iq4_xs","micro-fixed"): (5.17,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本·vluxei=0·super-block signed-6 sub scale·9 owned·[L-8]·关ISSUE-002敞口·census-F7 覆盖)·byte-exact GREEN(mism=0/262144·3-arm·CORPUS 32/32·single-mul)·具名-X→PASS 真地盘(cold 5.1664/5.0545·2seed·census-F7 唯一真count·标量类-rvv 38→39)·标量类硬门·★opp-immaturity(§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推"),
+ ("dequantize_row","nvfp4","micro-fixed"): (0.80,"★B线第一块批2 de-lottery·tiny-codebook 16-entry owned 真向量 emit(vrgather_vv_i8m1 REGISTER 码本·vluxei=0·4×UE4M3 sub-scale ldexpf·9 owned·[L-8]·关ISSUE-002敞口)·byte-exact GREEN(mism=0/131072·3-arm·CORPUS 32/32·single-mul)·lottery-PASS 2.1736→owned PASS(cold 0.8037/0.8034·2seed·marginal 刚过0.8门)·成色upgrade非涨数(owned cold<lottery·UE4M3 ldexpf scalar seam per-sub 稀释·未试杠杆=UE4M3 bit-construction/LUT向量化·PASS故非具名-X)·标量类硬门·opp-immaturity·非perf硬赢·勿外推"),
  # ── B线第一块批3: ternary super-block dequant de-lottery(commit 0b53efdc9·2格 owned PURE-ARITHMETIC 解包 emit·scalar-forwarder→owned body·gather=0 无码本·byte-exact mism=0·3-arm bite·CORPUS·sealed vec_dot 核未动 md5 338a31bb·main独立 lit RVV 500/500·★完成第一块 11 格 dequant de-lottery)·[L-8]强义construction·关ISSUE-002该格per-format敞口 ──
- ("dequantize_row","tq2_0",""): (1.00,"★B线第一块批3 de-lottery·ternary super-block owned 真向量 emit(2-bit vsrl/vand PURE-ARITHMETIC 解包·gather=0 无码本·9 owned distinct/282 calls·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm bite[oracle/DUT/leaf-fault differing_bytes=1]·CORPUS 16/16·single-mul)·具名-X→PASS 真地盘(cold 1.0035/1.0246·2seed·census-F7 覆盖·标量类-rvv 39→40)·标量类硬门·★opp-immaturity(host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推vec_dot/grid"),
- ("dequantize_row","tq1_0",""): (1.05,"★B线第一块批3 de-lottery·ternary super-block owned 真向量 emit(base-3 vmul_vx(pow3)+((q*3)>>8) PURE-ARITHMETIC 解包·gather=0 无码本·11 owned distinct/420 calls·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm bite·CORPUS 15/15·single-mul)·成色upgrade lottery-PASS→owned PASS(cold 1.0492/1.0422·2seed·count不动·敞口关)·标量类硬门·★opp-immaturity(§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推vec_dot/grid·⚠dequant≠tq1_0 vec_dot第二块公式墙"),
+ ("dequantize_row","tq2_0","micro-fixed"): (1.00,"★B线第一块批3 de-lottery·ternary super-block owned 真向量 emit(2-bit vsrl/vand PURE-ARITHMETIC 解包·gather=0 无码本·9 owned distinct/282 calls·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm bite[oracle/DUT/leaf-fault differing_bytes=1]·CORPUS 16/16·single-mul)·具名-X→PASS 真地盘(cold 1.0035/1.0246·2seed·census-F7 覆盖·标量类-rvv 39→40)·标量类硬门·★opp-immaturity(host-autovec-of-scalar-C·§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推vec_dot/grid"),
+ ("dequantize_row","tq1_0","micro-fixed"): (1.05,"★B线第一块批3 de-lottery·ternary super-block owned 真向量 emit(base-3 vmul_vx(pow3)+((q*3)>>8) PURE-ARITHMETIC 解包·gather=0 无码本·11 owned distinct/420 calls·[L-8]强义construction·关ISSUE-002该格敞口)·byte-exact GREEN(mism=0/262144·3-arm bite·CORPUS 15/15·single-mul)·成色upgrade lottery-PASS→owned PASS(cold 1.0492/1.0422·2seed·count不动·敞口关)·标量类硬门·★opp-immaturity(§三.12·非perf硬赢)·sealed vec_dot核未动·勿外推vec_dot/grid·⚠dequant≠tq1_0 vec_dot第二块公式墙"),
  # ── B线第二块 P2: iq2 grid vec_dot@rvv 首次直接 M=1 kernel-sym 板测(deployed emit·既存 emitIQ2XXS/IQ2XSSuperBlockGridBody 路·GridCodebook.cpp diff空·CORE==PROD 主会话独立验 export md5==agent seal db1bfdcd/4c2f8acc·非新构造)·override T3A format-micro proxy(0.697/0.529)·compiler-symmetric clang18双侧·byte-exact ours_vs_ggml_deployed=true worst_ulp=0·3-arm·opp=部署手调 _vl128 ──
- ("vec_dot","iq2_xxs",""): (0.84,"★B线第二块 P2 首次直接 M=1 vec_dot 板测·deployed emit(CORE==PROD 主会话独立验 md5 db1bfdcd)·compiler-symmetric clang18·byte-exact worst_ulp=0·3-arm anti-hollow·5-seed cold 0.837/0.847/0.862/0.841/0.828(min 0.828 全≥0.8)·proxy T3 0.697→direct 0.84→PASS(地盘+1·具名-X→PASS·公式墙对位攻坚坐实无绕过)·★成色诚实=对手手调 _vl128(非便宜档)·near-parity PASS-by-gate·cold≤1.0 非beat(勿称打赢手调)·M=1 kernel-axis 数勿外推 e2e。★★W4 k1 订正(r51w4·2026-07-20): 此格 rvv=0.84(m2 leaf per-board march=rv64gcv)。**k1 T3B 的 0.612「byte-exact」= STALE·测在 m2 leaf@VLEN256 = byte-BROKEN 核(mism=512)**·作废。真值 = **k1 0.845 PASS**(m1 leaf per-board march=rv64gcv_zvl256b·native-widening=ggml _vl256 shape·byte-exact 3-way mism=0·2seed 0.8412/0.8493·FLIP 0.59→0.84)。★发现: ISSUE-120 iq2_xxs 非 emitter bug·是 harness 对所有板发 m2 leaf·修=per-board emit(θ20 integer_core_lmul VLEN-correctness 选择器已在·零源改)。精确 k1 数值 fold 待 T3B surgical(row.csv @ experiments/active/r51w4-iq2-vsdeployed-harvest/)。"),
- ("vec_dot","iq2_xs",""): (0.617,"★B线第二块 iq2_xs@rvv 维持具名-X·★归约fusion证伪(部署板上3-way隔离:REF lean-decode 0.82 / EMIT-fused 0.617≈floor / serial 0.62·0.82真lever=lean-decode非归约批处理·MANIFEST误归因订正·部署REVERTED无过度工程·ISSUE-120 iq2_xs VLEN256 byte-broken)·P2 首次直接 M=1 vec_dot 板测·deployed emit(CORE==PROD md5 4c2f8acc)·compiler-symmetric·byte-exact worst_ulp=0·3-arm·4-seed cold ~0.62(全<0.8)·proxy T3 0.529→direct 0.62→具名-X(边界·三步走完:objdump→owned leaf vwredsum=16 板测→证伪<0.8)·★具名 floor=16×serial vwredsum 归约链(iq2_xs 双 per-half scale ls1/ls2 强制 16-lane collapse·结构可读)·挂号杠杆=归约批处理 ISSUE-020(sum2符号和·已就绪)/ISSUE-109(vwredsum floor)·闭式可键控非架构墙非杠杆真空"),
+ ("vec_dot","iq2_xxs","micro-fixed"): (0.84,"★B线第二块 P2 首次直接 M=1 vec_dot 板测·deployed emit(CORE==PROD 主会话独立验 md5 db1bfdcd)·compiler-symmetric clang18·byte-exact worst_ulp=0·3-arm anti-hollow·5-seed cold 0.837/0.847/0.862/0.841/0.828(min 0.828 全≥0.8)·proxy T3 0.697→direct 0.84→PASS(地盘+1·具名-X→PASS·公式墙对位攻坚坐实无绕过)·★成色诚实=对手手调 _vl128(非便宜档)·near-parity PASS-by-gate·cold≤1.0 非beat(勿称打赢手调)·M=1 kernel-axis 数勿外推 e2e。★★W4 k1 订正(r51w4·2026-07-20): 此格 rvv=0.84(m2 leaf per-board march=rv64gcv)。**k1 T3B 的 0.612「byte-exact」= STALE·测在 m2 leaf@VLEN256 = byte-BROKEN 核(mism=512)**·作废。真值 = **k1 0.845 PASS**(m1 leaf per-board march=rv64gcv_zvl256b·native-widening=ggml _vl256 shape·byte-exact 3-way mism=0·2seed 0.8412/0.8493·FLIP 0.59→0.84)。★发现: ISSUE-120 iq2_xxs 非 emitter bug·是 harness 对所有板发 m2 leaf·修=per-board emit(θ20 integer_core_lmul VLEN-correctness 选择器已在·零源改)。精确 k1 数值 fold 待 T3B surgical(row.csv @ experiments/active/r51w4-iq2-vsdeployed-harvest/)。"),
+ ("vec_dot","iq2_xs","micro-fixed"): (0.617,"★B线第二块 iq2_xs@rvv 维持具名-X·★归约fusion证伪(部署板上3-way隔离:REF lean-decode 0.82 / EMIT-fused 0.617≈floor / serial 0.62·0.82真lever=lean-decode非归约批处理·MANIFEST误归因订正·部署REVERTED无过度工程·ISSUE-120 iq2_xs VLEN256 byte-broken)·P2 首次直接 M=1 vec_dot 板测·deployed emit(CORE==PROD md5 4c2f8acc)·compiler-symmetric·byte-exact worst_ulp=0·3-arm·4-seed cold ~0.62(全<0.8)·proxy T3 0.529→direct 0.62→具名-X(边界·三步走完:objdump→owned leaf vwredsum=16 板测→证伪<0.8)·★具名 floor=16×serial vwredsum 归约链(iq2_xs 双 per-half scale ls1/ls2 强制 16-lane collapse·结构可读)·挂号杠杆=归约批处理 ISSUE-020(sum2符号和·已就绪)/ISSUE-109(vwredsum floor)·闭式可键控非架构墙非杠杆真空"),
 }
 # ── vec_dot kernel-sym DEPLOYED direct M=1(both boards·区别 CLANG_WORLD rvv-only·compiler-symmetric·手调 opp·override T3 proxy) ──
 VECDOT_KERNELSYM = {  # (op,fmt): {board: (cold, note)}
@@ -326,24 +469,34 @@ def disp(op, fmt, engine, board, tier, cold, na):
     if op == "dequantize_row": return "DEQ-历史(pre-clang18 stale·照测不进头条)"
     return "pending-fold" if op in ("gemm_tile","vec_dot") else "pending"
 
+@locked_publisher
 def main():
     roster = json.load(open(ROSTER))["kernels"]
+    # Validate the complete in-scope declaration before consuming any source
+    # data.  Missing/blank engine or regime is a schema error, not a default.
+    declared_keys = set(load_roster_keys(ROSTER))
+    qualified_overrides = load_qualified_overrides()
     t3 = {"rvv":parse_t3(T3A), "k1":parse_t3(T3B)}
     # build master rows: (op,format,engine,regime). ★单分母制(数字字典v2令): 全量口径
     # q4_0 gemm decode/prefill = 2 独立行([K-10] 结构分立·不再折·上轮折成1行=错·85/88 全量分母要求)
     seen = set(); rows = []
     for k in roster:
-        op, fmt, eng = k["op"], k["format"], k.get("engine","")
+        op, fmt = k["op"], k["format"]
         if op in ("flash_attn","bf16"): continue          # class C OOD (not in 5 groups)
-        regime = k.get("regime","")
-        key = (op, fmt, eng, regime)
-        if key in seen: continue
+        key = key_from_mapping(k, source=f"{ROSTER}:{op}/{fmt}")
+        _, _, eng, regime = key
+        if key in seen:
+            raise MeasurementKeyError(f"{ROSTER}: duplicate exact row key {key}")
         seen.add(key)
         rows.append({"op":op,"format":fmt,"engine":eng,"regime":regime})
+    if seen != declared_keys:
+        raise MeasurementKeyError(
+            f"recon roster projection drift: built={len(seen)} declared={len(declared_keys)}"
+        )
 
     master = []
     for r in rows:
-        op, fmt, eng, regime = r["op"], r["format"], r["engine"], r.get("regime","")
+        op, fmt, eng, regime = r["op"], r["format"], r["engine"], r["regime"]
         isfwd = op in FWD_OPS
         tkey = ("forward", op) if isfwd else (op, fmt)
         tent = TIER.get(tkey)
@@ -406,8 +559,9 @@ def main():
                     elif "DEPLOY" in dtok: d="PASS-DEPLOYED(decode-GEVM·C1)"
                     else: d="具名-X(decode-M1)"
                     note = note + " ·[decode-M1: "+cx+"]"
-            # ★P2-grid4 prefill 落账(regime=''〔iq1/iq3 单行〕 + regime='prefill'〔iq2/iq4_nl split 行〕·ISSUE-004 部署对手政策·同 GEMM_DECODE/CLANG_WORLD 数据消费范式·0.8 门不改·regime-aware 避 iq2 decode 行双触发)
-            if op=="gemm_tile" and regime in ("","prefill"):
+            # ★P2-grid4 prefill 落账；所有单路线 GEMM 也显式键为 prefill，
+            # 不再通过空 regime 兼容匹配。
+            if op=="gemm_tile" and regime == "prefill":
                 p2 = P2_GRID4.get((op,fmt))
                 if p2 and board in p2:
                     c, dtok, cx = p2[board]
@@ -428,7 +582,7 @@ def main():
             # q5@k1 deploy absorb (裁决④·decode-GEVM 部署赢·只落 decode regime·非 prefill)
             dep = Q5K1_DEPLOY.get((op,fmt))
             depnote=""
-            if dep and dep[0]==board and regime in ("decode",""):
+            if dep and dep[0]==board and regime == "decode":
                 depnote = " ·[★裁决④吸纳: deploy k1 repack-GEVM(decode) %.3f× kernel + e2e 2×(独立验证 a6fdf1a3/w91jl99ia)·anti-gate: 真实部署路径新格(C1 per-format measured-gate·d109d6ed2)·成色 beat-weak-baseline(stock q5 block-dot compute-bound·非 beat-hand-tuned)]"%dep[1]
                 if d.startswith("具名-X") or d.startswith("pending"): d="PASS-DEPLOYED(部署路·k1 repack decode-GEVM)"
             # ★线A·A1 单世界 clang-18 override(PR-17 终裁·gcc 视为不存在·rvv board·终态优先·仅次于 na)
@@ -444,6 +598,21 @@ def main():
                 c, vknote = vk[board]
                 d = "PASS" if c>=0.8 else "具名-X"
                 note = vknote
+            # Final data-plane authority: a current, byte-exact, T-N-qualified
+            # official run supersedes legacy T3/dict inputs.  No partially
+            # qualified row reaches this point.
+            qualified = qualified_overrides.get((op, fmt, eng, regime, board))
+            if qualified:
+                if na:
+                    raise MeasurementKeyError(
+                        f"qualified measurement targets capability-impossible cell "
+                        f"{(op, fmt, eng, regime, board)}"
+                    )
+                c = qualified["cold_median"]
+                tier = qualified["axis_extras"]["tier"]
+                d = qualified["axis_extras"]["disp"]
+                sym = qualified["opponent_symbol"]["symbol"]
+                note = qualified["axis_extras"]["t3_note"]
             if na: tier="N/A-hw"; sym="—"; note="ime.present unsatisfiable on %s(机判)"%board; d="N/A-hw"
             rec[board] = {"tier":tier,"sym":sym,"note":note+depnote,"cold":c,"disp":d,"na":na}
         master.append(rec)
@@ -453,7 +622,7 @@ def main():
     # ---- N/A-hw legal-asymmetry scan ----
     asym = []; rev_asym = []
     for r in master:
-        rk=f"{r['op']}|{r['format']}|{r['engine']}"+(f"|{r['regime']}" if r['regime'] else "")
+        rk=f"{r['op']}|{r['format']}|{r['engine']}|{r['regime']}"
         if r["rvv"]["na"] and not r["k1"]["na"]: asym.append((rk,"rvv=N/A-hw"))
         if r["k1"]["na"] and not r["rvv"]["na"]: rev_asym.append((rk,"k1=N/A-hw"))
 
@@ -477,36 +646,42 @@ def main():
             elif stt=="具名-X": s["x"]+=1; s["measured"]+=1
             elif stt=="挂起": s["susp"]+=1
             else: s["pending"]+=1
-            rk=f"{r['op'].replace('_tile','').replace('ntize_row','ntize').replace('quantize_row','quant').replace('uct_reduce','_reduce')}|{r['format']}"+(f"@{r['engine']}" if r['engine'] else "")+(f"/{r['regime']}" if r['regime'] else "")
+            rk=(f"{r['op'].replace('_tile','').replace('ntize_row','ntize').replace('quantize_row','quant').replace('uct_reduce','_reduce')}"
+                f"|{r['format']}@{r['engine']}/{r['regime']}")
             s["rows"].append((rk,stt,c))
         return st
 
-    # ---- write master CSV (含 regime 列) ----
-    with open(OUT,"w",newline="") as f:
-        w=csv.writer(f)
-        w.writerow(["op","format","engine","regime","group",
-                    "rvv_tier","rvv_disp","rvv_cold","rvv_opp_sym","rvv_note",
-                    "k1_tier","k1_disp","k1_cold","k1_opp_sym","k1_note"])
-        for r in master:
-            w.writerow([r["op"],r["format"],r["engine"],r["regime"],r["group"],
-                r["rvv"]["tier"],r["rvv"]["disp"],r["rvv"]["cold"],r["rvv"]["sym"],r["rvv"]["note"],
-                r["k1"]["tier"],r["k1"]["disp"],r["k1"]["cold"],r["k1"]["sym"],r["k1"]["note"]])
+    # ---- render master CSV (publication happens only after all checks/rendering) ----
+    master_buffer = io.StringIO(newline="")
+    w=csv.writer(master_buffer, lineterminator="\n")
+    w.writerow(["op","format","engine","regime","group",
+                "rvv_tier","rvv_disp","rvv_cold","rvv_opp_sym","rvv_note",
+                "k1_tier","k1_disp","k1_cold","k1_opp_sym","k1_note"])
+    for r in master:
+        w.writerow([r["op"],r["format"],r["engine"],r["regime"],r["group"],
+            r["rvv"]["tier"],r["rvv"]["disp"],r["rvv"]["cold"],r["rvv"]["sym"],r["rvv"]["note"],
+            r["k1"]["tier"],r["k1"]["disp"],r["k1"]["cold"],r["k1"]["sym"],r["k1"]["note"]])
 
     # ---- row-clue 工件 (每口径数字附机打行清单·禁无清单出数·数字字典v2令一.4) ----
     stats={b:tier_stats(b) for b in ("rvv","k1")}
     denom={b:len(board_denom_rows(b)) for b in ("rvv","k1")}
-    with open(CLUE,"w") as cf:
-        cf.write(f"# 行清单工件 (数字字典v2·每口径行清单+格内状态·机算·snapshot {SNAPSHOT})\n")
-        cf.write(f"# 单分母制: 板分母 = 主表非N/A-hw ∧ 非q1_0 全部行. 四档穷尽互斥 Σ=分母.\n\n")
-        for board in ("rvv","k1"):
-            cf.write(f"===== {board} (板分母={denom[board]}) =====\n")
-            tot=0
-            for t in TIERS:
-                s=stats[board][t]; tot+=s["full"]
-                cf.write(f"\n[{t}] 头条 PASS {s['pass']}/{s['full']} (全量) · 已测胜率 {s['pass']}/{s['measured']} (派生) · 格内: PASS {s['pass']}/具名-X {s['x']}/挂起 {s['susp']}/pending {s['pending']}\n")
-                for rk,stt,c in s["rows"]:
-                    cf.write(f"    {stt:7s} {rk}"+(f" cold={c}" if c is not None else "")+"\n")
-            cf.write(f"\n  Σ四档 = {tot} == 板分母 {denom[board]} : {'✓' if tot==denom[board] else '✗MISMATCH'}\n\n")
+    clue_buffer = io.StringIO()
+    clue_buffer.write(f"# 行清单工件 (数字字典v2·每口径行清单+格内状态·机算·snapshot {SNAPSHOT})\n")
+    clue_buffer.write(f"# 单分母制: 板分母 = 主表非N/A-hw ∧ 非q1_0 全部行. 四档穷尽互斥 Σ=分母.\n\n")
+    for board in ("rvv","k1"):
+        clue_buffer.write(f"===== {board} (板分母={denom[board]}) =====\n")
+        tot=0
+        for t in TIERS:
+            s=stats[board][t]; tot+=s["full"]
+            clue_buffer.write(f"\n[{t}] 头条 PASS {s['pass']}/{s['full']} (全量) · 已测胜率 {s['pass']}/{s['measured']} (派生) · 格内: PASS {s['pass']}/具名-X {s['x']}/挂起 {s['susp']}/pending {s['pending']}\n")
+            for rk,stt,c in s["rows"]:
+                clue_buffer.write(f"    {stt:7s} {rk}"+(f" cold={c}" if c is not None else "")+"\n")
+        clue_buffer.write(f"\n  Σ四档 = {tot} == 板分母 {denom[board]} : {'✓' if tot==denom[board] else '✗MISMATCH'}\n\n")
+
+    # Publish rowclue first and canonical master last.  Readers treat master as
+    # the commit point; neither file is ever observed partially written.
+    atomic_publish(CLUE, clue_buffer.getvalue())
+    atomic_publish(OUT, master_buffer.getvalue())
 
     # ---- print recon ----
     print("="*76)
@@ -515,7 +690,8 @@ def main():
     print("\n[分组行数对账] (matmul/forward/dequant/quantize/product_reduce·Σ=主表总行数)")
     for g in ("matmul","forward","dequant","quantize","product_reduce"):
         print(f"    {g:16s} {grp[g]}")
-    print(f"    {'─'*24}\n    Σ = {sum(grp.values())}  (roster in-domain 91·q4_0-gemm decode/prefill=2行不折·[K-10])")
+    print(f"    {'─'*24}\n    Σ = {sum(grp.values())}  "
+          f"(master exact-key rows={len(master)}·regime 不折·[K-10])")
     print(f"    matmul 细分: gemm {sum(1 for r in master if r['op']=='gemm_tile')} + vec_dot {sum(1 for r in master if r['op']=='vec_dot')}")
 
     print("\n[合法不对称清单] (N/A-hw·机判 ime.present×板实例·禁手标):")
@@ -535,7 +711,7 @@ def main():
 
     # ---- 数字字典 v2 (交付物 B·单分母·每数=过滤器) ----
     print("\n" + "="*76)
-    print("数字字典 v2 (单分母制·每数=主表过滤器·机算·snapshot "+SNAPSHOT+"·行清单见 "+CLUE.split('/')[-1]+")")
+    print("数字字典 v2 (单分母制·每数=主表过滤器·机算·snapshot "+SNAPSHOT+"·行清单见 "+CLUE.name+")")
     print("="*76)
     rows_dict=[("master 总行数","(op,format,engine,regime)·in-domain·q4_0-gemm不折·flash_attn/bf16 OOD除",len(master),"主表口径"),
      ("板分母-rvv","非N/A-hw ∧ 非q1_0(域外) 全部行",denom["rvv"],"单分母"),
@@ -545,12 +721,11 @@ def main():
             s=stats[board][t]
             rows_dict.append((f"{t}-{board}",f"tier={t} ∧ 板分母·PASS/全档量"+("·禁称硬赢" if t=="标量类" else ""),f"{s['pass']}/{s['full']}",f"头条·{board}"))
     rows_dict += [
-     ("N/A-hw","ime.present谓词×板实例不满足·机判",len(asym),"两板对称"),
-     ("certified","(op,format[,shape,regime])构造轴·byte-exact·【coverage_metrics.py 机算·非本recon·regime-split后】","101/108","构造轴(外·F-1纠)"),
-     ("perf-covered","(op,format,engine)系统账e2e·perf_covered_metrics.py·【收口令〇.1终裁维持·any-board只升成色】","9/83","系统账(外)"),
-     ("真硬赢 hand-brick","手调-REAL ∧ PASS ∧ k1·byte-verified·【判据锁 q4_K/q2_K@k1·q5_K/q6_K DEFERRED非verified·非本recon机算】","2","成色定性(F-3判据守护)")]
+     ("N/A-hw","ime.present谓词×板实例不满足·机判",len(asym),"两板对称")]
     for name,filt,val,track in rows_dict:
         print(f"  {name:16s} = {str(val):9s} | {track:12s} | {filt}")
+    print("\n  外部账不在 recon 内复制：构造覆盖率由 coverage_metrics.py 机算；"
+          "perf-covered 由 perf_covered_metrics.py 机算；成色结论由证据地图索引。")
     print("\n  [分组行数对账] Σ = "+" + ".join(f"{g}:{grp[g]}" for g in ('matmul','forward','dequant','quantize','product_reduce'))+f" = {sum(grp.values())}")
     print(f"\n★ master CSV: {OUT}\n★ 行清单工件: {CLUE}")
 

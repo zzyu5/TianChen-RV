@@ -4,22 +4,22 @@
 ===== rvv (板分母=102) =====
 
 [手调] 头条 PASS 10/24 (全量) · 已测胜率 10/23 (派生) · 格内: PASS 10/具名-X 13/挂起 0/pending 1
-    具名-X    vec_dot|q2_K cold=0.342
-    具名-X    vec_dot|q3_K cold=0.258
-    具名-X    vec_dot|q4_K cold=0.189
-    具名-X    vec_dot|q6_K cold=0.18
-    具名-X    vec_dot|iq1_s cold=0.365
-    具名-X    vec_dot|iq1_m cold=0.152
-    PASS    vec_dot|iq2_xxs cold=0.84
-    具名-X    vec_dot|iq2_xs cold=0.617
-    PASS    vec_dot|iq2_s cold=1.92
-    具名-X    vec_dot|iq3_xxs cold=0.156
-    具名-X    vec_dot|iq3_s cold=0.213
-    PASS    vec_dot|iq4_nl cold=1.15
-    PASS    vec_dot|iq4_xs cold=1.31
-    pending vec_dot|mxfp4
-    PASS    vec_dot|tq1_0 cold=0.82
-    PASS    vec_dot|tq2_0 cold=0.975
+    具名-X    vec_dot|q2_K@rvv/micro-fixed cold=0.342
+    具名-X    vec_dot|q3_K@rvv/micro-fixed cold=0.258
+    具名-X    vec_dot|q4_K@rvv/micro-fixed cold=0.189
+    具名-X    vec_dot|q6_K@rvv/micro-fixed cold=0.18
+    具名-X    vec_dot|iq1_s@rvv/micro-fixed cold=0.365
+    具名-X    vec_dot|iq1_m@rvv/micro-fixed cold=0.152
+    PASS    vec_dot|iq2_xxs@rvv/micro-fixed cold=0.84
+    具名-X    vec_dot|iq2_xs@rvv/micro-fixed cold=0.617
+    PASS    vec_dot|iq2_s@rvv/micro-fixed cold=1.92
+    具名-X    vec_dot|iq3_xxs@rvv/micro-fixed cold=0.156
+    具名-X    vec_dot|iq3_s@rvv/micro-fixed cold=0.213
+    PASS    vec_dot|iq4_nl@rvv/micro-fixed cold=1.15
+    PASS    vec_dot|iq4_xs@rvv/micro-fixed cold=1.31
+    pending vec_dot|mxfp4@rvv/micro-fixed
+    PASS    vec_dot|tq1_0@rvv/micro-fixed cold=0.82
+    PASS    vec_dot|tq2_0@rvv/micro-fixed cold=0.975
     具名-X    gemm|q2_K@rvv/decode cold=0.0685
     PASS    gemm|q2_K@rvv/prefill cold=1.112
     具名-X    gemm|q3_K@rvv/decode cold=0.083
@@ -30,15 +30,15 @@
     PASS    gemm|q6_K@rvv/prefill cold=0.96
 
 [通用向量] 头条 PASS 22/27 (全量) · 已测胜率 22/25 (派生) · 格内: PASS 22/具名-X 3/挂起 0/pending 2
-    PASS    vec_dot|q4_0 cold=0.938
-    PASS    vec_dot|q4_1 cold=1.027
-    PASS    vec_dot|q5_0 cold=0.451
-    PASS    vec_dot|q5_1 cold=0.446
-    PASS    vec_dot|q8_0 cold=0.965
-    PASS    vec_dot|q5_K cold=0.843
-    PASS    quantize|q8_0 cold=1.0
-    PASS    quantize|q8_1 cold=1.0
-    PASS    quantize|q8_K cold=1.0
+    PASS    vec_dot|q4_0@rvv/micro-fixed cold=0.938
+    PASS    vec_dot|q4_1@rvv/micro-fixed cold=1.027
+    PASS    vec_dot|q5_0@rvv/micro-fixed cold=0.451
+    PASS    vec_dot|q5_1@rvv/micro-fixed cold=0.446
+    PASS    vec_dot|q8_0@rvv/micro-fixed cold=0.965
+    PASS    vec_dot|q5_K@rvv/micro-fixed cold=0.843
+    PASS    quantize|q8_0@rvv/micro-fixed cold=1.0
+    PASS    quantize|q8_1@rvv/micro-fixed cold=1.0
+    PASS    quantize|q8_K@rvv/micro-fixed cold=1.0
     PASS    gemm|q4_0@rvv/decode cold=6.909
     PASS    gemm|q4_0@rvv/prefill cold=6.224
     pending gemm|q4_1@rvv/decode
@@ -53,63 +53,63 @@
     PASS    gemm|q5_K@rvv/prefill cold=1.067
     具名-X    gemm|iq4_nl@rvv/decode cold=0.234
     具名-X    gemm|iq4_nl@rvv/prefill cold=0.755
-    PASS    rms_norm|f32 cold=1.24
-    PASS    softmax|f32 cold=1.007
-    PASS    silu|f32 cold=0.997
-    PASS    scale|f32 cold=0.998
+    PASS    rms_norm|f32@rvv/micro-fixed cold=1.24
+    PASS    softmax|f32@rvv/micro-fixed cold=1.007
+    PASS    silu|f32@rvv/micro-fixed cold=0.997
+    PASS    scale|f32@rvv/micro-fixed cold=0.998
 
 [标量类] 头条 PASS 45/51 (全量) · 已测胜率 45/50 (派生) · 格内: PASS 45/具名-X 5/挂起 0/pending 1
-    具名-X    vec_dot|nvfp4 cold=0.565
-    PASS    prod_reduce|q4_0_nibble cold=2.712
-    PASS    prod_reduce|offset_binary_n3 cold=0.855
-    PASS    prod_reduce|codebook_n3 cold=1.978
-    PASS    dequantize|q4_0 cold=2.1
-    PASS    dequantize|q4_1 cold=2.29
-    PASS    dequantize|q5_0 cold=5.96
-    PASS    dequantize|q5_1 cold=6.44
-    PASS    dequantize|q8_0 cold=2.33
-    PASS    dequantize|q2_K cold=1.22
-    PASS    dequantize|q3_K cold=2.62
-    PASS    dequantize|q4_K cold=1.01
-    PASS    dequantize|q5_K cold=2.19
-    PASS    dequantize|q6_K cold=1.49
-    PASS    dequantize|iq1_s cold=0.99
-    PASS    dequantize|iq1_m cold=1.03
-    PASS    dequantize|iq2_xxs cold=2.26
-    PASS    dequantize|iq2_xs cold=3.88
-    PASS    dequantize|iq2_s cold=2.18
-    PASS    dequantize|iq3_xxs cold=1.39
-    PASS    dequantize|iq3_s cold=1.71
-    PASS    dequantize|iq4_nl cold=5.51
-    PASS    dequantize|iq4_xs cold=5.17
-    PASS    dequantize|mxfp4 cold=6.42
-    PASS    dequantize|nvfp4 cold=0.8
-    PASS    dequantize|tq1_0 cold=1.05
-    PASS    dequantize|tq2_0 cold=1.0
-    具名-X    gemm|iq1_s@rvv cold=0.6643
-    具名-X    gemm|iq1_m@rvv cold=0.5713
+    具名-X    vec_dot|nvfp4@rvv/micro-fixed cold=0.565
+    PASS    prod_reduce|q4_0_nibble@rvv/micro-fixed cold=2.712
+    PASS    prod_reduce|offset_binary_n3@rvv/micro-fixed cold=0.855
+    PASS    prod_reduce|codebook_n3@rvv/micro-fixed cold=1.978
+    PASS    dequantize|q4_0@rvv/micro-fixed cold=2.1
+    PASS    dequantize|q4_1@rvv/micro-fixed cold=2.29
+    PASS    dequantize|q5_0@rvv/micro-fixed cold=5.96
+    PASS    dequantize|q5_1@rvv/micro-fixed cold=6.44
+    PASS    dequantize|q8_0@rvv/micro-fixed cold=2.33
+    PASS    dequantize|q2_K@rvv/micro-fixed cold=1.22
+    PASS    dequantize|q3_K@rvv/micro-fixed cold=2.62
+    PASS    dequantize|q4_K@rvv/micro-fixed cold=1.01
+    PASS    dequantize|q5_K@rvv/micro-fixed cold=2.19
+    PASS    dequantize|q6_K@rvv/micro-fixed cold=1.49
+    PASS    dequantize|iq1_s@rvv/micro-fixed cold=0.99
+    PASS    dequantize|iq1_m@rvv/micro-fixed cold=1.03
+    PASS    dequantize|iq2_xxs@rvv/micro-fixed cold=2.26
+    PASS    dequantize|iq2_xs@rvv/micro-fixed cold=3.88
+    PASS    dequantize|iq2_s@rvv/micro-fixed cold=2.18
+    PASS    dequantize|iq3_xxs@rvv/micro-fixed cold=1.39
+    PASS    dequantize|iq3_s@rvv/micro-fixed cold=1.71
+    PASS    dequantize|iq4_nl@rvv/micro-fixed cold=5.51
+    PASS    dequantize|iq4_xs@rvv/micro-fixed cold=5.17
+    PASS    dequantize|mxfp4@rvv/micro-fixed cold=6.42
+    PASS    dequantize|nvfp4@rvv/micro-fixed cold=0.8
+    PASS    dequantize|tq1_0@rvv/micro-fixed cold=1.05
+    PASS    dequantize|tq2_0@rvv/micro-fixed cold=1.0
+    具名-X    gemm|iq1_s@rvv/prefill cold=0.6643
+    具名-X    gemm|iq1_m@rvv/prefill cold=0.5713
     具名-X    gemm|iq2_xxs@rvv/decode cold=0.6
     PASS    gemm|iq2_xxs@rvv/prefill cold=2.32
     PASS    gemm|iq2_xs@rvv/decode cold=1.0
     PASS    gemm|iq2_xs@rvv/prefill cold=12.32
     PASS    gemm|iq2_s@rvv/decode cold=1.03
     PASS    gemm|iq2_s@rvv/prefill cold=11.49
-    PASS    gemm|iq3_xxs@rvv cold=0.9484
-    PASS    gemm|iq3_s@rvv cold=1.3483
+    PASS    gemm|iq3_xxs@rvv/prefill cold=0.9484
+    PASS    gemm|iq3_s@rvv/prefill cold=1.3483
     具名-X    gemm|iq4_xs@rvv/decode cold=0.63
     PASS    gemm|iq4_xs@rvv/prefill cold=3.15
     PASS    gemm|mxfp4@rvv/decode cold=1.51
     PASS    gemm|mxfp4@rvv/prefill cold=3.65
-    pending gemm|nvfp4@rvv
+    pending gemm|nvfp4@rvv/prefill
     PASS    gemm|tq1_0@rvv/decode cold=1.67
     PASS    gemm|tq1_0@rvv/prefill cold=7.9
     PASS    gemm|tq2_0@rvv/decode cold=1.19
     PASS    gemm|tq2_0@rvv/prefill cold=9.91
-    PASS    rope|f32 cold=1.013
-    PASS    gelu|f32 cold=0.141
-    PASS    add|f32 cold=0.967
-    PASS    mul|f32 cold=0.963
-    PASS    cpy|f32 cold=0.987
+    PASS    rope|f32@rvv/micro-fixed cold=1.013
+    PASS    gelu|f32@rvv/micro-fixed cold=0.141
+    PASS    add|f32@rvv/micro-fixed cold=0.967
+    PASS    mul|f32@rvv/micro-fixed cold=0.963
+    PASS    cpy|f32@rvv/micro-fixed cold=0.987
 
 [UNRESOLVED] 头条 PASS 0/0 (全量) · 已测胜率 0/0 (派生) · 格内: PASS 0/具名-X 0/挂起 0/pending 0
 
@@ -118,22 +118,22 @@
 ===== k1 (板分母=105) =====
 
 [手调] 头条 PASS 11/29 (全量) · 已测胜率 11/28 (派生) · 格内: PASS 11/具名-X 17/挂起 0/pending 1
-    具名-X    vec_dot|q2_K cold=0.684
-    具名-X    vec_dot|q3_K cold=0.522
-    具名-X    vec_dot|q4_K cold=0.592
-    具名-X    vec_dot|q6_K cold=0.549
-    具名-X    vec_dot|iq1_s cold=0.361
-    具名-X    vec_dot|iq1_m cold=0.25
-    具名-X    vec_dot|iq2_xxs cold=0.612
-    具名-X    vec_dot|iq2_xs cold=0.474
-    具名-X    vec_dot|iq2_s cold=0.562
-    具名-X    vec_dot|iq3_xxs cold=0.192
-    具名-X    vec_dot|iq3_s cold=0.2
-    具名-X    vec_dot|iq4_nl cold=0.697
-    PASS    vec_dot|iq4_xs cold=1.196
-    pending vec_dot|mxfp4
-    PASS    vec_dot|tq1_0 cold=0.82
-    PASS    vec_dot|tq2_0 cold=0.879
+    具名-X    vec_dot|q2_K@rvv/micro-fixed cold=0.684
+    具名-X    vec_dot|q3_K@rvv/micro-fixed cold=0.522
+    具名-X    vec_dot|q4_K@rvv/micro-fixed cold=0.592
+    具名-X    vec_dot|q6_K@rvv/micro-fixed cold=0.549
+    具名-X    vec_dot|iq1_s@rvv/micro-fixed cold=0.361
+    具名-X    vec_dot|iq1_m@rvv/micro-fixed cold=0.25
+    具名-X    vec_dot|iq2_xxs@rvv/micro-fixed cold=0.612
+    具名-X    vec_dot|iq2_xs@rvv/micro-fixed cold=0.474
+    具名-X    vec_dot|iq2_s@rvv/micro-fixed cold=0.562
+    具名-X    vec_dot|iq3_xxs@rvv/micro-fixed cold=0.192
+    具名-X    vec_dot|iq3_s@rvv/micro-fixed cold=0.2
+    具名-X    vec_dot|iq4_nl@rvv/micro-fixed cold=0.697
+    PASS    vec_dot|iq4_xs@rvv/micro-fixed cold=1.196
+    pending vec_dot|mxfp4@rvv/micro-fixed
+    PASS    vec_dot|tq1_0@rvv/micro-fixed cold=0.82
+    PASS    vec_dot|tq2_0@rvv/micro-fixed cold=0.879
     PASS    gemm|q2_K@rvv/decode cold=0.9585
     PASS    gemm|q2_K@rvv/prefill cold=1.364
     具名-X    gemm|q3_K@rvv/decode cold=0.4252
@@ -144,20 +144,20 @@
     PASS    gemm|q5_K@rvv/prefill cold=4.448
     具名-X    gemm|q6_K@rvv/decode cold=0.3771
     PASS    gemm|q6_K@rvv/prefill cold=1.769
-    具名-X    gemm|q4_0@ime cold=0.196
-    PASS    gemm|q8_0@ime cold=0.937
-    具名-X    gemm|q4_K@ime cold=0.049
+    具名-X    gemm|q4_0@ime/prefill cold=0.196
+    PASS    gemm|q8_0@ime/prefill cold=0.937
+    具名-X    gemm|q4_K@ime/prefill cold=0.049
 
 [通用向量] 头条 PASS 21/25 (全量) · 已测胜率 21/23 (派生) · 格内: PASS 21/具名-X 2/挂起 0/pending 2
-    PASS    vec_dot|q4_0 cold=0.986
-    PASS    vec_dot|q4_1 cold=1.008
-    PASS    vec_dot|q5_0 cold=0.384
-    PASS    vec_dot|q5_1 cold=0.398
-    PASS    vec_dot|q8_0 cold=0.984
-    PASS    vec_dot|q5_K cold=1.065
-    PASS    quantize|q8_0 cold=1.0
-    PASS    quantize|q8_1 cold=1.0
-    PASS    quantize|q8_K cold=1.004
+    PASS    vec_dot|q4_0@rvv/micro-fixed cold=0.986
+    PASS    vec_dot|q4_1@rvv/micro-fixed cold=1.008
+    PASS    vec_dot|q5_0@rvv/micro-fixed cold=0.384
+    PASS    vec_dot|q5_1@rvv/micro-fixed cold=0.398
+    PASS    vec_dot|q8_0@rvv/micro-fixed cold=0.984
+    PASS    vec_dot|q5_K@rvv/micro-fixed cold=1.065
+    PASS    quantize|q8_0@rvv/micro-fixed cold=1.0
+    PASS    quantize|q8_1@rvv/micro-fixed cold=1.0
+    PASS    quantize|q8_K@rvv/micro-fixed cold=1.004
     PASS    gemm|q4_0@rvv/decode cold=2.575
     PASS    gemm|q4_0@rvv/prefill cold=3.5
     pending gemm|q4_1@rvv/decode
@@ -170,63 +170,63 @@
     PASS    gemm|q8_0@rvv/prefill cold=1.48
     具名-X    gemm|iq4_nl@rvv/decode cold=0.2493
     具名-X    gemm|iq4_nl@rvv/prefill cold=0.425
-    PASS    rms_norm|f32 cold=1.336
-    PASS    softmax|f32 cold=1.004
-    PASS    silu|f32 cold=1.012
-    PASS    scale|f32 cold=0.917
+    PASS    rms_norm|f32@rvv/micro-fixed cold=1.336
+    PASS    softmax|f32@rvv/micro-fixed cold=1.004
+    PASS    silu|f32@rvv/micro-fixed cold=1.012
+    PASS    scale|f32@rvv/micro-fixed cold=0.917
 
 [标量类] 头条 PASS 49/51 (全量) · 已测胜率 49/50 (派生) · 格内: PASS 49/具名-X 1/挂起 0/pending 1
-    PASS    vec_dot|nvfp4 cold=1.086
-    PASS    prod_reduce|q4_0_nibble cold=1.166
-    PASS    prod_reduce|offset_binary_n3 cold=0.86
-    PASS    prod_reduce|codebook_n3 cold=1.096
-    PASS    dequantize|q4_0 cold=1.437
-    PASS    dequantize|q4_1 cold=1.396
-    PASS    dequantize|q5_0 cold=4.22
-    PASS    dequantize|q5_1 cold=4.421
-    PASS    dequantize|q8_0 cold=1.067
-    PASS    dequantize|q2_K cold=0.828
-    PASS    dequantize|q3_K cold=3.227
-    PASS    dequantize|q4_K cold=4.315
-    PASS    dequantize|q5_K cold=5.127
-    PASS    dequantize|q6_K cold=1.115
-    PASS    dequantize|iq1_s cold=2.893
-    PASS    dequantize|iq1_m cold=3.545
-    PASS    dequantize|iq2_xxs cold=2.475
-    PASS    dequantize|iq2_xs cold=0.923
-    PASS    dequantize|iq2_s cold=1.813
-    PASS    dequantize|iq3_xxs cold=1.62
-    PASS    dequantize|iq3_s cold=1.86
-    PASS    dequantize|iq4_nl cold=3.867
-    PASS    dequantize|iq4_xs cold=3.151
-    PASS    dequantize|mxfp4 cold=3.13
-    具名-X    dequantize|nvfp4 cold=0.716
-    PASS    dequantize|tq1_0 cold=4.285
-    PASS    dequantize|tq2_0 cold=4.232
-    PASS    gemm|iq1_s@rvv cold=1.3406
-    PASS    gemm|iq1_m@rvv cold=1.7936
+    PASS    vec_dot|nvfp4@rvv/micro-fixed cold=1.086
+    PASS    prod_reduce|q4_0_nibble@rvv/micro-fixed cold=1.166
+    PASS    prod_reduce|offset_binary_n3@rvv/micro-fixed cold=0.86
+    PASS    prod_reduce|codebook_n3@rvv/micro-fixed cold=1.096
+    PASS    dequantize|q4_0@rvv/micro-fixed cold=1.437
+    PASS    dequantize|q4_1@rvv/micro-fixed cold=1.396
+    PASS    dequantize|q5_0@rvv/micro-fixed cold=4.22
+    PASS    dequantize|q5_1@rvv/micro-fixed cold=4.421
+    PASS    dequantize|q8_0@rvv/micro-fixed cold=1.067
+    PASS    dequantize|q2_K@rvv/micro-fixed cold=0.828
+    PASS    dequantize|q3_K@rvv/micro-fixed cold=3.227
+    PASS    dequantize|q4_K@rvv/micro-fixed cold=4.315
+    PASS    dequantize|q5_K@rvv/micro-fixed cold=5.127
+    PASS    dequantize|q6_K@rvv/micro-fixed cold=1.115
+    PASS    dequantize|iq1_s@rvv/micro-fixed cold=2.893
+    PASS    dequantize|iq1_m@rvv/micro-fixed cold=3.545
+    PASS    dequantize|iq2_xxs@rvv/micro-fixed cold=2.475
+    PASS    dequantize|iq2_xs@rvv/micro-fixed cold=0.923
+    PASS    dequantize|iq2_s@rvv/micro-fixed cold=1.813
+    PASS    dequantize|iq3_xxs@rvv/micro-fixed cold=1.62
+    PASS    dequantize|iq3_s@rvv/micro-fixed cold=1.86
+    PASS    dequantize|iq4_nl@rvv/micro-fixed cold=3.867
+    PASS    dequantize|iq4_xs@rvv/micro-fixed cold=3.151
+    PASS    dequantize|mxfp4@rvv/micro-fixed cold=3.13
+    具名-X    dequantize|nvfp4@rvv/micro-fixed cold=0.716
+    PASS    dequantize|tq1_0@rvv/micro-fixed cold=4.285
+    PASS    dequantize|tq2_0@rvv/micro-fixed cold=4.232
+    PASS    gemm|iq1_s@rvv/prefill cold=1.3406
+    PASS    gemm|iq1_m@rvv/prefill cold=1.7936
     PASS    gemm|iq2_xxs@rvv/decode cold=1.13
     PASS    gemm|iq2_xxs@rvv/prefill cold=1.4581
     PASS    gemm|iq2_xs@rvv/decode cold=3.81
     PASS    gemm|iq2_xs@rvv/prefill cold=1.1513
     PASS    gemm|iq2_s@rvv/decode cold=3.55
     PASS    gemm|iq2_s@rvv/prefill cold=1.3932
-    PASS    gemm|iq3_xxs@rvv cold=1.3811
-    PASS    gemm|iq3_s@rvv cold=1.2074
+    PASS    gemm|iq3_xxs@rvv/prefill cold=1.3811
+    PASS    gemm|iq3_s@rvv/prefill cold=1.2074
     PASS    gemm|iq4_xs@rvv/decode cold=0.93
     PASS    gemm|iq4_xs@rvv/prefill cold=2.1
     PASS    gemm|mxfp4@rvv/decode cold=0.94
     PASS    gemm|mxfp4@rvv/prefill cold=2.3
-    pending gemm|nvfp4@rvv
+    pending gemm|nvfp4@rvv/prefill
     PASS    gemm|tq1_0@rvv/decode cold=1.99
     PASS    gemm|tq1_0@rvv/prefill cold=6.45
     PASS    gemm|tq2_0@rvv/decode cold=1.59
     PASS    gemm|tq2_0@rvv/prefill cold=4.76
-    PASS    rope|f32 cold=0.982
-    PASS    gelu|f32 cold=0.247
-    PASS    add|f32 cold=1.209
-    PASS    mul|f32 cold=1.189
-    PASS    cpy|f32 cold=1.108
+    PASS    rope|f32@rvv/micro-fixed cold=0.982
+    PASS    gelu|f32@rvv/micro-fixed cold=0.247
+    PASS    add|f32@rvv/micro-fixed cold=1.209
+    PASS    mul|f32@rvv/micro-fixed cold=1.189
+    PASS    cpy|f32@rvv/micro-fixed cold=1.108
 
 [UNRESOLVED] 头条 PASS 0/0 (全量) · 已测胜率 0/0 (派生) · 格内: PASS 0/具名-X 0/挂起 0/pending 0
 

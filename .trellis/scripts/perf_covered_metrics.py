@@ -3,9 +3,9 @@
 
 Reads the committed structural denominator-of-record
 (schema/coverage-roster.v1.json) + the hand-labeled six-state numerator input
-(schema/coverage-sixstate.v1.json) to derive the CERTIFIED cells (== the 84 in
-coverage_metrics.py), FOLDS the m_regime axis (gemm_tile/q4_0/rvv decode+prefill
--> one format-cell -> 83), and joins them with the perf-covered category labels
+(schema/coverage-sixstate.v1.json) to derive the current CERTIFIED cells,
+FOLDS the m_regime axis into the canonical perf-covered format-cell unit, and
+joins them with the perf-covered category labels
 (schema/perf-covered-category.v1.json). It machine-computes the perf-covered
 headline (green / denominator, any-board) plus the six-class classification tally
 and closes a reconciliation (Σ == denominator, zero undefined, every category's
@@ -14,13 +14,13 @@ required fields complete, three-source consistency, anti-gate flag).
 This is governance / workflow tooling and is stdlib-only: Python is tooling here,
 never the compiler stack (implementation-stack red line). It reuses
 coverage_metrics.py for the six-state ladder + certified-cell derivation so the
-structural denominator (M4 84/91) stays the SINGLE SOURCE and is never re-derived
-independently here. It touches NO C++/ODS and computes NO numerics.
+structural denominator stays the SINGLE SOURCE and is never re-derived
+independently here. It touches NO C++/ODS and computes NO benchmark numerics.
 
 Fold ([裁一.1/一.2] 2026-07-12): perf-covered folds regime per FORMAT; the
-structural roster + M4 84/91 do NOT move (regime split is legal for construct-
-identity). fold_regime defaults True (6/83); --no-fold surfaces the 7/84 alt-unit
-(regime retained), flagged pending user review.
+structural roster does NOT move (regime split is legal for construct-identity).
+The publishable path is fold_regime=True only.  Unfolded arithmetic exists only
+inside hermetic unit tests and is not a compatibility/reporting mode.
 
 Anti-gate ([裁三]): the declared-exception category is proven numerator-independent
 -- removing every declared-exception cell shifts ONLY the denominator, never the
@@ -30,7 +30,7 @@ the headline fraction.
 
 Subcommands
 -----------
-report [--out PATH] [--no-fold]  compute headline + six-class tally + reconciliation
+report [--out PATH]              compute headline + six-class tally + reconciliation
                                  + anti-gate flag; snapshot $meta; print (or write).
 --self-test                      hermetic: synthetic roster/six-state/label fixtures;
                                  asserts the fold arithmetic, per-category required-
@@ -48,6 +48,7 @@ from pathlib import Path
 # reuse the structural ladder + certified derivation (single source of truth)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import coverage_metrics as cm  # noqa: E402
+from measurement_keys import ENGINE_VALUES  # noqa: E402
 
 REPO_ROOT = cm.REPO_ROOT
 ROSTER_JSON = cm.ROSTER_JSON
@@ -102,8 +103,14 @@ def compute_hash(obj) -> str:
 def _fmt_key(entry_or_tuple):
     """FOLDED perf-covered key (op, format, engine) -- regime dropped."""
     if isinstance(entry_or_tuple, dict):
-        return (entry_or_tuple["op"], entry_or_tuple["format"],
-                entry_or_tuple.get("engine", ""))
+        values = tuple(entry_or_tuple.get(field) for field in
+                       ("op", "format", "engine"))
+        if any(not isinstance(value, str) or not value or value != value.strip()
+               for value in values):
+            raise ValueError(f"perf-covered label has incomplete folded key: {values!r}")
+        if values[2] not in ENGINE_VALUES:
+            raise ValueError(f"perf-covered label has unknown engine: {values[2]!r}")
+        return values
     op, fmt, eng, _regime = entry_or_tuple
     return (op, fmt, eng)
 
@@ -142,10 +149,10 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
     """Join certified cells (folded per fold flag) with category labels and
     close the perf-covered reconciliation. Returns a dict with the headline,
     six-class tally, per-cell resolution, and reconciliation flags."""
-    cert = certified_cells(roster_kernels, sixstate_rows)  # (op,fmt,eng,regime) x84
+    cert = certified_cells(roster_kernels, sixstate_rows)  # exact four-component identities
 
-    # fold: dedupe by (op,fmt,eng); --no-fold keeps every regime cell but each
-    # still looks up the same FOLDED label key.
+    # The publishable path dedupes by (op,fmt,eng).  The unfolded branch is
+    # exercised only by hermetic arithmetic tests; it is not exposed by CLI.
     if fold:
         seen = set()
         units = []
@@ -160,7 +167,7 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
     label_by_key = {}
     dup_labels = []
     for lab in labels:
-        lk = (lab["key"]["op"], lab["key"]["format"], lab["key"].get("engine", ""))
+        lk = _fmt_key(lab["key"])
         if lk in label_by_key:
             dup_labels.append(list(lk))
         label_by_key[lk] = lab
@@ -271,8 +278,8 @@ def reconcile(roster_kernels, sixstate_rows, labels, fold=True):
             "denominator": denom,
             "any_board": True,
             "note": ("perf-covered = 绿/denom (any-board·裁四.0); "
-                     + ("fold=True 6/83" if fold
-                        else "fold=False 7/84 备选单位·flagged 待用户复核")),
+                     + ("fold_regime=True 是唯一发布口径"
+                        if fold else "unfolded 仅供 hermetic arithmetic self-test")),
         },
         "classification": {**tally, "provisional(判读排队)": provisional_num},
         "classification_sum": tally_sum,
@@ -324,16 +331,13 @@ def build_report(fold=True):
         "sixstate_sha256": compute_hash(sixstate),
         "labels_sha256": compute_hash(labels_doc),
         "fold_regime": fold,
-        "alt_unit_note": ("[裁〇.1 2026-07-12] fold_regime=True (7/83·q4_0-gemm regime 折叠) "
-                          "= 唯一口径; 7/84 备选单位 (regime 保留) 正式退役 (--no-fold 翻转开关移除); "
-                          "T7/T9 附注留档。"),
         "spec_boundary": "numbers live in the CI report / docs, never in .trellis/spec/",
     }
     return result
 
 
 def cmd_report(args) -> int:
-    result = build_report(fold=True)  # [裁〇.1] fold=True 唯一口径; 7/84 备选退役
+    result = build_report(fold=True)  # [裁〇.1] fold=True 唯一发布口径
     text = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
@@ -358,9 +362,12 @@ def cmd_self_test(_args) -> int:
          "regime": "decode"},
         {"op": "gemm_tile", "format": "q4_0", "class": "A", "engine": "rvv",
          "regime": "prefill"},
-        {"op": "gemm_tile", "format": "q8_0", "class": "A", "engine": "rvv"},
-        {"op": "dequantize_row", "format": "q4_K", "class": "A"},
-        {"op": "quantize_row", "format": "q8_0", "class": "A"},
+        {"op": "gemm_tile", "format": "q8_0", "class": "A", "engine": "rvv",
+         "regime": "prefill"},
+        {"op": "dequantize_row", "format": "q4_K", "class": "A",
+         "engine": "rvv", "regime": "micro-fixed"},
+        {"op": "quantize_row", "format": "q8_0", "class": "A",
+         "engine": "rvv", "regime": "micro-fixed"},
         {"op": "bf16", "format": "all", "class": "C"},
     ]
     six = [
@@ -368,11 +375,13 @@ def cmd_self_test(_args) -> int:
          "state": "constructed", "auto_readout": "pending-E5"},
         {"op": "gemm_tile", "format": "q4_0", "engine": "rvv", "regime": "prefill",
          "state": "constructed", "auto_readout": "pending-E5"},
-        {"op": "gemm_tile", "format": "q8_0", "engine": "rvv",
+        {"op": "gemm_tile", "format": "q8_0", "engine": "rvv", "regime": "prefill",
          "state": "constructed", "auto_readout": "pending-E5"},
-        {"op": "dequantize_row", "format": "q4_K", "state": "constructed",
+        {"op": "dequantize_row", "format": "q4_K", "engine": "rvv",
+         "regime": "micro-fixed", "state": "constructed",
          "auto_readout": "pending-E5"},
-        {"op": "quantize_row", "format": "q8_0", "state": "constructed",
+        {"op": "quantize_row", "format": "q8_0", "engine": "rvv",
+         "regime": "micro-fixed", "state": "constructed",
          "auto_readout": "pending-E5"},
         {"op": "bf16", "format": "all", "state": "absent",
          "scope": "out-of-domain", "m4_class": "out-of-domain"},
@@ -398,8 +407,8 @@ def cmd_self_test(_args) -> int:
     labels_ok = [
         lab("gemm_tile", "q4_0", "rvv", "绿", green("L-q4_0")),
         lab("gemm_tile", "q8_0", "rvv", "绿", green("L-q8_0")),
-        lab("dequantize_row", "q4_K", "", "声明例外", exc()),
-        lab("quantize_row", "q8_0", "", "黄-物理墙", wall()),
+        lab("dequantize_row", "q4_K", "rvv", "声明例外", exc()),
+        lab("quantize_row", "q8_0", "rvv", "黄-物理墙", wall()),
     ]
 
     # fold=True: 5 certified cells -> 4 folded units (q4_0 regime collapses).
@@ -432,7 +441,8 @@ def cmd_self_test(_args) -> int:
     # missing label -> undefined -> reconciliation FAILS.
     r_missing = reconcile(roster, six, labels_ok[:-1], fold=True)
     check("missing label surfaces as undefined + reconciliation fails",
-          r_missing["reconciliation"]["undefined_cells"] == [["quantize_row", "q8_0", ""]]
+          r_missing["reconciliation"]["undefined_cells"] ==
+          [["quantize_row", "q8_0", "rvv"]]
           and r_missing["reconciliation"]["reconciliation_ok"] is False)
 
     # incomplete detail block (declared-exception missing a required field) -> FAIL.
@@ -441,8 +451,8 @@ def cmd_self_test(_args) -> int:
     labels_bad = [
         lab("gemm_tile", "q4_0", "rvv", "绿", green("L1")),
         lab("gemm_tile", "q8_0", "rvv", "绿", green("L2")),
-        lab("dequantize_row", "q4_K", "", "声明例外", bad_exc),
-        lab("quantize_row", "q8_0", "", "黄-物理墙", wall()),
+        lab("dequantize_row", "q4_K", "rvv", "声明例外", bad_exc),
+        lab("quantize_row", "q8_0", "rvv", "黄-物理墙", wall()),
     ]
     r_bad = reconcile(roster, six, labels_bad, fold=True)
     check("incomplete declared-exception field -> incomplete + reconciliation fails",
@@ -456,8 +466,8 @@ def cmd_self_test(_args) -> int:
     labels_empty = [
         lab("gemm_tile", "q4_0", "rvv", "绿", empty_green),
         lab("gemm_tile", "q8_0", "rvv", "绿", green("L2")),
-        lab("dequantize_row", "q4_K", "", "声明例外", exc()),
-        lab("quantize_row", "q8_0", "", "黄-物理墙", wall()),
+        lab("dequantize_row", "q4_K", "rvv", "声明例外", exc()),
+        lab("quantize_row", "q8_0", "rvv", "黄-物理墙", wall()),
     ]
     r_empty = reconcile(roster, six, labels_empty, fold=True)
     check("empty ledger_pointer -> incomplete + three-source breaks (ledger_green<green)",
@@ -468,8 +478,8 @@ def cmd_self_test(_args) -> int:
     labels_selfmade = [
         lab("gemm_tile", "q4_0", "rvv", "yellow-kernel-axis", green("L1")),
         lab("gemm_tile", "q8_0", "rvv", "绿", green("L2")),
-        lab("dequantize_row", "q4_K", "", "声明例外", exc()),
-        lab("quantize_row", "q8_0", "", "黄-物理墙", wall()),
+        lab("dequantize_row", "q4_K", "rvv", "声明例外", exc()),
+        lab("quantize_row", "q8_0", "rvv", "黄-物理墙", wall()),
     ]
     r_self = reconcile(roster, six, labels_selfmade, fold=True)
     check("self-invented category (yellow-kernel-axis) rejected as bad_category",
@@ -480,11 +490,20 @@ def cmd_self_test(_args) -> int:
     # anti-gate discriminates: a phantom declared-exception over a NON-certified
     # cell would break exc_all_certified. Simulate by labeling a cell not in cert.
     labels_phantom = list(labels_ok) + [
-        lab("vec_dot", "ghost", "", "声明例外", exc())]
+        lab("vec_dot", "ghost", "rvv", "声明例外", exc())]
     r_ph = reconcile(roster, six, labels_phantom, fold=True)
     check("phantom exception over non-certified cell -> orphan label + reconciliation fails",
-          r_ph["reconciliation"]["orphan_labels"] == [["vec_dot", "ghost", ""]]
+          r_ph["reconciliation"]["orphan_labels"] == [["vec_dot", "ghost", "rvv"]]
           and r_ph["reconciliation"]["reconciliation_ok"] is False)
+
+    # The folded key still requires an explicit engine; folding drops regime only.
+    try:
+        _fmt_key({"op": "vec_dot", "format": "missing", "engine": ""})
+    except ValueError:
+        empty_engine_rejected = True
+    else:
+        empty_engine_rejected = False
+    check("empty folded engine fails closed", empty_engine_rejected)
 
     # canonical hash determinism.
     check("canonical hash is order-insensitive",
@@ -508,7 +527,7 @@ def main(argv=None) -> int:
     p_report = sub.add_parser("report", help="[COV-2] perf-covered reconciliation")
     p_report.add_argument("--out", default=None,
                           help="write the JSON report to PATH (default: stdout)")
-    # [裁〇.1 2026-07-12] --no-fold 翻转开关移除: 7/83 fold=True 唯一口径, 7/84 备选退役。
+    # [裁〇.1 2026-07-12] fold_regime=True is the only publishable path.
     p_report.set_defaults(func=cmd_report)
 
     args = parser.parse_args(argv)

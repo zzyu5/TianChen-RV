@@ -44,6 +44,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROSTER_JSON = REPO_ROOT / "schema" / "coverage-roster.v1.json"
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
+sys.path.insert(0, str(REPO_ROOT / "tools" / "bench"))
+from measurement_keys import key_from_mapping  # noqa: E402
 
 # --- six-state ladder ([K-4]) ----------------------------------------------
 LADDER = ["absent", "emittable", "dispatch-wired",
@@ -67,18 +69,15 @@ def compute_hash(obj) -> str:
 def kernel_key(entry):
     """Join key for a roster kernel or a six-state row: (op, format, engine, regime).
 
-    engine is part of identity only where present (gemm_tile rvv vs ime); other
-    ops carry engine == "". (op, format) alone disambiguates vec_dot/q4_0 from
-    product_reduce/q4_0_nibble because op AND format differ.
-
-    regime is part of identity only where present (gemm_tile/q4_0/rvv splits into
-    the DECODE GEVM cell and the PREFILL GEMM cell -- two distinct repack routes
-    constructed by lowerToRepackGemv / lowerToRepackGemm on the m_regime axis); all
-    other keys carry regime == "" so they are byte-unchanged. The roster row and its
-    six-state row must agree on regime to join.
+    Every in-domain A/B row carries all four components explicitly and is checked
+    by the shared measurement-key contract.  Class-C/scope=out-of-domain audit
+    rows are deliberately outside the measurement namespace and retain the empty
+    pair in this structural report only.  Missing in-domain components are never
+    normalized to the historical empty-string key.
     """
-    return (entry["op"], entry["format"], entry.get("engine", ""),
-            entry.get("regime", ""))
+    if entry.get("class") == "C" or entry.get("scope") == "out-of-domain":
+        return (entry["op"], entry["format"], "", "")
+    return key_from_mapping(entry, source="coverage row")
 
 
 # --- core metric computation (PURE: no git, no files) ----------------------
@@ -270,19 +269,24 @@ def cmd_self_test(_args) -> int:
     def check(name, cond):
         results.append((name, bool(cond)))
 
+    def fixed_rows(*rows):
+        """Give synthetic in-domain rows an explicit fixed-harness identity."""
+        return [{"engine": "rvv", "regime": "micro-fixed", **row}
+                for row in rows]
+
     # Synthetic fixture: mirror the real block-dot shape on a tiny universe.
     # 4 vec_dot: 2 dispatch-wired + 2 constructed-weak.
     # 1 product_reduce: constructed (STRONG, pending-E5).
     # 1 quantize_row: absent.
-    roster = [
+    roster = fixed_rows(
         {"op": "vec_dot", "format": "w1", "class": "A", "bucket": "flat"},
         {"op": "vec_dot", "format": "w2", "class": "A", "bucket": "flat"},
         {"op": "vec_dot", "format": "s1", "class": "A", "bucket": "super"},
         {"op": "vec_dot", "format": "s2", "class": "A", "bucket": "super"},
         {"op": "product_reduce", "format": "d1", "class": "A", "bucket": "decomp"},
         {"op": "quantize_row", "format": "q", "class": "A", "bucket": "quant"},
-    ]
-    sixstate = [
+    )
+    sixstate = fixed_rows(
         {"op": "vec_dot", "format": "w1", "state": "constructed-weak",
          "auto_readout": "pending-E5"},
         {"op": "vec_dot", "format": "w2", "state": "constructed-weak",
@@ -292,7 +296,7 @@ def cmd_self_test(_args) -> int:
         {"op": "product_reduce", "format": "d1", "state": "constructed",
          "auto_readout": "pending-E5"},
         {"op": "quantize_row", "format": "q", "state": "absent"},
-    ]
+    )
     m = compute_metrics(roster, sixstate)
     vd = m["metrics"]["by_op"]["vec_dot"]
     check("vec_dot C_dispatch = 4/4 (all >= dispatch-wired)",
@@ -318,20 +322,23 @@ def cmd_self_test(_args) -> int:
           m["missing_sixstate_keys"] == [])
 
     # best-state-across-variants dedup: same key, two rows, best (strong) wins.
-    roster_v = [{"op": "vec_dot", "format": "x", "class": "A", "bucket": "b"}]
-    sixstate_v = [
+    roster_v = fixed_rows(
+        {"op": "vec_dot", "format": "x", "class": "A", "bucket": "b"})
+    sixstate_v = fixed_rows(
         {"op": "vec_dot", "format": "x", "state": "dispatch-wired"},
         {"op": "vec_dot", "format": "x", "state": "constructed",
          "auto_readout": "pending-E5"},
-    ]
+    )
     mv = compute_metrics(roster_v, sixstate_v)
     check("best-across-variants: strong variant lifts the key into C_construct",
           mv["metrics"]["global"]["C_construct"]["num"] == 1)
 
     # weak-only key must NOT count in C_construct (strong), only in C_construct_plus.
-    roster_w = [{"op": "vec_dot", "format": "y", "class": "A", "bucket": "b"}]
-    sixstate_w = [{"op": "vec_dot", "format": "y", "state": "constructed-weak",
-                   "auto_readout": "pending-E5"}]
+    roster_w = fixed_rows(
+        {"op": "vec_dot", "format": "y", "class": "A", "bucket": "b"})
+    sixstate_w = fixed_rows(
+        {"op": "vec_dot", "format": "y", "state": "constructed-weak",
+         "auto_readout": "pending-E5"})
     mw = compute_metrics(roster_w, sixstate_w)
     check("weak-only: C_construct = 0/1 but C_construct_plus = 1/1",
           mw["metrics"]["global"]["C_construct"]["num"] == 0
@@ -339,12 +346,16 @@ def cmd_self_test(_args) -> int:
 
     # gemm_tile engine disambiguation: rvv vs ime are distinct keys.
     roster_g = [
-        {"op": "gemm_tile", "format": "q4_0", "class": "A", "engine": "rvv"},
-        {"op": "gemm_tile", "format": "q4_0", "class": "A", "engine": "ime"},
+        {"op": "gemm_tile", "format": "q4_0", "class": "A", "engine": "rvv",
+         "regime": "prefill"},
+        {"op": "gemm_tile", "format": "q4_0", "class": "A", "engine": "ime",
+         "regime": "prefill"},
     ]
     sixstate_g = [
-        {"op": "gemm_tile", "format": "q4_0", "engine": "rvv", "state": "dispatch-wired"},
-        {"op": "gemm_tile", "format": "q4_0", "engine": "ime", "state": "absent"},
+        {"op": "gemm_tile", "format": "q4_0", "engine": "rvv",
+         "regime": "prefill", "state": "dispatch-wired"},
+        {"op": "gemm_tile", "format": "q4_0", "engine": "ime",
+         "regime": "prefill", "state": "absent"},
     ]
     mg = compute_metrics(roster_g, sixstate_g)
     check("gemm_tile rvv/ime are distinct keys (C_dispatch = 1/2)",
@@ -353,17 +364,23 @@ def cmd_self_test(_args) -> int:
 
     # M4 三分类: out-of-domain exclusion + the three-classification reconciliation.
     roster_od = [
-        {"op": "vec_dot", "format": "cert", "class": "A"},
-        {"op": "gemm_tile", "format": "ime1", "class": "A", "engine": "ime"},
-        {"op": "gemm_tile", "format": "de1", "class": "A", "engine": "rvv"},
+        {"op": "vec_dot", "format": "cert", "class": "A", "engine": "rvv",
+         "regime": "micro-fixed"},
+        {"op": "gemm_tile", "format": "ime1", "class": "A", "engine": "ime",
+         "regime": "prefill"},
+        {"op": "gemm_tile", "format": "de1", "class": "A", "engine": "rvv",
+         "regime": "prefill"},
         {"op": "bf16", "format": "all", "class": "C"},
     ]
     sixstate_od = [
-        {"op": "vec_dot", "format": "cert", "state": "constructed",
+        {"op": "vec_dot", "format": "cert", "engine": "rvv",
+         "regime": "micro-fixed", "state": "constructed",
          "auto_readout": "pending-E5"},
-        {"op": "gemm_tile", "format": "ime1", "engine": "ime", "state": "absent",
+        {"op": "gemm_tile", "format": "ime1", "engine": "ime",
+         "regime": "prefill", "state": "absent",
          "m4_class": "blocked-on-IME"},
-        {"op": "gemm_tile", "format": "de1", "engine": "rvv", "state": "absent",
+        {"op": "gemm_tile", "format": "de1", "engine": "rvv",
+         "regime": "prefill", "state": "absent",
          "m4_class": "declared-exception"},
         {"op": "bf16", "format": "all", "state": "absent",
          "scope": "out-of-domain", "m4_class": "out-of-domain"},
@@ -380,12 +397,22 @@ def cmd_self_test(_args) -> int:
           m4s["reconciliation_ok"] is True and m4s["undefined_cells"] == [])
 
     # a non-certified in-denominator cell with NO m4_class surfaces as UNDEFINED.
-    roster_u = [{"op": "vec_dot", "format": "x", "class": "A"}]
-    sixstate_u = [{"op": "vec_dot", "format": "x", "state": "absent"}]
+    roster_u = fixed_rows({"op": "vec_dot", "format": "x", "class": "A"})
+    sixstate_u = fixed_rows({"op": "vec_dot", "format": "x", "state": "absent"})
     mu = compute_metrics(roster_u, sixstate_u)
     check("un-marked non-certified cell surfaces as undefined (reconciliation fails)",
-          mu["m4_classification"]["undefined_cells"] == [["vec_dot", "x", "", ""]]
+          mu["m4_classification"]["undefined_cells"] ==
+          [["vec_dot", "x", "rvv", "micro-fixed"]]
           and mu["m4_classification"]["reconciliation_ok"] is False)
+
+    # Missing in-domain identity is a schema error, never an empty-key alias.
+    try:
+        kernel_key({"op": "vec_dot", "format": "missing", "class": "A"})
+    except ValueError:
+        missing_identity_rejected = True
+    else:
+        missing_identity_rejected = False
+    check("missing in-domain engine/regime fails closed", missing_identity_rejected)
 
     # determinism of the canonical hash.
     check("canonical hash is order-insensitive",

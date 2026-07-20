@@ -42,6 +42,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
 DEFAULT_OUT = REPO_ROOT / "experiments" / "active" / "visibility" / "T0-sixstate.md"
+sys.path.insert(0, str(REPO_ROOT / "tools" / "bench"))
+from measurement_keys import key_from_mapping  # noqa: E402
 
 # six-state ladder ([K-4]); index order is the maturity order.
 LADDER = ["absent", "emittable", "dispatch-wired",
@@ -60,7 +62,9 @@ def compute_hash(obj) -> str:
 
 # --- pure render (no git, no clock) ----------------------------------------
 def _key_tuple(row):
-    return (row["op"], row["format"], row.get("engine", ""), row.get("regime", ""))
+    if row.get("scope") == "out-of-domain":
+        return (row["op"], row["format"], "", "")
+    return key_from_mapping(row, source="six-state visibility row")
 
 
 def _bar(n, ch="#"):
@@ -69,6 +73,7 @@ def _bar(n, ch="#"):
 
 def render_markdown(sixstate_obj) -> str:
     rows = sixstate_obj["states"]
+    in_domain = [row for row in rows if row.get("scope") != "out-of-domain"]
     meta = sixstate_obj.get("$meta", {})
 
     # unknown-state guard (fail loud, not silent miscount).
@@ -76,8 +81,9 @@ def render_markdown(sixstate_obj) -> str:
         if r["state"] not in IDX:
             raise ValueError(f"unknown six-state {r['state']!r} for {_key_tuple(r)}")
 
-    total = len(rows)
-    hist = Counter(r["state"] for r in rows)
+    total = len(in_domain)
+    audit_total = len(rows)
+    hist = Counter(r["state"] for r in in_domain)
     constructed = hist.get("constructed", 0)
     weak = hist.get("constructed-weak", 0)
     # C_dispatch numerator = state >= dispatch-wired.
@@ -97,6 +103,7 @@ def render_markdown(sixstate_obj) -> str:
     lines.append(f"- schema snapshot date : `{meta.get('snapshot_commit_date', 'n/a')}`")
     lines.append(f"- sixstate sha256      : `{compute_hash(sixstate_obj)}`")
     lines.append(f"- ladder (low->high)   : {' < '.join(LADDER)}")
+    lines.append(f"- audit rows / denominator rows : `{audit_total} / {total}`")
     lines.append("")
 
     # --- headline ----------------------------------------------------------
@@ -106,9 +113,9 @@ def render_markdown(sixstate_obj) -> str:
     lines.append(f"- C_construct_plus (>= constructed-weak)  = {constructed + weak} / {total}")
     lines.append(f"- C_dispatch (>= dispatch-wired)          = {c_dispatch} / {total}")
     lines.append("")
-    lines.append("> Cross-check: in this snapshot every roster key has exactly one "
-                 "six-state row (no variant duplicates), so the 'constructed' row "
-                 "count above equals the canonical C_construct from "
+    lines.append("> Cross-check: out-of-domain audit rows are retained below but excluded "
+                 "from this denominator. Every in-domain roster key has exactly one "
+                 "six-state row, so the 'constructed' row count equals canonical C_construct from "
                  "`.trellis/scripts/coverage_metrics.py report` "
                  "(best-state-across-variants over the roster denominator). That "
                  "script is the authority for the paper number; this table is its "
@@ -117,7 +124,7 @@ def render_markdown(sixstate_obj) -> str:
     lines.append("")
 
     # --- state histogram ---------------------------------------------------
-    lines.append("## State histogram (all rows)")
+    lines.append("## State histogram (in-denominator rows)")
     lines.append("")
     lines.append("| state | count | share | bar |")
     lines.append("|---|---:|---:|---|")
@@ -129,7 +136,7 @@ def render_markdown(sixstate_obj) -> str:
     lines.append("")
 
     # --- by-op x state matrix ---------------------------------------------
-    ops = sorted({r["op"] for r in rows})
+    ops = sorted({r["op"] for r in in_domain})
     lines.append("## By-op x state matrix (row counts)")
     lines.append("")
     header = "| op | " + " | ".join(LADDER) + " | total |"
@@ -137,7 +144,7 @@ def render_markdown(sixstate_obj) -> str:
     lines.append(header)
     lines.append(sep)
     for op in ops:
-        op_rows = [r for r in rows if r["op"] == op]
+        op_rows = [r for r in in_domain if r["op"] == op]
         oc = Counter(r["state"] for r in op_rows)
         cells = " | ".join(str(oc.get(s, 0)) for s in LADDER)
         lines.append(f"| {op} | {cells} | {len(op_rows)} |")
@@ -149,8 +156,9 @@ def render_markdown(sixstate_obj) -> str:
     lines.append("| op | format | engine | regime | state |")
     lines.append("|---|---|---|---|---|")
     for r in sorted(rows, key=_key_tuple):
-        eng = r.get("engine", "") or "-"
-        reg = r.get("regime", "") or "-"
+        _, _, engine, regime = _key_tuple(r)
+        eng = engine or "-"
+        reg = regime or "-"
         lines.append(f"| {r['op']} | {r['format']} | {eng} | {reg} | {r['state']} |")
     lines.append("")
 
@@ -159,10 +167,11 @@ def render_markdown(sixstate_obj) -> str:
     lines.append("")
     lines.append("| # | op | format | engine | regime |")
     lines.append("|---:|---|---|---|---|")
-    for i, r in enumerate(sorted((x for x in rows if x["state"] == "constructed"),
+    for i, r in enumerate(sorted((x for x in in_domain if x["state"] == "constructed"),
                                  key=_key_tuple), start=1):
-        eng = r.get("engine", "") or "-"
-        reg = r.get("regime", "") or "-"
+        _, _, engine, regime = _key_tuple(r)
+        eng = engine or "-"
+        reg = regime or "-"
         lines.append(f"| {i} | {r['op']} | {r['format']} | {eng} | {reg} |")
     lines.append("")
 
@@ -207,15 +216,22 @@ def cmd_self_test(_args) -> int:
     fixture = {
         "$meta": {"repo_snapshot": "deadbeef", "snapshot_commit_date": "2026-01-01"},
         "states": [
-            {"op": "vec_dot", "format": "a", "state": "constructed"},
-            {"op": "vec_dot", "format": "b", "state": "constructed"},
-            {"op": "vec_dot", "format": "c", "state": "dispatch-wired"},
-            {"op": "vec_dot", "format": "d", "state": "constructed-weak"},
+            {"op": "vec_dot", "format": "a", "engine": "rvv",
+             "regime": "micro-fixed", "state": "constructed"},
+            {"op": "vec_dot", "format": "b", "engine": "rvv",
+             "regime": "micro-fixed", "state": "constructed"},
+            {"op": "vec_dot", "format": "c", "engine": "rvv",
+             "regime": "micro-fixed", "state": "dispatch-wired"},
+            {"op": "vec_dot", "format": "d", "engine": "rvv",
+             "regime": "micro-fixed", "state": "constructed-weak"},
             {"op": "gemm_tile", "format": "a", "engine": "rvv", "regime": "decode",
              "state": "constructed"},
             {"op": "gemm_tile", "format": "a", "engine": "rvv", "regime": "prefill",
              "state": "constructed"},
-            {"op": "quantize_row", "format": "q", "state": "absent"},
+            {"op": "quantize_row", "format": "q", "engine": "rvv",
+             "regime": "micro-fixed", "state": "absent"},
+            {"op": "bf16", "format": "all", "state": "absent",
+             "scope": "out-of-domain"},
         ],
     }
     text = render_markdown(fixture)
@@ -225,6 +241,9 @@ def cmd_self_test(_args) -> int:
           "C_construct_plus (>= constructed-weak)  = 5 / 7" in text)
     check("headline: C_dispatch = 6/7 (all but the absent quantize_row)",
           "C_dispatch (>= dispatch-wired)          = 6 / 7" in text)
+    check("out-of-domain audit row retained but excluded from denominator",
+          "audit rows / denominator rows : `8 / 7`" in text
+          and "| bf16 | all | - | - | absent |" in text)
     check("gemm_tile decode/prefill are DISTINCT rows (both constructed, both kept; "
           "each appears in the per-row census AND the constructed roster => 2x)",
           text.count("| gemm_tile | a | rvv | decode |") == 2

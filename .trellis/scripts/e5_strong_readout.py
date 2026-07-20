@@ -74,6 +74,25 @@ WEFT_OPT = REPO_ROOT / "build" / "bin" / "weft-opt"
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
 TEST_RVV = REPO_ROOT / "test" / "Target" / "RVV"
 TEST_CONV_RVV = REPO_ROOT / "test" / "Conversion" / "RVV"
+sys.path.insert(0, str(REPO_ROOT / "tools" / "bench"))
+from measurement_keys import key_from_mapping  # noqa: E402
+
+
+def _measurement_key(row, *, source):
+    return key_from_mapping(row, source=source)
+
+
+def _sixstate_index(rows):
+    """Index all in-domain rows by the explicit four-component identity."""
+    index = {}
+    for position, row in enumerate(rows):
+        if row.get("scope") == "out-of-domain":
+            continue
+        key = _measurement_key(row, source=f"sixstate[{position}]")
+        if key in index:
+            raise ValueError(f"duplicate six-state key: {key}")
+        index[key] = row
+    return index
 
 # --- the 4 strong routes + 1 weak negative control -------------------------
 # Each entry: the six-state (op, format) key, the source-op test input, and the
@@ -82,21 +101,21 @@ TEST_CONV_RVV = REPO_ROOT / "test" / "Conversion" / "RVV"
 # emission-paths-map.md §1b.
 PATHS = [
     {
-        "op": "product_reduce", "format": "q4_0_nibble", "engine": "",
+        "op": "product_reduce", "format": "q4_0_nibble", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "non-deferred-wide-product-reduce-dequantize-f32-front-door-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv",
         "front_door_id": "RVVDequantDotSourceFrontDoor",
     },
     {
-        "op": "product_reduce", "format": "offset_binary_n3", "engine": "",
+        "op": "product_reduce", "format": "offset_binary_n3", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "packed-i4-offset-binary-dot-product-reduce-front-door-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv",
         "front_door_id": "RVVPackedI4DotSourceFrontDoor",
     },
     {
-        "op": "product_reduce", "format": "codebook_n3", "engine": "",
+        "op": "product_reduce", "format": "codebook_n3", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "codebook-gather-dot-product-reduce-front-door-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv",
@@ -108,7 +127,7 @@ PATHS = [
     # opaque emitFlatBlockDot hand helper. The SAME front-door pass now realizes a typed
     # body, so update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
-        "op": "vec_dot", "format": "q8_0", "engine": "",
+        "op": "vec_dot", "format": "q8_0", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q8-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door",
@@ -121,7 +140,7 @@ PATHS = [
     # weft_rvv.typed_flat_block_dot_loop_body (NOT the opaque emitFlatBlockDot hand helper),
     # so update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
-        "op": "vec_dot", "format": "q4_0", "engine": "",
+        "op": "vec_dot", "format": "q4_0", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door",
@@ -135,7 +154,7 @@ PATHS = [
     # Its front door constructs the typed weft_rvv.typed_flat_block_dot_loop_body (NOT the opaque
     # emitFlatBlockDot hand helper), so update-sixstate machine-reads the REAL constructor output.
     {
-        "op": "vec_dot", "format": "q4_1", "engine": "",
+        "op": "vec_dot", "format": "q4_1", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-1-q8-1-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q4-1-q8-1-block-dot-source-front-door",
@@ -149,7 +168,7 @@ PATHS = [
     # fp16 scale dequant. NO opaque emitFlatBlockDot hand helper, so [L-8] derives
     # constructed (STRONG). update-sixstate machine-reads the REAL constructor output.
     {
-        "op": "vec_dot", "format": "q5_0", "engine": "",
+        "op": "vec_dot", "format": "q5_0", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q5-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door",
@@ -161,7 +180,7 @@ PATHS = [
     # (block_five_bit_qh_source) + the min term (block_fp16_min_product), ScalePlusMin fold.
     # NO opaque emitFlatBlockDot hand helper, so [L-8] derives constructed (STRONG).
     {
-        "op": "vec_dot", "format": "q5_1", "engine": "",
+        "op": "vec_dot", "format": "q5_1", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q5-1-q8-1-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door",
@@ -176,7 +195,7 @@ PATHS = [
     # q4_k_scaled_dot (vwmacc into aux32); NO opaque *_block_dot op, so [L-8] derives
     # constructed (STRONG). update-sixstate machine-reads the REAL constructor output.
     {
-        "op": "vec_dot", "format": "q4_K", "engine": "",
+        "op": "vec_dot", "format": "q4_K", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door",
@@ -194,7 +213,7 @@ PATHS = [
     # (STRONG). The manifest is byte-identical to q4_K's (the qh inject is intra-brick,
     # not a new op), resolved to q5_K's OWN export entry by weight_block_stride 176.
     {
-        "op": "vec_dot", "format": "q5_K", "engine": "",
+        "op": "vec_dot", "format": "q5_K", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q5-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q5-k-q8-k-block-dot-source-front-door",
@@ -213,7 +232,7 @@ PATHS = [
     # opaque *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to q6_K's
     # OWN export entry by fold_model + weight_block_stride 210.
     {
-        "op": "vec_dot", "format": "q6_K", "engine": "",
+        "op": "vec_dot", "format": "q6_K", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q6-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
@@ -232,7 +251,7 @@ PATHS = [
     # opaque *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to q3_K's
     # OWN export entry by fold_model + weight_block_stride 110.
     {
-        "op": "vec_dot", "format": "q3_K", "engine": "",
+        "op": "vec_dot", "format": "q3_K", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q3-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q3-k-q8-k-block-dot-source-front-door",
@@ -252,7 +271,7 @@ PATHS = [
     # *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to q2_K's OWN
     # export entry by fold_model + weight_block_stride 84.
     {
-        "op": "vec_dot", "format": "q2_K", "engine": "",
+        "op": "vec_dot", "format": "q2_K", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q2-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q2-k-q8-k-block-dot-source-front-door",
@@ -314,7 +333,7 @@ PATHS = [
     # RETIRED same action as the flip), so [L-8] derives constructed (STRONG).
     # update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
-        "op": "vec_dot", "format": "iq4_nl", "engine": "",
+        "op": "vec_dot", "format": "iq4_nl", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq4-nl-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door",
@@ -339,7 +358,7 @@ PATHS = [
     # constructed (STRONG). Resolves to iq1_s's OWN export entry by fold_model +
     # weight_block_stride 50. update-sixstate machine-reads the REAL constructor output.
     {
-        "op": "vec_dot", "format": "iq1_s", "engine": "",
+        "op": "vec_dot", "format": "iq1_s", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq1-s-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq1-s-q8-k-block-dot-source-front-door",
@@ -362,7 +381,7 @@ PATHS = [
     # *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to iq1_m's OWN export
     # entry by fold_model + weight_block_stride 56 (vs iq1_s 50).
     {
-        "op": "vec_dot", "format": "iq1_m", "engine": "",
+        "op": "vec_dot", "format": "iq1_m", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq1-m-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq1-m-q8-k-block-dot-source-front-door",
@@ -384,7 +403,7 @@ PATHS = [
     # *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to iq3_xxs's OWN export
     # entry by fold_model + weight_block_stride 98 (vs iq1_s 50 / iq1_m 56).
     {
-        "op": "vec_dot", "format": "iq3_xxs", "engine": "",
+        "op": "vec_dot", "format": "iq3_xxs", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq3-xxs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door",
@@ -409,7 +428,7 @@ PATHS = [
     # constructed (STRONG). Resolves to iq2_xxs's OWN export entry by fold_model +
     # weight_block_stride 66 (vs iq1_s 50 / iq1_m 56 / iq3_xxs 98).
     {
-        "op": "vec_dot", "format": "iq2_xxs", "engine": "",
+        "op": "vec_dot", "format": "iq2_xxs", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq2-xxs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
@@ -435,7 +454,7 @@ PATHS = [
     # constructed (STRONG). Resolves to iq2_xs's OWN export entry by fold_model +
     # weight_block_stride 74 (vs iq1_s 50 / iq1_m 56 / iq3_xxs 98 / iq2_xxs 66).
     {
-        "op": "vec_dot", "format": "iq2_xs", "engine": "",
+        "op": "vec_dot", "format": "iq2_xs", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq2-xs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq2-xs-q8-k-block-dot-source-front-door",
@@ -462,7 +481,7 @@ PATHS = [
     # constructed (STRONG). Resolves to iq2_s's OWN export entry by fold_model +
     # weight_block_stride 82 (vs iq1_s 50 / iq1_m 56 / iq3_xxs 98 / iq2_xxs 66 / iq2_xs 74).
     {
-        "op": "vec_dot", "format": "iq2_s", "engine": "",
+        "op": "vec_dot", "format": "iq2_s", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq2-s-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq2-s-q8-k-block-dot-source-front-door",
@@ -489,7 +508,7 @@ PATHS = [
     # iq3_s's OWN export entry by fold_model + weight_block_stride 110 (vs iq1_s 50 / iq1_m 56
     # / iq3_xxs 98 / iq2_xxs 66 / iq2_xs 74 / iq2_s 82).
     {
-        "op": "vec_dot", "format": "iq3_s", "engine": "",
+        "op": "vec_dot", "format": "iq3_s", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq3-s-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq3-s-q8-k-block-dot-source-front-door",
@@ -519,7 +538,7 @@ PATHS = [
     # integer_core_lmul gearbox (the codebook gather pins m1), so iq4_xs is NOT in any
     # schedule autotuner and has NO VLEN128-vs-VLEN256 byte-flip.
     {
-        "op": "vec_dot", "format": "iq4_xs", "engine": "",
+        "op": "vec_dot", "format": "iq4_xs", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "iq4-xs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
@@ -549,7 +568,7 @@ PATHS = [
     # autotuner and HAS a VLEN128(m2)-vs-VLEN256(m1) byte-flip. It builds the REUSABLE ternary
     # scaffold that tq1_0 (base-3) reuses next at C2 marginal cost.
     {
-        "op": "vec_dot", "format": "tq2_0", "engine": "",
+        "op": "vec_dot", "format": "tq2_0", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "tq2-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
@@ -578,7 +597,7 @@ PATHS = [
     # "tq1_0"), so tq1_0 IS in the schedule autotuner and HAS a VLEN128(m2)-vs-VLEN256(m1)
     # byte-flip. It REUSES the tq2_0 ternary scaffold at C2 marginal cost (the second TQ cell).
     {
-        "op": "vec_dot", "format": "tq1_0", "engine": "",
+        "op": "vec_dot", "format": "tq1_0", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "tq1-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
@@ -608,7 +627,7 @@ PATHS = [
     # (isQ10TypedFlat is OUT of typedFlatLoopPath -- the e8m2 sign decode runs its OWN
     # vsetvl INSIDE the brick), byte-exact to the monolith frame.
     {
-        "op": "vec_dot", "format": "q1_0", "engine": "",
+        "op": "vec_dot", "format": "q1_0", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "q1-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",
@@ -639,7 +658,7 @@ PATHS = [
     # is OUT of typedFlatLoopPath -- the e8m1 codebook strip runs its OWN vsetvl INSIDE the
     # brick), byte-exact to the monolith frame.
     {
-        "op": "vec_dot", "format": "nvfp4", "engine": "",
+        "op": "vec_dot", "format": "nvfp4", "engine": "rvv", "regime": "micro-fixed",
         "kind": "strong", "expected_state": "constructed",
         "input": "nvfp4-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-nvfp4-q8-0-block-dot-source-front-door",
@@ -655,7 +674,7 @@ PATHS = [
     # still constructed-weak (descriptor-selected emitFlatBlockDot hand helper, its own
     # GgmlBlockDotMXFP4Q80Op op NOT retired), so the check stays proven discriminating.
     {
-        "op": "vec_dot", "format": "mxfp4", "engine": "",
+        "op": "vec_dot", "format": "mxfp4", "engine": "rvv", "regime": "micro-fixed",
         "kind": "negative", "expected_state": "constructed-weak",
         "input": "mxfp4-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door",
@@ -663,10 +682,9 @@ PATHS = [
     },
 ]
 
-# --- repack gemm_tile DUAL-regime cert paths (FIX-D: the 10 single-row repack
-# cells beyond q4_0). Each is ONE six-state row (regime="") covering BOTH the GEVM
-# (decode) and GEMM (prefill) construction. Unlike q4_0 (split into two regime rows
-# already stamped E5-increment1-auto), these carry a single [F-EMIT] DUAL manifest.
+# --- repack gemm_tile DUAL-regime cert paths. Every format has two explicit
+# six-state identities (decode and prefill); both must walk successfully before
+# either row is stamped with the shared [F-EMIT] dual certificate.
 # The walk feeds a synthesized quant_contraction request (verifier-pinned PLAIN byte
 # facts per format) through the SAME `--weft-rvv-lower-quant-contraction` front door
 # the certified q4_0 uses -- a construction stage UPSTREAM of emitc (independent of
@@ -699,7 +717,7 @@ REPACK_DUAL_PATHS = [
 # NOT via the contraction-shaped derive() decomposed gate.
 _DEQUANT_STREAM_FRONT_DOOR = "--weft-rvv-materialize-dequantize-row-stream-front-door"
 DEQUANT_STREAM_PATHS = [
-    {"op": "dequantize_row", "format": fmt, "engine": "",
+    {"op": "dequantize_row", "format": fmt, "engine": "rvv", "regime": "micro-fixed",
      "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-dequantize-row-{slug}.mlir"}
     for fmt, slug in [
         ("q8_0", "q8-0"), ("q4_0", "q4-0"), ("q4_1", "q4-1"), ("q5_0", "q5-0"),
@@ -729,7 +747,7 @@ DEQUANT_STREAM_PATHS = [
 # contraction-shaped derive() decomposed gate.
 _QUANT_STREAM_FRONT_DOOR = "--weft-rvv-materialize-quantize-row-stream-front-door"
 QUANT_STREAM_PATHS = [
-    {"op": "quantize_row", "format": fmt, "engine": "",
+    {"op": "quantize_row", "format": fmt, "engine": "rvv", "regime": "micro-fixed",
      "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-quantize-row-{slug}.mlir"}
     for fmt, slug in [
         ("q8_0", "q8-0"), ("q8_1", "q8-1"), ("q8_K", "q8-k"),
@@ -755,7 +773,7 @@ QUANT_STREAM_PATHS = [
 # NOTE the six-state `op` key uses "softmax" (not "soft_max", the elementwise_model).
 _FORWARD_STREAM_FRONT_DOOR = "--weft-rvv-materialize-forward-elementwise-stream-front-door"
 FORWARD_STREAM_PATHS = [
-    {"op": op, "format": "f32", "engine": "", "core": core,
+    {"op": op, "format": "f32", "engine": "rvv", "regime": "micro-fixed", "core": core,
      "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-forward-elementwise-{slug}.mlir"}
     for op, core, slug in [
         ("scale", "elementwise_scale_map", "scale"),
@@ -1075,7 +1093,7 @@ def check_path(entry):
     result["op"] = entry["op"]
     result["format"] = entry["format"]
     result["engine"] = entry["engine"]
-    result["regime"] = entry.get("regime", "")
+    result["regime"] = entry["regime"]
     result["kind"] = entry["kind"]
     result["expected_state"] = entry["expected_state"]
     result["front_door_id"] = entry["front_door_id"]
@@ -1121,13 +1139,14 @@ def cmd_update_sixstate(_args):
     if not all_pass:
         print("\nrefusing to update schema: machine-check did not fully pass", file=sys.stderr)
         return 1
-    by_key = {(r["op"], r["format"], r["engine"], r.get("regime", "")): r
+    by_key = {_measurement_key(r, source="E5 result"): r
               for r in results if r["kind"] == "strong"}
     doc = json.loads(SIXSTATE_JSON.read_text())
     updated = 0
     for row in doc["states"]:
-        key = (row.get("op"), row.get("format"), row.get("engine", ""),
-               row.get("regime", ""))
+        if row.get("scope") == "out-of-domain":
+            continue
+        key = _measurement_key(row, source="six-state update")
         if key in by_key and row.get("auto_readout") == "pending-E5":
             r = by_key[key]
             # ZERO FLIP: state is unchanged; only auto_readout is written.
@@ -1187,8 +1206,7 @@ def cmd_stamp_repack_dual(_args):
     SKIPPED (never blanket-stamped). Writes a machine [F-EMIT] dual manifest that
     the strict checker's classify_femit_repack accepts."""
     doc = json.loads(SIXSTATE_JSON.read_text())
-    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
-              for r in doc["states"]}
+    by_key = _sixstate_index(doc["states"])
     stamped, skipped = [], []
     for e in REPACK_DUAL_PATHS:
         fmt = e["format"]
@@ -1198,18 +1216,21 @@ def cmd_stamp_repack_dual(_args):
             skipped.append((fmt, f"GEVM:{gv_why} | GEMM:{gm_why}"))
             print(f"[SKIP] gemm_tile/{fmt}: GEVM {gv_why} ; GEMM {gm_why}")
             continue
-        row = by_key.get(("gemm_tile", fmt, e["engine"], ""))
-        if row is None or row.get("state") != "constructed":
-            skipped.append((fmt, f"no constructed regime='' row (state="
-                                 f"{row.get('state') if row else 'absent'})"))
-            print(f"[SKIP] gemm_tile/{fmt}: no constructed regime='' row")
+        gevm_row = by_key.get(("gemm_tile", fmt, e["engine"], "decode"))
+        gemm_row = by_key.get(("gemm_tile", fmt, e["engine"], "prefill"))
+        if (gevm_row is None or gemm_row is None
+                or gevm_row.get("state") != "constructed"
+                or gemm_row.get("state") != "constructed"):
+            skipped.append((fmt, "missing/non-constructed explicit decode or prefill row"))
+            print(f"[SKIP] gemm_tile/{fmt}: explicit decode/prefill pair not constructed")
             continue
         envelope = (
             "[F-EMIT] e5-auto-repack-dual (machine-walked GEVM+GEMM via "
             "--weft-rvv-lower-quant-contraction): constructed (STRONG); "
             f"realized-body manifest (GEVM decode)={gv_man}; "
             f"(GEMM prefill)={gm_man}; opaque_helper=false")
-        row["auto_readout"] = envelope
+        gevm_row["auto_readout"] = envelope
+        gemm_row["auto_readout"] = envelope
         stamped.append(fmt)
         print(f"[STAMP] gemm_tile/{fmt}: GEVM={gv_man} ;; GEMM={gm_man}")
     marker = "E5-repack-dual (FIX-D machine-walked)"
@@ -1272,8 +1293,7 @@ def cmd_stamp_dequant_stream(_args):
     demote). Writes the E5 STRONG envelope classify_auto_readout accepts (the
     dequant_stream shape). State values unchanged (zero flip)."""
     doc = json.loads(SIXSTATE_JSON.read_text())
-    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
-              for r in doc["states"]}
+    by_key = _sixstate_index(doc["states"])
     stamped, skipped = [], []
     for e in DEQUANT_STREAM_PATHS:
         fmt = e["format"]
@@ -1282,11 +1302,11 @@ def cmd_stamp_dequant_stream(_args):
             skipped.append((fmt, why))
             print(f"[SKIP] dequantize_row/{fmt}: {why}")
             continue
-        row = by_key.get(("dequantize_row", fmt, e["engine"], ""))
+        row = by_key.get(("dequantize_row", fmt, e["engine"], e["regime"]))
         if row is None or row.get("state") != "constructed":
-            skipped.append((fmt, f"no constructed regime='' row (state="
+            skipped.append((fmt, f"no constructed {e['regime']} row (state="
                                  f"{row.get('state') if row else 'absent'})"))
-            print(f"[SKIP] dequantize_row/{fmt}: no constructed regime='' row")
+            print(f"[SKIP] dequantize_row/{fmt}: no constructed {e['regime']} row")
             continue
         row["auto_readout"] = (
             "E5-increment1-auto: constructed (STRONG); realized-body manifest="
@@ -1356,8 +1376,7 @@ def cmd_stamp_quant_stream(_args):
     (zero flip). NOTE q8_K is the ROW quantizer (scalar row-quant stream), NOT the
     mat-quant GEMM path."""
     doc = json.loads(SIXSTATE_JSON.read_text())
-    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
-              for r in doc["states"]}
+    by_key = _sixstate_index(doc["states"])
     stamped, skipped = [], []
     for e in QUANT_STREAM_PATHS:
         fmt = e["format"]
@@ -1366,11 +1385,11 @@ def cmd_stamp_quant_stream(_args):
             skipped.append((fmt, why))
             print(f"[SKIP] quantize_row/{fmt}: {why}")
             continue
-        row = by_key.get(("quantize_row", fmt, e["engine"], ""))
+        row = by_key.get(("quantize_row", fmt, e["engine"], e["regime"]))
         if row is None or row.get("state") != "constructed":
-            skipped.append((fmt, f"no constructed regime='' row (state="
+            skipped.append((fmt, f"no constructed {e['regime']} row (state="
                                  f"{row.get('state') if row else 'absent'})"))
-            print(f"[SKIP] quantize_row/{fmt}: no constructed regime='' row")
+            print(f"[SKIP] quantize_row/{fmt}: no constructed {e['regime']} row")
             continue
         row["auto_readout"] = (
             "E5-increment1-auto: constructed (STRONG); realized-body manifest="
@@ -1442,8 +1461,7 @@ def cmd_stamp_forward_stream(_args):
     unchanged (zero flip). NOTE the six-state `op` key is "softmax" (the
     elementwise_model is "soft_max")."""
     doc = json.loads(SIXSTATE_JSON.read_text())
-    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
-              for r in doc["states"]}
+    by_key = _sixstate_index(doc["states"])
     stamped, skipped = [], []
     for e in FORWARD_STREAM_PATHS:
         op = e["op"]
@@ -1453,11 +1471,11 @@ def cmd_stamp_forward_stream(_args):
             skipped.append((op, why))
             print(f"[SKIP] {op}/f32: {why}")
             continue
-        row = by_key.get((op, "f32", e["engine"], ""))
+        row = by_key.get((op, "f32", e["engine"], e["regime"]))
         if row is None or row.get("state") != "constructed":
-            skipped.append((op, f"no constructed regime='' row (state="
+            skipped.append((op, f"no constructed {e['regime']} row (state="
                                 f"{row.get('state') if row else 'absent'})"))
-            print(f"[SKIP] {op}/f32: no constructed regime='' row")
+            print(f"[SKIP] {op}/f32: no constructed {e['regime']} row")
             continue
         row["auto_readout"] = (
             "E5-increment1-auto: constructed (STRONG); realized-body manifest="

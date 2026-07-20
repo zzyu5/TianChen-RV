@@ -4,10 +4,10 @@
 
 ## 3.3 一条流水线
 
-**唯一合法测量动作：`bench <op> <format> --board <板> [--engine E] [--regime R]`。**
-> **签名带全四元行键**（[ISSUE-091]·《开测篇》§〇.1）：签名必须**结构上唯一定位主表一行** `(op, format, engine, regime)`。**可无歧义推定时允许省参**（如 `--board` 唯一确定 engine）；**歧义即 fail-closed 拒绝，禁猜行**（`--board` 在 k1 上推不出 engine∈{rvv,ime}、格名跨多 op ⟹ 必须显式给）。runner `ROW_KEY = (op,format,engine,regime)` 已就绪并 self-test 机核。
+**唯一合法真实测量动作：`bench <op> <format> --board <板> --engine <engine> --regime <regime>`。**
+> 真跑与 dry-run 使用**同一个全键签名**，都必须携 `(op, format, engine, regime)`；不得省参、猜键、trim/大小写归一或用空值通配。roster 中该精确键必须恰好一条，master 中允许零或一条但不得重复。dry-run 只做预检与计划展示：不分配 run-id，不构造占位 row，不写 `runs.log`、`runs/` 或 master；不存在单参数兼容入口。
 
-> **【runner、目的地和注册 cell 路径已建】** runner 现址 = `tools/bench/bench`；主表、原始运行目录和 append-only 台账分别住 `experiments/master/`、`experiments/runs/<run-id>/`、`experiments/runs.log`；每格 harness 住 `tools/bench/cells/`。runner 支持 dry-run、self-test 和已注册 cell 的真实路径。未注册或被板册禁止的组合抛 `CellRecipeMissing` 或具名诊断，继续 fail-closed；“某些 cell 不支持”不得再外推为“runner/正式测量通道不存在”。
+> **【runner、目的地和注册 cell 路径已建】** runner 现址 = `tools/bench/bench`；它只写 `experiments/runs/<run-id>/` 与 `experiments/runs.log`。`experiments/master/` 由 recon 独占发布。每格 harness 住 `tools/bench/cells/`。未注册或被板册禁止的组合继续 fail-closed。
 >
 > **本节是规范，不是对现有实现的描述**：本节的五步与 [3.3.1](#331-行-schema规范性) 行 schema 是**验收标准**；runner 与本节不符 = **runner 的缺陷**。**本层是权威，runner 是实现**——任何"schema 以 runner 实现为准"的读法都非法。（runner 侧已把本节 [3.3.1](#331-行-schema规范性) 的字段表做成**每次出行前机核比对**、不等即 fail-closed 中止；故"改本节而不改 runner"会当场变红，此为设计。）
 
@@ -19,15 +19,19 @@
    顺手自动记录我方产物的**真实向量运算指令数**（配置指令与死值不计）入行——"仪式向量化"自动现形，**记录不拦截**。
    （本步的正确性判据形态见 [正确性门](./正确性门.md)；对手取证与落账见 [3.4](./对手法.md#34-对手法)。）
 4. **cold 计时**：预注册重复数，冷启动唯一。
-5. **入行**：按 [3.3.1](#331-行-schema规范性) 的字段表写一行。
+5. **封存 run event**：按 [3.3.1](#331-行-schema规范性) 写 `runs/<run-id>/row.csv`，再向 `runs.log` 追加一次结果。bench 到此结束，不写 master。
+
+采集后由独立控制面执行 `run evidence → qualification view → recon atomic publication`。只有 byte-exact、lineage、freshness、T-N 全齐的 deployed row 才可设 `master_qualified_input=true`；selection-valid 还须成对候选与合法集条件，不能由 master-qualified 自动推断。
+
+T-N 证据必须由 `tools/bench/tn_qualify.py` 从预注册样本生成结构化 JSON，并落在 `experiments/runs/` 的不可变 run 证据域；发布门会重新计算 N≥10、noise IQR、`|Δ| > 2×noise`、确定性 bootstrap 95%CI 排零及所有 source artifact SHA。自由文本出现 `T-N-QUALIFIED` 字样不构成资格，`N=9`、CI 含零、效应未越 2×noise、源哈希漂移均 fail-closed。
 
 **近门补充**：**仅当比值落在 0.7–1.0 区间**，追加一次独立复测确认；离门远的数字不为噪声举行仪式。
 
 ### 3.3.1 行 schema（规范性）
 
-**本表 = 主表行权威字段集的唯一定义处。** 字段名以本表为准；runner 建设时的列标识须与本表**逐项一一对应，不得增删**。增删字段 = [3.5](./门体系.md#35-门体系清算三硬点其余皆工具) 第 4 条途径（提案入 ISSUES → 用户裁 → 本层版本化）。
+**本表 = immutable run event 的权威字段集。** 字段名以本表为准；runner 须逐项绑定。T3 master 是 recon 生成的 board-column view，不得把两种 schema 互称兼容别名。
 
-**行键 = `(op, format, engine, regime)` 四元组**（2026-07-17 用户裁 · 前置裁定）。**三元组 `(op, format, engine)` 口径作废** —— 它在现役主表**不唯一**（`gemm_tile × engine=rvv` 的 `regime=decode` 与 `prefill` 相撞）；四元组**唯一**。**板不是键**：板以 `<板>_*` 属性列前缀与 run-id 承载，且 **`--board` 结构上推不出 `engine`**（同一块 k1 板上 `engine` 可为 `rvv` 或 `ime`）。**谓词**（可复跑 · 本层不转抄读数）：
+**行键 = `(op, format, engine, regime)` 四元组**。每个分量显式非空；`engine∈{rvv, ime, scalar}`，`regime∈{micro-fixed, decode, prefill}`。`micro-fixed` 只用于 roster 已登记固定 shape/bindings 的 micro cell；真实 token decode、prefill、e2e 或语义不明历史行不得伪装成 micro-fixed。板不是键：板由 run-id 与 master 属性列承载。
 
 ```
 python3 -c "import csv;r=list(csv.DictReader(open('experiments/master/T3_master_rebuild.csv')));print(len(r), len({(x['op'],x['format'],x['engine']) for x in r}), len({(x['op'],x['format'],x['engine'],x['regime']) for x in r}))"
@@ -37,8 +41,8 @@ python3 -c "import csv;r=list(csv.DictReader(open('experiments/master/T3_master_
 |---|---|---|
 | **op** | **行键①** —— 算子 | 入参（预注册） |
 | **format** | **行键②** —— 量化格式，即 `bench <格>` 的「格」 | 入参（预注册） |
-| **engine** | **行键③** —— 执行范式（≠ 板） | 入参（预注册） |
-| **regime** | **行键④** —— 相（`decode` / `prefill`；[K-10] 结构分立） | 入参（预注册） |
+| **engine** | **行键③** —— 执行范式 `{rvv | ime | scalar}`（≠ 板） | 入参（预注册） |
+| **regime** | **行键④** —— shape 相 `{micro-fixed | decode | prefill}`；[K-10] 结构分立 | 入参（预注册） |
 | **cold** | 冷启动计时结果；重复数预注册 | 第 4 步 |
 | **判定** | 该格结论；**值域 = [3.3.1.1](#3311-判定-的值域规范性--零预处理机算枚举)**，禁在本栏另立 | 第 4 步 |
 | **对手符号** | 该板实际部署派发函数的符号名 | 第 3 步 |
@@ -49,11 +53,11 @@ python3 -c "import csv;r=list(csv.DictReader(open('experiments/master/T3_master_
 | **run-id** | 本次运行标识，兼作原始产物目录名与行内引用锚 | 全步 |
 | **噪声标** | 近门标记（比值落 0.7–1.0 → 已追加独立复测确认） | 近门补充 |
 
-**VOID 的行不存在**：VOID 只在运行台账留一行（[术语](./index.md#术语)），不入主表。
+**VOID 的 run event 不存在**：VOID 不产 `row.csv`，只在运行台账留原因；更不会进入 qualification 或 master。
 
 #### 3.3.1.1 `判定` 的值域（规范性 · 零预处理机算枚举）
 
-**值域 = 下列 12 值 ∪ VOID 四值**（VOID 四值住 [3.3](#33-一条流水线) 第 1/3 步，本节不重抄）。**12 值 = 现役主表 `rvv_disp` / `k1_disp` 两列的 raw distinct 全录**（2026-07-17 用户裁：**原样收，不归并**）—— **逐字，禁归并 / 禁改名 / 禁精简**。**括注是判定谱系**（`decode-M1` 等）**，不是噪音**：`PASS(decode-M1-GEVM)` 与 `PASS` 是**两个值**。
+**master raw 值域 = 下列 12 值 ∪ VOID 四值**。runner 的普通新 run event 只产其中的 `PASS` / `具名-X`（0.8 门）；近门信息住 `噪声标`，不再产生 `WIN` / `LOSS` / `near-parity` 别名。specialized disposition 由合格生成链保留原 raw token，禁预处理归并。
 
 - `PASS`
 - `具名-X`

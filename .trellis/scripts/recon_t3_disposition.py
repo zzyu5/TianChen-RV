@@ -37,12 +37,11 @@ import csv
 import sys
 from pathlib import Path
 
-# This file lives at <repo>/.trellis/scripts/recon_t3_disposition.py; the T3
-# tables live under experiments/active/result-tables/ (data cell — a .py recon
-# may NOT live inside experiments/ per tools/gates/check_experiments_layout.py,
-# so tooling stays here and reaches into the data cell).
+# This file lives at <repo>/.trellis/scripts/recon_t3_disposition.py; the active
+# T3 source tables live under experiments/master/ (ISSUE-073 cut-over).  Tooling
+# remains here because experiments/ is a data cell, not a script location.
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_TABLES_DIR = REPO_ROOT / "experiments" / "active" / "result-tables"
+DEFAULT_TABLES_DIR = REPO_ROOT / "experiments" / "master"
 TABLES = ["T3_A_board_A_rvv1.0_vlen128.csv", "T3_B_board_B_rvv1.0_vlen256.csv"]
 
 # ordered disposition classifier -------------------------------------------
