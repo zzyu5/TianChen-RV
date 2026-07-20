@@ -3,12 +3,20 @@
 > **用户裁决（2026-07-20）**：项目无统一「构建 + 消费公式」的模块化结构·θ=f(g,c) 散落各 pass ⟹ 选 **增量迁移**（非大爆炸重构）：立模块骨架 + 逐个迁散落选择器·每步 **byte-exact + 判决 lit + 三闸 Δ≤0**。**census = 本迁移的 inventory（清单）**。
 >
 > 本账本 = census v2（全景盘点）的**活 delta 层**：census v2 是钉死基线快照·本账本记「基线以来动了什么 + 下一步迁谁」。**禁把本账本当 census 正本**（正本在 `00-census-final.md`·pin 死）。
+>
+> **A1 读法订正**：本文包含按时间追加的历史判断；当前 HEAD 的 authority 正本是
+> §四.10 与同目录 `AUTHORITY-MATRIX.md` / `authority-matrix.v1.json`。更早小节中的
+> “未起”“下一步”“5/5 已闭环”等句只说明当时迁移阶段，不能越过 §四.10 当现行事实。
 
 ---
 
-## 〇 · 公式层的「家」（模块骨架现状）
+## 〇 · 公式层的目标「家」与当前住址
 
-**唯一 closed-form-f 宿主 = `include/Weft/Plugin/RVV/RVVGearboxSchedule.h`**（RVV 侧）。现住：
+**目标 closed-form-f 宿主 = `include/Weft/Plugin/RVV/RVVGearboxSchedule.h`**（RVV 侧）。
+A1 核查后的当前实际住址并未完全收敛：五类 dequant provider 只在该 header 声明，
+定义仍住 `RVVToEmitCSupport.cpp`；repack accumulator-LMUL selector 仍住
+`RVVLowerQuantContraction.cpp`；SP4/loop-order 住 `RVVRepackTilingSelection.h`。
+因此“家已唯一”是目标，不是 HEAD 成就。已落的闭式原语包括：
 
 | f | 住址 | 角色 | 落地 commit |
 |---|---|---|---|
@@ -17,7 +25,9 @@
 
 **c-probe 侧读者**（板事实 → c 输入·住能力表侧·非公式宿主）：`readRVVProviderVLenBBytes(module)` @ `RVVCapabilityProfile.cpp:389` / `.h:248`（MIG-A/T1）。
 
-> 迁移方向 = 把散落在 `RVVLowerQuantContraction.cpp`（前门选择器）/ `RVVToEmitC*.cpp`（发射器焊死）里的 θ 决策·逐个搬进 `RVVGearboxSchedule.h` 家（或其 c-probe 姊妹），使「公式在一处构建、各消费者只读结果」。
+> 迁移方向 = 由 A2 的最小 typed decision contract 决定 plugin-local 住址；不为了
+> “一文件统一”制造巨型 header。真正验收是同一决定只有一个 provider/legality/
+> selector authority，selected result 在 emission 前落印，emitter 只机械消费。
 
 ---
 
@@ -92,7 +102,7 @@
 
 ---
 
-## 三 · HEAD 快照（近似·精确 re-class 待 census-v3 re-pin）
+## 三 · 历史过渡快照（旧 pin；不是当前 HEAD）
 
 | 维度 | 基线（d173f4c2e） | HEAD（b097d245a·近似） | 说明 |
 |---|---|---|---|
@@ -139,7 +149,57 @@
 - **公式层刀①②达成 → dequant-row head 5/5**（`95dc34a88`·GridLookupPlan + TernaryDecodePlan·byte-exact 9/9·[K-10] 5 分立·**零残留 decodeModel== grid/ternary 链**·合并双头家 dequant-row head DONE）。**5 mechanism 全进 plan**（Nibble/Codebook/KQuant/GridLookup/TernaryDecode）·emitter 全 plan.mechanism-driven·格式名降 provenance。
 - **剩（下一程·非本收尾）**：刀③ **c 真驱动**（codebook/kquant/grid 的 minVLEN seam 已就位·一行 provider 改·plan 轴第一个真 c-驱动·codebook :118 measured-gate 需板）· GridDecodePlan registry 的 block-dot/verifier head 双头残留（ISSUE-122 defer）· 能力层 elen/cacheline/sew_set(typed)/per-board 实例。
 
-> **★2026-07-20 收尾态**：能力层 ②③ ✓（VLEN+version 管道·vreg_count 正名）· 公式层 dequant-row head **1/5→5/5**（5 家全进 plan·byte-exact·plan 承重判决）。两层从审计的「原型/首轴」推进到「dequant-row 侧模块化中间状态铺满 + 能力管道全收敛」。**离"真建立"剩的路已具名**（c 驱动 + per-board + 能力表结构字段 + block-dot head 双头）·每步可 falsify。
+> **★2026-07-20 收尾态（历史表述，受 §四.10 限定）**：能力层 ②③ ✓（VLEN+version 管道·vreg_count 正名）· 公式层 dequant-row head **1/5→5/5**（5 家全进 plan·byte-exact·plan 承重判决）。这里的“5/5”只表示 plan 类型与 emitter 消费铺满，**不表示 c、stamping、legality、selection、realization 已闭环**。
+
+## 四.10 · A1 HEAD authority freeze（当前正本）
+
+完整符号链见 `AUTHORITY-MATRIX.md`；机器 census 与任务/issue 绑定见
+`authority-matrix.v1.json`，由 `test/Scripts/formula-authority-matrix.test` 守卫。
+
+### 五类 dequant 的逐阶段状态
+
+| plan | defined | typed g stamped | provider consumed | selected plan stamped | emitted | mutation tested | c/ω disposition |
+|---|---:|---:|---:|---:|---:|---:|---|
+| NibbleDecodePlan | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | c=literal 128 且 ignored；ω honest-null |
+| CodebookGatherPlan | ✓ | 部分 | ✓ | ✗ | ✓ | ✓ | 已有 anchor closed form，但本 provider 未用；ω honest-null |
+| KQuantScaleMinPlan | ✓ | primary g | ✓ | ✗ | ✓ | ✓ | c=literal 128 且 ignored；ω honest-null |
+| GridLookupPlan | ✓ | entry lanes | ✓ | ✗ | ✓ | ✓ | narrow body c honest-null；legality 仍查第二 registry head |
+| TernaryDecodePlan | ✓ | iq1 entry lanes | ✓ | ✗ | ✓ | ✓ | c/ω honest-null；leaf 仍由 emitter 字符串映射 |
+
+**关键订正**：
+
+- “五类 plan 已有”是真资产；后续任务不得再从零设计第五套万能 plan。
+- “emitter 全 plan.mechanism-driven、格式名只剩 provenance”不是 HEAD 事实：
+  codebook/K-quant/grid/ternary 仍各有 emitter-local `decode_model → typed leaf enum`
+  `StringSwitch`，共 4 段；provider 也仍在 emission 内调用。
+- 五个 provider 的 `minimumVLEN` 都显式 `(void)`，五个 caller 都传字面量 128。
+  Grid/Ternary 可记 honest-null；Codebook 的真实 c-driven closed form 已存在却未接线，
+  由 A3 承接；禁止把所有 family 都强制制造 c 分叉。
+- plan 的 g mutation tests 很强，但它们证明的是 `defined→consumed→emitted`，不能
+  代替 `selected stamped→verified→mechanical emit`。
+
+### 非 dequant 决定
+
+| decision | 当前已成立 | 当前未成立 | 后续 owner |
+|---|---|---|---|
+| repack accumulator LMUL | c 真消费、register-pressure legality、measured/default 分叉、18 emitter fail-closed reads | selector/typed 输入/reason stamp 在 18 builder 重复；winner 表手工镜像 | A2 + A5 / ISSUE-117 |
+| SP4 | bounded variants、两阶段 selector、selected stamp、measured/prior tests | legal set 纳入无 emitter body 的 min-fold Plain；缺 stamp→S6；verifier 不认识 stamp | A4 / ISSUE-125 |
+| loop-order | stride prior、measurement hit、selected stamp | sibling 把 col_outer/prior override 回 row_outer；q4 缺 stamp重算；verifier 不认识 stamp | A4 / ISSUE-125（连 ISSUE-034） |
+
+### 原子退役清单
+
+1. A2：一个 dequant slice + accumulator-LMUL slice 全 caller 迁入 typed decision
+   contract；当笔删除旧 overload/direct caller/adapter，不留兼容入口。
+2. A3：让 codebook 的 `getRVVCodebookGatherAnchorLMUL` 真决定 plan/legal set，删除
+   declared slice 的 literal-128/ignored seam；当前合法输出保持 byte-exact。
+3. A4：selected result 改为 required/verified；关闭 Grid 双头、SP4 假 legal candidate、
+   missing-stamp 默认与 loop selected→realized override/recompute。
+4. A5：B1 measurement control plane 生成 qualified winner view，取代
+   `kRepackMeasuredM1FasterMeasurements` 与 local `kSeeded[]`。
+5. A8：按 typed-g/derived/structural/dead/unresolved 分类收敛 emitter baked g；只迁
+   真 g，结构常量不包装成假参数。
+
+以上对象均已绑定 Trellis task、ISSUE 与 killing test；账本不再充当私设问题清单。
 
 ## 五 · 每步纪律（三闸·不可绕）
 

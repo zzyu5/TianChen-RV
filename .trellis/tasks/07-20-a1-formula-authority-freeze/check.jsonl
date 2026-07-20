@@ -2,3 +2,6 @@
 {"file": ".trellis/spec/issues/index.md", "reason": "相关issue和历史资产"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "防止重做五类plan"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}
+{"file": "experiments/active/formula-layer-migration/authority-matrix.v1.json", "reason": "27 source census + 9 test contracts 全匹配"}
+{"file": "test/Scripts/check-formula-authority-matrix.py", "reason": "decision 删除、source count 漂移、task 解绑 mutation 均转红"}
+{"file": ".trellis/spec/issues/index.md", "reason": "ISSUE-001..125 零缺号零重号，机算状态分布匹配"}

@@ -5,10 +5,14 @@
 > refresh; consistency is gated by `tools/gates/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**113 cells** (active=15, sealed=10, archive=88).
+**119 cells** (active=21, sealed=10, archive=88).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
+| active | `b-block2-iq2xs-floor` | unknown | — | 0 | — | — |
+| active | `b-block2-tq10-vecdot` | unknown | — | 0 | — | — |
+| active | `block2-p2-iq2-vecdot` | unknown | — | 0 | — | — |
+| active | `block2-p3-tq10-deployed-vecdot` | unknown | — | 0 | — | — |
 | active | `L1prime-q6k-gemm-roll-G1` | unknown | — | 0 | — | — |
 | active | `batch1-kquant-rvv` | unknown | — | 0 | — | — |
 | active | `m-sweep-batch-regime` | unknown | — | 0 | — | — |
@@ -16,7 +20,9 @@
 | active | `g8-stage1-clang-env` | unknown | — | 0 | — | — |
 | active | `deq-axis-reparse` | unknown | — | 0 | — | — |
 | active | `k1` | unknown | — | 0 | — | — |
+| active | `k-vecdot-harness` | unknown | — | 0 | — | — |
 | active | `t3p-pattern-ablation` | unknown | — | 1 | — | — |
+| active | `formula-layer-migration` | active | A-line modular formula consumption and authority convergence | 4 | — | Durable architecture evidence for the real g/c/ω → provider → legality → selection → stamp → consumer chains. It records both working asset… |
 | active | `cert-status` | active | DEBT-CERT + DEBT-VIS (construction-manifest certification audit) | 30 | `repack-probes/iq2_s-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_s-repack-gevm-cert-probe.mlir`, `repack-probes/iq2_xs-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_xs-repack-gevm-cert-probe.mlir`, `repack-probes/iq2_xxs-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_xxs-repack-gevm-cert-probe.mlir`, `repack-probes/iq4_nl-repack-gemm-cert-probe.mlir`, `repack-probes/iq4_nl-repack-gevm-cert-probe.mlir`, `repack-probes/iq4_xs-repack-gemm-cert-probe.mlir`, `repack-probes/iq4_xs-repack-gevm-cert-probe.mlir`, `repack-probes/mxfp4-repack-gemm-cert-probe.mlir`, `repack-probes/mxfp4-repack-gevm-cert-probe.mlir`, `repack-probes/q2_K-repack-gemm-cert-probe.mlir`, `repack-probes/q2_K-repack-gevm-cert-probe.mlir`, `repack-probes/q3_K-repack-gemm-cert-probe.mlir`, `repack-probes/q3_K-repack-gevm-cert-probe.mlir`, `repack-probes/q4_K-repack-gemm-cert-probe.mlir`, `repack-probes/q4_K-repack-gevm-cert-probe.mlir`, `repack-probes/q5_K-repack-gemm-cert-probe.mlir`, `repack-probes/q5_K-repack-gevm-cert-probe.mlir`, `repack-probes/q6_K-repack-gemm-cert-probe.mlir`, `repack-probes/q6_K-repack-gevm-cert-probe.mlir`, `repack-probes/q8_0-repack-gemm-cert-probe.mlir`, `repack-probes/q8_0-repack-gevm-cert-probe.mlir`, `repack-probes/tq1_0-repack-gemm-cert-probe.mlir`, `repack-probes/tq1_0-repack-gevm-cert-probe.mlir`, `repack-probes/tq2_0-repack-gemm-cert-probe.mlir`, `repack-probes/tq2_0-repack-gevm-cert-probe.mlir` | labeled-vs-certified C_construct account + RED per-cell cause roster + repair queue |
 | active | `vlen-adapt (VLEN-ADAPT M0 静态账 · Win-K1-VLEN 承重证据)` | active | VLEN-ADAPT / M0 — VLEN256-native vl=16 emit 的寄存器账 + 半宽根因定位 + M1 可行性判定 | 1 | — | 纯静态账 (objdump 类比 / emitter 源 / plugin 源 / lit gate / RVV 寄存器语义) 判定 vl=16 不越 |
 | active | `result-tables` | active | cross-cutting result tables | 12 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
