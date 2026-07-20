@@ -136,7 +136,10 @@
 **审计后进度（2026-07-20·逐刀落地·每刀 byte-exact + 判决 + 全套 0 new）**：
 - **能力层 ②③ ✓**（`54e9cb483`·cap-complete）：VLEN + version 两轴管道全收敛（前门直调都 0）· vreg_count 正名（硬编 32→in-IR 能力事实·8 constexpr 收敛·判决 2/2）。剩 elen/cacheline/sew_set(typed)/per-board 实例。
 - **公式层刀① 扩覆盖 1/5→3/5**：CodebookGatherPlan（`0beb9cb71`·codebook 家 mxfp4/nvfp4/iq4_nl/iq4_xs·byte-exact 4/4）+ KQuantScaleMinPlan（`99621a7bb`·q2/3/4/5/6_K·byte-exact genuine 5/5·plan 承重 dmin=scale+2 派生铁证）。**已进 plan 家 = 3/5**（Nibble/Codebook/KQuant）。
-- **剩**：刀①续 grid（IQ）+ ternary → 5/5 · 刀② 合并双头家（GridDecodePlan 收编·拆 grid+ternary lumped·恢复 [K-10] 5 分立）· 刀③ c 真驱动（codebook/kquant 的 minVLEN seam 已就位·一行 provider 改·plan 轴第一个真 c-驱动）。
+- **公式层刀①②达成 → dequant-row head 5/5**（`95dc34a88`·GridLookupPlan + TernaryDecodePlan·byte-exact 9/9·[K-10] 5 分立·**零残留 decodeModel== grid/ternary 链**·合并双头家 dequant-row head DONE）。**5 mechanism 全进 plan**（Nibble/Codebook/KQuant/GridLookup/TernaryDecode）·emitter 全 plan.mechanism-driven·格式名降 provenance。
+- **剩（下一程·非本收尾）**：刀③ **c 真驱动**（codebook/kquant/grid 的 minVLEN seam 已就位·一行 provider 改·plan 轴第一个真 c-驱动·codebook :118 measured-gate 需板）· GridDecodePlan registry 的 block-dot/verifier head 双头残留（ISSUE-122 defer）· 能力层 elen/cacheline/sew_set(typed)/per-board 实例。
+
+> **★2026-07-20 收尾态**：能力层 ②③ ✓（VLEN+version 管道·vreg_count 正名）· 公式层 dequant-row head **1/5→5/5**（5 家全进 plan·byte-exact·plan 承重判决）。两层从审计的「原型/首轴」推进到「dequant-row 侧模块化中间状态铺满 + 能力管道全收敛」。**离"真建立"剩的路已具名**（c 驱动 + per-board + 能力表结构字段 + block-dot head 双头）·每步可 falsify。
 
 ## 五 · 每步纪律（三闸·不可绕）
 
