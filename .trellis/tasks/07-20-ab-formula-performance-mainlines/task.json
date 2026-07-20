@@ -1,0 +1,29 @@
+{
+  "id": "ab-formula-performance-mainlines",
+  "name": "ab-formula-performance-mainlines",
+  "title": "A/B 双主线：公式层重构与真实性能推进",
+  "description": "A/B 双主线总编排：A 线公式层真实消费与模块化重构，B 线真实性能推进与证据闭环。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": "cross-layer",
+  "package": null,
+  "priority": "P1",
+  "creator": "claude",
+  "assignee": "claude",
+  "createdAt": "2026-07-20",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "refactor/full-refactor-m1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-20-a-formula-consumption-refactor",
+    "07-20-b-real-performance-progress"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "单向authority和stamping"}
+{"file": ".trellis/spec/architecture/插件协议.md", "reason": "body realization与emitter边界"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "mirror authority和fail closed"}
+{"file": ".trellis/spec/canon/正确性与证书.md", "reason": "verifier负控"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "双头authority审计"}

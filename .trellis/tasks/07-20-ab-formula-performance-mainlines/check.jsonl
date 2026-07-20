@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "检查双主线范围和authority"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "检查架构与证据硬边界"}
+{"file": ".trellis/spec/issues/index.md", "reason": "检查issue映射和已完成资产"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/task-structure-audit.md", "reason": "检查任务层次和依赖"}

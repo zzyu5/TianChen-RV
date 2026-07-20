@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "公式层工程正本"}
+{"file": ".trellis/spec/architecture/系统定位与边界.md", "reason": "g c解耦与工位边界"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "typed authority硬规则"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线审计与DAG"}

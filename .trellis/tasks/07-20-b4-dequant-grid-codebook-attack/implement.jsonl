@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/measurement/index.md", "reason": "official measurement"}
+{"file": ".trellis/spec/canon/测量判据.md", "reason": "性能资格"}
+{"file": ".trellis/spec/canon/对手与档位.md", "reason": "部署对手和墙型"}
+{"file": ".trellis/spec/measurement/正确性门.md", "reason": "dequant correctness"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "grid codebook代表切片"}

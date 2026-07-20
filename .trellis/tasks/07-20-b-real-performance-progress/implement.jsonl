@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/measurement/index.md", "reason": "正式测量总规则"}
+{"file": ".trellis/spec/measurement/流水线与行schema.md", "reason": "runner和四元行键"}
+{"file": ".trellis/spec/canon/测量判据.md", "reason": "性能验收与成色"}
+{"file": ".trellis/spec/canon/对手与档位.md", "reason": "deployed与强对手规则"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "B线审计与DAG"}

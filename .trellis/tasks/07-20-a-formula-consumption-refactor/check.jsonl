@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/architecture/index.md", "reason": "架构层质量检查"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "单向authority检查"}
+{"file": ".trellis/spec/issues/index.md", "reason": "issue与完成资产核对"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线任务去重"}

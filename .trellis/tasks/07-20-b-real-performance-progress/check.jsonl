@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/measurement/index.md", "reason": "测量层质量检查"}
+{"file": ".trellis/spec/evidence/index.md", "reason": "证据解释与路径检查"}
+{"file": ".trellis/spec/issues/index.md", "reason": "性能issue和已完成资产"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "B线去重与边界"}

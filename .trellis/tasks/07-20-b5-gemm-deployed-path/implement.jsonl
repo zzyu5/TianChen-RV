@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/measurement/index.md", "reason": "official measurement"}
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "candidate legality selection"}
+{"file": ".trellis/spec/canon/对手与档位.md", "reason": "deployed与strong opponent"}
+{"file": ".trellis/spec/canon/测量判据.md", "reason": "shape与性能验收"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "GEMM真实路径任务边界"}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/measurement/流水线与行schema.md", "reason": "runner和harness contract"}
+{"file": ".trellis/spec/measurement/正确性门.md", "reason": "ZERO MODEL和反空心"}
+{"file": ".trellis/spec/measurement/板册.md", "reason": "rvv k1 scalar板边界"}
+{"file": ".trellis/spec/measurement/对手法.md", "reason": "对手身份探针"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "cell coverage真实缺口"}

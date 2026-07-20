@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "双主线共同项目边界与 authority"}
+{"file": ".trellis/spec/canon/暂定-科研主张.md", "reason": "两柱六律和C1C2C3边界"}
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "A线公式与选择工程正本"}
+{"file": ".trellis/spec/measurement/index.md", "reason": "B线正式测量入口与边界"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线实际缺口审计"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "B线实际资产与缺口审计"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/task-structure-audit.md", "reason": "父子任务DAG与去重规则"}

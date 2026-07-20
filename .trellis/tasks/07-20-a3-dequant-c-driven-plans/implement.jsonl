@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "g c公式和合法域"}
+{"file": ".trellis/spec/architecture/能力模型.md", "reason": "VLEN SEW vreg事实"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "真实消费与honest null"}
+{"file": ".trellis/spec/canon/非目标.md", "reason": "禁止假capability旋钮"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "codebook grid高值切片"}

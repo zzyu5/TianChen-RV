@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "最小decision contract正本"}
+{"file": ".trellis/spec/architecture/插件协议.md", "reason": "plugin local接口边界"}
+{"file": ".trellis/spec/architecture/能力模型.md", "reason": "typed capability结构"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "core与typed body硬边界"}
+{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线DAG和非目标"}
