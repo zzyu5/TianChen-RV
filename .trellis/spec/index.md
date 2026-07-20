@@ -1,118 +1,182 @@
-# Weft-RV MLIR Trellis Specs —— 根地图
+# Weft-RV Durable Specs —— 根地图
 
-`.trellis/spec/` 是 Weft-RV 的**长期规范（durable spec）**：约束设计、代码、实验解释和 agent 接手方式。**Trellis 是本项目唯一权威**，承载队列 / 任务 / spec / issues / 报告交付。
+.trellis/spec 保存 Weft-RV 的稳定设计契约、测量规则、证据解释和问题治理。它是项目规范入口，但不是 GPT 的强制工作流或开工许可系统。
 
-规范只描述**稳定契约**。当前进度、stage 编号、measurement 状态、campaign / gate 记录、journal / session 引用——这些都**不是 spec**，属于 `.trellis/tasks/`、`.trellis/workspace/` journal、`artifacts/`。
+## 权威模型
 
-这些 spec 是给 AI agent 读的**判断依据**，不是状态机或门禁。按原则判断、始终对齐主干；不要把条目当成机械打勾的 gate，spec 也不写"做完 X 才能做 Y"这类流程闸门。Spec 给方向和边界，怎么走由 agent 判断。
+不同对象有不同 authority：
 
-**本树的三条通用纪律**（各层重申，此处声明其存在）：
+| 对象 | 主要 authority |
+|---|---|
+| 当前用户范围与优先级 | 用户最新明确指令 |
+| 实现行为 | 当前代码与测试 |
+| 稳定设计契约 | canon 与 architecture |
+| 测量事实 | experiments/master、experiments/runs、experiments/runs.log |
+| 证据解释与路径 | evidence |
+| 已知问题 | issues |
+| 多阶段计划与恢复上下文 | 可选 Trellis task 或当前对话计划 |
 
-1. **只写现行法** —— 零历史叙事、零编号考古、零"某年某月某人裁定"。教训**压缩成规则本身**。
-2. **禁副本** —— 一条规则只有一个家。两处写同一条 = 缺陷；合并留一 + 链接。
-3. **跨文件引用禁行号** —— 一律用**相对链接 + 标题锚**或**条目编号**（`ISSUE-067` / `[K-5]` / `I3`）。行号会随改写腐坏成**假引文**；假引文比死链更坏——死链会报错，假引文会被信。
+task、旧 goal、旧简报和历史报告不能覆盖当前代码事实，也不能覆盖用户最新范围。
+
+## 三条文档纪律
+
+1. **现行规则优先**：spec 正文写当前契约，不把历史战役过程混入规则。
+2. **单一住址**：同一规则或事实只有一个主要 authority；其他位置链接引用。
+3. **稳定引用**：跨文件使用相对链接、标题锚或条目编号，不使用易漂移行号。
 
 ## 项目定位
 
-Weft-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行层软件栈之参考模板（reference template）**——为碎片化硬件生态（RISC-V 是极端案例：VLEN 任意、扩展组合爆炸、厂商专有单元各异）给出一个可复制的**栈组织方式**（接入成本可预期 + 正确性机检 + 选择可归因），而不是又一个手写库。**RISC-V 量化 LLM 推理是该模板的首个高性能实例**：真硅上打赢手写出货物是模板质量的证明书，不是定位本身（主角 = 可扩展性；性能 = 证据）。
+Weft-RV 是 high-level MLIR 之后的、能力驱动的可扩展 execution-layer 参考模板。它以 RISC-V ggml/llama.cpp 风格量化推理 kernel 为当前负载域，目标是把碎片化的格式、ISA、板卡、工具链与性能知识组织成可扩展、可验证、可部署的系统。
 
-**模板 ≠ 通用编译器**：输入侧止于 kernel 级接口，负载域锁 ggml 型量化推理 kernel（[NG-2]）。
+它不是：
 
-> **定位红线的条文正本**住 [canon · 暂定-科研主张 T-1](./canon/暂定-科研主张.md)（[G-0] 终极目标 / [G-2] 定位红线，原样）。本节只作导览，判断以该处为准。
+- 通用图编译器；
+- 新的高层 tensor/tile IR；
+- 每个硬件一套互不相关 backend；
+- descriptor 或 metadata 驱动的代码模板系统；
+- 通用在线 autotuner；
+- 已解决动态 sparse/MoE 的 runtime policy。
 
-作为软件栈，它是 high-level MLIR 之后的能力驱动统一 RISC-V 执行层：把 RISC-V 的目标能力（ISA 扩展、VLEN/uarch、toolchain、runtime/offload）建成 first-class、可查询、可验证、可参与 pass 决策的 MLIR 对象，并用这些能力对象：
+稳定范围见 [architecture · 系统定位与边界](./architecture/系统定位与边界.md) 和 [canon · 非目标](./canon/非目标.md)。
 
-1. 驱动 **plugin-local** 的 variant 生成 / 合法性 / 选择 / dispatch —— 驯服 RISC-V 扩展的组合异构性；
-2. 参数化一个 **resource-aware 的 tuning / realization 层（Gearbox）** —— 把选中的 extension body 变成调优过的可执行 body。
+## 理想论文与项目：两柱不变
 
-它**不是**新的高层 tensor/tile IR，也**不是**"一个硬件一个互不相关 backend dialect"的集合。RVV 是第一个完整 family 与硬件证明；IME / offload / 未来 vendor 扩展走**同一条 common 路径**。
+### 柱一：能力驱动、类型化、可复用的扩展模板
 
-规范上的 dataflow spine 与机器全图见 [architecture · 系统定位与边界](./architecture/系统定位与边界.md)；跨文件复用的硬规则见 [canon · 核心不变量](./canon/核心不变量.md)，本树其他文件**引用**它而不重述。
+新格式、新能力、新机制、新后端和新知识应被局部 typed owner 吸收：
 
-## Novelty（论文主张 — 写 spec / 代码前必须对齐）
+- 格式/机制事实进入 g；
+- 目标能力进入 c；
+- 有限静态场景进入 ω；
+- 新 family 通过插件五件套和 typed body 接入；
+- core/common 不按 family 名分支；
+- 新板不要求逐格式修改 emitter。
 
-> **【暂定 · 随论文侧更新 · 非定论】** 本节三贡献表与下方 bridge 属**科研表述**，重构中、随论文侧更新。**agent 只做降级与标注，不得发明、替换或"改进"任何科研主张。**
->
-> **条文全文正本**（[G-0]/[G-2]/[C1-\*]/[C2-\*]/[C3-\*]/[C1-RW] 逐条原样 + 摘编标注）住 [canon · 暂定-科研主张](./canon/暂定-科研主张.md)。本表是**导览与证据门索引**；两处冲突时以 canon 的原样条文为准，并把冲突登记进 [issues](./issues/index.md)。
->
-> **本节不得据以判定胜负或数字可否上报**——那属 [canon](./canon/index.md) 其余文件的定法。
+### 柱二：高性能知识的可执行利用
 
-论文主张按科研目标总纲 v2 的**三条贡献 C1/C2/C3′ + 成熟编译器**组织；旧的 N1/N2/N3 不作废，而是**下沉为机制轴的构件**（映射见下方 bridge，本树其他文件与 CLAUDE.md 仍按 N1/N2/N3 引用，不推倒）。
+解析知识必须真实参与：
 
-**模板叙事**：三贡献是同一"可扩展软件栈参考模板"的三个面——**C1（头牌）= 模板协议本体**、**C2 = 模板经济学**、**C3′ = 模板产出质量**；性能数字是 C3′ 模板产出质量的**证词**，不另立贡献。编号与全部数值不变。
+- typed candidate/plan 构造；
+- legality 与资源边界；
+- capability/context prior；
+- 有限合法候选中的选择；
+- typed stamping 与 mechanical emission；
+- 负结果、fallback 和适用域。
 
-| # | 主张（终态） | 成立所需证据（缺证据就只是工程，不是贡献） |
-|---|---|---|
-| **C1**（头牌） | **模板协议本体 · 合取机制的存在性 → 可复制扩展接入协议**：一份带关系的能力 schema + 插件协议（接入五件套）+ falsifier 机检 = 可复制的扩展接入协议，同时驱动编译期变体生成与 fail-closed 运行期（装载期解析形态起步）调度守卫，**跨计算范式（向量 SIMD → 整矩阵 MAC）且跨独立家族（向量缺席的标量家族）**原封复用；接入升级为外部贡献者可循的**协议** | 零家族分支由 falsifier 组 [F-1..F-6]（含独立性判据 [canon · 能力模型与插件协议](./canon/能力模型与插件协议.md) [F-6]、操作门 [F-2′]）机检并 CI 常绿；schema.def 自第二家族起未被接入触及（[F-2′] 逐 PR 审计）；≥3 家族下证据阶梯成立 |
-| **C2** | **模板经济学 · 泛化代价 → 边际成本规律**：零分支/零核心改动不变量下，逐家族接入代价形成**边际递减曲线**，并给出结构解释（成本住模式/谓词/测试哪一处）；第二/第三个异质家族（IME/标量/zvfh）接入多顺 = 模板故事最强证据 | 成本 ledger 脚本自动生成且首点可复算（cloc、测试单列）；≥3 数据点成曲线；术语按 [L-2] integrated/independent-attached；对照锚在位。**诚实标注：曲线仍缺（landed X-SCALAR 把 1 点变 ~2 点 / 需 ≥3 点）**——"第三家族小"正是主张本身（边际递减），不是弱点 |
-| **C3′** | **模板产出质量 · 能力键控优化模式库 → 带实测与迁移的模板**：模式以能力谓词表达、由机制选出（归因日志）、跨 VLEN/微结构**换键不改条目**地迁移，**正例负例边界齐备、迁移可预测**，对 tuned 框架内核**分相**报告增量 | 注册表是**数据文件**（[PAT-1..3]）；迁移判据双板 diff=0 CI 常绿；对框架自身同-ISA kernel 实测胜出/持平（[canon · 成色与措辞](./canon/成色与措辞.md) [L-6] vs-framework，过 [PERF-1]）；scalar/naive 只作内部 sanity，**绝不**作贡献倍数。**性能数字在此陈列为模板质量证词，不另立贡献** |
-| **成熟编译器** | 覆盖率与正确性门槛达标，成为本负载域内**真正可用的编译器** | 六态阶梯（[canon · 覆盖状态机与选择归因](./canon/覆盖状态机与选择归因.md) [K-4]）自动读出、四覆盖率指标 + 燃减曲线进 CI；正确性门（字节精确 / ULP 上界 / VLEN 翻转 / objdump golden）全绿。**成熟度进 CI，不进 slides**（见双轴组织原则） |
+qualified measurement 可以在解析合法域内修正排序，但不能创造 candidate、扩大合法域或定义 compute。runtime data profile 只有在 observer、开销、策略和真实 workload 都存在时才进入；当前属于 future。
 
-> **本表读法（标注，非改写）**：
-> - 表内引用 `[PERF-1]` **不带门数**（门体 = 十项，**唯一定义处** = [canon · 测量判据](./canon/测量判据.md) §一.2；`ISSUE-071` 已裁）。
-> - 表内 [L-6]/[K-4]/[F-6] 的链接原指 `architecture/core-invariants.md`，**已改指各自 canon 家**：`ISSUE-070` 已裁（2026-07-17 用户裁）—— I1–I9 的唯一权威本 = [canon · 核心不变量](./canon/核心不变量.md)，原双本载体已归档 `_attic/`，其路径留指针。**三贡献主张措辞未改，只改链接与去掉门数。**
+两柱、六律和贡献组织的当前研究表述见 [canon · 暂定科研主张](./canon/暂定-科研主张.md)。可执行公式/选择契约的唯一工程正本见 [architecture · 变体流水线](./architecture/变体流水线.md)。
 
-### 双轴组织原则（引擎轴 × 证据轴）
+## 软件主链
 
-**条文正本住 [canon · 暂定-科研主张 T-6](./canon/暂定-科研主张.md)**（[G-1] 引擎轴 / 证据轴 / 裁定「成熟度指标进 CI，不进 slides」，原样）。**本处不重抄**（禁副本）。
+~~~text
+kernel-level input
+  → plugin-local typed facts g + bounded context ω
+  → canonical capability c
+  → plugin-local formula / decision provider
+      · typed candidate or plan
+      · legality/resource bounds
+      · analytic prior
+      · optional measurement key
+  → bounded selector
+      · qualified winner if still legal
+      · otherwise analytic prior or named fallback
+  → selected typed body
+  → plugin route provider
+  → common EmitC / target artifact
+  → real hardware evidence when claimed
+~~~
 
-### N1/N2/N3 ↔ C1/C2/C3′ bridge（本文件桥接，其他文件仍按 N 号引用）
+这个主链是对现有 Construction、Selection、Schedule、BodyRealization 和 EmitC 部件的责任整理，不要求建立大一统 Formula IR，也不要求八个新的物理子系统。
 
-**本节是全项目唯一的 bridge 正本。** 任何其他文件（含 [canon · 暂定-科研主张 T-7](./canon/暂定-科研主张.md)）只链接过来，**不得重抄，也不得另称"唯一 bridge"**。
+## 六个 spec layer
 
-- **C1 = N1 ∧ N2 的合取存在性证据**：N1（能力异构性作 first-class IR，是 substrate 而非独立卖点）与 N2（零-core-branch plugin 泛化，用第二 family 证明）在**同一 schema** 上合取复用，即 C1 的"合取机制存在性 → 可复制协议"。
-- **C2 = 泛化代价新轴**：在 N2 的零核心改动不变量之上，度量**逐家族接入的边际成本**，把工程不变量升级为经验规律。
-- **C3′ ⊇ N3 的升级**：N3（capability/resource-aware 跨 family tune）升级为**能力键控模式库**——不止选变体，而是把优化沉淀为带实测与迁移判据的一等注册表对象。
+| Layer | 回答什么 |
+|---|---|
+| [canon](./canon/index.md) | 核心不变量、非目标、性能措辞、正确性与暂定科研主张 |
+| [architecture](./architecture/index.md) | 系统工位、typed facts/capability、插件、公式/选择、body 与 emission |
+| [measurement](./measurement/index.md) | runner、板、行键、对手、正确性、计时和写入目的地 |
+| [evidence](./evidence/index.md) | 主张或边界由哪些工件支持、如何解释 |
+| [governance](./governance/index.md) | 用户范围、spec/task/issues 住址和可选工作方式 |
+| [issues](./issues/index.md) | 稳定编号的问题、边界和待施工项 |
 
-> "execution-variant 容器""plugin 化"本身**不是** novelty —— MLIR 的 dialect + interface 已提供。不要把架构选择当贡献卖点。novelty 只在 C1/C2/C3′，且都以证据为准；成熟编译器是工程面、进 CI 不作 slide 卖点。
->
-> **N1 是 substrate，不是独立卖点**：把能力建成可查询对象本身 ≈ LLVM `-mattr`/TTI 已做的工程；其 novelty **只在**它是跨 family 复用的同一事实源——由 N2 的第二 family 证明（→ C1）、由 N3 的 tune 兑现（→ C3′）。抽掉跨 family 复用就塌回纯工程。capability 驱动的 LMUL/形状选择是 enumerate→prune→select→stamp（一个 stamping pass 写 attr），**不是 IR-rewriting transform pass**，别这么描述。
+## 推荐阅读顺序
 
-（bridge 之外另有一条不住本文件的规则：**N1/N2/N3 是命名的机制子主张，不得再当三个并列贡献**——住 [canon · 暂定-科研主张 T-7](./canon/暂定-科研主张.md)。）
+普通修改：
 
-## Spec Layers（六层）
+1. 根 README；
+2. 本文件；
+3. [canon · 核心不变量](./canon/核心不变量.md) 与 [非目标](./canon/非目标.md)；
+4. 与修改相关的一个 architecture/canon 文件；
+5. 需要测量时再读 measurement；
+6. 需要查债务时再读 issues。
 
-| Layer | 回答什么问题 | 什么时候读 |
-|---|---|---|
-| [canon](./canon/index.md) | **法源**：已定法条与终裁的唯一合订——某主张能不能立、某数字能不能报、某格算不算赢；含 [核心不变量](./canon/核心不变量.md) I1–I9 与【暂定】科研主张 | **必读**。落任何判断前 |
-| [measurement](./measurement/index.md) | **测量法**：什么算测量、在哪块板测、用哪条流水线、跟谁比、结果写到哪、哪些检查作数 | 要跑出任何数字前（**runner 未建**，见下） |
-| [architecture](./architecture/index.md) | **结构定法**：这台机器由哪些工位组成、每个工位今天在代码里**实际是什么**、设计上要成为什么、哪些结构是禁区 | 要动代码 / 动 IR / 加家族前 |
-| [evidence](./evidence/index.md) | **证据地图**：某条主张靠什么工件撑着、工件在哪、谁生产它、现状如何；拿到结果怎么解释、什么解释是禁的 | 要引工件 / 写论文素材 / 解释一个结果时 |
-| [governance](./governance/index.md) | **怎么做事**：决策权限卡（自决 / 必问 / 禁停 / 灰区）、延后裁决制、队列与简报、Trellis 卫生、思维准则 | **必读**。开工前 |
-| [issues](./issues/index.md) | **唯一问题登记簿**：全部已知缺口、待裁事项、被证伪的在册结论、未清欠账，以 `ISSUE-NNN` 在此**且仅在此**登记 | **必读**。开工前查号 + 收工前登记 |
+无需为了局部修改读取全部 task、事故档案或历史 campaign。
 
-**六层之外：没有了。** `.trellis/spec/` 顶层**只有本文 + 上表六个目录**。旧层目录（`capability-model/` · `core-dialect/` · `plugin-protocol/` · `extension-plugins/` · `variant-pipeline/` · `lowering-runtime/` · `implementation-stack/` · `testing/` · `validation/` · `guides/`）与平铺 `SPEC-*.md` / `ISSUES.md` **共 41 份，已于 2026-07-17 整体移入 `_attic/`**（用户明令：「记得最后要清理干净，而不是留下一堆指路牌」「总之要是新状态」）。移入前它们已全部化为指路牌（条文早已并入上表六层），且**全仓活引用已逐处改锚** ⟹ 今天**零指路牌、零悬空**。原件按原路径结构完整保留在 `(归档·git show pre-restructure-snapshot:.trellis/spec/`（git-ignored) 归档区 · 与归档前字节相同 · 逐条原因见 [`_attic/ATTIC_INDEX.md`](../../_attic/ATTIC_INDEX.md) §三.1）。
+## task 的使用
 
-> **谓词（可复跑）**：
-> ```bash
-> cd .trellis/spec
-> ls -1 | wc -l                                                                    # → 7（index.md + 六目录）
-> ls -d canon measurement architecture evidence governance issues 2>/dev/null | wc -l   # → 6（六层俱在）
-> ls -d capability-model core-dialect plugin-protocol extension-plugins variant-pipeline \
->       lowering-runtime implementation-stack testing validation guides \
->       SPEC-*.md ISSUES.md 2>/dev/null | wc -l                                    # → 0（旧世界一份不剩）
-> ```
-> 第三条 = 0 ⟺ 旧层与平铺件**全部清空**（不是"变成指路牌"，是**不在树里**）。**这是全量谓词，不是抽样**——若将来有人把旧层塞回来，它会立刻 > 0。
+Trellis task 是可选规划工具。
 
-**没有"旧层"可写了**：需要改规则，去上表六层里的目标文件；需要查旧条文的原文，去 `(归档·git show pre-restructure-snapshot:.trellis/spec/<原路径>`（**只读考古用，不是可引用的现行法**）。)
-本次移入是**执行用户明令**，**不是** agent 自裁 [ISSUE-070](./issues/spec树与治理.md)（canon 级 · 待裁）；该 issue 条文本身未改，其"归并 / 归档"半的**收口措辞仍挂账待裁**。
+推荐使用：
 
-## 新 agent 上岗顺序
+- 多阶段或跨多日；
+- 多 agent/worktree；
+- 跨层接口与大范围迁移；
+- 正式实验 campaign；
+- 用户明确要求任务树。
 
-**只读 `.trellis/` 即可上岗**，按此序：
+不强制使用：
 
-1. **本文件**（根地图）—— 项目是什么、六层各管什么、bridge。
-2. **[governance/index.md](./governance/index.md)** → [决策权限卡](./governance/决策权限卡.md)。**先知道什么能自决、什么必问、什么禁停**，再动手。要点：判为「必问」= **登记 + 采保守默认 + 续推**；**停下等裁决 = 违例**。
-3. **[canon/index.md](./canon/index.md)** → [核心不变量](./canon/核心不变量.md)（I1–I9）+ [非目标](./canon/非目标.md)（[NG-1..NG-8]）。这是**法源**：判断的依据全在此层。
-4. **[issues/index.md](./issues/index.md)** 的[全册索引](./issues/index.md)。**扫一遍**——你要碰的东西大概率已经有号了（**禁重复立条**），而「待裁」条目的**保守默认就是现行法**。
-5. **按任务性质**取其一（不必全读）：
-   - 要动代码 / IR / 家族 → **[architecture/index.md](./architecture/index.md)**（先读其「读法口径」四条：【现状】/【目标】/【定法】禁混写）。
-   - 要跑数字 → **[measurement/index.md](./measurement/index.md)**（**本层未授权的测量动作即非法动作**）。
-   - 要引工件 / 解释结果 → **[evidence/index.md](./evidence/index.md)**。
-6. **[governance/思维准则.md](./governance/思维准则.md)** —— 选下一步做什么时的单一尺子 = **distance to C1/C2/C3′**，别挑相邻枝节。
+- 单阶段、范围明确的文档/spec 更新；
+- 小型可逆代码修改；
+- 只读诊断；
+- 当前对话计划已经足够。
 
-**何时可动手**：走完 1–4（+ 5 中相关那一层）→ 该层 **Pre-Development Checklist** 逐条过一遍 → **挂 Trellis 任务并预注册范围**（一切测量 / 施工必须挂任务，见 [trellis 卫生](./governance/trellis卫生.md)）→ 动手。收工走该层 **Quality Check**。
+详细规则见 [governance](./governance/index.md)。
 
-**测量的现状（如实）**：measurement 层立 `bench <格> --board <板>` 为**唯一合法测量动作**，但**该 runner 不存在**，其钉死的三处目的地（`experiments/master/` · `experiments/runs/` · `experiments/runs.log`）也均不存在——见 [ISSUE-067](./issues/门与工具.md)（可复跑谓词在条目内）。现役表在 `experiments/active/result-tables/`（[ISSUE-073](./issues/spec树与治理.md)）。**⟹ 今天没有合法的正式测量通道**；测量重启前 runner 是唯一硬前置。
+## 测量入口
 
-**工作流**：[`.trellis/workflow.md`](../workflow.md)（task 生命周期、spec 注入、check loop）。
+官方 runner：
+
+~~~text
+tools/bench/bench <op> <format> --board <board> --engine <engine> --regime <regime>
+~~~
+
+稳定目的地：
+
+- experiments/master/
+- experiments/runs/<run-id>/
+- experiments/runs.log
+
+runner 必须：
+
+- 歧义行键 fail-closed；
+- 正确性先于计时；
+- 只调用 tools/bench/cells 下声明的 cell harness；
+- unsupported cell 具名失败；
+- 所有持久写入通过目的地 guard。
+
+自检入口：
+
+~~~text
+tools/bench/bench --self-test
+~~~
+
+本文件不写当前 PASS 数；当前输出以命令实跑为准。
+
+## 当前工程推进方向
+
+1. 收拢五类 dequant plan、LMUL、SP4 和 loop-order 的 decision authority。
+2. 让 g/c/ω 只在 plugin-local formula/selection 边界相遇。
+3. 清除 selector 与 emitter 的二次决策和 GridLookup 双 authority。
+4. 统一 measurement schema、qualification、compiled winner view。
+5. 补 ELEN、typed SEW、cacheline、IME tile 和 per-board capability。
+6. 补剩余 strong construction，特别是 GEMM。
+7. 让第二 extension family 使用同一最小 formula/decision contract。
+8. 持续保护 deployed ggml，并提高少量代表性强对手和 e2e 成色。
+
+当前进度与数字不写入根 spec；以代码、formula migration ledger、master/result tables 和 issues 为准。
+
+## 入口文件
+
+根 README 与本文件共同构成项目入口。根 AGENTS.md 已退役，避免维护第三份重复、易漂移的代理说明。

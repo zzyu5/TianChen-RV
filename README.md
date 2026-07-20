@@ -1,108 +1,229 @@
 # Weft-RV MLIR
 
-Weft-RV is a **reference template for a capability-driven, extensible MLIR execution-layer software stack** — with **RISC-V quantized LLM inference as its first high-performance instance**. The headline is the *extensibility*: a reproducible way to organize the stack so that admission cost is predictable, correctness is machine-checked, and selection is attributable. On-silicon wins over hand-written shipped kernels are the *proof of the template's quality, not the goal itself*.
+Weft-RV is a capability-driven, extensible MLIR execution layer for heterogeneous RISC-V inference targets. Its current workload domain is kernel-level ggml/llama.cpp-style quantized inference.
 
-It is **not** a general-purpose compiler: "extensible" means the stack-organization is reproducible; the input side stops at a kernel-level interface and the load domain stays locked to ggml-style quantized inference kernels.
+The project is not a general-purpose tensor compiler and does not introduce a new high-level tensor/tile IR. It organizes low-level format, capability, scheduling, legality, selection and emission knowledge so new formats, target capabilities and extension families can be integrated without returning to per-format × per-board handwritten backends.
 
-Concretely, it is a **capability-driven, unified RISC-V MLIR execution layer** that sits *after* high-level MLIR. It does not introduce a new high-level tensor/tile IR, and it is not "one independent backend dialect per target." Instead it models RISC-V target capabilities (ISA extensions, VLEN/uarch, toolchain, runtime/offload) as first-class, queryable MLIR objects, and uses them to drive plugin-local variant generation, legality, selection, dispatch, tuning, and lowering across a single common pipeline.
+## Research direction: two pillars
 
-## Where everything is: `.trellis/`
+### Pillar 1: a typed, capability-driven extension template
 
-**`.trellis/` is the single authority** for this project — queue, tasks, spec, issues, and report deliverables. There is no second source.
+- format and mechanism changes enter typed facts and family-local plans;
+- target and board changes enter canonical capability objects;
+- new extension families use the plugin protocol and typed bodies;
+- core/common code does not branch on family names;
+- new performance knowledge does not require editing old emitters;
+- correctness and locality are machine-checkable.
 
-**Start at [`.trellis/spec/index.md`](.trellis/spec/index.md)** (the root map): positioning, the six-layer table, the reading order for a new contributor, and the N1/N2/N3 ↔ C1/C2/C3′ bridge.
+### Pillar 2: executable high-performance knowledge
 
-| Layer | Answers |
-|---|---|
-| [canon](.trellis/spec/canon/index.md) | The **law**: may a claim stand, may a number be reported, is a cell a win. Includes the core invariants I1–I9 |
-| [measurement](.trellis/spec/measurement/index.md) | **How to measure**: what counts as measurement, which board, which pipeline, against whom, where results land |
-| [architecture](.trellis/spec/architecture/index.md) | **Structural law**: what each station *actually is* in code today, what it should become, what is off-limits |
-| [evidence](.trellis/spec/evidence/index.md) | **Evidence map**: which artifact backs which claim; how to read a result and which readings are forbidden |
-| [governance](.trellis/spec/governance/index.md) | **How to work**: decision-authority card, deferred-ruling rule, queue and briefing, hygiene, thinking guides |
-| [issues](.trellis/spec/issues/index.md) | The **single issue register**: every known gap / pending ruling / debt, as `ISSUE-NNN` |
+- analytic knowledge constructs typed candidates and plans;
+- legality and resource bounds are checked before selection;
+- capability/context rules provide an analytic prior;
+- qualified offline measurements may correct ranking only inside the legal candidate set;
+- the selected result is stamped into a typed body;
+- route providers and emitters mechanically realize that body;
+- misses, stale data, unsupported inputs and negative results have named behavior.
 
-Read the root map, then the layer your task belongs to; attach the work to a Trellis task with its scope pre-registered before starting.
+The current two-pillar, six-law research framing lives in [canon/暂定-科研主张.md](.trellis/spec/canon/暂定-科研主张.md). The executable formula and selector contract lives in [architecture/变体流水线.md](.trellis/spec/architecture/变体流水线.md).
 
-> **Research claims are not restated here.** The positioning red line and the three contributions C1/C2/C3′ are canonical in the root map and in [`canon/暂定-科研主张.md`](.trellis/spec/canon/暂定-科研主张.md), marked **【暂定 · 随论文侧更新 · 非定论】** (provisional, tracks the paper side, not settled). Their supporting artifacts and honest boundaries are mapped in the [evidence](.trellis/spec/evidence/index.md) layer. Performance figures are not quoted in this file: numbers live in the result tables with their run-ids, under the measurement layer's rules.
+## Core design
 
-## Project spine
+~~~text
+kernel-level input
+  → plugin-local typed facts g + bounded static context ω
+  → canonical capability c
+  → plugin-local formula / decision provider
+      · typed candidate or plan
+      · legality/resource bounds
+      · analytic prior
+      · optional measurement key
+  → bounded selector
+      · qualified measured winner if still legal
+      · otherwise analytic prior or named fallback
+  → selected typed extension body
+  → plugin route provider
+  → common EmitC / target artifact
+~~~
 
-```text
-high-level MLIR op
-  -> target capability model            (capabilities as queryable MLIR objects)
-  -> extension plugin proposes variants (RVV / IME / offload / scalar-fallback)
-  -> capability-driven legality + selection + dispatch
-  -> Gearbox: resource-aware tuning / selected-body realization
-  -> plugin-built WEFTEmitCLowerableRoute -> common EmitC
-  -> intrinsic / vendor builtin / runtime C/C++ -> clang -> target artifact
-  -> hardware evidence when runtime/correctness/performance is claimed
-```
+This is an incremental organization of existing Construction, Selection, Schedule, BodyRealization and EmitC code. It is not a new Formula IR, a universal expression DSL or a runtime autotuner.
 
-The normative version of this spine, the station-to-code map, and the Non-Goals live in [`architecture/系统定位与边界.md`](.trellis/spec/architecture/系统定位与边界.md). Per-family status — with re-runnable predicates separating **what the code does today** from **what is designed but not yet built** — lives in [`architecture/家族现状.md`](.trellis/spec/architecture/家族现状.md). Treat those as the status source; a prose summary in a README goes stale, the predicates do not.
+## Current project assets
+
+The repository already contains:
+
+- RVV, IME, Scalar, Offload, Template and other plugin families;
+- typed construction and extension bodies;
+- five dequant mechanism plans: Nibble, Codebook, KQuant, GridLookup and Ternary;
+- capability consumption for VLEN, RVV version and register-count-related decisions;
+- measured selection paths for selected LMUL, SP4 and loop-order decisions;
+- clean-room reuse-emitter and own-emitter integration records;
+- physical no-V Scalar evidence;
+- deployed ggml, representative strong-opponent and end-to-end result ledgers;
+- an official bench runner, master table and run lineage directories.
+
+These assets do not mean the project is finished. The main remaining engineering work is:
+
+- centralize scattered g/c/ω decisions behind a small plugin-local decision contract;
+- remove selector/emitter double authority;
+- unify measurement schema, qualification and compiled winner views;
+- complete capability fields and per-board instances;
+- close remaining strong-construction gaps;
+- make a second extension family use the same minimal formula/selection contract;
+- continue representative strong-opponent and end-to-end performance work.
+
+The live migration record is [formula-layer-migration/LEDGER.md](experiments/active/formula-layer-migration/LEDGER.md).
 
 ## Repository layout
 
-```text
-include/Weft/   ODS/TableGen + headers (dialects, capability model, plugin interfaces)
-lib/            C++ implementation (dialects, passes, plugins, EmitC, target export)
-  lib/Plugin/   per-family plugins: RVV, IME, Scalar, Offload, Template (reference family), ...
-tools/          weft-opt, weft-translate, gates/, oracle/, bench/ (build helpers), ...
-test/           lit/FileCheck + C++ tests
-scripts/        Python tooling: probes, runners, ssh-hardware evidence harnesses (tooling only)
-schema/         capability schema data
-experiments/    measurement data + artifacts (consumed by scripts; see measurement layer)
-.trellis/       spec, tasks, issues, workspace — the project's single authority
-_attic/         archive (git-ignored except ATTIC_INDEX.md)
-```
+~~~text
+include/Weft/       ODS/TableGen and public C++ headers
+lib/                dialects, passes, plugins, realization, EmitC and target export
+  lib/Plugin/       RVV, IME, Scalar, Offload, Template and other families
+tools/              weft tools, bench runner, cell harnesses, gates and oracles
+test/               lit/FileCheck and C++ tests
+scripts/            probes and support tooling
+schema/             capability and measurement schemas
+experiments/master/ canonical master tables
+experiments/runs/   raw run artifacts keyed by run-id
+experiments/runs.log append-only run ledger
+.trellis/spec/      durable contracts
+.trellis/tasks/     optional planning and campaign records
+.trellis/事故档案/   recurrence-prevention casefiles
+~~~
 
-**`docs/` and `docs/ROADMAP.md` are retired and archived** (大重构 §一.1 / §4.2.7). Their content lives in `.trellis/spec/`; the originals are in `_attic/docs/` (git-ignored — see `_attic/ATTIC_INDEX.md`). Do not read them as current, and do not create any new governance/knowledge file under `docs/`.
+Root AGENTS.md has been retired. This README and [.trellis/spec/index.md](.trellis/spec/index.md) are the project entry points.
 
-Two carve-outs, both deliberate:
-- **`.trellis/事故档案/`** — accident casefiles (misdiagnosis / reversal / self-correction records), moved **verbatim** as recurrence-prevention assets (§4.2.7). In-repo and tracked, *not* archived. Read these before repeating an old mistake.
-- **`docs/` still holds 6 files** — the sealed-Win registry + its evidence legs + the C2 ledger. Their destination is a **pending user ruling** (`ISSUE-072`, gaps **G-1 / G-3**); agents must not relocate them.
+## Working with the repository
 
-Python is restricted to tooling (probes, runners, evidence harnesses, artifact parsing). Core IR, dialects, passes, the plugin registry, the capability model, lowering, and emission are C++/MLIR/LLVM/TableGen/CMake.
+Trellis is used as a spec, issue and optional task system. It is not a mandatory GPT workflow.
 
-## Extending the stack: add a family
+For a normal change:
 
-The headline claim is *extensibility* — that a new capability family (a new ISA extension, matrix engine, or offload target) can be admitted through one branch-free core. The admission protocol is canonical in the **architecture** layer:
+1. inspect git status and the current implementation;
+2. read [.trellis/spec/index.md](.trellis/spec/index.md);
+3. read only the relevant canon/architecture/measurement files;
+4. implement the smallest coherent change;
+5. verify correctness and relevant gates;
+6. update spec or issues when the stable contract or known boundary changed.
 
-- **Integration contract + the [P-2] five-piece acceptance set + registration** — [`architecture/插件协议.md`](.trellis/spec/architecture/插件协议.md) (this is C1's implementation: interface freeze [P-1], registry, locality [F-3], the family template and its real touch-set).
-- **Capability model** (fact shape [S-1]/[S-2], relations, verifier duties) — [`architecture/能力模型.md`](.trellis/spec/architecture/能力模型.md).
-- **Admission boundary** (which capabilities may be admitted at all) and per-family status — [`architecture/家族现状.md`](.trellis/spec/architecture/家族现状.md).
-- **Machine-checked acceptance** — the falsifier gates [F-1..F-6]; the checkers live in `tools/gates/`, and the [evidence](.trellis/spec/evidence/index.md) layer maps each gate to its script.
-- **Hard rules the core must keep** (zero family-name branching, etc.) — [`canon/核心不变量.md`](.trellis/spec/canon/核心不变量.md) I1–I9.
+Create a Trellis task when it is useful for:
 
-Reference family to copy: `lib/Plugin/Template/`.
+- multi-stage or multi-day work;
+- multiple agents/worktrees;
+- cross-layer interface migrations;
+- formal measurement campaigns;
+- user-requested task-tree tracking.
 
-> **Honest note on the gates:** the checker scripts exist under `tools/gates/`, but there is **no CI orchestrator in this repo** — `.github/` does not exist (`ls -d .github` → absent). "Gate is green" therefore means *someone ran the script*, not *CI enforces it*. See the [issues](.trellis/spec/issues/index.md) register for the gate-orchestration debt.
+Do not create a task merely to obtain permission for a small, reversible, clearly scoped change.
+
+Governance details are in [governance/index.md](.trellis/spec/governance/index.md).
 
 ## Build
 
-```bash
+~~~bash
 cmake -S . -B build -G Ninja
 cmake --build build
-```
+~~~
 
-The top-level `CMakeLists.txt` searches `/usr/lib/llvm-{20..14}` for the LLVM and MLIR CMake packages; pass `-DLLVM_DIR=/path/to/lib/cmake/llvm -DMLIR_DIR=/path/to/lib/cmake/mlir` to override. Missing LLVM/MLIR CMake packages fail configuration with an explicit diagnostic. The project must not replace MLIR compiler internals with Python data structures.
+The top-level CMake configuration searches common LLVM/MLIR installations. Override with LLVM_DIR and MLIR_DIR when needed.
 
 ## Test
 
-```bash
+~~~bash
 cmake --build build --target check-weft
-```
+~~~
 
-In-tree lit/FileCheck + C++ tests cover dialect syntax, verification, pass behavior, plugin interfaces, route materialization, and fail-closed diagnostics. They are **compiler/toolchain evidence** — they do **not** prove hardware correctness or performance.
+Tests cover dialect syntax, verification, pass behavior, plugin interfaces, selected-body realization, route materialization and fail-closed diagnostics.
 
-## Hardware evidence and measurement
+When modifying emitter/verifier code, make sure the tools are actually relinked before trusting lit. When changing shared C++ struct layouts, use a clean rebuild; see [governance/思维准则.md](.trellis/spec/governance/思维准则.md).
 
-RISC-V correctness / runtime / performance claims require real on-device evidence: correctness is checked **before** timing, and the baseline and the generated artifact must be built for the same named board. Local CMake / `weft-opt` / lit checks are not runtime evidence.
+## Extending the stack
 
-The board register — board identity, VLEN, which performance counters exist, and the per-board constraints that make a measurement legal or illegal — is canonical in [`measurement/板册.md`](.trellis/spec/measurement/板册.md) (SSH aliases `rvv`, `k1`, `scalar`; `rvv07` is registered-pending). **Do not infer board facts from this README** — that file is the source, and per-board rules (e.g. `k1` has no usable PMU, so no performance-counter claims; the `scalar` board must be built with vectorization explicitly off) decide whether a number may be reported at all.
+The plugin protocol is defined in [architecture/插件协议.md](.trellis/spec/architecture/插件协议.md).
 
-> **★ Current state, stated plainly: there is no legal formal-measurement channel today.**
-> The measurement layer establishes `bench <格> --board <板>` as the **only legal measurement action**, but **that runner does not exist**: `tools/bench/` contains four build-helper scripts and no timing / cross-check / row-writing logic, and the three destinations it pins (`experiments/master/`, `experiments/runs/`, `experiments/runs.log`) do not exist either. Live tables are under `experiments/active/result-tables/`. This is tracked as **`ISSUE-067`** (with re-runnable predicates in the entry) and is the single hard prerequisite before measurement restarts. Read [measurement](.trellis/spec/measurement/index.md) before attempting to produce any number — **an action that layer does not authorize is an illegal action**.
+A family supplies the five-piece acceptance set:
 
-```bash
-python3 scripts/rvv_remote_probe.py   # records sanitized RVV host/toolchain capability facts
-```
+1. capability facts/schema;
+2. plugin legality;
+3. typed mechanism/body and emission;
+4. tests/falsifiers;
+5. ledger/docs/evidence.
+
+If the family uses analytic or measured performance knowledge, it also supplies the corresponding decision contract:
+
+~~~text
+typed g/c/ω inputs
+candidate or plan
+legality/resource verdict
+analytic prior
+reason/domain/fallback
+optional measurement key
+selected typed result
+~~~
+
+Reference family: lib/Plugin/Template/.
+
+## Measurement
+
+Official runner:
+
+~~~bash
+tools/bench/bench --help
+tools/bench/bench --self-test
+tools/bench/bench <op> <format> --board <board> --engine <engine> --regime <regime>
+~~~
+
+Persistent outputs:
+
+- experiments/master/
+- experiments/runs/<run-id>/
+- experiments/runs.log
+
+Cell harnesses live under tools/bench/cells/. The runner fails closed for unsupported or ambiguous combinations.
+
+Measurement rules:
+
+- correctness before timing;
+- explicit four-part row key: op, format, engine, regime;
+- real named board and toolchain lineage;
+- paired baseline and generated artifact;
+- raw artifacts referenced by run-id;
+- no ad-hoc official numbers outside the registered pipeline.
+
+Read [measurement/index.md](.trellis/spec/measurement/index.md) before producing reportable hardware numbers.
+
+## Performance evidence
+
+Weft-RV keeps three complementary views:
+
+| Evidence | What it proves |
+|---|---|
+| deployed ggml path | the generated/selected path integrates into the real stack and can exploit coverage/routing differences |
+| representative strong opponent | generated kernel quality against meaningful expert code |
+| end-to-end | whether a kernel improvement survives dispatch, packing, memory and system overhead |
+
+None of these replaces the others. A deployed-path win is not automatically a kernel microarchitecture win; a kernel win is not automatically an end-to-end win.
+
+Current tables and run lineage are under experiments/master/, experiments/runs/ and experiments/active/result-tables/.
+
+## Important boundaries
+
+- weft.exec is an execution envelope, not a compute dialect.
+- Computation belongs to typed extension-family bodies.
+- Core/common paths do not branch on RVV, IME, Scalar or vendor names.
+- Metadata, reason traces and artifacts are mirrors, not compute authority.
+- Measurement rows cannot create candidates or bypass legality.
+- Emitters do not redo formula or selector decisions.
+- Python is tooling; core compiler implementation remains C++/MLIR/LLVM/TableGen.
+- Runtime sparse/MoE observation is future work until a real observer, policy, overhead model and workload exist.
+
+## Documentation map
+
+- [spec root](.trellis/spec/index.md)
+- [canon](.trellis/spec/canon/index.md)
+- [architecture](.trellis/spec/architecture/index.md)
+- [measurement](.trellis/spec/measurement/index.md)
+- [evidence](.trellis/spec/evidence/index.md)
+- [governance](.trellis/spec/governance/index.md)
+- [issues](.trellis/spec/issues/index.md)

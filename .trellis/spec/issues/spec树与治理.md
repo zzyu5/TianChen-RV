@@ -28,7 +28,7 @@
   - **战役事故叙事**：`对手类机判（重编令二.2 · q4_K 稻草人事故制度化修复）` + 整段 `b29c269c 证伪` /「测错核之戒」/「双核分立限定（27658b8a · 五复核）」叙事。
 - **★为何是上岗阻塞（不只是卫生）**：该文件**被两处 spec 判为新 agent 必读的「权威全文」** —— [canon](../canon/index.md) 「Guidelines Index」的架构不变量条目（「权威全文住 `architecture/core-invariants.md`…此处为规范性一句，**不重抄**」）与 [architecture](../architecture/index.md) 「本层地图」的硬规则条目（「全部正文住 `architecture/core-invariants.md`」）。⟹ 新 agent **被指着去读**一份夹带 commit 号与战役叙事的文件，而那些 commit 与战役档案正随 `docs/` 归档进 git-ignored 的 `_attic/` ⟹ **他读到的引用解析不了**。architecture 层 「本层登记的未决项」表已自认此事（C 行）并明写「**本文不改该文件 · 不代裁、不代改**」。
 - **★裁决（2026-07-17 · 用户裁 · 本条 CLOSED）**：**收敛为单一权威本 + 另一本归档 + 引用改指**。落地形态：
-  1. **权威本 = [canon · 核心不变量](../canon/核心不变量.md)**。判据 = **上岗级引用四处全指它**（`CLAUDE.md` 法源入口 · `README.md` · `AGENTS.md` · `schema/family-regex.v1.json` 的 `$meta.invariant`），且 canon = 法源层；[待裁](../canon/待裁.md) 原 4b 行亦载「本层 I1–I9 已按『只留规则、删历史外壳』洗净并落此」。
+  1. **权威本 = [canon · 核心不变量](../canon/核心不变量.md)**。裁决时的上岗级引用共同指向该文件；当前根 `AGENTS.md` 已退役，入口改为 `README.md` + spec 根地图，schema 的 invariant 指针继续指向 canon。
   2. **归档件 = `architecture/core-invariants.md` 原全文**（含其 commit 号 / 令文体 / 战役叙事）→ `_attic/`（plain `mv` · git-ignored · 记于 `_attic/ATTIC_INDEX.md`）。**铁律 1 违规随载体离场**，非靠逐句删改。
   3. **★原路径保留为指针（非删除）**：`schema/capability.schema.v1.json` 的 `$meta.authority` 钉住该路径的 `[S-5]` / `[F-2′]`（v1.2.0 sealed）；`ISSUE-072` 裁决材料 (b) **实测** 改锚 = `breaking` + 新 RFC。用户令明禁「touching sealed 资产」⟹ 全档不可行，**指针是唯一同时满足『单一权威本』与『不动 sealed 资产』的形态**。
   4. **前置验证（防丢法条）**：归档前逐条机核 **12 条附加硬规则在 canon 均有完整家**（[L-6]/[NG-4] → 成色与措辞 · [L-8]/[K-10] → 部署与构造语义 · [K-4]/[SEL-2] → 覆盖状态机与选择归因 · [S-5]/[F-2′]/[F-6]/[NG-3] → 能力模型与插件协议 · [VERIFY-LADDER] → 测量判据 · 对手类机判 → 对手与档位）⟹ **归档零法条损失**，只去重复本。
@@ -85,18 +85,13 @@
 - **状态**：待裁
 - **出处**：仓内 —— [evidence](../evidence/index.md) §六 缺口表 **G-1 / G-3** 行（该层在 `.trellis/` 内，可直接读到）。
 
-### ISSUE-073 · 主表住址：两层 spec 正面打架
-- **实质**：**同一张主表被两处现行 spec 指到两个地方**：
-  - [measurement](../measurement/index.md) §3.2 单一目的地法（及其术语「行」条）钉死 **`experiments/master/`** = 「主表（T3 CSV）+ rowclue —— **唯一现役表**」。
-  - [evidence](../evidence/index.md) §4.3 实测主表与台账 把 **T3 主表 / rowclue / kernel-unit 视图 / 双板原表** 全部锚在 **`experiments/active/result-tables/`**（另有 20+ 行同锚该目录）。
-  - **实测**：`experiments/master/` **不存在**；`experiments/active/result-tables/T3_master_rebuild.csv` **存在且为真主表**（108 行，本册 ISSUE-011 即从它取名）。
-  - **两层的自认状态（本轮复核）**：measurement 层已在 §3.2 就地标注【目标态 · 目录重组后生效】并写明「现路径 = `experiments/active/result-tables/`…目录重组落地前，本条**不构成对现路径的否定**，写入照现路径；落地后整体改锚」；evidence 层 §六 G-4 亦自认「主表目的地未落地…本文件**按现路径钉死**…目录清理落地后**整体改锚**」。⟹ **两层已各自标态、方向一致，本条的残余争点不是「谁在说谎」，而是**：过渡期权威的**规定位**（现由两层各自的注记承载，无单一条文钉死）+ **改锚的触发点与执行者**未定。
-- **须裁**：过渡期权威条文的住址（钉在 measurement 层 §3.2 还是本册），以及改锚的触发点与执行者。
-- **影响面**：主表的读写方向 —— 本册凡引用主表的条目（ISSUE-008 / 009 / 011 / 013 / 014 …）全体。
-- **卡在**：与 ISSUE-067（三目的地未落地）同源；改锚须在 runner 落地后一次性做。
-- **保守默认**：**过渡期以现路径 `experiments/active/result-tables/` 为读写权威**（它是唯一存在的那个，且两层注记一致）；`experiments/master/` 视为目标态、**禁预先写入**；runner 落地（ISSUE-067）后整体改锚。
-- **状态**：**RESOLVED（2026-07-18·开测篇 §〇.3 迁移落地·master CSV byte-exact 守恒 `1a50018c7ce104c3`）**
-- **出处**：仓内谓词（`grep -rn 'result-tables\|experiments/master' .trellis/spec/` + `[ -e experiments/master ]` 为假 · `[ -e experiments/active/result-tables/T3_master_rebuild.csv ]` 为真），可复跑；承接来源 = [evidence](../evidence/index.md) §六 缺口表 G-4 行。
+### ISSUE-073 · 主表住址已统一到 `experiments/master/`
+
+- **实质**：旧版 measurement 与 evidence 曾分别指向目标路径和迁移前路径。
+- **裁决与现状**：迁移已完成；现役主表统一住 `experiments/master/`，原始运行住 `experiments/runs/<run-id>/`，台账住 `experiments/runs.log`。`experiments/active/result-tables/` 只可作为历史来源或旧工件位置，不再是正式写入目的地。
+- **影响面**：runner、recon、evidence 指针和报告引用。
+- **状态**：RESOLVED
+- **出处**：仓内路径与 [measurement](../measurement/index.md) 的单一目的地法。
 
 ### ISSUE-074 · 「五层机器」所指未定（**禁 agent 发明**）
 - **实质**：令文令 SPEC-ARCHITECTURE = 「五层机器」，现状/目标双栏分开写。但**「五层」这个表述在仓内无所指** —— architecture 层已就此立法三条（住其 「命名未决 · 「五层」的所指未裁」节与 「命名未决 · 「五层」的所指未裁」节）：**不定义「五层」、不承认它是既立术语、层内禁用该词指代架构**，并按**实际代码层次**组织；**该命名的所指须用户裁，禁 agent 发明** —— 裁定前任何 spec 把「五层」当既立术语使用**都属越权发明**。
@@ -126,58 +121,51 @@
 
 ---
 
-## 三、governance 层移交的待裁（6 条）
+## 三、governance 旧强制流程条目的裁决（6 条）
 
-> 下列六条均由 [governance](../governance/index.md) 以【待裁 · 现行保守默认】形态自设并**明写「待登记 ISSUES（编号由登记簿分配）」**。**六条一律「登记前后都不停轮」**：保守默认已在 governance 层正文内生效，本册只负责给号与聚焦裁点。
+> 2026-07-20 用户明确裁决：GPT 不必严格走 Trellis 流程；`.trellis/spec/` 是项目契约，task/queue 是按需使用的协作工具。下列六条因此按新的治理边界关闭。
 
 ### ISSUE-075 · 「停机规则」在本仓无 canon 定义站点
-- **实质**：[governance](../governance/index.md) §1.2 必问 条 4 = 「停机规则触发后的去向」，但**「停机规则」这个术语在本仓没有定义站点** —— 触发集未列举、与 §1.3 禁停机制 / §1.4 用户检查点 / §二 延后裁决制 的关系未定。⟹ 条 4 今日**无法执行**（不知道什么算触发）。
-- **影响面**：权限卡必问 5 条中的 1 条 + 禁停机制的边界。
-- **卡在**：canon 级（定义一条新红线的触发集）。
-- **保守默认**：**按 §1.3 禁停机制 + §二 处理：登记 + 保守默认续推，不停轮**；唯一停轮口子仍只有 §1.4 用户检查点。
-- **状态**：待裁
-- **出处**：仓内 —— [governance](../governance/index.md) §1.2 的【待裁 · 现行保守默认】注 = 本条的承接来源。
 
-### ISSUE-076 · 延后裁决登记的载体与 schema（是否另立第二登记册）
-- **实质**：[governance](../governance/index.md) §2.4 定了登记条目状态枚举 7 值（`OPEN` / `RESOLVED-BY-RULING` / `APPLIED-DEFAULT` / `RESOLVED` / `RESOLVED-AFFIRMED` / `APPROVED-PENDING-RECON` / `移交`），与本册的**状态四值** {待裁 | 待施工 | 阻塞 | 已就绪}（见 [index](./index.md) §〇）**是两套枚举**。现行保守默认 = 延后裁决登记 = 本册的一类条目，不另立第二登记册（依「ISSUES = 唯一问题登记簿」）⟹ 但两套枚举的映射关系未定。若用户裁定需独立登记册，则「唯一登记簿」措辞须同步放宽。
-- **影响面**：本册状态字段的定义 + 唯一登记簿原则。
-- **卡在**：canon 级（改「唯一登记簿」措辞 / 立第二册）。
-- **保守默认**：**不另立册**；延后裁决登记走本册条目；两套枚举**并存不强行合并**（本册对外用四值，`APPLIED-DEFAULT` 类信息由「保守默认」栏承载）。
-- **状态**：待裁
-- **出处**：仓内 —— [governance](../governance/index.md) §2.4 的【待裁 · 现行保守默认】注 = 本条的承接来源。
+- **实质**：旧治理曾假设“禁止停止、只有检查点可停”，但这不是项目产品或科研不变量。
+- **裁决**：删除代理强制续跑规则；当前请求完成即可交付，真正阻塞时说明缺少的选择、权限或外部条件。
+- **状态**：RESOLVED
+- **出处**：[governance](../governance/index.md) 与当前用户裁决。
 
-### ISSUE-077 · 队列节点身份首行前缀 `ROADMAP=` 的字面
-- **实质**：[governance](../governance/index.md) §3.1 定子节点身份写在 `task.json.description` **首行**，格式 `ROADMAP=<战役>/<节点ID>`。而 ROADMAP.md 本身按令文**不再使用 · 整体归档** ⟹ 前缀字面与已退役的载体同名。改名触 [GOV-9] 命名冻结且无功能收益。
-- **影响面**：队列节点身份的字面约定（纯命名，无行为差）。
-- **卡在**：canon 级（[GOV-9] 命名冻结）。
-- **保守默认**：**保持 `ROADMAP=` 不改**。
-- **状态**：待裁
-- **出处**：仓内 —— [governance](../governance/index.md) §3.1 的【待裁 · 现行保守默认】注 = 本条的承接来源。
+### ISSUE-076 · 延后裁决登记的载体与 schema
 
-### ISSUE-078 · 简报头条三数与黄格五分类的机算宿主
-- **实质**：[governance](../governance/index.md) §四 简报快照格式要求头条三数（perf-covered / certified / 测量欠账表剩余行数）与黄格五分类**一律机算出数** + 引 snapshot ID，**禁手工转抄**。但**宿主未钉死**：perf-covered 的产出门 `perf_covered_metrics.py` 今日**零可执行调用者**（ISSUE-068），主表目的地未落地（ISSUE-067 / ISSUE-073），测量欠账表的现行性本身待对账（ISSUE-018）⟹ 简报要求的「机算 + snapshot ID」今日**无稳定生产链**。
-- **影响面**：每份简报的第一节（缺此节 = 简报不合格）的可执行性。
-- **卡在**：ISSUE-067（runner + 目的地）+ ISSUE-068（门无编排者）+ ISSUE-073（主表住址）。
-- **保守默认**：三数与分类的机算宿主 = **主表 recon 工件**；测量欠账表作为队列的一部分**随队列住 Trellis task 树**；填不出的占位写 `未知`，**不留空、不估、不省行**（照抄法见 governance §四）。
-- **状态**：待裁
-- **出处**：仓内 —— [governance](../governance/index.md) §四 的【待裁 · 现行保守默认】注 = 本条的承接来源。
+- **实质**：旧治理同时维护两套状态枚举，增加了不必要的协议负担。
+- **裁决**：已知项目缺口继续进 `issues/`；临时判断可直接写进相关 spec、实验计划或任务说明，不再要求第二登记册或七值状态机。
+- **状态**：RESOLVED
+- **出处**：[governance](../governance/index.md) 与当前用户裁决。
 
-### ISSUE-079 · 预注册无工具位（`task.py` 无 prereg 子命令）
-- **实质**：[governance](../governance/index.md) §5.3 令「一切测量/施工必须挂任务且预注册范围」，但 `.trellis/scripts/task.py` **无 prereg 子命令** ⟹ 预注册无工具位、无机器化守卫（写没写、写了什么、有没有被事后改，全靠自律）。
-  > **核法纪律**：`task.py` 的**权威子命令表 = `python3 ./.trellis/scripts/task.py --help`**，不是任何文档里的清单（[GOV-1] 规范源本体不写现值）⟹ 本条**不抄该枚举**，裁定前请以 `--help` 实跑为准。
-- **影响面**：预注册纪律的可执行性（[measurement](../measurement/index.md) §3.0 稳定性条款的落地面）。
-- **卡在**：载体待裁（prd.md 字段 / task 目录独立文件 / 由 spec 引用的仓库路径）。
-- **保守默认**：预注册写入该任务 `prd.md` 的【预注册】节，**不新开独立 prereg 文件序列**（依「不另开序列」同精神）。
-- **状态**：待裁
-- **出处**：仓内 —— [governance](../governance/index.md) §5.3 的【待裁 · 现行保守默认】注 = 本条的承接来源。
+### ISSUE-077 · 队列节点身份前缀 `ROADMAP=`
 
-### ISSUE-080 · [GOV-2] 任务口径统一：无脚本保障
-- **实质**：[GOV-2] 令「任务状态必须从子项自动聚合或按固定节拍人工核对 ——『母任务待审核、子任务已完成』类张力应被脚本消灭」，但**今日无脚本保障**：`task.py list` 只把子任务进度**显示**为 `[N/M done]`，母任务 `status` 不由此派生；写 `status` 的动作均为自写（`start` / 归档），`validate` 不查母子一致性 ⟹ **母任务可长期停在非完结态而全部子任务已完结，无人报错**（= [GOV-2] 明令要消灭的那类张力，机制上仍可发生）。
-- **影响面**：队列态可信度（简报「在飞」行与「当前坐标」行的真实性）。
-- **卡在**：新增脚本 / 改 `task.py` 属工具面，但 [GOV-2] 的执行形态（自动聚合 vs 人工节拍）= 治理条文选择。
-- **保守默认**：**按固定节拍人工核对**（每次简报的队列快照即核对点，见 governance §四），**不新增脚本、不改 `task.py`**。
-- **状态**：待裁
-- **出处**：仓内 —— [governance](../governance/index.md) §六 [GOV-2] 行下的【待裁 · 现行保守默认】注 = 本条的承接来源。
+- **实质**：`ROADMAP=` 是旧战役编排遗留字面，不应成为普通开发任务的强制身份协议。
+- **裁决**：不再规定该前缀。若某次战役主动采用 task tree，可在该战役内自定稳定标识。
+- **状态**：RESOLVED
+- **出处**：[队列与简报](../governance/队列与简报.md)。
+
+### ISSUE-078 · 强制简报头条与机算宿主
+
+- **实质**：旧治理要求每次简报都携带固定头条三数和黄格分类，但它与多数局部开发请求无关。
+- **裁决**：简报按当前任务风险和用户需要提供；论文数字与性能数字仍必须来自可复算工件，普通开发状态不强制套固定模板。
+- **状态**：RESOLVED
+- **出处**：[队列与简报](../governance/队列与简报.md)。
+
+### ISSUE-079 · 预注册无 `task.py` 工具位
+
+- **实质**：测量预注册有价值，但不应等同于“一切工作必须挂 Trellis task”。
+- **裁决**：正式实验仍须在首次测量前固定 cell、板、对手、正确性门和判定规则；载体可为 task PRD、独立实验计划或 runner manifest。普通代码/spec 修改无需预注册。
+- **状态**：RESOLVED
+- **出处**：[trellis 卫生](../governance/trellis卫生.md) 与 [measurement](../measurement/index.md)。
+
+### ISSUE-080 · task 母子状态无自动聚合
+
+- **实质**：task tree 现为可选协调工具，母子状态自动聚合不再是整个仓库的质量门。
+- **裁决**：采用 task tree 的战役自行维护一致性；不为可选工具强加全项目脚本前置。
+- **状态**：RESOLVED
+- **出处**：[governance](../governance/index.md) 与当前用户裁决。
 
 ---
 
@@ -286,4 +274,3 @@
   ①**词表订正**（scalar「永不作贡献基线」动分档口径）②**铁线4 订正**（「窄豁免」→「物理 no-V」·牵动 T-X 旗舰措辞）。
   三份 W1 FINDING 已 tracked（`experiments/active/r5.1-w1-carrier/{L3L4-scalar-silicon,scalar-noV-fourway,rvv-Aprime-dualVLEN}-FINDING.md`·`git ls-tree -r HEAD | grep -c FINDING`=8≥4）。
 - **出处**：本 task `.trellis/tasks/07-18-07-18-s-scalar-tx-s1`（S 线·scalar 真 no-V 硅 T-X 收口）。
-

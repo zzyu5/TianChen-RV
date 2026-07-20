@@ -1,9 +1,9 @@
 # Issues —— 唯一问题登记簿
 
-> **版本**：v3
+> **版本**：v4
 > **本层是什么**：Weft-RV 全项目**唯一的问题登记簿**。一切已知缺口、待裁事项、被证伪的在册结论、未清欠账，都以 `ISSUE-NNN` 在此登记**且仅在此登记**。任务、报告、简报、commit **只引编号**，不重述条目内容；其他任何文件（含姊妹 spec 层、任务交付物）不得另开问题清单。
-> **本层不是什么**：**不是工作台、不是队列**。队列 = Trellis task 树（[governance](../governance/index.md) §三 队列纪律）。本层只回答「有哪些问题、每条卡在哪、状态是什么」。
-> **修改途径**：agent 可**登记**新条目与更新状态；**条目的裁定**只有用户可做。
+> **本层不是什么**：**不是工作台、不是强制队列**。Trellis task tree 是按需使用的协调工具；本层只回答「有哪些问题、每条卡在哪、状态是什么」。
+> **修改途径**：agent 可在当前授权范围内登记、施工并按事实关闭工程条目；论文主张、公共契约或重大方向变更以当前用户裁决和 canon 为准。
 
 ---
 
@@ -15,7 +15,7 @@
 - [ ] 我写的数字**带产生它的谓词**吗？没有谓词 → 标 `UNVERIFIED-*`，且**不得被引作权威计数**（[§〇.7](#7-数字纪律)）。
 - [ ] 这条读起来**自足**吗？—— 只读本条能否开工？靠「出处」才看得懂 = **缺陷**（[§〇.5](#5-跨文件引用禁行号)）。
 - [ ] 这是**科研主张**类（三贡献命名 / 解耦 / 分界层 / 论题位）吗？→ **只登记冲突事实，禁发明、禁替换、禁改进**（[§〇.6](#6-科研主张零发明)）。
-- [ ] 判为「必问」了吗？→ **登记 + 采保守默认 + 续推**。**停下等裁决 = 违例**（[governance](../governance/index.md) §1.3 禁停机制）。
+- [ ] 是否真的需要用户裁决？→ 只有会改变论文主张、公共契约、外部动作或不可逆方向时才停下询问；其余在授权范围内按事实推进。
 - [ ] 我要热改流水线 / 临时加门 / 战役中途换判据吗？→ **禁**，一律入册（[measurement](../measurement/index.md) §3.0 哲学与稳定性条款）。
 
 ---
@@ -25,19 +25,20 @@
 ### 1. 编号
 `ISSUE-NNN`，稳定、**只增不改**。条目关闭后保留原号并标状态，**号不回收、不重排**。新号由本层顺序分配（当前最大号见 [§三 全册索引](#三全册索引)）。
 
-### 2. 六字段
-每条 = {**标题** · **实质** · **影响面** · **卡在** · **状态** · **出处**}；待裁条目另带 **保守默认**（延后裁决期间照此继续推进，见 [governance](../governance/index.md) §二 延后裁决制）。
+### 2. 条目字段
+活动条目至少写清 {**标题** · **实质** · **影响面** · **状态** · **出处**}；存在前置时补 **卡在**，需要决策且仍可安全推进时补 **保守默认**。已关闭条目可压缩为裁决与可复核事实。
 
-### 3. 状态四值
+### 3. 状态
 
 | 状态 | 含义 |
 |---|---|
-| **待裁** | 必问级，等用户裁决；期间按**保守默认**推进，**禁 idle 等待** |
+| **待裁** | 需要用户或 canon 级裁决；能安全推进的部分按保守默认继续 |
 | **待施工** | 已有合法去向，缺的是工，可挂任务 |
 | **阻塞** | 前置未就位（结构缺口 / 他条 ISSUE / 板 / 执行面外部依赖）；**前置须写明** |
 | **已就绪** | 前置齐备、判据明确，取用即开工 |
+| **RESOLVED / 已施工 / 已修 / 已退役** | 终态或历史终态；条目保留，不再占活动阻塞 |
 
-> governance 层 §2.4 另有一套**延后裁决登记状态枚举（7 值）**。两套枚举的映射关系待裁 = **ISSUE-076**；在此之前本层对外**只用上表四值**。
+> 新条目优先使用上表中的简洁状态；历史条目保留既有终态字样。ISSUE-076 已关闭，不再维护第二套强制状态机。
 
 ### 4. 入册途径
 新问题（含新增检查的提案、流水线异议）一律入本层；**禁热改流水线、禁临时加门、禁战役中途换判据**（[measurement](../measurement/index.md) §3.0）。
@@ -69,9 +70,9 @@
 
 ---
 
-## 一、★待用户裁（必问级 · 置顶 · 59 条）
+## 一、仍需明确裁决的高风险项
 
-> **本节任何条目都不构成停机理由。** 延后裁决期间一律按各条「保守默认」继续推进（[governance](../governance/index.md) §二）。
+> 本节是重点索引，不取代各条本体状态。若条目已被后续事实或用户裁决关闭，应从本节移除并在全册索引保留历史记录。
 
 ### 1.1 会动头条 / 主表口径（硬冻结面）
 
@@ -128,9 +129,8 @@
 | ISSUE-048 | 在册判别键「sub-block 数 16 vs 8」已被证伪，如何订正 | [canon与措辞](./canon与措辞.md) |
 | ISSUE-049 | T-P 构造参数三段链主张强度收窄 | [canon与措辞](./canon与措辞.md) |
 | ISSUE-050 | [K-5b] 要件① 语料缺口 + 三处预注册偏离的处置 | [canon与措辞](./canon与措辞.md) |
-| ISSUE-051 | 三贡献命名冲突（论文侧 C3 vs 项目侧 C3′） | [canon与措辞](./canon与措辞.md) |
 | ISSUE-052 | v4 之职 = 导入/对账（论文侧已先行落法），是否改为导入 | [canon与措辞](./canon与措辞.md) |
-| ISSUE-111 | 数值口径松绑: headline 取最快变体+ULP 界·oracle §5「永不作 headline」作废（补充令二§二用户裁·量税证数值非perf杠杆） | 待裁 | canon与措辞 |
+| ISSUE-111 | 数值口径松绑：headline 取最快变体并强制报告 ULP 界 | [canon与措辞](./canon与措辞.md) |
 
 ### 1.5 门与工具
 
@@ -141,10 +141,6 @@
 | ISSUE-058 | 假声明/裸行号四处订正 | [门与工具](./门与工具.md) |
 | ISSUE-060 | 两个不依赖 runner 的 workflow 被连带删除（理由对它们不成立）—— 复活还是确认删 | [门与工具](./门与工具.md) |
 | ISSUE-082 | 「falsifier 组 ≥3 家族 CI 常绿」措辞失锚（无人值守 CI 已不存在）改不改写 | [门与工具](./门与工具.md) |
-| **ISSUE-090** | **★每格对拍/计时 harness 住哪、什么契约 —— 门已裁负向（禁数据格·指向 `tools/`），但【选址未钦定】（候选 `tools/bench/cells/` 与 `tools/e2e-harness/` 同样过门）+【调用契约全缺】**（runner 真实路径第一前置；2026-07-17 订正原「合法住址 = 无」之过头表述） | [门与工具](./门与工具.md#issue-090--每格对拍计时-harness-的住址与契约未定义33-第-34-步无可寻址被调物) |
-| **ISSUE-091** | **★`bench <格>` 单独不定位主表行**（行键不在 §3.3.1 「不得增删」的字段表内 · 13 字段与现役 15/36 列零映射 ⟹「入行」今日无可执行语义） | [门与工具](./门与工具.md#issue-091--bench-格-单独不定位主表行行键不在-331-字段表内--与现役表结构无映射) |
-| ISSUE-092 | §3.3.1 `判定` 与 §3.2 台账 `结果` 的值域未枚举（至少三套既存枚举可当候选，本层无字） | [门与工具](./门与工具.md#issue-092--331-判定-与-32-台账-结果-的值域未枚举) |
-| **ISSUE-093** | **★`experiments/runs.log` 被 `.gitignore` 的 `*.log` 吞 ⟹ §3.2 台账非耐久**（须在测试总令前裁） | [门与工具](./门与工具.md#issue-093--experimentsrunslog-被根-gitignore-的-log-吞--32-台账非耐久) |
 | **ISSUE-104** | **★scalar S 线「bench 能调」被四处夹住**（runner 板块 block=ISSUE-061 · op→harness 名解析 · parser gemm_tile 专用 · 主表无 scalar 列/[L-6] 本不该有）—— `scalar_vec_dot.sh` 建成契约合规+直跑真数，runner 通道未通 | [门与工具](./门与工具.md#issue-104--scalar-s-线bench-能调被四处夹住--harness-建成契约合规但-runner-通道未通) |
 
 ### 1.6 ★spec 树自身（上岗阻塞面）
@@ -154,21 +150,9 @@
 | ~~ISSUE-070~~ | **已裁 · 已落地**（2026-07-17 用户裁）：I1–I9 唯一权威本 = [canon · 核心不变量](../canon/核心不变量.md)；重复本已归档 `_attic/`，原路径留指针（sealed `$meta.authority` 所迫）。**连带第 2 问（既有 spec 树与六层归并）未随本裁了结**，仍在 [architecture](../architecture/index.md) 未决项表 B 行 | [spec树与治理](./spec树与治理.md) |
 | ~~ISSUE-071~~ | **已裁 · 已落地**（2026-07-17 用户裁）：按实况订正 —— 门体 = **十项**（v2 ①–⑧ → v3 增补 ⑨⑩ 前置；「八门」= v2 化石简称）。一处定义 = [canon · 测量判据](../canon/测量判据.md) §一.2，全树引用一律 `[PERF-1]` 禁带门数 | [spec树与治理](./spec树与治理.md) |
 | ISSUE-072 | evidence 层三处「唯一权威」锚在 `docs/`（G-1 性能证词根悬空 / G-3 承重论证载体） | [spec树与治理](./spec树与治理.md) |
-| ISSUE-073 | 主表住址两层 spec 打架（`experiments/master/` vs `experiments/active/result-tables/`） | [spec树与治理](./spec树与治理.md) |
 | ISSUE-074 | 「五层机器」所指未定（**禁 agent 发明**）+ 裸 `L<数字>` 全局处置 | [spec树与治理](./spec树与治理.md) |
 | ISSUE-066 | 事故档案与本册的边界（已修复但须防复发的事项进哪儿） | [spec树与治理](./spec树与治理.md) |
 | **ISSUE-103** | **★T-X 六列证据表的 spec 层归属未定**（重构后无 testing 层 · 落 measurement 还是 evidence?）—— 保守默认暂落 `experiments/` 活证据 · 连带 B4 PR-1「采购 no-V 板」= RESOLVED-BY-FACT | [spec树与治理](./spec树与治理.md#issue-103--t-x-六列证据表的-spec-层归属未定重构后无-testing-层) |
-
-### 1.7 governance 层移交（6 条 · 保守默认均已在 governance 正文生效）
-
-| ISSUE | 一句话裁点 | 文件 |
-|---|---|---|
-| ISSUE-075 | 「停机规则」无 canon 定义站点 ⟹ 必问条 4 今日无法执行 | [spec树与治理](./spec树与治理.md#三governance-层移交的待裁6-条) |
-| ISSUE-076 | 延后裁决登记的载体与 schema（7 值枚举 vs 本层四值；是否另立第二登记册） | [spec树与治理](./spec树与治理.md) |
-| ISSUE-077 | 队列节点身份首行前缀 `ROADMAP=` 的字面（载体已退役，前缀是否改名） | [spec树与治理](./spec树与治理.md) |
-| ISSUE-078 | 简报头条三数与黄格五分类的机算宿主（今日无稳定生产链） | [spec树与治理](./spec树与治理.md) |
-| ISSUE-079 | 预注册无工具位（`task.py` 无 prereg 子命令）—— 载体待裁 | [spec树与治理](./spec树与治理.md) |
-| ISSUE-080 | [GOV-2] 无脚本保障（母子任务态可长期不一致而无人报错） | [spec树与治理](./spec树与治理.md) |
 
 ---
 
@@ -176,13 +160,13 @@
 
 | Spec | 收录 | 条数 |
 |---|---|---|
-| [性能与测量](./性能与测量.md) | 主表与对手政策（001–018）· 机制缺口与攻坚（019–030）· 板与外部世界（061–065 · 084）· 攻坚与架构不可达（100–102）· R线 de-lottery（106）· grid dequant HW-gather 天花板（107） | 41 |
-| [发射器与架构](./发射器与架构.md) | 构造、前门与决策住址（031–043）· 架构 spec 自设未决（081）· K-quant vec_dot register-fusion（109） | 15 |
-| [canon与措辞](./canon与措辞.md) | canon 定稿、条文冲突与措辞纪律（044–053 · 088 · 111） | 12 |
-| [门与工具](./门与工具.md) | 门体清算（054–060）· runner 与工具挂载（067–069 · 082 · 083 · 085 · 087 · 090–094）· bench 通道与 harness（096–099 · 104 · 105）· 工具默认失锚（108）· T-X≠S1（110） | 27 |
-| [spec树与治理](./spec树与治理.md) | 登记簿治理（066）· spec 树自身的缺口（070–074 · 086 · 089）· governance 移交待裁（075–080）· 旧 goal 退役与 T-X 归属（095 · 103） | 16 |
+| [性能与测量](./性能与测量.md) | 主表与对手政策（001–018）· 机制缺口与攻坚（019–030）· 板与外部世界（061–065 · 084）· 攻坚与架构不可达（100–102）· R线与新 census（106–107 · 112 · 117） | 43 |
+| [发射器与架构](./发射器与架构.md) | 构造、前门与决策住址（031–043）· 架构未决（081）· K-quant 与 formula/schema 收口（109 · 113 · 115–116 · 118–122） | 23 |
+| [canon与措辞](./canon与措辞.md) | canon、条文冲突与措辞纪律（044–053 · 088 · 111 · 123） | 13 |
+| [门与工具](./门与工具.md) | 门体清算（054–060）· runner 与工具挂载（067–069 · 082 · 083 · 085 · 087 · 090–094）· bench 通道与 harness（096–099 · 104 · 105 · 114）· 工具默认失锚（108）· T-X≠S1（110） | 28 |
+| [spec树与治理](./spec树与治理.md) | 登记簿治理（066）· spec 树自身的缺口（070–074 · 086 · 089）· 旧强制治理裁决（075–080）· 旧 goal 退役与 T-X 归属（095 · 103） | 16 |
 
-**总条数 = **121**（ISSUE-001..ISSUE-121，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 68 · 待施工 16 · 阻塞 10 · 已就绪 8 · RESOLVED 7 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · 待修 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=121）。〔**2026-07-20 机算刷新**：`issues_census.py` = 121（前值「112」stale·+9 号 113-121 系并行写入者新增·经 paper-side self-audit `b0866a09c` C5 抓到「112 vs 121」不一致·本行订正）。〕〔2026-07-18 机算刷新：`.trellis/scripts/issues_census.py`（§六「登记簿计数一律机算」的持久宿主·类比 recon 之于主表）；本行数字 = 该脚本输出·禁手抄。**架构不可达 1→0**（ISSUE-100 §六 premature 订正：float re-roll 路证尽 ≠ 整数杠杆已试·残余「窄位宽整数乘加」未试→回待施工·§一 负结果不作「不用打」依据）；ISSUE-033→阻塞 / ISSUE-035→待裁（status lead 归一）。〕
+**总条数 = 123**（ISSUE-001..ISSUE-123，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 61 · RESOLVED 18 · 待施工 18 · 已就绪 8 · 阻塞 7 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=123）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-20 机算刷新；后续禁止手抄沿用。
 
 > **计数谓词（机算 · 禁手写小计）**：按 `### ISSUE-NNN` 切块、取每块最后一个 `- **状态**：` 行统计（子块内的重复状态行不重复计）。2026-07-17 §七③ `docs/` 归档轮收官实测：总数 **94** / 零缺号 / 零重号；分布 **待裁 58 · 待施工 14 · 阻塞 10 · 已就绪 9 · 已裁·已落地 2 · 已退役 1**。〔本轮 +1 = ISSUE-094（`--drift` 漂移门），经用户裁后**已退役**、不占待裁额。同轮并行写入者新增 090–093 并结清 2 条，故前几行的「93 / 60·14·10·9」是彼时口径、非漂移 —— **本行数字禁手抄，一律按上述谓词现算**。〕**同轮订正三处既存漂移**：ISSUE-089 在 [§三 全册索引](#三全册索引) **缺行**（本层自称「唯一入口索引」却查不到该号）· canon与措辞 条数 10→11（088 未计）· spec树与治理 条数 13→14（089 未计）。
 
@@ -194,117 +178,129 @@
 
 | ISSUE | 标题（简） | 状态 | 文件 |
 |---|---|---|---|
-| 001 | dequant leaf 族级零向量发射 = 宿主 codegen 抽签 | 待裁 | 性能与测量 |
-| 002 | dequant 族「由机制构造」是否合 [L-8] 强义 | 待裁 | 性能与测量 |
-| 003 | recon「零 gcc」门是恒等式 + 28 格 gcc 车道污染 | 待裁 | 性能与测量 |
-| 004 | gemm_tile 对手政策统一为部署事实：执行销案 | 已施工（2026-07-18·8 格落账·先例 7 格仍 ISSUE-006） | 性能与测量 |
-| 005 | iq 8 board-cell 争议-pending 未落账 | 已施工（2026-07-18·随 004 落账·pending 20→12） | 性能与测量 |
-| 006 | 先例 7 格 PASS 绑在非部署符号上 | 待裁 | 性能与测量 |
-| 007 | iq 系 gemm_tile tier 分档低估对手 | 待裁 | 性能与测量 |
-| 008 | q8_0 decode @rvv 便宜档成色三备注 | 待施工 | 性能与测量 |
-| 009 | 主表注记「gather-tax」与 evidence 打架 | 待裁 | 性能与测量 |
-| 010 | 数据质量存疑格（对手 IQR 过高） | 待裁 | 性能与测量 |
-| 011 | 悬置 dequant 格已具名（`dequantize_row|iq2_xs|@rvv`） | 已就绪 | 性能与测量 |
-| 012 | 手调挑战值口径（每板 12 vs 合计 ≥12） | 待裁 | 性能与测量 |
-| 013 | 两档铁令验收未达：12 格从未走过构造→前门 | 待裁 | 性能与测量 |
-| 014 | fold@M=1 非物理地板，但墙记指错成本中心 | 待裁 | 性能与测量 |
-| 015 | P5 两条作废项 + 三处 minor 订正 | 待裁 | 性能与测量 |
-| 016 | VOID 清偿余额 4 格 | 待施工 | 性能与测量 |
-| 017 | decode 逐格 emit-golden + 格数口径冲突 | 待裁 | 性能与测量 |
-| 018 | 测量欠账表须整体对账后才能入册 | 待裁 | 性能与测量 |
-| 019 | VLEN 专化满展开 leaf 缺口（最高扇出 ∧ 高风险） | 待裁 | 性能与测量 |
-| 020 | tiny-reduction：弹药就绪未施工 | 已就绪 | 性能与测量 |
-| 021 | tiny-codebook gather 机制（C4b）· 禁以性能名义立项 | 待施工 | 性能与测量 |
-| 022 | C4b 与 Q3 是否合并里程碑 | 待裁 | 性能与测量 |
-| 023 | C4「一箭双雕」部分证伪 → 拆 C4a/C4b | 待裁 | 性能与测量 |
-| 024 | mxfp4 缺专用 vec_dot 驱动 + oracle | 已就绪 | 性能与测量 |
-| 025 | nvfp4：dequant 纯标量 + gemm 阻于码本参数化 | 阻塞 | 性能与测量 |
-| 026 | iq4_nl 两格 = 合取两墙 | 阻塞 | 性能与测量 |
-| 027 | q4_1 / q8_0 decode @k1 结构缺口 | 阻塞 | 性能与测量 |
-| 028 | Q3 机制名指错成本中心 + P3 执行序冲突 | 待裁 | 性能与测量 |
-| 029 | q8_0@ime 结构上不存在合法 IME 对手 | 待裁 | 性能与测量 |
-| 030 | e2e 第三案未建（q2_K interleaver） | 待施工 | 性能与测量 |
-| 031 | F-7 决策住址门判据未定（C9 blocked） | 待裁 | 发射器与架构 |
-| 032 | F-7 样板锚的反例必须并标 | 待施工 | 发射器与架构 |
-| 033 | 四处已具名的真住址违规（宽度轴） | 待施工 | 发射器与架构 |
-| 034 | loop_order「不读者构建失败」形态未实施 | 待裁 | 发射器与架构 |
-| 035 | strip-width 轴接入 + 记忆层首个真实改判 | 已就绪 | 发射器与架构 |
-| 036 | plan 深层序列化 + round-trip lit 未做 | 已就绪 | 发射器与架构 |
-| 037 | IME 板测数据 constexpr 镜像 → 读 live schema | 待施工 | 发射器与架构 |
-| 038 | E7 的立项前提已不成立 | 待裁 | 发射器与架构 |
-| 039 | 后端注册表的注释与实表不符 | 待施工 | 发射器与架构 |
-| 040 | 描述符成本入账收尾三件 | 待裁 | 发射器与架构 |
-| 041 | C7 扇出台账三处「已知行」被机算证伪 | 待裁 | 发射器与架构 |
-| 042 | registry status enum 与分层令文不一致 | 待裁 | 发射器与架构 |
-| 043 | 主发射器规模问题（54,314 行）· 方案待裁 | 待裁 | 发射器与架构 |
-| 044 | canon v4 定稿（检查点一） | 待裁 | canon与措辞 |
-| 045 | uarch 事实 vs schema 准入纪律正面冲突 | 待裁 | canon与措辞 |
-| 046 | [PAT-3] 判据在本仓平凡真 | 待裁 | canon与措辞 |
-| 047 | 探针 DUAL-AGREE 双法交叉验证入 canon | 待裁 | canon与措辞 |
-| 048 | 判别键「sub-block 数 16 vs 8」已被证伪 | 待裁 | canon与措辞 |
-| 049 | T-P 构造参数三段链主张强度须收窄 | 待裁 | canon与措辞 |
-| 050 | [K-5b] 语料完备缺口 + 三处预注册偏离 | 待裁 | canon与措辞 |
-| 051 | 三贡献命名冲突（C3 vs C3′） | 待裁 | canon与措辞 |
-| 052 | v4 之职 = 导入/对账而非重新立法 | 待裁 | canon与措辞 |
-| 053 | 5 项【写死】机制无承接节点 | 待裁 | canon与措辞 |
-| 054 | 空心检查清算余量 | 已就绪 | 门与工具 |
-| 055 | C8 全节 verdict = FAIL · 冻结引用待补三项 | 待裁 | 门与工具 |
-| 056 | C6 falsifier 保持红且未进 CI · 词表未合并 | 待裁 | 门与工具 |
-| 057 | 3 例既存 lit 失败（测试套件长期红） | 待施工 | 门与工具 |
-| 058 | 假声明繁殖 + 裸行号判错（四处订正） | 待裁 | 门与工具 |
-| 059 | 跨轮基准数不一致（「2 字节之谜」）真因未知 | 待施工 | 门与工具 |
-| 060 | 两个不依赖 runner 的 workflow 被连带删除 | 待裁 | 门与工具 |
-| 061 | scalar 板：对手链已建成，缺家族身份验收 | 已就绪 | 性能与测量 |
-| 062 | T-X 第 5 列「逐竞品产出数」未补齐 | 阻塞 | 性能与测量 |
-| 063 | rvv07 板去向未定 | 待裁 | 性能与测量 |
-| 064 | 上游 ggml iq4_nl 双核在 VLEN128 数值错 | 待裁 | 性能与测量 |
-| 065 | Tier-3 真第三方接入 = 域外 | 阻塞 | 性能与测量 |
-| 066 | 事故档案与本册的边界 | 待裁 | spec树与治理 |
-| 067 | ★bench runner 未建 · 三目的地均不存在（**runner 已建 + 干跑验收已达 2026-07-17**；真实路径仍阻塞） | 阻塞 | 门与工具 |
-| 068 | `perf_covered_metrics.py` 成孤儿（无编排者） | 已就绪 | 门与工具 |
-| 069 | `experiments/` layout 510 + index 1061 条 findings | 阻塞 | 门与工具 |
-| 070 | ★`core-invariants.md` 违「只写现行法」= 上岗阻塞 | **已裁**（2026-07-17；连带第 2 问移交 architecture 未决项 B 行） | spec树与治理 |
-| 071 | [PERF-1] 门项数：「八门」vs「十项」 | **已裁**（2026-07-17；实况 = 十项） | spec树与治理 |
-| 072 | evidence 三处「唯一权威」锚在 `docs/`（根悬空） | 待裁 | spec树与治理 |
-| 073 | 主表住址：两层 spec 正面打架 | 待裁 | spec树与治理 |
-| 074 | 「五层机器」所指未定（禁 agent 发明） | 待裁 | spec树与治理 |
-| 075 | 「停机规则」无 canon 定义站点 | 待裁 | spec树与治理 |
-| 076 | 延后裁决登记的载体与 schema | 待裁 | spec树与治理 |
-| 077 | 队列节点身份前缀 `ROADMAP=` 的字面 | 待裁 | spec树与治理 |
-| 078 | 简报头条三数与黄格五分类的机算宿主 | 待裁 | spec树与治理 |
-| 079 | 预注册无工具位（`task.py` 无 prereg） | 待裁 | spec树与治理 |
-| 080 | [GOV-2] 任务口径统一：无脚本保障 | 待裁 | spec树与治理 |
-| 081 | N-operand route identity 的完成度自相抵 | 待施工 | 发射器与架构 |
-| 082 | 「falsifier 组 CI 常绿」措辞失锚 | 待裁 | 门与工具 |
-| 083 | 真二进制门 DORMANT 的常驻登记处 | 阻塞 | 门与工具 |
-| 084 | C2 曲线第 3 独立家族点缺失（honest-missing） | 阻塞 | 性能与测量 |
-| 085 | `tools/TOOLS.md` 未建 | 待施工 | 门与工具 |
-| 086 | 前身证据索引含死指针 + T2 口径 stale | 已就绪 | spec树与治理 |
-| 087 | 门迁址遗留的陈旧反向引用（旧 `tools/lint/` 址） | 待施工 | 门与工具 |
-| 088 | 「对手类」一词同指两个闭合枚举（档位 vs 角色） | 待裁 | canon与措辞 |
-| 089 | `schema.def` 的 `$meta.authority` 悬空 vs [S-6] 形态哈希 | 待裁 | spec树与治理 |
-| 090 | ★每格对拍/计时 harness 的住址与契约未定义 | 待裁 | 门与工具 |
-| 091 | ★`bench <格>` 单独不定位主表行 · 13 字段与现役表零映射 | 待裁 | 门与工具 |
-| 092 | `判定` 与台账 `结果` 的值域未枚举 | 待裁 | 门与工具 |
-| 093 | ★`experiments/runs.log` 被 `*.log` ignore ⟹ 台账非耐久 | 待裁 | 门与工具 |
-| 094 | `--drift` 漂移门退役（守护对象已被新法废除） | 已退役 | 门与工具 |
-| 095 | 旧战役 goal（P/C/S/E 五线 + 验收门六条）退役成文站点 | RESOLVED | spec树与治理 |
-| 096 | bench 每格对拍 harness（`tools/bench/cells/`）建成（gemm_tile.sh） | RESOLVED | 门与工具 |
-| 097 | regime 未作独立主表键 —— bench `--regime` 覆盖风险 | 待裁 | 门与工具 |
-| 098 | ★★master 表所有权冲突：recon【生成整表】 vs bench【外科落点】 | 待裁 | 门与工具 |
-| 099 | ★PR-47 15 格 clang-18 重测前提落空（gemm_tile.sh 仅 4 IQ 格·FLAT 现值来自部署管线·product_reduce 无 harness·7 格已覆盖） | 待裁 | 门与工具 |
-| 100 | 架构不可达具名：`vec_dot·nvfp4@rvv`（完整攻坚环证实·非未攻认输） | 架构不可达 | 性能与测量 |
-| 101 | canon 措辞：「判别键 = sub-block 数（16 vs 8）」被 P5-F2 证伪 | 待裁 | 性能与测量 |
-| 102 | 机制①「VLEN 专化满展开」反汇编证 no-op·真 lever = VLEN256 宽化·re-scope | 待裁 | 性能与测量 |
-| 103 | T-X 六列证据表 spec 层归属未定（重构后无 testing 层） | 待裁 | spec树与治理 |
-| 104 | ★scalar S 线「bench 能调」被四处夹住（harness 契约合规·runner 未通） | 待裁 | 门与工具 |
-| 105 | ★★GEN_SEAL 对所有板（含 k1 VLEN256）发 VLEN128 fixture = k1 半宽欠用根因·proven 赢无部署通道 | 待裁 | 门与工具 |
-| 106 | ★dequant「PASS」多是 lottery-PASS·R线 de-lottery 用 owned 真测替换会降 census PASS（诚实代价·§四.1） | APPLIED-DEFAULT | 性能与测量 |
-| 107 | ★grid-codebook dequant owned 真向量(HW-gather) 天花板·grid 族通用·标量门这些格到不了 PASS（非架构不可达·有标量-load lever gated 调度成熟） | 待裁 | 性能与测量 |
-| 108 | recon_t3_disposition.py 默认 --tables 指 073 迁走路径（须显式 experiments/master·默认失锚） | 待施工 | 门与工具 |
-| 109 | K-quant vec_dot weight-reconstruction floor 翻 0.8 的 register-fusion lever（独立大构造·≠架构不可达） | 待施工 | 发射器与架构 |
-| 110 | T-X（真硅 enablement 表）≠ S1（性能对局数）·令文 §三 conflate 须区分（裁决4） | 待裁 | 门与工具 |
-| 111 | 数值口径松绑: headline 取最快变体+ULP 界·oracle §5 作废（补充令二§二·量税证数值非perf杠杆） | 待裁 | canon与措辞 |
+| ISSUE-001 | dequant leaf 族级零向量发射 = 宿主 codegen 抽签 | 待裁 | 性能与测量 |
+| ISSUE-002 | dequant 族「由机制构造」是否合 [L-8] 强义 | 待裁 | 性能与测量 |
+| ISSUE-003 | recon「零 gcc」门是恒等式 + 28 格 gcc 车道污染 | 待裁 | 性能与测量 |
+| ISSUE-004 | gemm_tile 对手政策统一为部署事实：执行销案 | 已施工 | 性能与测量 |
+| ISSUE-005 | iq 8 board-cell 争议-pending 已落账 | 已施工 | 性能与测量 |
+| ISSUE-006 | 先例 7 格 PASS 绑在非部署符号上 | 待裁 | 性能与测量 |
+| ISSUE-007 | iq 系 gemm_tile tier 分档低估对手 | 待裁 | 性能与测量 |
+| ISSUE-008 | q8_0 decode @rvv 便宜档成色三备注 | 待施工 | 性能与测量 |
+| ISSUE-009 | 主表注记「gather-tax」与 evidence 打架 | 待裁 | 性能与测量 |
+| ISSUE-010 | 数据质量存疑格（对手 IQR 过高） | 待裁 | 性能与测量 |
+| ISSUE-011 | 悬置 dequant 格已具名（`dequantize_row|iq2_xs|@rvv`） | 已就绪 | 性能与测量 |
+| ISSUE-012 | 手调挑战值口径（每板 12 vs 合计 ≥12） | 待裁 | 性能与测量 |
+| ISSUE-013 | 两档铁令验收未达：12 格从未走过构造→前门 | 待裁 | 性能与测量 |
+| ISSUE-014 | fold@M=1 非物理地板，但墙记指错成本中心 | 待裁 | 性能与测量 |
+| ISSUE-015 | P5 两条作废项 + 三处 minor 订正 | 待裁 | 性能与测量 |
+| ISSUE-016 | VOID 清偿余额 4 格 | 待施工 | 性能与测量 |
+| ISSUE-017 | decode 逐格 emit-golden + 格数口径冲突 | 待裁 | 性能与测量 |
+| ISSUE-018 | 测量欠账表须整体对账后才能入册 | 待裁 | 性能与测量 |
+| ISSUE-019 | VLEN 专化满展开 leaf 缺口（最高扇出 ∧ 高风险） | 待裁 | 性能与测量 |
+| ISSUE-020 | tiny-reduction：弹药就绪未施工 | 已就绪 | 性能与测量 |
+| ISSUE-021 | tiny-codebook gather 机制（C4b）· 禁以性能名义立项 | 待施工 | 性能与测量 |
+| ISSUE-022 | C4b 与 Q3 是否合并里程碑 | 待裁 | 性能与测量 |
+| ISSUE-023 | C4「一箭双雕」部分证伪 → 拆 C4a/C4b | 待裁 | 性能与测量 |
+| ISSUE-024 | mxfp4 缺专用 vec_dot 驱动 + oracle | 已就绪 | 性能与测量 |
+| ISSUE-025 | nvfp4：dequant 纯标量 + gemm 阻于码本参数化 | 阻塞 | 性能与测量 |
+| ISSUE-026 | iq4_nl 两格 = 合取两墙 | 阻塞 | 性能与测量 |
+| ISSUE-027 | q4_1 / q8_0 decode @k1 结构缺口 | 阻塞 | 性能与测量 |
+| ISSUE-028 | Q3 机制名指错成本中心 + P3 执行序冲突 | 待裁 | 性能与测量 |
+| ISSUE-029 | q8_0@ime 结构上不存在合法 IME 对手 | 待裁 | 性能与测量 |
+| ISSUE-030 | e2e 第三案未建（q2_K interleaver） | 待施工 | 性能与测量 |
+| ISSUE-031 | F-7 决策住址门判据未定（C9 blocked） | 待裁 | 发射器与架构 |
+| ISSUE-032 | F-7 样板锚的反例必须并标 | 待施工 | 发射器与架构 |
+| ISSUE-033 | 四处已具名的真住址违规（宽度轴） | 阻塞 | 发射器与架构 |
+| ISSUE-034 | loop_order「不读者构建失败」形态未实施 | 待裁 | 发射器与架构 |
+| ISSUE-035 | strip-width 轴接入 + 记忆层首个真实改判 | 待裁 | 发射器与架构 |
+| ISSUE-036 | plan 深层序列化 + round-trip lit 未做 | 已就绪 | 发射器与架构 |
+| ISSUE-037 | IME 板测数据 constexpr 镜像 → 读 live schema | 待施工 | 发射器与架构 |
+| ISSUE-038 | E7 的立项前提已不成立 | 待裁 | 发射器与架构 |
+| ISSUE-039 | 后端注册表的注释与实表不符 | 已修 | 发射器与架构 |
+| ISSUE-040 | 描述符成本入账收尾三件 | 待裁 | 发射器与架构 |
+| ISSUE-041 | C7 扇出台账三处「已知行」被机算证伪 | 待裁 | 发射器与架构 |
+| ISSUE-042 | registry status enum 与分层令文不一致 | 待裁 | 发射器与架构 |
+| ISSUE-043 | 主发射器规模问题（54,314 行）· 方案待裁 | 待裁 | 发射器与架构 |
+| ISSUE-044 | canon v4 定稿（检查点一） | 待裁 | canon与措辞 |
+| ISSUE-045 | uarch 事实 vs schema 准入纪律正面冲突 | 待裁 | canon与措辞 |
+| ISSUE-046 | [PAT-3] 判据在本仓平凡真 | 待裁 | canon与措辞 |
+| ISSUE-047 | 探针 DUAL-AGREE 双法交叉验证入 canon | 待裁 | canon与措辞 |
+| ISSUE-048 | 判别键「sub-block 数 16 vs 8」已被证伪 | 待裁 | canon与措辞 |
+| ISSUE-049 | T-P 构造参数三段链主张强度须收窄 | 待裁 | canon与措辞 |
+| ISSUE-050 | [K-5b] 语料完备缺口 + 三处预注册偏离 | 待裁 | canon与措辞 |
+| ISSUE-051 | 三贡献命名已统一为 C1/C2/C3 | RESOLVED | canon与措辞 |
+| ISSUE-052 | v4 之职 = 导入/对账而非重新立法 | 待裁 | canon与措辞 |
+| ISSUE-053 | 5 项【写死】机制无承接节点 | 待裁 | canon与措辞 |
+| ISSUE-054 | 空心检查清算余量 | 已就绪 | 门与工具 |
+| ISSUE-055 | C8 全节 verdict = FAIL · 冻结引用待补三项 | 待裁 | 门与工具 |
+| ISSUE-056 | C6 falsifier 保持红且未进 CI · 词表未合并 | 待裁 | 门与工具 |
+| ISSUE-057 | 3 例既存 lit 失败（测试套件长期红） | 待施工 | 门与工具 |
+| ISSUE-058 | 假声明繁殖 + 裸行号判错（四处订正） | 待裁 | 门与工具 |
+| ISSUE-059 | 跨轮基准数不一致（「2 字节之谜」）真因未知 | 待施工 | 门与工具 |
+| ISSUE-060 | 两个不依赖 runner 的 workflow 被连带删除 | 待裁 | 门与工具 |
+| ISSUE-061 | scalar 板：对手链已建成，缺家族身份验收 | 已就绪 | 性能与测量 |
+| ISSUE-062 | T-X 第 5 列「逐竞品产出数」未补齐 | 阻塞 | 性能与测量 |
+| ISSUE-063 | rvv07 板去向未定 | 待裁 | 性能与测量 |
+| ISSUE-064 | 上游 ggml iq4_nl 双核在 VLEN128 数值错 | 待裁 | 性能与测量 |
+| ISSUE-065 | Tier-3 真第三方接入 = 域外 | 阻塞 | 性能与测量 |
+| ISSUE-066 | 事故档案与本册的边界 | 待裁 | spec树与治理 |
+| ISSUE-067 | bench runner、三目的地与 cell contract 已落地 | RESOLVED | 门与工具 |
+| ISSUE-068 | `perf_covered_metrics.py` 成孤儿（无编排者） | 已就绪 | 门与工具 |
+| ISSUE-069 | 新 experiments 布局仍有 732/1372 条一致性 findings | 待施工 | 门与工具 |
+| ISSUE-070 | ★`core-invariants.md` 违「只写现行法」= 上岗阻塞 | 已裁 | spec树与治理 |
+| ISSUE-071 | [PERF-1] 门项数：「八门」vs「十项」 | 已裁 | spec树与治理 |
+| ISSUE-072 | evidence 三处「唯一权威」锚在 `docs/`（根悬空） | 待裁 | spec树与治理 |
+| ISSUE-073 | 主表住址已统一到 `experiments/master/` | RESOLVED | spec树与治理 |
+| ISSUE-074 | 「五层机器」所指未定（禁 agent 发明） | 待裁 | spec树与治理 |
+| ISSUE-075 | 旧强制停机/续跑规则退役 | RESOLVED | spec树与治理 |
+| ISSUE-076 | 第二套延后裁决状态机退役 | RESOLVED | spec树与治理 |
+| ISSUE-077 | `ROADMAP=` 前缀不再强制 | RESOLVED | spec树与治理 |
+| ISSUE-078 | 固定简报模板不再强制 | RESOLVED | spec树与治理 |
+| ISSUE-079 | 实验预注册与 Trellis task 解耦 | RESOLVED | spec树与治理 |
+| ISSUE-080 | task 母子自动聚合不再是全项目门 | RESOLVED | spec树与治理 |
+| ISSUE-081 | N-operand route identity 的完成度自相抵 | 待施工 | 发射器与架构 |
+| ISSUE-082 | 「falsifier 组 CI 常绿」措辞失锚 | 待裁 | 门与工具 |
+| ISSUE-083 | 真二进制门 DORMANT 的常驻登记处 | 阻塞 | 门与工具 |
+| ISSUE-084 | 旧 C2 成本曲线第三家族点不再是柱二前置 | RESOLVED | 性能与测量 |
+| ISSUE-085 | `tools/TOOLS.md` 已建 | 已修 | 门与工具 |
+| ISSUE-086 | 前身证据索引含死指针 + T2 口径 stale | 已就绪 | spec树与治理 |
+| ISSUE-087 | 门迁址遗留引用已施工，仍有判据级尾项 | 已施工 | 门与工具 |
+| ISSUE-088 | 「对手类」一词同指两个闭合枚举（档位 vs 角色） | 待裁 | canon与措辞 |
+| ISSUE-089 | `schema.def` 的 `$meta.authority` 悬空 vs [S-6] 形态哈希 | 待裁 | spec树与治理 |
+| ISSUE-090 | cell harness 住址与契约已确定 | RESOLVED | 门与工具 |
+| ISSUE-091 | bench 四元行键与签名已确定 | RESOLVED | 门与工具 |
+| ISSUE-092 | 判定与对手档值域已确定 | RESOLVED | 门与工具 |
+| ISSUE-093 | `experiments/runs.log` 已成为耐久台账 | RESOLVED | 门与工具 |
+| ISSUE-094 | `--drift` 漂移门退役（守护对象已被新法废除） | 已退役 | 门与工具 |
+| ISSUE-095 | 旧战役 goal（P/C/S/E 五线 + 验收门六条）退役成文站点 | RESOLVED | spec树与治理 |
+| ISSUE-096 | bench cell harness 基建已建成 | RESOLVED | 门与工具 |
+| ISSUE-097 | regime 未作独立主表键 —— bench `--regime` 覆盖风险 | 待裁 | 门与工具 |
+| ISSUE-098 | ★★master 表所有权冲突：recon【生成整表】 vs bench【外科落点】 | 待裁 | 门与工具 |
+| ISSUE-099 | PR-47 真 gcc 污染 8 格的合格 harness/重测 | 待施工 | 门与工具 |
+| ISSUE-100 | `vec_dot·nvfp4@rvv` 残余 lever 待施工，禁提前判不可达 | 待施工 | 性能与测量 |
+| ISSUE-101 | canon 措辞：「判别键 = sub-block 数（16 vs 8）」被 P5-F2 证伪 | 待裁 | 性能与测量 |
+| ISSUE-102 | 机制①「VLEN 专化满展开」反汇编证 no-op·真 lever = VLEN256 宽化·re-scope | 待裁 | 性能与测量 |
+| ISSUE-103 | T-X 六列证据表 spec 层归属未定（重构后无 testing 层） | 待裁 | spec树与治理 |
+| ISSUE-104 | ★scalar S 线「bench 能调」被四处夹住（harness 契约合规·runner 未通） | 待裁 | 门与工具 |
+| ISSUE-105 | per-board VLEN fixture 与 k1 半宽欠用已修 | RESOLVED | 门与工具 |
+| ISSUE-106 | ★dequant「PASS」多是 lottery-PASS·R线 de-lottery 用 owned 真测替换会降 census PASS（诚实代价·§四.1） | APPLIED-DEFAULT | 性能与测量 |
+| ISSUE-107 | ★grid-codebook dequant owned 真向量(HW-gather) 天花板·grid 族通用·标量门这些格到不了 PASS（非架构不可达·有标量-load lever gated 调度成熟） | 待裁 | 性能与测量 |
+| ISSUE-108 | recon_t3_disposition.py 默认 --tables 指 073 迁走路径（须显式 experiments/master·默认失锚） | 待施工 | 门与工具 |
+| ISSUE-109 | K-quant vec_dot weight-reconstruction floor 翻 0.8 的 register-fusion lever（独立大构造·≠架构不可达） | 待施工 | 发射器与架构 |
+| ISSUE-110 | T-X enablement 与 S1 scalar 性能账已裁准拆分 | 裁准拆分 | 门与工具 |
+| ISSUE-111 | 数值口径松绑: headline 取最快变体+ULP 界·oracle §5 作废（补充令二§二·量税证数值非perf杠杆） | 待裁 | canon与措辞 |
+| ISSUE-112 | 11 格 NEEDS-LEVER 具名-X 缺口 | 待施工 | 性能与测量 |
+| ISSUE-113 | `integer_core_lmul` optional → required 收尾锁 | 待施工 | 发射器与架构 |
+| ISSUE-114 | q4_K vec_dot harness 的 min-term 空心测漏洞 | 待施工 | 门与工具 |
+| ISSUE-115 | q2_K fold-brick op 的语义归属 | 待裁 | 发射器与架构 |
+| ISSUE-116 | decode/flat 前门 stamp 与 6 处 live-default 去烘焙 | 待裁 | 发射器与架构 |
+| ISSUE-117 | 柱二 c 轴公式、schema 与归因真实状态订正 | 待裁 | 性能与测量 |
+| ISSUE-118 | GridCodebook/Ternary grid 几何描述符 lift | 回门待扫 | 发射器与架构 |
+| ISSUE-119 | ForwardElementwise dequant-row 格式几何描述符化 | 待裁 | 发射器与架构 |
+| ISSUE-120 | iq2_xs/iq2_s VLEN256 byte-broken 已修 | RESOLVED | 发射器与架构 |
+| ISSUE-121 | 4 个 I8 证据线属性零消费的去留 | 待裁 | 发射器与架构 |
+| ISSUE-122 | DequantMechanismPlan verifier 从公式独立重算 | 待裁 | 发射器与架构 |
+| ISSUE-123 | evidence 地图从旧 C2/C3′ 标签重索引 | 待施工 | canon与措辞 |
 
 ---
 
@@ -314,7 +310,7 @@
 
 | 来源 | 本层编号 |
 |---|---|
-| [canon](../canon/index.md)「待裁」表 · C3′ vs C3 三贡献命名 | ISSUE-051 |
+| ~~[canon]「待裁」表 · C3′ vs C3 三贡献命名~~ | ISSUE-051 —— **已裁**：统一 C1/C2/C3，C3′ 退役 |
 | ~~[canon]「待裁」表 · [PERF-1] 门数称谓~~ | ISSUE-071 —— **已裁**；该行已从 canon「待裁」表移除（副本消解） |
 | ~~[canon]「待裁」表 · `core-invariants.md` 违「只写现行法」~~ | ISSUE-070 —— **已裁**；该行已从 canon「待裁」表移除（副本消解） |
 | [canon](../canon/index.md)「待裁」表 · [S-4] uarch vs schema 准入 | ISSUE-045 |
@@ -328,19 +324,19 @@
 | [evidence](../evidence/index.md) §六 **G-1**（性能证词根悬空） | ISSUE-072 |
 | [evidence](../evidence/index.md) §六 **G-2**（「CI 常绿」措辞失锚） | ISSUE-082 |
 | [evidence](../evidence/index.md) §六 **G-3**（承重论证载体去向） | ISSUE-072 |
-| [evidence](../evidence/index.md) §六 **G-4**（主表目的地未落地） | ISSUE-073 |
+| ~~[evidence] §六 **G-4**（主表目的地未落地）~~ | ISSUE-073 —— **已解决**：主表迁入 `experiments/master/` |
 | [evidence](../evidence/index.md) §六 **G-5**（真二进制门 DORMANT） | ISSUE-083 |
-| [evidence](../evidence/index.md) §六 **G-6**（C2 曲线第 3 家族点 honest-missing） | ISSUE-084 |
+| ~~[evidence] §六 **G-6**（旧 C2 曲线第 3 家族点）~~ | ISSUE-084 —— **已重分类**：不再是柱二前置 |
 | [evidence](../evidence/index.md) §六 **G-7**（`tools/TOOLS.md` 未建） | ISSUE-085 |
 | [evidence](../evidence/index.md) §六 **G-8**（前身索引死指针） | ISSUE-086 |
-| [evidence](../evidence/index.md) §六 **G-9**（本文件自身暂定范围） | ISSUE-051 / ISSUE-052（贡献名 = 暂定，随论文侧） |
+| [evidence](../evidence/index.md) 旧贡献标签重索引 | ISSUE-123（工件仍有效，贡献映射待迁移） |
 | [evidence](../evidence/index.md) §六 **G-10**（旧 `tools/lint/` 反向引用） | ISSUE-087 |
-| [governance](../governance/index.md) §1.2（停机规则无定义站点） | ISSUE-075 |
-| [governance](../governance/index.md) §2.4（延后裁决登记载体） | ISSUE-076 |
-| [governance](../governance/index.md) §3.1（`ROADMAP=` 前缀） | ISSUE-077 |
-| [governance](../governance/index.md) §四（机算宿主） | ISSUE-078 |
-| [governance](../governance/index.md) §5.3（`task.py` prereg） | ISSUE-079 |
-| [governance](../governance/index.md) §六 [GOV-2]（无脚本保障） | ISSUE-080 |
+| 旧强制停机/续跑规则 | ISSUE-075 —— RESOLVED |
+| 旧第二套延后裁决状态机 | ISSUE-076 —— RESOLVED |
+| 旧 `ROADMAP=` 强制前缀 | ISSUE-077 —— RESOLVED |
+| 旧固定简报模板 | ISSUE-078 —— RESOLVED |
+| 实验预注册与 task 强绑定 | ISSUE-079 —— RESOLVED |
+| task 母子聚合作为全项目门 | ISSUE-080 —— RESOLVED |
 
 ---
 
@@ -350,7 +346,7 @@
 - **零行号**：全册跨文件引用只用相对链接 + 标题锚 / 条目编号 / `grep` 谓词。行号出现 = 缺陷（[§〇.5](#5-跨文件引用禁行号)）。
 - **条目自足**：`实质` 栏读完即可开工；靠 `出处` 才看得懂 = 缺陷。`出处` 逐条标「仓内谓词」或「历史线索（归档后不可达）」。
 - **数字带谓词**：无谓词的数标 `UNVERIFIED-*`，且不得被引作权威计数。比值必钉分子与分母。
-- **待裁必带保守默认**，且保守默认落在铁线内（[governance](../governance/index.md) §2.2：不扩分母 / 不改 canon 措辞 / 不增头条口径 / 不动队列排序 / 不采购 / 争议格标 `pending`）。
+- **待裁在可安全推进时带保守默认**；若不同选择会实质改变论文主张、公共契约、外部动作或不可逆方向，则明确停在决策点。
 - **阻塞必写前置**（他条 ISSUE 号 / 结构缺口 / 板 / 外部依赖），否则无法判可开工性。
-- **科研主张只登记不发明**：三贡献命名 / 论题位 / 解耦 / 分界层一律「原样搬 + 标暂定」，正文归 canon【暂定】节。
-- **禁把「待裁」当停轮理由**：本层置顶节的存在恰恰是为了**不停轮**（登记 + 保守默认 + 续推）。
+- **科研主张不由 issue 发明**：重大研究表述由当前用户裁决与 canon 正本定义；issue 只登记冲突、迁移或施工状态。
+- **是否继续由风险决定**：能在既定范围内安全推进就推进；需要新权限或会改变方向时停下询问，不设“禁止停止”规则。

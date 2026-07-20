@@ -7,7 +7,7 @@
 **唯一合法测量动作：`bench <op> <format> --board <板> [--engine E] [--regime R]`。**
 > **签名带全四元行键**（[ISSUE-091]·《开测篇》§〇.1）：签名必须**结构上唯一定位主表一行** `(op, format, engine, regime)`。**可无歧义推定时允许省参**（如 `--board` 唯一确定 engine）；**歧义即 fail-closed 拒绝，禁猜行**（`--board` 在 k1 上推不出 engine∈{rvv,ime}、格名跨多 op ⟹ 必须显式给）。runner `ROW_KEY = (op,format,engine,regime)` 已就绪并 self-test 机核。
 
-> **【runner 已建 · 真实路径仍阻塞】**（2026-07-17 实况订正；此前本注记写"该命令当前不存在"，谓词已为假）**runner 现址 = `tools/bench/bench`**（谓词：`test -x tools/bench/bench` 为真；`grep -rnE 'runs\.log|run-id|run_id' tools .trellis/scripts` 命中 **32**，非 0）。**已达 = 干跑路径**（`--dry-run`：零 ssh · 零计时 · 零主表写，只产台账一行 + 演示行）与 `--self-test`。**未达 = 真实测量路径**：第 3/4 步抛 `CellRecipeMissing` 硬错，**禁伪装可用**——阻塞于 [ISSUE-090](../issues/门与工具.md#issue-090--每格对拍计时-harness-的住址与契约未定义33-第-34-步无可寻址被调物)（每格 harness 住址与契约）+ [ISSUE-091](../issues/门与工具.md#issue-091--bench-格-单独不定位主表行行键不在-331-字段表内--与现役表结构无映射)（行键）+ [ISSUE-073](../issues/index.md)（主表住址）。总账挂 [ISSUE-067](../issues/index.md)。
+> **【runner、目的地和注册 cell 路径已建】** runner 现址 = `tools/bench/bench`；主表、原始运行目录和 append-only 台账分别住 `experiments/master/`、`experiments/runs/<run-id>/`、`experiments/runs.log`；每格 harness 住 `tools/bench/cells/`。runner 支持 dry-run、self-test 和已注册 cell 的真实路径。未注册或被板册禁止的组合抛 `CellRecipeMissing` 或具名诊断，继续 fail-closed；“某些 cell 不支持”不得再外推为“runner/正式测量通道不存在”。
 >
 > **本节是规范，不是对现有实现的描述**：本节的五步与 [3.3.1](#331-行-schema规范性) 行 schema 是**验收标准**；runner 与本节不符 = **runner 的缺陷**。**本层是权威，runner 是实现**——任何"schema 以 runner 实现为准"的读法都非法。（runner 侧已把本节 [3.3.1](#331-行-schema规范性) 的字段表做成**每次出行前机核比对**、不等即 fail-closed 中止；故"改本节而不改 runner"会当场变红，此为设计。）
 
@@ -30,7 +30,7 @@
 **行键 = `(op, format, engine, regime)` 四元组**（2026-07-17 用户裁 · 前置裁定）。**三元组 `(op, format, engine)` 口径作废** —— 它在现役主表**不唯一**（`gemm_tile × engine=rvv` 的 `regime=decode` 与 `prefill` 相撞）；四元组**唯一**。**板不是键**：板以 `<板>_*` 属性列前缀与 run-id 承载，且 **`--board` 结构上推不出 `engine`**（同一块 k1 板上 `engine` 可为 `rvv` 或 `ime`）。**谓词**（可复跑 · 本层不转抄读数）：
 
 ```
-python3 -c "import csv;r=list(csv.DictReader(open('experiments/active/result-tables/T3_master_rebuild.csv')));print(len(r), len({(x['op'],x['format'],x['engine']) for x in r}), len({(x['op'],x['format'],x['engine'],x['regime']) for x in r}))"
+python3 -c "import csv;r=list(csv.DictReader(open('experiments/master/T3_master_rebuild.csv')));print(len(r), len({(x['op'],x['format'],x['engine']) for x in r}), len({(x['op'],x['format'],x['engine'],x['regime']) for x in r}))"
 ```
 
 | 字段 | 内容 | 产出步 |
@@ -71,7 +71,7 @@ python3 -c "import csv;r=list(csv.DictReader(open('experiments/active/result-tab
 **谓词**（可复跑 · **零预处理**：不 `split`、不剥括注、不 `startswith` 归口）：
 
 ```
-python3 -c "import csv,collections;r=list(csv.DictReader(open('experiments/active/result-tables/T3_master_rebuild.csv')));c=collections.Counter();[(c.update([x['rvv_disp']]),c.update([x['k1_disp']])) for x in r];print(len(c), sum(c.values()));print(c.most_common())"
+python3 -c "import csv,collections;r=list(csv.DictReader(open('experiments/master/T3_master_rebuild.csv')));c=collections.Counter();[(c.update([x['rvv_disp']]),c.update([x['k1_disp']])) for x in r];print(len(c), sum(c.values()));print(c.most_common())"
 ```
 
 **取值一致性** = [3.6](#36-其余铁律) 的值域登记铁律：本节是**枚举**，不是模板 —— 新值只能经 [3.5](./门体系.md#35-门体系清算三硬点其余皆工具) 第 4 条途径进来。
