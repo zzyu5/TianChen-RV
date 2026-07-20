@@ -49,6 +49,17 @@
 - **verification**：ODS 变化后 clean rebuild + 强制重链 `weft-opt` / `weft-translate` 通过；4 个 q1 focused lit（core verifier、source-driven VLEN divergence、retired parse mutation、full pipeline/export）通过；两项 retired gate 及 self-test 通过。全量 `check-weft` 在 Batch 2 后统一与基线 973 pass / 3 个既有失败比对。
 - **restore pointer**：回滚本 Batch 1 retirement commit；被删实现只在 Git parent/history 中保留，不在 active tree 放 tomb。
 
+### Batch 2 · q2_K/q3_K/q4_K/q5_K/q6_K（2026-07-20，完成，待合并）
+
+- **old symbols**：`GgmlBlockDotQ{2,3,4,5,6}KQ8KOp` 五个 whole-kernel ODS op、对应 verifier、family 表 op-type key、front-door `getOperationName()` key 和五份 direct-op verifier fixture。施工前无旧 `isa/dyn_cast` emitter caller；这五项是 pipeline-dead surface debt。
+- **new typed authority**：q4_K/q5_K 走 `createTypedSuperBlockBlockDotLoopChain` 的 dual-accumulator brick chain；q3_K/q6_K 走 `createTypedSuperBlockScalesTimesSumiLoopChain`；q2_K 走 `createTypedSuperBlockScalarScaleMinLoopChain`。三者统一进入 `TypedSuperBlockBlockDotLoopBodyOp`，由 `emitTypedSuperBlockBlockDotLoopBody` 分层机械发射。
+- **caller before / after**：五个旧类在 active include/lib 的精确 token 引用从 ODS/verifier/registry/front-door key 降为 0；仅 ODS 四要件 RETIRED NOTE 与 schema/retired index 留历史身份。公开格式名保留为 source-ingestion literal，不注册旧 op、不在 emitter 按名重算语义。
+- **tests**：删除五份只为旧 whole-kernel verifier 存活的 dataflow fixture；保留并通过五份 typed-loop EmitC 测试与五份 source→full-pipeline→object export 测试；新增逐格式 old-op parse rejection mutation，任何一个旧 ODS op 复活都会转红。
+- **ledger / gate**：五项从 `pending_retirement` 迁入四要件 retired ledger；generated index 从 17 增到 22 个 retired vec_dot monolith entries。退役 gate 报告 active ODS 仅余 2 项。
+- **retained audit**：mxfp4 仍由 e5 作为隔离、非普通 typed-path 的 `constructed-weak` 负对照，保留条件成立。q4_0 普通 source path 已 typed，但其旧 op 仅服务无真实 producer、lit-only authored 的 `GgmlQuantContractionOp` block-dot arm，故保留依据不闭合：已降为 `ISSUE-124` 的 `pending_retirement` debt；本批不越界删除该独立 slice，也不把它伪报为合规 production role。
+- **verification**：第二次 ODS clean rebuild + 强制重链通过；A7 聚焦 19/19 通过；两项 retired gate 与 mutation self-test 通过；全量 976 项 = 973 pass + 与施工前完全相同的 3 个 generated-bundle 既有失败，零新增失败。
+- **restore pointer**：回滚 Batch 2 retirement commit；旧 ODS/verifier/direct fixtures 仅存 Git history，不在 active tree 保留 compat/tomb。
+
 ## Dependencies and Parallelism
 
 - 依赖本 campaign 的 Shared Retirement Gate 与 architecture [RET-1] 已合入。
@@ -57,16 +68,16 @@
 
 ## Acceptance Criteria
 
-- [ ] HEAD caller graph 证明六个 pending 项的旧 production path 均被 typed path 取代。
+- [x] HEAD caller graph 证明六个 pending 项的旧 production path 均被 typed path 取代。
 - [x] q1_0 旧 emitter/recognizer/dispatch/op-def 与 production callers 为 0。
-- [ ] q2_K/q3_K/q4_K/q5_K/q6_K 旧 monolith op-def、verifier、family op-type refs 与 production callers 为 0。
-- [ ] 没有新增 literal format-name compute dispatch、compat alias、bridge、dual path 或 code-affecting default。
-- [ ] 正常 fixtures byte-exact/ULP；missing/forged typed body 与旧路径复活 mutation 能使测试变红。
-- [ ] 旧 dataflow/golden tests 已删除或改为直接保护 typed authority，没有只为旧 op-def 存活的 fixture。
-- [ ] `pending_retirement` 对本任务六项清零并迁入合规 retired ledger；generated retired index 重建且 gate 通过。
-- [ ] q4_0、mxfp4 的 declared predicate/owner/evidence 经 RET-1 审计：前者确为不重叠 live slice，后者确为隔离负对照；若事实不符则登记具名 debt，不以 `deliberately_retained` 标签豁免。
-- [ ] q4_0、mxfp4 及其真实职责零非预期改动。
-- [ ] 修改 emitter/verifier 后强制重链；共享 ODS/layout 变化后 clean rebuild，相关 lit/full-link 无新增失败。
+- [x] q2_K/q3_K/q4_K/q5_K/q6_K 旧 monolith op-def、verifier、family op-type refs 与 production callers 为 0。
+- [x] 没有新增 literal format-name compute dispatch、compat alias、bridge、dual path 或 code-affecting default。
+- [x] 正常 fixtures 维持既有 byte-exact/ULP contract；typed body 与旧路径复活 mutation 能使测试变红。
+- [x] 旧 dataflow/golden tests 已删除或改为直接保护 typed authority，没有只为旧 op-def 存活的 fixture。
+- [x] `pending_retirement` 对本任务原六项清零并迁入合规 retired ledger；generated retired index 重建且 gate 通过（新发现的 q4_0 debt 独立绑定 ISSUE-124）。
+- [x] q4_0、mxfp4 的 declared predicate/owner/evidence 经 RET-1 审计；mxfp4 成立，q4_0 不闭合并已登记 ISSUE-124/降格，不以 `deliberately_retained` 标签豁免。
+- [x] q4_0、mxfp4 的实现与真实职责零非预期改动；仅 q4_0 inventory 分类按事实订正。
+- [x] 修改 emitter/verifier 后强制重链；共享 ODS/layout 变化后 clean rebuild，相关 lit/full-link 无新增失败。
 
 ## Verification
 

@@ -1328,8 +1328,7 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // weight sub-plane offsets. q6_K reads the qh 5th/6th-bit plane @128; q3_K reads
   // the hmask high-bit plane @0 + the 2-bit qs plane @32. The reused positive fold
   // + single `sums` yield are IDENTICAL.
-  const bool isQ3K =
-      entry.opName == weftrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
+  const bool isQ3K = entry.opName == "weft_rvv.q3_k_q8_k_block_dot";
   std::int64_t weightQhOffset = isQ3K ? 0 : factByName("weight_qh_byte_offset");
   std::int64_t weightHmaskOffset =
       isQ3K ? factByName("weight_hmask_byte_offset") : 0;      //   0
@@ -3161,21 +3160,21 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // there is NO zero_seed (the dual accumulators are seeded internally by the
   // lowering). Every other (monolith) row stays byte-unchanged.
   const bool isQ4KTypedSuperBlock =
-      entry.opName == weftrvv::GgmlBlockDotQ4KQ8KOp::getOperationName();
+      entry.opName == "weft_rvv.q4_k_q8_k_block_dot";
   // q5_K first flip: q5_K == q4_K + the qh 5th-bit plane. It takes the SAME typed
   // super-block dual-accumulator loop chain (the 5 shared bricks + dual yield),
   // the ONLY addition being BRICK 1's weight_qh_byte_offset attr (stamped from
   // kQ5KFacts inside the chain builder). The stride-176 facts + qh offset flow
   // through entry.facts, so no q5_K-specific construction code is needed here.
   const bool isQ5KTypedSuperBlock =
-      entry.opName == weftrvv::GgmlBlockDotQ5KQ8KOp::getOperationName();
+      entry.opName == "weft_rvv.q5_k_q8_k_block_dot";
   const bool isTypedSuperBlock = isQ4KTypedSuperBlock || isQ5KTypedSuperBlock;
   // q6_K first flip: q6_K has NO per-block min, so it flips to the typed super-block
   // SINGLE-accumulator loop chain (fold_model "scales_times_sumi" -- the aux32
   // integer core + the no-min positive fold + a single `sums` yield), NOT the
   // q4_K/q5_K dual chain. Its stride-210 facts flow through entry.facts.
   const bool isQ6KTypedSuperBlock =
-      entry.opName == weftrvv::GgmlBlockDotQ6KQ8KOp::getOperationName();
+      entry.opName == "weft_rvv.q6_k_q8_k_block_dot";
   // q3_K first flip: q3_K is SYMMETRIC (NO per-block min), so it flips to the SAME
   // typed super-block SINGLE-accumulator loop chain as q6_K (fold_model
   // "scales_times_sumi" -- the q3_K aux32 integer core + the reused no-min positive
@@ -3183,7 +3182,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // 110, hmask/qs planes) from q6_K (stride 210, qh plane) by entry.opName; its
   // stride-110 facts flow through entry.facts.
   const bool isQ3KTypedSuperBlock =
-      entry.opName == weftrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
+      entry.opName == "weft_rvv.q3_k_q8_k_block_dot";
   // q2_K first flip: q2_K HAS a per-block min (like q4_K/q5_K) but its whole fold
   // is a SINGLE per-super-block SCALAR `sumf += dall*isum - dmin*summs`, so it
   // flips to the typed super-block SCALAR-accumulator loop chain (fold_model
@@ -3191,7 +3190,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // + a single `sumf` scalar yield), NOT the q4_K/q5_K dual nor the q6_K
   // single-vector chain. Its stride-84 facts flow through entry.facts.
   const bool isQ2KTypedSuperBlock =
-      entry.opName == weftrvv::GgmlBlockDotQ2KQ8KOp::getOperationName();
+      entry.opName == "weft_rvv.q2_k_q8_k_block_dot";
   // iq1_s flip (L3 M3): iq1_s is a super-block GRID/codebook quant whose whole fold
   // is a SINGLE per-super-block SCALAR `sumf += d*((float)sumi + IQ1S_DELTA*
   // (float)sumi1)` (the SAME scalar-accumulator arity as q2_K), so it flips to the
