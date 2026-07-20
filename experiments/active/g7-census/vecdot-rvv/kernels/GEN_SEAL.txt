@@ -3,11 +3,11 @@ q4_1  md5=941a7228536b9a2c9cb167884205b659  sym=weft_emitc_ggml_vec_dot_q4_1_q8_
 q5_0  md5=1446f0f0e21cbf225fecd11036f4716e  sym=weft_emitc_ggml_vec_dot_q5_0_q8_0_kernel_rvv_q5_0_q8_0_block_dot
 q5_1  md5=db59d2ea36c61baa6b72a6700e56a905  sym=weft_emitc_ggml_vec_dot_q5_1_q8_1_kernel_rvv_q5_1_q8_1_block_dot
 q8_0  md5=9be8717ec6ecc5c191d91e3cdab8db9f  sym=weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
-q2_K  md5=450470f89d0d9ed7c8ebfe3be7afaa4d  sym=
-q3_K  md5=ddc18ad104bc10757ea06a3d85411b92  sym=
-q4_K  md5=892b6cf8d54b3558659d0b726b563105  sym=
-q5_K  md5=c05740ee1fe804eb0c662328f152de7c  sym=
-q6_K  md5=4de70f5162ead640ea85b0ed28f759d4  sym=
+q2_K  md5=450470f89d0d9ed7c8ebfe3be7afaa4d  sym=weft_emitc_ggml_vec_dot_q2_K_q8_K_kernel_rvv_q2_K_q8_K_block_dot
+q3_K  md5=ddc18ad104bc10757ea06a3d85411b92  sym=weft_emitc_ggml_vec_dot_q3_K_q8_K_kernel_rvv_q3_K_q8_K_block_dot
+q4_K  md5=892b6cf8d54b3558659d0b726b563105  sym=weft_emitc_ggml_vec_dot_q4_K_q8_K_kernel_rvv_q4_K_q8_K_block_dot
+q5_K  md5=9970c3231afabfa770209081acfcdd30  sym=weft_emitc_ggml_vec_dot_q5_K_q8_K_kernel_rvv_q5_K_q8_K_block_dot
+q6_K  md5=4de70f5162ead640ea85b0ed28f759d4  sym=weft_emitc_ggml_vec_dot_q6_K_q8_K_kernel_rvv_q6_K_q8_K_block_dot
 --- recipe ---
-weft-opt <fixture> --weft-rvv-materialize-<slug>-block-dot-source-front-door --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp
-HEAD=88dddf95882f9862e176759359c034673cddfe90
+weft-opt <fixture> --weft-rvv-materialize-<slug>-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp -o <format>.kernel.c
+HEAD=73c5b4226fe5c746aa3b115287c68ddd19806b0b

@@ -1,6 +1,6 @@
 # Measurement Specs — 统一测量哲学
 
-> **版本**：v6
+> **版本**：v7
 >
 > （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = 卫生欠账，非"本层此前无条文"。v1 = 建载体时的在册状态，**不追溯编号历史修改**。
 > **v2**（2026-07-17 用户裁「三洞四裁回批」第 0/1/2/3 条落地）：行键定四元组 `(op, format, engine, regime)` + 行 schema 补四个行键字段（[3.3.1](./流水线与行schema.md#331-行-schema规范性)）· `判定` 值域原样收 12 值 ∪ VOID（[3.3.1.1](./流水线与行schema.md#3311-判定-的值域规范性--零预处理机算枚举)）· 值域登记铁律入 [3.6](./流水线与行schema.md#36-其余铁律) · 住址-落点两分入 [3.2](./哲学与目的地.md#32-单一目的地法) 第 4 项。）
@@ -8,6 +8,7 @@
 > **v4**：同步当前实现事实——runner、master、runs、runs.log 和 cell harness 均已落地；全局“无正式测量通道”旧判断退役。真实可测范围由已注册 cell/board contract 决定，未支持组合继续 fail-closed。
 > **v5**（2026-07-20·B1 measurement-control-plane）：主表改为 recon-only canonical generated view；bench direct-master writer 与空-regime 通配原子退役。四元键分量全部显式非空，`engine∈{rvv,ime,scalar}`、`regime∈{micro-fixed,decode,prefill}`。区分 immutable run event、qualification view 与 canonical master publication；`measured`、T-N-qualified、selection-valid 不再混为一态。
 > **v6**（2026-07-20·B1 原子收口）：真跑与 dry-run 统一为不可省参的完整四元键签名，单参数兼容入口与 dry-run 占位 row/log 退役；T-N 改为 `weft.tn.qualification.v1` 结构化可复算证据，harmonizer 与 recon 双重验证 N≥10、2×noise、bootstrap CI 与 source-run SHA。
+> **v7**（2026-07-20·B2）：runner 路由改为显式闭合 registry，verify/cold 按 op 各有唯一 parser registry；roster membership、route known、parser covered、run eligible 四项分立。旧 `cells/<op>.sh` 猜路与 GEMM parser fallback 退役；scalar route 仅为 dormant implementation fact，ISSUE-061/104、roster 与 NON-Win 边界不变。
 
 本层是本项目**一切测量活动的唯一法源**：什么算测量、在哪块板测、用哪条流水线测、跟谁比、结果写到哪、哪些检查作数。凡涉及"跑出数字"的动作以本层为准；**本层未授权的测量动作即非法动作**。
 
@@ -52,6 +53,7 @@
 - 验收**查世系不查字样**——编译器身份三元 `{板·链·批次}` 自动写入行。
 - 对手数值错误 → 成绩**作废登记**，降落该板下一真实派发路径；**禁用坏对手时间算倍率**。
 - 本层是**权威**，runner 是**实现**。任何"schema 以 runner 实现为准"的读法都非法。
+- roster、route、parser、run eligibility 四层必须分别验证；missing/unknown 组合在 run-id/SSH/写盘前失败，禁止同名猜路或 parser fallback。
 - 板忙只延后**验证**，不延后**施工**——"constructed·待板端门"是合法状态。
 - **"某物不存在"的断言禁用 `head` / 固定窗口命令作依据。**
 

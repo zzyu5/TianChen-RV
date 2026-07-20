@@ -371,18 +371,62 @@ def _probe_lineage(cfg):
 # harness 住 tools/bench/cells/<op>.sh，由 bench 按声明接口 `<op>.sh <board> <mode> <fmt>` 调用。
 # harness 禁写仓库侧文件 —— 板端跑完打 stdout，bench 在此解析、经 guarded_open 落三目的地。
 CELLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cells")
-HARNESS_TIMEOUT_VERIFY = 900       # 秒：build + 4-arm verify
+HARNESS_TIMEOUT_VERIFY = 900       # 秒：build + correctness/fault arms
 HARNESS_TIMEOUT_MEASURE = 1800     # 秒：build + 2-seed × N=25 cold（每 rep flush >LLC）
 
+# Runner 入口的显式、闭合路由。它描述“当前 canonical runner 真能消费什么”，不是
+# roster（实验分母）也不是 board eligibility（能否真跑）。shell 内白名单仍作纵深防御，
+# 但绝不能凭文件同名或默认 fallback 扩大这里的声明面。
+_GRID_GEMM_FORMATS = frozenset({
+    "iq1_s", "iq1_m", "iq2_xxs", "iq2_xs", "iq2_s", "iq3_xxs", "iq3_s",
+})
+_K_VECDOT_FORMATS = frozenset({"q2_K", "q3_K", "q4_K", "q5_K", "q6_K"})
+_PRODUCT_REDUCE_FORMATS = frozenset({"q4_0_nibble", "offset_binary_n3", "codebook_n3"})
 
-def cell_harness(op):
-    """定位 op 的对拍/计时 harness（§〇.2）。缺 = CellRecipeMissing（禁伪装可用）。"""
-    path = os.path.join(CELLS_DIR, f"{op}.sh")
-    if not os.path.exists(path):
+CELL_ROUTES = (
+    {
+        "op": "gemm_tile", "boards": frozenset({"rvv", "k1"}),
+        "engines": frozenset({"rvv"}), "formats": _GRID_GEMM_FORMATS,
+        "harness": "gemm_tile.sh",
+    },
+    {
+        "op": "vec_dot", "boards": frozenset({"rvv", "k1"}),
+        "engines": frozenset({"rvv"}), "formats": _K_VECDOT_FORMATS,
+        "harness": "vec_dot.sh",
+    },
+    {
+        "op": "product_reduce", "boards": frozenset({"rvv", "k1"}),
+        "engines": frozenset({"rvv"}), "formats": _PRODUCT_REDUCE_FORMATS,
+        "harness": "product_reduce.sh",
+    },
+    {
+        # Dormant implementation fact only.  Roster has no engine=scalar row and
+        # BOARDS[scalar] remains blocked by ISSUE-061/104, so this route cannot grant a run.
+        "op": "vec_dot", "boards": frozenset({"scalar"}),
+        "engines": frozenset({"scalar"}), "formats": frozenset({"tq2_0"}),
+        "harness": "scalar_vec_dot.sh",
+    },
+)
+
+
+def resolve_cell_route(op, fmt, board, engine):
+    """精确解析一个已实现 cell；无 wildcard、同名猜测或旧路径 fallback。"""
+    matches = [
+        route for route in CELL_ROUTES
+        if route["op"] == op
+        and board in route["boards"]
+        and engine in route["engines"]
+        and fmt in route["formats"]
+    ]
+    if len(matches) != 1:
         raise CellRecipeMissing(
-            f"op {op} 无 cells/ harness（{os.path.relpath(path, ROOT)}）。\n"
-            "  §〇.2：每格/每族一个 harness，住 tools/bench/cells/。gemm_tile 族已建；\n"
-            "  dequant/vec_dot/forward 族 harness = 后续 task（PRD §六·同框架）。"
+            "ROUTE_COMBINATION_UNSUPPORTED: canonical cell route 必须精确命中一次："
+            f"(op={op}, format={fmt}, board={board}, engine={engine})；命中 {len(matches)}。"
+        )
+    path = os.path.join(CELLS_DIR, matches[0]["harness"])
+    if not os.path.isfile(path):
+        raise CellRecipeMissing(
+            f"ROUTE_TARGET_MISSING: registry 指向不存在的 harness {os.path.relpath(path, ROOT)}"
         )
     return path
 
@@ -399,7 +443,7 @@ def _run_harness(harness, board, mode, fmt, timeout):
     return out.returncode, (out.stdout or "") + (out.stderr or "")
 
 
-_SECTION_RE = re.compile(r"^=== \[([A-E])\]")
+_SECTION_RE = re.compile(r"^=== \[(A|Boff|B|C|D|E|F)\]")
 
 
 def _split_sections(text):
@@ -465,11 +509,278 @@ def _opp_caliber(deployed):
     return "手调" if deployed["rvv"] > 0 else "标量类"
 
 
-def step3_crosscheck(fmt, board, cfg, execute, op=None, run_dir=None):
+def _parse_gemm_verify(text, fmt, board, engine):
+    """唯一 GEMM verify parser；旧 step3 内联语法已退役。"""
+    if engine != "rvv":
+        return f"{VOID_OURS_WRONG}(GEMM parser 不接受 engine={engine})"
+    sec = _split_sections(text)
+    clean = sec.get("A", []) + sec.get("E", [])
+    ours = _mism(clean, "T2 ours")
+    oppg = _mism(clean, "T2 OPP-G")
+    oppx = _mism(clean, "T2 OPP-X")
+    t1 = _mism(sec.get("A", []), "T1 BOARD-BYTE-EXACT")
+    if "-> PASS" not in "\n".join(ln for ln in clean if "ABI-GATE" in ln):
+        return f"{VOID_OURS_WRONG}(ABI-GATE 非 PASS)"
+    if ours is None or oppx is None or oppg is None or t1 is None:
+        return f"{VOID_OURS_WRONG}(GEMM 对拍三验解析不出 mism)"
+    if t1 != 0 or ours != 0:
+        return f"{VOID_OURS_WRONG}(我方 vs oracle mism T1={t1} T2={ours})"
+    if oppx != 0:
+        return f"{VOID_OPP_BAD}(部署对手 OPP-X vs oracle mism={oppx})"
+    if oppg != 0:
+        return f"{VOID_OPP_BAD}(参照对手 OPP-G vs oracle mism={oppg})"
+
+    def gate(letter, who):
+        for ln in sec.get(letter, []):
+            if "GATE-" in ln and "=" in ln:
+                match = re.search(who + r"\s*=\s*(PASS|FAIL)", ln)
+                if match:
+                    return match.group(1)
+        return None
+
+    if gate("B", "GATE-OURS") != "FAIL":
+        return f"{VOID_OURS_WRONG}(anti-hollow[B] oracle-fault 未被 gate 咬)"
+    if gate("C", "GATE-OURS") != "FAIL" or gate("C", "GATE-OPPX") != "PASS":
+        return f"{VOID_OURS_WRONG}(anti-hollow[C] DUT-fault gate 空心)"
+    if gate("D", "GATE-OURS") != "FAIL" or gate("D", "GATE-OPPX") != "PASS":
+        return f"{VOID_OURS_WRONG}(anti-hollow[D] leaf-byte-fault gate 空心)"
+
+    opp = _parse_opp(text)
+    thunk = f"ggml_vec_dot_{fmt}_q8_K"
+    vltag = "vl128" if board == "rvv" else "vl256"
+    vlsym = f"{thunk}_{vltag}"
+    if not opp.get(thunk, {}).get("present"):
+        return f"{VOID_DISPATCH_MISMATCH}(派发 thunk {thunk} ABSENT)"
+    deployed = opp.get(vlsym)
+    if deployed is None or not deployed.get("present"):
+        return f"{VOID_DISPATCH_MISMATCH}(部署核 {vlsym} ABSENT)"
+
+    ours_leaf = _parse_ours_leaf(text)
+    return {
+        "opp_sym": f"{thunk}(→{vltag}·CROSSOP)",
+        "opp_caliber": _opp_caliber(deployed),
+        "opp_evidence": (
+            f"objdump dispatch: {vlsym}@{deployed['addr']} "
+            f"rvv{deployed['rvv']}/vset{deployed['vset']}/gather{deployed['gather']}"
+        ),
+        "our_vector_ex_vset": (ours_leaf or {}).get("vector_ex_vset"),
+        "our_leaf": ours_leaf,
+    }
+
+
+def _vec_all(text, expected):
+    matches = re.findall(
+        r"# BYTE_EXACT ours_vs_ggml_deployed=(true|false) "
+        r"ours_vs_int_oracle=(true|false) ggml_vs_int_oracle=(true|false) "
+        r"ALL=(true|false)",
+        text,
+    )
+    if len(matches) != 1:
+        return False
+    values = matches[0]
+    if expected == "true":
+        return all(value == "true" for value in values)
+    return values[3] == "false" and any(value == "false" for value in values[:3])
+
+
+def _parse_vec_dot_verify(text, fmt, board, engine):
+    """K-quant 与 dormant scalar vec_dot 的 typed verify parser。"""
+    sec = _split_sections(text)
+    if board == "scalar":
+        if engine != "scalar" or fmt != "tq2_0":
+            return f"{VOID_OURS_WRONG}(scalar vec_dot parser identity mismatch)"
+        zero = re.search(
+            r"# ZEROVEC kernel\.o \[scalar_ins=\d+ vector_mnemonic=(\d+) vset=(\d+) "
+            r"cpop_clmul=\d+\] riscv_intrinsic=(\d+) weft_rvv_sym=(\d+)",
+            text,
+        )
+        libzero = re.search(r"# ZEROVEC deployed_ggml_lib v_mnemonic_lines=(\d+)", text)
+        if not zero or any(int(value) != 0 for value in zero.groups()):
+            return f"{VOID_OURS_WRONG}(scalar owned kernel 不是 zero-vector)"
+        if not libzero or int(libzero.group(1)) != 0:
+            return f"{VOID_DISPATCH_MISMATCH}(scalar deployed ggml 不是 no-V build)"
+        if not _vec_all("\n".join(sec.get("A", [])), "true"):
+            return f"{VOID_OURS_WRONG}(scalar symmetric byte-exact 非 ALL=true)"
+        if not _vec_all("\n".join(sec.get("Boff", [])), "true"):
+            return f"{VOID_OURS_WRONG}(scalar neutral byte-exact 非 ALL=true)"
+        for letter, inject in (("C", 1), ("D", 2)):
+            arm = "\n".join(sec.get(letter, []))
+            if not re.search(rf"# ANTIHOLLOW inject={inject} .* -> BITES-OK", arm):
+                return f"{VOID_OURS_WRONG}(scalar anti-hollow[{letter}] 未咬)"
+        return {
+            "opp_sym": "ggml_vec_dot_tq2_0_q8_K(→generic·no-V)",
+            "opp_caliber": "标量类",
+            "opp_evidence": "ZEROVEC owned/deployed=0；dormant parser fact，非 run eligibility",
+            "our_vector_ex_vset": 0,
+            "our_leaf": {"vector_ex_vset": 0},
+        }
+
+    if engine != "rvv" or fmt not in _K_VECDOT_FORMATS:
+        return f"{VOID_OURS_WRONG}(K-quant vec_dot parser identity mismatch)"
+    clean = "\n".join(sec.get("A", []))
+    identity = re.search(
+        rf"# VECDOT_CORRECT fmt={re.escape(fmt)} op=vec_dot engine=rvv "
+        r"regime=micro-fixed inject=0 min_active=0 .* vlen=(\d+)",
+        clean,
+    )
+    expected_vlen = 128 if board == "rvv" else 256
+    if not identity or int(identity.group(1)) != expected_vlen:
+        got = identity.group(1) if identity else "missing"
+        return f"{VOID_DISPATCH_MISMATCH}(runtime VLEN={got}，expected {expected_vlen})"
+    required_clean = (
+        re.search(r"# INPUT_CONTRACT q8_K_bsums_match_qs=true inject=0 -> PASS", clean),
+        re.search(r"# fp16_primitive_golden=PASS", clean),
+        re.search(rf"# CORPUS fmt={re.escape(fmt)} .* -> COMPLETE", clean),
+        re.search(r"# OWNED_FIVE_SYMBOLS count=5 expected=5", text),
+    )
+    if not all(required_clean) or not _vec_all(clean, "true"):
+        return f"{VOID_OURS_WRONG}(vec_dot clean contract/corpus/五叶闭包/byte-exact 不完整)"
+    for letter, inject in (("B", 1), ("C", 2)):
+        arm = "\n".join(sec.get(letter, []))
+        if not re.search(rf"# ANTIHOLLOW inject={inject} .* -> BITES-OK", arm):
+            return f"{VOID_OURS_WRONG}(vec_dot anti-hollow[{letter}] 未咬)"
+    if _vec_all("\n".join(sec.get("D", [])), "false") is not True:
+        return f"{VOID_OURS_WRONG}(vec_dot leaf-byte fault[D] 未咬)"
+    bsum_fault = "\n".join(sec.get("F", []))
+    if not re.search(
+        r"# INPUT_CONTRACT q8_K_bsums_match_qs=false inject=3 -> BITES-OK",
+        bsum_fault,
+    ):
+        return f"{VOID_OURS_WRONG}(q8 bsums 输入契约负控[F] 未咬)"
+
+    min_formats = {"q2_K", "q4_K", "q5_K"}
+    if fmt in min_formats:
+        active = "\n".join(sec.get("E", []))
+        witness = re.search(
+            rf"# MIN_TERM_COUNTERFACTUAL fmt={re.escape(fmt)} "
+            r"active_vs_dmin0_ours=(\d+)/(\d+) oracle=(\d+)/(\d+) "
+            r"dmin0_ours_vs_oracle_mism=(\d+) min_term_nonzero=true -> BITES-OK",
+            active,
+        )
+        if (
+            not witness
+            or int(witness.group(1)) == 0
+            or int(witness.group(3)) == 0
+            or int(witness.group(5)) != 0
+            or not re.search(r"min_active=1", active)
+            or not _vec_all(active, "true")
+            or not re.search(r"min_term_nonzero=true -> COMPLETE", active)
+        ):
+            return f"{VOID_OURS_WRONG}(min-term-active[E] witness/反事实/byte-exact 不完整)"
+    elif "E" in sec:
+        return f"{VOID_OURS_WRONG}(无 min-term 格式意外出现 active arm)"
+
+    ours = re.search(
+        r"# OURS_leaf \[scalar_ins=(\d+) vector_mnemonic=(\d+) vset=(\d+) "
+        r"gather=(\d+) vfp=(\d+)\] non_vset_vector=(\d+)",
+        text,
+    )
+    opp = re.search(
+        rf"# OPP (ggml_vec_dot_{re.escape(fmt)}_q8_K) PRESENT "
+        r"runtime_path=(\S+) path_kind=(vl128|vl256|generic|exported) "
+        r"dispatch_proof=(\S+) \[ins=(\d+) non_vset_vector=(\d+)\] "
+        r"caliber=(手调|通用向量|标量类) family=\[(.*)\]",
+        text,
+    )
+    vltag = "vl128" if board == "rvv" else "vl256"
+    if not ours:
+        return f"{VOID_OURS_WRONG}(OURS leaf 指令证据解析失败)"
+    if not opp:
+        return f"{VOID_DISPATCH_MISMATCH}(部署对手 runtime path 解析失败)"
+    path, path_kind = opp.group(2), opp.group(3)
+    path_valid = (
+        (path_kind == vltag and path.startswith(f"{opp.group(1)}_{vltag}"))
+        or (path_kind == "generic" and path.startswith(f"{opp.group(1)}_generic"))
+        or (path_kind == "exported" and path.startswith(opp.group(1)))
+    )
+    if not path_valid:
+        return f"{VOID_DISPATCH_MISMATCH}(部署对手 path/kind 不自洽: {path_kind}→{path})"
+    non_vset = int(ours.group(6))
+    return {
+        "opp_sym": f"{opp.group(1)}(→{path})",
+        "opp_caliber": opp.group(7),
+        "opp_evidence": (
+            f"objdump deployment: kind={path_kind} path={path} proof={opp.group(4)} "
+            f"non-vset-vector={opp.group(6)}; runtime-vlen={expected_vlen}; "
+            "fixed-fixture byte-exact"
+        ),
+        "our_vector_ex_vset": non_vset,
+        "our_leaf": {
+            "ins": int(ours.group(1)), "rvv": int(ours.group(2)),
+            "vset": int(ours.group(3)), "gather": int(ours.group(4)),
+            "vfp": int(ours.group(5)), "vector_ex_vset": non_vset,
+        },
+    }
+
+
+def _parse_product_reduce_verify(text, fmt, board, engine):
+    """product_reduce 三格式共享输出 contract；格式分发仍只属于 cell/driver。"""
+    if engine != "rvv" or fmt not in _PRODUCT_REDUCE_FORMATS:
+        return f"{VOID_OURS_WRONG}(product_reduce parser identity mismatch)"
+    sec = _split_sections(text)
+    clean = "\n".join(sec.get("A", []))
+    clean_matches = re.findall(
+        rf"VERIFY op={re.escape(fmt)} .* inject=0 : int_mismatch=0 .* "
+        r"=> BYTE-EXACT-vs-scalar-ref OK",
+        clean,
+    )
+    if len(clean_matches) != 1:
+        return f"{VOID_OURS_WRONG}(product_reduce clean byte-exact contract 不完整)"
+    for letter, inject in (("B", 1), ("C", 2)):
+        arm = "\n".join(sec.get(letter, []))
+        arm_matches = re.findall(
+            rf"VERIFY op={re.escape(fmt)} .* inject={inject} : int_mismatch=[1-9]\d* .* "
+            r"=> ANTI-HOLLOW BITES-OK",
+            arm,
+        )
+        if len(arm_matches) != 1:
+            return f"{VOID_OURS_WRONG}(product_reduce anti-hollow[{letter}] 未咬)"
+    ours = re.search(
+        rf"# OURS_{re.escape(fmt)} .* non_vset_vector=(\d+)",
+        text,
+    )
+    refs = set(re.findall(
+        r"# OPP-IDENTITY product_reduce ref=scalar-ref\(([^)]+)\) caliber=标量类",
+        text,
+    ))
+    expected_refs = {"sc_nibble", "sc_offbin", "sc_codebook"}
+    if not ours:
+        return f"{VOID_OURS_WRONG}(product_reduce owned 指令证据解析失败)"
+    if refs != expected_refs:
+        return f"{VOID_DISPATCH_MISMATCH}(product_reduce scalar-ref identity 不完整: {sorted(refs)})"
+    selected_ref = {
+        "q4_0_nibble": "sc_nibble",
+        "offset_binary_n3": "sc_offbin",
+        "codebook_n3": "sc_codebook",
+    }[fmt]
+    return {
+        "opp_sym": f"scalar-ref({selected_ref})",
+        "opp_caliber": "标量类",
+        "opp_evidence": "constructed same-arithmetic scalar-ref; ggml standalone absent",
+        "our_vector_ex_vset": int(ours.group(1)),
+        "our_leaf": {"vector_ex_vset": int(ours.group(1))},
+    }
+
+
+VERIFY_PARSERS = {
+    "gemm_tile": _parse_gemm_verify,
+    "vec_dot": _parse_vec_dot_verify,
+    "product_reduce": _parse_product_reduce_verify,
+}
+
+
+def resolve_verify_parser(op):
+    try:
+        return VERIFY_PARSERS[op]
+    except KeyError as exc:
+        raise CellRecipeMissing(f"PARSER_MISSING: op={op} 没有 verify parser；禁止回退 GEMM") from exc
+
+
+def step3_crosscheck(op, fmt, board, engine, cfg, execute, harness, run_dir=None):
     """对拍（一步三验）：我方 vs oracle · 对手 vs oracle · 对手就是真实派发的那一个。
 
-    execute：调 cells/ harness verify → 解析 ABI-GATE / T2 三验 / 4-arm anti-hollow /
-    我方向量指令数 / 部署派发身份 + 档。任一失败落对应 VOID（不计时）。
+    execute：调已解析的 cells/ harness verify → 由唯一 op parser 归一化 correctness、
+    反空心、我方向量指令数与对手身份。任一失败落对应 VOID（不计时）。
     """
     plan = {
         "步": "3 · 对拍（硬点：一步三验）",
@@ -480,10 +791,21 @@ def step3_crosscheck(fmt, board, cfg, execute, op=None, run_dir=None):
         "对手档": "{手调 | 通用向量 | 标量类} 逐格证据判定（§3.4），证据引用入行",
         "任一失败": "不计时",
     }
+    if op == "product_reduce":
+        plan.update({
+            "验 ①": f"我方整数核 vs 独立 ZERO-MODEL scalar-ref byte-exact → 失败 = {VOID_OURS_WRONG}",
+            "验 ②": "DUT/oracle 双 fault arm 均须 bite；缺一即空心",
+            "验 ③": "内部 sub-primitive 无 ggml standalone；对手身份 = 同算术 constructed scalar-ref（标量类）",
+            "对手档": "标量类·CHEAP tier；倍率不得称硬赢",
+        })
+    elif board == "scalar":
+        plan.update({
+            "验 ③": "真 no-V 部署 generic + owned/deployed zero-vector；仅 dormant contract，不授予 run eligibility",
+            "对手档": "标量类·enablement-NONWIN；ISSUE-061/104 未解前不开测",
+        })
     if not execute:
         return plan, None
 
-    harness = cell_harness(op)
     rc, text = _run_harness(harness, board, "verify", fmt, HARNESS_TIMEOUT_VERIFY)
     if run_dir is not None:
         with guarded_open(os.path.join(run_dir, "verify.stdout.txt"), "w") as fh:
@@ -498,62 +820,8 @@ def step3_crosscheck(fmt, board, cfg, execute, op=None, run_dir=None):
     if _cpu_md5_stable(text) is False:
         return plan, f"{VOID_DIRTY_BOARD}(对手库 md5 测量中变身)"
 
-    sec = _split_sections(text)
-    # 干净段 [A]（T1 exact shape）+ [E]（T2 measure shape）—— 三验须全过。
-    clean = sec.get("A", []) + sec.get("E", [])
-    ours = _mism(clean, "T2 ours")
-    oppg = _mism(clean, "T2 OPP-G")
-    oppx = _mism(clean, "T2 OPP-X")
-    t1 = _mism(sec.get("A", []), "T1 BOARD-BYTE-EXACT")
-    if "-> PASS" not in "\n".join(l for l in clean if "ABI-GATE" in l):
-        return plan, f"{VOID_OURS_WRONG}(ABI-GATE 非 PASS)"
-    if ours is None or oppx is None or oppg is None or t1 is None:
-        return plan, f"{VOID_OURS_WRONG}(对拍三验解析不出 mism)"
-    if t1 != 0 or ours != 0:
-        return plan, f"{VOID_OURS_WRONG}(我方 vs oracle mism T1={t1} T2={ours})"
-    if oppx != 0:
-        return plan, f"{VOID_OPP_BAD}(部署对手 OPP-X vs oracle mism={oppx})"
-    if oppg != 0:
-        return plan, f"{VOID_OPP_BAD}(参照对手 OPP-G vs oracle mism={oppg})"
-
-    # 4-arm anti-hollow：[B] 全 RED（三 GATE FAIL）· [C]/[D] 仅 OURS RED（gate 咬到发射的 RISC-V）。
-    def _gate(letter, who):
-        for ln in sec.get(letter, []):
-            if "GATE-" in ln and "=" in ln:
-                m = re.search(who + r"\s*=\s*(PASS|FAIL)", ln)
-                if m:
-                    return m.group(1)
-        return None
-    if _gate("B", "GATE-OURS") != "FAIL":
-        return plan, f"{VOID_OURS_WRONG}(anti-hollow[B] oracle-fault 未被 gate 咬)"
-    if _gate("C", "GATE-OURS") != "FAIL" or _gate("C", "GATE-OPPX") != "PASS":
-        return plan, f"{VOID_OURS_WRONG}(anti-hollow[C] DUT-fault gate 空心)"
-    if _gate("D", "GATE-OURS") != "FAIL" or _gate("D", "GATE-OPPX") != "PASS":
-        return plan, f"{VOID_OURS_WRONG}(anti-hollow[D] leaf-byte-fault gate 空心)"
-
-    # 验③：部署派发 —— dispatch thunk PRESENT + 该板 _vlNNN PRESENT。
-    opp = _parse_opp(text)
-    thunk = f"ggml_vec_dot_{fmt}_q8_K"
-    vltag = "vl128" if board == "rvv" else "vl256"
-    vlsym = f"{thunk}_{vltag}"
-    if not opp.get(thunk, {}).get("present"):
-        return plan, f"{VOID_DISPATCH_MISMATCH}(派发 thunk {thunk} ABSENT)"
-    deployed = opp.get(vlsym)
-    if deployed is None or not deployed.get("present"):
-        return plan, f"{VOID_DISPATCH_MISMATCH}(部署核 {vlsym} ABSENT)"
-
-    ours_leaf = _parse_ours_leaf(text)
-    result = {
-        "opp_sym": f"{thunk}(→{vltag}·CROSSOP)",
-        "opp_caliber": _opp_caliber(deployed),
-        "opp_evidence": (
-            f"objdump dispatch: {vlsym}@{deployed['addr']} "
-            f"rvv{deployed['rvv']}/vset{deployed['vset']}/gather{deployed['gather']}"
-        ),
-        "our_vector_ex_vset": (ours_leaf or {}).get("vector_ex_vset"),
-        "our_leaf": ours_leaf,
-    }
-    return plan, result
+    parser = resolve_verify_parser(op)
+    return plan, parser(text, fmt, board, engine)
 
 
 _GEMM_PREFILL_RE = re.compile(
@@ -563,8 +831,114 @@ _GEMM_PREFILL_RE = re.compile(
 )
 
 
-def step4_cold(fmt, board, cfg, execute, op=None, run_dir=None):
-    """cold 计时：预注册重复数，冷启动唯一。ratio_cold_X = 我方 vs 部署对手（头条）。"""
+_VECDOT_COLD_RE = re.compile(
+    r"# VECDOT_COLD fmt=(\S+) seed=0x([0-9A-Fa-f]+)(?: reps=\d+)? \| "
+    r"ours_med_ns=([\d.]+)\(iqr[\d.]+%\) oppX_med_ns=([\d.]+)\(iqr[\d.]+%\) "
+    r"\| ratio_cold_X=([\d.]+)"
+)
+
+_PRODUCT_COLD_RE = re.compile(
+    r"PREDUCE op=(\S+) VLEN=(\d+) .* reps=\d+ seed=0x([0-9A-Fa-f]+) \| .* "
+    r"COLD ours_med_ns=([\d.]+) o_iqr=[\d.]+ scal_med_ns=([\d.]+) "
+    r"s_iqr=[\d.]+ ratio_cold_med=([\d.]+) ratio_cold_best=[\d.]+ "
+    r"\| int_mismatch=(\d+)"
+)
+
+
+def _cold_result(seeds):
+    """所有 op 共享的 two-seed 归一化；不接受缺 seed、重复 seed 或默认数。"""
+    if [entry["seed"].lower() for entry in seeds] != ["0x1357", "0xace2"]:
+        return f"{VOID_DIRTY_BOARD}(measure 缺固定 S1/S2 或顺序漂移)"
+    cold_x = seeds[0]["ratio_cold_X"]
+    near = is_near_gate(cold_x)
+    noise = ""
+    if near:
+        spread = abs(seeds[0]["ratio_cold_X"] - seeds[1]["ratio_cold_X"])
+        noise = (
+            f"近门·2seed一致(Δ={spread:.4f})"
+            if spread < 0.05 else f"近门·2seed分散(Δ={spread:.4f})"
+        )
+    return {
+        "cold": f"{cold_x:.4f}",
+        "cold_x_s1": cold_x,
+        "seeds": seeds,
+        "near_gate": near,
+        "noise": noise,
+    }
+
+
+def _parse_gemm_cold(text, fmt, board, engine):
+    if engine != "rvv":
+        return f"{VOID_DIRTY_BOARD}(GEMM cold parser identity mismatch)"
+    seeds = []
+    for match in _GEMM_PREFILL_RE.finditer(text):
+        if match.group(1) != fmt:
+            return f"{VOID_DIRTY_BOARD}(GEMM measure fmt 漂移: {match.group(1)} != {fmt})"
+        seeds.append({
+            "seed": "0x" + match.group(2).upper(),
+            "ours_med_ns": int(match.group(3)),
+            "oppX_med_ns": int(match.group(5)),
+            "ratio_cold_G": float(match.group(6)),
+            "ratio_cold_X": float(match.group(7)),
+        })
+    return _cold_result(seeds)
+
+
+def _parse_vec_dot_cold(text, fmt, board, engine):
+    expected_engine = "scalar" if board == "scalar" else "rvv"
+    if engine != expected_engine:
+        return f"{VOID_DIRTY_BOARD}(vec_dot cold parser identity mismatch)"
+    seeds = []
+    for match in _VECDOT_COLD_RE.finditer(text):
+        if match.group(1) != fmt:
+            return f"{VOID_DIRTY_BOARD}(vec_dot measure fmt 漂移: {match.group(1)} != {fmt})"
+        seeds.append({
+            "seed": "0x" + match.group(2).upper(),
+            "ours_med_ns": float(match.group(3)),
+            "oppX_med_ns": float(match.group(4)),
+            "ratio_cold_X": float(match.group(5)),
+        })
+    return _cold_result(seeds)
+
+
+def _parse_product_reduce_cold(text, fmt, board, engine):
+    if engine != "rvv":
+        return f"{VOID_DIRTY_BOARD}(product_reduce cold parser identity mismatch)"
+    expected_vlen = 128 if board == "rvv" else 256
+    seeds = []
+    for match in _PRODUCT_COLD_RE.finditer(text):
+        if match.group(1) != fmt or int(match.group(2)) != expected_vlen:
+            return (
+                f"{VOID_DIRTY_BOARD}(product_reduce measure identity/VLEN 漂移: "
+                f"fmt={match.group(1)} VLEN={match.group(2)})"
+            )
+        if int(match.group(7)) != 0:
+            return f"{VOID_OURS_WRONG}(product_reduce timing前 correctness mism={match.group(7)})"
+        seeds.append({
+            "seed": "0x" + match.group(3).upper(),
+            "ours_med_ns": float(match.group(4)),
+            "oppX_med_ns": float(match.group(5)),
+            "ratio_cold_X": float(match.group(6)),
+        })
+    return _cold_result(seeds)
+
+
+COLD_PARSERS = {
+    "gemm_tile": _parse_gemm_cold,
+    "vec_dot": _parse_vec_dot_cold,
+    "product_reduce": _parse_product_reduce_cold,
+}
+
+
+def resolve_cold_parser(op):
+    try:
+        return COLD_PARSERS[op]
+    except KeyError as exc:
+        raise CellRecipeMissing(f"PARSER_MISSING: op={op} 没有 cold parser；禁止回退 GEMM") from exc
+
+
+def step4_cold(op, fmt, board, engine, cfg, execute, harness, run_dir=None):
+    """cold 计时：预注册重复数，冷启动唯一；parser 归一化各 op 的合法对手比值。"""
     plan = {
         "步": "4 · cold 计时",
         "预注册": "重复数 N 先于测量预注册（§3.6 预注册先于测量）",
@@ -575,7 +949,6 @@ def step4_cold(fmt, board, cfg, execute, op=None, run_dir=None):
     if not execute:
         return plan, None
 
-    harness = cell_harness(op)
     rc, text = _run_harness(harness, board, "measure", fmt, HARNESS_TIMEOUT_MEASURE)
     if run_dir is not None:
         with guarded_open(os.path.join(run_dir, "measure.stdout.txt"), "w") as fh:
@@ -589,32 +962,8 @@ def step4_cold(fmt, board, cfg, execute, op=None, run_dir=None):
     if _cpu_md5_stable(text) is False:
         return plan, f"{VOID_DIRTY_BOARD}(对手库 md5 测量中变身)"
 
-    seeds = []
-    for m in _GEMM_PREFILL_RE.finditer(text):
-        seeds.append({
-            "seed": "0x" + m.group(2),
-            "ours_med_ns": int(m.group(3)),
-            "oppX_med_ns": int(m.group(5)),
-            "ratio_cold_G": float(m.group(6)),
-            "ratio_cold_X": float(m.group(7)),
-        })
-    if not seeds:
-        return plan, f"{VOID_DIRTY_BOARD}(measure 解析不出 GEMM_PREFILL 行)"
-
-    cold_x = seeds[0]["ratio_cold_X"]         # 主表落 s1（与 P2 seal 口径一致）
-    near = is_near_gate(cold_x)
-    noise = ""
-    if near and len(seeds) >= 2:
-        spread = abs(seeds[0]["ratio_cold_X"] - seeds[1]["ratio_cold_X"])
-        noise = f"近门·2seed一致(Δ={spread:.4f})" if spread < 0.05 else f"近门·2seed分散(Δ={spread:.4f})"
-    result = {
-        "cold": f"{cold_x:.4f}",
-        "cold_x_s1": cold_x,
-        "seeds": seeds,
-        "near_gate": near,
-        "noise": noise,
-    }
-    return plan, result
+    parser = resolve_cold_parser(op)
+    return plan, parser(text, fmt, board, engine)
 
 
 def classify_verdict(cold):
@@ -736,6 +1085,186 @@ def self_test():
     assert not BOARDS["scalar"]["measurable"] and not BOARDS["rvv07"]["measurable"]
     ok.append("板册 == §3.1 四板；scalar（ISSUE-061）与 rvv07（ISSUE-063）真实模式不开测")
 
+    # Route / parser / eligibility 三层互不授权。所有负例在 transport 之前由纯函数失败。
+    assert os.path.basename(resolve_cell_route("gemm_tile", "iq1_s", "rvv", "rvv")) == "gemm_tile.sh"
+    assert os.path.basename(resolve_cell_route("vec_dot", "q4_K", "k1", "rvv")) == "vec_dot.sh"
+    assert os.path.basename(resolve_cell_route(
+        "product_reduce", "codebook_n3", "rvv", "rvv"
+    )) == "product_reduce.sh"
+    assert os.path.basename(resolve_cell_route(
+        "vec_dot", "tq2_0", "scalar", "scalar"
+    )) == "scalar_vec_dot.sh"
+    expanded_routes = []
+    for route in CELL_ROUTES:
+        expanded_routes.extend(
+            (route["op"], fmt, board_name, route_engine)
+            for fmt in route["formats"]
+            for board_name in route["boards"]
+            for route_engine in route["engines"]
+        )
+    assert len(expanded_routes) == len(set(expanded_routes)), "CELL_ROUTES 判定域重叠"
+    for unsupported in (
+        ("unknown", "q4_K", "rvv", "rvv"),
+        ("vec_dot", "q4_K", "scalar", "rvv"),
+        ("vec_dot", "iq3_xxs", "rvv", "rvv"),
+        ("gemm_tile", "iq1_s", "rvv", "ime"),
+        ("product_reduce", "bad", "rvv", "rvv"),
+    ):
+        try:
+            resolve_cell_route(*unsupported)
+        except CellRecipeMissing:
+            pass
+        else:
+            raise AssertionError(f"unsupported route 未 fail-closed: {unsupported}")
+    ok.append("route registry：grid-GEMM / K-vec / product / dormant-scalar 精确命中；错组合零 fallback")
+
+    assert set(VERIFY_PARSERS) == set(COLD_PARSERS) == {
+        "gemm_tile", "vec_dot", "product_reduce",
+    }
+    for resolver in (resolve_verify_parser, resolve_cold_parser):
+        try:
+            resolver("dequantize_row")
+        except CellRecipeMissing as exc:
+            assert "PARSER_MISSING" in str(exc)
+        else:
+            raise AssertionError("missing parser 被旧 GEMM fallback 吞掉")
+    ok.append("parser registry：verify/cold 单一权威；GEMM 也入表；missing parser 禁回退")
+
+    gemm_verify = """# OURS_leaf [ins=100 rvv=20 gather=1 vset=2]
+# OPP ggml_vec_dot_iq1_s_q8_K PRESENT @0x1 m1[ins=80 rvv=20 gather=1 vset=2]
+# OPP ggml_vec_dot_iq1_s_q8_K_vl128 PRESENT @0x2 m1[ins=70 rvv=18 gather=1 vset=2]
+=== [A] CLEAN
+# ABI-GATE x -> PASS
+# T1 BOARD-BYTE-EXACT mism=0/64
+# T2 ours mism=0/64
+# T2 OPP-G mism=0/64
+# T2 OPP-X mism=0/64
+=== [B] FAULT
+# GATE-OURS = FAIL GATE-OPPX = FAIL
+=== [C] FAULT
+# GATE-OURS = FAIL GATE-OPPX = PASS
+=== [D] FAULT
+# GATE-OURS = FAIL GATE-OPPX = PASS
+"""
+    gemm_r3 = _parse_gemm_verify(gemm_verify, "iq1_s", "rvv", "rvv")
+    assert isinstance(gemm_r3, dict) and gemm_r3["opp_caliber"] == "手调"
+    gemm_cold = "\n".join((
+        "GEMM_PREFILL fmt=iq1_s M=1 seed=0x1357 | ours_med_ns=100(iqr1.0%) oppG_med_ns=110(iqr1.0%) oppX_med_ns=120(iqr1.0%) | ratio_cold_G=1.1000 ratio_cold_X=1.2000",
+        "GEMM_PREFILL fmt=iq1_s M=1 seed=0xACE2 | ours_med_ns=101(iqr1.0%) oppG_med_ns=111(iqr1.0%) oppX_med_ns=121(iqr1.0%) | ratio_cold_G=1.0990 ratio_cold_X=1.1980",
+    ))
+    assert isinstance(_parse_gemm_cold(gemm_cold, "iq1_s", "rvv", "rvv"), dict)
+    ok.append("GEMM parser 迁移 fixture：verify/cold 经 registry parser 成功，无旧内联兜底")
+
+    vec_verify = """# OWNED_FIVE_SYMBOLS count=5 expected=5
+# OURS_leaf [scalar_ins=100 vector_mnemonic=30 vset=4 gather=2 vfp=8] non_vset_vector=26 OWNED_src_vec_intrinsics=8 distinct/20 calls(vsetvl 除外) sym=x
+# OPP ggml_vec_dot_q4_K_q8_K PRESENT runtime_path=ggml_vec_dot_q4_K_q8_K_vl128 path_kind=vl128 dispatch_proof=board-vlen-specialization [ins=90 non_vset_vector=40] caliber=手调 family=[ggml_vec_dot_q4_K_q8_K_vl128,]
+=== [A] CLEAN
+# INPUT_CONTRACT q8_K_bsums_match_qs=true inject=0 -> PASS
+# VECDOT_CORRECT fmt=q4_K op=vec_dot engine=rvv regime=micro-fixed inject=0 min_active=0 seed=0x1 K=2048 M=1 nc=64 nb=8 vlen=128
+# fp16_primitive_golden=PASS (h2f 9/9 textbook IEEE)
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# CORPUS fmt=q4_K q4_mask=0xffff min_active=0 min_term_nonzero=false -> COMPLETE
+=== [B] DUT
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+=== [C] ORACLE
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+=== [D] LEAF
+# BYTE_EXACT ours_vs_ggml_deployed=false ours_vs_int_oracle=false ggml_vs_int_oracle=true ALL=false (grid mism og=64 oi=64 gi=0)
+=== [E] MIN
+# INPUT_CONTRACT q8_K_bsums_match_qs=true inject=0 -> PASS
+# VECDOT_CORRECT fmt=q4_K op=vec_dot engine=rvv regime=micro-fixed inject=0 min_active=1 seed=0x1 K=2048 M=1 nc=64 nb=8 vlen=128
+# MIN_TERM_COUNTERFACTUAL fmt=q4_K active_vs_dmin0_ours=64/64 oracle=64/64 dmin0_ours_vs_oracle_mism=0 min_term_nonzero=true -> BITES-OK
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true (grid mism og=0 oi=0 gi=0)
+# CORPUS fmt=q4_K q4_mask=0xffff min_active=1 min_term_nonzero=true -> COMPLETE
+=== [F] BSUM
+# INPUT_CONTRACT q8_K_bsums_match_qs=false inject=3 -> BITES-OK
+"""
+    vec_r3 = _parse_vec_dot_verify(vec_verify, "q4_K", "rvv", "rvv")
+    assert isinstance(vec_r3, dict) and vec_r3["our_vector_ex_vset"] == 26
+    exported_opp = vec_verify.replace(
+        "runtime_path=ggml_vec_dot_q4_K_q8_K_vl128 path_kind=vl128 "
+        "dispatch_proof=board-vlen-specialization",
+        "runtime_path=ggml_vec_dot_q4_K_q8_K path_kind=exported "
+        "dispatch_proof=exported-symbol-body",
+    ).replace("caliber=手调", "caliber=通用向量")
+    exported_r3 = _parse_vec_dot_verify(exported_opp, "q4_K", "rvv", "rvv")
+    assert isinstance(exported_r3, dict) and exported_r3["opp_caliber"] == "通用向量"
+    assert isinstance(_parse_vec_dot_verify(
+        vec_verify.replace("vlen=128", "vlen=256"), "q4_K", "k1", "rvv"
+    ), str), "仅改 runtime VLEN 不能伪造 k1 对手路径"
+    bad_vec = vec_verify.replace("q8_K_bsums_match_qs=false", "q8_K_bsums_match_qs=true")
+    assert isinstance(_parse_vec_dot_verify(bad_vec, "q4_K", "rvv", "rvv"), str)
+    assert isinstance(_parse_vec_dot_verify(
+        vec_verify.replace("=== [F] BSUM", "# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true\n=== [F] BSUM"),
+        "q4_K", "rvv", "rvv",
+    ), str), "重复 BYTE_EXACT marker 未 fail-closed"
+    vec_cold = "\n".join((
+        "# VECDOT_COLD fmt=q4_K seed=0x1357 reps=25 | ours_med_ns=100(iqr1.00%) oppX_med_ns=90(iqr1.00%) | ratio_cold_X=0.9000 | opp=x",
+        "# VECDOT_COLD fmt=q4_K seed=0xACE2 reps=25 | ours_med_ns=101(iqr1.00%) oppX_med_ns=91(iqr1.00%) | ratio_cold_X=0.9010 | opp=x",
+    ))
+    assert isinstance(_parse_vec_dot_cold(vec_cold, "q4_K", "rvv", "rvv"), dict)
+    assert isinstance(_parse_vec_dot_cold(
+        vec_cold.replace("0.9000", "NaN", 1), "q4_K", "rvv", "rvv"
+    ), str)
+    ok.append("K-vec parser fixture：五叶闭包/VLEN/三向 exact/min 反事实/bsums 负控/cold/NaN 全被门控")
+
+    product_verify = """# OURS_q4_0_nibble kernel=nibble vsetvl=2 vec_core=8 non_vset_vector=12 size=1B
+# OPP-IDENTITY product_reduce ref=scalar-ref(sc_nibble) caliber=标量类 ggml_standalone=ABSENT
+# OPP-IDENTITY product_reduce ref=scalar-ref(sc_offbin) caliber=标量类 ggml_standalone=ABSENT
+# OPP-IDENTITY product_reduce ref=scalar-ref(sc_codebook) caliber=标量类 ggml_standalone=ABSENT
+=== [A] CLEAN
+VERIFY op=q4_0_nibble NB=10 LANES=16 inject=0 : int_mismatch=0 first_b=-1 sample_ours=1 scal=1 => BYTE-EXACT-vs-scalar-ref OK
+=== [B] DUT
+VERIFY op=q4_0_nibble NB=10 LANES=16 inject=1 : int_mismatch=1 first_b=5 sample_ours=2 scal=1 => ANTI-HOLLOW BITES-OK (fault caught)
+=== [C] ORACLE
+VERIFY op=q4_0_nibble NB=10 LANES=16 inject=2 : int_mismatch=1 first_b=5 sample_ours=1 scal=2 => ANTI-HOLLOW BITES-OK (fault caught)
+"""
+    product_cold = "\n".join((
+        "PREDUCE op=q4_0_nibble VLEN=128 NB=10 LANES=16 hiters=6 reps=25 seed=0x1357 | HOT ours_ns=1 scal_ns=2 ratio_hot=2.0 | COLD ours_med_ns=100 o_iqr=1.0 scal_med_ns=200 s_iqr=1.0 ratio_cold_med=2.0000 ratio_cold_best=2.0000 | int_mismatch=0",
+        "PREDUCE op=q4_0_nibble VLEN=128 NB=10 LANES=16 hiters=6 reps=25 seed=0xACE2 | HOT ours_ns=1 scal_ns=2 ratio_hot=2.0 | COLD ours_med_ns=101 o_iqr=1.0 scal_med_ns=201 s_iqr=1.0 ratio_cold_med=1.9900 ratio_cold_best=2.0000 | int_mismatch=0",
+    ))
+    for product_fmt in sorted(_PRODUCT_REDUCE_FORMATS):
+        verify_fixture = product_verify.replace("q4_0_nibble", product_fmt)
+        cold_fixture = product_cold.replace("q4_0_nibble", product_fmt)
+        assert isinstance(_parse_product_reduce_verify(
+            verify_fixture, product_fmt, "rvv", "rvv"
+        ), dict)
+        assert isinstance(_parse_product_reduce_cold(
+            cold_fixture, product_fmt, "rvv", "rvv"
+        ), dict)
+    duplicate_product = product_verify.replace(
+        "=== [B] DUT", product_verify.split("=== [A] CLEAN\n", 1)[1].split("=== [B] DUT", 1)[0] + "=== [B] DUT",
+    )
+    assert isinstance(_parse_product_reduce_verify(
+        duplicate_product, "q4_0_nibble", "rvv", "rvv"
+    ), str), "重复 product clean marker 未 fail-closed"
+    ok.append("product_reduce parser fixture：三 scalar-ref 身份/byte-exact/双 fault/two-seed cold 闭合")
+
+    scalar_verify = """# ZEROVEC kernel.o [scalar_ins=10 vector_mnemonic=0 vset=0 cpop_clmul=0] riscv_intrinsic=0 weft_rvv_sym=0 fp16_libcall=0
+# ZEROVEC deployed_ggml_lib v_mnemonic_lines=0 (0 = no-V build)
+=== [A] CLEAN
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true
+=== [Boff] NEUTRAL
+# BYTE_EXACT ours_vs_ggml_deployed=true ours_vs_int_oracle=true ggml_vs_int_oracle=true ALL=true
+=== [C] DUT
+# ANTIHOLLOW inject=1 expect_byte_exact=false observed=false -> BITES-OK
+=== [D] ORACLE
+# ANTIHOLLOW inject=2 expect_byte_exact=false observed=false -> BITES-OK
+"""
+    scalar_r3 = _parse_vec_dot_verify(scalar_verify, "tq2_0", "scalar", "scalar")
+    assert isinstance(scalar_r3, dict) and scalar_r3["our_vector_ex_vset"] == 0
+    try:
+        validate_registered_key(
+            ("vec_dot", "tq2_0", "scalar", "micro-fixed"),
+            roster_keys=load_roster_keys(Path(ROSTER)),
+            master_keys=load_master_keys(Path(MASTER_TABLE)),
+        )
+    except MeasurementKeyError:
+        pass
+    else:
+        raise AssertionError("dormant scalar route 反向授权了不存在的 roster key")
+    ok.append("scalar dormant contract：route/parser 可测活；engine=scalar 仍被 roster eligibility 前门拒绝")
+
     for line in ok:
         print(f"  PASS  {line}")
     print(f"\n[self-test] {len(ok)}/{len(ok)} PASS")
@@ -792,6 +1321,14 @@ def main(argv=None):
     except MeasurementKeyError as exc:
         ap.error(f"measurement row-key contract failed: {exc}")
 
+    # Implementation reachability is independent of roster membership.  Resolve the exact
+    # route and both parsers before dry-run output, run-id allocation, transport or disk writes.
+    # A known roster row with no implemented cell is therefore rejected honestly, not routed
+    # through an op-name guess or the historical GEMM parser fallback.
+    harness = resolve_cell_route(op, fmt, board, engine)
+    resolve_verify_parser(op)
+    resolve_cold_parser(op)
+
     print(f"bench {op} {fmt} --board {board}"
           + f" --engine {engine}"
           + f" --regime {regime}"
@@ -806,8 +1343,8 @@ def main(argv=None):
         for plan, _ in (
             step1_preflight(board, cfg, False),
             step2_lineage(board, cfg, False),
-            step3_crosscheck(fmt, board, cfg, False),
-            step4_cold(fmt, board, cfg, False),
+            step3_crosscheck(op, fmt, board, engine, cfg, False, harness),
+            step4_cold(op, fmt, board, engine, cfg, False, harness),
             step5_row(None, False),
         ):
             print(f"  [{plan['步']}]")
@@ -843,14 +1380,18 @@ def main(argv=None):
     print(f"  世系    = {lineage}")
 
     os.makedirs(run_dir, exist_ok=True)
-    _, r3 = step3_crosscheck(fmt, board, cfg, True, op=op, run_dir=run_dir)
+    _, r3 = step3_crosscheck(
+        op, fmt, board, engine, cfg, True, harness, run_dir=run_dir
+    )
     if isinstance(r3, str):     # VOID
         append_runs_log(run_id, fmt, r3)
         print(f"  {r3} —— 不计时")
         return 1
     print(f"  对拍    = 三验 PASS · 部署对手 {r3['opp_sym']} · 档={r3['opp_caliber']} · 我方向量指令(ex-vset)={r3['our_vector_ex_vset']}")
 
-    _, r4 = step4_cold(fmt, board, cfg, True, op=op, run_dir=run_dir)
+    _, r4 = step4_cold(
+        op, fmt, board, engine, cfg, True, harness, run_dir=run_dir
+    )
     if isinstance(r4, str):     # VOID
         append_runs_log(run_id, fmt, r4)
         print(f"  {r4} —— 不入行")

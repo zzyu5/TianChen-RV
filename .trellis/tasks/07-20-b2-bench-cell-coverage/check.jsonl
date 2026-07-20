@@ -2,3 +2,12 @@
 {"file": ".trellis/spec/canon/正确性与证书.md", "reason": "证书完整性"}
 {"file": ".trellis/spec/issues/index.md", "reason": "ISSUE061 099 104 114"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}
+{"file": "tools/bench/bench", "reason": "17项 self-test、dry-run/no-write、missing parser 与 route 负控"}
+{"file": "tools/bench/cells/vec_dot.sh", "reason": "五格式/双板/模式白名单、seal 与故障臂 fail-closed"}
+{"file": "tools/bench/cells/product_reduce.sh", "reason": "三格式 contract、mode 白名单与仓库侧零写盘"}
+{"file": "tools/bench/cells/gemm_tile.sh", "reason": "GEMM parser 迁移回归与 mode 白名单"}
+{"file": "tools/bench/cells/dequantize_row.sh", "reason": "未注册组合保持 fail-closed、无过时 ISSUE-105 blocker"}
+{"file": "tools/bench/cells/scalar_vec_dot.sh", "reason": "dormant scalar contract 与 mode 白名单"}
+{"file": "experiments/active/k-vecdot-harness/MANIFEST.md", "reason": "双板逐格式 correctness 与 CORE==PROD 证据边界"}
+{"file": ".trellis/spec/issues/门与工具.md", "reason": "ISSUE-099/104/114 状态与过时事实同步"}
+{"file": "experiments/active/g7-census/vecdot-rvv/kernels/GEN_SEAL.txt", "reason": "五叶 production recipe/hash/symbol 与 SSH 前硬门"}

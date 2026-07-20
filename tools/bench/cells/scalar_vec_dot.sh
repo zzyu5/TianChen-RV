@@ -44,6 +44,10 @@ fi
 if [ "$FMT" != tq2_0 ]; then
   echo "# HARNESS-VOID fmt=$FMT unsupported (scalar_vec_dot 族当前仅 tq2_0)"; exit 2
 fi
+case "$MODE" in
+  verify|sanity|measure) : ;;
+  *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
+esac
 
 GGML='~/llama.cpp-scalar/build-clang18-rv64gc/bin'   # GGML_RVV=OFF·GGML_NATIVE=OFF（板册 §3.1）
 CC=clang-18                                           # /usr/bin/clang-18 · 18.1.8 · 板出货链
