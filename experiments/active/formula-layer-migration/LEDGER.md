@@ -126,6 +126,15 @@
 
 > **★phase-3 排序诚实注（2026-07-20·phase-2 后）**：phase-③「c 真驱动 θ」对 **nibble 家 likely honest-null**——nibble dequant 几何是 **qk-fixed**（strip=qk/2·loadLMUL 现固定）·census 证 dequant-row 轴 0 board-fork（board-invariant）。⟹ 真 c-驱动 θ 的机会在 **codebook/grid 家**（gather anchor=`getRVVCodebookGatherAnchorLMUL(VLEN,codebook_size)`·MIG-B 已为 FP4 闭式·随 VLEN 真变）。**⟹ 高值下一刀 = 把 MechanismPlan 抽象扩到 codebook/grid 家**（那里 c-驱动真实·= phase-③+④ 合流）·而非对 nibble 强推 phase-③（会造假 c-旋钮·nibble 无此轴）。nibble phase-2 已足（抽象建立·byte-exact）。
 
+## 四.9 · 两层诚实审计定论（2026-07-20·两 Workflow 机核@HEAD d23a9e32c·非凭 census 旧 pin）
+
+**能力层 ~1.5/5**（机制真·广度窄·表未建）：✓ VLEN 轴真通（minimum_vlen typed + 拔管道收敛前门 0 直调 + provider 压 march + 2 θ 消费者 conflict-decisive 真绿）·✗ vreg_count 硬编 `return 32`+8 constexpr / version 轴残 1 处 load-bearing march 重解析(`RVVLowerQuantContraction:1661` typed reader 已建未换) / elen/sew_set(typed)/cacheline/ime.tile schema grep=0 / 无单一 per-board 权威实例。打分 ①部分②部分③未④部分⑤未。
+
+**公式层 1/5**（原型证成·首家闭环·未铺满）：✓ NibbleDecodePlan 真 struct + FormulaProvider→plan→emitter 链闭环(nibble)+ 承重 lit + C1/C2 falsifier + 闭式 f 家单一权威·✗ 4/5 家仍格式名硬分派(`ForwardElementwise:4950-4991` 13 行 `decodeModel==`) / **公式家双头**(`GridDecodePlan` 独立注册表·不经 FormulaProvider·grid+ternary 揉一起违 [K-10]) / 已落 plan 全 reproduce-current(`nibbleDecodePlanFromFacts` `(void)minimumVLEN`)。**★nibble reproduce-current = honest-null**(qk-fixed·0 板分叉·非欠工)·真 c-驱动在 codebook/grid(getRVVCodebookGatherAnchorLMUL 已备·call-site VLEN 钉死 128·`RVVToEmitCCodebookFp4:118` measured-gate deferred)。
+
+**★铺满三刀（审计钉·= 用户 5 阶段 ④③ + phase-2 修）**：① 扩覆盖 1/5→5/5（KQuant/Codebook/Ternary 各建分立 plan·13 行 `decodeModel==` 降 plan.mechanism）② 合并双头家（GridDecodePlan 收编 DequantMechanism-tagged·拆 grid+ternary lumped·nibble provider 定义迁回家）③ c 真驱动（选对轴=codebook/grid·解 :118 gate·板验 measured）。
+**在飞**：cap-complete（能力层 ②③ version+vreg）· CodebookGatherPlan（公式层刀①第二家 codebook·byte-exact reproduce-current·:118 c-驱动作 phase-3 follow-up）。
+
 ## 五 · 每步纪律（三闸·不可绕）
 
 1. **byte-exact ZERO-MODEL + 3-arm anti-hollow + CORPUS**：从实际输入零复用重算·三向 mism=0·CORE==PROD（md5 对齐）。
