@@ -133,7 +133,10 @@
 **公式层 1/5**（原型证成·首家闭环·未铺满）：✓ NibbleDecodePlan 真 struct + FormulaProvider→plan→emitter 链闭环(nibble)+ 承重 lit + C1/C2 falsifier + 闭式 f 家单一权威·✗ 4/5 家仍格式名硬分派(`ForwardElementwise:4950-4991` 13 行 `decodeModel==`) / **公式家双头**(`GridDecodePlan` 独立注册表·不经 FormulaProvider·grid+ternary 揉一起违 [K-10]) / 已落 plan 全 reproduce-current(`nibbleDecodePlanFromFacts` `(void)minimumVLEN`)。**★nibble reproduce-current = honest-null**(qk-fixed·0 板分叉·非欠工)·真 c-驱动在 codebook/grid(getRVVCodebookGatherAnchorLMUL 已备·call-site VLEN 钉死 128·`RVVToEmitCCodebookFp4:118` measured-gate deferred)。
 
 **★铺满三刀（审计钉·= 用户 5 阶段 ④③ + phase-2 修）**：① 扩覆盖 1/5→5/5（KQuant/Codebook/Ternary 各建分立 plan·13 行 `decodeModel==` 降 plan.mechanism）② 合并双头家（GridDecodePlan 收编 DequantMechanism-tagged·拆 grid+ternary lumped·nibble provider 定义迁回家）③ c 真驱动（选对轴=codebook/grid·解 :118 gate·板验 measured）。
-**在飞**：cap-complete（能力层 ②③ version+vreg）· CodebookGatherPlan（公式层刀①第二家 codebook·byte-exact reproduce-current·:118 c-驱动作 phase-3 follow-up）。
+**审计后进度（2026-07-20·逐刀落地·每刀 byte-exact + 判决 + 全套 0 new）**：
+- **能力层 ②③ ✓**（`54e9cb483`·cap-complete）：VLEN + version 两轴管道全收敛（前门直调都 0）· vreg_count 正名（硬编 32→in-IR 能力事实·8 constexpr 收敛·判决 2/2）。剩 elen/cacheline/sew_set(typed)/per-board 实例。
+- **公式层刀① 扩覆盖 1/5→3/5**：CodebookGatherPlan（`0beb9cb71`·codebook 家 mxfp4/nvfp4/iq4_nl/iq4_xs·byte-exact 4/4）+ KQuantScaleMinPlan（`99621a7bb`·q2/3/4/5/6_K·byte-exact genuine 5/5·plan 承重 dmin=scale+2 派生铁证）。**已进 plan 家 = 3/5**（Nibble/Codebook/KQuant）。
+- **剩**：刀①续 grid（IQ）+ ternary → 5/5 · 刀② 合并双头家（GridDecodePlan 收编·拆 grid+ternary lumped·恢复 [K-10] 5 分立）· 刀③ c 真驱动（codebook/kquant 的 minVLEN seam 已就位·一行 provider 改·plan 轴第一个真 c-驱动）。
 
 ## 五 · 每步纪律（三闸·不可绕）
 
