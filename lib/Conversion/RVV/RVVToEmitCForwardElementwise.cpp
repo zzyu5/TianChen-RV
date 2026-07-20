@@ -4285,38 +4285,30 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
                                        avlArg, sizeType, opName, role);
 }
 
-// The per-format CONSTRUCTED dequantize_row decode leaf for the remaining codebook /
-// ternary-grid extended formats: the ternary iq1s_grid leaves iq1_s (fp16 d + qh scale
-// + delta) / iq1_m (reconstructed packed iq1m_scale + per-group delta, NO fp16 d), the
-// 16-entry non-linear codebook leaves iq4_nl (flat fp16 scale) / iq4_xs (super-block
-// signed-6 scale), and the FP4 e2m1 codebook leaves mxfp4 (E8M0 shared exponent) /
-// nvfp4 (four UE4M3 sub-block scales). A thin FORWARDER to the SAME hand-written
-// extended decode the dispatch-wired monolith fallback runs (emitGgmlDequantizeRowExtended,
-// keyed by the `format` string alone -- no deqOp). Each leaf emits its codebook /
-// ternary grid table as function-local statics (the SAME emitIQ1SCanonicalGridTableDecl /
-// emitIQ1MCanonicalGridTableDecl / emitCodebookDecl anchors the block-dot vec_dot
-// lowerings render) then a scalar AoS block loop -- there is NO op-attribute dependency
-// (the grid / codebook / E8M0-UE4M3 scale planes are DERIVED at emit, not carried as
-// op-attrs), so the leaf is self-contained and CLEANLY constructible. Because BOTH the
-// monolith fallback AND this constructed lowering emit the decode from the SAME code, the
-// two are byte-exact by construction (modulo only the source-op provenance token threaded
-// through opName/role) -- there is NO duplicated decode leaf to drift. Streaming sibling
-// of emitDequantizeRowIQGridBodyShared; no reduction / no accumulator.
+// The per-format CONSTRUCTED dequantize_row decode leaf for the ternary-grid extended
+// formats: the ternary iq1s_grid leaves iq1_s (fp16 d + qh scale + delta) / iq1_m
+// (reconstructed packed iq1m_scale + per-group delta, NO fp16 d), and the tq1_0/tq2_0
+// base-3 / 2-bit ternary super-blocks. (The iq4_nl/iq4_xs/mxfp4/nvfp4 codebook leaves --
+// a DIFFERENT mechanism, CodebookGather -- are dispatched UPSTREAM via CodebookGatherPlan
+// straight to emitDequantizeRowCodebookVectorBody; they no longer reach this forwarder.
+// [K-10]: TernaryDecode and CodebookGather are structurally distinct mechanisms.) A thin
+// FORWARDER to the SAME hand-written extended decode the dispatch-wired monolith fallback
+// runs (emitGgmlDequantizeRowExtended, keyed by the `format` string alone -- no deqOp).
+// Each leaf emits its grid table as function-local statics (the SAME
+// emitIQ1SCanonicalGridTableDecl / emitIQ1MCanonicalGridTableDecl anchors the block-dot
+// vec_dot lowerings render) then a scalar AoS block loop -- there is NO op-attribute
+// dependency (the grid / ternary planes are DERIVED at emit, not carried as op-attrs), so
+// the leaf is self-contained and CLEANLY constructible. Because BOTH the monolith fallback
+// AND this constructed lowering emit the decode from the SAME code, the two are byte-exact
+// by construction (modulo only the source-op provenance token threaded through
+// opName/role). Streaming sibling of emitDequantizeRowIQGridBodyShared; no reduction / no
+// accumulator.
 mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
     llvm::StringRef format,
     std::optional<int64_t> codebookEntryLanes) const {
-  // The four 16-entry codebook leaves (mxfp4/nvfp4 FP4 e2m1, iq4_nl/iq4_xs non-linear)
-  // lower to the OWNED vrgather codebook vector body (B线批2 tiny-codebook de-lottery,
-  // the FP4/non-linear fan-out over the q8_0/nibble non-grid precedent · [L-8] ·
-  // closes the ISSUE-002 codegen-lottery for these formats).
-  if (format == "mxfp4" || format == "nvfp4" || format == "iq4_nl" ||
-      format == "iq4_xs")
-    return emitDequantizeRowCodebookVectorBody(rewriter, loc, input, output,
-                                               avlArg, sizeType, opName, role,
-                                               format);
   // The tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks lower to the OWNED ternary
   // ARITHMETIC vector body (B线批3 ternary de-lottery · [L-8] · closes the ISSUE-002
   // codegen-lottery for these formats). NO codebook table and NO gather -- the ternary
@@ -4383,14 +4375,29 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef format) const {
-  const bool isMx = format == "mxfp4";
-  const bool isNl = format == "iq4_nl";
-  const bool isNv = format == "nvfp4";
-  const bool isXs = format == "iq4_xs";
-  // Per-format super-block geometry (byte-exact ggml block_qX AoS facts, NOT knobs).
-  const int64_t qk = isMx ? 32 : isNl ? 32 : isNv ? 64 : 256;
-  const int64_t stride = isMx ? 17 : isNl ? 18 : isNv ? 36 : 136;
+    const ::weft::CodebookGatherPlan &plan) const {
+  // [K-10] STRUCTURAL TAG: this body realizes the CodebookGather mechanism ONLY (the
+  // dispatch guarantees plan.mechanism == CodebookGather). The per-format scale-decode
+  // leaf is selected by plan.scaleModel (the block-type's structural scale ABI), NOT the
+  // format name ([F-1]): E8M0 (mxfp4) / fp16 (iq4_nl) / UE4M3 (nvfp4) / signed-6 (iq4_xs).
+  const bool isMx = plan.scaleModel == ::weft::CodebookScaleModel::E8M0SharedExp;
+  const bool isNl = plan.scaleModel == ::weft::CodebookScaleModel::Fp16Flat;
+  const bool isNv = plan.scaleModel == ::weft::CodebookScaleModel::UE4M3SubBlock;
+  const bool isXs = plan.scaleModel == ::weft::CodebookScaleModel::Signed6SuperBlock;
+  // Super-block geometry re-packaged by the FormulaProvider (byte-exact ggml block_qX AoS
+  // facts, NOT knobs): qk / stride / the base qs byte offset ride the PLAN.
+  const int64_t qk = plan.superBlockElements;
+  const int64_t stride = plan.weightBlockStride;
+  const int64_t qsBase = plan.codebookByteOffset;
+  const int64_t stripLanes = plan.stripLanes;
+  // The i8 codebook-gather anchor LMUL rides the PLAN (phase-4: m1, reproduce-current;
+  // phase-3-codebook c-drives it f(VLEN)); the widened i32/f32 chain is DERIVED from it
+  // via deriveWideningChain (the SAME single-source-of-truth the vec_dot codebook body
+  // uses), so a plan.loadLMUL change re-shapes every codebook intrinsic. i8 -> i32 (vf4)
+  // is two LMUL doublings, so the widened rung is the chain's l32.
+  llvm::StringRef coreLmul = plan.loadLMUL;
+  WideningChain wideningChain = deriveWideningChain(coreLmul);
+  llvm::StringRef wideLmul = wideningChain.l32;
 
   mlir::MLIRContext *ctx = rewriter.getContext();
   mlir::Type inputPtrType = input.getType();   // const uint8_t *
@@ -4405,10 +4412,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
   mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
   mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
   mlir::Type floatPtrType = emitc::PointerType::get(floatType);
-  mlir::Type u8VecType = emitc::OpaqueType::get(ctx, "vuint8m1_t");
-  mlir::Type i8VecType = emitc::OpaqueType::get(ctx, "vint8m1_t");
-  mlir::Type i32VecType = emitc::OpaqueType::get(ctx, "vint32m4_t");
-  mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m4_t");
+  mlir::Type u8VecType =
+      emitc::OpaqueType::get(ctx, ("vuint8" + coreLmul + "_t").str());
+  mlir::Type i8VecType =
+      emitc::OpaqueType::get(ctx, ("vint8" + coreLmul + "_t").str());
+  mlir::Type i32VecType =
+      emitc::OpaqueType::get(ctx, ("vint32" + wideLmul + "_t").str());
+  mlir::Type f32VecType =
+      emitc::OpaqueType::get(ctx, ("vfloat32" + wideLmul + "_t").str());
   llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
   auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
@@ -4522,12 +4533,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
                                        0, -1, -2, -3, -4, -6, -8, -12};
   static const int kvaluesIq4nl[16] = {-127, -104, -83, -65, -49, -35, -22, -10,
                                         1,    13,   25,  38,  53,  69,  89,  113};
-  llvm::StringRef codebookName = (isMx || isNv) ? "weft_dequant_mxfp4_kvalues"
-                                                : "weft_dequant_iq4nl_kvalues";
+  // The 16-entry table + its name ride plan.codebookTable ([F-1]: the FP4-class
+  // (mxfp4/nvfp4) vs non-linear (iq4_nl/iq4_xs) table is a STRUCTURAL plan fact, NOT the
+  // format name).
+  const bool isFp4Table = plan.codebookTable == ::weft::CodebookTable::Fp4E2M1;
+  llvm::StringRef codebookName = isFp4Table ? "weft_dequant_mxfp4_kvalues"
+                                            : "weft_dequant_iq4nl_kvalues";
   {
-    llvm::ArrayRef<int> entries = (isMx || isNv) ? llvm::ArrayRef<int>(kvaluesMxfp4)
-                                                 : llvm::ArrayRef<int>(kvaluesIq4nl);
-    std::string decl = "static const int8_t " + codebookName.str() + "[16] = {";
+    llvm::ArrayRef<int> entries = isFp4Table ? llvm::ArrayRef<int>(kvaluesMxfp4)
+                                             : llvm::ArrayRef<int>(kvaluesIq4nl);
+    std::string decl = "static const int8_t " + codebookName.str() + "[" +
+                       std::to_string(plan.codebookEntries) + "] = {";
     for (size_t i = 0; i < entries.size(); ++i) {
       if (i) decl += ", ";
       decl += std::to_string(entries[i]);
@@ -4536,15 +4552,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
     rewriter.create<emitc::VerbatimOp>(loc, decl);
   }
 
-  // vint8m1_t values = __riscv_vle8_v_i8m1(<codebook>, 16);  (broadcast the codebook
-  // into ONE vreg, reused by every vrgather -- register-resident, NO memory gather).
+  // vint8<load>_t values = __riscv_vle8_v_i8<load>(<codebook>, codebookEntries);
+  // (broadcast the codebook into ONE vreg, reused by every vrgather -- register-resident,
+  // NO memory gather). The load LMUL + entry count ride the PLAN.
   rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "codebook_table_load"));
-  std::string tableLoadCallee = riscvIntrinsicName("vle", 8, "m1", "i8");
+  std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
   mlir::Value values = emitOpaqueCallBuilt(
       rewriter, loc, i8VecType, tableLoadCallee, opName, role,
       [&](mlir::OpBuilder &, mlir::Location) -> llvm::SmallVector<mlir::Value> {
         mlir::Value tbl = rewriter.create<emitc::LiteralOp>(loc, i8PtrType, codebookName);
-        return {tbl, sizeLit(16)};
+        return {tbl, sizeLit(plan.codebookEntries)};
       });
 
   rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "super_block_count"));
@@ -4568,23 +4585,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
                              int64_t outLo, int64_t outHi) {
       mlir::Value qsPtr = rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsByteOff)).getResult();
       mlir::Value qsU8 = rewriter.create<emitc::CastOp>(loc, u8PtrType, qsPtr).getResult();
-      mlir::Value w = emitOpaqueCall(rewriter, loc, u8VecType, riscvIntrinsicName("vle", 8, "m1", "u8"),
+      mlir::Value w = emitOpaqueCall(rewriter, loc, u8VecType, riscvIntrinsicName("vle", 8, coreLmul, "u8"),
                                      mlir::ValueRange{qsU8, sizeLit(nLanes)}, opName, role);
-      mlir::Value idxLo = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vand_vx_u8m1",
+      mlir::Value idxLo = emitOpaqueCall(rewriter, loc, u8VecType, ("__riscv_vand_vx_u8" + coreLmul).str(),
                                          mlir::ValueRange{w, intLit(0x0F), sizeLit(nLanes)}, opName, role);
-      mlir::Value idxHi = emitOpaqueCall(rewriter, loc, u8VecType, "__riscv_vsrl_vx_u8m1",
+      mlir::Value idxHi = emitOpaqueCall(rewriter, loc, u8VecType, ("__riscv_vsrl_vx_u8" + coreLmul).str(),
                                          mlir::ValueRange{w, intLit(4), sizeLit(nLanes)}, opName, role);
       auto lane = [&](mlir::Value idx, int64_t outOff) {
-        mlir::Value g = emitOpaqueCall(rewriter, loc, i8VecType, "__riscv_vrgather_vv_i8m1",
+        mlir::Value g = emitOpaqueCall(rewriter, loc, i8VecType, ("__riscv_vrgather_vv_i8" + coreLmul).str(),
                                        mlir::ValueRange{values, idx, sizeLit(nLanes)}, opName, role);
-        mlir::Value w32 = emitOpaqueCall(rewriter, loc, i32VecType, "__riscv_vsext_vf4_i32m4",
+        mlir::Value w32 = emitOpaqueCall(rewriter, loc, i32VecType, ("__riscv_vsext_vf4_i32" + wideLmul).str(),
                                          mlir::ValueRange{g, sizeLit(nLanes)}, opName, role);
-        mlir::Value f = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfcvt_f_x_v", 32, "m4", "f32"),
+        mlir::Value f = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfcvt_f_x_v", 32, wideLmul, "f32"),
                                        mlir::ValueRange{w32, sizeLit(nLanes)}, opName, role);
-        mlir::Value r = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfmul_vf", 32, "m4", "f32"),
+        mlir::Value r = emitOpaqueCall(rewriter, loc, f32VecType, riscvIntrinsicName("vfmul_vf", 32, wideLmul, "f32"),
                                        mlir::ValueRange{f, scale, sizeLit(nLanes)}, opName, role);
         mlir::Value yStore = rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, sizeLit(outOff)).getResult();
-        emitOpaqueCallVoid(rewriter, loc, riscvIntrinsicName("vse", 32, "m4", "f32"),
+        emitOpaqueCallVoid(rewriter, loc, riscvIntrinsicName("vse", 32, wideLmul, "f32"),
                            mlir::ValueRange{yStore, r, sizeLit(nLanes)}, opName, role);
       };
       lane(idxLo, outLo);
@@ -4597,16 +4614,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, isMx ? "mxfp4_decode" : "iq4_nl_decode"));
       mlir::Value d = isMx ? emitE8M0HalfScale(rewriter, loc, xb, opName, role)
                            : fp16ReadAt(xb, 0);
-      emitHalfGroup(/*qsByteOff=*/isMx ? 1 : 2, /*nLanes=*/16, d, /*outLo=*/0, /*outHi=*/16);
+      // qs base + strip lanes ride the PLAN (qsBase = 1 mxfp4 / 2 iq4_nl; strip = qk/2).
+      emitHalfGroup(/*qsByteOff=*/qsBase, /*nLanes=*/stripLanes, d, /*outLo=*/0, /*outHi=*/16);
     } else if (isNv) {
       // Four 16-element UE4M3-scaled sub-blocks; qs @+4, 8 bytes/sub. Per sub s:
       // y[s*16 + j] = d[s]*kv[qs[s*8+j]&0xF]; y[s*16+8 + j] = d[s]*kv[qs[s*8+j]>>4].
       rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "nvfp4_sub_decode"));
       for (int64_t s = 0; s < 4; ++s) {
         mlir::Value d = ue4m3ScaleAt(xb, s);
-        emitHalfGroup(/*qsByteOff=*/4 + s * 8, /*nLanes=*/8, d, /*outLo=*/s * 16, /*outHi=*/s * 16 + 8);
+        // qs base (4) + per-sub stride (8) off the PLAN; strip = sub-block half (8).
+        emitHalfGroup(/*qsByteOff=*/qsBase + s * 8, /*nLanes=*/stripLanes, d, /*outLo=*/s * 16, /*outHi=*/s * 16 + 8);
       }
-    } else { // iq4_xs
+    } else if (isXs) { // iq4_xs
       // d@0, scales_h(u16)@2, scales_l[4]@4, qs[128]@8. Per ib (8 sub-blocks of 32):
       // ls = (scales_l[ib/2] >> 4*(ib%2))&0xF | ((scales_h >> 2*ib)&3)<<4; dl=d*(ls-32);
       // y[ib*32 + j] = dl*kv[qs[ib*16+j]&0xF]; y[ib*32+16 + j] = dl*kv[qs[ib*16+j]>>4].
@@ -4619,9 +4638,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
         mlir::Value low = iAnd(iShr(scl, intLit(4 * (ib32 % 2))), intLit(0xF));
         mlir::Value hi = iShl(iAnd(iShr(sh, intLit(2 * ib32)), intLit(3)), intLit(4));
         mlir::Value dl = fMul(d, i2f(iSub(iOr(low, hi), intLit(32))));
-        emitHalfGroup(/*qsByteOff=*/8 + ib32 * 16, /*nLanes=*/16, dl,
+        // qs base (8) + per-sub stride (16) off the PLAN; strip = sub-block half (16).
+        emitHalfGroup(/*qsByteOff=*/qsBase + ib32 * 16, /*nLanes=*/stripLanes, dl,
                       /*outLo=*/ib32 * 32, /*outHi=*/ib32 * 32 + 16);
       }
+    } else {
+      // Unreachable for the four codebook scale models (one of isMx/isNl/isNv/isXs is
+      // always true here); fail-closed on any future unhandled CodebookScaleModel rather
+      // than emitting an empty body.
+      return rewriter.notifyMatchFailure(
+          loc, "codebook gather plan carries an unhandled scale model");
     }
   }
   return mlir::success();
@@ -4935,6 +4961,57 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
       return emitDequantizeRowNibbleVectorBody(rewriter, loc, weightBase, output,
                                                avlArg, sizeType, opName, role, plan);
   }
+  // Phase-4 (DequantMechanismPlan family #2): the small 16-entry codebook family
+  // (iq4_nl/iq4_xs/mxfp4/nvfp4) decode is assembled into a CodebookGather MechanismPlan
+  // (weft::CodebookGatherPlan) by the FormulaProvider codebookGatherPlanFromFacts
+  // (RVVGearboxSchedule.h -- the §〇 formula-layer home) from the stamped decode_core
+  // geometry facts + the per-format scale model, and the codebook emitter READS plan.* --
+  // NOT the format name (the per-format qk/stride/qs-offset/table/LMUL re-derivation is
+  // RETIRED into the plan). The dispatch tests plan.mechanism == CodebookGather ([F-1]:
+  // name AS DATA, not an execution key); format survives only as plan.provenanceFormat.
+  // Byte-exact reproduce-current: loadLMUL/stripLanes are pinned to the FIXED ggml-ABI
+  // codebook geometry (phase-3-codebook c-drives loadLMUL = f(VLEN)). [K-10]:
+  // CodebookGatherPlan is the CodebookGather mechanism's OWN plan (the 2nd of 5); the four
+  // formats parametrize the ONE shared vrgather codebook body via plan.scaleModel /
+  // plan.codebookTable -- a PARAMETRIC leaf shape, NOT a plan-internal mechanism switch.
+  // The scale model is derived once here from the block-type identity (the SAME
+  // format->ABI-facts mapping the construction table performs; a front-door scale-model
+  // stamp is the phase-1-equivalent follow-up). The ternary iq1s_grid / tq leaves
+  // (iq1_s/iq1_m/tq1_0/tq2_0) are a DIFFERENT mechanism (TernaryDecode) and keep their
+  // decode_model routing below -- NOT folded into this plan ([K-10]).
+  std::optional<::weft::CodebookScaleModel> codebookScaleModel =
+      llvm::StringSwitch<std::optional<::weft::CodebookScaleModel>>(decodeModel)
+          .Case("mxfp4", ::weft::CodebookScaleModel::E8M0SharedExp)
+          .Case("iq4_nl", ::weft::CodebookScaleModel::Fp16Flat)
+          .Case("nvfp4", ::weft::CodebookScaleModel::UE4M3SubBlock)
+          .Case("iq4_xs", ::weft::CodebookScaleModel::Signed6SuperBlock)
+          .Default(std::nullopt);
+  if (codebookScaleModel) {
+    // Rebuild the descriptor facts `g` the front door stamped, then run the provider.
+    weftrvv::DequantizeRowStreamFacts codebookFacts{};
+    codebookFacts.qk = coreOp.getQkAttr().getInt();
+    codebookFacts.weightBlockStride = coreOp.getWeightBlockStrideAttr().getInt();
+    codebookFacts.scaleByteOffset = coreOp.getScaleByteOffsetAttr().getInt();
+    codebookFacts.quantByteOffset = coreOp.getQuantByteOffsetAttr().getInt();
+    ::weft::CodebookGatherPlan plan =
+        ::weft::plugin::rvv::codebookGatherPlanFromFacts(codebookFacts,
+                                                         *codebookScaleModel,
+                                                         /*minimumVLEN=*/128);
+    plan.provenanceFormat = decodeModel; // diagnostic only (name AS DATA, [F-1])
+    // Reproduce-current gather-anchor gate (fail-closed, the GridDecodePlan discipline):
+    // phase-4 realizes ONLY the legal m1 anchor; an illegal / non-m1 plan fail-CLOSES
+    // here rather than silently emitting a gather whose high nibble indices read 0.
+    if (!plan.legality.isLegal || plan.loadLMUL != "m1")
+      return rewriter.notifyMatchFailure(
+          loopBody, llvm::Twine("codebook gather plan [") +
+                        ::weft::dequantMechanismName(plan.mechanism) + " " +
+                        plan.reason + "] for format '" + plan.provenanceFormat +
+                        "' pins the reproduce-current m1 gather anchor; a non-m1 "
+                        "loadLMUL is phase-3-codebook (c-driven) and not yet realized");
+    // [K-10] dispatch on plan.mechanism == CodebookGather (NOT the format name).
+    return emitDequantizeRowCodebookVectorBody(rewriter, loc, weightBase, output,
+                                               avlArg, sizeType, opName, role, plan);
+  }
   // The K-quant QK_K=256 super-block leaves (q2_K/q3_K/q4_K/q5_K/q6_K) are the R线
   // §四.2 K-quant fan-out cells of the dequant true-vector emitter: the CONSTRUCTED
   // path lowers to the OWNED real-vector body (per-super-sub vle8 + vand/vsrl bit
@@ -4969,14 +5046,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     return emitDequantizeRowIQGridBodyShared(rewriter, loc, weightBase, output,
                                              avlArg, sizeType, opName, role,
                                              decodeModel, codebookEntryLanes);
-  // The remaining codebook / ternary-grid extended leaves (iq1_s/iq1_m ternary
-  // iq1s_grid, iq4_nl/iq4_xs non-linear codebook, mxfp4/nvfp4 FP4 codebook, and the
-  // tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks) forward to the SAME hand-written
-  // extended decode the dispatch-wired monolith runs, so the constructed emit is
-  // byte-exact to the monolith by construction.
+  // The ternary-grid extended leaves (iq1_s/iq1_m ternary iq1s_grid + the tq1_0/tq2_0
+  // base-3 / 2-bit ternary super-blocks) forward to the SAME hand-written extended decode
+  // the dispatch-wired monolith runs, so the constructed emit is byte-exact to the
+  // monolith by construction. (The iq4_nl/iq4_xs/mxfp4/nvfp4 codebook leaves are a
+  // DIFFERENT mechanism -- CodebookGather -- dispatched above via CodebookGatherPlan;
+  // TernaryDecode stays keyed on decode_model here, [K-10].)
   if (decodeModel == "iq1_s" || decodeModel == "iq1_m" ||
-      decodeModel == "iq4_nl" || decodeModel == "iq4_xs" ||
-      decodeModel == "mxfp4" || decodeModel == "nvfp4" ||
       decodeModel == "tq1_0" || decodeModel == "tq2_0")
     return emitDequantizeRowCodebookGridBodyShared(rewriter, loc, weightBase,
                                                    output, avlArg, sizeType,

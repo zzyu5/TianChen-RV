@@ -17,6 +17,7 @@
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Support/NibbleDecodePlan.h"
+#include "Weft/Support/CodebookGatherPlan.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Support/GridDecodePlan.h"
 
@@ -5224,11 +5225,18 @@ private:
   /// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte. Byte-exact to
   /// ggml's dequantize_row_{mxfp4,nvfp4,iq4_nl,iq4_xs} by construction. Streaming
   /// sibling of emitDequantizeRowQ8_0VectorBody (no accumulator).
+  ///
+  /// Phase-4 (DequantMechanismPlan family #2): the per-format geometry (qk / stride /
+  /// qs offset / table / scale model / gather anchor LMUL / strip lanes) is READ from the
+  /// CodebookGather MechanismPlan (weft::CodebookGatherPlan) the FormulaProvider
+  /// codebookGatherPlanFromFacts produced, INSTEAD of re-derived from the format name.
+  /// Byte-exact reproduce-current; the plan pins loadLMUL/stripLanes to the FIXED
+  /// ggml-ABI codebook geometry (phase-3-codebook c-drives loadLMUL = f(VLEN)).
   mlir::LogicalResult emitDequantizeRowCodebookVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format) const;
+      const ::weft::CodebookGatherPlan &plan) const;
 
   /// The OWNED REAL-VECTOR ternary super-block dequantize_row body (B线批3 ternary
   /// de-lottery · [L-8] · ISSUE-001 reverse · closes the ISSUE-002 codegen-lottery for

@@ -1137,4 +1137,78 @@ nibbleDecodePlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
   return plan;
 }
 
+weft::CodebookGatherPlan
+codebookGatherPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
+                           weft::CodebookScaleModel scaleModel,
+                           std::int64_t minimumVLEN) {
+  // Phase-4 REPRODUCE-CURRENT: this FormulaProvider RE-PACKAGES the stamped codebook
+  // decode facts into the CodebookGather MechanismPlan and pins the gather anchor
+  // (loadLMUL) + strip (stripLanes) to the FIXED ggml-ABI codebook geometry. It does NOT
+  // yet c-drive the anchor: minimumVLEN is accepted as the phase-3-codebook seam (phase-3
+  // selects loadLMUL = getRVVCodebookGatherAnchorLMUL(VLEN, 8, codebookEntries), unlocking
+  // the VLEN256 mf2 narrowing gated behind kCodebookByteExactMinVLEN in the codebook
+  // bodies), but the reproduce-current derivation is VLEN-INDEPENDENT (the anchor is the
+  // fixed VLEN>=128 m1 whose gather VLMAX 16 covers the 16-entry table). Referenced to
+  // keep the f(g, c) signature explicit without a c-driven effect this cut.
+  (void)minimumVLEN;
+
+  weft::CodebookGatherPlan plan;
+  plan.mechanism = weft::DequantMechanism::CodebookGather;
+  plan.scaleModel = scaleModel;
+  // The 16-entry table shared by FP4-class (mxfp4/nvfp4) vs non-linear (iq4_nl/iq4_xs).
+  plan.codebookTable = (scaleModel == weft::CodebookScaleModel::E8M0SharedExp ||
+                        scaleModel == weft::CodebookScaleModel::UE4M3SubBlock)
+                           ? weft::CodebookTable::Fp4E2M1
+                           : weft::CodebookTable::NonLinear;
+  // The re-packaged codebook ABI-shape facts (byte-for-byte the values the retired
+  // format-name re-derivation fed the shared body -- the plan field IS the descriptor
+  // value). Every small-codebook format is a 16-entry table.
+  plan.codebookEntries = 16;
+  plan.codebookByteOffset = facts.quantByteOffset;
+  plan.superBlockElements = facts.qk;
+  plan.weightBlockStride = facts.weightBlockStride;
+  // Reproduce-current gather geometry (NOT c-driven -- phase-3-codebook): the fixed
+  // VLEN>=128 m1 codebook-gather anchor and the per-strip nibble lane count. The
+  // single-group scale models (E8M0/fp16) have sub-block == qk, so the strip is qk/2
+  // (the DERIVED witness that the emit consumes the PLAN, not a raw descriptor read);
+  // the multi-sub models carry the fixed sub-block half (nvfp4 16-lane sub -> 8,
+  // iq4_xs 32-lane sub -> 16).
+  plan.loadLMUL = "m1";
+  switch (scaleModel) {
+  case weft::CodebookScaleModel::E8M0SharedExp:
+  case weft::CodebookScaleModel::Fp16Flat:
+    plan.stripLanes = facts.qk / 2;
+    break;
+  case weft::CodebookScaleModel::UE4M3SubBlock:
+    plan.stripLanes = 8;
+    break;
+  case weft::CodebookScaleModel::Signed6SuperBlock:
+    plan.stripLanes = 16;
+    break;
+  }
+  // The gather-anchor legality gate (fail-closed): the pinned m1 anchor is non-empty,
+  // so it is legal; a future degenerate VLEN/SEW with no covering rung would leave
+  // loadLMUL empty and the emitter would fail-close rather than emit a truncated gather.
+  plan.legality.isLegal = !plan.loadLMUL.empty();
+  // Provenance (mirror, NOT authority -- I4): a static reason trace naming the scale
+  // model. provenanceFormat is attached by the caller (it holds the decode_model
+  // StringRef); left empty here.
+  switch (scaleModel) {
+  case weft::CodebookScaleModel::E8M0SharedExp:
+    plan.reason = "CodebookGather/fp4_e2m1/e8m0_shared_exp (reproduce-current)";
+    break;
+  case weft::CodebookScaleModel::Fp16Flat:
+    plan.reason = "CodebookGather/non_linear/fp16_flat (reproduce-current)";
+    break;
+  case weft::CodebookScaleModel::UE4M3SubBlock:
+    plan.reason = "CodebookGather/fp4_e2m1/ue4m3_sub_block (reproduce-current)";
+    break;
+  case weft::CodebookScaleModel::Signed6SuperBlock:
+    plan.reason = "CodebookGather/non_linear/signed6_super_block (reproduce-current)";
+    break;
+  }
+  plan.provenanceFormat = llvm::StringRef();
+  return plan;
+}
+
 } // namespace weft::plugin::rvv
