@@ -1993,7 +1993,9 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml NVFP4 x Q8_0 codebook block-dot source front door failed: ", "nvfp4-weight", "q8-act",
        "m1", kNVFP4Facts, kNVFP4Codebook, {}, {}, {},
        TypedFlatBlockDotLoopSelector::NVFP4Codebook},
-      {weft::rvv::GgmlBlockDotQ10Q80Op::getOperationName(),
+      {// Source identity retained for typed front-door ingestion; no registered
+       // whole-kernel op, verifier, recognizer, or emitter survives.
+       "weft_rvv.q1_0_q8_0_block_dot",
        MonolithicBlockDotRouteFamily::Flat, "ggml_q1_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q1_0_q8_0_block_dot_source",
        "weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",

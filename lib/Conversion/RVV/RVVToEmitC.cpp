@@ -753,8 +753,6 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         // the flat_nvfp4_codebook branch, which re-emits the byte-exact body through
         // the SHARED emitNVFP4BlockDotBodyShared (the sole live caller). mxfp4 stays
         // a monolith (the FP4-class negative control).
-        {&isQ1_0Q8_0BlockDotBody,
-         &VariantToEmitCFunc::emitQ1_0Q8_0BlockDot},
         {&isQ6_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial},
         {&isQ4_KNibbleUnpackBody,
@@ -1812,20 +1810,6 @@ bool VariantToEmitCFunc::isTypedRepackGemmLoopBody(weftrvv::WithVLOp scope) {
       }
     }
     return sawLoopBody;
-  }
-
-bool VariantToEmitCFunc::isQ1_0Q8_0BlockDotBody(weftrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<weftrvv::GgmlBlockDotQ10Q80Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
   }
 
 // NOTE: the monolith recognizer isIQ4XSQ8KBlockDotBody + emitter emitIQ4XSQ8KBlockDot
@@ -6410,4 +6394,3 @@ std::unique_ptr<::mlir::Pass> createRVVLowerToEmitCPass() {
 
 } // namespace transforms
 } // namespace weft
-

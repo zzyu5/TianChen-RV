@@ -38,6 +38,17 @@
 
 每个 batch 必须记录：old symbols、new typed authority、caller before/after、保留的语义 fallback、删除的兼容路径、迁移/删除的 tests、retired ledger/index 更新和复原 commit。
 
+### Batch 1 · q1_0（2026-07-20，完成，待本任务最终合并）
+
+- **old symbols**：`GgmlBlockDotQ10Q80Op`、`isQ1_0Q8_0BlockDotBody`、`emitQ1_0Q8_0BlockDot`，以及 emitter dispatch row、whole-kernel verifier 和 direct-op fixtures。
+- **new typed authority**：公开 source identity 只负责输入识别；`createTypedFlatBlockDotLoopChain` 构造 `TypedFlatBlockDotLoopBodyOp` + `GgmlBlockDotQ10Q80BinarySignCoreOp`；`emitTypedFlatBlockDotLoopBody` 是唯一 dispatcher，`emitQ1_0TypedFlatBlockDotBody` 是唯一 byte-exact emit anchor。
+- **caller before / after**：施工前旧 recognizer + old thin emitter 仍可从直接构造的整核 op 到达；施工后上述三个旧 symbol 的 active include/lib 引用均为 0。family 表保留的 `"weft_rvv.q1_0_q8_0_block_dot"` 只是 source-ingestion identity，不注册 ODS op、不选择 compute emitter。
+- **fallback**：没有保留旧实现 fallback、compat alias、parser shim 或 shadow dispatch。typed core 当前已有的 attr-less `m2` 安全缺省未由本批新增，仍由 ISSUE-116 / A4-A8 的统一 stamping 任务裁决；它不能回跳旧 op。
+- **tests**：旧 whole-kernel verifier fixture 迁为 binary-sign-core verifier；autotuner divergence 改为“公开前门 → typed body → unified schedule → typed emission”；旧 direct emitter fixture删除；新增 retired-op parse rejection mutation；既有 full-pipeline/export byte-exact结构测试保留并通过。
+- **ledger / gate**：q1_0 从 `pending_retirement` 迁入四要件 `retired_ledger`；generated retired index 已重建。退役 gate 新增 `retired_active_symbols` 棘轮与自测，防止旧 op/recognizer/emitter 复活。
+- **verification**：ODS 变化后 clean rebuild + 强制重链 `weft-opt` / `weft-translate` 通过；4 个 q1 focused lit（core verifier、source-driven VLEN divergence、retired parse mutation、full pipeline/export）通过；两项 retired gate 及 self-test 通过。全量 `check-weft` 在 Batch 2 后统一与基线 973 pass / 3 个既有失败比对。
+- **restore pointer**：回滚本 Batch 1 retirement commit；被删实现只在 Git parent/history 中保留，不在 active tree 放 tomb。
+
 ## Dependencies and Parallelism
 
 - 依赖本 campaign 的 Shared Retirement Gate 与 architecture [RET-1] 已合入。
@@ -47,7 +58,7 @@
 ## Acceptance Criteria
 
 - [ ] HEAD caller graph 证明六个 pending 项的旧 production path 均被 typed path 取代。
-- [ ] q1_0 旧 emitter/recognizer/dispatch/op-def 与 production callers 为 0。
+- [x] q1_0 旧 emitter/recognizer/dispatch/op-def 与 production callers 为 0。
 - [ ] q2_K/q3_K/q4_K/q5_K/q6_K 旧 monolith op-def、verifier、family op-type refs 与 production callers 为 0。
 - [ ] 没有新增 literal format-name compute dispatch、compat alias、bridge、dual path 或 code-affecting default。
 - [ ] 正常 fixtures byte-exact/ULP；missing/forged typed body 与旧路径复活 mutation 能使测试变红。

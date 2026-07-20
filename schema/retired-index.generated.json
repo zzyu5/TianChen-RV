@@ -16,8 +16,8 @@
       "restore_ref (复原指针 = git ref or named flip/campaign)"
     ],
     "counts": {
-      "total": 33,
-      "vec_dot_monolith": 16,
+      "total": 34,
+      "vec_dot_monolith": 17,
       "gemm_tile_repack": 17
     }
   },
@@ -323,6 +323,19 @@
       "alternative_path": "the front door constructs the typed FLAT block-dot loop body (weft_rvv.typed_flat_block_dot_loop_body with fold_model \"flat_nvfp4_codebook\", stride 36) carrying the nvfp4 CODEBOOK-core brick (GgmlBlockDotNVFP4Q80CodebookCoreOp, below) ; emit anchor emitNVFP4BlockDotBodyShared",
       "restore_ref": "nvfp4 flip (C_construct 27->28, the LAST dispatch-wired vec_dot -> closes the ① G1 literal-block-dot zoo)",
       "prose": "NOTE: def GgmlBlockDotNVFP4Q80Op (the monolith nvfp4 block-dot op) was RETIRED at the nvfp4 flip (C_construct 27->28, the LAST dispatch-wired vec_dot -> closes the ① G1 literal-block-dot zoo): the front door now constructs the typed FLAT block-dot loop body (weft_rvv.typed_flat_block_dot_loop_body with fold_model \"flat_nvfp4_codebook\", stride 36) carrying the nvfp4 CODEBOOK-core brick (GgmlBlockDotNVFP4Q80CodebookCoreOp, below) instead -- nvfp4's activation is a block_q8_0 stream (like q1_0), so it rides the FLAT loop op, NOT the q8_K super-block one. The retired monolith emitter's per-super-block body was code-moved into the byte-exact emitNVFP4BlockDotBodyShared lowering (the sole live caller, the flat_nvfp4_codebook branch of emitTypedFlatBlockDotLoopBody). mxfp4 stays a monolith (the FP4-class negative control) -- do NOT retire it.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
+      "format": "q1_0",
+      "op": "GgmlBlockDotQ10Q80Op",
+      "retirement_basis": "op-def was RETIRED at q1_0 flip (A7 Batch 1, single typed authority): the front door now constructs createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp instead.",
+      "alternative_path": "the front door constructs createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp ; emit anchor emitQ1_0TypedFlatBlockDotBody",
+      "restore_ref": "q1_0 flip (A7 Batch 1, single typed authority)",
+      "prose": "NOTE: def GgmlBlockDotQ10Q80Op (the monolith q1_0 block-dot op) was RETIRED at q1_0 flip (A7 Batch 1, single typed authority): the front door now constructs createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp instead. Its emission was code-moved into the byte-exact shared anchor emitQ1_0TypedFlatBlockDotBody, reached solely through emitTypedFlatBlockDotLoopBody. Restore only by reverting the A7 Batch 1 retirement commit; Git history retains the removed ODS/verifier/thin-emitter implementation.",
       "sources": [
         ".td RETIRED NOTE (RVVOps.td)",
         "monolith-retire-whitelist.v1.json retired_ledger"

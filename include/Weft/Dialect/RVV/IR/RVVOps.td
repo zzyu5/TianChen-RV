@@ -5443,119 +5443,14 @@ def GgmlBlockDotNVFP4Q80CodebookCoreOp
   let hasVerifier = 1;
 }
 
-def GgmlBlockDotQ10Q80Op
-    : WEFTRVV_Op<"q1_0_q8_0_block_dot",
-    [WEFTEmitCLowerableOpInterface,
-     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
-  let summary =
-      "generic typed RVV block-quantized ggml Q1_0 x Q8_0 dot-product op";
-  let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_q1_0_q8_0` block dot-product as ONE
-    bounded generic plugin-local typed RVV dataflow step -- the BINARY ({-1,+1})
-    class, one of the last three uncommon ggml dot kernels. The q1_0 weight is a
-    1-bit-per-element sign: a set bit decodes to `+q8`, an unset bit to `-q8`. The
-    genuinely-new mechanism vs every prior sibling is the per-lane BINARY SIGN
-    DECODE -- a `vmerge(vneg(q8), q8, bit_mask)` (in the i8 domain) that selects
-    `+q8` where the weight bit is set and `-q8` where it is clear. The mask is the
-    4 packed weight bit-bytes loaded DIRECTLY via `vlm_v_b{ratio}` (the packed bits
-    ARE the i8 sign mask: bit `8b+i` -> lane `8b+i`), with NO kmask table, NO
-    `vand`/`vmsne` decode, NO codebook, NO nibble unpack, NO offset-binary `-8`
-    bias: the q8 value IS the magnitude and the weight bit IS the sign. This is
-    ggml's shipped `_vl128` lane structure.
 
-    THREE structural facts distinguish q1_0, all load-bearing:
-
-    (1) SUPER-BLOCK FORMAT. block_q1_0 is `{ ggml_half d; uint8_t qs[16] }`
-        (QK1_0 = 128, sizeof 18), the fp16 scale `d0` at byte +0, then 16 packed
-        BIT bytes (128 bits = 128 element signs) at byte +2. ONE q1_0 super-block
-        is 128 elements spanning FOUR block_q8_0 activation blocks (each 32
-        elements): sub-block k (k=0..3) reads q8 block `4*ib + k` (the `*4` span is
-        the genuinely-new addressing vs nvfp4's `*2`), and the 32 bits of sub-block
-        k live at weight bytes `+2 + k*4 .. +2 + k*4 + 3` (4 bytes = 32 bits). The
-        recognizer/emitter walk the four sub-blocks per super-block explicitly; the
-        OUTER loop is over super-blocks nb = n / 128.
-
-    (2) BINARY SIGN DECODE. Within sub-block k the 32 bits map to the 32 q8 lanes:
-        bit `bits[k*4 + b]` bit `m` (m=0..7) pairs with q8 lane `b*8 + m`, value
-        `(bit & (1<<m)) ? +q8[b*8+m] : -q8[b*8+m]` -- ggml's EXACT `quants.c`
-        ordering. The emitter runs ONE 32-lane sub-block body (ggml's shipped
-        `_vl128` lane structure): the 4 packed bit-bytes load DIRECTLY into the i8
-        sign mask via `vlm_v_b{ratio}` (the packed bits ARE the mask: bit `8b+m` ->
-        lane `8b+m`), the 32 q8 quants load via `vle8`, and the sign is applied IN
-        THE i8 DOMAIN via `vmerge(vneg_i8(q8), q8, mask)` (+q8 where the bit is set,
-        -q8 where clear). The signed 32-lane vector is reduced by ONE `vwredsum`
-        widening i8 -> i16m1 into the per-sub-block integer `sumi_block` (32 lanes *
-        |q8|<=127 = 4064 < 32767, so the i16 accumulator never overflows). The
-        anchor is the smallest whole-LMUL whose i8 VLMAX spans the 32-element
-        sub-block: m2 at VLEN128 (e8m1 VLMAX 16 < 32), m1 at VLEN256 (e8m1 VLMAX
-        32). This is a pure within-block lowering: vl stays 32 and never crosses
-        into a second sub-block. (The i8-domain negate is byte-exact on the real q8
-        quantization domain [-127,127]; only the unreachable -128 boundary would
-        overflow, matching ggml's `_vl128` exactly.)
-
-    (3) TWO-LEVEL fp32 FOLD. ggml accumulates `sumf += d0 * Σ_k(d1_k * sumi_block_k)`
-        with d0 = fp16(x.d) and d1_k = fp16(y[4*ib+k].d). The emitter carries a
-        per-super-block `float sumi = 0.0f`, folds each sub-block as
-        `sumi = sumi + d1_k * (float)sumi_block` (in strict ascending k order), then
-        the super-block term `sumf = sumf + d0 * sumi` -- ggml's EXACT order, so fp
-        non-associativity is byte-exact. There are FIVE fp16 reads per super-block
-        (d0 once, d1_k for k=0..3); they are the ONLY sanctioned opaque scalar
-        pieces (the same `(float)*(const _Float16 *)` node the q4_0 sibling emits).
-
-    The op is nested directly under weft_rvv.with_vl and consumes FOUR runtime ABI
-    value operands -- the q1_0 weight base pointer (vx), the q8_0 activation base
-    pointer (vy), the fp32 output pointer (s), the runtime element count (n) --
-    plus the active !weft_rvv.vl token. It produces ONE i32 LMUL m1
-    !weft_rvv.vector token whose lowering writes the single fp32 reduction result
-    through the output pointer.
-
-    The structural facts -- qk (128), the super-block stride (18 bytes), the q8_0
-    block stride (34), the per-super-block q8-block span (4), the weight bit-payload
-    byte offset (+2), the q8 quant byte offset (+2), and the binary sign scale model
-    -- are carried as typed integer/string attributes (I4 mirror only). The op
-    identity is the dispatch key. Route ids, helper names, ABI strings, artifact
-    names, status fields, exact intrinsic spellings, operand mirror strings, q8/q1_0
-    names, and common EmitC/export code must not infer or choose block-quantized
-    dot-product semantics.
-
-    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
-    knob the siblings carry (the *how*, never the *what*; the dot-product is
-    byte-exact for any legal value because integer addition is order-independent and
-    the per-sub-block/super-block fp32 fold stays in strict ascending order). The
-    32-element sub-block straddles m1's i8 VLMAX boundary between VLEN128/256, so
-    its elided-correct anchor MOVES with VLEN across {m1, m2} exactly like the q8_0
-    sibling: the capability/resource-aware schedule autotuner stamps "m2" at VLEN128
-    and "m1" at VLEN256 from the SAME getRVVStripVLMAXElements truth source (it
-    adopts TunableScheduleOpInterface; kernel key "q1_0"). The verifier rejects any
-    other anchor fail-closed (I7).
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$activation_blocks_per_weight,
-    I64Attr:$weight_quant_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul,
-    OptionalAttr<I64Attr>:$minimum_vlen
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
-
+// NOTE: def GgmlBlockDotQ10Q80Op (the monolith q1_0 block-dot op) was RETIRED at
+// q1_0 flip (A7 Batch 1, single typed authority): the front door now constructs
+// createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing
+// GgmlBlockDotQ10Q80BinarySignCoreOp instead. Its emission was code-moved into the
+// byte-exact shared anchor emitQ1_0TypedFlatBlockDotBody, reached solely through
+// emitTypedFlatBlockDotLoopBody. Restore only by reverting the A7 Batch 1 retirement
+// commit; Git history retains the removed ODS/verifier/thin-emitter implementation.
 def GgmlBlockDotQ10Q80BinarySignCoreOp
     : WEFTRVV_Op<"q1_0_q8_0_binary_sign_core",
     [WEFTEmitCLowerableOpInterface,

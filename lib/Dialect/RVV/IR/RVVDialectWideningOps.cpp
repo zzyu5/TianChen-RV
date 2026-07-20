@@ -1532,15 +1532,6 @@ bool GgmlBlockDotQ40Q80Op::isSchedulePinned() {
          static_cast<bool>(getStripElision());
 }
 
-// q1_0 (the BINARY-sign class) carries ONLY the integer_core_lmul knob (no
-// multi_block_factor / strip_elision), so its pin predicate tests just that knob.
-// Its 32-element sub-block straddles m1's i8 VLMAX boundary between VLEN128/256
-// (like q8_0), so the gearbox stamps "m2" at VLEN128 / "m1" at VLEN256.
-llvm::StringRef GgmlBlockDotQ10Q80Op::getScheduleKernelKey() { return "q1_0"; }
-bool GgmlBlockDotQ10Q80Op::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul());
-}
-
 // tq2_0 (the 2-bit TERNARY class) carries ONLY the integer_core_lmul knob (no
 // multi_block_factor / strip_elision -- the fused ternary dot is ALWAYS one
 // 32-lane plane body). Its 32-element 2-bit plane straddles m1's i8 VLMAX
@@ -1578,12 +1569,9 @@ bool GgmlBlockDotTQ10Q8KTernaryCoreOp::isSchedulePinned() {
 // here it tunes the 32-lane binary sign-decode -> vwredsum dot over each of the
 // four q8_0 sub-blocks. The 32-element sub-block straddles m1's i8 VLMAX boundary
 // between VLEN128/256 (like q8_0 / tq1_0 / tq2_0), so the gearbox stamps "m2" at
-// VLEN128 / "m1" at VLEN256. KEPT across the q1_0 flip: the monolith
-// GgmlBlockDotQ10Q80Op op carries the SAME gearbox, but the Win-A selection moves
-// verbatim onto the constructed binary-sign integer-core brick (SAME kernel key
-// "q1_0", so the unified autotuner -- which dyn_casts TunableScheduleOpInterface,
-// not op-type -- stamps the SAME m2->m1 selection onto the brick without any
-// registry change).
+// VLEN128 / "m1" at VLEN256. The constructed binary-sign integer-core brick is
+// the sole q1_0 schedule consumer (kernel key "q1_0"); the unified autotuner
+// reaches it through TunableScheduleOpInterface rather than an op-type branch.
 llvm::StringRef GgmlBlockDotQ10Q80BinarySignCoreOp::getScheduleKernelKey() {
   return "q1_0";
 }
@@ -5125,187 +5113,6 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
 // body was PLAIN-REMOVED here (裁决九.4 retirement cleanup) rather than kept as a
 // preprocessor-disabled dead-code tomb; see schema/monolith-retire-whitelist.v1.json
 // (retired_ledger).
-
-mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
-  mlir::Operation *op = getOperation();
-
-  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
-  // binary-sign scale model, and the super-block-format structural facts (the
-  // q1_0 stride, the q8_0 stride, the per-super-block q8-block span, and the two
-  // quant byte offsets), plus the bounded shape knob. Anything else -- a
-  // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
-  // is rejected fail-closed (I7).
-  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
-    return name == "kind" || name == "scale_model" || name == "qk" ||
-           name == "weight_block_stride" ||
-           name == "activation_block_stride" ||
-           name == "activation_blocks_per_weight" ||
-           name == "weight_quant_byte_offset" ||
-           name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("weft_rvv.q1_0_schedule.");
-  };
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; weft_rvv.q1_0_q8_0_block_dot keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
-    if (!isAllowedBlockDotAttr(attrName))
-      return emitOpError()
-             << "only accepts the bounded block dot-product attributes 'kind', "
-                "'scale_model', 'qk', 'weight_block_stride', "
-                "'activation_block_stride', 'activation_blocks_per_weight', "
-                "'weight_quant_byte_offset', 'activation_quant_byte_offset', "
-                "'integer_core_lmul', and 'minimum_vlen'; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (getKind() != "ggml_q1_0_q8_0_block_dot")
-    return emitOpError()
-           << "currently supports only kind \"ggml_q1_0_q8_0_block_dot\" for "
-              "the bounded ggml Q1_0 x Q8_0 block dot-product typed surface";
-  // The binary-sign scale model is the load-bearing distinction of q1_0: each
-  // weight bit is a SIGN (set -> +q8, clear -> -q8), and the magnitude is the q8
-  // value itself (NO codebook, NO nibble unpack, NO offset-binary `-8` bias). Pin
-  // it so a wrong decode convention (e.g. an inverted bit polarity, or a
-  // codebook/nibble misroute) is rejected fail-closed (I7).
-  if (getScaleModel() != "binary-sign-per-bit")
-    return emitOpError()
-           << "requires scale_model \"binary-sign-per-bit\" for the ggml Q1_0 x "
-              "Q8_0 block dot-product route (a set bit -> +q8, a clear bit -> "
-              "-q8; the q8 value is the magnitude)";
-  // ggml's externally-defined super-block format (ggml-common.h): QK1_0 == 128,
-  // block_q1_0 = { ggml_half d; uint8_t qs[16] } stride 18 (the fp16 scale then 16
-  // packed bit bytes = 128 element signs), block_q8_0 stride 34, ONE q1_0
-  // super-block spanning FOUR q8_0 blocks, the weight bits at byte offset +2
-  // (after the inline fp16 scale), the q8 quants at +2. Pin them so a malformed
-  // typed body cannot lower under the block-dot emission.
-  if (getQk() != 128)
-    return emitOpError() << "requires qk == 128 (QK1_0) for the ggml Q1_0 x "
-                            "Q8_0 block dot-product route";
-  if (getWeightBlockStride() != 18)
-    return emitOpError()
-           << "requires weight_block_stride == 18 (sizeof block_q1_0: the fp16 "
-              "scale + 16 packed bit bytes) for the ggml Q1_0 x Q8_0 block "
-              "dot-product route";
-  if (getActivationBlockStride() != 34)
-    return emitOpError()
-           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
-              "the ggml Q1_0 x Q8_0 block dot-product route";
-  if (getActivationBlocksPerWeight() != 4)
-    return emitOpError()
-           << "requires activation_blocks_per_weight == 4 (one 128-element q1_0 "
-              "super-block spans four 32-element block_q8_0 activation blocks) "
-              "for the ggml Q1_0 x Q8_0 block dot-product route";
-  if (getWeightQuantByteOffset() != 2)
-    return emitOpError()
-           << "requires weight_quant_byte_offset == 2 (the packed bit bytes "
-              "follow the inline fp16 scale) for the ggml Q1_0 x Q8_0 block "
-              "dot-product route";
-  if (getActivationQuantByteOffset() != 2)
-    return emitOpError()
-           << "requires activation_quant_byte_offset == 2 (the q8 quants follow "
-              "the inline fp16 scale) for the ggml Q1_0 x Q8_0 block "
-              "dot-product route";
-
-  // The binary sign decode runs ONE 32-lane sub-block body (vlm_v_b{ratio} the 4
-  // packed bit-bytes straight into the i8 sign mask, vle8 the 32 q8 quants,
-  // i8-domain vneg/vmerge -> signed q8, ONE vwredsum i8->i16m1 per sub-block).
-  // There is NO multi-strip fallback: the single vsetvl_e8<anchor>(32) cover is
-  // correct ONLY when the anchor's i8 strip VLMAX at the GUARANTEED minimum VLEN
-  // spans the whole 32-element sub-block. WHICH anchor that is MOVES with VLEN
-  // exactly like the q8_0 sibling: at VLEN=128 only m2 spans it (e8m1 VLMAX 16 <
-  // 32), at VLEN=256 m1's VLMAX also reaches 32. Any other spelling is rejected
-  // fail-closed (I7); the VLMAX legality is recomputed here from the SAME formula
-  // the gearbox selects with (getRVVStripVLMAXElements -- this verifier is the
-  // single source of truth, catching a future inconsistent stamp, not blindly
-  // trusting one). The semantic input is the `minimum_vlen` attr (the
-  // deriveMinimumVLEN capability fact); absent, it defaults to 128 (the
-  // conservative floor: only m2 holds at VLEN=128). The anchor defaults to "m2"
-  // (the emitter's VLEN-universal-safe default: e8m2 VLMAX 32 spans the sub-block
-  // at every VLEN), so an attr-less op verifies + lowers correctly and the gearbox
-  // is free to REFINE m2->m1 at VLEN>=256. The explicit aggressive anchor m1 is
-  // REJECTED at minimum_vlen 128 (e8m1 VLMAX 16 < 32) -- the silent-wrong guard.
-  {
-    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
-    if (anchor != "m1" && anchor != "m2")
-      return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
-                "Q1_0 x Q8_0 block dot-product (the binary sign decode runs ONE "
-                "32-lane sub-block body at the whole-LMUL anchor whose i8 strip "
-                "VLMAX spans the 32-element sub-block: m2 at VLEN128, m1 at "
-                "VLEN256); got \""
-             << anchor << "\"";
-    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
-    constexpr std::int64_t kQ10SubBlockLen = 32; // the 32-element q8 sub-block.
-    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
-        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
-    if (stripVLMAX < kQ10SubBlockLen)
-      return emitOpError()
-             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
-                "32-element q8 sub-block at the guaranteed minimum_vlen ("
-             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
-             << stripVLMAX
-             << " (the single-vsetvl whole-sub-block cover would drop lanes). At "
-                "minimum_vlen 128 the binary sign decode requires m2; at 256 m1 "
-                "also spans the sub-block";
-  }
-
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one weight base pointer, one activation base pointer, "
-              "one output pointer, one runtime element-count runtime ABI "
-              "operand, one !weft_rvv.vl operand, and one i32 LMUL m1 result";
-
-  RuntimeABIValueOp weightBinding =
-      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp activationBinding =
-      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outputBinding =
-      getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
-    return emitOpError()
-           << "requires the weight base operand to bind a runtime ABI value of "
-              "C type 'const uint8_t *' (the AoS block_q1_0 byte array)";
-  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
-    return emitOpError()
-           << "requires the activation base operand to bind a runtime ABI "
-              "value of C type 'const uint8_t *' (the AoS block_q8_0 byte "
-              "array)";
-  if (!outputBinding || outputBinding.getCType() != "float *")
-    return emitOpError()
-           << "requires the output operand to bind a runtime ABI value of C "
-              "type 'float *' (the ggml *s scalar destination)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError()
-           << "requires the element-count operand to be the runtime n index "
-              "value feeding the enclosing setvl";
-
-  if (!isGenericRVVVectorI32M1(getResult().getType()))
-    return emitOpError()
-           << "requires result vector to have type !weft_rvv.vector<i32, "
-              "\"m1\"> for the ggml Q1_0 x Q8_0 block dot-product route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!weft_rvv.vl type";
-
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
-    return emitOpError()
-           << "requires enclosing weft_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml Q1_0 x Q8_0 block dot-product";
-
-  return mlir::success();
-}
 
 mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
   mlir::Operation *op = getOperation();

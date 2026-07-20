@@ -19,7 +19,7 @@
       "checker": "tools/gates/check_monolith_retire.py",
       "ci": ".github/workflows/falsifier-gate.yml (job: monolith-retire-gate)"
     },
-    "generated_survey": "As of 裁决九.4: 8 vec_dot monolith op-defs survive in ODS (2 deliberately_retained + 6 pending_retirement). All other flat/K/IQ/TQ vec_dot monoliths (q8_0, q4_1, q5_0, q5_1, iq4_nl, nvfp4, iq1_s, iq1_m, iq3_xxs, iq4_xs, iq2_xxs, iq2_xs, iq2_s, iq3_s, tq1_0, tq2_0) are ALREADY op-def-retired (front door keys off string literals; see the RETIRED NOTE markers in RVVOps.td).",
+    "generated_survey": "As of A7 Batch 1: 7 vec_dot monolith op-defs survive in ODS (2 deliberately_retained + 5 pending_retirement). q1_0 joins the already retired flat/K/IQ/TQ vec_dot monoliths: its public source identity is retained, but its ODS whole-kernel op, verifier, recognizer, dispatch row, and thin emitter are gone; the sole live path is typed construction.",
     "retired_ledger_forms": {
       "ruling": "判定书 §3 轴B 裁决①: a RETIRED vec_dot monolith is registered in EITHER of TWO EQUALLY-VALID canonical forms -- there is NO forced migration to a single form (合规 != 体例统一).",
       "form_A_json_retired_ledger": "A structured entry in THIS file's retired_ledger array (format + op_def + retired_at + front_door/cleanup + restore_ref). This is the form for op-defs that were ALREADY absent from ODS at the whitelist's birth, or retired after it.",
@@ -28,7 +28,6 @@
     },
     "retired_index": "判定书 §3 轴B 裁决③ (机检化): tools/gates/gen_retired_index.py merges (a) the .td RETIRED NOTE markers + (b) this file's retired_ledger + (c) schema/emit-bypass-whitelist.v1.json retired_ledger into the single read-only query point schema/retired-index.generated.json (machine-generated, DO NOT hand-edit). tools/gates/check_retired_index.py (按需门; 其原 CI job retired-index-gate 已随 .github/workflows/ 删除, 见 evidence 层 G-2) fails closed unless the index is fresh AND every RETIRED vec_dot monolith format -- derived independently as {vec_dot rows in schema/coverage-sixstate.v1.json} MINUS {surviving ODS monolith formats} -- is in the index with non-empty four requirements."
   },
-
   "deliberately_retained": [
     {
       "format": "mxfp4",
@@ -52,22 +51,7 @@
       ]
     }
   ],
-
   "pending_retirement": [
-    {
-      "format": "q1_0",
-      "mnemonic": "q1_0_q8_0_block_dot",
-      "op_def": "GgmlBlockDotQ10Q80Op",
-      "batch": "flat-family monolith EMITTER retirement — q1_0 is the LAST un-retired flat vec_dot monolith (q8_0/q4_1/q5_0/q5_1 op-defs already retired; q4_0 permanently kept). Follow the flat-flip precedent: the front door already string-keys it; the blocking residual is the LIVE monolith emitter + its dataflow verifier test, which must be dead-stripped / migrated before the op-def can go.",
-      "reason": "Front door FLIPPED q1_0 to typed-flat construction (RVVMonolithicBlockDotSourceFrontDoor.cpp:3291, entry.opName string-keyed — the comment there already says the monolith is 'retired' for the source path, so it is no longer CONSTRUCTED in-pipeline). BUT the monolith EMITTER is still LIVE and tested — recognizer isQ1_0Q8_0BlockDotBody is registered in the emitter dispatch table (RVVToEmitC.cpp:441) with a full emitter path, and the verifier is exercised by test/Dialect/RVV/q1-0-q8-0-block-dot-dataflow.mlir — UNLIKE K-quant whose emitters were fully code-moved. So the op-def is not yet pipeline-dead and is kept, named, with this batch.",
-      "live_refs": [
-        "lib/Conversion/RVV/RVVToEmitC.cpp:441 (isQ1_0Q8_0BlockDotBody recognizer registered)",
-        "lib/Conversion/RVV/RVVToEmitC.cpp:1364 (isa<GgmlBlockDotQ10Q80Op> dispatch)",
-        "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:9723 (dyn_cast<GgmlBlockDotQ10Q80Op> emitter)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1996 (family route registration)",
-        "test/Dialect/RVV/q1-0-q8-0-block-dot-dataflow.mlir (verifier contract test)"
-      ]
-    },
     {
       "format": "q4_K",
       "mnemonic": "q4_k_q8_k_block_dot",
@@ -135,8 +119,22 @@
       ]
     }
   ],
-
   "retired_ledger": [
+    {
+      "format": "q1_0",
+      "op_def": "GgmlBlockDotQ10Q80Op",
+      "mnemonic": "q1_0_q8_0_block_dot",
+      "retired_at": "q1_0 flip (A7 Batch 1, single typed authority): the public source front door had already superseded the whole-kernel op; this batch atomically removed the residual ODS op-def, monolith verifier, recognizer/dispatch row, thin emitter, and direct-op tests.",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp retains the source identity as a literal and createTypedFlatBlockDotLoopChain constructs weft_rvv.typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp; emitTypedFlatBlockDotLoopBody is the only dispatcher and emitQ1_0TypedFlatBlockDotBody is the shared byte-exact emit anchor.",
+      "cleanup": "The verifier contract moved to q1-0-q8-0-binary-sign-core-dataflow.mlir; schedule divergence now starts from the public source front door; full pipeline/export remains covered by q1-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir. No compatibility alias, parser shim, old-name fallback, or second emitter remains.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ10Q80Op",
+        "isQ1_0Q8_0BlockDotBody",
+        "emitQ1_0Q8_0BlockDot"
+      ],
+      "restore_ref": "git revert of the A7 Batch 1 q1_0 retirement commit (the commit adding this ledger entry); removed implementation remains available in its parent through git history.",
+      "note": "Four requirements complete: format+op_def; retirement basis; typed front-door/emitter alternative; git-history restore pointer."
+    },
     {
       "format": "nvfp4",
       "op_def": "GgmlBlockDotNVFP4Q80Op",
