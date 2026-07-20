@@ -4,8 +4,8 @@
 # =============================================================================
 # Closes the offline-profile write-back loop for the measurement-memory layer:
 #
-#     board cold-measure  ->  BYTE-EXACT gate (fail-closed)  ->  write library row
-#                          ->  recompute group argmin (`selected`)
+#     immutable run -> BYTE-EXACT + lineage + freshness + structured T-N gates
+#                   -> rebuildable qualification view -> recon master publication
 #
 # It transcribes REAL board measurements into schema/measurement-memory.v1.json.
 # It is NOT a selector, NOT a loader; lib/ consumes NOTHING from this file.
@@ -19,9 +19,10 @@
 #  * [L-4] no external-tuner benchmark: the oracle is always SELF (the per-cell
 #          _generic construction oracle). This tool never imports/compares an
 #          external tuner's cost model.
-#  * I4    measurement is a CACHE FACT, never an authority: the byte-exact gate
-#          (correctness authority) and the library (ranking cache) are SEPARATE.
-#          A cold_median here only RANKS; it never decides correctness.
+#  * I4    measurement is never candidate or legality authority: the byte-exact
+#          gate (correctness authority), qualification, and selector-valid paired
+#          ranking are SEPARATE.  A qualified deployed fact may feed recon, but
+#          never creates a candidate or repairs an illegal one.
 #  * fail-closed: a row is written ONLY past the byte-exact gate. A variant whose
 #          product is not bit-identical to its _generic construction oracle is
 #          NEVER cached (the timing is discarded, the row is left untouched).
@@ -47,10 +48,18 @@
 # Touch set: writes ONLY schema/measurement-memory.v1.json data rows (never $meta
 # structure, never lib/, never canon/roster/perf-covered/coverage). No git commit.
 # =============================================================================
-import argparse, datetime, json, os, re, statistics, sys
+import argparse, csv, datetime, hashlib, json, os, re, statistics, sys, tempfile
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCHEMA = os.path.join(ROOT, "schema", "measurement-memory.v1.json")
+sys.path.insert(0, os.path.join(ROOT, "tools", "bench"))
+from tn_qualify import (  # noqa: E402
+    MIN_N as N_NOISE_FLOOR,
+    TNQualificationError,
+    qualify as qualify_tn,
+    validate_evidence_file as validate_tn_evidence,
+)
 
 # The @rvv / @k1 declared-instance hashes = the BOARD capability-fact-set SHA-256
 # (kernel-INDEPENDENT: every fixture kernel @a board expands to the SAME capability
@@ -63,8 +72,6 @@ BOARD_INSTANCE_HASH = {
     # k1 real hash not asserted here (no k1 fixture-hash landed in-tree yet); a k1
     # job must supply real_capability_hash explicitly or keep the seed sentinel.
 }
-
-N_NOISE_FLOOR = 10  # T-N: >= 10 cold reps required before a median/IQR is trusted.
 
 # Coverage axes are NOT memoized-argmin axes: every row is a trivially-`selected`
 # single point (regret 0). deployed_point rows share variant=='deployed', so they
@@ -115,6 +122,22 @@ def check_byte_exact_gate(evidence_path):
     if not evidence_path or not os.path.exists(evidence_path):
         return False, f"gate evidence file missing: {evidence_path!r}"
     txt = open(evidence_path, encoding="utf-8", errors="replace").read()
+    # Official bench verify transcripts use the live three-way oracle plus
+    # anti-hollow arms instead of the older `VERDICT BYTE-EXACT-INTEGER` spelling.
+    # Accept that production evidence only when the complete transcript is present.
+    if "# ALL_DONE" in txt and "ABI-GATE" in txt:
+        ours = [int(x) for x in re.findall(r"T2 ours\s+vs oracle: mism=(\d+)/", txt)]
+        oppg = [int(x) for x in re.findall(r"T2 OPP-G\s+vs oracle: mism=(\d+)/", txt)]
+        oppx = [int(x) for x in re.findall(r"T2 OPP-X\s+vs oracle: mism=(\d+)/", txt)]
+        positive = bool(ours and oppg and oppx and 0 in ours and 0 in oppg and 0 in oppx)
+        anti_hollow = (
+            txt.count("GATE-OURS = FAIL") >= 3
+            and "GATE-OPPX = PASS" in txt
+            and "GATE-OPPG = PASS" in txt
+        )
+        if positive and anti_hollow and re.search(r"ABI-GATE.*PASS", txt):
+            return True, "OFFICIAL-BENCH-ZERO-MODEL; three-way zero mismatch + anti-hollow exercised"
+        return False, "official bench transcript incomplete or hollow (fail-closed)"
     if "VERDICT BYTE-EXACT-INTEGER" not in txt:
         return False, "oracle verdict is not BYTE-EXACT-INTEGER (fail-closed)"
     # Parse LINE-AWARE: a negative-control line (contains "perturbed" / "EXERCISED")
@@ -260,6 +283,60 @@ def utc_now():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def validate_master_publication(job, row, board):
+    """Validate the immutable-run -> qualified-view boundary.
+
+    This gate is intentionally stricter than an ordinary measurement-memory
+    writeback.  It never infers a row key and never turns a legacy/ad-hoc result
+    into a canonical master input merely because a timing value exists.
+    """
+    if not job.get("publish_to_master"):
+        return None
+    if row.get("variant_axis") != "deployed_point":
+        raise ValueError("publish_to_master is legal only for deployed_point rows")
+    run_id = job.get("run_id")
+    if not isinstance(run_id, str) or not re.fullmatch(
+            rf"\d{{8}}T\d{{6}}Z-[A-Za-z0-9_.+-]+-{re.escape(board)}-[0-9a-f]{{8}}", run_id):
+        raise ValueError(f"invalid or board-mismatched official run_id: {run_id!r}")
+    run_dir = os.path.realpath(os.path.join(ROOT, "experiments", "runs", run_id))
+    runs_root = os.path.realpath(os.path.join(ROOT, "experiments", "runs")) + os.sep
+    if not run_dir.startswith(runs_root):
+        raise ValueError("run_id escapes experiments/runs")
+    row_path = os.path.join(run_dir, "row.csv")
+    if not os.path.isfile(row_path):
+        raise ValueError(f"immutable run row missing: {row_path}")
+    with open(row_path, encoding="utf-8", newline="") as stream:
+        events = list(csv.DictReader(stream))
+    if len(events) != 1:
+        raise ValueError(f"official run must contain exactly one row event, got {len(events)}")
+    event = events[0]
+    expected = (row.get("op"), row.get("kernel"), row.get("engine"), row.get("regime"))
+    actual = tuple(event.get(field) for field in ("op", "format", "engine", "regime"))
+    if actual != expected:
+        raise ValueError(f"run row key mismatch: expected={expected}, actual={actual}")
+    if event.get("run-id") != run_id:
+        raise ValueError(f"run row carries different run-id: {event.get('run-id')!r}")
+    if not event.get("世系"):
+        raise ValueError("run row lineage is empty")
+
+    gate_path = os.path.realpath(job.get("gate_evidence_path") or "")
+    if not gate_path.startswith(run_dir + os.sep):
+        raise ValueError("master publication requires byte-exact evidence inside the immutable run")
+    tn_path = Path(job.get("tn_evidence_path") or "")
+    try:
+        validate_tn_evidence(
+            tn_path,
+            repo_root=Path(ROOT),
+            expected_board=board,
+            expected_run_id=run_id,
+        )
+    except (TNQualificationError, OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"structured T-N qualification failed: {exc}") from exc
+    if job.get("freshness") != "current":
+        raise ValueError("master publication requires freshness='current'")
+    return event
+
+
 # --------------------------------- writeback ----------------------------------
 def cmd_writeback(args):
     job = json.load(open(args.job, encoding="utf-8"))
@@ -287,6 +364,19 @@ def cmd_writeback(args):
               f"{[(r.get('op'), r.get('engine'), r.get('regime')) for r in row]}")
         return 2
     before = json.loads(json.dumps(row))  # deep copy for diff
+
+    # Publication eligibility is checked before timing is allowed to mutate the
+    # in-memory row.  Ordinary selection-cache writeback may omit this gate, but
+    # then master_qualified_input remains false.
+    try:
+        publication_event = validate_master_publication(job, row, board)
+    except ValueError as exc:
+        print(f"!! MASTER PUBLICATION GATE FAILED: {exc}")
+        return 6
+    if row.get("master_qualified_input") and publication_event is None:
+        print("!! target is already a canonical master input; ordinary cache writeback "
+              "cannot mutate it without re-running the publication gate")
+        return 6
 
     # ---- STEP 1: byte-exact gate (fail-closed COMMANDING gate) ----
     passed, reason = check_byte_exact_gate(job.get("gate_evidence_path"))
@@ -321,8 +411,26 @@ def cmd_writeback(args):
     row["selection_valid_input"] = sv
     row["byte_exact_gate"] = "pass"
     row["ts"] = ts
+    row["measurement_state"] = "measured"
     if job.get("opponent_symbol"):
         row["opponent_symbol"] = job["opponent_symbol"]
+
+    if publication_event is not None:
+        run_id = job["run_id"]
+        row["measurement_board"] = board
+        row["run_id"] = run_id
+        row["freshness"] = "current"
+        row["tn_qualification"] = "qualified"
+        row["tn_evidence"] = os.path.relpath(job["tn_evidence_path"], ROOT)
+        row["master_qualified_input"] = True
+        row["evidence_lane"] = "official-run"
+        row["source"] = f"experiments/runs/{run_id}/row.csv"
+        row["axis_extras"]["tier"] = publication_event["对手档"]
+        row["axis_extras"]["disp"] = publication_event["判定"]
+        row["axis_extras"]["t3_note"] = (
+            f"official qualified run {run_id}; lineage={publication_event['世系']}; "
+            f"opponent-evidence={publication_event['对手证据引用']}"
+        )
 
     # ---- instance-hash promotion (composite-key collision check, PR-16) ----
     # The real declared_instance_hash is the BOARD capability-fact SHA (kernel-
@@ -402,7 +510,9 @@ def cmd_writeback(args):
     print("\n[4] ROW DIFF (before -> after):")
     for k in ("declared_instance_hash", "instance_hash_seed", "cold_median",
               "cold_iqr", "ratio_semantics", "selection_valid_input",
-              "byte_exact_gate", "selected", "ts"):
+              "byte_exact_gate", "selected", "measurement_state", "run_id",
+              "freshness", "tn_qualification", "master_qualified_input",
+              "evidence_lane", "ts"):
         b = before.get(k)
         a = row.get(k)
         flag = "" if b == a else "   <== CHANGED"
@@ -444,6 +554,86 @@ def cmd_verify_selected(args):
     return 0 if ok else 5
 
 
+def cmd_self_test(_args):
+    """Synthetic control-plane tests; writes only inside a temporary directory."""
+    global ROOT
+    original_root = ROOT
+    with tempfile.TemporaryDirectory(prefix="weft-measurement-control-") as temporary:
+        ROOT = temporary
+        run_id = "20990101T000000Z-q4_K-rvv-deadbeef"
+        run_dir = os.path.join(ROOT, "experiments", "runs", run_id)
+        os.makedirs(run_dir)
+        event = {
+            "op": "vec_dot", "format": "q4_K", "engine": "rvv",
+            "regime": "micro-fixed", "cold": "1.0000", "判定": "PASS",
+            "对手符号": "synthetic-opp", "对手档": "手调",
+            "对手证据引用": "synthetic-probe", "我方向量指令数": "1",
+            "世系": "synthetic-board·synthetic-chain·synthetic-batch",
+            "run-id": run_id, "噪声标": "synthetic",
+        }
+        row_path = os.path.join(run_dir, "row.csv")
+        with open(row_path, "w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(event))
+            writer.writeheader(); writer.writerow(event)
+        verify_path = os.path.join(run_dir, "verify.stdout.txt")
+        with open(verify_path, "w", encoding="utf-8") as stream:
+            stream.write(
+                "ABI-GATE synthetic -> PASS\n"
+                "T2 ours  vs oracle: mism=0/1\nT2 OPP-G vs oracle: mism=0/1\n"
+                "T2 OPP-X vs oracle: mism=0/1\n"
+                "GATE-OURS = FAIL | GATE-OPPG = FAIL | GATE-OPPX = FAIL\n"
+                "GATE-OURS = FAIL | GATE-OPPG = PASS | GATE-OPPX = PASS\n"
+                "GATE-OURS = FAIL | GATE-OPPG = PASS | GATE-OPPX = PASS\n# ALL_DONE\n"
+            )
+        timing_path = os.path.join(run_dir, "measure.stdout.txt")
+        with open(timing_path, "w", encoding="utf-8") as stream:
+            stream.write("synthetic immutable timing source\n")
+        timing_sha = hashlib.sha256(Path(timing_path).read_bytes()).hexdigest()
+        tn_raw = {
+            "board": "rvv",
+            "benchmark_class": "vec_dot-micro-fixed",
+            "protocol_id": "synthetic-preregistered-protocol",
+            "effect_run_id": run_id,
+            "pre_registered_n_noise": N_NOISE_FLOOR,
+            "pre_registered_n_effect": N_NOISE_FLOOR,
+            "noise_repeat_deltas_pct": [
+                -0.20, -0.15, -0.10, -0.05, 0.0, 0.0, 0.05, 0.10, 0.15, 0.20,
+            ],
+            "effect_deltas_pct": [2.0, 2.1, 2.2, 2.1, 2.0, 2.2, 2.1, 2.0, 2.2, 2.1],
+            "bootstrap_seed": 7,
+            "bootstrap_resamples": 1000,
+            "source_artifacts": [{
+                "path": os.path.relpath(timing_path, ROOT),
+                "sha256": timing_sha,
+            }],
+        }
+        tn_path = os.path.join(run_dir, "tn-qualification.json")
+        with open(tn_path, "w", encoding="utf-8") as stream:
+            json.dump(qualify_tn(tn_raw), stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+        job = {
+            "publish_to_master": True, "run_id": run_id, "freshness": "current",
+            "gate_evidence_path": verify_path, "tn_evidence_path": tn_path,
+        }
+        row = {
+            "variant_axis": "deployed_point", "op": "vec_dot", "kernel": "q4_K",
+            "engine": "rvv", "regime": "micro-fixed",
+        }
+        passed, _ = check_byte_exact_gate(verify_path)
+        assert passed
+        assert validate_master_publication(job, row, "rvv")["run-id"] == run_id
+        job["freshness"] = "stale"
+        try:
+            validate_master_publication(job, row, "rvv")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("stale publication unexpectedly accepted")
+    ROOT = original_root
+    print("measurement publication self-test: PASS")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="[SEL-3] T-SEL3-4 write-back harmonizer")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -456,6 +646,8 @@ def main():
     v.add_argument("--kernel", required=True)
     v.add_argument("--axis", required=True, choices=["sp4_tiling", "loop_order"])
     v.set_defaults(func=cmd_verify_selected)
+    s = sub.add_parser("self-test", help="synthetic key/gate/publication negative controls")
+    s.set_defaults(func=cmd_self_test)
     args = ap.parse_args()
     sys.exit(args.func(args))
 

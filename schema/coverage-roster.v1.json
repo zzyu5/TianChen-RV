@@ -17,332 +17,459 @@
       "gemm_tile IME = the ratified aspirational triple {q4_0,q8_0,q4_K}. IME exposes a format-AGNOSTIC MMAOp/MMAUOp execution op, not a format-keyed tile -> these 3 keys are absent (roster goal, not an in-code op set). [★2026-07-15 全量补齐令〇.1 订正: in-code repack GEMM = 18 formats (Gemv∧Gemm) / 6 absent; regime-split applied to all 18, gemm rows 28->45]",
       "B class = all 9 forward ops (B-pending, not excluded): gelu/add/mul/cpy are absent in-code and stay in the denominator (honest C_dispatch, decision 3). [★2026-07-15 全量补齐令〇.1 订正: in-code repack GEMM = 18 formats (Gemv∧Gemm) / 6 absent; regime-split applied to all 18, gemm rows 28->45]",
       "C class = explicit defer (flash_attn tile, bf16 Zvfbfmin/bf16 roadmap X-line)."
-    ]
+    ],
+    "measurement_row_key": {
+      "fields": [
+        "op",
+        "format",
+        "engine",
+        "regime"
+      ],
+      "engine_values": [
+        "rvv",
+        "ime",
+        "scalar"
+      ],
+      "regime_values": [
+        "micro-fixed",
+        "decode",
+        "prefill"
+      ],
+      "empty_components_forbidden": true
+    }
   },
   "kernels": [
     {
       "op": "vec_dot",
       "format": "q4_0",
       "class": "A",
-      "bucket": "flat-plain"
+      "bucket": "flat-plain",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q4_1",
       "class": "A",
-      "bucket": "flat-plain"
+      "bucket": "flat-plain",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q5_0",
       "class": "A",
-      "bucket": "flat-plain"
+      "bucket": "flat-plain",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q5_1",
       "class": "A",
-      "bucket": "flat-plain"
+      "bucket": "flat-plain",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q8_0",
       "class": "A",
-      "bucket": "flat-plain"
+      "bucket": "flat-plain",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q1_0",
       "class": "A",
-      "bucket": "flat-plain"
+      "bucket": "flat-plain",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q2_K",
       "class": "A",
-      "bucket": "superblock"
+      "bucket": "superblock",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q3_K",
       "class": "A",
-      "bucket": "superblock"
+      "bucket": "superblock",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q4_K",
       "class": "A",
-      "bucket": "superblock"
+      "bucket": "superblock",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q5_K",
       "class": "A",
-      "bucket": "superblock"
+      "bucket": "superblock",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "q6_K",
       "class": "A",
-      "bucket": "superblock"
+      "bucket": "superblock",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq1_s",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq1_m",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq2_xxs",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq2_xs",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq2_s",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq3_xxs",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq3_s",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq4_nl",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "iq4_xs",
       "class": "A",
-      "bucket": "codebook"
+      "bucket": "codebook",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "mxfp4",
       "class": "A",
-      "bucket": "fp4"
+      "bucket": "fp4",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "nvfp4",
       "class": "A",
-      "bucket": "fp4"
+      "bucket": "fp4",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "tq1_0",
       "class": "A",
-      "bucket": "ternary"
+      "bucket": "ternary",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "vec_dot",
       "format": "tq2_0",
       "class": "A",
-      "bucket": "ternary"
+      "bucket": "ternary",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "product_reduce",
       "format": "q4_0_nibble",
       "class": "A",
-      "bucket": "decomposed"
+      "bucket": "decomposed",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "product_reduce",
       "format": "offset_binary_n3",
       "class": "A",
-      "bucket": "decomposed"
+      "bucket": "decomposed",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "product_reduce",
       "format": "codebook_n3",
       "class": "A",
-      "bucket": "decomposed"
+      "bucket": "decomposed",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "quantize_row",
       "format": "q8_0",
       "class": "A",
-      "bucket": "activation-quantizer"
+      "bucket": "activation-quantizer",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "quantize_row",
       "format": "q8_1",
       "class": "A",
-      "bucket": "activation-quantizer"
+      "bucket": "activation-quantizer",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "quantize_row",
       "format": "q8_K",
       "class": "A",
-      "bucket": "activation-quantizer"
+      "bucket": "activation-quantizer",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q4_0",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q4_1",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q5_0",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q5_1",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q8_0",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q1_0",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q2_K",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q3_K",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q4_K",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q5_K",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "q6_K",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq1_s",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq1_m",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq2_xxs",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq2_xs",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq2_s",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq3_xxs",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq3_s",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq4_nl",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "iq4_xs",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "mxfp4",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "nvfp4",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "tq1_0",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "dequantize_row",
       "format": "tq2_0",
       "class": "A",
-      "bucket": "row-dequant"
+      "bucket": "row-dequant",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "gemm_tile",
@@ -429,7 +556,8 @@
       "format": "q1_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -516,14 +644,16 @@
       "format": "iq1_s",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "iq1_m",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -578,14 +708,16 @@
       "format": "iq3_xxs",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "iq3_s",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -640,7 +772,8 @@
       "format": "nvfp4",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "rvv"
+      "engine": "rvv",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
@@ -679,75 +812,96 @@
       "format": "q4_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "ime"
+      "engine": "ime",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q8_0",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "ime"
+      "engine": "ime",
+      "regime": "prefill"
     },
     {
       "op": "gemm_tile",
       "format": "q4_K",
       "class": "A",
       "bucket": "prefill-gemm",
-      "engine": "ime"
+      "engine": "ime",
+      "regime": "prefill"
     },
     {
       "op": "rms_norm",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "softmax",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "rope",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "silu",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "scale",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "gelu",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "add",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "mul",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "cpy",
       "format": "f32",
       "class": "B",
-      "bucket": "forward-op"
+      "bucket": "forward-op",
+      "engine": "rvv",
+      "regime": "micro-fixed"
     },
     {
       "op": "flash_attn",

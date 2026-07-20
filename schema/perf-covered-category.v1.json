@@ -3,7 +3,7 @@
     "label_version": "v1",
     "spec": "[COV-1]-style per-cell perf-covered category labels; 版本化工件, one label per FOLDED certified format-cell.",
     "denominator_key": "(op, format, engine)  -- regime FOLDED (gemm_tile/q4_0/rvv decode+prefill -> single format-cell)",
-    "fold_policy": "perf-covered 层 fold regime（按 format 计·裁一.1/一.2·2026-07-12）; 结构 roster coverage-roster.v1.json + M4 84/91 不动（regime 拆分对构造-identity 合法）; 本折叠仅 perf-covered 本层.",
+    "fold_policy": "perf-covered 层 fold regime（按 format 计·裁一.1/一.2·2026-07-12）; 结构 roster coverage-roster.v1.json 不动（regime 拆分对构造-identity 合法）; 本折叠仅 perf-covered 本层；fold_regime=True 是唯一发布路径，无兼容/备选口径.",
     "frozen_categories": [
       "绿",
       "黄-未接线",
@@ -13,7 +13,7 @@
       "声明例外"
     ],
     "category_note": "六类冻结集（裁一.3）; 自造标签（yellow-kernel-axis 等）停用·映射入六类; q6_K yellow-kernel-axis -> 黄-对手更强(provisional).",
-    "green_quality_三维体例": "[裁五.2 2026-07-13] 绿格成色三维体例（成色注记·不改 category·仍绿）= {板覆盖: 单板 / 双板} × {账本: kernel净账 / 系统账(routing / path-win)} × {对手强度: 手调repack(hand-brick·强) / 通用路径(block-dot·弱)}。逐绿格 green.成色三维 字段标注。对手强度判别: 对手 = 手调 hand-brick（如 q4_K@k1·case256 真出货 repack·唯一强对手绿格） = 最强对手成色; 对手 = 通用 block-dot（如 q5_K@k1 / q4_0 / q4_1 / q5_0 / q5_1 / q8_0·stock 无对应 riscv repack → dispatch nullptr → 路由 block-dot·objdump-confirmed） = path-win 成色（系胜在路由到 repack 路径·非比调优核快）。★成色注记 ≠ headline/分类计数变更（recon 7/83 不动）。",
+    "green_quality_三维体例": "[裁五.2 2026-07-13] 绿格成色三维体例（成色注记·不改 category·仍绿）= {板覆盖: 单板 / 双板} × {账本: kernel净账 / 系统账(routing / path-win)} × {对手强度: 手调repack(hand-brick·强) / 通用路径(block-dot·弱)}。逐绿格 green.成色三维 字段标注。对手强度判别: 对手 = 手调 hand-brick（如 q4_K@k1·case256 真出货 repack·唯一强对手绿格） = 最强对手成色; 对手 = 通用 block-dot（如 q5_K@k1 / q4_0 / q4_1 / q5_0 / q5_1 / q8_0·stock 无对应 riscv repack → dispatch nullptr → 路由 block-dot·objdump-confirmed） = path-win 成色（系胜在路由到 repack 路径·非比调优核快）。★成色注记 ≠ headline/分类计数变更（headline 仅由 recon 机算）。",
     "target_counts": {
       "denominator": 83,
       "绿": 9,
@@ -24,7 +24,7 @@
       "声明例外": 49,
       "_note": "★此 target_counts 为 recon 同步快照(2026-07-13·snapshot 02d6609a)·非权威源。权威 = perf_covered_metrics.py 机算(禁手填·三处同源)。修改 cell category 后必重跑 recon 同步此块。"
     },
-    "headline": "perf-covered = 9/83 = 10.84% (any-board·裁四.0·recon 机算·snapshot 02d6609a); 绿9={q4_K@k1 kernel·q4_0 系统账 routing·q8_0 系统账 carrier·q5_0/q5_1/q4_1 净新 scaffold·q5_K@k1 our-kernel·★q4_0@ime tie-stock 发射器 wide-tiling·★q8_0@ime beat-stock 2.233×}。★G6-A IME 三格分裂:q4_0+q8_0@ime 绿(发射器 [PAT-1] wide-vmadot-tiling)·q4_K@ime 黄-传导稀释(array-util format-keyed 边界)。备选单位 fold 6/83（--no-fold·regime 保留·flagged 待用户复核）.",
+    "headline": "perf-covered = 9/83 = 10.84% (any-board·裁四.0·recon 机算·snapshot 02d6609a); 绿9={q4_K@k1 kernel·q4_0 系统账 routing·q8_0 系统账 carrier·q5_0/q5_1/q4_1 净新 scaffold·q5_K@k1 our-kernel·★q4_0@ime tie-stock 发射器 wide-tiling·★q8_0@ime beat-stock 2.233×}。★G6-A IME 三格分裂:q4_0+q8_0@ime 绿(发射器 [PAT-1] wide-vmadot-tiling)·q4_K@ime 黄-传导稀释(array-util format-keyed 边界)。fold_regime=True 是唯一发布口径；旧备选口径仅存 Git 历史.",
     "ime_reclassification": "裁一.2(历史): IME 三格曾从 黄-传导稀释→黄-未接线(bridge 未建)。★2026-07-13 更新(G6-A 收口·[GAP-IME-BRIDGE-PERF] CLOSED): bridge M1-M7 建成+铺三格·实测判读落定 = q4_0@ime 绿(1.0088× tie-stock·[PAT-1] wide-vmadot-tiling)·q8_0@ime 绿(2.233× beat-stock·int8-direct 无内存税)·q4_K@ime 黄-传导稀释(0.909×<parity·super-block 重 fold epilogue 稀释 array-util·format-keyed 适用边界)。传导稀释类现 =1(仅 q4_K@ime)。",
     "sources": [
       ".trellis/事故档案/2026-07-12-perf-covered-零未定义格分类.md",
@@ -142,7 +142,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q8_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -155,7 +155,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q4_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -168,7 +168,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q4_1",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -181,7 +181,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q5_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -194,7 +194,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q5_1",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -207,7 +207,7 @@
       "key": {
         "op": "quantize_row",
         "format": "q8_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -220,7 +220,7 @@
       "key": {
         "op": "quantize_row",
         "format": "q8_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -233,7 +233,7 @@
       "key": {
         "op": "quantize_row",
         "format": "q8_1",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -246,7 +246,7 @@
       "key": {
         "op": "gelu",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -259,7 +259,7 @@
       "key": {
         "op": "scale",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -272,7 +272,7 @@
       "key": {
         "op": "cpy",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -285,7 +285,7 @@
       "key": {
         "op": "silu",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-物理墙",
       "provisional": false,
@@ -361,7 +361,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq2_xxs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -375,7 +375,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq2_xs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -389,7 +389,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq2_s",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -403,7 +403,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq3_xxs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -417,7 +417,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq3_s",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -431,7 +431,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq4_xs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -445,7 +445,7 @@
       "key": {
         "op": "vec_dot",
         "format": "tq1_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -459,7 +459,7 @@
       "key": {
         "op": "vec_dot",
         "format": "tq2_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "黄-对手更强",
       "provisional": false,
@@ -650,7 +650,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q4_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -666,7 +666,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q4_1",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -682,7 +682,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q5_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -698,7 +698,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q5_1",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -714,7 +714,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q8_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -730,7 +730,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q1_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -746,7 +746,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q2_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -762,7 +762,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q3_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -778,7 +778,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q4_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -794,7 +794,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q5_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -810,7 +810,7 @@
       "key": {
         "op": "vec_dot",
         "format": "q6_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -826,7 +826,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq1_s",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -842,7 +842,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq1_m",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -858,7 +858,7 @@
       "key": {
         "op": "vec_dot",
         "format": "iq4_nl",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -874,7 +874,7 @@
       "key": {
         "op": "vec_dot",
         "format": "nvfp4",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -890,7 +890,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q4_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -906,7 +906,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q2_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -922,7 +922,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q3_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -938,7 +938,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q5_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -954,7 +954,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q6_K",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -970,7 +970,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq1_s",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -986,7 +986,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq1_m",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1002,7 +1002,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq2_xxs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1018,7 +1018,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq2_xs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1034,7 +1034,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq2_s",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1050,7 +1050,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq3_xxs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1066,7 +1066,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq3_s",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1082,7 +1082,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq4_nl",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1098,7 +1098,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "iq4_xs",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1114,7 +1114,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "mxfp4",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1130,7 +1130,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "nvfp4",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1146,7 +1146,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "tq1_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1162,7 +1162,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "tq2_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1178,7 +1178,7 @@
       "key": {
         "op": "dequantize_row",
         "format": "q1_0",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1194,7 +1194,7 @@
       "key": {
         "op": "product_reduce",
         "format": "q4_0_nibble",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1210,7 +1210,7 @@
       "key": {
         "op": "product_reduce",
         "format": "offset_binary_n3",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1226,7 +1226,7 @@
       "key": {
         "op": "product_reduce",
         "format": "codebook_n3",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1242,7 +1242,7 @@
       "key": {
         "op": "add",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1258,7 +1258,7 @@
       "key": {
         "op": "mul",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1274,7 +1274,7 @@
       "key": {
         "op": "rms_norm",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1290,7 +1290,7 @@
       "key": {
         "op": "softmax",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
@@ -1306,7 +1306,7 @@
       "key": {
         "op": "rope",
         "format": "f32",
-        "engine": ""
+        "engine": "rvv"
       },
       "category": "声明例外",
       "provisional": false,
