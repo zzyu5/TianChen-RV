@@ -36,6 +36,7 @@
 - [ ] HEAD matrix 覆盖全部具名决定且每项只有一个“当前实际 owner”描述。
 - [ ] 五类 dequant plan 不被误写成待从零创建。
 - [ ] 每个重复 authority 有符号级路径和后续 owner 建议。
+- [ ] 每个发现同时绑定后续 task owner、应删除的旧 symbol/caller 和可杀死它的验收；不允许 matrix/ledger 成为终点。
 - [ ] characterization tests 在未改生产语义时全绿，并能由至少一个 mutation/负控变红。
 - [ ] ledger 更新为 defined/consumed/stamped/emitted/tested，而非单一 migrated 标记。
 - [ ] `git diff` 不含性能策略或 winner 改判。

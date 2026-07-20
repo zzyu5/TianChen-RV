@@ -2,11 +2,11 @@
   "$meta": {
     "schema": "monolith-retire-whitelist.v1",
     "ruling": "裁决九.4 — 退役口径固化 (monolith retirement discipline, fixated).",
-    "purpose": "Authoritative allow-list of the vec_dot MONOLITH block-dot op-defs that are ALLOWED to still exist in the ODS (include/Weft/Dialect/RVV/IR/RVVOps.td). Every surviving monolith is either (a) DELIBERATELY RETAINED forever (a live second lowering path / a negative control), or (b) PENDING RETIREMENT under a NAMED batch. An op-def that survives with NEITHER classification is the unnamed dead tail this list exists to forbid ('有名有批次': a monolith may linger only if it is named AND carries a retirement batch). The machine gate tools/gates/check_monolith_retire.py fails closed on any un-whitelisted surviving monolith.",
+    "purpose": "Authoritative inventory of vec_dot MONOLITH block-dot op-defs that still exist in ODS (include/Weft/Dialect/RVV/IR/RVVOps.td). DELIBERATELY RETAINED entries require a non-overlapping declared role and evidence. PENDING RETIREMENT entries are named RET-1 violation/debt, not compliant compatibility exceptions: typed construction has superseded their slice but residual op-def/emitter/verifier refs remain. Naming a batch prevents an anonymous dead tail; it does not authorize completion, new callers, wider predicates, or indefinite survival. The machine gate tools/gates/check_monolith_retire.py fails closed on any unregistered survivor or stale entry.",
     "constitution": [
       "A 'vec_dot monolith' = an ODS op-def whose description says 'Records the COMPLETE ggml `ggml_vec_dot_<fmt>_<act>` (super-)block dot-product as ONE ...' — the WHOLE ggml vec_dot recorded as ONE opaque op. Bricks/cores ('Records the INTEGER CORE ...' / 'Records the WHOLE per-super-block body ...') and the GEMM/GEMV/REPACK/PACK family are NOT monoliths and are out of scope.",
-      "deliberately_retained = a monolith that will NEVER be retired: it backs a live emission/isa path (q4_0 contraction arm) or is a deliberate undecomposed negative control (mxfp4). No batch pointer — it is not going away.",
-      "pending_retirement = a monolith the front door has already SUPERSEDED (it constructs a typed body instead) but whose op-def still lingers because a live secondary ref (a front-door opName string key, a still-live monolith emitter, or a verifier dataflow contract test) has not yet been migrated. MUST carry a batch pointer naming the retirement campaign + the proven precedent to follow.",
+      "deliberately_retained = a monolith currently retained under RET-1 because it has a declared non-overlapping execution role or an isolated negative-control role, plus owner and evidence. It is not a permanent shape-based exemption: if predicates overlap, the role disappears, or a negative control becomes production-reachable, it must be reclassified and converged.",
+      "pending_retirement = PRE-RET-1 VIOLATION/DEBT: the front door already SUPERSEDED the slice with a typed body, but an op-def/emitter/verifier/name ref still lingers. A batch pointer, owner, caller set and deletion condition are mandatory. Registration does NOT make the state compliant and MUST NOT gain new callers or a wider predicate.",
       "The gate is fail-closed in BOTH directions: an ODS monolith absent from this list => RED (unnamed dead tail); a list entry whose op-def no longer exists in ODS => RED (stale whitelist — a retired op must be MOVED to retired_ledger, keeping the live list == the exact surviving set).",
       "Retired verifiers are PLAIN-DELETED from the .cpp (git history is the archive). An `#if 0 ... GgmlBlockDot*::verify ... #endif` tomb left in a dialect/conversion .cpp is itself a residual and is RED."
     ],
@@ -34,7 +34,7 @@
       "format": "mxfp4",
       "mnemonic": "mxfp4_q8_0_block_dot",
       "op_def": "GgmlBlockDotMXFP4Q80Op",
-      "reason": "FP4-class NEGATIVE CONTROL (permanent). mxfp4 is deliberately NOT decomposed into a typed body: keeping it an opaque monolith is what makes the e5 'strong readout' contrast meaningful — a DECOMPOSED sibling (nvfp4, now a codebook-core brick) measured against an UNDECOMPOSED control (mxfp4). Retiring it would erase the negative control. RETIRE = NEVER.",
+      "reason": "FP4-class NEGATIVE CONTROL (current declared role). mxfp4 remains undecomposed so e5 can compare a DECOMPOSED sibling (nvfp4) with an UNDECOMPOSED control. Retention is valid only while this path is isolated from normal production candidate registration/default dispatch/fallback and the readout remains an owned experiment; otherwise it must be reclassified and converged under RET-1.",
       "live_refs": [
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (GgmlBlockDotMXFP4Q80Op::verify — live)",
         ".trellis/scripts/e5_strong_readout.py (the e5 negative-control readout consumes it)"
@@ -44,7 +44,7 @@
       "format": "q4_0",
       "mnemonic": "q4_0_q8_0_block_dot",
       "op_def": "GgmlBlockDotQ40Q80Op",
-      "reason": "Abstract-contraction ARM — LIVE second lowering path (permanent). q4_0 is the GgmlQuantContraction abstract-op default arm; its monolith block-dot op-def is the byte-exact reference the option-2 path-selection (block-dot vs repack) is defined against. Live isa/emitter references keep it a first-class lowering. RETIRE = NEVER.",
+      "reason": "Abstract-contraction ARM — current LIVE second lowering slice. q4_0 is the GgmlQuantContraction abstract-op default arm; its monolith block-dot op-def is the byte-exact reference for option-2 path selection (block-dot vs repack). Retention requires a declared predicate distinct from any typed replacement, a unique authority in that slice, correctness evidence and live callers; predicate overlap triggers convergence under RET-1.",
       "live_refs": [
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (GgmlBlockDotQ40Q80Op::verify — live)",
         "lib/Conversion/RVV/* (live block-dot emitter path)",

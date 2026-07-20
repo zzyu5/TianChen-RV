@@ -2,7 +2,7 @@
 
 ## Goal
 
-在普通 C++/MLIR 插件实现中建立一个最小、可组合的 decision contract，使承重决定显式接收 typed g/c/ω projection，返回 candidate/plan、legality/resource verdict、analytic prior、reason/fallback 与可选 measurement key；随后迁入至少两个真实 RVV consumer，证明它不是文档接口。
+在普通 C++/MLIR 插件实现中建立一个最小、可组合的 decision contract，使承重决定显式接收 typed g/c/ω projection，返回 candidate/plan、legality/resource verdict、analytic prior、reason/fallback 与可选 measurement key；随后迁入两个完整 RVV vertical slice。每个 declared slice 必须迁移全部 production caller 并删除旧入口，证明它不是文档接口或包裹层。
 
 ## Design Constraints
 
@@ -15,8 +15,8 @@
 ## Scope
 
 - 基于 A1 matrix 选定最小字段集和 API 住址。
-- 第一 consumer：一个现有 dequant FormulaProvider/plan。
-- 第二 consumer：repack LMUL 或 reduction/loop-order 中一个真实非 dequant decision。
+- 第一 slice：一个现有 dequant FormulaProvider/plan 及其全部 production caller。
+- 第二 slice：repack LMUL 或 reduction/loop-order 中一个真实非 dequant decision 及其全部 production caller。
 - 输出显式 consumed-fields、reason、domain 和 fallback。
 - 保持现有合法输入的 selected plan/emitted C byte-exact；只改变 authority/data flow。
 
@@ -37,12 +37,12 @@
 ## Acceptance Criteria
 
 - [ ] API 字段可逐一映射到 architecture decision contract，不含未消费装饰字段。
-- [ ] 两个真实 consumer 通过新 contract 构造并消费 decision。
+- [ ] 两个完整 vertical slice 通过新 contract 构造并消费 decision，各自全部 production caller 已切换。
 - [ ] 同输入确定性同结果；g/c/ω 各至少有一个 decisive 或 honest-null 测试。
 - [ ] illegal/unknown capability fail-closed；fallback total。
 - [ ] emitted output 对既有合法 fixtures 无非预期差异。
 - [ ] common/core 无 family-name branch；没有通用 DSL/AST。
-- [ ] A1 中对应旧入口被删除、封死或明确仅作兼容 mirror。
+- [ ] A1 中对应旧入口、旧 overload、adapter/mirror 与 production caller 为 0；测试对照只能是 test-only oracle。
 
 ## Verification
 

@@ -30,6 +30,8 @@
 - 先正确性、对手身份和 compiler symmetry，再计时。
 - 攻坚以反汇编/瓶颈和可读结构杠杆为起点；compiler/HW 脾气墙诚实登记。
 - A 线重构前后保留同输入、同对手、同板的 paired regression。
+- official writer/reader、bench dispatch 与 deployed route 各自只有一个 authority；修复后删除旧 writer、错误 route、benchmark-only bypass 和兼容 alias。
+- 失败实验保留原始证据；已证伪且没有合法 cell/caller 的 production strategy、环境开关与 dormant branch 必须退役。
 
 ## Acceptance Criteria
 
@@ -39,6 +41,7 @@
 - [ ] 至少一个 deployed ggml 路径有重构前后无回退或改进证据。
 - [ ] 有意义的 kernel improvement 至少选一个进入 e2e 传导实验；wash 也登记。
 - [ ] 输、赢、no-flip、VOID 与 wall 均有 run-id 和 disposition，不静默删除。
+- [ ] 历史 run 可追溯，但旧 writer/reader、错误 dispatch、平行 deployed route 和无合法用途的 dormant strategy 为 0。
 - [ ] 性能汇总由脚本现算，不把 task PRD 中的快照数字当长期 canon。
 
 ## Child Modules

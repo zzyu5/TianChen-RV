@@ -1,3 +1,4 @@
 {"file": ".trellis/spec/architecture/index.md", "reason": "架构质量检查"}
 {"file": ".trellis/spec/canon/非目标.md", "reason": "禁止巨型对象与metadata compute"}
 {"file": ".trellis/spec/issues/index.md", "reason": "ISSUE122行为门"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

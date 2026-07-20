@@ -39,6 +39,7 @@
 - [ ] capability missing/conflict fail-closed。
 - [ ] measurement 不参与 candidate/legality 构造。
 - [ ] emitter 中对应 board/march/format 参数重算被删除。
+- [ ] declared slice 的旧 plan helper/default、emitter direct lookup 与 capability parser caller 为 0；缺 stamp 不回历史默认。
 - [ ] 五类 plan 状态表区分 analytic、measured、constant、honest-null。
 - [ ] 当前合法 fixtures byte-exact/ULP 无回退。
 

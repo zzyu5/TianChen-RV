@@ -2,3 +2,4 @@
 {"file": ".trellis/spec/architecture/系统定位与边界.md", "reason": "当前工位与目标链"}
 {"file": ".trellis/spec/canon/核心不变量.md", "reason": "typed owner和fail closed"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线现状审计"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}

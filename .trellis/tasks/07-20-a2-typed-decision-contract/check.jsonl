@@ -1,3 +1,4 @@
 {"file": ".trellis/spec/architecture/index.md", "reason": "架构质量检查"}
 {"file": ".trellis/spec/canon/非目标.md", "reason": "禁止Formula IR和伪旋钮"}
 {"file": ".trellis/spec/issues/index.md", "reason": "接口变更问题映射"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

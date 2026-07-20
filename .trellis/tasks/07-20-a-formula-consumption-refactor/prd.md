@@ -31,6 +31,7 @@
 - selected result 在 emission 前显式 stamping；emitter 不重算、不查 winner 表。
 - verifier 独立验证公式结果但不成为第二构造 authority。
 - 选一个第二 family 垂直切片证明 contract 非 RVV 专用。
+- 每个 vertical slice 自己完成 caller cutover 与旧入口删除；A4 是跨 slice authority 复核，不是替 A2/A3/A5/A6 延后清垃圾。
 
 ## Acceptance Criteria
 
@@ -41,6 +42,7 @@
 - [ ] GridDecodePlan/DequantMechanismPlan 的双 authority 有明确关闭路径并完成代表性切片。
 - [ ] measurement winner view 有 hit/miss/stale/illegal-winner 测试，且不能扩大候选集。
 - [ ] IME 或另一第二 family 有一个垂直切片复用相同最小 contract。
+- [ ] 每个已迁移 slice 的旧 helper/overload/caller、compat mirror 和 emitter/selector 旁路为 0，符合父任务 Shared Retirement Gate。
 - [ ] 全程 byte-exact/ULP、lit 与必要 deployed regression 无新增失败。
 
 ## Child Modules
@@ -51,6 +53,8 @@
 4. [A4 single authority stamping](../07-20-a4-single-authority-stamping/prd.md)：provider/verifier、selector/emitter 收口。
 5. [A5 qualified winner view](../07-20-a5-qualified-winner-view/prd.md)：版本化 winner token + thin selector。
 6. [A6 IME decision slice](../07-20-a6-ime-decision-slice/prd.md)：第二 family 垂直切片。
+7. [A7 superseded path retirement](../07-20-a7-superseded-path-retirement/prd.md)：q1_0 与 K-quant 已替代 monolith 原子退役。
+8. [A8 baked-g convergence](../07-20-a8-baked-g-convergence/prd.md)：ISSUE-118/119 发射器格式事实全量收敛。
 
 每个子任务单独 PRD、touch set 和 commit；父任务不直接实现代码。
 
@@ -61,6 +65,7 @@
 - plan 真实消费与 selector/winner-view 可以在 contract 稳定后按不相交文件并行。
 - stamping/emitter authority 收口依赖 plan 与 selector 接口稳定。
 - 第二 family 垂直切片依赖 common contract 和单向 authority。
+- A7 可在 RET-1 基线后独立开工，但与 K-quant 性能 emitter 修改串行；A8 的 census 可并行，生产迁移依赖 A1/A2。
 - B 线的 bench 基建、独立 hot-kernel 攻坚可并行；B 线产生的新 qualified winner 在 A 线数据面接口稳定后接入。
 
 ## Out of Scope

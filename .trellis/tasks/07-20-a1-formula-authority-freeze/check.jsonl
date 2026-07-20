@@ -1,3 +1,4 @@
 {"file": ".trellis/spec/architecture/index.md", "reason": "架构质量检查"}
 {"file": ".trellis/spec/issues/index.md", "reason": "相关issue和历史资产"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "防止重做五类plan"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

@@ -3,3 +3,4 @@
 {"file": ".trellis/spec/measurement/流水线与行schema.md", "reason": "四元键与qualification来源"}
 {"file": ".trellis/spec/canon/核心不变量.md", "reason": "measurement不得造candidate"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A5任务边界"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}

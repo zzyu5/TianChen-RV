@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/architecture/index.md", "reason": "架构 Pre-Development 与 Quality Check"}
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "检查真实消费和 emitter no-redecision"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查 compat/old caller 为零"}
+{"file": ".trellis/spec/governance/思维准则.md", "reason": "重链、clean build 与测试形态"}

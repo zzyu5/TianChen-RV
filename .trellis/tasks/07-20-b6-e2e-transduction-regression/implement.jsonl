@@ -3,3 +3,4 @@
 {"file": ".trellis/spec/canon/成色与措辞.md", "reason": "e2e措辞边界"}
 {"file": ".trellis/spec/evidence/工件与实验参照.md", "reason": "micro到e2e解释"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "e2e与paired regression设计"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}

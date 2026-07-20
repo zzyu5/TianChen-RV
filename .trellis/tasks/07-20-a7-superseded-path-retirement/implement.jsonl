@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与兼容边界"}
+{"file": ".trellis/spec/architecture/发射与降级.md", "reason": "monolith/direct emitter construction 与退役纪律"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "I5/I7 typed authority 与 fail-closed"}
+{"file": ".trellis/spec/governance/思维准则.md", "reason": "死镜像安全删除和强制重链"}

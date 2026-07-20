@@ -12,6 +12,7 @@
 - selector 输出 provenance：analytic、measured、fallback/reject。
 - 运行时不得读取 `experiments/`；编译器只消费版本化生成物。
 - schema、source registry、compiled view 只能有一个事实 authority，其他为生成物。
+- B1 独占 measurement artifact、writer/read contract、regime、qualification 与 freshness；A5 只消费其产出的 qualified view 并拥有 selector 语义，不另建 master parser/cache。
 
 ## Primary Touch Set
 
@@ -33,6 +34,7 @@
 - [ ] miss、stale、unqualified、key mismatch、schema mismatch、illegal winner 全部回 prior/fallback。
 - [ ] measurement 无法创建 candidate、route、dtype、mechanism 或 legality。
 - [ ] compiled view 可由正式数据确定性重建并有 hash/version 校验。
+- [ ] compiled view 接管后，旧手工 winner 表、平行 reader、runtime experiments lookup 与 old-schema production reader 为 0；旧数据只作离线归档/迁移输入。
 - [ ] selector/emit 路径不访问 CSV/JSON/experiments filesystem。
 - [ ] reason/provenance 能区分 measured/prior/fallback，但不反向定义 compute。
 - [ ] 不使用 `MemoArgmin`；无完整 cost vector 时语义明确为 qualified winner lookup。

@@ -1,3 +1,4 @@
 {"file": ".trellis/spec/architecture/index.md", "reason": "selector架构质量"}
 {"file": ".trellis/spec/measurement/index.md", "reason": "测量质量检查"}
 {"file": ".trellis/spec/issues/index.md", "reason": "ISSUE098 117交叉"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

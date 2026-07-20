@@ -24,7 +24,9 @@
     "07-20-a3-dequant-c-driven-plans",
     "07-20-a4-single-authority-stamping",
     "07-20-a5-qualified-winner-view",
-    "07-20-a6-ime-decision-slice"
+    "07-20-a6-ime-decision-slice",
+    "07-20-a7-superseded-path-retirement",
+    "07-20-a8-baked-g-convergence"
   ],
   "parent": "07-20-ab-formula-performance-mainlines",
   "relatedFiles": [],

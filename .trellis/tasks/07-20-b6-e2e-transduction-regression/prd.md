@@ -43,6 +43,7 @@
 
 - [ ] stock/prior/winner 使用同模型、输入、线程、链和板状态。
 - [ ] route trace 证明执行预期 variant，无 silent fallback。
+- [ ] 旧 production symbol/caller、平行 runtime dispatch、compat route 为 0；缺 stamp/route 的负例 fail-closed，并有防复活回归。
 - [ ] e2e 数字可追到关键 kernel 占比和 micro run-id。
 - [ ] initialization/selection overhead 独立报告。
 - [ ] A 线 before/after correctness 与性能配对完整，无隐藏退化。

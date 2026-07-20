@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "g/c/ω、formula、typed plan 与消费正本"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "slice 级全 caller cutover"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "I1/I5/I7 typed facts 与 fail-closed"}
+{"file": ".trellis/spec/canon/部署与构造语义.md", "reason": "K-10 结构常量与参数事实边界"}
+{"file": ".trellis/spec/issues/发射器与架构.md", "reason": "ISSUE-118/119 当前登记"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge 和双路是否归零"}
+{"file": ".trellis/spec/architecture/发射与降级.md", "reason": "检查 typed construction 与 emitter retirement"}
+{"file": ".trellis/spec/governance/思维准则.md", "reason": "检查 closed-graph 删除、full link 与 clean rebuild"}
+{"file": ".trellis/spec/issues/发射器与架构.md", "reason": "核对现存架构债和裁决边界"}

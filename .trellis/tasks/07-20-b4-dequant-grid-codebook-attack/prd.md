@@ -42,6 +42,7 @@
 - [ ] 公式杠杆只消费 typed g/c，未消费字段不进 plan。
 - [ ] 正确性和 official cold/run-id 完整。
 - [ ] 正向改进、no-flip、gather/compiler wall 均入账。
+- [ ] 成功 lever 进入 canonical plan/selector；失败 lever 留证据但不留下 benchmark-only route、format 特例或 dormant production branch。
 - [ ] 单格结论不无证据外推整个 grid/codebook family。
 - [ ] micro 结果不自动外推 e2e。
 

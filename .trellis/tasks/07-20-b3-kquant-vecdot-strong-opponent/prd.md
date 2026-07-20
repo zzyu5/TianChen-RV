@@ -43,6 +43,7 @@
 - [ ] 正式 cold 数据走 bench/run-id/三目的地。
 - [ ] 有效候选进入真实 emitter 后再称 deployed；否则只称 proven candidate。
 - [ ] no-flip/墙同样落 disposition，不重复已证伪 lever。
+- [ ] no-flip/穷尽策略只留 run/ledger；无合法 cell/caller 的 production variant、环境开关和 dormant branch 为 0。
 - [ ] 对手档、compiler symmetry、板/相/格式和账本齐全。
 - [ ] e2e 是否传导交给 B6，不在本任务外推。
 

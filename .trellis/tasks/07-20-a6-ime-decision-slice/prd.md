@@ -35,6 +35,7 @@
 
 - [ ] 一个真实 IME slice 走完整 `g/c/ω → formula → legality → selector → stamp → body → emit`。
 - [ ] common/core 零新增 `if IME`/`if RVV`。
+- [ ] declared IME slice 的全部 production caller 走共同 contract；旧直达入口、一次性 selector/dispatcher 和兼容 adapter 为 0。
 - [ ] family-specific compute 与 capability 仍在 IME plugin 内。
 - [ ] capability missing/illegal candidate/fallback tests 齐全。
 - [ ] 同一 contract 的 RVV 与 IME cross-family tests 通过。

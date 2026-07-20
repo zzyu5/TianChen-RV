@@ -1,3 +1,4 @@
 {"file": ".trellis/spec/measurement/index.md", "reason": "测量质量检查"}
 {"file": ".trellis/spec/issues/index.md", "reason": "ISSUE069 097 098 108"}
 {"file": ".trellis/spec/governance/trellis卫生.md", "reason": "实验数据住址"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

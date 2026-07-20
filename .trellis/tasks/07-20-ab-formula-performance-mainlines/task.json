@@ -3,7 +3,7 @@
   "name": "ab-formula-performance-mainlines",
   "title": "A/B 双主线：公式层重构与真实性能推进",
   "description": "A/B 双主线总编排：A 线公式层真实消费与模块化重构，B 线真实性能推进与证据闭环。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": "cross-layer",
   "package": null,

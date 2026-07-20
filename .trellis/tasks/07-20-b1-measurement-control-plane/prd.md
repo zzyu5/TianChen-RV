@@ -18,6 +18,7 @@
 - 定义/实现 T-N qualification 的生成与引用位置；区分 measured、T-N-qualified、selection-valid。
 - 只处理影响 official master/runs 的 ISSUE-069 findings；不在本任务清完全部 732/1372 目录债。
 - 为 A5 提供稳定 source-of-truth、freshness 与 winner qualification 契约。
+- B1 不拥有 candidate、legality、prior 或 compute selection；这些由 A2/A5 消费本任务的 qualified view 后决定。
 
 ## Primary Touch Set
 
@@ -39,6 +40,7 @@
 - [ ] 一个明确 writer policy 保证 recon 重建不覆盖合法 bench 结果，或 bench 不直接写生成物；有冲突负控。
 - [ ] 四元行键在 runner、master、reader/recon 一致；regime 不再以空值通配覆盖多行。
 - [ ] 所有 reader 默认指 `experiments/master/`。
+- [ ] 被替代的 master writer、旧 reader、含混 regime 通配路径和 promotion alias 为 0；历史 raw/run 只作不可变证据。
 - [ ] measured / T-N-qualified / selection-valid 三种状态可机算区分。
 - [ ] 资产矩阵不把 deployed、strong-opponent、e2e 混成一列。
 - [ ] `perf_covered_metrics.py report`、disposition recon 与 runner self-test 继续通过。

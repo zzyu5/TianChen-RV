@@ -40,6 +40,7 @@
 - [ ] q4_K/q5_K min-term-active arm 可杀死 min-term 错误。
 - [ ] k1 VLEN256 不再沿用已解决 blocker；开放项 byte-exact，未开放项具名原因准确。
 - [ ] scalar runner 路由不误进 RVV harness，且仍标 enablement/NON-Win。
+- [ ] 修复后的错误 dispatch/alias、临时 workaround、过期 blocker 与只保护错误旧行为的 golden 为 0；合法 scalar reference 不视为兼容路径。
 - [ ] product_reduce contract 与 parser 对现有三格式一致。
 - [ ] unsupported 在 ssh 前退出，harness 自身零持久写盘。
 - [ ] runner self-test 增加新路由/coverage 负控并通过。

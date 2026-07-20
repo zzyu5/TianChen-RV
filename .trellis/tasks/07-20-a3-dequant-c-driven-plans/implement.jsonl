@@ -3,3 +3,4 @@
 {"file": ".trellis/spec/canon/核心不变量.md", "reason": "真实消费与honest null"}
 {"file": ".trellis/spec/canon/非目标.md", "reason": "禁止假capability旋钮"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "codebook grid高值切片"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}

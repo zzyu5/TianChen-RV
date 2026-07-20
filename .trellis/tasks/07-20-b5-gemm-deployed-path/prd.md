@@ -38,6 +38,7 @@
 ## Acceptance Criteria
 
 - [ ] 每个 shape 的候选、legality、selected stamp 和实际 route 一致可查。
+- [ ] bench 与 deployed ggml 消费同一 selected body/stamp；第二 selector、direct benchmark dispatch、旧 symbol alias 与 silent old-route fallback 为 0。
 - [ ] measured winner 必须在当前合法集；miss 回 analytic prior。
 - [ ] deployed ggml、strong opponent、prior、winner 四列分开，compiler symmetry 明确。
 - [ ] 两个格式/多个 shape 的选择差异由 typed facts/capability/context 解释。

@@ -19,6 +19,7 @@
 - 每个子任务应有单一主要责任、清晰 touch set、可独立验收和提交。
 - 先建设可复用的最小 contract 与代表性实例，不做大一统 Formula dialect/DSL，也不全仓一次重写。
 - 性能任务优先处理已有真实缺口、正式 runner coverage、强对手近门/具名-X 与 e2e 传导，不重新发明一套性能账。
+- “渐进”只表示不同 slice 可分批施工；同一 slice 合入时必须原子 cutover，禁止新旧 production path、compat bridge 或第二 writer/dispatcher 并存。
 
 ## Open Questions
 
@@ -32,6 +33,18 @@
 - 标出可并行项与必须串行的 authority/schema/measurement 依赖。
 - 任务只描述当前可交付阶段，不承诺一步完成全部论文实验或所有格式覆盖。
 
+## Shared Retirement Gate
+
+所有 child task 共同遵守 [architecture · 退役与原子合入](../../spec/architecture/退役与原子合入.md) [RET-1]：
+
+- 已迁移 slice 只有一个 decision、dispatch/route 和 measurement authority；
+- 旧 production caller、旧 overload/alias、compat/legacy/deprecated bridge、dual-read/dual-write 与 shadow path 为 0；
+- code-affecting missing 字段或 stamp fail-closed，不以 `value_or`、march/format/board 名或旧实现恢复；
+- 只保留正式合法的语义 fallback/reject，不保留“新路没接完”的兼容 fallback；
+- 无法迁移全部 declared caller 时，task 保持未完成或整笔 Git 回滚，不得把中间态合入；
+- 失败实验留 run/ledger，已证伪且无合法 cell 的 production strategy、开关和 dormant branch 删除；
+- 代码、测试/golden、spec/issue/ledger 与 retired index 在同一 cutover 同步。
+
 ## Technical Approach and Task Tree
 
 ~~~text
@@ -42,7 +55,9 @@ ab-formula-performance-mainlines
 │   ├── a3-dequant-c-driven-plans
 │   ├── a4-single-authority-stamping
 │   ├── a5-qualified-winner-view
-│   └── a6-ime-decision-slice
+│   ├── a6-ime-decision-slice
+│   ├── a7-superseded-path-retirement
+│   └── a8-baked-g-convergence
 └── b-real-performance-progress
     ├── b1-measurement-control-plane
     ├── b2-bench-cell-coverage
@@ -55,8 +70,9 @@ ab-formula-performance-mainlines
 主依赖：
 
 ~~~text
-A1 → A2 → A3 → A4 → A6
-          └────→ A5 ─┘
+A1 → A2 → A3 → A4 ─┬→ A5
+ │     └────→ A8    └→ A6
+ └──────────→ A7
 
 B1 → B2 ─┬→ B3 ─┐
          ├→ B4 ─┼→ B6
@@ -71,16 +87,16 @@ A6 → B5/B6 的 IME 证据入口
 
 **Context**：现有代码已经有五类 dequant plan 和大量性能资产，但 authority 与 measurement 仍分散；若继续以零散 task 追单点，会不断出现“接口存在但没有真实消费”和“性能已做却被重新列为缺失”。
 
-**Decision**：采用 A/B 两条并列父线、每线六个模块子任务。A 线做渐进式结构重构，B 线做正式性能推进；两线只通过 typed decision、qualified measurement 和 paired regression 交叉。父任务不作为巨型实现 owner。
+**Decision**：采用 A/B 两条并列父线；A 线八个模块做公式、退役与第二 family 重构，B 线六个模块做正式性能推进。两线只通过 typed decision、qualified measurement 和 paired regression 交叉。父任务不作为巨型实现 owner。
 
 **Consequences**：允许多个 agent/worktree 按不相交 touch set 并行；共享 contract、runner/master writer 和 stamping/emitter 边界必须串行收口。任务数量增加，但每项可独立验收、提交与回滚。
 
 ## Recommended Multi-Agent Waves
 
-1. **Wave 1**：A1 与 B1 并行；B2 只准备 oracle/fixture、避开 B1 的 runner/master 文件。
+1. **Wave 1**：A1、B1 与 A7 分独立 worktree；A7 与 B3 的 K-quant emitter 修改严格串行。A8 只做 HEAD census/classification，不改共享 contract。
 2. **Wave 2**：A2 与 B2 施工；B3/B4 只做瓶颈和对手只读分析。
-3. **Wave 3**：A3 与 A5 的非重叠部分并行；B3/B4/B5 按不同 emitter/harness 分片施工，真板由单 owner 串行。
-4. **Wave 4**：A4 统一收口共享 authority；随后 A6 与已稳定的 B5 可并行。
+3. **Wave 3**：A3 与 A8 按不相交文件串行/分片施工；B3/B4/B5 按不同 emitter/harness 分片施工，真板由单 owner 串行。A5 只准备 B1 view 的 selector adapter，不另建 reader。
+4. **Wave 4**：A4 统一收口共享 authority；随后 A5/A6 与已稳定的 B5 按 touch set 并行。
 5. **Wave 5**：B6 汇总 A 线前后 paired regression 与 e2e 传导。
 
 ## Acceptance Criteria (evolving)
@@ -91,8 +107,10 @@ A6 → B5/B6 的 IME 证据入口
 - [ ] A 线覆盖真实 formula consumption、legality/selection/stamping/emission authority 与第二 family 验证。
 - [ ] B 线覆盖 runner/cell 合格化、代表性强对手攻坚、deployed/e2e 回归与证据入账。
 - [ ] 当前已完成资产不会被重新列为“尚未做”。
+- [ ] 每个完成 slice 均有 cutover record，旧 production caller 与兼容路径为 0。
+- [ ] worktree 中间态未作为主线完成态合入，rollback 只依赖版本控制。
 - [ ] task tree 与 issue/spec 索引一致，且工作树经检查后提交。
-- [ ] 15 个 task 的 context JSONL 均通过 `task.py validate`。
+- [ ] 17 个 task 的 context JSONL 均通过 `task.py validate`。
 
 ## Definition of Done
 

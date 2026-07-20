@@ -1,3 +1,4 @@
 {"file": ".trellis/spec/measurement/index.md", "reason": "测量质量检查"}
 {"file": ".trellis/spec/evidence/负结果登记.md", "reason": "负边界同权"}
 {"file": ".trellis/spec/issues/index.md", "reason": "ISSUE107 112"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

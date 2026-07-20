@@ -3,3 +3,4 @@
 {"file": ".trellis/spec/measurement/板册.md", "reason": "rvv k1 scalar板边界"}
 {"file": ".trellis/spec/measurement/对手法.md", "reason": "对手身份探针"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "cell coverage真实缺口"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}

@@ -3,3 +3,4 @@
 {"file": ".trellis/spec/canon/对手与档位.md", "reason": "部署对手和墙型"}
 {"file": ".trellis/spec/measurement/正确性门.md", "reason": "dequant correctness"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "grid codebook代表切片"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}

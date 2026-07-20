@@ -1,6 +1,6 @@
 # 架构（Architecture）
 
-> **版本**：v2
+> **版本**：v3
 > 本层描述 Weft-RV 的稳定结构、当前实现落点和目标责任边界。当前事实由代码复核；目标设计由用户裁决后版本化进入本层。
 
 ## 读法
@@ -28,6 +28,8 @@
 - [ ] emitter 没有重新读取 format、board、march 或 measurement 做同一决定？
 - [ ] core/common 没有 family-name branch？
 - [ ] unsupported 或空合法集 fail-closed 或进入 canon 允许的具名 fallback？
+- [ ] 已迁移 slice 的旧 caller、兼容 bridge、第二 dispatcher/writer 已归零吗？
+- [ ] “渐进迁移”只发生在未完成 worktree，而不是作为可合入双轨状态吗？
 - [ ] runtime sparse/MoE 没有被写成当前实现？
 - [ ] 新抽象有第二个真实使用者，或保持 family-local？
 
@@ -43,6 +45,7 @@
 | [变体流水线](./变体流水线.md) | 公式构造、legality、bounded selection、typed stamping 和 realization |
 | [发射与降级](./发射与降级.md) | typed body 到 plugin route provider、common EmitC 和 artifact |
 | [实现栈](./实现栈.md) | C++/MLIR 主栈、Python tooling 边界、构建与测试 |
+| [退役与原子合入](./退役与原子合入.md) | 单一路径、compatibility 边界、slice cutover、worktree 合入与退役验证矩阵 |
 | [core-invariants](./core-invariants.md) | 历史兼容指针；I1–I9 正本在 [canon](../canon/核心不变量.md) |
 
 ## 当前主改造方向
@@ -63,4 +66,5 @@
 - 当前路径与目标路径分开书写。
 - 当前状态不从旧 task 或旧文档推断。
 - formula/selection 契约以 [变体流水线](./变体流水线.md) 为唯一工程正本。
+- active-path 退役和原子 cutover 以 [退役与原子合入](./退役与原子合入.md) 为唯一工程正本。
 - spec 不以当前覆盖数字冒充稳定架构。

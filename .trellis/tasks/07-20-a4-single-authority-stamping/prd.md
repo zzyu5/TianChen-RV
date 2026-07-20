@@ -48,7 +48,7 @@
 
 ## Rollback
 
-按 mechanism/consumer 分小 commit；若某 consumer 尚无法迁移，保持旧入口但显式标单一 owner 和 fail-closed bridge，禁止同时启用两个 writer。
+按 mechanism/consumer 分 slice、小 commit 施工，但一个 declared slice 只有在全部 production caller 迁移、旧入口/bridge 删除后才可合入。某 consumer 尚无法迁移时，该 slice 保持未完成；rollback 仅指整笔 Git 回滚，禁止在 active tree 保留 fail-closed compatibility bridge、双 writer 或 shadow route。
 
 ## Out of Scope
 

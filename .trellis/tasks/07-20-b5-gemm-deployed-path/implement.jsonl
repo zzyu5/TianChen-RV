@@ -3,3 +3,4 @@
 {"file": ".trellis/spec/canon/对手与档位.md", "reason": "deployed与strong opponent"}
 {"file": ".trellis/spec/canon/测量判据.md", "reason": "shape与性能验收"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "GEMM真实路径任务边界"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}
