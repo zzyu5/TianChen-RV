@@ -2,8 +2,10 @@
 #define WEFT_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H
 
 #include "Weft/Support/CodebookGatherPlan.h"
+#include "Weft/Support/GridLookupPlan.h"
 #include "Weft/Support/KQuantScaleMinPlan.h"
 #include "Weft/Support/NibbleDecodePlan.h"
+#include "Weft/Support/TernaryDecodePlan.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -2818,6 +2820,57 @@ weft::KQuantScaleMinPlan
 kquantScaleMinPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
                            weft::KQuantScaleModel scaleModel,
                            std::int64_t minimumVLEN);
+
+//===----------------------------------------------------------------------===//
+// DequantMechanismPlan FormulaProvider (§〇 formula-layer home): the IQ grid-table
+// family's GridLookup MechanismPlan producer (phase-4, the FOURTH landed mechanism after
+// nibble + codebook + K-quant). Declaration only -- defined in RVVToEmitCSupport.cpp so
+// this header stays free of the Dialect facts include.
+//===----------------------------------------------------------------------===//
+
+/// The FormulaProvider f(g, c) for the IQ grid-table dequant family (iq2_xxs / iq2_xs /
+/// iq2_s / iq3_xxs / iq3_s): produce the GridLookup MechanismPlan (weft::GridLookupPlan,
+/// Support) from the per-format `leaf` (the block-type's structural grid geometry, derived
+/// once from the format identity at the gate, NOT an execution key), the decode_model (used
+/// ONLY to consult the fail-closed GridDecodePlan registry for legality -- folding that
+/// registry THROUGH this provider so the dequant-row emitter reads plan.* rather than the
+/// registry / the format string), the OPTIONAL grid ENTRY byte-width g-axis descriptor
+/// `entryLanes` (律2: the codebook_entry_lanes fact the front door stamps), and the
+/// minimum-VLEN capability `c`. Phase-4 is REPRODUCE-CURRENT: it re-packages the grid entry
+/// geometry byte-for-byte and pins nothing VLEN-dependent (the owned grid bodies are
+/// VLEN-agnostic narrow pipelines; `minimumVLEN` is accepted as the f(g,c) seam without a
+/// c-driven effect this cut). The grid emitter reads plan.* INSTEAD of dispatching on the
+/// format name. [K-10]: this returns the GridLookup plan ONLY (the ternary siblings are a
+/// DIFFERENT mechanism with their own FormulaProvider + plan struct); it never selects
+/// among the five mechanisms by a discriminant.
+weft::GridLookupPlan
+gridLookupPlanFromFacts(weft::GridDecodeLeaf leaf, llvm::StringRef decodeModel,
+                        std::optional<std::int64_t> entryLanes,
+                        std::int64_t minimumVLEN);
+
+//===----------------------------------------------------------------------===//
+// DequantMechanismPlan FormulaProvider (§〇 formula-layer home): the ternary family's
+// TernaryDecode MechanismPlan producer (phase-4, the FIFTH and last landed mechanism).
+// Declaration only -- defined in RVVToEmitCSupport.cpp so this header stays free of the
+// Dialect facts include.
+//===----------------------------------------------------------------------===//
+
+/// The FormulaProvider f(g, c) for the ternary dequant family (iq1_s / iq1_m / tq1_0 /
+/// tq2_0): produce the TernaryDecode MechanismPlan (weft::TernaryDecodePlan, Support) from
+/// the per-format `leaf` (the block-type's structural ternary topology, derived once from
+/// the format identity at the gate, NOT an execution key), the OPTIONAL grid ENTRY
+/// byte-width g-axis descriptor `entryLanes` (律2, for the iq1 grid leaves; absent for the
+/// tq pure-arithmetic leaves), and the minimum-VLEN capability `c`. Phase-4 is
+/// REPRODUCE-CURRENT (`minimumVLEN` is accepted as the f(g,c) seam without a c-driven effect
+/// this cut). Unlike gridLookupPlanFromFacts this provider does NOT consult the
+/// GridDecodePlan registry -- ternary is a SEPARATE mechanism ([K-10] split): the four
+/// ternary formats are all legal, tq1_0/tq2_0 are not even grid-registry rows. The ternary
+/// emitter reads plan.* INSTEAD of dispatching on the format name. [K-10]: this returns the
+/// TernaryDecode plan ONLY; it never selects among the five mechanisms by a discriminant.
+weft::TernaryDecodePlan
+ternaryDecodePlanFromFacts(weft::TernaryDecodeLeaf leaf,
+                          std::optional<std::int64_t> entryLanes,
+                          std::int64_t minimumVLEN);
 
 //===----------------------------------------------------------------------===//
 // [SEL-1] capability-keyed fill-optimal LMUL prior (the FIRST capability-derived

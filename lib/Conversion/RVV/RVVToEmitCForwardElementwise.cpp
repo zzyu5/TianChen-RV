@@ -4251,82 +4251,69 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef format,
-    std::optional<int64_t> codebookEntryLanes) const {
-  // iq3_xxs is the FIRST cell of the dequant true-vector emitter (PR-31): it lowers
-  // to the OWNED real-vector body (vluxei16 grid gather + sign fold + vfcvt + vfmul
-  // + vse32), NOT the shared scalar dispatch-wired decode. Every OTHER IQ grid format
-  // (iq2_xxs/iq2_xs/iq2_s) has now fanned out to its OWNED narrow-per-entry body below.
-  if (format == "iq3_xxs")
+    const ::weft::GridLookupPlan &plan) const {
+  // [K-10] STRUCTURAL TAG: this body realizes the GridLookup mechanism ONLY (the dispatch
+  // guarantees plan.mechanism == GridLookup). The per-format owned real-vector body is
+  // selected by plan.leaf (a leaf SELECTION between the FIVE already-separate gather-free
+  // bodies, sanctioned by [K-10]), NOT the format name ([F-1]); the grid ENTRY byte-width
+  // g-axis geometry rides plan.entryLanes (律2: retired into the codebook_entry_lanes
+  // descriptor, NOT baked). The four int-grid leaves fail-CLOSE if the descriptor is absent
+  // (plan.hasEntryLanes false -- no value_or self-supply to the g-axis); iq3_xxs derives its
+  // geometry internally and does not require it. Byte-exact reproduce-current: plan.leaf +
+  // plan.entryLanes reproduce the retired (format, codebookEntryLanes) dispatch exactly.
+  switch (plan.leaf) {
+  // iq3_xxs is the FIRST cell of the dequant true-vector emitter (PR-31): it lowers to the
+  // OWNED real-vector body (vluxei16 grid gather + sign fold + vfcvt + vfmul + vse32).
+  case ::weft::GridDecodeLeaf::Iq3Xxs:
     return emitDequantizeRowIQ3XXSVectorBody(rewriter, loc, input, output, avlArg,
                                              sizeType, opName, role);
-  // iq3_s FANS OUT next (R5.1-C grid family de-lottery): the grid-of-4 EXPLICIT-SIGNS
-  // sibling lowers to its OWNED narrow-per-entry real-vector body (gather-free ~2x the
-  // clang-autovec scalar-lottery leaf, board-proven). The remaining IQ grid formats
-  // (iq2_xxs/iq2_xs/iq2_s) stay on the scalar forwarder until they fan out. The grid
-  // ENTRY byte-width (g-axis geometry) is READ from the codebook_entry_lanes descriptor,
-  // NOT baked into the body (律2); fail closed if the front door did not stamp it (no
-  // value_or self-supply to the g-axis).
-  if (format == "iq3_s") {
-    if (!codebookEntryLanes)
+  // iq3_s (R5.1-C grid family de-lottery): the grid-of-4 EXPLICIT-SIGNS sibling lowers to
+  // its OWNED narrow-per-entry real-vector body (gather-free, board-proven).
+  case ::weft::GridDecodeLeaf::Iq3S:
+    if (!plan.hasEntryLanes)
       return rewriter.notifyMatchFailure(
           loc, "iq3_s owned grid dequant body requires the codebook_entry_lanes "
                "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ3SVectorBody(rewriter, loc, input, output, avlArg,
-                                           sizeType, opName, role,
-                                           *codebookEntryLanes);
-  }
-  // iq2_xs FANS OUT next (R5.1-D 扩 iq2 面 · grid family de-lottery): the grid-of-8
-  // (int64, 512-entry) sibling lowers to its OWNED narrow-per-entry real-vector body
-  // (gather-free -- the deployed scalar forwarder's clang autovec exploded to 32 vluxei /
-  // 96 vslidedown, pre-check objdump verified -- board-proven vs the codegen-lottery leaf).
-  // Same g-axis descriptor read + fail-closed contract as iq3_s.
-  if (format == "iq2_xs") {
-    if (!codebookEntryLanes)
+                                           sizeType, opName, role, plan.entryLanes);
+  // iq2_xs (R5.1-D 扩 iq2 面 · grid family de-lottery): the grid-of-8 (int64, 512-entry)
+  // sibling lowers to its OWNED narrow-per-entry real-vector body (gather-free -- the
+  // deployed scalar forwarder's clang autovec exploded to 32 vluxei / 96 vslidedown).
+  case ::weft::GridDecodeLeaf::Iq2Xs:
+    if (!plan.hasEntryLanes)
       return rewriter.notifyMatchFailure(
           loc, "iq2_xs owned grid dequant body requires the codebook_entry_lanes "
                "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ2XSVectorBody(rewriter, loc, input, output, avlArg,
-                                            sizeType, opName, role,
-                                            *codebookEntryLanes);
-  }
-  // iq2_xxs FANS OUT (W5 grid family de-lottery · the iq2_xs grid-of-8 sibling
-  // completing the grid family flip): the grid-of-8 (int64, 256-entry) sibling with the
-  // aux-packed ksigns selectors lowers to its OWNED narrow-per-entry real-vector body
-  // (gather-free). Same g-axis descriptor read + fail-closed contract as iq2_xs.
-  if (format == "iq2_xxs") {
-    if (!codebookEntryLanes)
+                                            sizeType, opName, role, plan.entryLanes);
+  // iq2_xxs (W5 grid family de-lottery): the grid-of-8 (int64, 256-entry) sibling with the
+  // aux-packed ksigns selectors lowers to its OWNED narrow-per-entry real-vector body.
+  case ::weft::GridDecodeLeaf::Iq2Xxs:
+    if (!plan.hasEntryLanes)
       return rewriter.notifyMatchFailure(
           loc, "iq2_xxs owned grid dequant body requires the codebook_entry_lanes "
                "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ2XXSVectorBody(rewriter, loc, input, output, avlArg,
-                                             sizeType, opName, role,
-                                             *codebookEntryLanes);
-  }
-  // iq2_s FANS OUT (W5 grid family de-lottery · the iq2_xs grid-of-8 sibling with
-  // EXPLICIT sign bytes): the grid-of-8 (int64, 1024-entry) sibling whose 8-bit sign
-  // bytes index the universal signs256 plane directly lowers to its OWNED narrow-per-
-  // entry real-vector body (gather-free). Same g-axis descriptor read + fail-closed
-  // contract as iq2_xs.
-  if (format == "iq2_s") {
-    if (!codebookEntryLanes)
+                                             sizeType, opName, role, plan.entryLanes);
+  // iq2_s (W5 grid family de-lottery): the grid-of-8 (int64, 1024-entry) sibling whose
+  // 8-bit sign bytes index the universal signs256 plane lowers to its OWNED body.
+  case ::weft::GridDecodeLeaf::Iq2S:
+    if (!plan.hasEntryLanes)
       return rewriter.notifyMatchFailure(
           loc, "iq2_s owned grid dequant body requires the codebook_entry_lanes "
                "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ2SVectorBody(rewriter, loc, input, output, avlArg,
-                                           sizeType, opName, role,
-                                           *codebookEntryLanes);
+                                           sizeType, opName, role, plan.entryLanes);
   }
-  return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
-                                       avlArg, sizeType, opName, role);
+  llvm_unreachable("GridLookupPlan leaf not handled");
 }
 
 // The per-format CONSTRUCTED dequantize_row decode leaf for the ternary-grid extended
@@ -4347,60 +4334,61 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowIQGridBodyShared(
 // by construction (modulo only the source-op provenance token threaded through
 // opName/role). Streaming sibling of emitDequantizeRowIQGridBodyShared; no reduction / no
 // accumulator.
-mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookGridBodyShared(
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowTernaryDecodeBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef format,
-    std::optional<int64_t> codebookEntryLanes) const {
+    const ::weft::TernaryDecodePlan &plan) const {
+  // [K-10] STRUCTURAL TAG: this body realizes the TernaryDecode mechanism ONLY (the
+  // dispatch guarantees plan.mechanism == TernaryDecode). Ternary is SPLIT OUT of grid --
+  // it has its own plan and does NOT consult the grid registry (grid != ternary restored
+  // for the dequant-row head). The per-format owned body is selected by plan.leaf (a leaf
+  // SELECTION between the FOUR already-separate bodies, [K-10]), NOT the format name
+  // ([F-1]); the iq1 grid leaves' ENTRY byte-width g-axis geometry rides plan.entryLanes
+  // (律2) and fail-CLOSES if absent. Byte-exact reproduce-current: plan.leaf +
+  // plan.entryLanes reproduce the retired (format, codebookEntryLanes) dispatch exactly.
+  switch (plan.leaf) {
   // The tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks lower to the OWNED ternary
   // ARITHMETIC vector body (B线批3 ternary de-lottery · [L-8] · closes the ISSUE-002
   // codegen-lottery for these formats). NO codebook table and NO gather -- the ternary
-  // {-1,0,1} value is decoded by pure arithmetic (2-bit shift/mask; base-3 * pow3).
-  if (format == "tq1_0" || format == "tq2_0")
-    return emitDequantizeRowTernaryVectorBody(rewriter, loc, input, output,
-                                              avlArg, sizeType, opName, role,
-                                              format);
+  // {-1,0,1} value is decoded by pure arithmetic (2-bit shift/mask; base-3 * pow3). The
+  // isTq1 leaf discriminator selects the two ALREADY-SEPARATE tq shapes (no format key).
+  case ::weft::TernaryDecodeLeaf::Tq1_0:
+  case ::weft::TernaryDecodeLeaf::Tq2_0:
+    return emitDequantizeRowTernaryVectorBody(
+        rewriter, loc, input, output, avlArg, sizeType, opName, role,
+        /*isTq1=*/plan.leaf == ::weft::TernaryDecodeLeaf::Tq1_0);
   // iq1_m FANS OUT to its OWNED narrow-per-entry real-vector body (R5.1-D grid family
   // de-lottery [L-8] · ISSUE-001 reverse). Unlike the iq2_xs/iq3_s flip, iq1_m's deployed
-  // scalar forwarder is ALREADY gather-free after clang -O3 autovec (pre-check objdump:
-  // vlux=0, vslidedown=0 -- grid[j] j=0..7 is a CONTIGUOUS int8 read off a scalar pointer,
-  // the narrow-per-entry shape), so this OWNED body is a de-lottery robustness hardening at
-  // PARITY throughput (lever-N/A honest-null), NOT a codegen-STRUCTURE flip -- the sign-free
-  // ternary grid + per-group delta decode is rendered EXPLICITLY so it no longer rides
-  // clang's codegen-lottery. The grid ENTRY byte-width (g-axis geometry) is READ from the
-  // codebook_entry_lanes descriptor, NOT baked into the body (律2); fail closed if the
-  // front door did not stamp it (no value_or self-supply to the g-axis).
-  if (format == "iq1_m") {
-    if (!codebookEntryLanes)
+  // scalar forwarder is ALREADY gather-free after clang -O3 autovec, so this OWNED body is a
+  // de-lottery robustness hardening at PARITY throughput (lever-N/A honest-null). The grid
+  // ENTRY byte-width (g-axis geometry) rides plan.entryLanes (律2); fail closed if the front
+  // door did not stamp it (no value_or self-supply to the g-axis).
+  case ::weft::TernaryDecodeLeaf::Iq1M:
+    if (!plan.hasEntryLanes)
       return rewriter.notifyMatchFailure(
           loc, "iq1_m owned grid dequant body requires the codebook_entry_lanes "
                "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ1MVectorBody(rewriter, loc, input, output, avlArg,
-                                           sizeType, opName, role,
-                                           *codebookEntryLanes);
-  }
+                                           sizeType, opName, role, plan.entryLanes);
   // iq1_s FANS OUT (W5 grid family de-lottery · the iq1_m ternary sibling completing the
   // ternary-grid flip): the SIGNED ternary iq1s_grid (2048-entry) sibling -- fp16 d read
-  // DIRECTLY, ONE scale + ONE delta per group, an 11-bit grid index -- lowers to its OWNED
-  // narrow-per-entry real-vector body (gather-free; vfadd(delta)+vfmul(dl), NO fused
-  // vfmacc, so the two roundings match ggml). Same g-axis descriptor read + fail-closed
-  // contract as iq1_m.
-  if (format == "iq1_s") {
-    if (!codebookEntryLanes)
+  // DIRECTLY, ONE scale + ONE delta per group -- lowers to its OWNED narrow-per-entry
+  // real-vector body (gather-free; vfadd(delta)+vfmul(dl), NO fused vfmacc, so the two
+  // roundings match ggml). Same g-axis descriptor read + fail-closed contract as iq1_m.
+  case ::weft::TernaryDecodeLeaf::Iq1S:
+    if (!plan.hasEntryLanes)
       return rewriter.notifyMatchFailure(
           loc, "iq1_s owned grid dequant body requires the codebook_entry_lanes "
                "descriptor (grid ENTRY byte-width g-axis geometry) stamped by the "
                "dequant-stream front door; it must NOT be baked into the mechanism "
                "body and is never value_or self-supplied");
     return emitDequantizeRowIQ1SVectorBody(rewriter, loc, input, output, avlArg,
-                                           sizeType, opName, role,
-                                           *codebookEntryLanes);
+                                           sizeType, opName, role, plan.entryLanes);
   }
-  return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
-                                       avlArg, sizeType, opName, role);
+  llvm_unreachable("TernaryDecodePlan leaf not handled");
 }
 
 // ============================================================================
@@ -4723,8 +4711,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowTernaryVectorBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef format) const {
-  const bool isTq1 = format == "tq1_0";
+    bool isTq1) const {
   // Per-format ternary super-block geometry (byte-exact ggml block_tqX AoS facts, NOT
   // knobs): tq2_0 { qs[64]; d(fp16); } stride=66; tq1_0 { qs[48]; qh[4]; d(fp16); }
   // stride=54. Both QK_K=256.
@@ -5124,27 +5111,68 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
                                             avlArg, sizeType, opName, role, plan);
     }
   }
-  // The QK_K=256 IQ grid-table super-block leaves (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/
-  // iq3_s) forward to the SAME hand-written grid-decode the dispatch-wired monolith
-  // runs, so the constructed emit is byte-exact to the monolith by construction.
-  if (decodeModel == "iq2_xxs" || decodeModel == "iq2_xs" ||
-      decodeModel == "iq2_s" || decodeModel == "iq3_xxs" ||
-      decodeModel == "iq3_s")
+  // Phase-4 (DequantMechanismPlan family #4): the QK_K=256 IQ grid-table family
+  // (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s) decode is assembled into a GridLookup MechanismPlan
+  // (weft::GridLookupPlan) by the FormulaProvider gridLookupPlanFromFacts (RVVGearboxSchedule.h
+  // -- the §〇 formula-layer home), which FOLDS the fail-closed GridDecodePlan registry
+  // THROUGH itself (consulting lookupGridDecodePlan for legality, so the dequant-row head
+  // shares the same closed-set authority as the block-dot head instead of a second string
+  // chain). The grid emitter READS plan.* -- the dispatch tests plan.mechanism == GridLookup
+  // ([F-1]: name AS DATA, not an execution key), the per-format owned body is selected by
+  // plan.leaf, and the grid ENTRY g-axis geometry rides plan.entryLanes; format survives only
+  // as plan.provenanceFormat. Byte-exact reproduce-current. [K-10]: GridLookupPlan is the
+  // GridLookup mechanism's OWN plan (the 4th of 5); the ternary siblings are a DIFFERENT
+  // mechanism (TernaryDecode) with their own plan below -- NOT folded here.
+  std::optional<::weft::GridDecodeLeaf> gridLeaf =
+      llvm::StringSwitch<std::optional<::weft::GridDecodeLeaf>>(decodeModel)
+          .Case("iq2_xxs", ::weft::GridDecodeLeaf::Iq2Xxs)
+          .Case("iq2_xs", ::weft::GridDecodeLeaf::Iq2Xs)
+          .Case("iq2_s", ::weft::GridDecodeLeaf::Iq2S)
+          .Case("iq3_xxs", ::weft::GridDecodeLeaf::Iq3Xxs)
+          .Case("iq3_s", ::weft::GridDecodeLeaf::Iq3S)
+          .Default(std::nullopt);
+  if (gridLeaf) {
+    ::weft::GridLookupPlan plan = ::weft::plugin::rvv::gridLookupPlanFromFacts(
+        *gridLeaf, decodeModel, codebookEntryLanes, /*minimumVLEN=*/128);
+    plan.provenanceFormat = decodeModel; // diagnostic only (name AS DATA, [F-1])
+    // Fail-closed registry gate ([D-1], folds GridDecodePlan through the provider): an
+    // UNREGISTERED grid decode_model REJECTS here rather than emitting off an unknown grid.
+    if (!plan.legality.isLegal)
+      return rewriter.notifyMatchFailure(
+          loopBody, llvm::Twine("grid lookup plan [") +
+                        ::weft::dequantMechanismName(plan.mechanism) + " " +
+                        plan.reason + "] for format '" + plan.provenanceFormat +
+                        "' is not a registered GridDecodePlan row (fail-closed)");
+    // [K-10] dispatch on plan.mechanism == GridLookup (NOT the format name).
     return emitDequantizeRowIQGridBodyShared(rewriter, loc, weightBase, output,
-                                             avlArg, sizeType, opName, role,
-                                             decodeModel, codebookEntryLanes);
-  // The ternary-grid extended leaves (iq1_s/iq1_m ternary iq1s_grid + the tq1_0/tq2_0
-  // base-3 / 2-bit ternary super-blocks) forward to the SAME hand-written extended decode
-  // the dispatch-wired monolith runs, so the constructed emit is byte-exact to the
-  // monolith by construction. (The iq4_nl/iq4_xs/mxfp4/nvfp4 codebook leaves are a
-  // DIFFERENT mechanism -- CodebookGather -- dispatched above via CodebookGatherPlan;
-  // TernaryDecode stays keyed on decode_model here, [K-10].)
-  if (decodeModel == "iq1_s" || decodeModel == "iq1_m" ||
-      decodeModel == "tq1_0" || decodeModel == "tq2_0")
-    return emitDequantizeRowCodebookGridBodyShared(rewriter, loc, weightBase,
-                                                   output, avlArg, sizeType,
-                                                   opName, role, decodeModel,
-                                                   codebookEntryLanes);
+                                             avlArg, sizeType, opName, role, plan);
+  }
+  // Phase-4 (DequantMechanismPlan family #5, the [K-10] ternary split): the ternary family
+  // (iq1_s/iq1_m ternary iq1s_grid + the tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks)
+  // decode is assembled into a TernaryDecode MechanismPlan (weft::TernaryDecodePlan) by the
+  // FormulaProvider ternaryDecodePlanFromFacts. Ternary is a SEPARATE mechanism -- it does
+  // NOT consult the grid registry (grid != ternary RESTORED for the dequant-row head; the
+  // GridDecodePlan registry's own iq1_s/iq1_m lumping serves the block-dot head, untouched).
+  // The ternary emitter READS plan.* -- the dispatch tests plan.mechanism == TernaryDecode,
+  // the per-format owned body is selected by plan.leaf, and the iq1 grid ENTRY g-axis rides
+  // plan.entryLanes. Byte-exact reproduce-current. (The iq4_nl/iq4_xs/mxfp4/nvfp4 codebook
+  // leaves are yet another mechanism -- CodebookGather -- dispatched above.)
+  std::optional<::weft::TernaryDecodeLeaf> ternaryLeaf =
+      llvm::StringSwitch<std::optional<::weft::TernaryDecodeLeaf>>(decodeModel)
+          .Case("iq1_s", ::weft::TernaryDecodeLeaf::Iq1S)
+          .Case("iq1_m", ::weft::TernaryDecodeLeaf::Iq1M)
+          .Case("tq1_0", ::weft::TernaryDecodeLeaf::Tq1_0)
+          .Case("tq2_0", ::weft::TernaryDecodeLeaf::Tq2_0)
+          .Default(std::nullopt);
+  if (ternaryLeaf) {
+    ::weft::TernaryDecodePlan plan = ::weft::plugin::rvv::ternaryDecodePlanFromFacts(
+        *ternaryLeaf, codebookEntryLanes, /*minimumVLEN=*/128);
+    plan.provenanceFormat = decodeModel; // diagnostic only (name AS DATA, [F-1])
+    // [K-10] dispatch on plan.mechanism == TernaryDecode (NOT the format name).
+    return emitDequantizeRowTernaryDecodeBodyShared(rewriter, loc, weightBase,
+                                                    output, avlArg, sizeType,
+                                                    opName, role, plan);
+  }
   // The flat 1-bit binary-sign leaf (q1_0) forwards to the SAME hand-written
   // binary-sign decode the dispatch-wired monolith fallback runs (via the shared
   // emitGgmlDequantizeRowExtended, keyed by the format string alone), so the

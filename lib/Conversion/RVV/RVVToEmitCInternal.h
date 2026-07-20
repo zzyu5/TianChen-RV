@@ -21,6 +21,8 @@
 #include "Weft/Support/KQuantScaleMinPlan.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Support/GridDecodePlan.h"
+#include "Weft/Support/GridLookupPlan.h"
+#include "Weft/Support/TernaryDecodePlan.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -5039,12 +5041,18 @@ private:
   /// repack GEVM path, not this streaming dequant path). Byte-exact to ggml's reference
   /// dequantize_row_<format> (a scalar AoS super-block loop; no reduction). Streaming
   /// sibling of emitDequantizeRowKQuantBodyShared (no accumulator).
+  /// Phase-4 (DequantMechanismPlan family #4): the per-format grid leaf + the grid ENTRY
+  /// byte-width g-axis geometry are READ from the GridLookup MechanismPlan
+  /// (weft::GridLookupPlan) the FormulaProvider gridLookupPlanFromFacts produced (which
+  /// folds the fail-closed GridDecodePlan registry THROUGH itself), INSTEAD of dispatching
+  /// on the format string. Byte-exact reproduce-current: plan.leaf selects the same owned
+  /// body and plan.entryLanes carries the same descriptor value the retired
+  /// (format, codebookEntryLanes) pair fed.
   mlir::LogicalResult emitDequantizeRowIQGridBodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format,
-      std::optional<int64_t> codebookEntryLanes) const;
+      const ::weft::GridLookupPlan &plan) const;
 
   /// The OWNED REAL-VECTOR iq3_xxs dequantize_row block-decode body (PR-31, the
   /// dequant true-vector emitter first cell): the AoS `nb = k / 256` super-block
@@ -5209,12 +5217,20 @@ private:
   /// planes are DERIVED at emit (NOT carried as op-attrs), so the leaf is self-contained.
   /// Byte-exact to ggml's reference dequantize_row_<format> (a scalar AoS block loop; no
   /// reduction). Streaming sibling of emitDequantizeRowIQGridBodyShared (no accumulator).
-  mlir::LogicalResult emitDequantizeRowCodebookGridBodyShared(
+  ///
+  /// Phase-4 (DequantMechanismPlan family #5, the [K-10] ternary split): the per-format
+  /// ternary leaf + the grid ENTRY byte-width g-axis geometry (iq1 leaves) are READ from
+  /// the TernaryDecode MechanismPlan (weft::TernaryDecodePlan) the FormulaProvider
+  /// ternaryDecodePlanFromFacts produced, INSTEAD of dispatching on the format string.
+  /// Ternary is its OWN mechanism -- it does NOT consult the grid registry (grid != ternary
+  /// restored for the dequant-row head). Byte-exact reproduce-current: plan.leaf selects the
+  /// same owned body and plan.entryLanes carries the same descriptor value the retired
+  /// (format, codebookEntryLanes) pair fed.
+  mlir::LogicalResult emitDequantizeRowTernaryDecodeBodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format,
-      std::optional<int64_t> codebookEntryLanes) const;
+      const ::weft::TernaryDecodePlan &plan) const;
 
   /// The OWNED REAL-VECTOR tiny-codebook (16-entry) dequantize_row body (B线批2
   /// tiny-codebook de-lottery · [L-8] · ISSUE-001 reverse · closes the ISSUE-002
@@ -5269,11 +5285,13 @@ private:
   /// == ggml's single `(q-1)*d` / `(xi-1)*d` mul -> no fp-contraction ambiguity.
   /// Byte-exact to ggml's dequantize_row_{tq1_0,tq2_0} by construction. Streaming
   /// sibling of emitDequantizeRowCodebookVectorBody (no accumulator, no gather).
+  /// `isTq1` is the leaf discriminator (plan.leaf == TernaryDecodeLeaf::Tq1_0) between the
+  /// two ALREADY-SEPARATE tq shapes; the mechanism path never keys on the format string.
   mlir::LogicalResult emitDequantizeRowTernaryVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format) const;
+      bool isTq1) const;
 
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED

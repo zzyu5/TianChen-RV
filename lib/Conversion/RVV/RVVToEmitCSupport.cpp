@@ -3,6 +3,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/GridDecodePlan.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/MLIRContext.h"
@@ -1284,6 +1285,98 @@ kquantScaleMinPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
   plan.legality.isLegal = !plan.loadLMUL.empty();
   // Provenance (mirror, NOT authority -- I4): provenanceFormat is attached by the caller
   // (it holds the decode_model StringRef); left empty here.
+  plan.provenanceFormat = llvm::StringRef();
+  return plan;
+}
+
+weft::GridLookupPlan
+gridLookupPlanFromFacts(weft::GridDecodeLeaf leaf, llvm::StringRef decodeModel,
+                        std::optional<std::int64_t> entryLanes,
+                        std::int64_t minimumVLEN) {
+  // Phase-4 REPRODUCE-CURRENT: this FormulaProvider RE-PACKAGES the per-format grid leaf
+  // selection + the stamped grid ENTRY byte-width g-axis descriptor into the GridLookup
+  // MechanismPlan, and FOLDS the fail-closed GridDecodePlan registry THROUGH itself (it
+  // consults lookupGridDecodePlan for legality, so the dequant-row head shares the registry
+  // authority the block-dot head uses instead of a second closed-set string chain). The
+  // owned grid bodies are VLEN-agnostic narrow pipelines, so there is NO c-driven geometry:
+  // minimumVLEN is accepted as the f(g, c) seam without a c-driven effect this cut.
+  (void)minimumVLEN;
+
+  weft::GridLookupPlan plan;
+  plan.mechanism = weft::DequantMechanism::GridLookup;
+  plan.leaf = leaf;
+  // The re-packaged grid ENTRY byte-width g-axis descriptor (律2): byte-for-byte the
+  // codebook_entry_lanes value the retired scatter read fed the owned bodies. iq3_xxs does
+  // not require it; the other four leaves do (and the emitter fail-CLOSES if absent).
+  plan.hasEntryLanes = entryLanes.has_value();
+  plan.entryLanes = entryLanes.value_or(0);
+  // Fail-closed legality gate ([D-1], folds GridDecodePlan through the provider): an
+  // UNREGISTERED grid decode_model yields nullptr => isLegal false => the emitter REJECTS.
+  // The registry IS the closed set, so "unknown => reject" is preserved BY CONSTRUCTION and
+  // now shared with the block-dot head rather than duplicated as a decode_model string chain.
+  plan.legality.isLegal = weft::lookupGridDecodePlan(decodeModel) != nullptr;
+  // Provenance (mirror, NOT authority -- I4): a static reason trace naming the grid leaf.
+  // provenanceFormat is attached by the caller (it holds the decode_model StringRef).
+  switch (leaf) {
+  case weft::GridDecodeLeaf::Iq2Xxs:
+    plan.reason = "GridLookup/iq2_xxs/grid8_ksigns (reproduce-current)";
+    break;
+  case weft::GridDecodeLeaf::Iq2Xs:
+    plan.reason = "GridLookup/iq2_xs/grid8_ksigns_dual_ls (reproduce-current)";
+    break;
+  case weft::GridDecodeLeaf::Iq2S:
+    plan.reason = "GridLookup/iq2_s/grid8_signs256 (reproduce-current)";
+    break;
+  case weft::GridDecodeLeaf::Iq3Xxs:
+    plan.reason = "GridLookup/iq3_xxs/grid4_ksigns (reproduce-current)";
+    break;
+  case weft::GridDecodeLeaf::Iq3S:
+    plan.reason = "GridLookup/iq3_s/grid4_signs256 (reproduce-current)";
+    break;
+  }
+  plan.provenanceFormat = llvm::StringRef();
+  return plan;
+}
+
+weft::TernaryDecodePlan
+ternaryDecodePlanFromFacts(weft::TernaryDecodeLeaf leaf,
+                          std::optional<std::int64_t> entryLanes,
+                          std::int64_t minimumVLEN) {
+  // Phase-4 REPRODUCE-CURRENT: this FormulaProvider RE-PACKAGES the per-format ternary leaf
+  // selection + the stamped grid ENTRY byte-width g-axis descriptor (iq1 grid leaves) into
+  // the TernaryDecode MechanismPlan. [K-10] split: ternary is a SEPARATE mechanism, so it
+  // does NOT consult the GridDecodePlan registry (grid != ternary is RESTORED for this head;
+  // tq1_0/tq2_0 are not even grid-registry rows). No c-driven geometry: minimumVLEN is the
+  // f(g, c) seam without a c-driven effect this cut.
+  (void)minimumVLEN;
+
+  weft::TernaryDecodePlan plan;
+  plan.mechanism = weft::DequantMechanism::TernaryDecode;
+  plan.leaf = leaf;
+  // The re-packaged grid ENTRY byte-width g-axis descriptor (律2, iq1 leaves only): the tq
+  // pure-arithmetic leaves carry no grid entry (hasEntryLanes false).
+  plan.hasEntryLanes = entryLanes.has_value();
+  plan.entryLanes = entryLanes.value_or(0);
+  // Ternary is its own mechanism, NOT gated on the grid registry: every ternary format is
+  // realizable, so the plan is legal. The per-leaf entry-lane presence gate for the iq1
+  // grid leaves stays a fail-closed check in the emitter (a g-axis descriptor gate, not a
+  // registry membership gate).
+  plan.legality.isLegal = true;
+  // Provenance (mirror, NOT authority -- I4): a static reason trace naming the ternary leaf.
+  switch (leaf) {
+  case weft::TernaryDecodeLeaf::Tq1_0:
+    plan.reason = "TernaryDecode/tq1_0/base3_arith (reproduce-current)";
+    break;
+  case weft::TernaryDecodeLeaf::Tq2_0:
+    plan.reason = "TernaryDecode/tq2_0/2bit_arith (reproduce-current)";
+    break;
+  case weft::TernaryDecodeLeaf::Iq1M:
+    plan.reason = "TernaryDecode/iq1_m/grid_delta_per_group (reproduce-current)";
+    break;
+  case weft::TernaryDecodeLeaf::Iq1S:
+    plan.reason = "TernaryDecode/iq1_s/grid_delta_per_sub (reproduce-current)";
+    break;
+  }
   plan.provenanceFormat = llvm::StringRef();
   return plan;
 }
