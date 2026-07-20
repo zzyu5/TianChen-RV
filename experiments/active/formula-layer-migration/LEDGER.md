@@ -151,7 +151,7 @@ A1 核查后的当前实际住址并未完全收敛：五类 dequant provider �
 
 > **★2026-07-20 收尾态（历史表述，受 §四.10 限定）**：能力层 ②③ ✓（VLEN+version 管道·vreg_count 正名）· 公式层 dequant-row head **1/5→5/5**（5 家全进 plan·byte-exact·plan 承重判决）。这里的“5/5”只表示 plan 类型与 emitter 消费铺满，**不表示 c、stamping、legality、selection、realization 已闭环**。
 
-## 四.10 · A1 HEAD authority freeze（当前正本）
+## 四.10 · A1 authority freeze（历史基线；当前见 §四.11）
 
 完整符号链见 `AUTHORITY-MATRIX.md`；机器 census 与任务/issue 绑定见
 `authority-matrix.v1.json`，由 `test/Scripts/formula-authority-matrix.test` 守卫。
@@ -200,6 +200,45 @@ A1 核查后的当前实际住址并未完全收敛：五类 dequant provider �
    真 g，结构常量不包装成假参数。
 
 以上对象均已绑定 Trellis task、ISSUE 与 killing test；账本不再充当私设问题清单。
+
+## 四.11 · A2 typed-decision cutover（当前 HEAD）
+
+A2 没有重做五类 plan，也没有建立 Formula dialect/AST。它只落一个 plugin-local
+`RVVFormulaDecision.h`，其中两个 slice 各自使用机制专属类型：
+
+1. **Nibble dequant**：`NibbleDecodeGeometryFacts` 显式承载 g；
+   `NibbleDecodeNoCapabilityInput` / `NibbleDecodeNoStaticContext` 明确表达 c/ω
+   honest-null。旧 `nibbleDecodePlanFromFacts` 声明、定义和 caller 均为 0；
+   `(void)minimumVLEN` 与 literal-128 seam 从 5 降为 4，剩余四项属于 A3，不把
+   Nibble 的物理空轴伪装成欠工。非法 qk/stride/offset 无 selected plan，直接 reject。
+2. **Repack accumulator LMUL**：g=`weightInterleave`；
+   c=`{hasFractionalLMUL, halfLanes, vectorRegisterBudget}`；ω 是可选的 qualified
+   `{typed key,winner}`。`decideRepackAccumulatorLMUL` 先给 `{mf2,m1}` 产生显式
+   register-pressure legality，再允许 measurement 在合法集内命中；miss 或非法 winner
+   回 analytic mf2 prior。RVV generation 先投影为 optional capability，Unknown 不被
+   折成 RVV1.0；missing/invalid capability 与空合法集 reject。
+3. **单次选择、全 caller 消费**：`lowerOne` 每个请求只调用一次
+   `buildRepackAccumulatorLMULDecision`；18 个互斥 builder 接收同一个 selected
+   decision，消费 `selectedHalfLanes/integerCoreLMUL/accumulatorLMUL`；reason 与可选
+   measurement key 由一个 helper 统一盖章。旧 `RepackAccumulatorLMULChoice`、旧
+   selector、18 个独立选择点均为 0。
+
+当前仍未宣称完成的部分：五类 dequant selected plan 尚未在 emission 前 typed stamp；
+其余四类的 c seam、四段 emitter-local leaf mapping、Grid 双头、SP4/loop
+selected≠realized 仍分别归 A3/A4/A8；LMUL 手工 measurement table 归 A5。A2 只收口
+authority/data flow，不改任何 performance winner。
+
+直接判决测试：`test/Plugin/rvv-formula-decision.test` 覆盖 Nibble g decisive、c/ω
+honest-null、非法 geometry reject，以及 LMUL g/c/ω 翻转、legal measured hit、
+illegal-winner no-flip、missing capability 与 empty legal set reject。既有 Nibble
+load-bearing lit、LMUL measured/default、RVV version/capability 和 missing-stamp tests
+继续保护 production path。机器现状以 `AUTHORITY-MATRIX.md` 与
+`authority-matrix.v1.json` 为准。
+
+合并前实测：clean build 与 `weft-opt`/`weft-translate` 显式重链通过；focused lit
+5/5；全量 `check-weft` 975/978，三项失败与 A1/A7 基线同名，均属 ISSUE-057。
+authority matrix、self-test、zero-core-family、retired-index、monolith-retire 与 schema
+self-test 全绿。
 
 ## 五 · 每步纪律（三闸·不可绕）
 

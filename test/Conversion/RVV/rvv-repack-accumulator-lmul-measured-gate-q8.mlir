@@ -1,7 +1,8 @@
 // [GAP-P1]-loosen JUDGMENT -- the per-format repack accumulator-LMUL measured gate.
-// The front-door selector selectRepackAccumulatorLMUL consults the board-MEASURED
-// table lookupRepackMeasuredM1Faster (registration-as-DATA, keyed on the committed
-// decode-family scale_model WHAT). Board-measured rows @rvv VLEN128 (spill-free,
+// The front door projects the board-MEASURED lookup into one typed omega hit, then
+// decideRepackAccumulatorLMUL filters it through the typed legal set. The current
+// data lookup is keyed on the committed decode-family scale_model WHAT. Board-measured
+// rows @rvv VLEN128 (spill-free,
 // byte-exact, 2-seed cold):
 //   * q8_0 full-i8 (kNibbleQ80ScaleModel)         -> m1 (GEVM 1.4-2.4x / GEMM 1.40x)
 //   * q4_0 signed-nibble (kNibbleQ40ScaleModel)   -> m1 (GEVM 2.3-2.5x / GEMM 1.24x)
@@ -61,6 +62,7 @@ module {
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
 // CHECK-SAME: half_lanes = 16 : i64
 // CHECK-SAME: integer_core_lmul = "m1"
+// CHECK-SAME: weft_rvv.repack_accumulator_lmul_measurement_key = "dual-fp16-per-block-d_x.d_y-full-i8"
 // CHECK-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 
 // q5_1 nibble+min+qh: NO measured row => the mf2 default holds (no-blind-widest;

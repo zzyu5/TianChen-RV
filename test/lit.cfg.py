@@ -171,6 +171,7 @@ llvm_config.add_tool_substitutions(
         "weft-emission-readiness-test",
         "weft-offload-extension-plugin-test",
         "weft-rvv-dialect-test",
+        "weft-rvv-formula-decision-test",
         "weft-rvv-low-precision-lmul-selection-test",
         "weft-rvv-extension-plugin-test",
         "weft-scalar-extension-plugin-test",

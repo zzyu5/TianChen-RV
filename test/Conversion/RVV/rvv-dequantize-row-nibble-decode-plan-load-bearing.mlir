@@ -2,13 +2,14 @@
 // RUN: sed 's/nibble_bias = 8 : i64/nibble_bias = 5 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTBIAS
 // RUN: sed 's/qk = 32 : i64/qk = 44 : i64/g' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTSTRIP
 
-// JUDGMENT experiment for phase-2: the NibbleDecode MechanismPlan is LOAD-BEARING (the
+// JUDGMENT experiment for the typed NibbleDecode decision: the MechanismPlan is
+// LOAD-BEARING (the
 // nibble emitter READS plan.*, it is not dead data the emitter scatter-reads around).
 //
 // Phase-2 introduced weft::NibbleDecodePlan (Support) + the FormulaProvider
-// nibbleDecodePlanFromFacts (RVVGearboxSchedule.h) and rewired the flat-nibble emit so
+// decideNibbleDecode (RVVFormulaDecision.h) and wired the flat-nibble emit so
 // the ONLY path from the decode_core descriptor to the emitted C is
-//   decode_core facts -> nibbleDecodePlanFromFacts -> NibbleDecodePlan -> emit.
+//   decode_core typed g -> decideNibbleDecode -> NibbleDecodePlan -> emit.
 // The per-attr scatter reads (getNibbleBiasAttr / getMinByteOffsetAttr / ... straight
 // into the shared body) are RETIRED. This test proves the plan is really consumed by
 // mutating two DIFFERENT kinds of plan field and observing the emit change:

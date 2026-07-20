@@ -215,6 +215,16 @@ target_link_libraries(weft-rvv-low-precision-lmul-selection-test
   MLIRSupport
 )
 
+add_executable(weft-rvv-formula-decision-test
+  Plugin/RVVFormulaDecisionTest.cpp
+)
+
+target_link_libraries(weft-rvv-formula-decision-test
+  PRIVATE
+  WeftRVVPlugin
+  MLIRSupport
+)
+
 add_executable(weft-rvv-q4-0-q8-0-shape-selection-test
   Plugin/RVVQ40Q80ShapeSelectionTest.cpp
 )
@@ -348,6 +358,7 @@ add_lit_testsuite(check-weft "Running Weft-RV lit tests"
   weft-emission-readiness-test
   weft-offload-extension-plugin-test
   weft-rvv-dialect-test
+  weft-rvv-formula-decision-test
   weft-rvv-low-precision-lmul-selection-test
   weft-rvv-q4-0-q8-0-shape-selection-test
   weft-rvv-capability-profile-divergence-test

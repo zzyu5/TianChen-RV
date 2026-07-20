@@ -60,6 +60,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
+#include "Weft/Plugin/RVV/RVVFormulaDecision.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVRepackTilingSelection.h"
 #include "Weft/Support/CapabilityModel.h"
@@ -145,9 +146,11 @@ constexpr llvm::StringLiteral kLoopOrderRecordAttr =
 // half_lanes -- it NEVER reads this reason), so stamping it is byte-exact: it records
 // WHY m1/mf2 was chosen ("correctness-rvv0p7" / "measured" / "capability-default-mf2")
 // so every cell answers the "why this accumulator LMUL" question. Previously the
-// RepackAccumulatorLMULChoice.reason was computed then DISCARDED at all 18 call sites.
+// A2 centralizes the reason/key mirror in one stamp helper for all repack builders.
 constexpr llvm::StringLiteral kAccumulatorLmulReasonAttr =
     "weft_rvv.repack_accumulator_lmul_selection_reason";
+constexpr llvm::StringLiteral kAccumulatorLmulMeasurementKeyAttr =
+    "weft_rvv.repack_accumulator_lmul_measurement_key";
 
 // The RVV vector register file is 32 architectural vector registers as a HARD ISA
 // fact (rvv1.0 v0..v31), independent of VLEN -- the register-budget capability fact
@@ -1266,14 +1269,6 @@ std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits) {
 // populates the per-format x board crossover, board-MEASURED and NEVER projected
 // -- [GAP-P1]), so every RVV1.0 format resolves to mf2 => BYTE-EXACT with the
 // pre-selector emit; every existing fixture stays green unchanged.
-struct RepackAccumulatorLMULChoice {
-  bool useM1;             // true => m1 whole-LMUL chain; false => mf2 default.
-  llvm::StringRef reason; // audit token, STAMPED as the discardable INERT provenance
-                          // attr weft_rvv.repack_accumulator_lmul_selection_reason on
-                          // each repack loop body ([档 C#9]); the EmitC emitter never
-                          // reads it, so the default emit stays byte-exact.
-};
-
 // STAGE THREE fill (user-adjudicated 2026-07-19: [GAP-P1] LOOSENED to permit a
 // board-measured spill-free format to take the wide m1 chain -- the IRON RULE's
 // OWN escape hatch: "ONLY a per-format BOARD MEASUREMENT recording m1-faster
@@ -1358,46 +1353,45 @@ lookupRepackMeasuredM1Faster(llvm::StringRef scaleModel) {
   return std::nullopt;
 }
 
-// Replaces the correctness-only `isM1 = isRVV0p7` fork with the measured gate.
-// `capabilityHalfLanes` is the in-scope e16m1 strip width (nonzero on every
-// reached leaf => minVLEN >= 128), the capability witness that BOTH chains are
-// constructible on RVV1.0. `isRVV0p7` is the "target lacks fractional LMUL"
-// capability constraint (the schema `has_fractional_lmul` hardware-fact, false on
-// the pre-ratification RVV0.7.1 generation -- see deriveRVVHasFractionalLMUL):
-// there the whole-LMUL m1 chain is MANDATORY (no i8mf2). In-scope (minVLEN >= 128)
-// the generation is always a concrete RVV tier, so isRVV0p7 == !has_fractional_lmul.
-inline RepackAccumulatorLMULChoice
-selectRepackAccumulatorLMUL(llvm::StringRef scaleModel, bool isRVV0p7,
-                            std::int64_t capabilityHalfLanes,
-                            mlir::ModuleOp module) {
-  if (isRVV0p7)
-    return {/*useM1=*/true, "correctness-rvv0p7"};
-  // Budget legality of the m1 whole-LMUL chain, via the gate4 footprint helper:
-  // the peak-live groups are the i16m2 product + the i32m4 accumulator. The budget
-  // is the in-IR `vreg_count` capability fact PULLED off the provider op
-  // (resolveRVVVectorRegisterBudget; the architectural 32 is only the un-probed
-  // fallback), not a hardcoded literal -- a narrow-register capability file prunes
-  // the m1 chain (core-invariant I1).
-  const std::int64_t kVectorRegisterBudget =
-      pluginrvv::resolveRVVVectorRegisterBudget(module);
-  // The m1 whole-LMUL chain's peak-live levels: the i16m2 product + the i32m4
-  // accumulator (both live at the fold peak, 1 group each). Routed through the ONE
-  // register-pressure inequality home (STEP ②, the MULTI-LEVEL closed form):
-  // legal ⟺ footprint(m2)·1·1 + footprint(m4)·1·1 ≤ budget − 0, byte-identical to
-  // the prior `footprint(m2) + footprint(m4) <= budget`.
-  const pluginrvv::RVVRegisterPressureLevel m1ChainLevels[] = {
-      {/*lmul=*/"m2", /*liveVars=*/1}, {/*lmul=*/"m4", /*liveVars=*/1}};
-  const bool m1Constructible =
-      capabilityHalfLanes != 0 &&
-      pluginrvv::rvvRegisterPressureLegal(m1ChainLevels, /*unroll=*/1,
-                                          kVectorRegisterBudget,
-                                          /*fixedOccupancy=*/0);
-  if (m1Constructible)
-    if (std::optional<bool> measuredM1Faster =
-            lookupRepackMeasuredM1Faster(scaleModel))
-      return {/*useM1=*/*measuredM1Faster, "measured"};
-  // [GAP-P1]: default mf2 -- never blind-widest; only a board measurement flips.
-  return {/*useM1=*/false, "capability-default-mf2"};
+/// Project the front-door's typed owners into the plugin-local decision contract.
+/// This is the sole production constructor: scale_model is consumed only as the
+/// current measurement key, while geometry and target capability remain separate.
+inline pluginrvv::RepackAccumulatorLMULDecision
+buildRepackAccumulatorLMULDecision(weftrvv::GgmlQuantContractionOp op,
+                                   std::optional<bool> hasFractionalLMUL,
+                                   std::int64_t capabilityHalfLanes) {
+  pluginrvv::RepackAccumulatorLMULStaticContext omega;
+  if (std::optional<bool> measuredM1Faster =
+          lookupRepackMeasuredM1Faster(op.getScaleModel())) {
+    omega.measurement = pluginrvv::RepackAccumulatorLMULQualifiedMeasurement{
+        /*key=*/{op.getScaleModel()},
+        /*winner=*/*measuredM1Faster
+            ? pluginrvv::RepackAccumulatorLMULCandidate::M1
+            : pluginrvv::RepackAccumulatorLMULCandidate::MF2};
+  }
+
+  return pluginrvv::decideRepackAccumulatorLMUL(
+      /*g=*/{/*weightInterleave=*/kWeightInterleave},
+      /*c=*/{/*hasFractionalLMUL=*/hasFractionalLMUL,
+             /*halfLanes=*/capabilityHalfLanes,
+             /*vectorRegisterBudget=*/
+                 pluginrvv::resolveRVVVectorRegisterBudget(
+                     op->getParentOfType<mlir::ModuleOp>())},
+      omega);
+}
+
+template <typename LoopOp>
+void stampRepackAccumulatorLMULDecision(
+    mlir::OpBuilder &builder, LoopOp loop,
+    const pluginrvv::RepackAccumulatorLMULDecision &decision) {
+  loop->setAttr(kAccumulatorLmulReasonAttr,
+                builder.getStringAttr(
+                    pluginrvv::stringifyRepackAccumulatorLMULReason(
+                        decision.reason)));
+  if (decision.measurementKey)
+    loop->setAttr(kAccumulatorLmulMeasurementKeyAttr,
+                  builder.getStringAttr(
+                      decision.measurementKey->scaleModel));
 }
 
 class RVVLowerQuantContractionPass final
@@ -1664,12 +1658,28 @@ private:
     // The RVV ISA generation, PULLED off the in-IR RVV capability provider op
     // (resolveRVVVersion reads the materialized rvv_version fact; -march is only the
     // un-probed fallback) -- so a capability file rvv_version=1.0 WINS over a
-    // conflicting -march xtheadvector (0.7): isRVV0p7 (=> the repack accumulator
-    // whole-LMUL/mf2 fork) follows the CAPABILITY object, not the -march bypass.
-    bool isRVV0p7 = pluginrvv::resolveRVVVersion(
-                        op->getParentOfType<mlir::ModuleOp>(), march,
-                        isaVectorHints) == pluginrvv::RVVVersion::RVV0p7;
+    // conflicting -march xtheadvector (0.7): hasFractionalLMUL follows the
+    // capability object, not a format label or an emitter-side march reparse.
+    pluginrvv::RVVVersion rvvVersion = pluginrvv::resolveRVVVersion(
+        op->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
+    std::optional<bool> hasFractionalLMUL;
+    if (rvvVersion == pluginrvv::RVVVersion::RVV1p0)
+      hasFractionalLMUL = true;
+    else if (rvvVersion == pluginrvv::RVVVersion::RVV0p7)
+      hasFractionalLMUL = false;
     if (isRepack && halfLanes != 0) {
+      // A2 authority cutover: construct the accumulator-LMUL decision exactly
+      // once for this declared repack slice.  Every mutually exclusive builder
+      // below consumes this selected typed result; none may look up measurement,
+      // re-read capability, or select/stamp independently.
+      pluginrvv::RepackAccumulatorLMULDecision accLmulDecision =
+          buildRepackAccumulatorLMULDecision(op, hasFractionalLMUL,
+                                              halfLanes);
+      if (!accLmulDecision.isLegal())
+        return op.emitError()
+               << "repack accumulator-LMUL decision failed closed: "
+               << pluginrvv::stringifyRepackAccumulatorLMULReason(
+                      accLmulDecision.reason);
       // The m_regime committed WHAT axis chooses the repacked GRANULARITY: the
       // PREFILL (M-amortized) regime realizes the repack as the typed
       // weft_rvv.typed_repack_gemm_loop_body REGION (the block-as-lane GEMM that
@@ -1752,32 +1762,39 @@ private:
       // weight_full_i8). Keyed off the committed q8_0 scale_model WHAT.
       bool isQ80 = op.getScaleModel() == kNibbleQ80ScaleModel;
       if (*mRegime == pluginrvv::MRegime::Prefill)
-        return grid ? lowerToRepackGemmGrid(op, selection, halfLanes, isRVV0p7,
+        return grid
+                   ? lowerToRepackGemmGrid(op, selection, accLmulDecision,
                                             *grid)
-               : codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
-                                                    isRVV0p7, *codebook)
-               : kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
-                                                  isRVV0p7, *kquant)
-               : ternary ? lowerToRepackGemmTernary(op, selection, halfLanes,
-                                                    isRVV0p7, *ternary)
-               : isQ41 ? lowerToRepackGemmQ41(op, selection, halfLanes, isRVV0p7)
-               : isQ50 ? lowerToRepackGemmQ50(op, selection, halfLanes, isRVV0p7)
-               : isQ51 ? lowerToRepackGemmQ51(op, selection, halfLanes, isRVV0p7)
-               : isQ80 ? lowerToRepackGemmQ80(op, selection, halfLanes, isRVV0p7)
-                       : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
-      return grid ? lowerToRepackGemvGrid(op, selection, halfLanes, isRVV0p7,
-                                          *grid)
-             : codebook ? lowerToRepackGemvCodebook(op, selection, halfLanes,
-                                                  isRVV0p7, *codebook)
-             : kquant ? lowerToRepackGemvKQuant(op, selection, halfLanes, isRVV0p7,
-                                                *kquant)
-             : ternary ? lowerToRepackGemvTernary(op, selection, halfLanes,
-                                                  isRVV0p7, *ternary)
-             : isQ41 ? lowerToRepackGemvQ41(op, selection, halfLanes, isRVV0p7)
-             : isQ50 ? lowerToRepackGemvQ50(op, selection, halfLanes, isRVV0p7)
-             : isQ51 ? lowerToRepackGemvQ51(op, selection, halfLanes, isRVV0p7)
-             : isQ80 ? lowerToRepackGemvQ80(op, selection, halfLanes, isRVV0p7)
-                     : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
+               : codebook
+                   ? lowerToRepackGemmCodebook(op, selection, accLmulDecision,
+                                                *codebook)
+               : kquant
+                   ? lowerToRepackGemmKQuant(op, selection, accLmulDecision,
+                                              *kquant)
+               : ternary
+                   ? lowerToRepackGemmTernary(op, selection, accLmulDecision,
+                                              *ternary)
+               : isQ41 ? lowerToRepackGemmQ41(op, selection, accLmulDecision)
+               : isQ50 ? lowerToRepackGemmQ50(op, selection, accLmulDecision)
+               : isQ51 ? lowerToRepackGemmQ51(op, selection, accLmulDecision)
+               : isQ80 ? lowerToRepackGemmQ80(op, selection, accLmulDecision)
+                       : lowerToRepackGemm(op, selection, accLmulDecision);
+      return grid
+                 ? lowerToRepackGemvGrid(op, selection, accLmulDecision, *grid)
+             : codebook
+                 ? lowerToRepackGemvCodebook(op, selection, accLmulDecision,
+                                              *codebook)
+             : kquant
+                 ? lowerToRepackGemvKQuant(op, selection, accLmulDecision,
+                                            *kquant)
+             : ternary
+                 ? lowerToRepackGemvTernary(op, selection, accLmulDecision,
+                                            *ternary)
+             : isQ41 ? lowerToRepackGemvQ41(op, selection, accLmulDecision)
+             : isQ50 ? lowerToRepackGemvQ50(op, selection, accLmulDecision)
+             : isQ51 ? lowerToRepackGemvQ51(op, selection, accLmulDecision)
+             : isQ80 ? lowerToRepackGemvQ80(op, selection, accLmulDecision)
+                     : lowerToRepackGemv(op, selection, accLmulDecision);
     }
 
     // Fail-closed (I7): a ternary (tq2_0 2-bit / tq1_0 base-3) OR K-quant (q4_K
@@ -1855,7 +1872,7 @@ private:
   mlir::LogicalResult
   lowerToRepackGemv(weftrvv::GgmlQuantContractionOp op,
                     const pluginrvv::ContractionSelection &selection,
-                    std::int64_t halfLanes, bool isRVV0p7) {
+                    const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
@@ -1868,22 +1885,18 @@ private:
     // capability-derived strip width (8 @VLEN128 -> two strips, 16 @VLEN256 ->
     // one). numHalves == weight_interleave / half_lanes is the disjoint-strip
     // count, and the region carries ONE per-strip vector accumulator per strip.
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     // The per-strip accumulator + per-strip integer sumi share the ONE LMUL rung:
     // f32m4/i32m4 for the m1 whole-LMUL chain, f32m2/i32m2 for the mf2 fractional
     // chain (the emitter derives l32 the same way).
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     std::int64_t weightQuantByteOffset = 32;
     std::int64_t activationQuantByteOffset =
@@ -1933,8 +1946,7 @@ private:
     // are discardable, emitter-inert, dialect-namespaced provenance attrs.
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -2050,7 +2062,7 @@ private:
   mlir::LogicalResult
   lowerToRepackGemm(weftrvv::GgmlQuantContractionOp op,
                     const pluginrvv::ContractionSelection &selection,
-                    std::int64_t halfLanes, bool isRVV0p7) {
+                    const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
@@ -2061,19 +2073,15 @@ private:
     // integer_core_lmul EXPLICITLY as "mf2" (ISSUE-033: no silent absence) with the
     // capability-derived strip width and folds all activation_interleave columns in
     // ONE pass (columnsPerPass 4). numHalves == weight_interleave / half_lanes.
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // The repacked GEMM ABI byte facts the verifier pins (the x16 weight + x4
     // interleaved activation layouts the OUTPUT CONTRACT declares, NOT the abstract
@@ -2158,8 +2166,7 @@ private:
     // branch stamps) PLUS the stage-C1 DECLARED OUTPUT CONTRACT.
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -2267,24 +2274,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvQ41(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The block_q4_1x16 x16 weight facts (stride 320, weight nibble quant offset 64,
     // per-row fp16 MIN strip @32) + the single-block s_y activation scaled-sum @2.
@@ -2326,8 +2329,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -2414,24 +2416,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmQ41(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // The block_q4_1x16 weight facts + block_q8_1x4 interleaved activation facts.
     std::int64_t weightBlockStride = 320;
@@ -2500,8 +2498,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -2596,24 +2593,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvQ50(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The block_q5_0x16 x16 weight facts (stride 352, weight nibble quant offset 32,
     // transposed qh 5th-bit plane @288) + the plain block_q8_0 activation quant @2.
@@ -2655,8 +2648,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -2743,24 +2735,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmQ50(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // The block_q5_0x16 weight facts + block_q8_0x4 interleaved activation facts.
     std::int64_t weightBlockStride = 352;
@@ -2829,8 +2817,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -2926,24 +2913,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvQ51(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The block_q5_1x16 x16 weight facts (stride 384, weight nibble quant offset 64,
     // per-row fp16 MIN strip @32, transposed qh 5th-bit plane @320) + the plain
@@ -2987,8 +2970,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -3081,24 +3063,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmQ51(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // The block_q5_1x16 weight facts + block_q8_1x4 interleaved activation facts.
     std::int64_t weightBlockStride = 384;
@@ -3168,8 +3146,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -3264,24 +3241,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvQ80(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The block_q8_0x16 x16 weight facts (stride 544 = 16 fp16 d + 512 int8 quants,
     // FULL int8 quants @32) + the plain block_q8_0 activation quant @2.
@@ -3321,8 +3294,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -3403,24 +3375,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmQ80(weftrvv::GgmlQuantContractionOp op,
                        const pluginrvv::ContractionSelection &selection,
-                       std::int64_t halfLanes, bool isRVV0p7) {
+                       const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // The block_q8_0x16 weight facts + block_q8_0x4 interleaved activation facts.
     std::int64_t weightBlockStride = 544;
@@ -3487,8 +3455,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -3581,25 +3548,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvTernary(weftrvv::GgmlQuantContractionOp op,
                            const pluginrvv::ContractionSelection &selection,
-                           std::int64_t halfLanes, bool isRVV0p7,
+                           const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                            const TernaryDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation
     // base, output, element count n, column count nc), NO vl operand and NO result.
@@ -3652,8 +3615,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -3730,25 +3692,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmTernary(weftrvv::GgmlQuantContractionOp op,
                            const pluginrvv::ContractionSelection &selection,
-                           std::int64_t halfLanes, bool isRVV0p7,
+                           const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                            const TernaryDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest
     // needs but the abstract op does not carry (row count nr, output row stride
@@ -3828,8 +3786,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -3924,25 +3881,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvKQuant(weftrvv::GgmlQuantContractionOp op,
                           const pluginrvv::ContractionSelection &selection,
-                          std::int64_t halfLanes, bool isRVV0p7,
+                          const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                           const KQuantDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
     // output, element count n, column count nc), NO vl operand and NO result.
@@ -4006,8 +3959,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -4080,25 +4032,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmKQuant(weftrvv::GgmlQuantContractionOp op,
                           const pluginrvv::ContractionSelection &selection,
-                          std::int64_t halfLanes, bool isRVV0p7,
+                          const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                           const KQuantDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest
     // needs but the abstract op does not carry (row count nr, output row stride bs)
@@ -4191,8 +4139,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -4277,25 +4224,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvCodebook(weftrvv::GgmlQuantContractionOp op,
                             const pluginrvv::ContractionSelection &selection,
-                            std::int64_t halfLanes, bool isRVV0p7,
+                            const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                             const CodebookDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
     // output, element count n, column count nc), NO vl operand and NO result. The
@@ -4351,8 +4294,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -4423,25 +4365,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmCodebook(weftrvv::GgmlQuantContractionOp op,
                             const pluginrvv::ContractionSelection &selection,
-                            std::int64_t halfLanes, bool isRVV0p7,
+                            const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                             const CodebookDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest needs but
     // the abstract op does not carry (row count nr, output row stride bs) -- the SAME
@@ -4526,8 +4464,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -4607,25 +4544,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvGrid(weftrvv::GgmlQuantContractionOp op,
                         const pluginrvv::ContractionSelection &selection,
-                        std::int64_t halfLanes, bool isRVV0p7,
+                        const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                         const Iq2GridDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
 
     // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
     // output, element count n, column count nc), NO vl operand and NO result. The grid
@@ -4674,8 +4607,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
@@ -4753,25 +4685,21 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmGrid(weftrvv::GgmlQuantContractionOp op,
                         const pluginrvv::ContractionSelection &selection,
-                        std::int64_t halfLanes, bool isRVV0p7,
+                        const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision,
                         const Iq2GridDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes,
-        op->getParentOfType<mlir::ModuleOp>());
-    bool isM1 = accLmulChoice.useM1;
-    std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
-    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    std::int64_t emittedHalfLanes = accLmulDecision.selectedHalfLanes;
+    llvm::StringRef accLmul = accLmulDecision.accumulatorLMUL;
     mlir::Type f32AccType =
         weftrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
     mlir::Type i32ResType =
         weftrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isM1 ? builder.getStringAttr("m1") : builder.getStringAttr("mf2");
-    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+        builder.getStringAttr(accLmulDecision.integerCoreLMUL);
+    std::int64_t columnsPerPass = accLmulDecision.usesM1() ? 1 : kActivationInterleave;
 
     // Materialize the two runtime ABI values the internalized M-tiling GEMM nest needs but
     // the abstract op does not carry (row count nr, output row stride bs) -- the SAME
@@ -4848,8 +4776,7 @@ private:
 
     loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    loop->setAttr(kAccumulatorLmulReasonAttr,
-                  builder.getStringAttr(accLmulChoice.reason));
+    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 

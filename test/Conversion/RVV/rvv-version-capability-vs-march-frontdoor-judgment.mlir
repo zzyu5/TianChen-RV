@@ -28,6 +28,9 @@
 // RUN: sed 's/status = "available"}/status = "available", rvv_version = "0.7"}/' %s \
 // RUN:   | weft-opt --weft-rvv-lower-quant-contraction=march=rv64gcv \
 // RUN:   | FileCheck %s --check-prefix=CAP-RVV07
+// RUN: sed 's/status = "available"}/status = "available", minimum_vlen = 128 : i64}/' %s \
+// RUN:   | not weft-opt --weft-rvv-lower-quant-contraction 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=UNKNOWN-VERSION
 
 module {
   weft.exec.kernel @ggml_vec_dot_q5_1_q8_1_kernel {
@@ -60,3 +63,9 @@ module {
 // CAP-RVV07-SAME: half_lanes = 16 : i64
 // CAP-RVV07-SAME: integer_core_lmul = "m1"
 // CAP-RVV07-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "correctness-rvv0p7"
+
+// A VLEN-only provider can make repack structurally reachable, but it does not
+// prove whether fractional LMUL exists.  With no rvv_version and no -march
+// fallback, A2 keeps the capability projection unknown and fails closed instead
+// of silently treating Unknown as RVV1.0.
+// UNKNOWN-VERSION: repack accumulator-LMUL decision failed closed: rejected-missing-capability
