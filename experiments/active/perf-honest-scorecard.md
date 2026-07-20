@@ -10,7 +10,7 @@
 
 | 指标 | 值 | 来源 |
 |---|---|---|
-| **perf-covered** | **9 / 83 = 10.84%**（any-board·fold=True；fold-decode 备口径 6/83） | `python3 .trellis/scripts/perf_covered_metrics.py report` → `headline.perf_covered` |
+| **perf-covered** | **9 / 83 = 10.84%**（any-board·fold_regime=True 唯一发布口径） | `python3 .trellis/scripts/perf_covered_metrics.py report` → `headline.perf_covered` |
 | perf-covered 分类和 | 绿 9 / 黄-传导稀释 1 / 黄-物理墙 12 / 黄-对手更强 12 / 声明例外 49 = 83 | 同上 `classification`（reconciliation_ok=True·三源一致 9==9==9） |
 | C_dispatch | 102 / 108 = 94.44% | `coverage_metrics.py report` → `metrics.global` |
 | C_construct | 101 / 108 = 93.52% | 同上 |

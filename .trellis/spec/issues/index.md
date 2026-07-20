@@ -274,8 +274,8 @@
 | ISSUE-094 | `--drift` 漂移门退役（守护对象已被新法废除） | 已退役 | 门与工具 |
 | ISSUE-095 | 旧战役 goal（P/C/S/E 五线 + 验收门六条）退役成文站点 | RESOLVED | spec树与治理 |
 | ISSUE-096 | bench cell harness 基建已建成 | RESOLVED | 门与工具 |
-| ISSUE-097 | regime 未作独立主表键 —— bench `--regime` 覆盖风险 | 待裁 | 门与工具 |
-| ISSUE-098 | ★★master 表所有权冲突：recon【生成整表】 vs bench【外科落点】 | 待裁 | 门与工具 |
+| ISSUE-097 | regime 已成显式闭合键，空值通配与含混行已退役 | RESOLVED | 门与工具 |
+| ISSUE-098 | master writer 已收口为 recon-only；bench 只写 immutable run | RESOLVED | 门与工具 |
 | ISSUE-099 | PR-47 真 gcc 污染 8 格的合格 harness/重测 | 待施工 | 门与工具 |
 | ISSUE-100 | `vec_dot·nvfp4@rvv` 残余 lever 待施工，禁提前判不可达 | 待施工 | 性能与测量 |
 | ISSUE-101 | canon 措辞：「判别键 = sub-block 数（16 vs 8）」被 P5-F2 证伪 | 待裁 | 性能与测量 |
@@ -285,7 +285,7 @@
 | ISSUE-105 | per-board VLEN fixture 与 k1 半宽欠用已修 | RESOLVED | 门与工具 |
 | ISSUE-106 | ★dequant「PASS」多是 lottery-PASS·R线 de-lottery 用 owned 真测替换会降 census PASS（诚实代价·§四.1） | APPLIED-DEFAULT | 性能与测量 |
 | ISSUE-107 | ★grid-codebook dequant owned 真向量(HW-gather) 天花板·grid 族通用·标量门这些格到不了 PASS（非架构不可达·有标量-load lever gated 调度成熟） | 待裁 | 性能与测量 |
-| ISSUE-108 | recon_t3_disposition.py 默认 --tables 指 073 迁走路径（须显式 experiments/master·默认失锚） | 待施工 | 门与工具 |
+| ISSUE-108 | recon_t3_disposition.py 默认 reader 已切到 experiments/master | RESOLVED | 门与工具 |
 | ISSUE-109 | K-quant vec_dot weight-reconstruction floor 翻 0.8 的 register-fusion lever（独立大构造·≠架构不可达） | 待施工 | 发射器与架构 |
 | ISSUE-110 | T-X enablement 与 S1 scalar 性能账已裁准拆分 | 裁准拆分 | 门与工具 |
 | ISSUE-111 | 数值口径松绑: headline 取最快变体+ULP 界·oracle §5 作废（补充令二§二·量税证数值非perf杠杆） | 待裁 | canon与措辞 |

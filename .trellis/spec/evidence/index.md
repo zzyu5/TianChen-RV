@@ -1,6 +1,8 @@
 # Evidence Specs —— 证据层
 
-**版本**: v3
+**版本**: v4
+
+> **v4**（2026-07-20·B1）：测量记忆证据链补齐 structured T-N、唯一 master publisher 与 control-plane gate 的活锚；旧 design draft/generator 不再作为证据入口。
 
 > 当前贡献组织已更新为两柱下的 C1 模板、C2 公式系统、C3 性能/系统验证。现有“三贡献证据地图”仍包含旧 C2 边际成本与 C3′ 标签，暂作为工件 inventory 使用，不再定义贡献；重索引登记为 ISSUE-123。
 
