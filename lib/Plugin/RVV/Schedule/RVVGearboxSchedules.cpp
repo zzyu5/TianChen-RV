@@ -3,6 +3,7 @@
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
@@ -1233,11 +1234,20 @@ mlir::LogicalResult materializeDeferredWideBudgetForDotReduceBody(
       body.getResultSew() != 32 || body.getResultLmul() != "m1")
     return mlir::success();
   mlir::OpBuilder builder(body.getContext());
+  // The register budget is the in-IR `vreg_count` capability fact PULLED off the
+  // provider op (resolveRVVVectorRegisterBudget; the architectural 32 is only the
+  // absent-fallback), so a narrow-register capability file's vreg_count flows into
+  // the stamped budget and flips the realizer's max-legal accumulator-LMUL rung
+  // (STEP ② register-pressure inequality). Byte-exact on a deployed 32-register
+  // board (default == 32 == the prior constant).
+  std::int64_t vectorRegisterBudget =
+      weft::plugin::rvv::resolveRVVVectorRegisterBudget(
+          body.getOperation()->getParentOfType<mlir::ModuleOp>());
   return requireIntegerAttr(
       body.getOperation(), builder,
       weft::plugin::rvv::
           kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
-      weft::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget);
+      vectorRegisterBudget);
 }
 
 // N3 Win-C: stamp the reduction-STRUCTURE body fact on the same narrow i16mf2

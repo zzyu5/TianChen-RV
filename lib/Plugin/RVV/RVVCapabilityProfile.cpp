@@ -2,6 +2,7 @@
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -465,6 +466,12 @@ int materializeRVVProviderCapabilityAxes(mlir::ModuleOp module,
     return 0;
 
   llvm::StringRef vlenName = getRVVMinimumVLENProviderPropertyName();
+  // The architectural vector-register COUNT (`vreg_count`) is a VLEN-invariant ISA
+  // fact -- default = the plugin-local authority (32). Stamped alongside the other
+  // axes so the register-budget consumers read an in-IR capability fact, not a
+  // hardcoded 32. No-clobber: a narrow-register capability file's vreg_count wins.
+  llvm::StringRef vregCountName = getRVVVectorRegisterCountProviderPropertyName();
+  std::int64_t vregCount = getRVVArchitecturalVectorRegisterCount();
   int stamped = 0;
   module.walk([&](mlir::Operation *op) {
     if (!isRVVCapabilityProvider(op))
@@ -488,6 +495,15 @@ int materializeRVVProviderCapabilityAxes(mlir::ModuleOp module,
       op->setAttr(vlenName,
                   mlir::IntegerAttr::get(
                       mlir::IntegerType::get(op->getContext(), 64), minimumVLEN));
+      wrote = true;
+    }
+    // The vreg_count fact is a TYPED i64 IntegerAttr the register-pressure
+    // consumers reason over numerically (no-clobber: a narrow-register capability
+    // file's vreg_count wins; the deployed 32-register board stamps the default).
+    if (vregCount > 0 && !op->hasAttrOfType<mlir::IntegerAttr>(vregCountName)) {
+      op->setAttr(vregCountName,
+                  mlir::IntegerAttr::get(
+                      mlir::IntegerType::get(op->getContext(), 64), vregCount));
       wrote = true;
     }
     if (wrote)
@@ -518,6 +534,21 @@ RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module) {
     }
   });
   return found;
+}
+
+RVVVersion resolveRVVVersion(mlir::ModuleOp module, llvm::StringRef march,
+                             llvm::StringRef isaVectorHints) {
+  // PREFER the in-IR typed provider fact (the probe layer / a decisive-experiment
+  // capability file stamped it). Only when NO provider declares the version do we
+  // derive from -march ONCE here -- so the LOAD-BEARING generation flows through
+  // the typed capability object, and a capability file rvv_version=1.0 that
+  // CONFLICTS with -march xtheadvector (0.7) wins (the consumer follows the pipe,
+  // not the -march bypass). Un-probed modules (no provider or no version stamp)
+  // reproduce the historical deriveRVVVersion(-march) value byte-for-byte.
+  if (RVVVersion provided = readRVVProviderRVVVersion(module);
+      provided != RVVVersion::Unknown)
+    return provided;
+  return deriveRVVVersion(march, isaVectorHints);
 }
 
 llvm::StringRef stringifyRVVVersion(RVVVersion version) {
@@ -559,9 +590,45 @@ RVVVersion deriveRVVVersion(llvm::StringRef selectedMarch,
 std::int64_t getRVVArchitecturalVectorRegisterCount() {
   // The RVV ISA mandates a 32-entry architectural vector register file
   // (v0..v31), invariant across VLEN and across the 0.7.1 / 1.0 generations.
-  // This is the schema `vreg_count` hardware-fact; the single home for the
-  // register budget the resource-aware selectors reason over.
-  return 32;
+  // This is the schema `vreg_count` hardware-fact DEFAULT; the single named
+  // authority (kRVVArchitecturalVectorRegisterCount) the scattered budget
+  // constants derive from. A module-aware consumer instead reads the in-IR
+  // provider `vreg_count` fact (resolveRVVVectorRegisterBudget) and only falls
+  // back to THIS default when no capability provider overrides it.
+  return kRVVArchitecturalVectorRegisterCount;
+}
+
+llvm::StringRef getRVVVectorRegisterCountProviderPropertyName() {
+  return "vreg_count";
+}
+
+std::optional<std::int64_t> readRVVProviderVregCount(mlir::ModuleOp module) {
+  if (!module)
+    return std::nullopt;
+  llvm::StringRef propertyName = getRVVVectorRegisterCountProviderPropertyName();
+  std::optional<std::int64_t> found;
+  module.walk([&](mlir::Operation *op) {
+    if (found)
+      return;
+    if (!isRVVCapabilityProvider(op))
+      return;
+    if (auto vreg = op->getAttrOfType<mlir::IntegerAttr>(propertyName))
+      found = vreg.getInt();
+  });
+  return found;
+}
+
+std::int64_t resolveRVVVectorRegisterBudget(mlir::ModuleOp module) {
+  // PREFER the in-IR typed provider `vreg_count` fact (the probe layer stamped 32
+  // by default; a narrow-register capability file overrides it via no-clobber).
+  // Only when NO provider carries the fact do we fall back to the architectural
+  // default here -- so the LOAD-BEARING budget flows through the typed capability
+  // object, and a capability file vreg_count=16 flips the register-pressure
+  // feasible set (the consumer follows the pipe, not a hardcoded 32). Un-probed /
+  // deployed 32-register modules reproduce the historical value byte-for-byte.
+  if (std::optional<std::int64_t> provided = readRVVProviderVregCount(module))
+    return *provided;
+  return getRVVArchitecturalVectorRegisterCount();
 }
 
 bool deriveRVVHasFractionalLMUL(llvm::StringRef selectedMarch,

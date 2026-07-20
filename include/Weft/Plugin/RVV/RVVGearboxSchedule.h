@@ -25,6 +25,17 @@ struct DequantizeRowStreamFacts;
 
 namespace weft::plugin::rvv {
 
+// The RVV architectural vector-register-file size (v0..v31 = 32 registers), a
+// VLEN-INVARIANT ISA fact -- the schema `vreg_count` hardware-fact's DEFAULT.
+// This is the SINGLE named authority every register-budget constant in this
+// formula header derives from (replacing the scattered magic `32` literals), and
+// the no-module fallback getRVVArchitecturalVectorRegisterCount() returns. A
+// module-aware consumer instead reads the in-IR provider `vreg_count` capability
+// fact (readRVVProviderVregCount / resolveRVVVectorRegisterBudget) and only falls
+// back to THIS default when no capability provider overrides it (so a narrow-
+// register profile flips the register-pressure feasible set; core-invariant I1).
+constexpr std::int64_t kRVVArchitecturalVectorRegisterCount = 32;
+
 constexpr llvm::StringLiteral kRVVGearboxScheduleIDAttrName(
     "weft_rvv.gearbox.schedule_id");
 constexpr llvm::StringLiteral kRVVGearboxSelectorAttrName(
@@ -801,7 +812,8 @@ constexpr std::int64_t kRVVLowPrecisionResourcePackedI4AccumulatorCount = 1;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4VSetVLRegions = 2;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups = 5;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4CostLoopBodySteps = 11;
-constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 struct RVVLowPrecisionPackedI4StableResourceScheduleFacts {
   llvm::StringRef scheduleDecisionContract;
@@ -1788,7 +1800,8 @@ constexpr llvm::StringLiteral kRVVCompositeResourceNoRejectionReason("none");
 constexpr std::int64_t kRVVCompositeResourceStaticUnroll = 1;
 constexpr std::int64_t kRVVCompositeResourceVSetVLRegions = 1;
 constexpr std::int64_t kRVVCompositeResourcePeakLiveVectorGroups = 8;
-constexpr std::int64_t kRVVCompositeResourceVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVCompositeResourceVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
   return name == kRVVLowPrecisionResourceCandidateSetAttrName ||
@@ -2310,7 +2323,8 @@ makeRVVDotReduceMinimalDeferredM1Rung() {
 /// (kRVVLowPrecisionResourceVectorRegisterBudget); the robust shapes here cost
 /// at most ~6 vregs so the budget never binds on this kernel, but the prune
 /// MECHANISM is genuine (a shrunk budget rejects the wider shapes).
-constexpr std::int64_t kRVVQ40ShapeVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVQ40ShapeVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 /// One enumerated block-quantized-dot shape candidate, with the structural facts
 /// the prune and the cost model reason over. This is the SHARED candidate struct
@@ -3481,7 +3495,8 @@ enumerateRVVGemmMCandidates(std::int64_t vregCeiling) {
 //===----------------------------------------------------------------------===//
 
 /// The architectural vreg budget for the q4_1 shape prune (same 32-vector file).
-constexpr std::int64_t kRVVQ41ShapeVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVQ41ShapeVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 /// The capability-blind structural cost of a q4_1 shape: the SAME formula as
 /// q4_0 (computeBlockDotShapeCostCore), fed q4_1's per-anchor reduction count
@@ -3544,7 +3559,8 @@ enumerateRVVQ41Q81ShapeCandidates(std::int64_t minimumVLEN,
 //===----------------------------------------------------------------------===//
 
 /// The architectural vreg budget for the q5_0 shape prune (same 32-vector file).
-constexpr std::int64_t kRVVQ50ShapeVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVQ50ShapeVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 /// The capability-blind structural cost of a q5_0 shape: the SAME formula as
 /// q4_0 (computeBlockDotShapeCostCore), fed q5_0's per-anchor reduction count
@@ -3607,7 +3623,8 @@ enumerateRVVQ50Q80ShapeCandidates(std::int64_t minimumVLEN,
 //===----------------------------------------------------------------------===//
 
 /// The architectural vreg budget for the q5_1 shape prune (same 32-vector file).
-constexpr std::int64_t kRVVQ51ShapeVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVQ51ShapeVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 /// The capability-blind structural cost of a q5_1 shape: the SAME formula as
 /// q4_0 (computeBlockDotShapeCostCore), fed q5_1's per-anchor reduction count
@@ -3671,7 +3688,8 @@ enumerateRVVQ51Q81ShapeCandidates(std::int64_t minimumVLEN,
 //===----------------------------------------------------------------------===//
 
 /// The architectural vreg budget for the q8_0 shape prune (same 32-vector file).
-constexpr std::int64_t kRVVQ80ShapeVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVQ80ShapeVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 /// The per-block reduction count of the q8_0 integer core at the given anchor:
 /// at VLEN=128 the m2 anchor (i8m2, VLMAX 32) covers the whole 32-element block
@@ -3751,7 +3769,8 @@ enumerateRVVQ80Q80ShapeCandidates(std::int64_t minimumVLEN,
 /// The CODEBOOK-class block-dot vreg-register budget (the same architectural ceiling
 /// the linear-decode kernels use; the codebook table register is +1 over the q4_0
 /// footprint but the prune never binds at this budget).
-constexpr std::int64_t kRVVCodebookShapeVectorRegisterBudget = 32;
+constexpr std::int64_t kRVVCodebookShapeVectorRegisterBudget =
+    kRVVArchitecturalVectorRegisterCount;
 
 /// Enumerate the CODEBOOK-class (iq4_nl / mxfp4) shape candidate space, pruned by
 /// the codebook gather-index legality. The codebook integer core is the 16-element

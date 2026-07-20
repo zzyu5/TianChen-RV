@@ -252,6 +252,19 @@ std::optional<std::int64_t> readRVVProviderVLenBBytes(mlir::ModuleOp module);
 // provider declares the fact. NEVER re-parses -march.
 RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module);
 
+// PRODUCTION resolver seam for the RVV ISA generation (the version-axis sibling of
+// resolveRVVMinimumVLEN). PREFERS the in-IR typed provider `rvv_version` fact
+// (readRVVProviderRVVVersion) and only falls back to deriving from -march ONCE here
+// when NO provider carries the fact (an un-probed module). So the front-door /
+// schedule consumers call THIS instead of deriveRVVVersion(-march) locally: the
+// LOAD-BEARING generation is the provider fact, -march is a mere absent-fallback --
+// a capability file that stamps rvv_version=1.0 WINS over a conflicting -march
+// xtheadvector (0.7), so the isRVV0p7 / repack-accumulator gate follows the
+// CAPABILITY object, not the -march bypass (I1/I4). Un-probed modules reproduce the
+// historical deriveRVVVersion(-march) value byte-for-byte.
+RVVVersion resolveRVVVersion(mlir::ModuleOp module, llvm::StringRef march,
+                             llvm::StringRef isaVectorHints);
+
 // PRODUCTION resolver seam (the pulled pipe for the resource-aware consumers).
 // PREFERS the in-IR typed provider fact (readRVVProviderMinimumVLEN) and only
 // falls back to deriving from -march ONCE here when NO provider carries the fact
@@ -263,6 +276,30 @@ RVVVersion readRVVProviderRVVVersion(mlir::ModuleOp module);
 // remaining production deriveMinimumVLEN(-march) call site outside the probe layer.
 std::int64_t resolveRVVMinimumVLEN(mlir::ModuleOp module, llvm::StringRef march,
                                    llvm::StringRef isaVectorHints);
+
+// The stable on-IR property name of the vector-register-count capability fact (a
+// typed i64 IntegerAttr) the probe layer stamps onto the RVV provider op and the
+// register-budget consumers read back. Mirrors getRVVMinimumVLENProviderPropertyName.
+llvm::StringRef getRVVVectorRegisterCountProviderPropertyName();
+
+// Reads the architectural vector-register COUNT (the `vreg_count` budget fact) OFF
+// the first in-IR RVV capability/target provider op (the typed i64 IntegerAttr the
+// probe layer materialized, default 32, overridable by a narrow-register capability
+// file). Returns std::nullopt when no RVV provider carries the fact (an unstamped
+// module). NEVER re-parses -march. Mirrors readRVVProviderMinimumVLEN.
+std::optional<std::int64_t> readRVVProviderVregCount(mlir::ModuleOp module);
+
+// PRODUCTION resolver seam for the register budget (the vreg-count sibling of
+// resolveRVVMinimumVLEN). PREFERS the in-IR typed provider `vreg_count` fact
+// (readRVVProviderVregCount) and only falls back to the architectural default
+// (getRVVArchitecturalVectorRegisterCount = 32) when NO provider carries the fact.
+// So the register-pressure-aware consumers call THIS instead of the hardcoded 32:
+// the LOAD-BEARING budget is the provider fact, 32 is a mere absent-fallback -- a
+// capability file that stamps vreg_count=16 flips the register-pressure feasible
+// set / accumulator LMUL (proving the budget follows the capability fact, not a
+// hardcoded literal; core-invariant I1). A deployed 32-register board (default ==
+// 32) reproduces the historical value byte-for-byte.
+std::int64_t resolveRVVVectorRegisterBudget(mlir::ModuleOp module);
 
 // Returns true iff the ISA/vector-hint string names concrete RVV vector
 // evidence: a zve* / zvl* / zvfh embedded-vector token, a full-V "gcv" spelling,

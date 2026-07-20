@@ -1368,15 +1368,18 @@ lookupRepackMeasuredM1Faster(llvm::StringRef scaleModel) {
 // the generation is always a concrete RVV tier, so isRVV0p7 == !has_fractional_lmul.
 inline RepackAccumulatorLMULChoice
 selectRepackAccumulatorLMUL(llvm::StringRef scaleModel, bool isRVV0p7,
-                            std::int64_t capabilityHalfLanes) {
+                            std::int64_t capabilityHalfLanes,
+                            mlir::ModuleOp module) {
   if (isRVV0p7)
     return {/*useM1=*/true, "correctness-rvv0p7"};
   // Budget legality of the m1 whole-LMUL chain, via the gate4 footprint helper:
   // the peak-live groups are the i16m2 product + the i32m4 accumulator. The budget
-  // is the vreg_count capability fact read from the ONE plugin-local authority
-  // (getRVVArchitecturalVectorRegisterCount), not a magic literal.
+  // is the in-IR `vreg_count` capability fact PULLED off the provider op
+  // (resolveRVVVectorRegisterBudget; the architectural 32 is only the un-probed
+  // fallback), not a hardcoded literal -- a narrow-register capability file prunes
+  // the m1 chain (core-invariant I1).
   const std::int64_t kVectorRegisterBudget =
-      pluginrvv::getRVVArchitecturalVectorRegisterCount();
+      pluginrvv::resolveRVVVectorRegisterBudget(module);
   // The m1 whole-LMUL chain's peak-live levels: the i16m2 product + the i32m4
   // accumulator (both live at the fold peak, 1 group each). Routed through the ONE
   // register-pressure inequality home (STEP ②, the MULTI-LEVEL closed form):
@@ -1658,8 +1661,14 @@ private:
     bool isRepack =
         selection.algorithm == pluginrvv::ContractionAlgorithm::Repack;
     std::int64_t halfLanes = deriveRepackHalfLanes(minVLEN);
-    bool isRVV0p7 = pluginrvv::deriveRVVVersion(march, isaVectorHints) ==
-                    pluginrvv::RVVVersion::RVV0p7;
+    // The RVV ISA generation, PULLED off the in-IR RVV capability provider op
+    // (resolveRVVVersion reads the materialized rvv_version fact; -march is only the
+    // un-probed fallback) -- so a capability file rvv_version=1.0 WINS over a
+    // conflicting -march xtheadvector (0.7): isRVV0p7 (=> the repack accumulator
+    // whole-LMUL/mf2 fork) follows the CAPABILITY object, not the -march bypass.
+    bool isRVV0p7 = pluginrvv::resolveRVVVersion(
+                        op->getParentOfType<mlir::ModuleOp>(), march,
+                        isaVectorHints) == pluginrvv::RVVVersion::RVV0p7;
     if (isRepack && halfLanes != 0) {
       // The m_regime committed WHAT axis chooses the repacked GRANULARITY: the
       // PREFILL (M-amortized) regime realizes the repack as the typed
@@ -1860,7 +1869,8 @@ private:
     // one). numHalves == weight_interleave / half_lanes is the disjoint-strip
     // count, and the region carries ONE per-strip vector accumulator per strip.
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -2052,7 +2062,8 @@ private:
     // capability-derived strip width and folds all activation_interleave columns in
     // ONE pass (columnsPerPass 4). numHalves == weight_interleave / half_lanes.
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -2262,7 +2273,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -2408,7 +2420,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -2589,7 +2602,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -2735,7 +2749,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -2917,7 +2932,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -3071,7 +3087,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -3253,7 +3270,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -3391,7 +3409,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -3569,7 +3588,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -3717,7 +3737,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -3910,7 +3931,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -4065,7 +4087,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -4261,7 +4284,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -4406,7 +4430,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
@@ -4589,7 +4614,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
@@ -4734,7 +4760,8 @@ private:
     mlir::Location loc = op.getLoc();
 
     RepackAccumulatorLMULChoice accLmulChoice = selectRepackAccumulatorLMUL(
-        op.getScaleModel(), isRVV0p7, halfLanes);
+        op.getScaleModel(), isRVV0p7, halfLanes,
+        op->getParentOfType<mlir::ModuleOp>());
     bool isM1 = accLmulChoice.useM1;
     std::int64_t emittedHalfLanes = isM1 ? 16 : halfLanes;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
