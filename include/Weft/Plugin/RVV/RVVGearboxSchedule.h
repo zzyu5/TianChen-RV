@@ -2,6 +2,7 @@
 #define WEFT_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H
 
 #include "Weft/Support/CodebookGatherPlan.h"
+#include "Weft/Support/KQuantScaleMinPlan.h"
 #include "Weft/Support/NibbleDecodePlan.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -2791,6 +2792,31 @@ nibbleDecodePlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
 weft::CodebookGatherPlan
 codebookGatherPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
                            weft::CodebookScaleModel scaleModel,
+                           std::int64_t minimumVLEN);
+
+//===----------------------------------------------------------------------===//
+// DequantMechanismPlan FormulaProvider (§〇 formula-layer home): the QK_K=256 K-quant
+// super-block family's KQuantScaleMin MechanismPlan producer (phase-4, the THIRD landed
+// mechanism after nibble + codebook). Declaration only -- defined in RVVToEmitCSupport.cpp
+// so this header stays free of the Dialect facts include.
+//===----------------------------------------------------------------------===//
+
+/// The FormulaProvider f(g, c) for the K-quant super-block dequant family (q2_K / q3_K /
+/// q4_K / q5_K / q6_K): produce the KQuantScaleMin MechanismPlan (weft::KQuantScaleMinPlan,
+/// Support) from the stamped decode_core descriptor facts `g` (qk / stride / scale byte
+/// offset / quant byte offset -- the SAME facts the construction table stamps), the
+/// per-format `scaleModel` (the block-type's structural bit-width + scale/min ABI, derived
+/// once from the format identity at the gate, NOT an execution key), and the minimum-VLEN
+/// capability `c`. Phase-4 is REPRODUCE-CURRENT: it re-packages the super-block geometry
+/// byte-for-byte and pins the load anchor (loadLMUL) + strip (stripLanes) to the FIXED
+/// ggml-ABI super-block shape. `minimumVLEN` is the phase-3-kquant c-driving seam (phase-3
+/// selects loadLMUL / stripLanes = f(VLEN)); this cut's derivation is VLEN-independent. The
+/// K-quant emitters read plan.* INSTEAD of re-deriving the geometry from the format name.
+/// [K-10]: this returns the KQuantScaleMin plan ONLY; it never selects among the five
+/// mechanisms by a discriminant (each mechanism gets its own FormulaProvider + plan struct).
+weft::KQuantScaleMinPlan
+kquantScaleMinPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
+                           weft::KQuantScaleModel scaleModel,
                            std::int64_t minimumVLEN);
 
 //===----------------------------------------------------------------------===//

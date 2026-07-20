@@ -18,6 +18,7 @@
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Support/NibbleDecodePlan.h"
 #include "Weft/Support/CodebookGatherPlan.h"
+#include "Weft/Support/KQuantScaleMinPlan.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Support/GridDecodePlan.h"
 
@@ -4990,23 +4991,34 @@ private:
   /// stays on the scalar emitGgmlDequantizeRowExtended (the q8_0/nibble precedent). The
   /// per-super-sub-block lane widths + LMULs are DERIVED from the fixed QK_K super-block
   /// geometry, NOT tunable knobs. opName/role thread the source-op provenance.
+  ///
+  /// Phase-4 (DequantMechanismPlan family #3): the per-format super-block geometry (qk /
+  /// stride / scale-block / quant / sub-scale / min / high-bit offsets + strip lanes) is
+  /// READ from the KQuantScaleMin MechanismPlan (weft::KQuantScaleMinPlan) the
+  /// FormulaProvider kquantScaleMinPlanFromFacts produced, INSTEAD of scatter-read from
+  /// the format name. Byte-exact reproduce-current; the plan pins loadLMUL/stripLanes to
+  /// the FIXED ggml-ABI super-block geometry (phase-3-kquant c-drives them f(VLEN)). The
+  /// q4_K/q5_K body reads the 5th-bit flag off plan.scaleModel (Q5K).
   mlir::LogicalResult emitDequantizeRowQ45KVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      bool isQ5) const;
+      const ::weft::KQuantScaleMinPlan &plan) const;
   mlir::LogicalResult emitDequantizeRowQ2KVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      const ::weft::KQuantScaleMinPlan &plan) const;
   mlir::LogicalResult emitDequantizeRowQ3KVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      const ::weft::KQuantScaleMinPlan &plan) const;
   mlir::LogicalResult emitDequantizeRowQ6KVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      const ::weft::KQuantScaleMinPlan &plan) const;
 
   /// The SHARED IQ grid-table super-block dequantize_row block-decode body for the
   /// QK_K=256 IQ grid family (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s): the AoS

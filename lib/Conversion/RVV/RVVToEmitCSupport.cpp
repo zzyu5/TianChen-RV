@@ -1211,4 +1211,81 @@ codebookGatherPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
   return plan;
 }
 
+weft::KQuantScaleMinPlan
+kquantScaleMinPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
+                           weft::KQuantScaleModel scaleModel,
+                           std::int64_t minimumVLEN) {
+  // Phase-4 REPRODUCE-CURRENT: this FormulaProvider RE-PACKAGES the stamped K-quant
+  // decode facts into the KQuantScaleMin MechanismPlan and pins the load anchor
+  // (loadLMUL) + strip (stripLanes) to the FIXED ggml-ABI super-block geometry. It does
+  // NOT yet c-drive the anchor: minimumVLEN is accepted as the phase-3-kquant seam
+  // (phase-3 selects loadLMUL / stripLanes = f(VLEN)), but the reproduce-current
+  // derivation is VLEN-INDEPENDENT (the fixed VLEN>=128 anchor: m1 for the 16-lane
+  // q2_K/q3_K/q6_K sub-groups, m2 for the 32-lane q4_K/q5_K super-subs). Referenced to
+  // keep the f(g, c) signature explicit without a c-driven effect this cut.
+  (void)minimumVLEN;
+
+  weft::KQuantScaleMinPlan plan;
+  plan.mechanism = weft::DequantMechanism::KQuantScaleMin;
+  plan.scaleModel = scaleModel;
+  // The re-packaged primary super-block ABI-shape facts (byte-for-byte the values the
+  // retired format-name re-derivation fed the per-leaf bodies -- the plan field IS the
+  // descriptor value). qk / stride / the fp16 scale-block offset / the packed-quant base
+  // ride the stamped decode_core descriptor.
+  plan.superBlockElements = facts.qk;                 // 256 for every K-quant
+  plan.weightBlockStride = facts.weightBlockStride;   // 84/110/144/176/210
+  plan.quantByteOffset = facts.quantByteOffset;       // qs/ql base: 16/32/16/48/0
+  plan.scaleBlockByteOffset = facts.scaleByteOffset;  // fp16 d offset: 80/108/0/0/208
+  // The per-leaf scale/min topology (the block-type's structural scale ABI; the emitter
+  // used to bake these into each per-format body). PARAMETRIC leaf-shape within the ONE
+  // KQuantScaleMin mechanism ([K-10]) -- scaleModel selects which bit-unpack + scale/min
+  // fold body runs and its sub-scale / high-bit plane offsets.
+  switch (scaleModel) {
+  case weft::KQuantScaleModel::Q2K:
+    plan.hasMin = true;  plan.subScaleByteOffset = 0;
+    plan.hasHighBitPlane = false; plan.highBitByteOffset = 0;
+    plan.loadLMUL = "m1"; plan.stripLanes = 16;
+    plan.reason = "KQuantScaleMin/q2_k/2bit_min_fold (reproduce-current)";
+    break;
+  case weft::KQuantScaleModel::Q3K:
+    plan.hasMin = false; plan.subScaleByteOffset = 96;
+    plan.hasHighBitPlane = true;  plan.highBitByteOffset = 0; // hmask@0
+    plan.loadLMUL = "m1"; plan.stripLanes = 16;
+    plan.reason = "KQuantScaleMin/q3_k/3bit_hmask_single_mul (reproduce-current)";
+    break;
+  case weft::KQuantScaleModel::Q4K:
+    plan.hasMin = true;  plan.subScaleByteOffset = 4;
+    plan.hasHighBitPlane = false; plan.highBitByteOffset = 0;
+    plan.loadLMUL = "m2"; plan.stripLanes = 32;
+    plan.reason = "KQuantScaleMin/q4_k/4bit_scale_min_k4 (reproduce-current)";
+    break;
+  case weft::KQuantScaleModel::Q5K:
+    plan.hasMin = true;  plan.subScaleByteOffset = 4;
+    plan.hasHighBitPlane = true;  plan.highBitByteOffset = 16; // qh@16
+    plan.loadLMUL = "m2"; plan.stripLanes = 32;
+    plan.reason = "KQuantScaleMin/q5_k/5bit_qh_scale_min_k4 (reproduce-current)";
+    break;
+  case weft::KQuantScaleModel::Q6K:
+    plan.hasMin = false; plan.subScaleByteOffset = 192;
+    plan.hasHighBitPlane = true;  plan.highBitByteOffset = 128; // qh@128
+    plan.loadLMUL = "m1"; plan.stripLanes = 16;
+    plan.reason = "KQuantScaleMin/q6_k/6bit_ql_qh_single_mul (reproduce-current)";
+    break;
+  }
+  // The dmin sits two bytes after the fp16 d in every min-fold K-quant (q2_K d@80/dmin@82,
+  // q4_K/q5_K d@0/dmin@2); DERIVED here (scale-block + 2), so a plan change to the stamped
+  // scale_byte_offset shifts BOTH d and dmin -- the load-bearing witness that the derived
+  // min offset rides the plan (a raw descriptor read has no scale+2 field). Meaningful iff
+  // hasMin; carried uniformly (harmless for the single-mul q3_K/q6_K, which never read it).
+  plan.minByteOffset = plan.scaleBlockByteOffset + 2;
+  // The load-anchor legality gate (fail-closed): the pinned m1/m2 anchor is non-empty, so
+  // it is legal; a future degenerate VLEN/SEW with no covering rung would leave loadLMUL
+  // empty and the emitter would fail-close rather than emit a truncated pipeline.
+  plan.legality.isLegal = !plan.loadLMUL.empty();
+  // Provenance (mirror, NOT authority -- I4): provenanceFormat is attached by the caller
+  // (it holds the decode_model StringRef); left empty here.
+  plan.provenanceFormat = llvm::StringRef();
+  return plan;
+}
+
 } // namespace weft::plugin::rvv
