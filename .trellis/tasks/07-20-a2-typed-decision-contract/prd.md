@@ -36,13 +36,13 @@
 
 ## Acceptance Criteria
 
-- [ ] API 字段可逐一映射到 architecture decision contract，不含未消费装饰字段。
-- [ ] 两个完整 vertical slice 通过新 contract 构造并消费 decision，各自全部 production caller 已切换。
-- [ ] 同输入确定性同结果；g/c/ω 各至少有一个 decisive 或 honest-null 测试。
-- [ ] illegal/unknown capability fail-closed；fallback total。
-- [ ] emitted output 对既有合法 fixtures 无非预期差异。
-- [ ] common/core 无 family-name branch；没有通用 DSL/AST。
-- [ ] A1 中对应旧入口、旧 overload、adapter/mirror 与 production caller 为 0；测试对照只能是 test-only oracle。
+- [x] API 字段可逐一映射到 architecture decision contract，不含未消费装饰字段。
+- [x] 两个完整 vertical slice 通过新 contract 构造并消费 decision，各自全部 production caller 已切换。
+- [x] 同输入确定性同结果；g/c/ω 各至少有一个 decisive 或 honest-null 测试。
+- [x] illegal/unknown capability fail-closed；fallback total。
+- [x] emitted output 对既有合法 fixtures 无非预期差异。
+- [x] common/core 无 family-name branch；没有通用 DSL/AST。
+- [x] A1 中对应旧入口、旧 overload、adapter/mirror 与 production caller 为 0；测试对照只能是 test-only oracle。
 
 ## Verification
 
@@ -58,3 +58,21 @@
 ## Issue Mapping
 
 - ISSUE-117；新公共 ABI 需求如出现必须独立登记。
+
+## Completion Record
+
+- 新增 plugin-local `RVVFormulaDecision.h`，只承载 Nibble 与 repack
+  accumulator-LMUL 两个机制专属 contract；未新增 Formula IR、通用 variant bag
+  或跨插件 ABI。
+- Nibble 的旧 provider、ignored `minimumVLEN` 与本 slice literal-128 caller 均为
+  0；原有 plan reason 保持不变，合法 fixture 的 emitted output 不因 A2 改写。
+- LMUL decision 在 `lowerOne` 构造一次，18 个互斥 builder 消费同一 typed
+  decision；旧 choice/selector 和 builder-local 独立选择均为 0。reason/key 的实际
+  attr writer 只有一个 helper body。
+- C++ decision test 覆盖 g mutation、c/ω honest-null、qualified measurement、
+  illegal winner、missing capability 和 empty legal set；生产 lit 另证 Unknown RVV
+  generation fail closed。
+- clean build 与显式 `weft-opt`/`weft-translate` 重链通过；focused lit 5/5；全量
+  `check-weft` 975/978，三项失败与 A1/A7 基线完全同名，均为 ISSUE-057。
+- authority matrix 8 decisions 全部 source/test contract 匹配，matrix self-test、
+  zero-core-family、retired-index、monolith-retire 与 schema 21/21 self-test 全绿。

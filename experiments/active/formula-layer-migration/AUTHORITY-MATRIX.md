@@ -1,4 +1,4 @@
-# A1 · 公式 authority 冻结（HEAD 真实链）
+# 公式 authority matrix（A1 基线，A2 后 HEAD 真实链）
 
 > 机器正本：[`authority-matrix.v1.json`](./authority-matrix.v1.json)；门：
 > `test/Scripts/formula-authority-matrix.test`。
@@ -18,15 +18,18 @@
   `CodebookGatherPlan`、`KQuantScaleMinPlan`、`GridLookupPlan`、
   `TernaryDecodePlan` 均已定义、被 provider 构造、被真实 emitter 消费，并各有
   load-bearing mutation test。
-- 五类 plan 的共同缺口也很具体：emitter 用字面量 `128` 调 provider，五个
-  provider 都显式忽略 `minimumVLEN`；selected plan 只存在于 emission 期间的
-  C++ 栈对象，没有 emission 前的 typed stamp。
+- Nibble 已完成 A2 typed-decision cutover：`NibbleDecodeGeometryFacts` 是显式 g，
+  c/ω 用空的具名类型表达 honest-null，旧 `nibbleDecodePlanFromFacts`、假
+  `minimumVLEN` 参数与 literal-128 caller 均为 0。其余四类 provider 仍各有一个
+  literal-128/ignored seam。五类 selected plan 仍只存在于 emission 期间的 C++
+  栈对象，没有 emission 前的 typed stamp；这部分仍归 A4。
 - dequant 的 g 已部分结构化，但 codebook/K-quant/grid/ternary 的 leaf 仍由
   emitter 内四段 `decode_model → enum` `StringSwitch` 再选一次；GridLookup 的
   legality 又直接查第二个 `GridDecodePlan` registry head。
-- repack accumulator LMUL 已有真实 c、解析 legality、实测 winner 和 fail-closed
-  emitter 消费；问题是 selector 与 reason stamp 被复制到 18 个 builder，实测表
-  仍是生产 C++ 手工镜像。
+- repack accumulator LMUL 也已完成 A2 cutover：`lowerOne` 每个请求只构造一次
+  typed decision，18 个互斥 builder 只消费 selected result，reason/key 由一个
+  helper 盖章；旧 selector、choice struct 和 18 个独立盖章点已退役。实测表仍是
+  生产 C++ 手工镜像，归 A5。
 - SP4/loop-order 已经有两阶段选择与 IR stamp，但 emission 还不是机械消费：
   SP4 legal set 会放入当前根本没有 emitter body 的 min-fold `plain`；缺 stamp
   会静默落到 `S6Tiled`；loop-order 对 sibling 会把已选择的 `col_outer/prior`
@@ -34,9 +37,9 @@
 
 所以，当前的准确表述不是“公式层没有”，也不是“公式层已经完成”，而是：
 
-> 五类机制 plan 与若干真实公式/selector 已经是可复用资产；尚缺的是统一的
-> typed decision contract、真实 c 消费、单一 legality/selection authority、
-> selected result 落印，以及 emitter 的纯 realization。
+> 五类机制 plan 与首个最小 typed decision contract 已经是可复用资产；尚缺的
+> 是把该 contract 推广到真实 c-driven dequant、关闭其余 legality/selection
+> 双头、让 selected result 落印，并把 emitter 收口为纯 realization。
 
 ## 2. 状态词
 
@@ -60,17 +63,17 @@ GgmlDequantizeRowOp.format
   → constructTypedDequantizeRowLoopBody
   → DequantizeRowDecodeCoreOp（落 g）
   → emitTypedDequantizeRowLoopBody
-  → mechanism-specific FormulaProvider（临时 plan）
+  → mechanism-specific typed decision/provider（临时 selected plan）
   → mechanism-specific emitter body
 ```
 
-这条链证明“plan 真消费”已经成立；它也暴露两个未闭环点：provider 仍在
-`emitTypedDequantizeRowLoopBody` 内调用，且 c 不是从 capability provider 随 selected
-body 一起送达，而是统一写死为 128。
+这条链证明“plan 真消费”已经成立；它也暴露未闭环点：decision/provider 仍在
+`emitTypedDequantizeRowLoopBody` 内调用。Nibble 已明确为 honest-null c/ω；其余四类
+仍没有从 capability provider 随 selected body 获得 c，而是传字面量 128。
 
 | plan | defined | g stamped | provider consumed | selected plan stamped | emitted | mutation tested | c 真消费 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| NibbleDecodePlan | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✗（128 + ignored） |
+| NibbleDecodePlan | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | honest-null（typed 空轴；无假 VLEN seam） |
 | CodebookGatherPlan | ✓ | ✓（部分） | ✓ | ✗ | ✓ | ✓ | ✗（128 + ignored） |
 | KQuantScaleMinPlan | ✓ | ✓（primary g） | ✓ | ✗ | ✓ | ✓ | ✗（128 + ignored） |
 | GridLookupPlan | ✓ | ✓（entry lanes） | ✓ | ✗ | ✓ | ✓ | honest-null，但参数仍为假 seam |
@@ -78,15 +81,17 @@ body 一起送达，而是统一写死为 128。
 
 ### 3.2 NibbleDecode
 
-- **当前实际 owner**：`nibbleDecodePlanFromFacts`。
+- **当前实际 owner**：`decideNibbleDecode`（`RVVFormulaDecision.h`）。
 - **g**：qk、block stride、scale/quant offset、carrier、bias、min/qh optional
-  offsets；由 `DequantizeRowStreamFacts` 进入 typed core。
+  offsets；由 `DequantizeRowDecodeCoreOp` 投影为 `NibbleDecodeGeometryFacts`。
 - **公式**：`stripLanes = qk / 2` 是真 analytic 派生；`loadLMUL = m1` 是当前
-  reproduce-current constant。
-- **legality/selection**：没有 typed legality 结果；emitter 只接受 m1。carrier
-  在 BareInt8 与 Nibble4 两个既有 leaf 之间选择。
+  sole-realizable structural constant。
+- **c/ω**：`NibbleDecodeNoCapabilityInput` 与 `NibbleDecodeNoStaticContext` 明确
+  honest-null；旧 `minimumVLEN` seam 已删除。
+- **legality/selection**：非法 qk/stride/offset fail closed；合法域只有一个 analytic
+  plan。emitter 只接受 m1；carrier 在 BareInt8 与 Nibble4 两个既有 leaf 间选择。
 - **消费证据**：修改 bias 会改变 `vsub`，修改 qk 会经 `qk/2` 改变 emitted VL。
-- **缺口**：selected plan 不落印；c 参数不承重。
+- **缺口**：selected plan 仍未在 emission 前落印，归 A4；这不是 c 欠工。
 
 ### 3.3 CodebookGather
 
@@ -139,26 +144,29 @@ body 一起送达，而是统一写死为 128。
 ### 4.1 Repack accumulator LMUL
 
 ```text
-scale_model g
-+ resolved RVV version / halfLanes / vreg_count c
-+ per-shape measured row ω
-  → selectRepackAccumulatorLMUL
-  → {useM1, reason}
-  → integer_core_lmul + reason stamp
+weightInterleave g
++ {hasFractionalLMUL, halfLanes, vreg_count} c
++ optional qualified {typed key, winner} ω
+  → decideRepackAccumulatorLMUL
+  → legal {mf2,m1} + analytic prior + selected typed result
+  → integer_core_lmul/half_lanes + centralized reason/key stamp
   → 18 fail-closed emitter reads
 ```
 
-这是八项里目前最接近目标链的一项：
+这是 A2 已完成的完整 typed-decision slice：
 
-- RVV0.7 无 fractional LMUL，m1 是 correctness-only feasible result；
-- RVV1.0 下 m1 先过同一 register-pressure inequality；
-- 有手工实测 row 时用 measured winner，否则回 `capability-default-mf2`；
+- RVV0.7 无 fractional LMUL，mf2 非法，m1 是 correctness-only feasible result；
+- RVV1.0 下 mf2/m1 都由同一 register-pressure inequality 给出显式 verdict；
+- 合格实测 winner 只有仍在合法集内才命中，否则回 analytic mf2 prior；
+- RVV generation 显式投影为 optional capability；Unknown 不折成 RVV1.0；
+  missing/invalid capability 与空合法集 fail closed；
+- `lowerOne` 只构造一次 decision，18 个互斥 builder 消费同一个 selected result；
+- reason 与可选 measurement key 只由一个 helper 盖章；
 - emitter 缺 `integer_core_lmul` 已 fail closed，不再 `value_or("mf2")`。
 
-剩余问题不是“公式不存在”，而是 contract 没有模块化：相同 selector 调用、
-typed 参数组装和 reason stamp 在 18 个 builder 重复；实测表也不是由 B1 正式
-measurement control plane 生成的 qualified view。A2 应拿它做第二个 vertical
-slice，A5 再替换手工 winner mirror。
+旧 `RepackAccumulatorLMULChoice`、旧 selector 及 18 个独立选择/盖章点均为 0。
+剩余问题只有实测表尚未由 B1 正式 measurement control plane 生成 qualified view；
+A5 负责替换手工 winner mirror，不回滚本 contract。
 
 ### 4.2 SP4 tiling
 
@@ -208,11 +216,10 @@ realization：
 
 | 真实断点 | 后续 owner | 必须删除的旧点 | 杀死旧点的验收 |
 |---|---|---|---|
-| dequant c=128 且五 provider ignore c | A3 / ISSUE-117 | 五个 literal-128 call 与 declared slice 的 ignored seam | VLEN/capability mutation 真翻 plan/legal set；missing/conflict fail closed |
+| 四类 dequant 仍 c=128 且 provider ignore c | A3 / ISSUE-117 | Codebook/KQuant/Grid/Ternary 的四个 literal-128 call 与 ignored seam | VLEN/capability mutation 真翻 plan/legal set；missing/conflict fail closed |
 | emitter 用 decode_model 再造 leaf/facts | A8 / ISSUE-119 | 四段 StringSwitch 与 emitter facts reconstruction | 新 typed-g leaf 不改 emitter branch；missing/forged g 转红 |
 | selected dequant plan 不落印 | A4 / ISSUE-122 | emission 内 provider invocation | stale/forged stamp 在 emitter 前被拒 |
 | GridLookup 再查 GridDecodePlan | A4 / ISSUE-122 | dequant slice 的 direct registry lookup | 单 row 变异同时支配 verifier/selector，无第二编辑点 |
-| LMUL 18 点重复组装/盖章 | A2 / ISSUE-117 | 18 个 direct call/stamp site | 全 caller 经一个 typed decision constructor；旧 caller=0 |
 | 手工 measurement mirrors | A5 / ISSUE-117 | LMUL table 与 `kSeeded[]` | generated qualified view 可复建；stale/key/illegal winner miss |
 | SP4 legal candidate 不可实现 | A4 / ISSUE-125 | unconditional feasible set 或缺失的 Plain body 二选一闭合 | selector 永不返回 emitter 会拒的候选 |
 | SP4 缺 stamp→S6 | A4 / ISSUE-125 | optional read/default | strip stamp 必须 fail closed |
@@ -224,7 +231,9 @@ realization：
 并新增一个 matrix gate：
 
 - 五类 dequant 各自已有至少两个字段 mutation 或 missing-field negative；
-- LMUL 有 VLEN/provider 判断、measured/default 分叉和 missing-stamp fail-close；
+- A2 unit test 直接覆盖 Nibble honest-null、LMUL g/c/ω 决定性、illegal winner
+  no-flip、missing capability 与 empty legal set reject；
+- LMUL 另有 VLEN/provider 判断、measured/default 分叉和 missing-stamp fail-close；
 - SP4 有 measured/prior/shape-isolation 与生产零 static-order；
 - loop-order 有 ternary 全格 stamp guard，也有当前 selected→realized override 的
   反例 characterization；
@@ -236,8 +245,8 @@ realization：
 
 ## 7. A1 之后的正确顺序
 
-1. A2 先建立最小 typed decision contract，并完整迁一个 dequant slice与 LMUL
-   slice；同 slice 旧入口当笔删除。
+1. A2 已建立最小 typed decision contract，并完整迁入 Nibble 与 LMUL 两个 slice；
+   同 slice 旧入口、旧 selector 和独立盖章点已删除。
 2. A3 让 codebook anchor 成为首个真实 `f(g,c)`，不强迫 grid/ternary 的
    honest-null 轴伪装成 c-driven。
 3. A4 原子关闭 selected-stamp、legality 与 emitter redecision 缺口；优先处理

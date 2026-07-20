@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "snapshot": {
-    "scope": "A1 formula authority freeze after B1 and A7 synchronization",
+    "scope": "A1 authority baseline updated after the A2 typed-decision cutover",
     "rule": "This is a HEAD characterization, not the target architecture. Every debt row is bound to a Trellis task and issue.",
     "decision_count": 8
   },
@@ -15,28 +15,29 @@
   "decisions": [
     {
       "id": "dequant.nibble",
-      "actual_owner": "weft::plugin::rvv::nibbleDecodePlanFromFacts",
+      "actual_owner": "weft::plugin::rvv::decideNibbleDecode",
       "g": [
-        "DequantizeRowStreamFacts.{qk,weightBlockStride,scaleByteOffset,quantByteOffset,carrier,nibbleBias,minByteOffset,qhByteOffset}"
+        "NibbleDecodeGeometryFacts.{qk,weightBlockStride,scaleByteOffset,quantByteOffset,carrier,nibbleBias,minByteOffset,qhByteOffset} projected from DequantizeRowDecodeCoreOp"
       ],
       "c": [
-        "minimumVLEN argument is supplied as literal 128 and ignored"
+        "NibbleDecodeNoCapabilityInput: explicit honest-null, with no ignored VLEN seam"
       ],
       "omega": [
-        "honest-null: no measurement participates"
+        "NibbleDecodeNoStaticContext: explicit honest-null"
       ],
-      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: nibbleDecodePlanFromFacts",
-      "legal_set": "No typed legality object; emitter accepts only the constant m1 load anchor",
-      "selection": "carrier_kind selects BareInt8 versus Nibble4; no cross-mechanism selector",
+      "provider": "include/Weft/Plugin/RVV/RVVFormulaDecision.h :: decideNibbleDecode",
+      "legal_set": "odd/non-positive qk, non-positive stride and negative offsets reject; valid geometry has one m1 plan",
+      "selection": "the sole legal analytic plan is selected; carrier_kind selects BareInt8 versus Nibble4 inside this mechanism",
       "stamp": "g is stamped on DequantizeRowDecodeCoreOp; selected NibbleDecodePlan is transient and is not stamped",
       "consumer": "emitDequantizeRowNibbleVectorBody / emitDequantizeRowQ8_0VectorBody",
-      "emission": "plan fields are load-bearing",
+      "emission": "plan fields are load-bearing; unsupported loadLMUL fails closed without emitter re-selection",
       "classification": [
         "analytic",
         "constant",
         "honest-null"
       ],
       "tests": [
+        "test/Plugin/rvv-formula-decision.test",
         "test/Conversion/RVV/rvv-dequantize-row-nibble-decode-plan-load-bearing.mlir",
         "test/Conversion/RVV/rvv-dequantize-row-decode-core-carrier-legality.mlir"
       ]
@@ -155,23 +156,23 @@
     },
     {
       "id": "repack.accumulator_lmul",
-      "actual_owner": "selectRepackAccumulatorLMUL",
+      "actual_owner": "weft::plugin::rvv::decideRepackAccumulatorLMUL",
       "g": [
-        "scale_model identifies the committed decode-family shape"
+        "RepackAccumulatorLMULGeometryFacts.weightInterleave"
       ],
       "c": [
-        "has_fractional_lmul through resolved RVV version",
-        "capability-derived halfLanes",
-        "in-IR vreg_count through resolveRVVVectorRegisterBudget"
+        "RepackAccumulatorLMULCapabilityFacts.hasFractionalLMUL as an optional projection of resolved RVV version; Unknown remains missing and rejects",
+        "RepackAccumulatorLMULCapabilityFacts.halfLanes from minimum VLEN",
+        "RepackAccumulatorLMULCapabilityFacts.vectorRegisterBudget through resolveRVVVectorRegisterBudget"
       ],
       "omega": [
-        "kRepackMeasuredM1FasterMeasurements hand-authored in the front door"
+        "typed optional qualified {measurement key, winner} projected from kRepackMeasuredM1FasterMeasurements"
       ],
-      "provider": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp :: selectRepackAccumulatorLMUL",
-      "legal_set": "m1 constructibility uses rvvRegisterPressureLegal; mf2 is the fallback when fractional LMUL exists",
-      "selection": "RVV0.7 correctness forces m1; qualified table hit may choose m1/mf2; otherwise mf2 fallback",
-      "stamp": "integer_core_lmul and reason are stamped independently at 18 construction call sites",
-      "consumer": "18 fail-closed integer_core_lmul reads in RVVToEmitCBlockQuantLinear.cpp",
+      "provider": "RVVFormulaDecision.h :: decideRepackAccumulatorLMUL; RVVLowerQuantContraction.cpp :: buildRepackAccumulatorLMULDecision is the sole production projection",
+      "legal_set": "typed {mf2,m1} candidate verdicts use the shared register-pressure inequality; missing/invalid c and empty legal sets reject",
+      "selection": "RVV0.7 selects the only feasible m1; a qualified winner is accepted only while legal; otherwise the analytic mf2 prior",
+      "stamp": "one decision is constructed in lowerOne, passed to 18 mutually exclusive builders, and one helper stamps reason plus optional measurement key",
+      "consumer": "18 builders consume selectedHalfLanes/integerCoreLMUL/accumulatorLMUL; 18 emit paths remain fail-closed readers",
       "emission": "emitter derives the widening chain mechanically from the stamped anchor",
       "classification": [
         "analytic",
@@ -179,6 +180,7 @@
         "fallback"
       ],
       "tests": [
+        "test/Plugin/rvv-formula-decision.test",
         "test/Conversion/RVV/rvv-repack-accumulator-lmul-measured-gate-q8.mlir",
         "test/Conversion/RVV/rvv-integer-core-lmul-frontdoor-stamp-fail-closed.mlir",
         "test/Conversion/RVV/rvv-version-capability-vs-march-frontdoor-judgment.mlir"
@@ -253,8 +255,8 @@
       "issue": "ISSUE-117",
       "owner_task": ".trellis/tasks/07-20-a3-dequant-c-driven-plans",
       "retire": [
-        "five (void)minimumVLEN bodies",
-        "five /*minimumVLEN=*/128 emitter calls for the declared c-driven slice"
+        "four remaining (void)minimumVLEN bodies (Codebook/KQuant/Grid/Ternary)",
+        "four remaining /*minimumVLEN=*/128 emitter calls for the declared c-driven slice"
       ],
       "killing_test": "Add a VLEN128/VLEN256 plan-field or legal-set mutation whose emitted consumer changes, plus missing/conflicting capability fail-closed."
     },
@@ -286,16 +288,6 @@
         "gridLookupPlanFromFacts direct lookupGridDecodePlan(decodeModel) for the dequant slice"
       ],
       "killing_test": "Mutating or removing the sole typed mechanism row must change both verifier and selection without a second registry edit."
-    },
-    {
-      "name": "repack accumulator LMUL selection/stamping is duplicated across 18 builders",
-      "issue": "ISSUE-117",
-      "owner_task": ".trellis/tasks/07-20-a2-typed-decision-contract",
-      "retire": [
-        "18 direct RepackAccumulatorLMULChoice call-site constructions",
-        "18 independent reason-stamp sites"
-      ],
-      "killing_test": "One typed decision constructor must cover every production caller; old direct callers and adapters must count zero."
     },
     {
       "name": "measurement winners are hand-mirrored in production headers/front door",
@@ -349,6 +341,14 @@
   ],
   "test_contracts": [
     {
+      "path": "test/Plugin/rvv-formula-decision.test",
+      "needles": [
+        "typed g decisive, c/omega honest-null",
+        "legal measured winner bounded",
+        "empty set rejects"
+      ]
+    },
+    {
       "path": "test/Conversion/RVV/rvv-dequantize-row-nibble-decode-plan-load-bearing.mlir",
       "needles": [
         "MUTBIAS",
@@ -391,6 +391,13 @@
       ]
     },
     {
+      "path": "test/Conversion/RVV/rvv-repack-accumulator-lmul-measured-gate-q8.mlir",
+      "needles": [
+        "repack_accumulator_lmul_measurement_key",
+        "capability-default-mf2"
+      ]
+    },
+    {
       "path": "test/Conversion/RVV/rvv-lower-quant-contraction-stage-b-selection.mlir",
       "needles": [
         "DEFAULT -march \"\"",
@@ -415,14 +422,24 @@
   ],
   "source_contracts": [
     {
+      "path": "include/Weft/Plugin/RVV/RVVFormulaDecision.h",
+      "needle": "inline NibbleDecodeDecision decideNibbleDecode(",
+      "count": 1
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVFormulaDecision.h",
+      "needle": "inline RepackAccumulatorLMULDecision decideRepackAccumulatorLMUL(",
+      "count": 1
+    },
+    {
       "path": "lib/Conversion/RVV/RVVToEmitCSupport.cpp",
       "needle": "(void)minimumVLEN;",
-      "count": 5
+      "count": 4
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
       "needle": "/*minimumVLEN=*/128",
-      "count": 5
+      "count": 4
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
@@ -431,8 +448,18 @@
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
-      "needle": "::weft::plugin::rvv::nibbleDecodePlanFromFacts",
+      "needle": "::weft::plugin::rvv::decideNibbleDecode(",
       "count": 1
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVGearboxSchedule.h",
+      "needle": "nibbleDecodePlanFromFacts",
+      "count": 0
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCSupport.cpp",
+      "needle": "nibbleDecodePlanFromFacts",
+      "count": 0
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
@@ -461,13 +488,33 @@
     },
     {
       "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
-      "needle": "RepackAccumulatorLMULChoice accLmulChoice",
+      "needle": "buildRepackAccumulatorLMULDecision(op, hasFractionalLMUL",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "const pluginrvv::RepackAccumulatorLMULDecision &accLmulDecision",
+      "count": 18
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);",
       "count": 18
     },
     {
       "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
       "needle": "loop->setAttr(kAccumulatorLmulReasonAttr",
-      "count": 18
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "RepackAccumulatorLMULChoice",
+      "count": 0
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "selectRepackAccumulatorLMUL(",
+      "count": 0
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",

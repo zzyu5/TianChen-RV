@@ -4,9 +4,9 @@
 // family (q8_0 / q4_0 / q4_1 / q5_0 / q5_1) DECODE plan.
 //
 // A NibbleDecodePlan is the transient C++ compile-period object the RVV plugin's
-// dequant FormulaProvider (nibbleDecodePlanFromFacts, RVVGearboxSchedule.h -- the
-// formula-layer home) produces from the stamped decode_core descriptor facts, and
-// the nibble EMITTER reads plan.* INSTEAD of scatter-reading the descriptor 8-tuple.
+// typed decision provider (decideNibbleDecode, RVVFormulaDecision.h) produces from
+// stamped decode_core mechanism facts. The nibble emitter reads plan.* instead of
+// scatter-reading the descriptor tuple.
 // Format names lose ALL dispatch power: the plan's `carrier` selects the leaf and the
 // `mechanism` tag names the family; `provenanceFormat` is diagnostic ONLY.
 //
@@ -18,13 +18,14 @@
 // axis as a knob" the GEMM/GEMV rulings forbid). NibbleDecodePlan is the NibbleDecode
 // mechanism ONLY; its `mechanism` field is a STRUCTURAL TAG that is always
 // NibbleDecode (asserted, never switched-on to reach a different mechanism's body).
-// The DequantMechanism enum below names all five so the taxonomy is closed, but the
-// other four get their own plan structs when they land (phase-4). The ONE in-plan
+// The DequantMechanism enum below names all five so the taxonomy is closed; the other
+// four mechanisms now live in their own plan structs. The ONE in-plan
 // choice, `carrier`, selects between two ALREADY-SEPARATE leaves (the bare-int8 q8_0
 // leaf vs the shared 4-bit nibble body) -- a leaf SELECTION, sanctioned by [K-10] as
-// distinct from a plan-internal mechanism switch. `loadLMUL` / `stripLanes` are the
-// PARAMETRIC (capability) axes; phase-2 pins them to the FIXED ggml-ABI geometry
-// (reproduce-current, NOT c-driven -- phase-3 makes them f(VLEN)).
+// distinct from a plan-internal mechanism switch. `stripLanes=qk/2` is analytic g
+// consumption; `loadLMUL=m1` is the sole realizable structural anchor. The c and
+// omega axes are explicitly honest-null; a future c-driven split must add a real
+// legal candidate, not restore an ignored VLEN seam.
 //
 // This header lives in Support because WeftRVVDialect (the verifier) and
 // WeftConversionRVV (the emitter) both link it, and Conversion -> Dialect is the only
@@ -46,8 +47,7 @@ namespace weft {
 /// The closed dequant-decode mechanism taxonomy ([K-10]). Each value denotes a
 /// STRUCTURALLY distinct decode mechanism with its OWN plan struct; this is NOT a
 /// discriminant an emitter switches on to reach a different mechanism's body. Only
-/// NibbleDecode has a landed plan (NibbleDecodePlan) today; the other four are named
-/// so the taxonomy is closed and get their own plan structs when they land (phase-4).
+/// Each mechanism has its own plan struct; this enum closes the shared taxonomy.
 enum class DequantMechanism {
   NibbleDecode,   ///< flat nibble family: q8_0 / q4_0 / q4_1 / q5_0 / q5_1.
   KQuantScaleMin, ///< QK_K=256 K-quant super-blocks: q2_K / q3_K / q4_K / q5_K / q6_K.
@@ -89,16 +89,13 @@ struct NibbleDecodePlan {
   bool hasQh;                   ///< q5_0/q5_1 carry a 5th-bit qh plane (== qh_byte_offset present).
   std::int64_t qhByteOffset;    ///< qh 5th-bit plane byte offset (qhOff); meaningful iff hasQh.
 
-  //--- Reproduce-current geometry (PARAMETRIC axes; phase-2 pins them to the FIXED
-  //--- ggml-ABI geometry, NOT c-driven -- phase-3 derives them from VLEN). ---
+  //--- Current analytic/structural geometry. ---
 
-  /// The base i8 nibble-plane load LMUL anchor. Phase-2 pins "m1" (the fixed VLEN>=128
-  /// half-block anchor); the emitter fail-CLOSES on any other value (it cannot yet
-  /// realize a different widening chain), so this field is a genuine gate, not decoration.
+  /// The base i8 nibble-plane load LMUL anchor. The current legal set contains only
+  /// m1; the emitter fails closed on any other value, so this is a real gate.
   llvm::StringRef loadLMUL;
-  /// The half-block nibble strip lane count. Phase-2 pins qk/2 (== 16 for the QK=32
-  /// nibble family), the FIXED ggml-ABI half-block width; the emitter reads it for the
-  /// per-strip vl. DERIVED by the FormulaProvider (qk/2), so it is the load-bearing
+  /// The half-block nibble strip lane count, analytically derived as qk/2 (16 for
+  /// QK=32). The emitter reads it for the per-strip vl. This is the load-bearing
   /// witness that the emit consumes the PLAN (a raw descriptor read has no qk/2 field).
   std::int64_t stripLanes;
 

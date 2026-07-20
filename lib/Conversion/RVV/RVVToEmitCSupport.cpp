@@ -1080,63 +1080,7 @@ WideningChain deriveWideningChain(llvm::StringRef base) {
 } // namespace conversion
 } // namespace weft
 
-//===----------------------------------------------------------------------===//
-// DequantMechanismPlan FormulaProvider (phase-2) -- the NibbleDecode plan producer.
-// Declared in the formula-layer home RVVGearboxSchedule.h (§〇); defined here beside
-// deriveWideningChain (the sibling reproduce-current geometry formula) so the formula
-// header stays free of the Dialect facts include. Consumed ONLY by the RVV emitter.
-//===----------------------------------------------------------------------===//
-
 namespace weft::plugin::rvv {
-
-weft::NibbleDecodePlan
-nibbleDecodePlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
-                         std::int64_t minimumVLEN) {
-  // Phase-2 REPRODUCE-CURRENT: this FormulaProvider RE-PACKAGES the phase-1 stamped
-  // decode 8-tuple into the NibbleDecode MechanismPlan and pins the PARAMETRIC geometry
-  // (loadLMUL / stripLanes) to the FIXED ggml-ABI half-block anchor. It does NOT yet
-  // c-drive the geometry: minimumVLEN is accepted as the phase-3 seam (phase-3 selects
-  // loadLMUL = f(VLEN) via getRVVStripVLMAXElements and widens the strip), but the
-  // reproduce-current derivation is VLEN-INDEPENDENT (the nibble strip is the fixed
-  // qk/2 = 16 half-block width, the load anchor is the fixed m1). Referenced to keep the
-  // f(g, c) signature explicit without a c-driven effect this cut.
-  (void)minimumVLEN;
-
-  weft::NibbleDecodePlan plan;
-  plan.mechanism = weft::DequantMechanism::NibbleDecode;
-  // Leaf selection ([K-10], NOT a plan-internal mechanism switch): the FormulaProvider
-  // is only run for the nibble family (carrier present), so carrier is BareInt8/Nibble4.
-  plan.carrier = facts.carrier == weft::rvv::NibbleCarrierKind::BareInt8
-                     ? weft::NibbleCarrier::BareInt8
-                     : weft::NibbleCarrier::Nibble4;
-  // The re-packaged phase-1 decode 8-tuple (byte-for-byte the values the retired scatter
-  // reads fed the shared body -- risk point 4: the plan field IS the descriptor value).
-  plan.weightBlockStride = facts.weightBlockStride;
-  plan.scaleByteOffset = facts.scaleByteOffset;
-  plan.quantByteOffset = facts.quantByteOffset;
-  plan.nibbleBias = facts.nibbleBias.value_or(0);
-  plan.hasMin = facts.minByteOffset.has_value();
-  plan.minByteOffset = facts.minByteOffset.value_or(0);
-  plan.hasQh = facts.qhByteOffset.has_value();
-  plan.qhByteOffset = facts.qhByteOffset.value_or(0);
-  // Reproduce-current PARAMETRIC geometry (NOT c-driven -- phase-3): the fixed VLEN>=128
-  // m1 half-block load anchor and the fixed qk/2 nibble strip lane count.
-  plan.loadLMUL = "m1";
-  plan.stripLanes = facts.qk / 2;
-  // Provenance (mirror, NOT authority -- I4): a static reason trace naming the fold
-  // shape. provenanceFormat is attached by the caller (it holds the decode_model
-  // StringRef); left empty here.
-  plan.reason = plan.carrier == weft::NibbleCarrier::BareInt8
-                    ? llvm::StringRef("NibbleDecode/bare_int8/single-mul "
-                                      "(reproduce-current)")
-                    : (plan.hasMin
-                           ? llvm::StringRef("NibbleDecode/nibble4/fused-mac-min "
-                                             "(reproduce-current)")
-                           : llvm::StringRef("NibbleDecode/nibble4/single-mul "
-                                             "(reproduce-current)"));
-  plan.provenanceFormat = llvm::StringRef();
-  return plan;
-}
 
 weft::CodebookGatherPlan
 codebookGatherPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,

@@ -10,7 +10,7 @@
 // C1 bridge CONSTRUCTS the typed weft_rvv.typed_repack_gemv_loop_body region.
 //
 // [GAP-P1]-loosen r51g board sweep flipped q4_0 (kNibbleQ40ScaleModel) to the WIDE
-// m1 whole-LMUL chain: selectRepackAccumulatorLMUL consults lookupRepackMeasuredM1
+// m1 whole-LMUL chain: decideRepackAccumulatorLMUL consults lookupRepackMeasuredM1
 // Faster, and q4_0 now has a board-MEASURED row (DEPLOYED repack GEVM 2.3-2.5x /
 // GEMM 1.24x faster than mf2 @rvv VLEN128, spill-free, byte-exact 3-arm -- see
 // experiments/active/r51g-b1-repack-family-sweep/FINDING.md). So the region carries

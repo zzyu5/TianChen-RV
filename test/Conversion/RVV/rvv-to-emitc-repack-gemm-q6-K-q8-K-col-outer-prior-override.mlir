@@ -4,7 +4,7 @@
 // sibling leaf. The loop-body op is stamped weft_rvv.loop_order = "col_outer" but with
 // selection_reason "prior" (an UNMEASURED cold-start layout prior, NOT a board
 // measurement). The emitter measured-gate (same discipline as full-LMUL[B]
-// selectRepackAccumulatorLMUL / [ROLL] resolveRepackMainTermRolled) does NOT flip the
+// decideRepackAccumulatorLMUL / [ROLL] resolveRepackMainTermRolled) does NOT flip the
 // shipped sibling nest on an unmeasured selection -- so the REALIZED order is the
 // byte-exact row_outer default (activation-row-GROUP loop OUTER, weight-column-GROUP
 // loop INSIDE). To close the log-vs-realized divergence (the loop_order_selection_

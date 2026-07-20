@@ -2,3 +2,8 @@
 {"file": ".trellis/spec/canon/非目标.md", "reason": "禁止Formula IR和伪旋钮"}
 {"file": ".trellis/spec/issues/index.md", "reason": "接口变更问题映射"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}
+{"file": "test/Plugin/rvv-formula-decision.test", "reason": "g/c/omega、legality、prior 与 reject 直接测试"}
+{"file": "test/Conversion/RVV/rvv-version-capability-vs-march-frontdoor-judgment.mlir", "reason": "生产 capability decisive 与 Unknown fail-closed"}
+{"file": "test/Conversion/RVV/rvv-dequantize-row-nibble-decode-plan-load-bearing.mlir", "reason": "Nibble selected plan 真消费与输出保持"}
+{"file": "test/Conversion/RVV/rvv-repack-accumulator-lmul-measured-gate-q8.mlir", "reason": "LMUL measured winner 与 measurement key 生产链"}
+{"file": "test/Scripts/formula-authority-matrix.test", "reason": "旧入口清零、source count 与 matrix mutation gate"}

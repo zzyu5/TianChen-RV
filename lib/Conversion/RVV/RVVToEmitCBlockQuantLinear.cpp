@@ -3190,7 +3190,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 //      shipped emit; every existing no-stamp fixture stays green.
 //
 // This mirrors the loop-order siblingColGroupOuter gate (activate only on
-// reason=="measured") and the full-LMUL[B] selectRepackAccumulatorLMUL gate (default
+// reason=="measured") and the full-LMUL[B] decideRepackAccumulatorLMUL gate (default
 // mf2, flip only on a board measurement): DEFAULT UNCHANGED, activate only on measured.
 //
 // The register-budget axis is NOT binding for the S6-tiled body (peak-live is already
@@ -3233,7 +3233,7 @@ static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
   int64_t unrolledMainTermVwmacc = numHalves * nSuperHalves * /*mHalves*/ 2 *
                                    /*mGroup*/ 16 * columnsPerPass * /*lanes*/ 4;
   // [ROLL] MEASURED-GATE producer (mirrors the loop-order siblingColGroupOuter gate and
-  // the full-LMUL[B] selectRepackAccumulatorLMUL gate): the code-volume-vs-I-cache
+  // the full-LMUL[B] decideRepackAccumulatorLMUL gate): the code-volume-vs-I-cache
   // budget predicate is ONE (NECESSARY) leg -- it identifies the roll-ELIGIBLE
   // super-block family whose per-position decode storm would not sit in the hot I-cache
   // window -- but rolling is gated on a SECOND leg: a per-(shape x board) MEASUREMENT
@@ -3310,7 +3310,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
       else if (loopOrder.getValue() == "col_outer") {
         // [档 C#8 override record] The front-door SELECTED col_outer but on an
         // UNMEASURED reason (prior / only_feasible). The emitter measured-gate (same
-        // discipline as full-LMUL[B] selectRepackAccumulatorLMUL and [ROLL]
+        // discipline as full-LMUL[B] decideRepackAccumulatorLMUL and [ROLL]
         // resolveRepackMainTermRolled) does NOT flip the shipped sibling nest on an
         // unmeasured selection, so the REALIZED order is the byte-exact row_outer
         // default. Emit the override record so the EMIT side carries the

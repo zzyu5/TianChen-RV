@@ -4,8 +4,8 @@
 #include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
+#include "Weft/Plugin/RVV/RVVFormulaDecision.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Support/NibbleDecodePlan.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -2970,10 +2970,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleVectorBody(
     mlir::Value input, mlir::Value output, mlir::Value avlArg,
     mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
     const ::weft::NibbleDecodePlan &plan) const {
-  // Phase-2: the decode 8-tuple + strip geometry are READ from the NibbleDecode plan
-  // (weft::NibbleDecodePlan, produced by nibbleDecodePlanFromFacts) INSTEAD of the
-  // retired per-format scalar params. Byte-exact reproduce-current: plan.* re-packages
-  // the identical phase-1 descriptor tuple.
+  // The decode tuple + strip geometry are read from the selected NibbleDecode plan
+  // (produced by decideNibbleDecode) instead of retired per-format scalar params.
   const int64_t stride = plan.weightBlockStride;
   const int64_t dOff = plan.scaleByteOffset;
   const int64_t mOff = plan.minByteOffset;
@@ -2985,8 +2983,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleVectorBody(
   // block_q4_0/q4_1/q5_0/q5_1 AoS facts: qk=32 lanes per block, 16 packed nibble bytes
   // (the byte-exact ggml ABI shape constants, NOT tunable knobs -- the SAME facts the
   // scalar emitDequantizeRowNibbleBodyShared hard-codes). The half-block strip lane
-  // count rides the plan (plan.stripLanes == qk/2 == 16, reproduce-current -- phase-3
-  // will c-drive it), so a plan change to stripLanes CHANGES the emitted per-strip vl.
+  // count rides the plan (plan.stripLanes == qk/2 == 16, analytic g), so a plan
+  // change to stripLanes changes the emitted per-strip vl.
   const int64_t qk = 32, half = qk / 2;
   const int64_t stripLanes = plan.stripLanes;
 
@@ -4938,52 +4936,49 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   if (mlir::IntegerAttr entryLanesAttr =
           coreOp->getAttrOfType<mlir::IntegerAttr>("codebook_entry_lanes"))
     codebookEntryLanes = entryLanesAttr.getInt();
-  // Phase-2: the flat nibble family's decode is assembled into a NibbleDecode
-  // MechanismPlan (weft::NibbleDecodePlan) by the FormulaProvider
-  // nibbleDecodePlanFromFacts (RVVGearboxSchedule.h -- the §〇 formula-layer home) from
-  // the stamped decode_core descriptor facts, and the nibble emitter READS plan.* --
-  // NOT the scattered descriptor 8-tuple (phase-1's per-attr reads are RETIRED here).
-  // Byte-exact reproduce-current: the plan re-packages the identical phase-1 tuple;
-  // loadLMUL/stripLanes are pinned to the FIXED ggml-ABI geometry (phase-3 c-drives
-  // them). [K-10]: NibbleDecodePlan is the NibbleDecode mechanism's OWN plan; the ONE
-  // in-plan choice, plan.carrier, selects between the two ALREADY-SEPARATE leaves
-  // (bare_int8 q8_0 vs the shared nibble4 body) -- a leaf SELECTION, NOT a plan-internal
-  // mechanism switch. Only the flat nibble family stamps carrier_kind; every K-quant /
-  // IQ / grid / ternary decode_core leaves it absent and falls through to its own
-  // decode_model branch below.
+  // A2 typed decision slice: the flat-nibble family projects the stamped core into
+  // mechanism-local g, then explicitly supplies honest-null c and omega.  There is no
+  // ignored minimum-VLEN seam: this body's sole legal plan is analytic and board
+  // invariant.  The emitter consumes only the selected NibbleDecodePlan.  A future
+  // genuinely c-driven nibble body must add a real candidate/legal split rather than
+  // restoring an unused scalar parameter.
   mlir::StringAttr carrierAttr = coreOp.getCarrierKindAttr();
   std::optional<::weft::NibbleDecodePlan> nibblePlan;
   if (carrierAttr) {
-    // Rebuild the descriptor facts `g` the front door stamped, then run the provider.
-    weftrvv::DequantizeRowStreamFacts nibbleFacts{};
+    ::weft::plugin::rvv::NibbleDecodeGeometryFacts nibbleFacts{};
     nibbleFacts.qk = coreOp.getQkAttr().getInt();
     nibbleFacts.weightBlockStride = coreOp.getWeightBlockStrideAttr().getInt();
     nibbleFacts.scaleByteOffset = coreOp.getScaleByteOffsetAttr().getInt();
     nibbleFacts.quantByteOffset = coreOp.getQuantByteOffsetAttr().getInt();
-    nibbleFacts.codebookEntryLanes = codebookEntryLanes.value_or(0);
     nibbleFacts.carrier = carrierAttr.getValue() == "bare_int8"
-                              ? weftrvv::NibbleCarrierKind::BareInt8
-                              : weftrvv::NibbleCarrierKind::Nibble4;
+                              ? ::weft::NibbleCarrier::BareInt8
+                              : ::weft::NibbleCarrier::Nibble4;
     if (mlir::IntegerAttr bias = coreOp.getNibbleBiasAttr())
       nibbleFacts.nibbleBias = bias.getInt();
     if (mlir::IntegerAttr minOff = coreOp.getMinByteOffsetAttr())
       nibbleFacts.minByteOffset = minOff.getInt();
     if (mlir::IntegerAttr qhOff = coreOp.getQhByteOffsetAttr())
       nibbleFacts.qhByteOffset = qhOff.getInt();
-    ::weft::NibbleDecodePlan plan =
-        ::weft::plugin::rvv::nibbleDecodePlanFromFacts(nibbleFacts,
-                                                       /*minimumVLEN=*/128);
+    ::weft::plugin::rvv::NibbleDecodeDecision decision =
+        ::weft::plugin::rvv::decideNibbleDecode(
+            nibbleFacts,
+            ::weft::plugin::rvv::NibbleDecodeNoCapabilityInput{},
+            ::weft::plugin::rvv::NibbleDecodeNoStaticContext{});
+    if (!decision.isLegal || !decision.selectedPlan)
+      return rewriter.notifyMatchFailure(
+          loopBody, llvm::Twine("flat-nibble decision rejected domain '") +
+                        decision.domain + "': " + decision.reason);
+    ::weft::NibbleDecodePlan plan = *decision.selectedPlan;
     plan.provenanceFormat = decodeModel; // diagnostic only (name AS DATA, [F-1])
-    // Reproduce-current geometry gate (fail-closed, the GridDecodePlan discipline):
-    // phase-2 realizes ONLY the m1 half-block anchor; a future non-m1 plan fail-CLOSES
-    // here rather than silently emitting an inconsistent widening chain.
+    // The current selected plan realizes only the m1 half-block anchor.  A forged or
+    // unsupported future plan fails closed instead of re-deciding in the emitter.
     if (plan.loadLMUL != "m1")
       return rewriter.notifyMatchFailure(
           loopBody, llvm::Twine("nibble decode plan [") +
                         ::weft::dequantMechanismName(plan.mechanism) + " " +
                         plan.reason + "] for format '" + plan.provenanceFormat +
                         "' pins the reproduce-current m1 load anchor; a non-m1 "
-                        "loadLMUL is phase-3 (c-driven) and not yet realized");
+                        "loadLMUL has no legal realization in this typed slice");
     nibblePlan = plan;
     // [K-10] leaf selection: the nibble4 carrier routes to the shared 4-bit nibble
     // vector body (which now reads plan.*); the bare_int8 (q8_0) carrier falls through

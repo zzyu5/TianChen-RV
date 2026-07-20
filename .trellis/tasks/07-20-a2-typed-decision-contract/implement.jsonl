@@ -4,3 +4,7 @@
 {"file": ".trellis/spec/canon/核心不变量.md", "reason": "core与typed body硬边界"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线DAG和非目标"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}
+{"file": "include/Weft/Plugin/RVV/RVVFormulaDecision.h", "reason": "A2 两个机制专属 typed decision contract"}
+{"file": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp", "reason": "LMUL 单次生产投影与 18 个 typed consumer"}
+{"file": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp", "reason": "Nibble typed g 投影与 selected plan 消费"}
+{"file": "experiments/active/formula-layer-migration/authority-matrix.v1.json", "reason": "A2 后机器 authority 与退役计数"}

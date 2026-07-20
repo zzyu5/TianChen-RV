@@ -11,13 +11,17 @@
 - dequant-row head 已达到 plan 5/5，并有 byte-exact 与 decisive lit 资产。
 - VLEN、RVV version、vreg_count 已有真实 capability 消费；repack LMUL measured table 已有少量有效行。
 - typed body、route provider、reason、miss→prior/fallback 等骨架已存在。
+- A2 已落 `RVVFormulaDecision.h`：Nibble 与 repack accumulator-LMUL 两个
+  mechanism-specific typed decision slice 已被 production consumer 使用。
 
 ## Actual Gaps
 
-- “五类 plan 已存在”不等于跨项目公式层已建立：provider/plan 类型分散，最小共同 decision contract 尚未形成。
+- “五类 plan 已存在”不等于全项目公式层已闭环：A2 最小 contract 已形成，但尚未
+  推广到其余 dequant/SP4/loop/第二 family。
 - 部分 plan 仍是 reproduce-current，真实 c-driven θ 消费不足；不得为追求覆盖制造假 capability 旋钮。
 - `GridDecodePlan` 仍被 dequant、block-dot/verifier 与 emitter 多头直接查询，存在 authority 双头。
-- `selectRepackAccumulatorLMUL` 与 measured registration 仍住 front door；analytic legality、measured winner 与 consumer 的边界未统一。
+- repack accumulator-LMUL 的 analytic legality、measured winner 与 consumer 边界已
+  在 A2 收口；手工 measured registration 仍住 front door，待 A5 替换为 qualified view。
 - selected decision 的 stamping 与 emitter no-redecision 尚未形成可机检的全链不变量。
 - IME/第二 family 尚未用同一最小公式/选择 contract 完成垂直切片。
 
@@ -56,6 +60,10 @@
 7. [A7 superseded path retirement](../07-20-a7-superseded-path-retirement/prd.md)：q1_0 与 K-quant 已替代 monolith 原子退役。
 8. [A8 baked-g convergence](../07-20-a8-baked-g-convergence/prd.md)：ISSUE-118/119 发射器格式事实全量收敛。
 
+当前里程碑：A1、A2、A7 已完成；A2 的 Nibble 旧 provider/假 VLEN seam 与 LMUL
+旧 selector/choice/独立盖章 authority 均已原子退役。父任务仍进行中，因为
+A3/A4/A5/A6/A8 尚未完成。
+
 每个子任务单独 PRD、touch set 和 commit；父任务不直接实现代码。
 
 ## Dependencies and Parallelism
@@ -80,8 +88,9 @@
 
 - Spec authority: `.trellis/spec/architecture/变体流水线.md`
 - Current ledger: `experiments/active/formula-layer-migration/LEDGER.md`
-- Formula home: `include/Weft/Plugin/RVV/RVVGearboxSchedule.h`
-- Providers: `lib/Conversion/RVV/RVVToEmitCSupport.cpp`
+- Formula homes: `include/Weft/Plugin/RVV/RVVFormulaDecision.h`（A2 typed contract）
+  与 `include/Weft/Plugin/RVV/RVVGearboxSchedule.h`（既有 closed forms）
+- Remaining dequant providers: `lib/Conversion/RVV/RVVToEmitCSupport.cpp`
 - Scattered selection: `lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp`
 - Double-head registry: `include/Weft/Support/GridDecodePlan.h`
 - Related issues: ISSUE-117、ISSUE-118、ISSUE-119、ISSUE-121、ISSUE-122。
