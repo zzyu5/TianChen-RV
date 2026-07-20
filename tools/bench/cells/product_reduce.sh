@@ -45,6 +45,10 @@ case "$FMT" in
   q4_0_nibble|offset_binary_n3|codebook_n3) : ;;
   *) echo "# HARNESS-VOID bad fmt $FMT (product_reduce 族仅 q4_0_nibble|offset_binary_n3|codebook_n3)"; exit 2 ;;
 esac
+case "$MODE" in
+  verify|sanity|measure) : ;;
+  *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
+esac
 
 if [ "$BOARD" = rvv ]; then
   CC=/opt/tcrv-toolchains/llvm-18.1.8/bin/clang

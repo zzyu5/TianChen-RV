@@ -10,14 +10,16 @@
 #        + 对手法 §〇.1（标量类档）。补 ISSUE-099 dequant harness 缺口。
 #
 # ★契约（硬·同 gemm_tile.sh / scalar_vec_dot.sh）：
-#   - 本 harness 由 ../bench 按声明接口调用：`dequantize_row.sh <board> <mode> <fmt>`
-#     （runner cell_harness(op) 按 cells/<op>.sh 解析·op=dequantize_row）。
+#   - 声明接口：`dequantize_row.sh <board> <mode> <fmt>`。B2 后 runner 不再按文件同名猜路；
+#     本族尚未进入显式 CELL_ROUTES/verify+cold parser registry，故脚本存在只表示 direct
+#     harness 资产存在，不得冒充 official runner coverage（后续 B4/B5 另案接入）。
 #   - **harness 自身禁写任何【仓库侧】持久文件** —— 板端跑完把结果全部打到 stdout；
 #     bench 解析 stdout，一切仓库侧持久写入经 runner 的 fail-closed 写入闸落三目的地。
 #   - 板端 /tmp/$RDIR 下的 seal/log = 板端临时（可接受）；仓库侧【不 scp 回、不落任何文件】。
 #   - 源资产（driver / leaf / tables）住数据格，本 harness 只【读】（ASSET_ROOT 覆写）。
 #
-#   board: rvv          （@k1 dequant 部署 gated on ISSUE-105 半宽 — 本格 @rvv 先证·k1=VOID）
+#   board: rvv          （k1 未进入本 cell 的显式 route/parser/correctness contract；不沿用
+#                        已解决 ISSUE-105 作 blocker，当前仍 fail-closed）
 #   fmt  : iq3_xxs      （grid-codebook super-block·candidate ② OWNED SCALAR-load 查表 +
 #                        unit-stride vector 算术·HW_GATHER=0·复刻对手形状·裁决3/ISSUE-107）
 #          iq3_xxs_grid （★A/B 参照：同格的 grid HW-gather 变体·frozen 0.36 gather 天花板·
@@ -134,6 +136,10 @@ case "$FMT" in
            OPPSYM="dequantize_row_tq1_0";     NB_MEASURE=512;  NB_VERIFY=1024 ;;
   *) echo "# HARNESS-VOID bad fmt $FMT (dequantize_row 族: iq3_xxs·iq3_xxs_grid·iq2_xs·iq1_m·q8_0·q4_0·q5_0·q4_1·q5_1·q4_K·q5_K·q2_K·q3_K·q6_K·mxfp4·iq4_nl·nvfp4·iq4_xs·tq2_0·tq1_0)"; exit 2 ;;
 esac
+case "$MODE" in
+  verify|sanity|measure) : ;;
+  *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
+esac
 
 if [ "$BOARD" = rvv ]; then
   GGML=/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin
@@ -146,7 +152,7 @@ if [ "$BOARD" = rvv ]; then
   CORES="${BENCH_CORES:-8 9 10 11 12 13 14 15}"   # 0,1 = co-tenant vLLM, NEVER touched
   FLUSH_MB=224                                     # > rvv L3
 elif [ "$BOARD" = k1 ]; then
-  echo "# HARNESS-VOID board=k1 (dequant @k1 部署 gated on ISSUE-105 VLEN256 半宽 — 本格 @rvv 先证隔离该变量)"; exit 2
+  echo "# HARNESS-VOID board=k1 (dequantize_row 的 k1 route/parser/correctness 尚未注册；ISSUE-105 已解决且不作 blocker)"; exit 2
 else
   echo "# HARNESS-VOID unsupported board $BOARD (dequantize_row 族当前仅 rvv)"; exit 2
 fi

@@ -9,6 +9,8 @@
 
 > **【runner、目的地和注册 cell 路径已建】** runner 现址 = `tools/bench/bench`；它只写 `experiments/runs/<run-id>/` 与 `experiments/runs.log`。`experiments/master/` 由 recon 独占发布。每格 harness 住 `tools/bench/cells/`。未注册或被板册禁止的组合继续 fail-closed。
 >
+> **route / parser / eligibility 三层分立**：roster 精确键存在，只说明该格属于实验分母；runner 的显式 `CELL_ROUTES` 精确命中，只说明当前实现知道调用哪个 harness；verify/cold parser registry 命中，只说明 runner 能归一化该 op 的输出；board/issue gate 通过后才有真跑资格。任一层不得反向授权另一层。route 与两类 parser 必须在 run-id 分配、transport/SSH 和证据写入之前精确解析；未知或错 board/engine/format 组合、缺 parser 均 fail-closed。禁止按 `cells/<op>.sh` 同名猜路、禁止未命中后回退 GEMM parser、禁止 scalar dormant route 反向新增 roster/主表资格。
+>
 > **本节是规范，不是对现有实现的描述**：本节的五步与 [3.3.1](#331-行-schema规范性) 行 schema 是**验收标准**；runner 与本节不符 = **runner 的缺陷**。**本层是权威，runner 是实现**——任何"schema 以 runner 实现为准"的读法都非法。（runner 侧已把本节 [3.3.1](#331-行-schema规范性) 的字段表做成**每次出行前机核比对**、不等即 fail-closed 中止；故"改本节而不改 runner"会当场变红，此为设计。）
 
 每格测量 = 固定五步，由**单一 runner** 执行，步内自动留痕，**步外无合法动作**：

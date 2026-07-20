@@ -143,7 +143,7 @@
 | ISSUE-058 | 假声明/裸行号四处订正 | [门与工具](./门与工具.md) |
 | ISSUE-060 | 两个不依赖 runner 的 workflow 被连带删除（理由对它们不成立）—— 复活还是确认删 | [门与工具](./门与工具.md) |
 | ISSUE-082 | 「falsifier 组 ≥3 家族 CI 常绿」措辞失锚（无人值守 CI 已不存在）改不改写 | [门与工具](./门与工具.md) |
-| **ISSUE-104** | **★scalar S 线「bench 能调」被四处夹住**（runner 板块 block=ISSUE-061 · op→harness 名解析 · parser gemm_tile 专用 · 主表无 scalar 列/[L-6] 本不该有）—— `scalar_vec_dot.sh` 建成契约合规+直跑真数，runner 通道未通 | [门与工具](./门与工具.md#issue-104--scalar-s-线bench-能调被四处夹住--harness-建成契约合规但-runner-通道未通) |
+| **ISSUE-104** | **★scalar route/parser 前置已由 B2 接通，但 roster 无 engine=scalar 行且 ISSUE-061 未解；dormant contract 不授予真跑资格** | [门与工具](./门与工具.md) |
 
 ### 1.6 ★spec 树自身（上岗阻塞面）
 
@@ -168,7 +168,7 @@
 | [门与工具](./门与工具.md) | 门体清算（054–060）· runner 与工具挂载（067–069 · 082 · 083 · 085 · 087 · 090–094）· bench 通道与 harness（096–099 · 104 · 105 · 114）· 工具默认失锚（108）· T-X≠S1（110） | 28 |
 | [spec树与治理](./spec树与治理.md) | 登记簿治理（066）· spec 树自身的缺口（070–074 · 086 · 089）· 旧强制治理裁决（075–080）· 旧 goal 退役与 T-X 归属（095 · 103） | 16 |
 
-**总条数 = 125**（ISSUE-001..ISSUE-125，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 60 · RESOLVED 21 · 待施工 18 · 已就绪 8 · 阻塞 7 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=125）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-20 机算刷新；后续禁止手抄沿用。
+**总条数 = 125**（ISSUE-001..ISSUE-125，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 60 · RESOLVED 22 · 待施工 16 · 已就绪 8 · 阻塞 8 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=125）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-20 机算刷新；后续禁止手抄沿用。
 
 > **计数谓词（机算 · 禁手写小计）**：按 `### ISSUE-NNN` 切块、取每块最后一个 `- **状态**：` 行统计（子块内的重复状态行不重复计）。2026-07-17 §七③ `docs/` 归档轮收官实测：总数 **94** / 零缺号 / 零重号；分布 **待裁 58 · 待施工 14 · 阻塞 10 · 已就绪 9 · 已裁·已落地 2 · 已退役 1**。〔本轮 +1 = ISSUE-094（`--drift` 漂移门），经用户裁后**已退役**、不占待裁额。同轮并行写入者新增 090–093 并结清 2 条，故前几行的「93 / 60·14·10·9」是彼时口径、非漂移 —— **本行数字禁手抄，一律按上述谓词现算**。〕**同轮订正三处既存漂移**：ISSUE-089 在 [§三 全册索引](#三全册索引) **缺行**（本层自称「唯一入口索引」却查不到该号）· canon与措辞 条数 10→11（088 未计）· spec树与治理 条数 13→14（089 未计）。
 
@@ -278,12 +278,12 @@
 | ISSUE-096 | bench cell harness 基建已建成 | RESOLVED | 门与工具 |
 | ISSUE-097 | regime 已成显式闭合键，空值通配与含混行已退役 | RESOLVED | 门与工具 |
 | ISSUE-098 | master writer 已收口为 recon-only；bench 只写 immutable run | RESOLVED | 门与工具 |
-| ISSUE-099 | PR-47 真 gcc 污染 8 格的合格 harness/重测 | 待施工 | 门与工具 |
+| ISSUE-099 | PR-47 真 gcc 污染 8 格：product_reduce 工具前置已闭；3 格待正式重测，5 个 FLAT gemm 路径待裁 | 待裁 | 门与工具 |
 | ISSUE-100 | `vec_dot·nvfp4@rvv` 残余 lever 待施工，禁提前判不可达 | 待施工 | 性能与测量 |
 | ISSUE-101 | canon 措辞：「判别键 = sub-block 数（16 vs 8）」被 P5-F2 证伪 | 待裁 | 性能与测量 |
 | ISSUE-102 | 机制①「VLEN 专化满展开」反汇编证 no-op·真 lever = VLEN256 宽化·re-scope | 待裁 | 性能与测量 |
 | ISSUE-103 | T-X 六列证据表 spec 层归属未定（重构后无 testing 层） | 待裁 | spec树与治理 |
-| ISSUE-104 | ★scalar S 线「bench 能调」被四处夹住（harness 契约合规·runner 未通） | 待裁 | 门与工具 |
+| ISSUE-104 | scalar route/parser 已接通；ISSUE-061/roster 仍阻塞真测 | 阻塞 | 门与工具 |
 | ISSUE-105 | per-board VLEN fixture 与 k1 半宽欠用已修 | RESOLVED | 门与工具 |
 | ISSUE-106 | ★dequant「PASS」多是 lottery-PASS·R线 de-lottery 用 owned 真测替换会降 census PASS（诚实代价·§四.1） | APPLIED-DEFAULT | 性能与测量 |
 | ISSUE-107 | ★grid-codebook dequant owned 真向量(HW-gather) 天花板·grid 族通用·标量门这些格到不了 PASS（非架构不可达·有标量-load lever gated 调度成熟） | 待裁 | 性能与测量 |
@@ -293,7 +293,7 @@
 | ISSUE-111 | 数值口径松绑: headline 取最快变体+ULP 界·oracle §5 作废（补充令二§二·量税证数值非perf杠杆） | 待裁 | canon与措辞 |
 | ISSUE-112 | 11 格 NEEDS-LEVER 具名-X 缺口 | 待施工 | 性能与测量 |
 | ISSUE-113 | `integer_core_lmul` optional → required 收尾锁 | 待施工 | 发射器与架构 |
-| ISSUE-114 | q4_K vec_dot harness 的 min-term 空心测漏洞 | 待施工 | 门与工具 |
+| ISSUE-114 | q4_K/q5_K vec_dot min-term 空心测漏洞 | RESOLVED（B2） | 门与工具 |
 | ISSUE-115 | q2_K fold-brick op 的语义归属 | 待裁 | 发射器与架构 |
 | ISSUE-116 | decode/flat 前门 stamp 与 6 处 live-default 去烘焙 | 待裁 | 发射器与架构 |
 | ISSUE-117 | 柱二 c 轴公式、schema 与归因真实状态订正 | 待裁 | 性能与测量 |

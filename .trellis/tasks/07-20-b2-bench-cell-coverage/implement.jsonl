@@ -4,3 +4,9 @@
 {"file": ".trellis/spec/measurement/对手法.md", "reason": "对手身份探针"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/b-line-audit.md", "reason": "cell coverage真实缺口"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}
+{"file": "tools/bench/bench", "reason": "显式 CELL_ROUTES、唯一 verify/cold parser registries 与 hermetic regression"}
+{"file": "tools/bench/cells/vec_dot.sh", "reason": "K-quant 五格式双板 harness、真实 opponent path 与 correctness fault arms"}
+{"file": "experiments/active/k-vecdot-harness/kquant_vecdot_driver.c", "reason": "五个独立 raw-byte oracle、min-term/bsums contract 与 QK_K=256"}
+{"file": "experiments/active/g7-census/vecdot-rvv/kernels/GEN_SEAL.txt", "reason": "当前 production emit 的 CORE==PROD seal"}
+{"file": ".trellis/spec/measurement/流水线与行schema.md", "reason": "route/parser/eligibility 分层稳定契约"}
+{"file": ".trellis/tasks/07-20-b2-bench-cell-coverage/verification.md", "reason": "B2 correctness/route/parser/CORE==PROD 收口证据与非性能边界"}

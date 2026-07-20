@@ -3,13 +3,13 @@
   "name": "b-real-performance-progress",
   "title": "B 线：真实性能推进与证据闭环",
   "description": "沿 official bench 持续推进 deployed ggml、代表性强对手与 e2e 性能，补覆盖、资格与回归闭环。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": "measurement-performance",
   "package": null,
   "priority": "P1",
   "creator": "claude",
-  "assignee": "claude",
+  "assignee": "codex",
   "createdAt": "2026-07-20",
   "completedAt": null,
   "branch": null,
@@ -28,6 +28,6 @@
   ],
   "parent": "07-20-ab-formula-performance-mainlines",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "B1 and B2 completed as independent atomic slices. B2 adds explicit route/parser registries and dual-board correctness coverage only; no cold values, roster denominator, official runs, or master cells changed. B3-B6 remain active work.",
   "meta": {}
 }

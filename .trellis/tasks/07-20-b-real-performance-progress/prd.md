@@ -15,12 +15,17 @@
 
 ## Actual Gaps
 
-- 部分 harness 只覆盖子集：例如 K-quant vec_dot 主要覆盖 q4_K/q6_K，q2/q3/q5 oracle 和 k1 路仍有空洞。
-- q4_K min-term 标准 harness 存在空心臂欠账（ISSUE-114）。
-- master 同时被 recon 整表生成和 bench 外科更新，ownership/重建覆盖风险未关闭（ISSUE-098）。
-- regime、默认 reader 路径、T-N qualification 与已有 ad-hoc measured 数据仍需正式化。
+- B1 已关闭 master ownership、regime、默认 reader 与结构化 T-N 控制面；后续缺口是产生新鲜 qualified run，不是重建第二套 writer/reader。
+- B2 已关闭 K-quant q2–q6 双板 correctness/route/parser、product_reduce parser 与 ISSUE-114；但没有跑 cold campaign，故不改变任何性能格。
+- route registry 仍有诚实未覆盖面：FLAT GEMM、dequant official parser、scalar eligibility 等分别由 ISSUE-099、后续 B4/B5、ISSUE-061/104 承担，不能因目录里已有脚本伪装成 runner coverage。
 - 具名-X/近门中仍有结构 lever：K-quant vec_dot memory-stall/MLP、grid/codebook gather、nvfp4 compiler-call wall 等需分开判断。
 - kernel 改进到 deployed/e2e 的传导需持续配对验证，不能只报 micro。
+
+## Progress Snapshot（2026-07-20）
+
+- B1 completed：official evidence → qualification → recon 单一控制面。
+- B2 completed：显式 route/parser registry；K-vec 五格式 × 双板与 product_reduce 三格式 × 双板 correctness parser 真验；五个 K leaf CORE==PROD；scalar route 仅 dormant；零 cold/零 master 改动。
+- 下一可执行波：B3 使用 B2 合格 K-vec correctness 面做 strong-opponent/结构攻坚；B4/B5 分别处理 dequant 与 deployed GEMM，不回到 B2 再造兼容 route。
 
 ## Requirements
 

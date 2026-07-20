@@ -48,6 +48,10 @@ case "$FMT" in
   iq2_s)   DEF=FMT_IQ2_S;   HDRS="iq2s_tables.h";   GSED='s/0x0808080808080808ULL/0x0808080808080801ULL/' ;;
   *) echo "# HARNESS-VOID bad fmt $FMT (gemm_tile 族仅 iq1_s|iq1_m|iq3_xxs|iq3_s|iq2_xxs|iq2_xs|iq2_s)"; exit 2 ;;
 esac
+case "$MODE" in
+  verify|sanity|measure) : ;;
+  *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
+esac
 
 if [ "$BOARD" = rvv ]; then
   GGML=/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin
