@@ -1,0 +1,553 @@
+{
+  "schema_version": "1.0",
+  "snapshot": {
+    "scope": "A1 formula authority freeze after B1 and A7 synchronization",
+    "rule": "This is a HEAD characterization, not the target architecture. Every debt row is bound to a Trellis task and issue.",
+    "decision_count": 8
+  },
+  "classifications": [
+    "analytic",
+    "measured",
+    "constant",
+    "honest-null",
+    "fallback"
+  ],
+  "decisions": [
+    {
+      "id": "dequant.nibble",
+      "actual_owner": "weft::plugin::rvv::nibbleDecodePlanFromFacts",
+      "g": [
+        "DequantizeRowStreamFacts.{qk,weightBlockStride,scaleByteOffset,quantByteOffset,carrier,nibbleBias,minByteOffset,qhByteOffset}"
+      ],
+      "c": [
+        "minimumVLEN argument is supplied as literal 128 and ignored"
+      ],
+      "omega": [
+        "honest-null: no measurement participates"
+      ],
+      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: nibbleDecodePlanFromFacts",
+      "legal_set": "No typed legality object; emitter accepts only the constant m1 load anchor",
+      "selection": "carrier_kind selects BareInt8 versus Nibble4; no cross-mechanism selector",
+      "stamp": "g is stamped on DequantizeRowDecodeCoreOp; selected NibbleDecodePlan is transient and is not stamped",
+      "consumer": "emitDequantizeRowNibbleVectorBody / emitDequantizeRowQ8_0VectorBody",
+      "emission": "plan fields are load-bearing",
+      "classification": [
+        "analytic",
+        "constant",
+        "honest-null"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-dequantize-row-nibble-decode-plan-load-bearing.mlir",
+        "test/Conversion/RVV/rvv-dequantize-row-decode-core-carrier-legality.mlir"
+      ]
+    },
+    {
+      "id": "dequant.codebook",
+      "actual_owner": "weft::plugin::rvv::codebookGatherPlanFromFacts",
+      "g": [
+        "DequantizeRowStreamFacts.{qk,weightBlockStride,quantByteOffset}",
+        "CodebookScaleModel supplied by an emitter-local decode_model StringSwitch"
+      ],
+      "c": [
+        "minimumVLEN argument is supplied as literal 128 and ignored",
+        "getRVVCodebookGatherAnchorLMUL exists but is not used by this plan provider"
+      ],
+      "omega": [
+        "honest-null: no measurement participates"
+      ],
+      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: codebookGatherPlanFromFacts",
+      "legal_set": "legality.isLegal is only !constant-m1.empty(); it is not a capability-derived gather-span check",
+      "selection": "decode_model StringSwitch selects CodebookScaleModel inside the emitter",
+      "stamp": "layout g is stamped; selected CodebookGatherPlan/loadLMUL is not stamped",
+      "consumer": "emitDequantizeRowCodebookVectorBody",
+      "emission": "plan geometry is load-bearing; capability input is not",
+      "classification": [
+        "analytic",
+        "constant",
+        "honest-null"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-dequantize-row-codebook-gather-plan-load-bearing.mlir"
+      ]
+    },
+    {
+      "id": "dequant.kquant",
+      "actual_owner": "weft::plugin::rvv::kquantScaleMinPlanFromFacts",
+      "g": [
+        "DequantizeRowStreamFacts.{qk,weightBlockStride,scaleByteOffset,quantByteOffset}",
+        "KQuantScaleModel supplied by an emitter-local decode_model StringSwitch"
+      ],
+      "c": [
+        "minimumVLEN argument is supplied as literal 128 and ignored"
+      ],
+      "omega": [
+        "honest-null: no measurement participates"
+      ],
+      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: kquantScaleMinPlanFromFacts",
+      "legal_set": "legality.isLegal is only !constant-loadLMUL.empty(); loadLMUL/stripLanes are selected by scaleModel constants",
+      "selection": "decode_model StringSwitch selects KQuantScaleModel; emitter switches plan.scaleModel across existing leaves",
+      "stamp": "primary layout g is stamped; selected KQuantScaleMinPlan/loadLMUL is not stamped",
+      "consumer": "emitDequantizeRowQ45KVectorBody / Q2K / Q3K / Q6K",
+      "emission": "plan fields and derived minByteOffset=scaleBlockByteOffset+2 are load-bearing",
+      "classification": [
+        "analytic",
+        "constant",
+        "honest-null"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-dequantize-row-kquant-scalemin-plan-load-bearing.mlir"
+      ]
+    },
+    {
+      "id": "dequant.grid",
+      "actual_owner": "weft::plugin::rvv::gridLookupPlanFromFacts",
+      "g": [
+        "GridDecodeLeaf supplied by an emitter-local decode_model StringSwitch",
+        "optional codebook_entry_lanes stamped on DequantizeRowDecodeCoreOp"
+      ],
+      "c": [
+        "honest-null for the current narrow grid bodies; minimumVLEN is supplied as literal 128 and ignored"
+      ],
+      "omega": [
+        "honest-null: no measurement participates"
+      ],
+      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: gridLookupPlanFromFacts",
+      "legal_set": "provider directly consults lookupGridDecodePlan(decodeModel); required entry lanes fail closed later",
+      "selection": "decode_model StringSwitch selects GridDecodeLeaf before provider call",
+      "stamp": "entry-lane g is stamped; selected GridLookupPlan/registry verdict is not stamped",
+      "consumer": "emitDequantizeRowIQGridBodyShared",
+      "emission": "entryLanes is load-bearing",
+      "classification": [
+        "analytic",
+        "honest-null"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-dequantize-row-grid-lookup-plan-load-bearing.mlir"
+      ]
+    },
+    {
+      "id": "dequant.ternary",
+      "actual_owner": "weft::plugin::rvv::ternaryDecodePlanFromFacts",
+      "g": [
+        "TernaryDecodeLeaf supplied by an emitter-local decode_model StringSwitch",
+        "optional codebook_entry_lanes for iq1 leaves"
+      ],
+      "c": [
+        "honest-null for the current ternary bodies; minimumVLEN is supplied as literal 128 and ignored"
+      ],
+      "omega": [
+        "honest-null: no measurement participates"
+      ],
+      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: ternaryDecodePlanFromFacts",
+      "legal_set": "legality.isLegal is constant true; iq1 entry-lane presence fails closed in the emitter/verifier",
+      "selection": "decode_model StringSwitch selects TernaryDecodeLeaf before provider call",
+      "stamp": "entry-lane g is stamped where applicable; selected TernaryDecodePlan is not stamped",
+      "consumer": "emitDequantizeRowTernaryDecodeBodyShared",
+      "emission": "entryLanes is load-bearing for iq1 leaves",
+      "classification": [
+        "analytic",
+        "constant",
+        "honest-null"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-dequantize-row-ternary-decode-plan-load-bearing.mlir"
+      ]
+    },
+    {
+      "id": "repack.accumulator_lmul",
+      "actual_owner": "selectRepackAccumulatorLMUL",
+      "g": [
+        "scale_model identifies the committed decode-family shape"
+      ],
+      "c": [
+        "has_fractional_lmul through resolved RVV version",
+        "capability-derived halfLanes",
+        "in-IR vreg_count through resolveRVVVectorRegisterBudget"
+      ],
+      "omega": [
+        "kRepackMeasuredM1FasterMeasurements hand-authored in the front door"
+      ],
+      "provider": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp :: selectRepackAccumulatorLMUL",
+      "legal_set": "m1 constructibility uses rvvRegisterPressureLegal; mf2 is the fallback when fractional LMUL exists",
+      "selection": "RVV0.7 correctness forces m1; qualified table hit may choose m1/mf2; otherwise mf2 fallback",
+      "stamp": "integer_core_lmul and reason are stamped independently at 18 construction call sites",
+      "consumer": "18 fail-closed integer_core_lmul reads in RVVToEmitCBlockQuantLinear.cpp",
+      "emission": "emitter derives the widening chain mechanically from the stamped anchor",
+      "classification": [
+        "analytic",
+        "measured",
+        "fallback"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-repack-accumulator-lmul-measured-gate-q8.mlir",
+        "test/Conversion/RVV/rvv-integer-core-lmul-frontdoor-stamp-fail-closed.mlir",
+        "test/Conversion/RVV/rvv-version-capability-vs-march-frontdoor-judgment.mlir"
+      ]
+    },
+    {
+      "id": "repack.sp4_tiling",
+      "actual_owner": "selectRepackTilingVariant",
+      "g": [
+        "fold_model classified to RVVTilingBottleneckShape"
+      ],
+      "c": [
+        "minimum_vlen",
+        "vreg_count"
+      ],
+      "omega": [
+        "lookupMeasurement hard-coded in-memory winner mirror keyed by declared_instance_hash, kernel and axis"
+      ],
+      "provider": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h :: selectRepackTilingVariant",
+      "legal_set": "tilingVariantFeasibleSet returns both Plain and S6Tiled on every afforded board, even though min-fold Plain has no emitter realization",
+      "selection": "feasible measured winner, otherwise bottleneck-shape prior; static_order only for an empty set and asserted unreachable in production",
+      "stamp": "weft_rvv.tiling_variant, reason and attribution record are stamped once by stampScheduleSelections",
+      "consumer": "emitTypedRepackGemmLoopBody reads an optional string attr",
+      "emission": "missing stamp silently realizes S6Tiled; min-fold Plain is rejected only at emission",
+      "classification": [
+        "analytic",
+        "measured",
+        "fallback"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-sel1-t3-tiling-rollout-gate7.mlir",
+        "test/Conversion/RVV/rvv-sel3-generalized-measurement-view-byte-exact.mlir",
+        "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir"
+      ]
+    },
+    {
+      "id": "repack.loop_order",
+      "actual_owner": "selectRepackLoopOrder",
+      "g": [
+        "weight_block_stride",
+        "activation_block_stride",
+        "prefill regime"
+      ],
+      "c": [
+        "minimum_vlen",
+        "vreg_count"
+      ],
+      "omega": [
+        "lookupMeasurement hard-coded in-memory winner mirror keyed by declared_instance_hash, kernel and axis"
+      ],
+      "provider": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h :: selectRepackLoopOrder",
+      "legal_set": "both loop orders are considered feasible for an afforded prefill GEMM",
+      "selection": "measurement hit wins; otherwise the stride layout prior chooses row_outer or col_outer",
+      "stamp": "weft_rvv.loop_order, reason and attribution record are stamped once by stampLoopOrderSelection",
+      "consumer": "emitTypedRepackGemmLoopBody has two optional-attr read sites",
+      "emission": "q4_K recomputes the stride prior when the stamp is missing; siblings override col_outer/prior to row_outer and honor only col_outer/measured",
+      "classification": [
+        "analytic",
+        "measured",
+        "fallback"
+      ],
+      "tests": [
+        "test/Conversion/RVV/rvv-ternary-gemm-loop-order-stamp-frontdoor.mlir",
+        "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-override.mlir",
+        "test/Conversion/RVV/rvv-sel3-generalized-measurement-view-byte-exact.mlir"
+      ]
+    }
+  ],
+  "debts": [
+    {
+      "name": "dequant c seam is decorative",
+      "issue": "ISSUE-117",
+      "owner_task": ".trellis/tasks/07-20-a3-dequant-c-driven-plans",
+      "retire": [
+        "five (void)minimumVLEN bodies",
+        "five /*minimumVLEN=*/128 emitter calls for the declared c-driven slice"
+      ],
+      "killing_test": "Add a VLEN128/VLEN256 plan-field or legal-set mutation whose emitted consumer changes, plus missing/conflicting capability fail-closed."
+    },
+    {
+      "name": "dequant mechanism leaf is selected again from decode_model in the emitter",
+      "issue": "ISSUE-119",
+      "owner_task": ".trellis/tasks/07-20-a8-baked-g-convergence",
+      "retire": [
+        "four emitter-local StringSwitch<optional plan leaf> mappings",
+        "emitter reconstruction of DequantizeRowStreamFacts"
+      ],
+      "killing_test": "A synthetic typed-g leaf must reach an existing mechanism without adding an emitter format branch; forged/missing typed g must fail closed."
+    },
+    {
+      "name": "dequant selected plans are transient and verifier cannot reject a stale selected result",
+      "issue": "ISSUE-122",
+      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "retire": [
+        "provider invocation inside emitTypedDequantizeRowLoopBody",
+        "unstamped selected plan state"
+      ],
+      "killing_test": "Forge a selected plan/stamp inconsistent with typed g+c and require verifier rejection before emission."
+    },
+    {
+      "name": "GridLookup legality has a second decode_model registry head",
+      "issue": "ISSUE-122",
+      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "retire": [
+        "gridLookupPlanFromFacts direct lookupGridDecodePlan(decodeModel) for the dequant slice"
+      ],
+      "killing_test": "Mutating or removing the sole typed mechanism row must change both verifier and selection without a second registry edit."
+    },
+    {
+      "name": "repack accumulator LMUL selection/stamping is duplicated across 18 builders",
+      "issue": "ISSUE-117",
+      "owner_task": ".trellis/tasks/07-20-a2-typed-decision-contract",
+      "retire": [
+        "18 direct RepackAccumulatorLMULChoice call-site constructions",
+        "18 independent reason-stamp sites"
+      ],
+      "killing_test": "One typed decision constructor must cover every production caller; old direct callers and adapters must count zero."
+    },
+    {
+      "name": "measurement winners are hand-mirrored in production headers/front door",
+      "issue": "ISSUE-117",
+      "owner_task": ".trellis/tasks/07-20-a5-qualified-winner-view",
+      "retire": [
+        "kRepackMeasuredM1FasterMeasurements",
+        "lookupMeasurement local kSeeded table"
+      ],
+      "killing_test": "A deterministically generated qualified view must reproduce winners; stale/hash/key/illegal-winner mutations must miss to prior."
+    },
+    {
+      "name": "SP4 legal set admits an unrealizable min-fold Plain candidate",
+      "issue": "ISSUE-125",
+      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "retire": [
+        "unconditional {Plain,S6Tiled} feasibility for min-fold when Plain has no body",
+        "emission-time deferred-Plain rejection as a substitute for legality"
+      ],
+      "killing_test": "A forged Plain winner must be filtered before selection, or Plain must gain a real body; selector must never return a candidate the emitter rejects."
+    },
+    {
+      "name": "SP4 missing stamp silently realizes S6Tiled",
+      "issue": "ISSUE-125",
+      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "retire": [
+        "optional tiling_variant read with ABSENT => S6Tiled"
+      ],
+      "killing_test": "Strip tiling_variant from an otherwise selected body and require verifier/emitter failure before any S6 code is emitted."
+    },
+    {
+      "name": "loop-order selected result is overridden or recomputed during emission",
+      "issue": "ISSUE-125",
+      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "retire": [
+        "sibling reason==measured override gate",
+        "q4_K missing-stamp repackColGroupOuterForLayout recomputation",
+        "optional loop_order reads"
+      ],
+      "killing_test": "The current prior-override fixture must be inverted: selected col_outer/prior realizes col_outer; stripping the stamp fails closed."
+    },
+    {
+      "name": "schedule stamps are outside ODS/verifier authority",
+      "issue": "ISSUE-125",
+      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "retire": [
+        "discardable string-only tiling/loop-order attrs with no verifier contract"
+      ],
+      "killing_test": "Unknown token, missing stamp and stamp inconsistent with the legal set must all fail verification."
+    }
+  ],
+  "test_contracts": [
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-nibble-decode-plan-load-bearing.mlir",
+      "needles": [
+        "MUTBIAS",
+        "MUTSTRIP"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-codebook-gather-plan-load-bearing.mlir",
+      "needles": [
+        "MUTQS",
+        "MUTSTRIP"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-kquant-scalemin-plan-load-bearing.mlir",
+      "needles": [
+        "MUTSCALE",
+        "MUTQS"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-grid-lookup-plan-load-bearing.mlir",
+      "needles": [
+        "MUTATED",
+        "NOENTRY"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-ternary-decode-plan-load-bearing.mlir",
+      "needles": [
+        "MUTATED",
+        "NOENTRY"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-integer-core-lmul-frontdoor-stamp-fail-closed.mlir",
+      "needles": [
+        "FAILCLOSED",
+        "no silent mf2 default"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-lower-quant-contraction-stage-b-selection.mlir",
+      "needles": [
+        "DEFAULT -march \"\"",
+        "no capability"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-sel1-t3-tiling-rollout-gate7.mlir",
+      "needles": [
+        "NOSTATIC-NOT: static_order",
+        "tiling_variant = \"s6_tiled\"",
+        "tiling_variant = \"plain\""
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-override.mlir",
+      "needles": [
+        "selector=col_outer/prior realized=row_outer",
+        "loop_order_selection_reason = \"prior\""
+      ]
+    }
+  ],
+  "source_contracts": [
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCSupport.cpp",
+      "needle": "(void)minimumVLEN;",
+      "count": 5
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "/*minimumVLEN=*/128",
+      "count": 5
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "StringSwitch<std::optional<::weft::",
+      "count": 4
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "::weft::plugin::rvv::nibbleDecodePlanFromFacts",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "::weft::plugin::rvv::codebookGatherPlanFromFacts",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "::weft::plugin::rvv::kquantScaleMinPlanFromFacts",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "::weft::plugin::rvv::gridLookupPlanFromFacts",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
+      "needle": "::weft::plugin::rvv::ternaryDecodePlanFromFacts",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCSupport.cpp",
+      "needle": "lookupGridDecodePlan(decodeModel)",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "RepackAccumulatorLMULChoice accLmulChoice",
+      "count": 18
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "loop->setAttr(kAccumulatorLmulReasonAttr",
+      "count": 18
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "if (!loopBody.getIntegerCoreLmul())",
+      "count": 13
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "if (!gemv.getIntegerCoreLmul())",
+      "count": 4
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "if (!gemm.getIntegerCoreLmul())",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "kRepackMeasuredM1FasterMeasurements[]",
+      "count": 1
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h",
+      "needle": "const SeededMeasurement kSeeded[]",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "selectRepackTilingVariant(*shape",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "loop->setAttr(kTilingVariantAttr",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "\"weft_rvv.tiling_variant\"))",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "ABSENT => S6Tiled",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "selectRepackLoopOrder(weightStride",
+      "count": 1
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "loop->setAttr(kLoopOrderAttr",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "\"weft_rvv.loop_order\"))",
+      "count": 2
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "loopOrderReason.getValue() == \"measured\"",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
+      "needle": "repackColGroupOuterForLayout(",
+      "count": 1
+    },
+    {
+      "path": "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp",
+      "needle": "weft_rvv.tiling_variant",
+      "count": 0
+    },
+    {
+      "path": "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp",
+      "needle": "weft_rvv.loop_order",
+      "count": 0
+    }
+  ]
+}

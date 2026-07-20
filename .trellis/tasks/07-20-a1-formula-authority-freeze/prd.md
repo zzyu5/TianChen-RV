@@ -33,13 +33,13 @@
 
 ## Acceptance Criteria
 
-- [ ] HEAD matrix 覆盖全部具名决定且每项只有一个“当前实际 owner”描述。
-- [ ] 五类 dequant plan 不被误写成待从零创建。
-- [ ] 每个重复 authority 有符号级路径和后续 owner 建议。
-- [ ] 每个发现同时绑定后续 task owner、应删除的旧 symbol/caller 和可杀死它的验收；不允许 matrix/ledger 成为终点。
-- [ ] characterization tests 在未改生产语义时全绿，并能由至少一个 mutation/负控变红。
-- [ ] ledger 更新为 defined/consumed/stamped/emitted/tested，而非单一 migrated 标记。
-- [ ] `git diff` 不含性能策略或 winner 改判。
+- [x] HEAD matrix 覆盖全部具名决定且每项只有一个“当前实际 owner”描述。
+- [x] 五类 dequant plan 不被误写成待从零创建。
+- [x] 每个重复 authority 有符号级路径和后续 owner 建议。
+- [x] 每个发现同时绑定后续 task owner、应删除的旧 symbol/caller 和可杀死它的验收；不允许 matrix/ledger 成为终点。
+- [x] characterization tests 在未改生产语义时全绿，并能由至少一个 mutation/负控变红。
+- [x] ledger 更新为 defined/consumed/stamped/emitted/tested，而非单一 migrated 标记。
+- [x] `git diff` 不含性能策略或 winner 改判。
 
 ## Verification
 
@@ -54,4 +54,18 @@
 
 ## Issue Mapping
 
-- ISSUE-117、ISSUE-118、ISSUE-119、ISSUE-122；发现新重复 authority 时新增独立 issue，不在报告里私设问题清单。
+- ISSUE-117、ISSUE-118、ISSUE-119、ISSUE-122；本轮新发现的 SP4 假 legal candidate、missing-stamp 默认与 loop-order selected≠realized 已登记 ISSUE-125，并绑定 A4；不在报告里私设第二问题清单。
+
+## A1 Deliverables
+
+- `experiments/active/formula-layer-migration/AUTHORITY-MATRIX.md`：人读的 8-decision HEAD 数据流与切割面。
+- `experiments/active/formula-layer-migration/authority-matrix.v1.json`：机器可读 owner/g/c/ω/provider/legal/select/stamp/consumer、debt→task/issue/killing-test 绑定与 source census。
+- `test/Scripts/formula-authority-matrix.test`：矩阵、源符号计数、既有 characterization tests 与三类内存 mutation 的 hermetic gate。
+
+## Completion Record
+
+- clean configure + `ninja weft-opt`：GREEN；本任务未改生产 C++，但仍从当前 worktree 全量重编了真实 consumer/emitter。
+- focused lit：12/12 GREEN（五 plan、LMUL、missing capability、SP4、loop-order、matrix/self-test）。
+- full `check-weft`：977 total / 974 pass；仅 3 个仓内既有 generated-bundle ABI 失败，与 A7 基线同名同因；新增 matrix test 为新增 1 GREEN。
+- issue census：ISSUE-001..125，零缺号、零重号；ISSUE-125 绑定 A4。
+- experiments index：新增 formula cell MANIFEST 并重生成，index gate 的既有债从 A7 基线 1370 降到 1367；剩余均为本任务外既有 orphan/manifest debt。

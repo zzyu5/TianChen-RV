@@ -3,3 +3,7 @@
 {"file": ".trellis/spec/canon/核心不变量.md", "reason": "typed owner和fail closed"}
 {"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "A线现状审计"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}
+{"file": "experiments/active/formula-layer-migration/AUTHORITY-MATRIX.md", "reason": "A1 人读 8-decision HEAD authority 正本"}
+{"file": "experiments/active/formula-layer-migration/authority-matrix.v1.json", "reason": "机器可读 owner/g/c/omega/provider/legal/select/stamp/consumer 与退役契约"}
+{"file": "test/Scripts/formula-authority-matrix.test", "reason": "source/test/task/issue 漂移与三类 mutation 门"}
+{"file": ".trellis/spec/issues/发射器与架构.md", "reason": "ISSUE-125 selected stamp 与 emission 分裂"}
