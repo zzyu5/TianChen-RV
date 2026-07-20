@@ -39,9 +39,13 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_construction_manifest_regex as cert  # noqa: E402  (the ONE certification classifier)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "tools" / "bench"))
+from measurement_keys import key_from_mapping  # noqa: E402
 
 SCHEMA_REL = "schema/coverage-sixstate.v1.json"
 BYPASS_REL = "schema/emit-bypass-whitelist.v1.json"
@@ -50,7 +54,11 @@ BYPASS_REL = "schema/emit-bypass-whitelist.v1.json"
 # ------------------------------------------------------------ pure aggregator
 def compute(doc, bypass):
     """Pure. Returns the canonical-numbers dict from an already-loaded schema + bypass doc."""
-    states = doc.get("states", [])
+    audit_states = doc.get("states", [])
+    states = [state for state in audit_states
+              if state.get("scope") != "out-of-domain"]
+    for index, state in enumerate(states):
+        key_from_mapping(state, source=f"sixstate[{index}]")
     total = len(states)
 
     def count_state(st):
@@ -97,6 +105,7 @@ def compute(doc, bypass):
 
     return {
         "roster_total": total,
+        "audit_rows_total": len(audit_states),
         "C_construct": {
             "labeled": labeled,
             "labeled_pct": pct(labeled),
@@ -146,7 +155,7 @@ def render_human(nums, ref_label):
     cc = nums["C_construct"]
     lines = []
     lines.append(f"== coverage-maturity canonical numbers @ {ref_label} "
-                 f"(roster {nums['roster_total']}) ==")
+                 f"(denominator {nums['roster_total']} / audit rows {nums['audit_rows_total']}) ==")
     lines.append(f"  C_construct labeled   : {cc['labeled']}/{nums['roster_total']} "
                  f"= {cc['labeled_pct']}%   (account / state==constructed)")
     lines.append(f"  C_construct certified : {cc['certified']}/{nums['roster_total']} "
@@ -182,12 +191,19 @@ def self_test():
         {"op": "gemm_tile", "format": "iq2_xs", "state": "dispatch-wired", "auto_readout": None},
         {"op": "vec_dot", "format": "mxfp4", "state": "constructed-weak", "auto_readout": None},
         {"op": "dequantize_row", "format": "q1_0", "state": "absent", "auto_readout": None},
+        {"op": "bf16", "format": "all", "state": "absent",
+         "scope": "out-of-domain", "auto_readout": None},
     ]}
+    for row in doc["states"]:
+        if row.get("scope") != "out-of-domain":
+            row["engine"] = "rvv"
+            row["regime"] = "micro-fixed"
     bypass = {"entries": [1, 2, 3, 4], "retired_ledger": [1] * 13}
     n = compute(doc, bypass)
     ok = True
     checks = [
         ("roster_total", n["roster_total"], 6),
+        ("audit_rows_total", n["audit_rows_total"], 7),
         ("labeled", n["C_construct"]["labeled"], 3),
         ("certified", n["C_construct"]["certified"], 1),          # only the flat q8_0 passes
         ("red", n["C_construct"]["red"], 2),

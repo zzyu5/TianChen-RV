@@ -1,11 +1,13 @@
 # Measurement Specs — 统一测量哲学
 
-> **版本**：v4
+> **版本**：v6
 >
 > （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = 卫生欠账，非"本层此前无条文"。v1 = 建载体时的在册状态，**不追溯编号历史修改**。
 > **v2**（2026-07-17 用户裁「三洞四裁回批」第 0/1/2/3 条落地）：行键定四元组 `(op, format, engine, regime)` + 行 schema 补四个行键字段（[3.3.1](./流水线与行schema.md#331-行-schema规范性)）· `判定` 值域原样收 12 值 ∪ VOID（[3.3.1.1](./流水线与行schema.md#3311-判定-的值域规范性--零预处理机算枚举)）· 值域登记铁律入 [3.6](./流水线与行schema.md#36-其余铁律) · 住址-落点两分入 [3.2](./哲学与目的地.md#32-单一目的地法) 第 4 项。）
 > **v3**（2026-07-18·《测试与收尾总令-开测篇》§〇 剩余三条条文变更）：§〇.1 bench 签名**带全四元行键**·可无歧义省参·歧义 fail-closed（[3.3](./流水线与行schema.md#33-一条流水线)·[ISSUE-091]）· §〇.2 每格/族 harness 落点**已裁** = `tools/bench/cells/` + `tools/e2e-harness/`·契约 = bench 按声明接口调、harness 禁自写文件（[3.2](./哲学与目的地.md#32-单一目的地法) 第 4 项·[ISSUE-090]）· §〇.4 `对手档` **定五值** `{手调 | 通用向量 | 标量类 | 域外 | N/A-hw}` 闭合枚举（[流水线与行schema](./流水线与行schema.md) §3.3 · [对手法](./对手法.md#34-对手法) · 本 index §测量核对表·[ISSUE-092]）。）
 > **v4**：同步当前实现事实——runner、master、runs、runs.log 和 cell harness 均已落地；全局“无正式测量通道”旧判断退役。真实可测范围由已注册 cell/board contract 决定，未支持组合继续 fail-closed。
+> **v5**（2026-07-20·B1 measurement-control-plane）：主表改为 recon-only canonical generated view；bench direct-master writer 与空-regime 通配原子退役。四元键分量全部显式非空，`engine∈{rvv,ime,scalar}`、`regime∈{micro-fixed,decode,prefill}`。区分 immutable run event、qualification view 与 canonical master publication；`measured`、T-N-qualified、selection-valid 不再混为一态。
+> **v6**（2026-07-20·B1 原子收口）：真跑与 dry-run 统一为不可省参的完整四元键签名，单参数兼容入口与 dry-run 占位 row/log 退役；T-N 改为 `weft.tn.qualification.v1` 结构化可复算证据，harmonizer 与 recon 双重验证 N≥10、2×noise、bootstrap CI 与 source-run SHA。
 
 本层是本项目**一切测量活动的唯一法源**：什么算测量、在哪块板测、用哪条流水线测、跟谁比、结果写到哪、哪些检查作数。凡涉及"跑出数字"的动作以本层为准；**本层未授权的测量动作即非法动作**。
 
@@ -15,9 +17,10 @@
 
 ## Pre-Development Checklist
 
-- [ ] 这个动作产生**主表行更新**吗？产生不了行更新的活动不是测量（[3.0](./哲学与目的地.md#30-哲学与稳定性条款)）。
+- [ ] 这个动作是否产生唯一、不可覆盖的 `run-id` 事件？若要引用成正式数字，是否再经 qualification 并由 recon 发布到 canonical master（[3.0](./哲学与目的地.md#30-哲学与稳定性条款)）？
 - [ ] 写入目的地是否只有[单一目的地法](./哲学与目的地.md#32-单一目的地法)许可的那几处？有没有新开报告 / 新开表 / 新开目录？
-- [ ] 走的是官方 runner `tools/bench/bench <op> <format> --board <板> --engine <engine> --regime <regime>` 吗？runner、四元行键、三目的地和 cell harness contract 已落地；具体 op/board 组合未注册时必须 fail-closed，不能退回 ad-hoc 正式测量。
+- [ ] 走的是官方 runner `tools/bench/bench <op> <format> --board <板> --engine <engine> --regime <regime>` 吗？精确四元键须在 roster 恰好出现一次；空键、重复键、旧路径或未注册组合必须 fail-closed。
+- [ ] 若声称 T-N-qualified，是否有 `tools/bench/tn_qualify.py` 生成且发布门可重算的结构化 JSON？N、2×noise、bootstrap CI 与 source-run SHA 任一不闭合都不能升格。
 - [ ] 三个硬点（**静板预飞 · 对拍 · 世系**）是否全部自动执行并自动留痕？（[3.5](./门体系.md#35-门体系清算三硬点其余皆工具)）
 - [ ] 对手是**该板 ggml 实际部署派发的函数**吗？以**部署事实**证成，不是以可得性证成（[3.4](./对手法.md#34-对手法)）。
 - [ ] 对手档位 `{手调 | 通用向量 | 标量类 | 域外 | N/A-hw}` 是否**逐格证据判定**、证据引用是否入行？
@@ -43,7 +46,8 @@
 
 ## Quality Check
 
-- 一次有效测量最多产生三类持久结果：主表一行受控更新、`runs/<run-id>/` 原始工件、`runs.log` 一行；不得写到三目的地之外。
+- bench 一次有效采集只直接写 `runs/<run-id>/` 与 `runs.log`；它对 `experiments/master/` 无写权限。qualification 后由 recon 原子发布 canonical master 与 rowclue。
+- `measured`、`master-qualified`、`selection-valid` 是三条不同布尔/状态轴；任何 reader 不得由其中一条推断另外两条。
 - VOID 的行不存在：VOID 只在运行台账留一行，不入主表。
 - 验收**查世系不查字样**——编译器身份三元 `{板·链·批次}` 自动写入行。
 - 对手数值错误 → 成绩**作废登记**，降落该板下一真实派发路径；**禁用坏对手时间算倍率**。
@@ -55,8 +59,9 @@
 
 > 本节只解释本层用语，**不新增规则、不新增判据**。规则全部在 3.0–3.7 各条文文件。
 
-- **格**：一个量化格式，`bench <格> --board <板>` 的格参数 = 行键的 **`format` 分量**。**格 + 板【不】定位一行**（此前本条写"与板组合定位主表的一行"= 已订正的事实错：一个格跨多 op·多 regime，且板不是键）。
-- **行**：主表 T3 CSV 中的一条记录（主表现址与目标址见 [3.2](./哲学与目的地.md#32-单一目的地法)）；**行键 = `(op, format, engine, regime)` 四元组**，**权威字段集 = [3.3.1 行 schema](./流水线与行schema.md#331-行-schema规范性) 的字段表**（非 runner 实现）。
+- **格**：一个量化格式，是完整命令 `bench <op> <format> --board <板> --engine <engine> --regime <regime>` 中的 **`format` 分量**。**format + 板【不】定位一行**（一个格式跨多 op·多 regime，且板不是键）；旧 `bench <格>` 记法不再是可调用签名。
+- **run event 行**：`runs/<run-id>/row.csv` 中一次不可变采集事件；字段集由 [3.3.1](./流水线与行schema.md#331-行-schema规范性) 定义。
+- **master cell 行**：T3 canonical generated view 的一条 `(op, format, engine, regime)` 记录，板是属性列；只由 recon 发布。run event 与 master cell 不是同一张表的兼容别名。
 - **值域**：某字段的合法取值集合。登记值域 = **机算枚举**（[3.6](./流水线与行schema.md#36-其余铁律)）；`判定` 的值域住 [3.3.1.1](./流水线与行schema.md#3311-判定-的值域规范性--零预处理机算枚举)。
 - **run-id**：一次 runner 调用的标识，同时作为该次运行原始产物目录的目录名与行内引用锚。
 - **VOID**：运行作废——**不计时、不入行**，只在运行台账留一行含作废原因（脏板 / 我方错 / 对手废 / 派发不符）。

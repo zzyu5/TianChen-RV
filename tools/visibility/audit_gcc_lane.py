@@ -18,14 +18,20 @@
 输出纯事实, 不裁去向(改数据/重测 = 硬冻结 + 必问).
 用法: python3 tools/visibility/audit_gcc_lane.py
 """
+import csv
 import re
 import sys
+from pathlib import Path
 
-ROOT = "/home/kingdom/phdworks/TianchenRV"
-T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"
-T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"
-MASTER = ROOT + "/experiments/master/T3_master_rebuild.csv"
-RECON = ROOT + "/.trellis/scripts/recon_master_rebuild.py"
+ROOT_PATH = Path(__file__).resolve().parents[2]
+ROOT = str(ROOT_PATH)
+T3A = str(ROOT_PATH / "experiments/master/T3_A_board_A_rvv1.0_vlen128.csv")
+T3B = str(ROOT_PATH / "experiments/master/T3_B_board_B_rvv1.0_vlen256.csv")
+MASTER = str(ROOT_PATH / "experiments/master/T3_master_rebuild.csv")
+RECON = str(ROOT_PATH / ".trellis/scripts/recon_master_rebuild.py")
+
+sys.path.insert(0, str(ROOT_PATH / "tools" / "bench"))
+from measurement_keys import key_from_mapping  # noqa: E402
 
 FWD_OPS = {"add", "cpy", "gelu", "mul", "rms_norm", "rope", "scale", "silu", "softmax"}
 
@@ -36,8 +42,9 @@ CLANG_WORLD_KEYS = {
     ("gemm_tile", "iq2_xs", "prefill"), ("gemm_tile", "iq2_s", "prefill"),
     ("gemm_tile", "mxfp4", "prefill"), ("gemm_tile", "tq1_0", "prefill"),
     ("gemm_tile", "tq2_0", "prefill"),
-    ("dequantize_row", "q4_0", ""), ("dequantize_row", "q5_0", ""),
-    ("dequantize_row", "q5_1", ""),
+    ("dequantize_row", "q4_0", "micro-fixed"),
+    ("dequantize_row", "q5_0", "micro-fixed"),
+    ("dequantize_row", "q5_1", "micro-fixed"),
 }
 
 # gcc 数据来源指纹(出现在 verdict/cold/board_fp 里 = 该格的数来自 gcc 车道)
@@ -156,23 +163,25 @@ def master_state(op, fmt):
     master 是头条与报告的直接上游 → 它的 note 才是对外的【标签】.
     """
     out = []
-    for ln in open(MASTER):
-        f = ln.rstrip("\n").split(",")
-        if len(f) < 15 or f[0] == "op":
-            continue
-        if f[0] == op and f[1] == fmt:
-            eng, regime = f[2], f[3]
+    with open(MASTER, encoding="utf-8", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    for index, row in enumerate(rows, start=2):
+        row_op, row_fmt, eng, regime = key_from_mapping(
+            row, source=f"{MASTER}:row[{index}]"
+        )
+        if row_op == op and row_fmt == fmt:
             if eng == "ime" or (op == "gemm_tile" and regime == "decode"):
                 continue   # 不消费板行 → 非本审计范围
-            note = f[9]
+            note = row["rvv_note"]
             if "单世界clang" in note or "clang世界" in note:
                 claim = "★声称单世界clang"
             elif "gcc" in note.lower():
                 claim = "提及gcc"
             else:
                 claim = "对编译器沉默"
-            out.append(dict(regime=f[3], rvv_tier=f[5], rvv_disp=f[6],
-                            rvv_cold=f[7], note=note, claim=claim))
+            out.append(dict(regime=regime, rvv_tier=row["rvv_tier"],
+                            rvv_disp=row["rvv_disp"], rvv_cold=row["rvv_cold"],
+                            note=note, claim=claim))
     return out
 
 
@@ -249,7 +258,7 @@ def main():
         for m in master_state(r["op"], r["fmt"]):
             if m["rvv_disp"] in ("N/A-hw",):
                 continue
-            nm = r["op"] + "|" + r["fmt"] + (("@" + m["regime"]) if m["regime"] else "")
+            nm = r["op"] + "|" + r["fmt"] + "@" + m["regime"]
             blab = "clang18-sym" if r["contradiction"] else "gcc(诚实)"
             print("%-32s %-9s %-20s %-8s %s" % (
                 nm[:32], blab, m["claim"], "gcc", m["rvv_disp"][:24]))
@@ -273,7 +282,7 @@ def main():
             if r["board"] == "rvv":
                 st = m["rvv_disp"]  # 原样 · 不 split · 不剥括注 · 不归并
                 bucket.setdefault((grp(r["op"]), st), []).append(
-                    r["op"] + "|" + r["fmt"] + (("@" + m["regime"]) if m["regime"] else ""))
+                    r["op"] + "|" + r["fmt"] + "@" + m["regime"])
     for k in sorted(bucket):
         items = sorted(set(bucket[k]))
         print("  %-14s %-26s %2d 格: %s" % (k[0], k[1], len(items), ", ".join(items)))
@@ -297,7 +306,7 @@ def main():
             st = "PASS" if m["rvv_disp"].startswith("PASS") else (
                 "具名-X" if m["rvv_disp"].startswith("具名-X") else "pending")
             tb.setdefault((m["rvv_tier"], st), []).append(
-                r["op"] + "|" + r["fmt"] + (("@" + m["regime"]) if m["regime"] else ""))
+                r["op"] + "|" + r["fmt"] + "@" + m["regime"])
     print("%-10s %-8s %5s  %s" % ("四档", "状态", "格数", "格"))
     for k in sorted(tb):
         items = sorted(set(tb[k]))
@@ -378,17 +387,25 @@ def hollow_test():
             else:
                 lines.append(ln)
         open(dst, "w").write("".join(lines))
-    # 打补丁的 recon 副本: 只改 4 个路径常量 → 绝不写真仓库
-    src = open(RECON).read()
-    src = src.replace('T3A = ROOT + "/experiments/master/T3_A_board_A_rvv1.0_vlen128.csv"',
-                      'T3A = "%s/T3_A.csv"' % MUT_DIR)
-    src = src.replace('T3B = ROOT + "/experiments/master/T3_B_board_B_rvv1.0_vlen256.csv"',
-                      'T3B = "%s/T3_B.csv"' % MUT_DIR)
-    src = src.replace('OUT = ROOT + "/experiments/master/T3_master_rebuild.csv"',
-                      'OUT = "%s/master_MUT.csv"' % MUT_DIR)
-    src = src.replace('CLUE = ROOT + "/experiments/master/T3_master_rowclue.txt"',
-                      'CLUE = "%s/rowclue_MUT.txt"' % MUT_DIR)
-    open(MUT_DIR + "/recon_MUT.py", "w").write(src)
+    # import the real recon and override only diagnostic I/O globals.  Copying and
+    # string-rewriting the implementation became a stale second entry after B1
+    # made recon worktree-relative and atomic; this wrapper exercises the same code.
+    wrapper = '''
+import importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("weft_recon", %r)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module.T3A = Path(%r)
+module.T3B = Path(%r)
+module.OUT = Path(%r)
+module.CLUE = Path(%r)
+module.LOCK = Path(%r)
+module.main()
+''' % (RECON, MUT_DIR + "/T3_A.csv", MUT_DIR + "/T3_B.csv",
+       MUT_DIR + "/master_MUT.csv", MUT_DIR + "/rowclue_MUT.txt",
+       MUT_DIR + "/recon_MUT.lock")
+    open(MUT_DIR + "/recon_MUT.py", "w").write(wrapper)
 
     print("\n  [实验组 B · 把两板全部 %d 行的溯源字样改成尖叫式 gcc(数字与 verdict token 不动)]" % mutated)
     rB = subprocess.run([sys.executable, MUT_DIR + "/recon_MUT.py"], capture_output=True, text=True)

@@ -1,8 +1,9 @@
 # Canon Specs — 已定法条
 
-> **版本**：v3
+> **版本**：v4
 > **修改途径**：本层版本化，**修改唯一途径 = 用户裁决**；agent 可提案（入 [issues](../issues/index.md)），不可自改。
 > （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = **卫生欠账**，非「本层此前无条文」。**v1 = 建载体时的在册状态**，**不追溯编号历史修改**。）
+> **v4**（2026-07-20·用户授权 B1 control-plane）：测量事实与正式发布分立；immutable run 只有经 correctness、lineage、freshness、结构化 T-N 资格后，才由 recon-only publisher 进入 canonical master。measured / master-qualified / selection-valid 三轴禁止互推。
 
 本层是本项目**全部已定法条与终裁的唯一合订**：判断"某主张能不能立、某数字能不能报、某格算不算赢"时的**法源**。
 

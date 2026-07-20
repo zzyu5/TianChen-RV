@@ -92,7 +92,7 @@
 
 | 类 | 处数 | 从 → 到 |
 |---|---|---|
-| `schema/` 文档指针（**已核非机检字段**：全仓无脚本校验其存在性；**[S-6] 哈希只覆盖 `capability.schema.v1.json` 一件**，其余是 [F-3] 领地） | **8 文件** | `cert-lineage` · `f5-failclosed-baseline` · `family-manifest` · `measurement-memory.{v1,design}` · `pattern-registry` · `perf-covered-category` · `tiling-measurements` → 事故区 / `_attic/docs/`；**改后 8 份 JSON 均 `json.load` 通过** |
+| `schema/` 文档指针（**已核非机检字段**：全仓无脚本校验其存在性；**[S-6] 哈希只覆盖 `capability.schema.v1.json` 一件**，其余是 [F-3] 领地） | **7 文件** | `cert-lineage` · `f5-failclosed-baseline` · `family-manifest` · `measurement-memory.v1` · `pattern-registry` · `perf-covered-category` · `tiling-measurements` → 事故区 / `_attic/docs/`；旧 `measurement-memory.design.json` 已在 B1 原子退役，历史由 git 保存。 |
 | 门 / 工具 docstring 与打印串 | **3 行 / 3 文件** | `tools/gates/check_pat3_registry_diff.py` · `tools/visibility/recompute_ledger_anchor.sh`（仅 `lines.append` 打印、**不读文件**） · `tools/bench/new-line-worktree.sh` |
 | 代码注释（**零代码、零 CHECK 行**） | **3 行 / 3 文件** | `lib/Plugin/RVV/CMakeLists.txt` · `include/Weft/Plugin/RVV/RVVRepackTilingSelection.h:459`（**折行指针**·grep 单行匹不到，易漏） · `test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-auto-unrolled-vlen128.mlir:6`（**折行**·行 6-7 是 `//` 散文、非 CHECK） |
 | 六层内指针 | **2 文件** | `.trellis/spec/issues/spec树与治理.md`（ISSUE-086 死指针对照表的「正解」列 + ISSUE-072 描述）· `.trellis/spec/evidence/三贡献证据地图.md`（G-8③） |
@@ -143,7 +143,7 @@
 | fp-fold oracle 路径（`lib/` 3 · `include/` 3 · `test/` 7 · `.trellis/scripts/` 2 · ODS `.td` 2） | **16 行 / 11 文件** | `testing/flat-block-dot-fp-fold-oracle.md` → `measurement/浮点折叠oracle.md`（**只改注释/ODS description 内的文档路径**；零代码、零 CHECK 行） |
 | Trellis 技能 / 工作流 / 上下文脚本 | **9 行 / 7 文件** | `spec/guides/*` → `governance/思维准则.md`（`.agents/` ×2 · `.claude/skills/` ×2 · `.claude/agents/trellis-implement.md` · `.trellis/workflow.md` · `.trellis/scripts/common/packages_context.py`） |
 | 六层内**反向悬空授权**（canon/evidence 指向已 stub 的旧层） | **5 行 / 3 文件** | `capability-model/{capability-contract,profiles}.md` → `architecture/能力模型.md`（`canon/能力模型与插件协议.md` ×2 · `canon/核心不变量.md` ×1 · `evidence/工件与实验参照.md` ×2） |
-| `schema/` 文档指针（**已核非机检字段**：无脚本校验其**存在性**） | **9 行 / 2 文件** | `family-manifest.v1.json`（`$meta.falsifier` + 7 × `families[].docs[]`）· `measurement-memory.design.json` → `architecture/{插件协议,变体流水线}.md`；**改后两份 JSON 均 `json.load` 通过**。★`capability.schema.v1.json` **另案·已回退**，见下「刻意未改」 |
+| `schema/` 文档指针（**已核非机检字段**：无脚本校验其**存在性**） | **8 行 / 1 文件** | `family-manifest.v1.json`（`$meta.falsifier` + 7 × `families[].docs[]`）。旧 `measurement-memory.design.json` 与其案头设计稿已由 B1 退役；现行法只在 `measurement-memory.v1.json` + measurement/architecture spec。★`capability.schema.v1.json` **另案·已回退**，见下「刻意未改」 |
 | 门脚本 docstring | **2 行 / 2 文件** | `tools/gates/check_family_locality.py` · `.trellis/scripts/check_schema_gate.py` → `architecture/插件协议.md`（并**去掉原 `:76` 行号**，遵「跨文件引用禁行号」） |
 | `architecture/系统定位与边界.md` 可复跑谓词 | **1 处** | 原谓词靶 `SPEC-*.md`/`ISSUES.md`（移入后会**报错而非返回「空」**）→ 改递归扫 `.trellis/spec/`；**已实跑复核，结论不变**（仅命中本文自身 = 无第二处落点） |
 | `issues/canon与措辞.md` 成因注 | **1 处** | 「该层已化为指路牌」→「原文件已移入 `_attic/`」 |

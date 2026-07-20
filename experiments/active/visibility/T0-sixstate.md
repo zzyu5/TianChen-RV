@@ -6,169 +6,267 @@
 
 - schema repo_snapshot : `1bbab882695e812a2d334a8d6f5c7860cc2c93b1`
 - schema snapshot date : `2026-07-03T09:23:16+08:00`
-- sixstate sha256      : `0322aa3d8aa1e3788e65ac3ba53dd38ed2d8ddca057f31c97f3e0b77013ad451`
+- sixstate sha256      : `c37982c95de5db6e8465ce0cdf1a5ad7dd86e87ec58729a9532b1620a9bc9c03`
 - ladder (low->high)   : absent < emittable < dispatch-wired < constructed-weak < constructed < covered
+- audit rows / denominator rows : `110 / 108`
 
 ## Headline
 
-- **C_construct (STRONG 'constructed' rows) = 19 / 93**
-- C_construct_plus (>= constructed-weak)  = 20 / 93
-- C_dispatch (>= dispatch-wired)          = 40 / 93
+- **C_construct (STRONG 'constructed' rows) = 101 / 108**
+- C_construct_plus (>= constructed-weak)  = 102 / 108
+- C_dispatch (>= dispatch-wired)          = 102 / 108
 
-> Cross-check: in this snapshot every roster key has exactly one six-state row (no variant duplicates), so the 'constructed' row count above equals the canonical C_construct from `.trellis/scripts/coverage_metrics.py report` (best-state-across-variants over the roster denominator). That script is the authority for the paper number; this table is its census view. Only 'constructed' (STRONG) feeds C_construct; 'constructed-weak' feeds C_construct_plus, never C_construct.
+> Cross-check: out-of-domain audit rows are retained below but excluded from this denominator. Every in-domain roster key has exactly one six-state row, so the 'constructed' row count equals canonical C_construct from `.trellis/scripts/coverage_metrics.py report` (best-state-across-variants over the roster denominator). That script is the authority for the paper number; this table is its census view. Only 'constructed' (STRONG) feeds C_construct; 'constructed-weak' feeds C_construct_plus, never C_construct.
 
-## State histogram (all rows)
+## State histogram (in-denominator rows)
 
 | state | count | share | bar |
 |---|---:|---:|---|
-| absent | 53 | 57.0% | ##################################################### |
+| absent | 6 | 5.6% | ###### |
 | emittable | 0 | 0.0% |  |
-| dispatch-wired | 20 | 21.5% | #################### |
-| constructed-weak | 1 | 1.1% | # |
-| constructed | 19 | 20.4% | ################### |
+| dispatch-wired | 0 | 0.0% |  |
+| constructed-weak | 1 | 0.9% | # |
+| constructed | 101 | 93.5% | ##################################################################################################### |
 | covered | 0 | 0.0% |  |
-| **total** | **93** | 100.0% | |
+| **total** | **108** | 100.0% | |
 
 ## By-op x state matrix (row counts)
 
 | op | absent | emittable | dispatch-wired | constructed-weak | constructed | covered | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| add | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| bf16 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| cpy | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| dequantize_row | 23 | 0 | 1 | 0 | 0 | 0 | 24 |
-| flash_attn | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| gelu | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| gemm_tile | 22 | 0 | 4 | 0 | 2 | 0 | 28 |
-| mul | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| add | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| cpy | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| dequantize_row | 0 | 0 | 0 | 0 | 24 | 0 | 24 |
+| gelu | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| gemm_tile | 6 | 0 | 0 | 0 | 39 | 0 | 45 |
+| mul | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
 | product_reduce | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
-| quantize_row | 2 | 0 | 1 | 0 | 0 | 0 | 3 |
-| rms_norm | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
-| rope | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
-| scale | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
-| silu | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
-| softmax | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
-| vec_dot | 0 | 0 | 9 | 1 | 14 | 0 | 24 |
+| quantize_row | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
+| rms_norm | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| rope | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| scale | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| silu | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| softmax | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| vec_dot | 0 | 0 | 0 | 1 | 23 | 0 | 24 |
 
 ## Per-row census (format x engine x regime x state)
 
 | op | format | engine | regime | state |
 |---|---|---|---|---|
-| add | f32 | - | - | absent |
+| add | f32 | rvv | micro-fixed | constructed |
 | bf16 | all | - | - | absent |
-| cpy | f32 | - | - | absent |
-| dequantize_row | iq1_m | - | - | absent |
-| dequantize_row | iq1_s | - | - | absent |
-| dequantize_row | iq2_s | - | - | absent |
-| dequantize_row | iq2_xs | - | - | absent |
-| dequantize_row | iq2_xxs | - | - | absent |
-| dequantize_row | iq3_s | - | - | absent |
-| dequantize_row | iq3_xxs | - | - | absent |
-| dequantize_row | iq4_nl | - | - | absent |
-| dequantize_row | iq4_xs | - | - | absent |
-| dequantize_row | mxfp4 | - | - | absent |
-| dequantize_row | nvfp4 | - | - | absent |
-| dequantize_row | q1_0 | - | - | absent |
-| dequantize_row | q2_K | - | - | absent |
-| dequantize_row | q3_K | - | - | absent |
-| dequantize_row | q4_0 | - | - | absent |
-| dequantize_row | q4_1 | - | - | absent |
-| dequantize_row | q4_K | - | - | absent |
-| dequantize_row | q5_0 | - | - | dispatch-wired |
-| dequantize_row | q5_1 | - | - | absent |
-| dequantize_row | q5_K | - | - | absent |
-| dequantize_row | q6_K | - | - | absent |
-| dequantize_row | q8_0 | - | - | absent |
-| dequantize_row | tq1_0 | - | - | absent |
-| dequantize_row | tq2_0 | - | - | absent |
+| cpy | f32 | rvv | micro-fixed | constructed |
+| dequantize_row | iq1_m | rvv | micro-fixed | constructed |
+| dequantize_row | iq1_s | rvv | micro-fixed | constructed |
+| dequantize_row | iq2_s | rvv | micro-fixed | constructed |
+| dequantize_row | iq2_xs | rvv | micro-fixed | constructed |
+| dequantize_row | iq2_xxs | rvv | micro-fixed | constructed |
+| dequantize_row | iq3_s | rvv | micro-fixed | constructed |
+| dequantize_row | iq3_xxs | rvv | micro-fixed | constructed |
+| dequantize_row | iq4_nl | rvv | micro-fixed | constructed |
+| dequantize_row | iq4_xs | rvv | micro-fixed | constructed |
+| dequantize_row | mxfp4 | rvv | micro-fixed | constructed |
+| dequantize_row | nvfp4 | rvv | micro-fixed | constructed |
+| dequantize_row | q1_0 | rvv | micro-fixed | constructed |
+| dequantize_row | q2_K | rvv | micro-fixed | constructed |
+| dequantize_row | q3_K | rvv | micro-fixed | constructed |
+| dequantize_row | q4_0 | rvv | micro-fixed | constructed |
+| dequantize_row | q4_1 | rvv | micro-fixed | constructed |
+| dequantize_row | q4_K | rvv | micro-fixed | constructed |
+| dequantize_row | q5_0 | rvv | micro-fixed | constructed |
+| dequantize_row | q5_1 | rvv | micro-fixed | constructed |
+| dequantize_row | q5_K | rvv | micro-fixed | constructed |
+| dequantize_row | q6_K | rvv | micro-fixed | constructed |
+| dequantize_row | q8_0 | rvv | micro-fixed | constructed |
+| dequantize_row | tq1_0 | rvv | micro-fixed | constructed |
+| dequantize_row | tq2_0 | rvv | micro-fixed | constructed |
 | flash_attn | tile | - | - | absent |
-| gelu | f32 | - | - | absent |
-| gemm_tile | iq1_m | rvv | - | absent |
-| gemm_tile | iq1_s | rvv | - | absent |
-| gemm_tile | iq2_s | rvv | - | absent |
-| gemm_tile | iq2_xs | rvv | - | absent |
-| gemm_tile | iq2_xxs | rvv | - | absent |
-| gemm_tile | iq3_s | rvv | - | absent |
-| gemm_tile | iq3_xxs | rvv | - | absent |
-| gemm_tile | iq4_nl | rvv | - | absent |
-| gemm_tile | iq4_xs | rvv | - | absent |
-| gemm_tile | mxfp4 | rvv | - | absent |
-| gemm_tile | nvfp4 | rvv | - | absent |
-| gemm_tile | q1_0 | rvv | - | absent |
-| gemm_tile | q2_K | rvv | - | absent |
-| gemm_tile | q3_K | rvv | - | absent |
-| gemm_tile | q4_0 | ime | - | absent |
+| gelu | f32 | rvv | micro-fixed | constructed |
+| gemm_tile | iq1_m | rvv | prefill | absent |
+| gemm_tile | iq1_s | rvv | prefill | absent |
+| gemm_tile | iq2_s | rvv | decode | constructed |
+| gemm_tile | iq2_s | rvv | prefill | constructed |
+| gemm_tile | iq2_xs | rvv | decode | constructed |
+| gemm_tile | iq2_xs | rvv | prefill | constructed |
+| gemm_tile | iq2_xxs | rvv | decode | constructed |
+| gemm_tile | iq2_xxs | rvv | prefill | constructed |
+| gemm_tile | iq3_s | rvv | prefill | absent |
+| gemm_tile | iq3_xxs | rvv | prefill | absent |
+| gemm_tile | iq4_nl | rvv | decode | constructed |
+| gemm_tile | iq4_nl | rvv | prefill | constructed |
+| gemm_tile | iq4_xs | rvv | decode | constructed |
+| gemm_tile | iq4_xs | rvv | prefill | constructed |
+| gemm_tile | mxfp4 | rvv | decode | constructed |
+| gemm_tile | mxfp4 | rvv | prefill | constructed |
+| gemm_tile | nvfp4 | rvv | prefill | absent |
+| gemm_tile | q1_0 | rvv | prefill | absent |
+| gemm_tile | q2_K | rvv | decode | constructed |
+| gemm_tile | q2_K | rvv | prefill | constructed |
+| gemm_tile | q3_K | rvv | decode | constructed |
+| gemm_tile | q3_K | rvv | prefill | constructed |
+| gemm_tile | q4_0 | ime | prefill | constructed |
 | gemm_tile | q4_0 | rvv | decode | constructed |
 | gemm_tile | q4_0 | rvv | prefill | constructed |
-| gemm_tile | q4_1 | rvv | - | dispatch-wired |
-| gemm_tile | q4_K | ime | - | absent |
-| gemm_tile | q4_K | rvv | - | dispatch-wired |
-| gemm_tile | q5_0 | rvv | - | dispatch-wired |
-| gemm_tile | q5_1 | rvv | - | absent |
-| gemm_tile | q5_K | rvv | - | absent |
-| gemm_tile | q6_K | rvv | - | absent |
-| gemm_tile | q8_0 | ime | - | absent |
-| gemm_tile | q8_0 | rvv | - | dispatch-wired |
-| gemm_tile | tq1_0 | rvv | - | absent |
-| gemm_tile | tq2_0 | rvv | - | absent |
-| mul | f32 | - | - | absent |
-| product_reduce | codebook_n3 | - | - | constructed |
-| product_reduce | offset_binary_n3 | - | - | constructed |
-| product_reduce | q4_0_nibble | - | - | constructed |
-| quantize_row | q8_0 | - | - | dispatch-wired |
-| quantize_row | q8_1 | - | - | absent |
-| quantize_row | q8_K | - | - | absent |
-| rms_norm | f32 | - | - | dispatch-wired |
-| rope | f32 | - | - | dispatch-wired |
-| scale | f32 | - | - | dispatch-wired |
-| silu | f32 | - | - | dispatch-wired |
-| softmax | f32 | - | - | dispatch-wired |
-| vec_dot | iq1_m | - | - | constructed |
-| vec_dot | iq1_s | - | - | constructed |
-| vec_dot | iq2_s | - | - | dispatch-wired |
-| vec_dot | iq2_xs | - | - | dispatch-wired |
-| vec_dot | iq2_xxs | - | - | dispatch-wired |
-| vec_dot | iq3_s | - | - | dispatch-wired |
-| vec_dot | iq3_xxs | - | - | constructed |
-| vec_dot | iq4_nl | - | - | constructed |
-| vec_dot | iq4_xs | - | - | dispatch-wired |
-| vec_dot | mxfp4 | - | - | constructed-weak |
-| vec_dot | nvfp4 | - | - | dispatch-wired |
-| vec_dot | q1_0 | - | - | dispatch-wired |
-| vec_dot | q2_K | - | - | constructed |
-| vec_dot | q3_K | - | - | constructed |
-| vec_dot | q4_0 | - | - | constructed |
-| vec_dot | q4_1 | - | - | constructed |
-| vec_dot | q4_K | - | - | constructed |
-| vec_dot | q5_0 | - | - | constructed |
-| vec_dot | q5_1 | - | - | constructed |
-| vec_dot | q5_K | - | - | constructed |
-| vec_dot | q6_K | - | - | constructed |
-| vec_dot | q8_0 | - | - | constructed |
-| vec_dot | tq1_0 | - | - | dispatch-wired |
-| vec_dot | tq2_0 | - | - | dispatch-wired |
+| gemm_tile | q4_1 | rvv | decode | constructed |
+| gemm_tile | q4_1 | rvv | prefill | constructed |
+| gemm_tile | q4_K | ime | prefill | constructed |
+| gemm_tile | q4_K | rvv | decode | constructed |
+| gemm_tile | q4_K | rvv | prefill | constructed |
+| gemm_tile | q5_0 | rvv | decode | constructed |
+| gemm_tile | q5_0 | rvv | prefill | constructed |
+| gemm_tile | q5_1 | rvv | decode | constructed |
+| gemm_tile | q5_1 | rvv | prefill | constructed |
+| gemm_tile | q5_K | rvv | decode | constructed |
+| gemm_tile | q5_K | rvv | prefill | constructed |
+| gemm_tile | q6_K | rvv | decode | constructed |
+| gemm_tile | q6_K | rvv | prefill | constructed |
+| gemm_tile | q8_0 | ime | prefill | constructed |
+| gemm_tile | q8_0 | rvv | decode | constructed |
+| gemm_tile | q8_0 | rvv | prefill | constructed |
+| gemm_tile | tq1_0 | rvv | decode | constructed |
+| gemm_tile | tq1_0 | rvv | prefill | constructed |
+| gemm_tile | tq2_0 | rvv | decode | constructed |
+| gemm_tile | tq2_0 | rvv | prefill | constructed |
+| mul | f32 | rvv | micro-fixed | constructed |
+| product_reduce | codebook_n3 | rvv | micro-fixed | constructed |
+| product_reduce | offset_binary_n3 | rvv | micro-fixed | constructed |
+| product_reduce | q4_0_nibble | rvv | micro-fixed | constructed |
+| quantize_row | q8_0 | rvv | micro-fixed | constructed |
+| quantize_row | q8_1 | rvv | micro-fixed | constructed |
+| quantize_row | q8_K | rvv | micro-fixed | constructed |
+| rms_norm | f32 | rvv | micro-fixed | constructed |
+| rope | f32 | rvv | micro-fixed | constructed |
+| scale | f32 | rvv | micro-fixed | constructed |
+| silu | f32 | rvv | micro-fixed | constructed |
+| softmax | f32 | rvv | micro-fixed | constructed |
+| vec_dot | iq1_m | rvv | micro-fixed | constructed |
+| vec_dot | iq1_s | rvv | micro-fixed | constructed |
+| vec_dot | iq2_s | rvv | micro-fixed | constructed |
+| vec_dot | iq2_xs | rvv | micro-fixed | constructed |
+| vec_dot | iq2_xxs | rvv | micro-fixed | constructed |
+| vec_dot | iq3_s | rvv | micro-fixed | constructed |
+| vec_dot | iq3_xxs | rvv | micro-fixed | constructed |
+| vec_dot | iq4_nl | rvv | micro-fixed | constructed |
+| vec_dot | iq4_xs | rvv | micro-fixed | constructed |
+| vec_dot | mxfp4 | rvv | micro-fixed | constructed-weak |
+| vec_dot | nvfp4 | rvv | micro-fixed | constructed |
+| vec_dot | q1_0 | rvv | micro-fixed | constructed |
+| vec_dot | q2_K | rvv | micro-fixed | constructed |
+| vec_dot | q3_K | rvv | micro-fixed | constructed |
+| vec_dot | q4_0 | rvv | micro-fixed | constructed |
+| vec_dot | q4_1 | rvv | micro-fixed | constructed |
+| vec_dot | q4_K | rvv | micro-fixed | constructed |
+| vec_dot | q5_0 | rvv | micro-fixed | constructed |
+| vec_dot | q5_1 | rvv | micro-fixed | constructed |
+| vec_dot | q5_K | rvv | micro-fixed | constructed |
+| vec_dot | q6_K | rvv | micro-fixed | constructed |
+| vec_dot | q8_0 | rvv | micro-fixed | constructed |
+| vec_dot | tq1_0 | rvv | micro-fixed | constructed |
+| vec_dot | tq2_0 | rvv | micro-fixed | constructed |
 
 ## Constructed roster (the C_construct numerator)
 
 | # | op | format | engine | regime |
 |---:|---|---|---|---|
-| 1 | gemm_tile | q4_0 | rvv | decode |
-| 2 | gemm_tile | q4_0 | rvv | prefill |
-| 3 | product_reduce | codebook_n3 | - | - |
-| 4 | product_reduce | offset_binary_n3 | - | - |
-| 5 | product_reduce | q4_0_nibble | - | - |
-| 6 | vec_dot | iq1_m | - | - |
-| 7 | vec_dot | iq1_s | - | - |
-| 8 | vec_dot | iq3_xxs | - | - |
-| 9 | vec_dot | iq4_nl | - | - |
-| 10 | vec_dot | q2_K | - | - |
-| 11 | vec_dot | q3_K | - | - |
-| 12 | vec_dot | q4_0 | - | - |
-| 13 | vec_dot | q4_1 | - | - |
-| 14 | vec_dot | q4_K | - | - |
-| 15 | vec_dot | q5_0 | - | - |
-| 16 | vec_dot | q5_1 | - | - |
-| 17 | vec_dot | q5_K | - | - |
-| 18 | vec_dot | q6_K | - | - |
-| 19 | vec_dot | q8_0 | - | - |
+| 1 | add | f32 | rvv | micro-fixed |
+| 2 | cpy | f32 | rvv | micro-fixed |
+| 3 | dequantize_row | iq1_m | rvv | micro-fixed |
+| 4 | dequantize_row | iq1_s | rvv | micro-fixed |
+| 5 | dequantize_row | iq2_s | rvv | micro-fixed |
+| 6 | dequantize_row | iq2_xs | rvv | micro-fixed |
+| 7 | dequantize_row | iq2_xxs | rvv | micro-fixed |
+| 8 | dequantize_row | iq3_s | rvv | micro-fixed |
+| 9 | dequantize_row | iq3_xxs | rvv | micro-fixed |
+| 10 | dequantize_row | iq4_nl | rvv | micro-fixed |
+| 11 | dequantize_row | iq4_xs | rvv | micro-fixed |
+| 12 | dequantize_row | mxfp4 | rvv | micro-fixed |
+| 13 | dequantize_row | nvfp4 | rvv | micro-fixed |
+| 14 | dequantize_row | q1_0 | rvv | micro-fixed |
+| 15 | dequantize_row | q2_K | rvv | micro-fixed |
+| 16 | dequantize_row | q3_K | rvv | micro-fixed |
+| 17 | dequantize_row | q4_0 | rvv | micro-fixed |
+| 18 | dequantize_row | q4_1 | rvv | micro-fixed |
+| 19 | dequantize_row | q4_K | rvv | micro-fixed |
+| 20 | dequantize_row | q5_0 | rvv | micro-fixed |
+| 21 | dequantize_row | q5_1 | rvv | micro-fixed |
+| 22 | dequantize_row | q5_K | rvv | micro-fixed |
+| 23 | dequantize_row | q6_K | rvv | micro-fixed |
+| 24 | dequantize_row | q8_0 | rvv | micro-fixed |
+| 25 | dequantize_row | tq1_0 | rvv | micro-fixed |
+| 26 | dequantize_row | tq2_0 | rvv | micro-fixed |
+| 27 | gelu | f32 | rvv | micro-fixed |
+| 28 | gemm_tile | iq2_s | rvv | decode |
+| 29 | gemm_tile | iq2_s | rvv | prefill |
+| 30 | gemm_tile | iq2_xs | rvv | decode |
+| 31 | gemm_tile | iq2_xs | rvv | prefill |
+| 32 | gemm_tile | iq2_xxs | rvv | decode |
+| 33 | gemm_tile | iq2_xxs | rvv | prefill |
+| 34 | gemm_tile | iq4_nl | rvv | decode |
+| 35 | gemm_tile | iq4_nl | rvv | prefill |
+| 36 | gemm_tile | iq4_xs | rvv | decode |
+| 37 | gemm_tile | iq4_xs | rvv | prefill |
+| 38 | gemm_tile | mxfp4 | rvv | decode |
+| 39 | gemm_tile | mxfp4 | rvv | prefill |
+| 40 | gemm_tile | q2_K | rvv | decode |
+| 41 | gemm_tile | q2_K | rvv | prefill |
+| 42 | gemm_tile | q3_K | rvv | decode |
+| 43 | gemm_tile | q3_K | rvv | prefill |
+| 44 | gemm_tile | q4_0 | ime | prefill |
+| 45 | gemm_tile | q4_0 | rvv | decode |
+| 46 | gemm_tile | q4_0 | rvv | prefill |
+| 47 | gemm_tile | q4_1 | rvv | decode |
+| 48 | gemm_tile | q4_1 | rvv | prefill |
+| 49 | gemm_tile | q4_K | ime | prefill |
+| 50 | gemm_tile | q4_K | rvv | decode |
+| 51 | gemm_tile | q4_K | rvv | prefill |
+| 52 | gemm_tile | q5_0 | rvv | decode |
+| 53 | gemm_tile | q5_0 | rvv | prefill |
+| 54 | gemm_tile | q5_1 | rvv | decode |
+| 55 | gemm_tile | q5_1 | rvv | prefill |
+| 56 | gemm_tile | q5_K | rvv | decode |
+| 57 | gemm_tile | q5_K | rvv | prefill |
+| 58 | gemm_tile | q6_K | rvv | decode |
+| 59 | gemm_tile | q6_K | rvv | prefill |
+| 60 | gemm_tile | q8_0 | ime | prefill |
+| 61 | gemm_tile | q8_0 | rvv | decode |
+| 62 | gemm_tile | q8_0 | rvv | prefill |
+| 63 | gemm_tile | tq1_0 | rvv | decode |
+| 64 | gemm_tile | tq1_0 | rvv | prefill |
+| 65 | gemm_tile | tq2_0 | rvv | decode |
+| 66 | gemm_tile | tq2_0 | rvv | prefill |
+| 67 | mul | f32 | rvv | micro-fixed |
+| 68 | product_reduce | codebook_n3 | rvv | micro-fixed |
+| 69 | product_reduce | offset_binary_n3 | rvv | micro-fixed |
+| 70 | product_reduce | q4_0_nibble | rvv | micro-fixed |
+| 71 | quantize_row | q8_0 | rvv | micro-fixed |
+| 72 | quantize_row | q8_1 | rvv | micro-fixed |
+| 73 | quantize_row | q8_K | rvv | micro-fixed |
+| 74 | rms_norm | f32 | rvv | micro-fixed |
+| 75 | rope | f32 | rvv | micro-fixed |
+| 76 | scale | f32 | rvv | micro-fixed |
+| 77 | silu | f32 | rvv | micro-fixed |
+| 78 | softmax | f32 | rvv | micro-fixed |
+| 79 | vec_dot | iq1_m | rvv | micro-fixed |
+| 80 | vec_dot | iq1_s | rvv | micro-fixed |
+| 81 | vec_dot | iq2_s | rvv | micro-fixed |
+| 82 | vec_dot | iq2_xs | rvv | micro-fixed |
+| 83 | vec_dot | iq2_xxs | rvv | micro-fixed |
+| 84 | vec_dot | iq3_s | rvv | micro-fixed |
+| 85 | vec_dot | iq3_xxs | rvv | micro-fixed |
+| 86 | vec_dot | iq4_nl | rvv | micro-fixed |
+| 87 | vec_dot | iq4_xs | rvv | micro-fixed |
+| 88 | vec_dot | nvfp4 | rvv | micro-fixed |
+| 89 | vec_dot | q1_0 | rvv | micro-fixed |
+| 90 | vec_dot | q2_K | rvv | micro-fixed |
+| 91 | vec_dot | q3_K | rvv | micro-fixed |
+| 92 | vec_dot | q4_0 | rvv | micro-fixed |
+| 93 | vec_dot | q4_1 | rvv | micro-fixed |
+| 94 | vec_dot | q4_K | rvv | micro-fixed |
+| 95 | vec_dot | q5_0 | rvv | micro-fixed |
+| 96 | vec_dot | q5_1 | rvv | micro-fixed |
+| 97 | vec_dot | q5_K | rvv | micro-fixed |
+| 98 | vec_dot | q6_K | rvv | micro-fixed |
+| 99 | vec_dot | q8_0 | rvv | micro-fixed |
+| 100 | vec_dot | tq1_0 | rvv | micro-fixed |
+| 101 | vec_dot | tq2_0 | rvv | micro-fixed |
 
