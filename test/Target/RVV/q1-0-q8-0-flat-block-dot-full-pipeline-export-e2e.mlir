@@ -23,7 +23,7 @@
 // 4-role ggml vec_dot ABI (n, s, vx, vy) as iq4_nl -- resolved by its OWN
 // typedFlatLoopSelector (Q10BinarySign, keyed off the UNIQUE fold_model), NOT the
 // 8-role q8_0 default. The emission is BYTE-IDENTICAL to the retired-in-production
-// monolith emitQ1_0Q8_0BlockDot (both call the shared emitQ1_0BlockDotBodyShared),
+// retired whole-kernel op; the sole emitter is emitQ1_0TypedFlatBlockDotBody,
 // modulo only the source-op provenance token. All sibling block-dot ops stay
 // byte-exact on their own routes.
 //

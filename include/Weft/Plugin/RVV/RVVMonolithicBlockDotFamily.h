@@ -1626,7 +1626,7 @@ struct MonolithicBlockDotOpEntry {
 
 inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
   static const MonolithicBlockDotOpEntry kTable[] = {
-      {weft::rvv::GgmlBlockDotQ4KQ8KOp::getOperationName(),
+      {"weft_rvv.q4_k_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q4_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q4_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door",
@@ -1813,7 +1813,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // for export resolution). The SEVENTH GRID/codebook member reuses the whole iq1_s
        // scaffold and only adds a variant integer-core brick (NO gearbox, NO ksigns plane).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
-      {weft::rvv::GgmlBlockDotQ2KQ8KOp::getOperationName(),
+      {"weft_rvv.q2_k_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q2_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q2_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q2-k-q8-k-block-dot-source-front-door",
@@ -1829,7 +1829,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // resolver disambiguates it from q4_K/q5_K (dual) / q6_K (single-vector) by
        // fold_model, then by the loop op's weight_block_stride (84).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin},
-      {weft::rvv::GgmlBlockDotQ3KQ8KOp::getOperationName(),
+      {"weft_rvv.q3_k_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q3_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q3_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q3-k-q8-k-block-dot-source-front-door",
@@ -1844,7 +1844,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // resolver disambiguates q3_K (stride 110) vs q6_K (stride 210) by the loop
        // op's weight_block_stride so each exports its own entry.
        TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
-      {weft::rvv::GgmlBlockDotQ5KQ8KOp::getOperationName(),
+      {"weft_rvv.q5_k_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q5_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q5-k-q8-k-block-dot-source-front-door",
@@ -1858,7 +1858,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // plane). The resolver disambiguates q4_K (stride 144) vs q5_K (stride 176)
        // by the loop op's weight_block_stride so each exports its own entry.
        TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
-      {weft::rvv::GgmlBlockDotQ6KQ8KOp::getOperationName(),
+      {"weft_rvv.q6_k_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q6_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q6_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
@@ -1993,7 +1993,9 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml NVFP4 x Q8_0 codebook block-dot source front door failed: ", "nvfp4-weight", "q8-act",
        "m1", kNVFP4Facts, kNVFP4Codebook, {}, {}, {},
        TypedFlatBlockDotLoopSelector::NVFP4Codebook},
-      {weft::rvv::GgmlBlockDotQ10Q80Op::getOperationName(),
+      {// Source identity retained for typed front-door ingestion; no registered
+       // whole-kernel op, verifier, recognizer, or emitter survives.
+       "weft_rvv.q1_0_q8_0_block_dot",
        MonolithicBlockDotRouteFamily::Flat, "ggml_q1_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q1_0_q8_0_block_dot_source",
        "weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",

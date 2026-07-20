@@ -16,8 +16,8 @@
       "restore_ref (复原指针 = git ref or named flip/campaign)"
     ],
     "counts": {
-      "total": 33,
-      "vec_dot_monolith": 16,
+      "total": 39,
+      "vec_dot_monolith": 22,
       "gemm_tile_repack": 17
     }
   },
@@ -330,12 +330,64 @@
     },
     {
       "axis": "vec_dot",
+      "format": "q1_0",
+      "op": "GgmlBlockDotQ10Q80Op",
+      "retirement_basis": "op-def was RETIRED at q1_0 flip (A7 Batch 1, single typed authority): the front door now constructs createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp instead.",
+      "alternative_path": "the front door constructs createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp ; emit anchor emitQ1_0TypedFlatBlockDotBody",
+      "restore_ref": "q1_0 flip (A7 Batch 1, single typed authority)",
+      "prose": "NOTE: def GgmlBlockDotQ10Q80Op (the monolith q1_0 block-dot op) was RETIRED at q1_0 flip (A7 Batch 1, single typed authority): the front door now constructs createTypedFlatBlockDotLoopChain -> typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp instead. Its emission was code-moved into the byte-exact shared anchor emitQ1_0TypedFlatBlockDotBody, reached solely through emitTypedFlatBlockDotLoopBody. Restore only by reverting the A7 Batch 1 retirement commit; Git history retains the removed ODS/verifier/thin-emitter implementation.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
+      "format": "q2_K",
+      "op": "GgmlBlockDotQ2KQ8KOp",
+      "retirement_basis": "op-def was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockScalarScaleMinLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ2KQ8KIntegerCoreOp and the typed scalar scale/min fold instead.",
+      "alternative_path": "the front door constructs createTypedSuperBlockScalarScaleMinLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ2KQ8KIntegerCoreOp and the typed scalar scale/min fold ; emit anchor emitTypedSuperBlockScalarScaleMinLoopBody",
+      "restore_ref": "q2_K flip",
+      "prose": "NOTE: def GgmlBlockDotQ2KQ8KOp (the monolith q2_K block-dot op) was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockScalarScaleMinLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ2KQ8KIntegerCoreOp and the typed scalar scale/min fold instead. Its emission was code-moved into the byte-exact shared anchor emitTypedSuperBlockScalarScaleMinLoopBody. Restore by reverting the A7 Batch 2 retirement commit; Git history retains the removed ODS/verifier implementation.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
+      "format": "q3_K",
+      "op": "GgmlBlockDotQ3KQ8KOp",
+      "retirement_basis": "op-def was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockScalesTimesSumiLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ3KQ8KAux32Op instead.",
+      "alternative_path": "the front door constructs createTypedSuperBlockScalesTimesSumiLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ3KQ8KAux32Op ; emit anchor emitTypedSuperBlockScalesTimesSumiLoopBody",
+      "restore_ref": "q3_K flip",
+      "prose": "NOTE: def GgmlBlockDotQ3KQ8KOp (the monolith q3_K block-dot op) was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockScalesTimesSumiLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ3KQ8KAux32Op instead. Its emission was code-moved into the byte-exact shared anchor emitTypedSuperBlockScalesTimesSumiLoopBody, reached solely through emitTypedSuperBlockBlockDotLoopBody. Restore by reverting the A7 Batch 2 retirement commit; Git history retains the removed ODS/verifier implementation.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
       "format": "q4_1",
       "op": "GgmlBlockDotQ41Q81Op",
       "retirement_basis": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q4_1 vec_dot to typed-flat construction (unsigned-nibble dot + operand-driven dual-fp16 scale+MIN fold) and the monolith op-def was plain-deleted with q8_0/q5_0/q5_1 in ONE commit BEFORE this whitelist's birth (1076d75e).",
       "alternative_path": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs weft_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+unsigned_nibble_x_i8_product+standalone_reduce, Family-B dual-fp16 scale+MIN dequant fold, byte-identical-to-monolith emit).",
       "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ41Q81Op`; op-def ADDED at parent-lineage 3a32d40b INC-9).",
       "sources": [
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
+      "format": "q4_K",
+      "op": "GgmlBlockDotQ4KQ8KOp",
+      "retirement_basis": "op-def was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockBlockDotLoopChain -> typed_super_block_block_dot_loop_body with the q4_K typed unpack/scale/min/dot/fold brick chain instead.",
+      "alternative_path": "the front door constructs createTypedSuperBlockBlockDotLoopChain -> typed_super_block_block_dot_loop_body with the q4_K typed unpack/scale/min/dot/fold brick chain ; emit anchor emitTypedSuperBlockBlockDotLoopBody",
+      "restore_ref": "q4_K flip",
+      "prose": "NOTE: def GgmlBlockDotQ4KQ8KOp (the monolith q4_K block-dot op) was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockBlockDotLoopChain -> typed_super_block_block_dot_loop_body with the q4_K typed unpack/scale/min/dot/fold brick chain instead. Its emission was code-moved into the byte-exact shared anchor emitTypedSuperBlockBlockDotLoopBody. Restore by reverting the A7 Batch 2 retirement commit; Git history retains the removed ODS/verifier implementation.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
         "monolith-retire-whitelist.v1.json retired_ledger"
       ]
     },
@@ -358,6 +410,32 @@
       "alternative_path": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (q5_1 branch) constructs weft_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product+block_fp16_min_product, ScalePlusMin fold, byte-identical-to-monolith emit).",
       "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ51Q81Op`; op-def ADDED at parent-lineage 08a7ac0e INC-22).",
       "sources": [
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
+      "format": "q5_K",
+      "op": "GgmlBlockDotQ5KQ8KOp",
+      "retirement_basis": "op-def was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockBlockDotLoopChain -> typed_super_block_block_dot_loop_body with the q5_K typed qh/unpack/scale/min/dot/fold brick chain instead.",
+      "alternative_path": "the front door constructs createTypedSuperBlockBlockDotLoopChain -> typed_super_block_block_dot_loop_body with the q5_K typed qh/unpack/scale/min/dot/fold brick chain ; emit anchor emitTypedSuperBlockBlockDotLoopBody",
+      "restore_ref": "q5_K flip",
+      "prose": "NOTE: def GgmlBlockDotQ5KQ8KOp (the monolith q5_K block-dot op) was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockBlockDotLoopChain -> typed_super_block_block_dot_loop_body with the q5_K typed qh/unpack/scale/min/dot/fold brick chain instead. Its emission was code-moved into the byte-exact shared anchor emitTypedSuperBlockBlockDotLoopBody. Restore by reverting the A7 Batch 2 retirement commit; Git history retains the removed ODS/verifier implementation.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
+        "monolith-retire-whitelist.v1.json retired_ledger"
+      ]
+    },
+    {
+      "axis": "vec_dot",
+      "format": "q6_K",
+      "op": "GgmlBlockDotQ6KQ8KOp",
+      "retirement_basis": "op-def was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockScalesTimesSumiLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ6KQ8KAux32Op instead.",
+      "alternative_path": "the front door constructs createTypedSuperBlockScalesTimesSumiLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ6KQ8KAux32Op ; emit anchor emitTypedSuperBlockScalesTimesSumiLoopBody",
+      "restore_ref": "q6_K flip",
+      "prose": "NOTE: def GgmlBlockDotQ6KQ8KOp (the monolith q6_K block-dot op) was RETIRED at K-quant op-def retirement (A7 Batch 2): the front door now constructs createTypedSuperBlockScalesTimesSumiLoopChain -> typed_super_block_block_dot_loop_body with GgmlBlockDotQ6KQ8KAux32Op instead. Its emission was code-moved into the byte-exact shared anchor emitTypedSuperBlockScalesTimesSumiLoopBody, reached solely through emitTypedSuperBlockBlockDotLoopBody. Restore by reverting the A7 Batch 2 retirement commit; Git history retains the removed ODS/verifier implementation.",
+      "sources": [
+        ".td RETIRED NOTE (RVVOps.td)",
         "monolith-retire-whitelist.v1.json retired_ledger"
       ]
     },

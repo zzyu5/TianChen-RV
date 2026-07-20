@@ -4,10 +4,11 @@
 Asserts that EVERY surviving vec_dot MONOLITH block-dot op-def in the ODS is named
 in schema/monolith-retire-whitelist.v1.json (either deliberately_retained forever or
 pending_retirement under a named batch), and that NO retired monolith verifier/emitter
-lingers as a `#if 0` dead-code tomb in the dialect/conversion .cpp. An un-whitelisted
-surviving monolith, or a stale whitelist entry, or a `#if 0` verifier tomb, is the
-residual this gate fails closed on ('有名有批次': a monolith may linger only if it is
-NAMED and carries a retirement batch).
+lingers as a `#if 0` dead-code tomb in the dialect/conversion .cpp. Entries may also
+declare `retired_active_symbols`; those exact old op/recognizer/emitter symbols must
+be absent from active include/lib code (the one canonical ODS RETIRED NOTE is allowed).
+An un-whitelisted survivor, stale whitelist entry, verifier tomb, or revived retired
+symbol is the residual this gate fails closed on.
 
 What is a 'vec_dot monolith'?  An ODS op-def whose description says
     Records the COMPLETE ggml `ggml_vec_dot_<fmt>_<act>` (super-)block dot-product as ONE
@@ -35,6 +36,10 @@ WHITELIST = os.path.join(REPO, "schema/monolith-retire-whitelist.v1.json")
 TOMB_SCAN_DIRS = [
     os.path.join(REPO, "lib/Dialect/RVV/IR"),
     os.path.join(REPO, "lib/Conversion/RVV"),
+]
+ACTIVE_SYMBOL_SCAN_DIRS = [
+    os.path.join(REPO, "include"),
+    os.path.join(REPO, "lib"),
 ]
 
 # The single load-bearing marker: unique to the 8 vec_dot monoliths (bricks say
@@ -95,6 +100,58 @@ def find_verifier_tombs(text, fname):
     return findings
 
 
+def find_retired_active_symbol_refs(text, fname, symbols):
+    """Return active refs to symbols that a retired-ledger entry declares dead.
+
+    The ODS four-requirement `// NOTE: def <OpDef> ... was RETIRED ...` marker is
+    the sole source-tree exception: it is a restoration pointer, not an active
+    definition/caller. Exact token matching avoids treating a replacement brick
+    such as `GgmlBlockDotQ10Q80BinarySignCoreOp` as the retired whole-kernel op.
+    """
+    findings = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for symbol in symbols:
+            if not re.search(r"(?<![A-Za-z0-9_])" + re.escape(symbol)
+                             + r"(?![A-Za-z0-9_])", line):
+                continue
+            retired_note = re.match(
+                r"^\s*//\s*NOTE:\s*def\s+" + re.escape(symbol)
+                + r"\b.*\bwas RETIRED\b", line)
+            if fname == os.path.relpath(ODS, REPO) and retired_note:
+                continue
+            findings.append(f"{fname}:{lineno}:{symbol}")
+    return findings
+
+
+def collect_retired_active_symbol_refs(wl):
+    symbols = sorted({
+        symbol
+        for entry in (wl.get("retired_ledger", []) or [])
+        for symbol in (entry.get("retired_active_symbols", []) or [])
+        if isinstance(symbol, str) and symbol
+    })
+    if not symbols:
+        return []
+
+    findings = []
+    for directory in ACTIVE_SYMBOL_SCAN_DIRS:
+        if not os.path.isdir(directory):
+            continue
+        for root, _, files in os.walk(directory):
+            for filename in files:
+                if not filename.endswith((".td", ".cpp", ".cc", ".h")):
+                    continue
+                path = os.path.join(root, filename)
+                rel = os.path.relpath(path, REPO)
+                try:
+                    with open(path, encoding="utf-8") as handle:
+                        findings += find_retired_active_symbol_refs(
+                            handle.read(), rel, symbols)
+                except Exception:  # noqa: BLE001
+                    pass
+    return findings
+
+
 def validate_whitelist_shape(wl):
     """Structural validation of the whitelist doc. Returns (errors, live_entries)."""
     errors = []
@@ -119,10 +176,18 @@ def validate_whitelist_shape(wl):
         if m in seen:
             errors.append(f"whitelist: duplicate mnemonic '{m}'")
         seen[m] = True
+    for e in wl.get("retired_ledger", []) or []:
+        symbols = e.get("retired_active_symbols", [])
+        if symbols is not None and (
+                not isinstance(symbols, list)
+                or any(not isinstance(s, str) or not s for s in symbols)):
+            errors.append(
+                f"retired_ledger[{e.get('format','?')}]: "
+                "'retired_active_symbols' must be a list of non-empty strings")
     return errors, live
 
 
-def evaluate(ods_monoliths, wl, tombs):
+def evaluate(ods_monoliths, wl, tombs, retired_symbol_refs=None):
     """Core verdict. ods_monoliths: {mnemonic: op_def}. wl: parsed whitelist dict.
     tombs: list of 'file:line'. Returns (ok, errors)."""
     errors, live = validate_whitelist_shape(wl)
@@ -150,6 +215,11 @@ def evaluate(ods_monoliths, wl, tombs):
     for t in tombs:
         errors.append(f"VERIFIER-TOMB: retired monolith verify() left as a `#if 0` "
                       f"dead-code block at {t} -> plain-delete it (git history is the archive).")
+    for ref in retired_symbol_refs or []:
+        errors.append(
+            "RETIRED-SYMBOL-REVIVED: retired whole-kernel op/recognizer/emitter "
+            f"symbol is referenced by active code at {ref} -> remove the caller/"
+            "definition; compatibility aliases and shadow dispatch are forbidden.")
     return (len(errors) == 0), errors
 
 
@@ -183,7 +253,9 @@ def run_real(verbose):
                     except Exception:  # noqa: BLE001
                         pass
 
-    ok, errors = evaluate(ods_monoliths, wl, tombs)
+    retired_symbol_refs = collect_retired_active_symbol_refs(wl)
+    ok, errors = evaluate(
+        ods_monoliths, wl, tombs, retired_symbol_refs=retired_symbol_refs)
 
     if verbose or not ok:
         det = wl.get("deliberately_retained", [])
@@ -197,10 +269,12 @@ def run_real(verbose):
                     cls = c
             print(f"    {m:24s} {ods_monoliths[m]:28s} [{cls}]")
         print(f"[monolith-retire] verifier `#if 0` tombs: {len(tombs)}")
+        print("[monolith-retire] revived retired active symbols: "
+              f"{len(retired_symbol_refs)}")
 
     if ok:
         print("[monolith-retire] GREEN: every surviving vec_dot monolith is named + "
-              "batched; no verifier tombs.")
+              "batched; no verifier tombs or revived retired active symbols.")
         return 0
     print("[monolith-retire] RED:", file=sys.stderr)
     for e in errors:
@@ -275,6 +349,19 @@ def run_self_test():
     comment_cpp = "// body was kept as an #if 0 dead-code tomb (prose)\nint c;\n"
     check("// comment '#if 0' not a tomb", find_verifier_tombs(comment_cpp, "y.cpp") == [])
 
+    # --- retired active-symbol revival detection; canonical ODS note is allowed ---
+    old_symbol = "GgmlBlockDotFooQ80Op"
+    revived = find_retired_active_symbol_refs(
+        "auto x = GgmlBlockDotFooQ80Op::getOperationName();\n",
+        "lib/x.cpp", [old_symbol])
+    check("retired active symbol revival detected",
+          revived == ["lib/x.cpp:1:GgmlBlockDotFooQ80Op"])
+    note = ("// NOTE: def GgmlBlockDotFooQ80Op "
+            "(the monolith foo block-dot op) was RETIRED at foo flip\n")
+    check("canonical ODS RETIRED NOTE is not an active ref",
+          find_retired_active_symbol_refs(
+              note, os.path.relpath(ODS, REPO), [old_symbol]) == [])
+
     # --- a legit #if 0 with no verify inside is NOT flagged ---
     benign = "#if 0\nint unused = 1;\n#endif\n"
     check("benign #if 0 not flagged", find_verifier_tombs(benign, "z.cpp") == [])
@@ -282,6 +369,11 @@ def run_self_test():
     # --- tomb fed through evaluate -> RED ---
     ok, errs = evaluate(mono, wl_ok, ["x.cpp:2"])
     check("tomb -> evaluate RED", (not ok) and any("VERIFIER-TOMB" in e for e in errs))
+
+    ok, errs = evaluate(
+        mono, wl_ok, [], ["lib/x.cpp:1:GgmlBlockDotFooQ80Op"])
+    check("revived retired symbol -> evaluate RED",
+          (not ok) and any("RETIRED-SYMBOL-REVIVED" in e for e in errs))
 
     if fails:
         print(f"[monolith-retire --self-test] RED: {len(fails)} discrimination(s) failed")
