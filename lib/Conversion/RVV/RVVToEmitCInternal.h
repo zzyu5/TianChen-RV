@@ -466,11 +466,6 @@ private:
   /// emitRepackGemmQ4_0Q8_0.
   static bool isTypedRepackGemmLoopBody(weftrvv::WithVLOp scope);
 
-  /// The BINARY-class sibling recognizer: a with_vl scope whose ONLY compute op
-  /// is a single weft_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
-  /// key; the emitter owns the structured binary-sign-decode expansion.
-  static bool isQ1_0Q8_0BlockDotBody(weftrvv::WithVLOp scope);
-
   // NOTE: the monolith recognizer isIQ4XSQ8KBlockDotBody was RETIRED at the iq4_xs
   // flip (C_construct 23->24): the front door now constructs the typed super-block
   // SCALAR-accumulator loop body (fold_model "scalar_delta_grid", stride 136),
@@ -3507,61 +3502,15 @@ private:
       mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
       mlir::TypedValue<emitc::ArrayType> utmpArray) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_q1_0_q8_0 block dot-product for one
-  /// weft_rvv.q1_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-control-flow blob -- every value is a node in the IR graph). It
-  /// is the BINARY ({-1,+1}) class: each q1_0 weight bit is a SIGN (set -> +q8,
-  /// clear -> -q8) and the q8 value itself is the magnitude. It runs ggml's
-  /// shipped _vl128 lane structure -- ONE 32-lane sub-block body with NO kmask
-  /// table, NO vand/vmsne decode, NO codebook, NO nibble unpack, NO offset-binary
-  /// `-8` bias. The structured shape is:
-  ///   float sumf = 0.0f;  size_t nb = n / 128;
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*18;
-  ///     float d0 = (float)*(const _Float16 *)(xb);
-  ///     float sumi = 0.0f;
-  ///     for (k = 0; k < 4; ++k) {                      // UNROLLED sub-blocks
-  ///       const uint8_t *yb = vy + (ib*4 + k)*34;
-  ///       float d1 = (float)*(const _Float16 *)(yb);
-  ///       size_t vl = __riscv_vsetvl_e8<anchor>(32);   // anchor: m2@128 / m1@256
-  ///       // the 4 packed bit-bytes ARE the i8 sign mask (bit 8b+i -> lane 8b+i):
-  ///       vbool<r>_t m = __riscv_vlm_v_b<r>(xb + 2 + k*4, vl); // r=4 (m2)/8 (m1)
-  ///       vint8<a>_t q8 = __riscv_vle8_v_i8<a>(yb + 2, vl);
-  ///       vint8<a>_t sy = __riscv_vmerge_vvm_i8<a>(            // i8-DOMAIN sign
-  ///           __riscv_vneg_v_i8<a>(q8, vl), q8, m, vl);       // +q8 if bit set
-  ///       int sumi_block = __riscv_vmv_x_s_i16m1_i16(          // ONE reduce/block
-  ///           __riscv_vwredsum_vs_i8<a>_i16m1(sy, vmv_v_x_i16m1(0,1), vl));
-  ///       sumi = sumi + d1 * (float)sumi_block;          // ggml exact order
-  ///     }
-  ///     sumf = sumf + d0 * sumi;                          // ggml exact order
-  ///   }
-  ///   *s = sumf;
-  /// The negate/merge is in the i8 DOMAIN (ggml _vl128 exact); the real q8 quant
-  /// domain is [-127,127] so the i8 vneg is byte-exact on every gate input (only
-  /// the unreachable -128 boundary would overflow -- matching ggml _vl128, not the
-  /// old i16-widen superset). The anchor MOVES with VLEN: the 32-element sub-block
-  /// straddles m1's i8 VLMAX boundary between 128/256, so the gearbox stamps m2 at
-  /// VLEN128 (e8m1 VLMAX 16 < 32) and the lighter m1 at VLEN256; the default is the
-  /// VLEN-universal-safe m2. The 32-lane reduce is pure within-block lowering (vl
-  /// stays 32, never crosses into a second sub-block). The block-format facts are
-  /// the op's typed attrs (I4 mirror); the emission is the op's fixed structure.
-  /// The five fp16 reads (d0 + d1_{0..3}) are the only sanctioned opaque scalar
-  /// pieces.
-  mlir::LogicalResult emitQ1_0Q8_0BlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// The BYTE-EXACT q1_0 x q8_0 BINARY-sign block-dot body, SHARED by (a) the
-  /// monolith GgmlBlockDotQ10Q80Op emitter and (b) the constructed
-  /// typed_flat_block_dot_loop_body q1_0 branch (fold_model
-  /// "flat_binary_two_level"). Both callers pass the SAME validated ABI values +
-  /// the SAME I4 facts, so the emit is byte-identical across the flip (modulo
-  /// only the source-op provenance token carried by opName/role). Emits the WHOLE
+  /// The BYTE-EXACT q1_0 x q8_0 BINARY-sign block-dot body consumed solely by
+  /// the constructed typed_flat_block_dot_loop_body q1_0 branch (fold_model
+  /// "flat_binary_two_level"). Its validated typed brick operands and I4 facts
+  /// determine the emit; no retired whole-kernel op or fallback caller exists.
+  /// Emits the WHOLE
   /// kernel (sumf accumulator, nb = n/qk super-block loop, the four unrolled q8_0
   /// binary sign sub-blocks, the two-level fp32 fold, the scalar store) and
   /// returns the final sumf SSA value.
-  mlir::Value emitQ1_0BlockDotBodyShared(
+  mlir::Value emitQ1_0TypedFlatBlockDotBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value weightBase, mlir::Value activationBase,
       mlir::TypedValue<mlir::emitc::PointerType> outPointer, mlir::Value avlArg,

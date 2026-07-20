@@ -19,7 +19,7 @@
       "checker": "tools/gates/check_monolith_retire.py",
       "ci": ".github/workflows/falsifier-gate.yml (job: monolith-retire-gate)"
     },
-    "generated_survey": "As of 裁决九.4: 8 vec_dot monolith op-defs survive in ODS (2 deliberately_retained + 6 pending_retirement). All other flat/K/IQ/TQ vec_dot monoliths (q8_0, q4_1, q5_0, q5_1, iq4_nl, nvfp4, iq1_s, iq1_m, iq3_xxs, iq4_xs, iq2_xxs, iq2_xs, iq2_s, iq3_s, tq1_0, tq2_0) are ALREADY op-def-retired (front door keys off string literals; see the RETIRED NOTE markers in RVVOps.td).",
+    "generated_survey": "As of A7 Batch 2: 2 vec_dot monolith op-defs survive in ODS (1 deliberately_retained + 1 pending_retirement debt). mxfp4 is the isolated e5 negative control. q4_0's normal source path is typed; its remaining whole-kernel role belongs only to the lit-authored GgmlQuantContraction experiment and is tracked by ISSUE-124 until that slice is onboarded or retired.",
     "retired_ledger_forms": {
       "ruling": "判定书 §3 轴B 裁决①: a RETIRED vec_dot monolith is registered in EITHER of TWO EQUALLY-VALID canonical forms -- there is NO forced migration to a single form (合规 != 体例统一).",
       "form_A_json_retired_ledger": "A structured entry in THIS file's retired_ledger array (format + op_def + retired_at + front_door/cleanup + restore_ref). This is the form for op-defs that were ALREADY absent from ODS at the whitelist's birth, or retired after it.",
@@ -28,7 +28,6 @@
     },
     "retired_index": "判定书 §3 轴B 裁决③ (机检化): tools/gates/gen_retired_index.py merges (a) the .td RETIRED NOTE markers + (b) this file's retired_ledger + (c) schema/emit-bypass-whitelist.v1.json retired_ledger into the single read-only query point schema/retired-index.generated.json (machine-generated, DO NOT hand-edit). tools/gates/check_retired_index.py (按需门; 其原 CI job retired-index-gate 已随 .github/workflows/ 删除, 见 evidence 层 G-2) fails closed unless the index is fresh AND every RETIRED vec_dot monolith format -- derived independently as {vec_dot rows in schema/coverage-sixstate.v1.json} MINUS {surviving ODS monolith formats} -- is in the index with non-empty four requirements."
   },
-
   "deliberately_retained": [
     {
       "format": "mxfp4",
@@ -39,104 +38,100 @@
         "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (GgmlBlockDotMXFP4Q80Op::verify — live)",
         ".trellis/scripts/e5_strong_readout.py (the e5 negative-control readout consumes it)"
       ]
-    },
+    }
+  ],
+  "pending_retirement": [
     {
       "format": "q4_0",
       "mnemonic": "q4_0_q8_0_block_dot",
       "op_def": "GgmlBlockDotQ40Q80Op",
-      "reason": "Abstract-contraction ARM — current LIVE second lowering slice. q4_0 is the GgmlQuantContraction abstract-op default arm; its monolith block-dot op-def is the byte-exact reference for option-2 path selection (block-dot vs repack). Retention requires a declared predicate distinct from any typed replacement, a unique authority in that slice, correctness evidence and live callers; predicate overlap triggers convergence under RET-1.",
+      "batch": "ISSUE-124 — decide and atomically cut over the lit-only GgmlQuantContraction block-dot arm: either onboard a real typed decision producer or retire the abstract experimental slice plus this whole-kernel op.",
+      "reason": "The normal q4_0 source front door already constructs typed_flat_block_dot_loop_body. The whole-kernel op survives only as GgmlQuantContractionOp's non-overlapping block-dot arm, but RVVLowerQuantContraction.cpp explicitly states that the abstract op has no real producer and is authored only in lit. Therefore the code slice exists, but its claimed production retention evidence is incomplete. This is named RET-1 debt, not a compatibility exemption or a completed role.",
+      "issue": "ISSUE-124",
       "live_refs": [
-        "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (GgmlBlockDotQ40Q80Op::verify — live)",
-        "lib/Conversion/RVV/* (live block-dot emitter path)",
-        "GgmlQuantContractionOp abstract contraction identity-default arm"
+        "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp (lowerToBlockDot creates GgmlBlockDotQ40Q80Op; same file states GgmlQuantContractionOp has no real producer)",
+        "lib/Conversion/RVV/RVVToEmitC.cpp + RVVToEmitCBlockQuantLinear.cpp (whole-kernel recognizer/emitter)",
+        "include/Weft/Dialect/RVV/IR/RVVOps.td + RVVDialectWideningOps.cpp (whole-kernel ODS/verifier)",
+        "test/Conversion/RVV/rvv-lower-quant-contraction-*.mlir (current direct authors)"
       ]
     }
   ],
-
-  "pending_retirement": [
-    {
-      "format": "q1_0",
-      "mnemonic": "q1_0_q8_0_block_dot",
-      "op_def": "GgmlBlockDotQ10Q80Op",
-      "batch": "flat-family monolith EMITTER retirement — q1_0 is the LAST un-retired flat vec_dot monolith (q8_0/q4_1/q5_0/q5_1 op-defs already retired; q4_0 permanently kept). Follow the flat-flip precedent: the front door already string-keys it; the blocking residual is the LIVE monolith emitter + its dataflow verifier test, which must be dead-stripped / migrated before the op-def can go.",
-      "reason": "Front door FLIPPED q1_0 to typed-flat construction (RVVMonolithicBlockDotSourceFrontDoor.cpp:3291, entry.opName string-keyed — the comment there already says the monolith is 'retired' for the source path, so it is no longer CONSTRUCTED in-pipeline). BUT the monolith EMITTER is still LIVE and tested — recognizer isQ1_0Q8_0BlockDotBody is registered in the emitter dispatch table (RVVToEmitC.cpp:441) with a full emitter path, and the verifier is exercised by test/Dialect/RVV/q1-0-q8-0-block-dot-dataflow.mlir — UNLIKE K-quant whose emitters were fully code-moved. So the op-def is not yet pipeline-dead and is kept, named, with this batch.",
-      "live_refs": [
-        "lib/Conversion/RVV/RVVToEmitC.cpp:441 (isQ1_0Q8_0BlockDotBody recognizer registered)",
-        "lib/Conversion/RVV/RVVToEmitC.cpp:1364 (isa<GgmlBlockDotQ10Q80Op> dispatch)",
-        "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:9723 (dyn_cast<GgmlBlockDotQ10Q80Op> emitter)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1996 (family route registration)",
-        "test/Dialect/RVV/q1-0-q8-0-block-dot-dataflow.mlir (verifier contract test)"
-      ]
-    },
+  "retired_ledger": [
     {
       "format": "q4_K",
-      "mnemonic": "q4_k_q8_k_block_dot",
       "op_def": "GgmlBlockDotQ4KQ8KOp",
-      "batch": "K-quant monolith op-def retirement (裁决九.4 named batch). Precedent to follow: the iq1_s/iq1_m/iq3_xxs/iq4_xs retirements — replace the front-door GgmlBlockDot*Op::getOperationName() keying with the literal opName string, drop the family-registry op-type ref, plain-delete the op-def + verify(), and migrate the dataflow verifier contract test. To be done as ONE campaign commit with a byte-exact typed-body == retired-monolith-emit check, NOT folded into CI-lint wiring.",
-      "reason": "Front door CONSTRUCTS the typed super-block DUAL-accumulator loop body (isQ4KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3114) instead of the monolith; the monolith emitter is already code-moved to the typed-super-block lowering. op-def is pipeline-dead (isa/dyn_cast=0) but retains (a) front-door opName-string keying via getOperationName() and (b) a LIVE verifier contract test. Kept named-with-batch rather than hard-deleted, to avoid breaking the gate/test in a lint-wiring ruling (别硬删破 gate).",
-      "live_refs": [
-        "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3114 (getOperationName() opName key)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1629 (family route registration)",
-        "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:5457 (GgmlBlockDotQ4KQ8KOp::verify — live, tested)",
-        "test/Dialect/RVV/q4-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
-      ]
+      "mnemonic": "q4_k_q8_k_block_dot",
+      "retired_at": "K-quant op-def retirement (A7 Batch 2): q4_K's pipeline-dead whole-kernel ODS/verifier surface and op-type registry keys were atomically removed after typed super-block construction became the sole production path.",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp retains the external source identity as a literal; createTypedSuperBlockBlockDotLoopChain constructs the typed dual-accumulator q4_K brick chain and emitTypedSuperBlockBlockDotLoopBody is the sole emitter.",
+      "cleanup": "Direct whole-kernel verifier fixtures were deleted. Typed loop-body conversion and q4_K source-front-door/full-pipeline export tests remain the executable contract; a retired-op parse-rejection mutation prevents ODS revival.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ4KQ8KOp"
+      ],
+      "restore_ref": "git revert of the A7 Batch 2 K-quant retirement commit; the removed ODS/verifier remains in its parent through Git history."
     },
     {
       "format": "q5_K",
-      "mnemonic": "q5_k_q8_k_block_dot",
       "op_def": "GgmlBlockDotQ5KQ8KOp",
-      "batch": "K-quant monolith op-def retirement (裁决九.4 named batch) — same campaign + precedent as q4_K. q5_K == q4_K + the qh 5th-bit plane; it flips through the SAME typed super-block dual-accumulator chain, so it retires in the same commit as q4_K.",
-      "reason": "Front door CONSTRUCTS the typed super-block dual-accumulator loop body (isQ5KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3121); monolith op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
-      "live_refs": [
-        "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3121 (getOperationName() opName key)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1847 (family route registration)",
-        "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:5648 (GgmlBlockDotQ5KQ8KOp::verify — live, tested)",
-        "test/Dialect/RVV/q5-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
-      ]
+      "mnemonic": "q5_k_q8_k_block_dot",
+      "retired_at": "K-quant op-def retirement (A7 Batch 2): q5_K's pipeline-dead whole-kernel ODS/verifier surface and op-type registry keys were atomically removed with the K-quant family.",
+      "front_door": "The literal q5_K source identity selects createTypedSuperBlockBlockDotLoopChain, which constructs the qh-aware typed dual-accumulator brick chain; emitTypedSuperBlockBlockDotLoopBody is the sole emitter.",
+      "cleanup": "Direct whole-kernel verifier fixtures were deleted; typed loop conversion, full-pipeline export, and retired-op parse rejection protect the replacement and retirement.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ5KQ8KOp"
+      ],
+      "restore_ref": "git revert of the A7 Batch 2 K-quant retirement commit; removed code remains in Git history."
     },
     {
       "format": "q6_K",
-      "mnemonic": "q6_k_q8_k_block_dot",
       "op_def": "GgmlBlockDotQ6KQ8KOp",
-      "batch": "K-quant monolith op-def retirement (裁决九.4 named batch) — same campaign + precedent as q4_K. q6_K has NO per-block min, so it flips through the typed super-block SINGLE-accumulator chain; retires with the K-quant batch.",
-      "reason": "Front door CONSTRUCTS the typed super-block single-accumulator loop body (isQ6KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3128); monolith op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
-      "live_refs": [
-        "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3128 (getOperationName() opName key)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1861 (family route registration)",
-        "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:4394 (GgmlBlockDotQ6KQ8KOp::verify — live, tested)",
-        "test/Dialect/RVV/q6-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
-      ]
+      "mnemonic": "q6_k_q8_k_block_dot",
+      "retired_at": "K-quant op-def retirement (A7 Batch 2): q6_K's pipeline-dead whole-kernel ODS/verifier surface and op-type registry keys were atomically removed with the K-quant family.",
+      "front_door": "The literal q6_K source identity selects createTypedSuperBlockScalesTimesSumiLoopChain with GgmlBlockDotQ6KQ8KAux32Op; emitTypedSuperBlockScalesTimesSumiLoopBody, reached through the typed super-block dispatcher, is the sole emitter.",
+      "cleanup": "Direct whole-kernel verifier fixtures were deleted; aux32/typed-loop tests, full-pipeline export, and retired-op parse rejection protect the live authority.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ6KQ8KOp"
+      ],
+      "restore_ref": "git revert of the A7 Batch 2 K-quant retirement commit; removed code remains in Git history."
     },
     {
       "format": "q2_K",
-      "mnemonic": "q2_k_q8_k_block_dot",
       "op_def": "GgmlBlockDotQ2KQ8KOp",
-      "batch": "K-quant monolith op-def retirement (裁决九.4 named batch) — same campaign + precedent as q4_K. q2_K flips through the typed super-block SCALAR-accumulator chain (fold_model 'scalar_scale_min'); retires with the K-quant batch.",
-      "reason": "Front door CONSTRUCTS the typed super-block scalar-accumulator loop body (isQ2KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3144); monolith op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
-      "live_refs": [
-        "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3144 (getOperationName() opName key)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1816 (family route registration)",
-        "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:5823 (GgmlBlockDotQ2KQ8KOp::verify — live, tested)",
-        "test/Dialect/RVV/q2-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
-      ]
+      "mnemonic": "q2_k_q8_k_block_dot",
+      "retired_at": "K-quant op-def retirement (A7 Batch 2): q2_K's pipeline-dead whole-kernel ODS/verifier surface and op-type registry keys were atomically removed with the K-quant family.",
+      "front_door": "The literal q2_K source identity selects createTypedSuperBlockScalarScaleMinLoopChain with GgmlBlockDotQ2KQ8KIntegerCoreOp and typed scalar scale/min fold; emitTypedSuperBlockScalarScaleMinLoopBody is the sole emitter.",
+      "cleanup": "Direct whole-kernel verifier fixtures were deleted; typed-loop conversion, full-pipeline export, and retired-op parse rejection protect the live authority.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ2KQ8KOp"
+      ],
+      "restore_ref": "git revert of the A7 Batch 2 K-quant retirement commit; removed code remains in Git history."
     },
     {
       "format": "q3_K",
-      "mnemonic": "q3_k_q8_k_block_dot",
       "op_def": "GgmlBlockDotQ3KQ8KOp",
-      "batch": "K-quant monolith op-def retirement (裁决九.4 named batch) — same campaign + precedent as q4_K. q3_K is symmetric (NO per-block min) and shares q6_K's typed super-block single-accumulator chain (disambiguated by opName in the chain builder); retires with the K-quant batch.",
-      "reason": "Front door CONSTRUCTS the typed super-block single-accumulator loop body (isQ3KTypedSuperBlock, RVVMonolithicBlockDotSourceFrontDoor.cpp:3136); the chain builder still keys q3_K vs q6_K off GgmlBlockDotQ3KQ8KOp::getOperationName() (RVVMonolithicBlockDotSourceFrontDoor.cpp:1328). op-def is pipeline-dead (isa/dyn_cast=0) but retains front-door opName-string keying + a LIVE verifier contract test.",
-      "live_refs": [
-        "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:1328 (getOperationName() opName key — chain builder q3_K/q6_K disambiguation)",
-        "lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp:3136 (getOperationName() opName key — front-door flag)",
-        "include/Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h:1832 (family route registration)",
-        "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp:6632 (GgmlBlockDotQ3KQ8KOp::verify — live, tested)",
-        "test/Dialect/RVV/q3-k-q8-k-block-dot-dataflow.mlir (verifier contract test)"
-      ]
-    }
-  ],
-
-  "retired_ledger": [
+      "mnemonic": "q3_k_q8_k_block_dot",
+      "retired_at": "K-quant op-def retirement (A7 Batch 2): q3_K's pipeline-dead whole-kernel ODS/verifier surface and op-type registry keys were atomically removed with the K-quant family.",
+      "front_door": "The literal q3_K source identity selects createTypedSuperBlockScalesTimesSumiLoopChain with GgmlBlockDotQ3KQ8KAux32Op; emitTypedSuperBlockScalesTimesSumiLoopBody, reached through the typed super-block dispatcher, is the sole emitter.",
+      "cleanup": "Direct whole-kernel verifier fixtures were deleted; typed-loop conversion, full-pipeline export, and retired-op parse rejection protect the live authority.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ3KQ8KOp"
+      ],
+      "restore_ref": "git revert of the A7 Batch 2 K-quant retirement commit; removed code remains in Git history."
+    },
+    {
+      "format": "q1_0",
+      "op_def": "GgmlBlockDotQ10Q80Op",
+      "mnemonic": "q1_0_q8_0_block_dot",
+      "retired_at": "q1_0 flip (A7 Batch 1, single typed authority): the public source front door had already superseded the whole-kernel op; this batch atomically removed the residual ODS op-def, monolith verifier, recognizer/dispatch row, thin emitter, and direct-op tests.",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp retains the source identity as a literal and createTypedFlatBlockDotLoopChain constructs weft_rvv.typed_flat_block_dot_loop_body containing GgmlBlockDotQ10Q80BinarySignCoreOp; emitTypedFlatBlockDotLoopBody is the only dispatcher and emitQ1_0TypedFlatBlockDotBody is the shared byte-exact emit anchor.",
+      "cleanup": "The verifier contract moved to q1-0-q8-0-binary-sign-core-dataflow.mlir; schedule divergence now starts from the public source front door; full pipeline/export remains covered by q1-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir. No compatibility alias, parser shim, old-name fallback, or second emitter remains.",
+      "retired_active_symbols": [
+        "GgmlBlockDotQ10Q80Op",
+        "isQ1_0Q8_0BlockDotBody",
+        "emitQ1_0Q8_0BlockDot"
+      ],
+      "restore_ref": "git revert of the A7 Batch 1 q1_0 retirement commit (the commit adding this ledger entry); removed implementation remains available in its parent through git history.",
+      "note": "Four requirements complete: format+op_def; retirement basis; typed front-door/emitter alternative; git-history restore pointer."
+    },
     {
       "format": "nvfp4",
       "op_def": "GgmlBlockDotNVFP4Q80Op",
