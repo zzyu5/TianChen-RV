@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "dequant formula、legality、complete plan、unique materializer 与 mechanical emitter 正本"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "每个 mechanism slice 全 caller 原子 cutover"}
+{"file": ".trellis/spec/issues/发射器与架构.md", "reason": "ISSUE-122 剩余面与 A3 已落边界"}
+{"file": "include/Weft/Plugin/RVV/RVVFormulaDecision.h", "reason": "A2/A3 最小 typed decision contract 与 Codebook 参考"}
+{"file": "lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp", "reason": "A3 唯一 backend materializer 与 route preparation 参考实现"}
+{"file": "include/Weft/Support/GridDecodePlan.h", "reason": "GridLookup 第二 authority 的主要 census 入口"}

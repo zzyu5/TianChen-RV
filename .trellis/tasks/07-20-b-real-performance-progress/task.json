@@ -25,6 +25,6 @@
   ],
   "parent": "07-20-ab-formula-performance-mainlines",
   "relatedFiles": [],
-  "notes": "B1 and B2 completed as independent atomic slices. B2 bench tooling self-test is 17/17 and adds explicit route/parser registries plus dual-board correctness coverage only; no cold values, roster denominator, official runs, or master cells changed. The original B3 MLP scope was already completed negative on 07-18 and stopped by ISSUE-109; B3 now retires those production remnants. B4-B6 remain performance work.",
+  "notes": "B1/B2/B3 已归档：control plane 与 bench correctness/route coverage 已落，ISSUE-109 证伪策略已退役。下一轮 B4 做 A3 Codebook 真板性能 disposition，B5 关闭 deployed q4_0 flat GEMM 路由；板测串行，多个 agent 共同做同一 campaign 的代码、对手与证据审查。",
   "meta": {}
 }

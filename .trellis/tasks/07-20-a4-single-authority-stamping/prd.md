@@ -1,62 +1,139 @@
-# A4：单一 authority、stamping 与机械 emission
+# A4a：SP4 / loop-order selected→realized 原子切换
 
 ## Goal
 
-把代表性 RVV 决策收口成不可绕过的单向链：formula/provider 构造 → legality 验证 → selector 选择 → selected typed result 落印 → body realization → emitter 机械消费。关闭 GridDecodePlan/DequantMechanismPlan、provider/verifier 与 selector/emitter 的重复 authority。
+只处理 `ISSUE-125` 的一个 declared schedule slice，把 SP4 tiling 与 sibling
+loop-order 从当前 `selected != realized` 收口为不可绕过的单向链：
+
+~~~text
+typed schedule facts/capability/context
+  → formula/provider constructs bounded candidates
+  → legality keeps only realizable candidates
+  → selector chooses one legal value
+  → complete required typed schedule stamp
+  → pre-emission verification/materialization
+  → mechanical realization/emission
+~~~
+
+本任务不再夹带 KQuant/Grid/Ternary plan 迁移；后者由 A4b 承担。A3 Codebook
+是 complete stamp、唯一 materializer 与路由 parity 的参考实现及回归保护，不是
+第二轮重写对象。
+
+## Current Counterexamples
+
+- `tilingVariantFeasibleSet` 可产生 `{Plain,S6Tiled}`，但 min-fold emitter 没有
+  `Plain` real body；合法域大于可构造域。
+- `weft_rvv.tiling_variant` 缺失时 emission 静默按 `S6Tiled` 实现。
+- sibling loop-order 仅在 `reason=measured` 时兑现 `col_outer`；同一个 selected
+  value 若 reason=prior 会被改回 `row_outer`。
+- q4_K 的 schedule stamp 缺失时，emitter 会调用
+  `repackColGroupOuterForLayout` 重算 prior。
+
+这些都是当前代码事实，不是兼容行为。A4a 合入时必须一并退役。
 
 ## Scope
 
-- 以 A1 指出的双头路径和 A3 的 codebook/grid slice 为主标的。
-- 把 A1 的 schedule 反例作为独立 declared slice：SP4 legality 不得纳入无 real body 的 candidate；`tiling_variant` / `loop_order` 成为 emission 前可验证的 required selected result；删除 `ABSENT => S6Tiled`、sibling `reason==measured` override、q4_K missing-stamp stride recompute。
-- 为 selected decision 定义唯一 stamped representation；reason/provenance 只作 mirror。
-- verifier 从 canonical formula 独立重算可验证关系并拒 stamped≠recomputed，或采用等价的单源校验方式；不得修正输入。
-- emitter 不再直接查 measurement、board/march、format winner 或第二 registry 决策。
-- 未落印、非法、unknown 与空合法集均具名 fail-closed/fallback。
-- block-dot 仍直接消费 GridDecodePlan 的剩余路径须逐项迁移或明确分立 authority，不留同一语义双源。
+- 为本 declared slice 明确真实、有限且均可 realization 的 candidate set；若不在本
+  任务实现 `Plain` real body，就从 SP4 legal set 删除 `Plain`。
+- 让 SP4/loop-order 的 code-affecting selected fields 成为 emission 前 required、
+  typed、all-or-none 的 complete stamp；reason/provenance 仅作 mirror。
+- 复用现有 canonical capability/selection/preparation 基础设施；不得在 schedule
+  emitter 内建立第二 capability parser、winner reader 或 stamp writer。
+- pre-emission 层拒绝 missing、partial、错类型、unknown、forged、stale 或与当前
+  typed inputs 不一致的 stamp；不得修正成另一个值。
+- emitter 对所有合法 selected values 机械 realization，不再看 reason、format、
+  board/march 或 measurement 决定是否兑现。
+- direct wrapper、registry clone 与 artifact/deployed route 必须经过同一 preparation
+  入口；不得新增 benchmark-only bypass。
+- 更新或删除固化旧错误行为的 fixture，并把它们变成 killing tests。
+
+## Explicit Retirement Set
+
+- min-fold unrealizable `Plain` 假 feasibility（除非本任务同时交付 real body）；
+- `ABSENT → S6Tiled`；
+- sibling `reason == measured` override gate 与 override comment；
+- q4_K missing-stamp `repackColGroupOuterForLayout` 重算；
+- optional string-only schedule attr 与任何 silent/default/compat reader；
+- 同一 schedule decision 的第二 selector、第二 writer、shadow route 与旧 overload。
+
+不保留 legacy/deprecated/compat alias，也不把旧 fixture 数量当保留理由。无法迁完
+本 declared slice 的全部 production caller 时，保持 worktree 未完成或整笔回滚。
+
+## Multi-Agent Collaboration Contract
+
+这是一个由多个 agent 共同完成的任务，不是“一人一个子任务”：
+
+1. implementation/authority agent 负责 formula、legality、complete stamp 与 emitter
+   退役集；
+2. adversarial/parity agent 独立设计反例、追踪 direct/registry/artifact/deployed
+   路由，并审查实现 agent 的 diff；
+3. root/integration owner 负责共享 worktree、touch-set 冲突裁决、强制重链、全量
+   验证、spec/issue/ledger 同步与唯一合入。
+
+agent 可按不相交文件并行，但共享接口只有一个 integration owner。任何 agent 不能
+以自己的局部测试替代另一责任面的独立审查。
 
 ## Primary Touch Set
 
-- `include/Weft/Support/GridDecodePlan.h` 及实现
-- dequant mechanism plan/provider
-- RVV dialect verifier
-- selected body/front door stamping
-- `lib/Conversion/RVV/` 相关 emitters
-- mutation/negative tests
+- schedule formula/selection：`include/Weft/Plugin/RVV/`、
+  `lib/Plugin/RVV/FrontDoor/` 中与 SP4/loop-order 直接相关的 symbols；
+- selected body/stamp verifier/materializer；
+- `lib/Conversion/RVV/` 中 min-fold、sibling loop-order 与 q4_K 的实际 consumer；
+- direct/registry/artifact parity 与 focused lit/C++ tests；
+- ISSUE-125、formula migration ledger 与 authority matrix。
+
+禁止顺手迁移其它 dequant plan、改 measurement winner、建立 Formula IR 或改真板
+性能结论。
 
 ## Dependencies
 
-- 依赖 A2；A3 的代表性 plan 接口应先稳定。
-- ISSUE-122 行为裁决是 verifier 升级前置；任务启动时复核当前用户/canon 是否已授权具体行为。
-- A5、A6 依赖本任务的 stamped contract。
+- A2 typed decision contract 与 A3 Codebook complete-stamp/preparation 先例已落地。
+- A4a 不以 A5 winner-view 为前置；当前 winner 只要仍在合法集即可，A4a 不改判。
+- A4b 可在 A4a 的共享 stamp 形态稳定后并行或随后施工，但不能与 A4a 同写共享
+  materializer API。
 
 ## Acceptance Criteria
 
-- [ ] 每个承重 decision 只有一个构造 authority。
-- [ ] verifier 能拒绝 forged/stale/不一致 stamp，且不会自行选择替代值。
-- [ ] selector 无法选 illegal candidate。
-- [ ] emitter 缺 stamp 即失败，不再重算或 fallback 到隐式默认。
-- [ ] direct `lookupGridDecodePlan` 等旧入口的合法存活点有完整清单；同义重复点为零。
-- [ ] mutation tests 分别杀死：跳 legality、伪造 stamp、emitter 重算、measurement 造 candidate。
-- [ ] `rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-override.mlir` 不再固化 `selected col_outer/prior → realized row_outer`；改为证明 selected value 被机械实现，且删除 stamp 会 fail closed。
-- [ ] min-fold `Plain` 要么有真实 realization，要么在 legality 阶段被排除；selector 返回后不得再由 emitter 报“registered but deferred”。
-- [ ] 当前合法 fixtures byte-exact/ULP，deployed regression 无新增失败。
+- [ ] SP4/loop-order 的每个 legal candidate 都有真实 body；selector 不可能返回
+      emitter 才拒绝的值。
+- [ ] 合法 selected value 的 realization 与 reason 无关；`col_outer/prior` 真正产生
+      col-outer 实现。
+- [ ] 删除 SP4 或 loop-order stamp 会在 emission 前 fail closed；不落回默认/重算。
+- [ ] partial、错类型、unknown、forged、stale/inconsistent stamp 各有独立负例。
+- [ ] `ABSENT→S6Tiled`、`reason==measured` override、q4_K missing-stamp recompute
+      与 unrealizable-Plain 假候选在 production tree 中为零。
+- [ ] direct、registry、artifact/deployed 路由共享 preparation，并对相同输入产生
+      同一 complete stamp / 同一 emitted schedule。
+- [ ] measurement 只能在 legal candidates 内选择；不能创造 candidate、绕过
+      legality 或借 reason 改 compute。
+- [ ] A3 Codebook 的 formula、capability collector、unique materializer 与 parity
+      tests 无回归，且本任务没有复制它们。
+- [ ] 合法现役 fixtures 的 emitted C / byte-exact 行为保持；无新增 RVV suite 失败。
+- [ ] authority census 证明已迁移 slice 的旧 caller、compat bridge、第二 selector/
+      writer/dispatcher 和 code-affecting silent default 均为零。
 
 ## Verification
 
-- verifier positive/negative unit/lit;
-- emitted-C golden/byte-exact;
-- A1 authority census and direct-lookup census;
-- focused plus relevant full RVV test suite;
-- clean rebuild for shared plan/body layout changes.
-
-## Rollback
-
-按 mechanism/consumer 分 slice、小 commit 施工，但一个 declared slice 只有在全部 production caller 迁移、旧入口/bridge 删除后才可合入。某 consumer 尚无法迁移时，该 slice 保持未完成；rollback 仅指整笔 Git 回滚，禁止在 active tree 保留 fail-closed compatibility bridge、双 writer 或 shadow route。
+- focused formula/selector/verifier/emission lit 与必要 C++ unit；
+- direct/registry/artifact parity；
+- mutation-style killing tests 覆盖 missing/forged/stale/reason override/illegal
+  candidate；
+- `formula-authority-matrix.test` 与无截断 `rg` census；
+- 修改 Conversion/Target 后删除工具并强制重链；若改共享 header/struct layout，执行
+  clean build，再跑相关 RVV/EmitC suite 与全量 baseline；
+- runtime/performance 没有在本任务主张，故本地测试不冒充硬件证据。
 
 ## Out of Scope
 
-- 合并 verifier/selector/emitter 成巨型对象；改变性能 winner；全仓一次删 GridDecodePlan；Formula IR。
+- ISSUE-122 的 KQuant/Grid/Ternary plan stamp（A4b）；
+- A5 qualified winner view；
+- 改变当前性能 winner 或写 measurement/master；
+- 实现新的 `Plain` 候选（除非审计证明删除会破坏合法 production 语义并在同一
+  原子切换内交付完整 real body）；
+- Formula dialect、通用 schedule IR、在线 tuning、runtime sparse/MoE。
 
 ## Issue Mapping
 
-- ISSUE-122 为 dequant plan 主项；ISSUE-125 为 SP4/loop-order selected≠realized 主项；关联 ISSUE-034、ISSUE-118/119。
+- 主项：ISSUE-125；
+- 关联：ISSUE-034（早期 loop-order fixture 爆炸面）；
+- 同类但明确分拆：ISSUE-122 → A4b。

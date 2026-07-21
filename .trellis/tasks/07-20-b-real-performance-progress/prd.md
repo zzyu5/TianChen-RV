@@ -21,11 +21,20 @@
 - 具名-X/近门中仍有结构 lever：grid/codebook gather、nvfp4 compiler-call wall 等需分开判断。K-quant q4_K 的 ISSUE-109 MLP 已于 07-18 完成负实验并触发 STOP，不再列为“剩余 lever”。
 - kernel 改进到 deployed/e2e 的传导需持续配对验证，不能只报 micro。
 
-## Progress Snapshot（2026-07-20）
+## Progress Snapshot（2026-07-21 · HEAD recomputed）
 
-- B1 completed：official evidence → qualification → recon 单一控制面。
-- B2 completed：显式 route/parser registry；K-vec 五格式 × 双板与 product_reduce 三格式 × 双板 correctness parser 真验；五个 K leaf CORE==PROD；scalar route 仅 dormant；零 cold/零 master 改动。
-- 下一可执行波：B3 使用 B2 合格 K-vec correctness 面退役 ISSUE-109 已证伪的四条生产策略；B4/B5 分别处理 dequant 与 deployed GEMM，不重启 MLP，也不回到 B2 再造兼容 route。
+- B1 completed/archived：official evidence → qualification → recon 单一控制面。
+- B2 completed/archived：显式 route/parser registry；K-vec 五格式 × 双板与
+  product_reduce 三格式 × 双板 correctness parser 真验；五个 K leaf CORE==PROD；
+  零 cold/零 master 改动。
+- B3 completed/archived：ISSUE-109 已证伪的四条生产策略与环境开关退役，不重启
+  MLP。
+- HEAD 脚本现算仍为 `9/83`；measurement asset matrix 为 216 board-cells，其中
+  199 legacy-unlinked、14 open、3 capability-inapplicable，另有 12 条跨轴
+  selection-valid paired rows。它们证明资产存在，也说明新 campaign 仍须补 official
+  run + qualification 链；两者不矛盾。
+- 下一执行波：B4 对 A3 Codebook 做真板 correctness/performance disposition；B5
+  关闭 deployed q4_0 flat GEMM 的 request→selected→actual ggml 路由。
 
 ## Requirements
 
@@ -37,6 +46,10 @@
 - A 线重构前后保留同输入、同对手、同板的 paired regression。
 - official writer/reader、bench dispatch 与 deployed route 各自只有一个 authority；修复后删除旧 writer、错误 route、benchmark-only bypass 和兼容 alias。
 - 失败实验保留原始证据；已证伪且没有合法 cell/caller 的 production strategy、环境开关与 dormant branch 必须退役。
+- 多个 agent 共同推进同一个 campaign：route/authority、opponent/objdump、
+  qualification/evidence 分责交叉复核，由单一 integration owner 写正式结果。
+- 同一板、official writer 与 master promotion 串行；只读分析、代码、测试与证据审查
+  可并行。禁止多个 agent 同时写同一 run lineage 或 master row。
 
 ## Acceptance Criteria
 
@@ -51,9 +64,9 @@
 
 ## Child Modules
 
-1. [B1 measurement control plane](../07-20-b1-measurement-control-plane/prd.md)：master ownership、regime、reader、qualification/T-N。
-2. [B2 bench cell coverage](../07-20-b2-bench-cell-coverage/prd.md)：K-quant/k1/scalar/product-reduce coverage 与空心臂修复。
-3. [B3 K-quant exhausted-strategy retirement](../07-20-b3-kquant-exhausted-strategy-retirement/prd.md)：ISSUE-109 已完成负实验后的生产路径退役；不再重复 MLP。
+1. [B1 measurement control plane](../archive/2026-07/07-20-b1-measurement-control-plane/prd.md)（已归档）：master ownership、regime、reader、qualification/T-N。
+2. [B2 bench cell coverage](../archive/2026-07/07-20-b2-bench-cell-coverage/prd.md)（已归档）：K-quant/k1/scalar/product-reduce coverage 与空心臂修复。
+3. [B3 K-quant exhausted-strategy retirement](../archive/2026-07/07-20-b3-kquant-exhausted-strategy-retirement/prd.md)（已归档）：ISSUE-109 负实验后的生产路径退役；不再重复 MLP。
 4. [B4 dequant grid/codebook attack](../07-20-b4-dequant-grid-codebook-attack/prd.md)：代表性 grid/codebook 公式墙与脾气墙。
 5. [B5 GEMM deployed path](../07-20-b5-gemm-deployed-path/prd.md)：shape、selection、deployed ggml 与强对手分账。
 6. [B6 e2e transduction](../07-20-b6-e2e-transduction-regression/prd.md)：micro→deployed→e2e 与 A 线前后 paired regression。
@@ -62,7 +75,9 @@
 
 ## Dependencies and Parallelism
 
-- runner/cell qualification 与独立 hot-kernel attack 可以分文件并行。
+- 同一 B4/B5 campaign 内由多个 agent 分担 route census、opponent/objdump 与
+  qualification 审查；不再采用“一人一个互相等待的任务”模式。
+- runner/cell qualification 与 hot-kernel code analysis 可以分文件并行。
 - 新正式数字入 master 前，master ownership 与 row qualification 必须明确。
 - A 线的 structural refactor 与 B 线不相交的现状测量可并行。
 - A 线改变 selected decision/emission 后，paired regression 串行跟进。

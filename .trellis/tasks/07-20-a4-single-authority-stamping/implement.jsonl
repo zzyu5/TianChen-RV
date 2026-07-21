@@ -1,6 +1,6 @@
-{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "单向authority和stamping"}
-{"file": ".trellis/spec/architecture/插件协议.md", "reason": "body realization与emitter边界"}
-{"file": ".trellis/spec/canon/核心不变量.md", "reason": "mirror authority和fail closed"}
-{"file": ".trellis/spec/canon/正确性与证书.md", "reason": "verifier负控"}
-{"file": ".trellis/tasks/07-20-ab-formula-performance-mainlines/research/a-line-audit.md", "reason": "双头authority审计"}
-{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子 cutover 与无兼容中间态"}
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "公式、合法域、选择、complete stamp 与机械 realization 唯一正本"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "ISSUE-125 declared slice 原子 cutover 与无兼容中间态"}
+{"file": ".trellis/spec/architecture/插件协议.md", "reason": "selected body、preparation、route provider 与 emitter 边界"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "typed authority、metadata mirror、fail-closed 与 no-redecision"}
+{"file": ".trellis/spec/issues/发射器与架构.md", "reason": "ISSUE-125 当前反例、退役集与验收"}
+{"file": "experiments/active/formula-layer-migration/authority-matrix.v1.json", "reason": "HEAD schedule authority census 与 killing predicates"}

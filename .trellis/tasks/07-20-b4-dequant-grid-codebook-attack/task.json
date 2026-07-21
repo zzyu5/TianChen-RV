@@ -1,8 +1,8 @@
 {
   "id": "b4-dequant-grid-codebook-attack",
   "name": "b4-dequant-grid-codebook-attack",
-  "title": "B4：Dequant grid/codebook 性能边界攻坚",
-  "description": "围绕 ISSUE-107/100 分离可读公式杠杆与 gather/compiler 脾气墙，推进代表性 dequant 格而非盲扫全表。",
+  "title": "B4：A3 Codebook 真板性能 disposition",
+  "description": "用最多两个 official paired codebook cells 验证 A3 g+c plan 到真实板与 deployed route 的传导，分账 ggml/强对手并诚实记录 win/no-flip/loss/wall。",
   "status": "planning",
   "dev_type": null,
   "scope": "dequant-performance",
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-20-b-real-performance-progress",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "多个 agent 共同做同一 campaign；route/opponent/evidence 并行审查，真板、run lineage 与 master writer 由 root 串行。不得重启 ISSUE-107 旧 lever。",
   "meta": {}
 }

@@ -12,11 +12,16 @@
 - 当前两柱不变：P1 可复用扩展模板，P2 高性能知识的可执行利用。
 - 当前公式/选择正本是 `.trellis/spec/architecture/变体流水线.md`；迁移资产在 `experiments/active/formula-layer-migration/LEDGER.md`。
 - 正式测量入口、master、runs、runs.log 和多个 cell harness 已存在；unsupported 组合 fail-closed。
+- A1/A2/A3/A7 与 B1/B2/B3 已完成并归档；A3 Codebook 已有真实 g+c、complete
+  stamp、唯一 materializer 与三路 parity，不能在后续任务中重新列为缺失。
 
 ## Assumptions (temporary)
 
 - A/B 是并列主线；A 线不会被性能短期数字牵着重写，B 线也不会绕开 A 线的合法性和 typed authority。
 - 每个子任务应有单一主要责任、清晰 touch set、可独立验收和提交。
+- “多 agent”以同一原子 slice 的多责任面协作为默认：implementation/authority、
+  adversarial/parity、evidence/integration 相互审查，不以“一人一个互相等待的任务”
+  伪装并行。
 - 先建设可复用的最小 contract 与代表性实例，不做大一统 Formula dialect/DSL，也不全仓一次重写。
 - 性能任务优先处理已有真实缺口、正式 runner coverage、强对手近门/具名-X 与 e2e 传导，不重新发明一套性能账。
 - “渐进”只表示不同 slice 可分批施工；同一 slice 合入时必须原子 cutover，禁止新旧 production path、compat bridge 或第二 writer/dispatcher 并存。
@@ -53,7 +58,8 @@ ab-formula-performance-mainlines
 │   ├── a1-formula-authority-freeze
 │   ├── a2-typed-decision-contract
 │   ├── a3-dequant-c-driven-plans
-│   ├── a4-single-authority-stamping
+│   ├── a4a-schedule-authority-cutover
+│   ├── a4b-dequant-plan-stamping
 │   ├── a5-qualified-winner-view
 │   ├── a6-ime-decision-slice
 │   ├── a7-superseded-path-retirement
@@ -70,16 +76,16 @@ ab-formula-performance-mainlines
 主依赖：
 
 ~~~text
-A1 → A2 → A3 → A4 ─┬→ A5
- │     └────→ A8    └→ A6
+A1 → A2 → A3 → A4a → A4b ─┬→ A5
+ │     └────────→ A8       └→ A6
  └──────────→ A7
 
-B1 → B2 ─┬→ B3(retirement)
-         ├→ B4 ─┐
-         └→ B5 ─┴→ B6
+B1 → B2 ─┬→ B3(retirement · complete)
+         ├→ B4(A3 Codebook disposition) ─┐
+         └→ B5(q4_0 deployed closure) ───┴→ B6
 
 B1 → A5
-A3/A4 → B6 paired regression
+A3 → B4；A4a/A4b → B5/B6 paired regression
 A6 → B5/B6 的 IME 证据入口
 ~~~
 
@@ -87,17 +93,30 @@ A6 → B5/B6 的 IME 证据入口
 
 **Context**：现有代码已经有五类 dequant plan 和大量性能资产，但 authority 与 measurement 仍分散；若继续以零散 task 追单点，会不断出现“接口存在但没有真实消费”和“性能已做却被重新列为缺失”。
 
-**Decision**：采用 A/B 两条并列父线；A 线八个模块做公式、退役与第二 family 重构，B 线六个模块做正式性能推进。两线只通过 typed decision、qualified measurement 和 paired regression 交叉。父任务不作为巨型实现 owner。
+**Decision**：采用 A/B 两条并列父线；A 线按 declared decision slice 做公式、退役与
+第二 family 重构，B 线按 bounded campaign 做正式性能推进。两线只通过 typed
+decision、qualified measurement 和 paired regression 交叉。父任务不作为巨型实现
+owner。旧 A4 已按 ISSUE-125/122 拆为 A4a/A4b，防止 schedule 与 dequant 多头混成
+一个冲突面。
 
-**Consequences**：允许多个 agent/worktree 按不相交 touch set 并行；共享 contract、runner/master writer 和 stamping/emitter 边界必须串行收口。任务数量增加，但每项可独立验收、提交与回滚。
+**Consequences**：多个 agent 在同一 task/worktree 内按不相交责任面协作；共享
+contract、runner/master writer 和 stamping/emitter 边界由单一 root owner 串行收口。
+不同 task 只有在 touch set 真正独立时才并行。任务可独立验收、提交与回滚，但不会
+用任务数量代替主线进度。
 
 ## Recommended Multi-Agent Waves
 
-1. **Wave 1**：A1、B1 与 A7 分独立 worktree；A8 只做 HEAD census/classification，不改共享 contract。
-2. **Wave 2**：A2 与 B2 施工；B3/B4 只做瓶颈和对手只读分析。
-3. **Wave 3**：A3 与 B3 按不相交的 codebook-dequant / K-quant-retirement 文件在独立 worktree 并行；B4/B5 按不同 emitter/harness 分片施工，真板由单 owner 串行。A5 只准备 B1 view 的 selector adapter，不另建 reader。
-4. **Wave 4**：A4 统一收口共享 authority；随后 A5/A6 与已稳定的 B5 按 touch set 并行。
-5. **Wave 5**：B6 汇总 A 线前后 paired regression 与 e2e 传导。
+1. **Completed waves**：A1/A2/A3/A7 与 B1/B2/B3 已归档；其中 A3/B3 的最后一轮
+   分不同 worktree 合入，Codebook 与 K-quant retirement 均已验证。
+2. **Current Wave 4a**：A4a 由多个 agent 共做一个 SP4/loop-order slice：一名主
+   formula/legality/stamp/emitter，一名主 adversarial/parity，root 集成与强制重链。
+3. **Current performance preparation**：B4 同样按一个 campaign 多责任面协作；
+   route/opponent/evidence 可并行审查，真板和 official writer 串行。A4a 与 B4 只有在
+   Codebook preparation touch set 不冲突时才并行代码修改。
+4. **Next Wave 4b**：A4b 迁 Grid/KQuant/Ternary；B5 打穿 q4_0 deployed flat GEMM。
+   每个任务内部仍采用多 agent 共同验收，不把强依赖接口分散给孤立 owner。
+5. **Later**：A5/A6/A8 与 B6 按稳定接口推进；A8/B6 不提前拿 metadata closeout
+   占用当前主干。
 
 ## Acceptance Criteria (evolving)
 
@@ -110,7 +129,8 @@ A6 → B5/B6 的 IME 证据入口
 - [ ] 每个完成 slice 均有 cutover record，旧 production caller 与兼容路径为 0。
 - [ ] worktree 中间态未作为主线完成态合入，rollback 只依赖版本控制。
 - [ ] task tree 与 issue/spec 索引一致，且工作树经检查后提交。
-- [ ] 17 个 task 的 context JSONL 均通过 `task.py validate`。
+- [ ] 所有 active task 的 context JSONL 均通过 `task.py validate`；不固定会随原子
+      拆分变化的 task 总数。
 
 ## Definition of Done
 
@@ -118,13 +138,14 @@ A6 → B5/B6 的 IME 证据入口
 - 所有 PRD 自足，可由后续 agent 直接开工。
 - 依赖和并行边界明确。
 - 文档链接有效，task 元数据通过项目检查。
-- 本次只创建和设计任务，不实施 A/B 线代码或板测。
+- 每个 current wave 在独立 worktree 完成代码/实验、验证、归档和主线合入，不把
+  “任务已创建”当作完成。
 
 ## Out of Scope
 
 - 一次性完成公式层全仓迁移。
-- 本次直接修改 compiler/runtime 实现。
-- 本次直接占用真板跑新性能数字。
+- 未经具体 child task 预登记的 compiler/runtime 扩面。
+- 多个 agent 同时占用真板或并发写同一 run/master row。
 - 建 Formula dialect、通用表达式 DSL 或在线 autotuner。
 - 把 runtime sparse/MoE future work提前并入当前主线。
 

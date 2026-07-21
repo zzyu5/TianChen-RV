@@ -1,8 +1,8 @@
 {
   "id": "b5-gemm-deployed-path",
   "name": "b5-gemm-deployed-path",
-  "title": "B5：GEMM shape、选择与 deployed ggml 路径",
-  "description": "用代表性 shape 验证候选/合法性/实际派发，并分列 deployed ggml、strong opponent、prior 与 winner。",
+  "title": "B5：deployed q4_0 flat GEMM 路由与性能闭环",
+  "description": "打穿 q4_0 request→candidate/legal→stamp→actual deployed ggml symbol，并分账 deployed ggml、代表性强对手、prior 与 winner。",
   "status": "planning",
   "dev_type": null,
   "scope": "gemm-performance",
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-20-b-real-performance-progress",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "多个 agent 共同验收同一 q4_0 slice；route/opponent/evidence 交叉审查，真板与 official writer 串行。standalone P2 是独立 lane，不替代 deployed route。",
   "meta": {}
 }

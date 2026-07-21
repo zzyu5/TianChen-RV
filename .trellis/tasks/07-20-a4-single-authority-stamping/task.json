@@ -1,11 +1,11 @@
 {
   "id": "a4-single-authority-stamping",
   "name": "a4-single-authority-stamping",
-  "title": "A4：单一 authority、stamping 与机械 emission",
-  "description": "关闭 provider/verifier 与 selector/emitter 双 authority，保证 selected result 在 emission 前落印且 emitter 不重算。",
+  "title": "A4a：SP4 / loop-order selected→realized 原子切换",
+  "description": "只处理 ISSUE-125：让 SP4/loop-order 合法候选均可 realization，complete stamp 必填且 emitter 不默认、不重算、不按 reason override。",
   "status": "planning",
   "dev_type": null,
-  "scope": "rvv-authority",
+  "scope": "rvv-schedule-authority",
   "package": null,
   "priority": "P1",
   "creator": "claude",
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-20-a-formula-consumption-refactor",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "多个 agent 共同负责同一个 declared slice：implementation/authority、adversarial/parity 与 root integration；A4b 单独处理 ISSUE-122 dequant plan。",
   "meta": {}
 }

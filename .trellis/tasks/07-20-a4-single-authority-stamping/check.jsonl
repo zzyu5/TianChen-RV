@@ -1,4 +1,5 @@
-{"file": ".trellis/spec/architecture/index.md", "reason": "架构质量检查"}
-{"file": ".trellis/spec/canon/非目标.md", "reason": "禁止巨型对象与metadata compute"}
-{"file": ".trellis/spec/issues/index.md", "reason": "ISSUE122行为门"}
-{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}
+{"file": ".trellis/spec/architecture/index.md", "reason": "架构 Pre-Development 与 no-redecision 质量检查"}
+{"file": ".trellis/spec/canon/正确性与证书.md", "reason": "verifier 正负控与本地/硬件证据边界"}
+{"file": ".trellis/spec/canon/非目标.md", "reason": "禁止巨型 Formula/Schedule IR 与 runtime policy 偷渡"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、compat bridge、silent default、双 writer/selector 为零"}
+{"file": "test/Scripts/formula-authority-matrix.test", "reason": "无截断 authority gate 与 schedule 反例 census"}

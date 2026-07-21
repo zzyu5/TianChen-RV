@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/architecture/index.md", "reason": "公式输入分型、插件局部性与 no-redecision 检查"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "I1/I4/I5/I7/I9 authority 与 fail-closed"}
+{"file": ".trellis/spec/canon/正确性与证书.md", "reason": "typed verifier、byte-exact/ULP 与硬件证据边界"}
+{"file": "test/Conversion/RVV/rvv-target-capability-direct-registry-parity.mlir", "reason": "A3 direct/registry/artifact parity 回归"}
+{"file": "test/Scripts/formula-authority-matrix.test", "reason": "formula/consumer/legacy authority census gate"}
