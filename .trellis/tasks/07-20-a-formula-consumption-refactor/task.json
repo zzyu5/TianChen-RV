@@ -19,7 +19,6 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "07-20-a4-single-authority-stamping",
     "07-21-a4b-dequant-plan-stamping",
     "07-20-a5-qualified-winner-view",
     "07-20-a6-ime-decision-slice",
@@ -27,6 +26,6 @@
   ],
   "parent": "07-20-ab-formula-performance-mainlines",
   "relatedFiles": [],
-  "notes": "A1/A2/A3/A7 已归档。下一原子切片为 A4a ISSUE-125；A4b 单独承接 ISSUE-122 剩余 dequant plan，避免与 schedule authority 混成巨型任务。",
+  "notes": "A1/A2/A3/A4a/A7 已归档。下一原子切片为 A4b ISSUE-122：按 Grid→KQuant→Ternary 顺序关闭剩余 dequant plan 的唯一 materializer 与机械 emission；A5 继续保留 measurement qualification 边界。",
   "meta": {}
 }
