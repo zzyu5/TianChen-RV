@@ -1,21 +1,19 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=SEL1
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=REALIZE
 
-// [G3 主线C / SEL-1] T3 gate-(7) format-attribution proof (MEASURED path): the SP4
+// [G3 主线C / SEL-1] T3 gate-(7) capability-attribution proof: the SP4
 // (tiled-vs-plain) output-tiling choice for q4_K is no longer a COMPILE-TIME per-format
 // hardcode inside emitTypedRepackGemmLoopBody -- it is a RUNTIME CAPABILITY-KEYED
 // selection. The front-door pass, at rv64gcv (derived VLEN 128, 32 architectural
 // vregs), classifies the q4_K loop-body's fold_model "kquant_dmin_bsums_min" as the
 // min-fold register-cliff BOTTLENECK SHAPE (the KEY is the shape, NOT the format name),
-// consults the offline-profile measurement library, HITS the byte-exact-gated
-// rvv/VLEN128 seed row (declared_instance_hash 3cd23a4e...), and MEMOIZED-ARGMIN-
-// resolves to S6Tiled (reason=measured). The chosen variant + its reason (measured,
-// NOT the capability-blind static_order) are stamped on the loop-body op for the
+// intersects the implemented-body set with target capability and obtains the singleton
+// {S6Tiled} (reason=only_feasible). Historical SP4 A/B rows remain evidence but do not
+// rank S6 against an unrealized Plain body. The chosen variant + its reason are stamped for the
 // emitter's pure realize; the full [D-4] attribution record (reusing the SAME
 // computeDeclaredInstanceHash) rides an inert in-IR attr. The realize path emits the
 // byte-exact S6-tiled q4_K GEMM body (identical to the retired direct emitter). The
-// prior cold-start path (q4_0 / iq4) + the weight-bound measured fallback (q6_K/q3_K
-// measured->plain) are proven in rvv-sel1-t3-tiling-rollout-gate7.mlir.
+// Plain singleton paths are proven in rvv-sel1-t3-tiling-rollout-gate7.mlir.
 
 module {
   weft.exec.kernel @ggml_repack_gemm_q4_K_q8_K_kernel {
@@ -51,12 +49,11 @@ module {
 // SEL1-SAME: weft_rvv.loop_order = "col_outer"
 // SEL1-SAME: weft_rvv.loop_order_selection_reason = "measured"
 // SEL1-SAME: weft_rvv.loop_order_selection_record = "{{.*}}candidates{{.*}}row_outer{{.*}}col_outer
-// The offline-profile measurement argmin selected S6Tiled with reason=measured (the
-// byte-exact-gated rvv/VLEN128 seed winner; NOT the capability-blind static_order).
-// SEL1-SAME: weft_rvv.tiling_selection_reason = "measured"
-// The bounded variant registry offered BOTH {plain, s6_tiled}; the [D-4] JSONL
+// Legality leaves the one implemented S6Tiled body.
+// SEL1-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// The bounded candidate record contains that singleton; the [D-4] JSONL
 // attribution record (reused FORM + declared_instance_hash) is inert + in-IR.
-// SEL1-SAME: weft_rvv.tiling_selection_record = "{{.*}}candidates{{.*}}plain{{.*}}s6_tiled{{.*}}reason{{.*}}measured
+// SEL1-SAME: weft_rvv.tiling_selection_record = "{{.*}}candidates{{.*}}s6_tiled{{.*}}reason{{.*}}only_feasible
 // SEL1-SAME: weft_rvv.tiling_variant = "s6_tiled"
 // The decision is capability/measurement-DERIVED, never the capability-blind fallback.
 // SEL1-NOT: static_order

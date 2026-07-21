@@ -4,28 +4,14 @@
 // [G3 主线C / SEL-1] T3 gate-(7) ALL-FORMAT rollout: the SP4 (tiled-vs-plain) output-
 // tiling choice is a RUNTIME CAPABILITY-KEYED selection at EVERY repack GEMM leaf, keyed
 // on the BOTTLENECK SHAPE derived from fold_model (a structure / capability fact), NEVER
-// the format name. This file proves BOTH attribution paths the [SEL-1] design demands:
-//
-//   MEASURED (the 5 K-quant are offline-seeded on the rvv/VLEN128 board, declared-
-//   instance-hash 3cd23a4e...): the memoized-argmin winner is stamped reason=measured.
-//     * q6_K / q3_K (fold_model "kquant_single_scale_no_min", weight-reconstruction-
-//       bound): the S6 register-cliff lever is a NULL -- measurement itself says "do NOT
-//       tile", so the HONEST measured winner is PLAIN. This weight-bound measured
-//       fallback IS part of the paper claim (a measured NULL is a first-class datapoint,
-//       not a missing win). q6_K shown here; q4_K measured shown in the sibling gate-7.
-//     * q2_K / q5_K (fold_model "kquant_dmin_bsums_min", min-fold register cliff): S6
-//       reaches the <=32-vreg cliff, so the measured winner is S6Tiled.
-//
-//   PRIOR (cold start, NO offline seed => the [XFER-1] capability prior keyed on the
-//   shape): q4_0 (flat "lane_wise_vector_scale") + iq4_nl (codebook
-//   "codebook_flat_single_scale") both classify AlreadyLean => PLAIN, reason=prior.
-//
-// NO wired path ever stamps static_order (the capability-blind fallback): every leaf
-// here sits on a capability-afforded board (VLEN128, 32 vregs), so the feasible set is
-// {plain, s6_tiled} and the decision is always capability/measurement-DERIVED.
+// the format name. Every reported legal candidate now has a real body: min-fold
+// shapes expose only S6Tiled, while no-min and already-lean shapes expose only Plain.
+// Every SP4 reason is therefore only_feasible. Historical A/B rows remain performance
+// evidence, but they do not rank a real implementation against a fake candidate.
+// NO wired path ever stamps static_order.
 // NOSTATIC-NOT: static_order
 
-// ===================== q6_K: MEASURED -> PLAIN (weight-bound honest fallback) ========
+// ===================== q6_K: singleton PLAIN (weight-bound body) =====================
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q6_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
@@ -35,8 +21,8 @@
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
 // [档 C#9 full-LMUL[B]] accumulator-LMUL selection reason (mf2 default, measured table empty):
 // CHECK-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "capability-default-mf2"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"
 module {
   weft.exec.kernel @ggml_repack_gemm_q6_K_q8_K_kernel {
@@ -57,14 +43,14 @@ module {
 
 // -----
 
-// ===================== q2_K: MEASURED -> S6Tiled (min-fold register cliff) ===========
+// ===================== q2_K: singleton S6Tiled (min-fold register cliff) =============
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q2_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
 // CHECK-SAME: weft_rvv.loop_order = "col_outer"
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q2_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q2_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
 module {
   weft.exec.kernel @ggml_repack_gemm_q2_K_q8_K_kernel {
@@ -85,14 +71,14 @@ module {
 
 // -----
 
-// ===================== q5_K: MEASURED -> S6Tiled (min-fold survives qh plane) ========
+// ===================== q5_K: singleton S6Tiled (min-fold survives qh plane) ===========
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q5_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
 // CHECK-SAME: weft_rvv.loop_order = "col_outer"
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q5_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q5_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
 module {
   weft.exec.kernel @ggml_repack_gemm_q5_K_q8_K_kernel {
@@ -113,14 +99,14 @@ module {
 
 // -----
 
-// ===================== q4_0: PRIOR -> PLAIN (flat already-lean cold start) ===========
+// ===================== q4_0: singleton PLAIN (flat already-lean body) ================
 // CHECK-LABEL: weft.exec.variant @ggml_gemm_q4_0_q8_0
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "lane_wise_vector_scale"
 // CHECK-SAME: weft_rvv.loop_order = "col_outer"
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q4_0{{.*}}reason{{.*}}prior
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q4_0{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"
 module {
   weft.exec.kernel @ggml_gemm_q4_0_q8_0_kernel {
@@ -141,14 +127,14 @@ module {
 
 // -----
 
-// ===================== iq4_nl: PRIOR -> PLAIN (codebook already-lean cold start) =====
+// ===================== iq4_nl: singleton PLAIN (codebook already-lean body) ===========
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_iq4_nl_q8_0
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "codebook_flat_single_scale"
 // CHECK-SAME: weft_rvv.loop_order = "col_outer"
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}iq4_nl{{.*}}reason{{.*}}prior
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}iq4_nl{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"
 module {
   weft.exec.kernel @ggml_repack_gemm_iq4_nl_q8_0_kernel {
@@ -169,42 +155,18 @@ module {
 
 // -----
 
-// ========= DECISIVE (r5.1 W1 · census-F7/F6 shape-isolation): shape ALONE moves θ =====
-// The tiling classifier's θ (tiling_variant) genuinely MOVES with the bottleneck SHAPE,
-// isolated from the offline-measurement confound the MEASURED rows above carry. BOTH
-// leaves below share the SAME capability -- an @rvv provider carrying minimum_vlen = 256
-// -- whose declared-instance hash DIVERGES from the offline-seeded rvv/VLEN128 board
-// (3cd23a4e...), so BOTH MISS the measurement library => BOTH cold-start at reason=prior
-// (the measurement branch is held CONSTANT, unlike the seeded K-quant above). VLEN 256 >=
-// 128 keeps the Stage-1 feasible set {plain, s6_tiled} (size 2, so never only_feasible /
-// static_order). The ONLY differing selection input across the two leaves is the
-// fold_model-derived SHAPE; every other input (capability, VLEN, vreg budget, measurement
-// branch, regime) is byte-identical. The variant FLIPS s6_tiled <-> plain PURELY via
-// priorTilingVariantForShape (census F6, the real g/shape-consumer).
-//
-// This pins the r5.1 W3 verdict for census-F7 tilingVariantFeasibleSet: its former
-// `shape` parameter (an explicit `(void)shape;`) was a legacy DEAD input and is now
-// REMOVED (signature is tilingVariantFeasibleSet(vlenBits, vregCount)). Stage-1 LEGALITY
-// is capability-only -- every VLEN>=128 / 32-vreg board admits BOTH variants for EVERY
-// shape, so the feasible set is CONSTANT in shape; threading shape back would be a 摆设
-// dead knob. This file is the BYTE-EXACT-AFTER-DELETE guard: shape still genuinely flips
-// the variant one function over in F6 (priorTilingVariantForShape), while the legality
-// set stays {plain, s6_tiled} for every shape. Change the shape => the variant changes
-// (via F6); the feasible SET never changes. If deleting the dead param had altered any
-// emit, these shape-isolation CHECK lines (and every MEASURED/PRIOR leaf above) would
-// break -- they stay green, proving shape was dead in Stage-1.
-//
-//   MinFoldRegisterCliff  (fold_model "kquant_dmin_bsums_min")     --prior--> s6_tiled
-//   DualPlaneWeightBound  (fold_model "kquant_single_scale_no_min") --prior--> plain
-// (cold-start prior, NOT static_order -- the capability-afforded feasible set is size 2.)
+// ========= DECISIVE shape isolation: shape changes the real candidate singleton ======
+// Both leaves share the same VLEN256/32-vreg capability. Only the fold-derived shape
+// changes, and legality changes {s6_tiled} <-> {plain}. This proves the shape input is
+// consumed by the candidate constructor rather than merely echoed as attribution.
 // NOSTATIC-NOT: static_order
 
-// DECISIVE min-fold register-cliff SHAPE: cold-start => prior => s6_tiled.
+// DECISIVE min-fold register-cliff SHAPE: only real body => s6_tiled.
 // CHECK-LABEL: weft.exec.variant @tiling_shape_iso_mincliff
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}reason{{.*}}prior
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
 module {
   weft.exec.kernel @tiling_shape_iso_mincliff_kernel {
@@ -225,13 +187,13 @@ module {
 
 // -----
 
-// DECISIVE dual-plane weight-bound SHAPE: SAME cold-start capability => prior => plain.
+// DECISIVE dual-plane weight-bound SHAPE: SAME capability => only real body is plain.
 // Only the fold_model differs from the min-cliff leaf above; the variant flips to plain.
 // CHECK-LABEL: weft.exec.variant @tiling_shape_iso_weightbound
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "prior"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}reason{{.*}}prior
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"
 module {
   weft.exec.kernel @tiling_shape_iso_weightbound_kernel {

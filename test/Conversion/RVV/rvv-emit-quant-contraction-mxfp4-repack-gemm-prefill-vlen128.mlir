@@ -70,10 +70,10 @@ module {
 // CHECK: emitc.func @weft_emitc_ggml_repack_gemm_mxfp4_q8_0_kernel_ggml_repack_gemm_mxfp4_q8_0(
 // The RECONSTRUCTED 16-entry doubled-E2M1 int8 codebook decl.
 // CHECK: verbatim "static const int8_t weft_mxfp4_repack_kvalues[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1
-// The interleaved activation base vy + y*nb*136 (block_q8_0x4) and weight base vx +
-// x*nb*272 (block_mxfp4x16).
-// CHECK: literal "136"
+// The selected col_outer schedule forms the weight-group base first, then the
+// activation-row-group base inside it.
 // CHECK: literal "272"
+// CHECK: literal "136"
 // The per-column f32m2 accumulators (columnsPerPass == 4 folded in one pass).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
 // The SHARED (amortized) memory codebook GATHER reused across the 4 columns.

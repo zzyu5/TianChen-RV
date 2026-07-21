@@ -10,25 +10,18 @@
 #include <optional>
 #include <string>
 
-// [G3 主线C / SEL-1] The SP4 (tiled-vs-plain) OUTPUT-TILING variant selection
-// authority. A PURE, COST-MODEL-FREE family of free functions (no MLIR types,
-// unit/lit-testable) mirroring the RVVFillLMULReason / chooseFillOptimalLMUL prior
-// pattern in RVVGearboxSchedule.h. It relocates the tiled-vs-plain choice that today
-// is a COMPILE-TIME per-format hardcode inside emitTypedRepackGemmLoopBody (the gate
-// (7) gap) into a RUNTIME CAPABILITY-KEYED selection: a bounded variant registry -->
-// a legality filter --> (offline-profile hit) memoized argmin --> (cold start) an
-// [XFER-1] capability prior. The selection key is the BOTTLENECK SHAPE (a structural
-// / capability fact derived from fold_model), NEVER the quant FORMAT NAME -- so a
-// pattern migrates "换键不改条目" (C3') and format-name dispatch cannot recur (T3
-// red line). The chosen variant + its reason are stamped onto the loop-body op; the
-// EmitC emitter degenerates to a PURE REALIZE that reads the stamped variant (absent
-// => the S6Tiled default, so every un-wired path stays byte-identical).
+// [G3 主线C / SEL-1] SP4 output-tiling candidate construction and selection.
+// The fold-derived bottleneck shape and target resource facts produce a bounded set
+// containing only bodies that actually exist. Today each supported shape has one
+// realization: min-fold -> S6Tiled; dual-plane/already-lean -> Plain. Historical A/B
+// data remains evidence but is not a compiler winner over an unrealized alternative.
+// Frontdoor stamps the complete selected plan; pre-emission validates it; emission
+// mechanically realizes it. Absence or an inconsistent value is an error.
 
 namespace weft::plugin::rvv {
 
-// The bounded SP4 output-tiling variant set (NG-1: a CLOSED enumeration, refined by
-// offline MEASUREMENT memoization -- NOT a search space, NOT an online-learned cost
-// model). `S6Tiled` = the register-cliff-avoiding stack-panel form (q4_K's spill->0
+// The bounded SP4 output-tiling vocabulary. It is not itself a declaration that both
+// values are legal for every shape. `S6Tiled` = the register-cliff-avoiding stack-panel form (q4_K's spill->0
 // GEMM body). `Plain` = the untiled pre-S6 direct form (the weight-reconstruction-
 // bound / already-lean leaves).
 enum class RVVRepackTilingVariant { Plain, S6Tiled };
@@ -44,14 +37,21 @@ stringifyRVVRepackTilingVariant(RVVRepackTilingVariant variant) {
   return "";
 }
 
+inline std::optional<RVVRepackTilingVariant>
+parseRVVRepackTilingVariant(llvm::StringRef token) {
+  if (token == "plain")
+    return RVVRepackTilingVariant::Plain;
+  if (token == "s6_tiled")
+    return RVVRepackTilingVariant::S6Tiled;
+  return std::nullopt;
+}
+
 // [D-4] the attribution reason on the PRIMARY key (capability-keying is the primary
 // key, not a guard footnote). `Prior`: an [XFER-1] capability-derived cold-start pick
 // among >= 2 feasible variants. `Measured`: the memoized offline-profile argmin
 // winner. `OnlyFeasible`: the legality filter left exactly one variant (no choice).
-// `StaticOrder`: a capability-BLIND fallback -- it must NOT appear on a
-// capability-afforded board; its appearance signals a prior-coverage gap (the burn-
-// down signal, spec [D-4] invariant).
-enum class RVVTilingSelectionReason { OnlyFeasible, Measured, Prior, StaticOrder };
+// An empty legal set has no reason token and produces no choice.
+enum class RVVTilingSelectionReason { OnlyFeasible, Measured, Prior };
 
 inline llvm::StringRef
 stringifyRVVTilingSelectionReason(RVVTilingSelectionReason reason) {
@@ -62,29 +62,36 @@ stringifyRVVTilingSelectionReason(RVVTilingSelectionReason reason) {
     return "measured";
   case RVVTilingSelectionReason::Prior:
     return "prior";
-  case RVVTilingSelectionReason::StaticOrder:
-    return "static_order";
   }
   return "";
 }
 
-// [XFER-1] the BOTTLENECK-SHAPE cold-start prior CLASSES. The key is the STRUCTURE /
-// capability fact (derived from fold_model), NEVER the format NAME: this is exactly
-// what makes the prior migrate "换键不改条目" and mechanically prevents format-name
-// dispatch from recurring.
+inline std::optional<RVVTilingSelectionReason>
+parseRVVTilingSelectionReason(llvm::StringRef token) {
+  if (token == "only_feasible")
+    return RVVTilingSelectionReason::OnlyFeasible;
+  if (token == "measured")
+    return RVVTilingSelectionReason::Measured;
+  if (token == "prior")
+    return RVVTilingSelectionReason::Prior;
+  return std::nullopt;
+}
+
+// The structural bottleneck classes used to construct the real SP4 candidate set.
+// The key is derived from fold_model, never from a format name.
 //   - MinFoldRegisterCliff (fold_model "kquant_dmin_bsums_min", q4_K/q2_K/q5_K):
 //     the register-cliff lever keys min-fold; the S6 stack-panel form drives spill
-//     to 0. Prior => S6Tiled (verified 4/4 on silicon, paper-material-inventory
+//     to 0. Real body => S6Tiled (verified 4/4 on silicon, paper-material-inventory
 //     §二.4).
 //   - DualPlaneWeightBound (fold_model "kquant_single_scale_no_min", q6_K/q3_K): the
 //     peak is two-plane weight reconstruction, so output tiling is a NULL lever.
-//     Prior => Plain.
+//     Real body => Plain.
 //   - AlreadyLean (the codebook fold_models iq4_nl/iq4_xs, the iq2 GRID folds
 //     "grid_sign_single_scale_eighth" (iq2_xxs single ls) / "grid_sign_dualscale_eighth"
 //     (iq2_xs/iq2_s dual ls), AND the flat q4_0 linear fold
 //     "lane_wise_vector_scale"): the body already sits <= the 32-vreg cliff (a
 //     memory-gather codebook decode, or the flat single-plane nibble + dual-fp16
-//     fold), so S6 output tiling is a structural no-op. Prior => Plain. This is the
+//     fold), so S6 output tiling is a structural no-op. Real body => Plain. This is the
 //     [XFER-1] rule's LOWER BOUND -- there are no stageable decode strips to relieve,
 //     so the flat q4_0 leaf carries the SAME already-lean verdict as the codebook
 //     leaves (the KEY is the shape, not the format: q4_0 and iq4 co-map here).
@@ -102,13 +109,12 @@ enum class RVVTilingBottleneckShape {
 // Neither is classified AlreadyLean: that verdict asserts "the body already sits <=
 // the 32-vreg cliff", a SHAPE claim neither line has measured, and both lines make NO
 // performance claim of any kind and never touched a board. Classifying them would
-// stamp an unmeasured prior; nullopt stamps nothing and is inert -- the grid GEMM
-// emitter reads no tiling attr either way. Both folds reach the nullopt fall-through
+// invent an SP4 axis; nullopt stamps nothing and is inert. Both folds reach the nullopt fall-through
 // by NOT being listed below; that is intended, and the iq1_m oracle + the emitted-C
 // zero-regression snapshot are what keep it honest.)
 // The flat q4_0 "lane_wise_vector_scale" GEMM leaf
-// DOES classify now (AlreadyLean): it is a wired SP4 leaf whose prior is Plain
-// (already <= the 32-vreg cliff), so the tiled-vs-plain choice for EVERY repack GEMM
+// DOES classify now (AlreadyLean): its only real SP4 body is Plain
+// (already <= the 32-vreg cliff), so the output-tiling plan for every classified repack GEMM
 // leaf -- q4_0 flat, K-quant min-fold + no-min, codebook -- flows through this KEY.
 inline std::optional<RVVTilingBottleneckShape>
 classifyTilingBottleneckShape(llvm::StringRef foldModel) {
@@ -121,15 +127,18 @@ classifyTilingBottleneckShape(llvm::StringRef foldModel) {
       foldModel == "codebook_flat_e8m0_scale" ||
       foldModel == "grid_sign_single_scale_eighth" ||
       foldModel == "grid_sign_dualscale_eighth" ||
-      foldModel == "lane_wise_vector_scale")
+      foldModel == "lane_wise_vector_scale" ||
+      foldModel == "lane_wise_vector_scale_min")
     return RVVTilingBottleneckShape::AlreadyLean;
   return std::nullopt;
 }
 
-// The variant a bottleneck shape's [XFER-1] prior returns (also the byte-exact-
-// preserving default when no capability fact exists to key on).
+// The one output-tiling body that is actually implemented for each bottleneck
+// shape. Min-fold has the register-cliff S6 body; the dual-plane and already-lean
+// shapes have only their plain body. Treating the other spelling as a candidate
+// would make the legal set larger than the realization set (ISSUE-125).
 inline RVVRepackTilingVariant
-priorTilingVariantForShape(RVVTilingBottleneckShape shape) {
+realizableTilingVariantForShape(RVVTilingBottleneckShape shape) {
   switch (shape) {
   case RVVTilingBottleneckShape::MinFoldRegisterCliff:
     return RVVRepackTilingVariant::S6Tiled;
@@ -140,28 +149,17 @@ priorTilingVariantForShape(RVVTilingBottleneckShape shape) {
   return RVVRepackTilingVariant::S6Tiled;
 }
 
-// Stage-1 legality filter over the bounded variant set. Output-tile SPILLING is
-// legal (stack panels), so a register-affording board (vlen >= 128, a non-degenerate
-// vreg budget) admits BOTH {Plain, S6Tiled} -- the register cliff is a PERFORMANCE
-// lever the Stage-2 prior reasons over, not a legality gate. A degenerate board (no
-// guaranteed VLEN fact / no vreg budget) affords NO capability choice => the empty
-// feasible set (the honest no-capability behavior, resolved by the fallback below).
-//
-// [r5.1 W3 · census-F7] Feasibility is CAPABILITY-ONLY: the feasible set is CONSTANT
-// in the bottleneck shape (every VLEN>=128 / non-degenerate-vreg board admits BOTH
-// variants for EVERY shape). The bottleneck SHAPE is consumed one function over, in
-// Stage-2's prior (priorTilingVariantForShape, census-F6). The legacy `shape`
-// parameter here was a dead input (an explicit `(void)shape;`) and is REMOVED --
-// threading it back would be a 摆设 dead knob. The shape-isolation leaves in
-// rvv-sel1-t3-tiling-rollout-gate7.mlir are the byte-exact guard: shape still flips
-// the variant via F6, while this legality set stays {Plain, S6Tiled} for every shape.
+// Stage-1 legality is constructibility: a capability-afforded body admits exactly
+// the implemented value for its shape. A degenerate target has an empty legal set.
+// This makes g (the fold-derived shape) and c (VLEN/vreg availability) both real
+// legality inputs without inventing a second implementation.
 inline llvm::SmallVector<RVVRepackTilingVariant, 2>
-tilingVariantFeasibleSet(std::int64_t vlenBits, std::int64_t vregCount) {
+tilingVariantFeasibleSet(RVVTilingBottleneckShape shape,
+                         std::int64_t vlenBits, std::int64_t vregCount) {
   llvm::SmallVector<RVVRepackTilingVariant, 2> feasible;
   if (vlenBits < 128 || vregCount <= 0)
     return feasible; // no capability fact to select on.
-  feasible.push_back(RVVRepackTilingVariant::Plain);
-  feasible.push_back(RVVRepackTilingVariant::S6Tiled);
+  feasible.push_back(realizableTilingVariantForShape(shape));
   return feasible;
 }
 
@@ -170,29 +168,14 @@ struct RVVRepackTilingChoice {
   RVVTilingSelectionReason reason = RVVTilingSelectionReason::Prior;
 };
 
-// A single offline-profile measurement-library HIT for the SP4 output-tiling axis: the
-// memoized argmin winner for a (declared_instance_hash, kernel) key. std::nullopt at the
-// call site => cold start. (selectRepackTilingVariant consumes this typed hit; it is now
-// PRODUCED by the axis-parameterized lookupMeasurement view below via a thin wrapper, so
-// this type -- and the selector's signature -- are UNCHANGED.)
-struct RVVTilingMeasurementHit {
-  RVVRepackTilingVariant winner;
-};
-
-// [SEL-3 T-SEL3-3] The bounded set of measurement SELECTION AXES the unified offline-
-// profile view generalizes over (mirrors schema/measurement-memory.v1.json's
-// variant_axis_registry). `SP4Tiling` = the tiled-vs-plain OUTPUT-TILING axis;
-// `LoopOrder` = the prefill-GEMM outer group-loop order (col/row-outer) axis;
-// `StripWidth` = a RESERVED extension slot (vl8/vl16) with NO live seed today (the
-// schema's strip_width axis is a future T-SEL3-4 writeback). This is the axis parameter
-// of the single lookupMeasurement that generalizes the two former per-axis lookups
-// (lookupTilingMeasurement / lookupLoopOrderMeasurement), carrying the SP4 范式 forward.
-enum class RVVMeasurementAxis { SP4Tiling, LoopOrder, StripWidth };
+// Measurement may rank only axes with multiple realized/legal candidates. SP4 is
+// intentionally absent while each shape has a singleton body; its historical rows
+// remain in the evidence schema without becoming compiler authority. LoopOrder is
+// live; StripWidth is a reserved extension slot.
+enum class RVVMeasurementAxis { LoopOrder, StripWidth };
 
 inline llvm::StringRef stringifyRVVMeasurementAxis(RVVMeasurementAxis axis) {
   switch (axis) {
-  case RVVMeasurementAxis::SP4Tiling:
-    return "sp4_tiling";
   case RVVMeasurementAxis::LoopOrder:
     return "loop_order";
   case RVVMeasurementAxis::StripWidth:
@@ -201,54 +184,19 @@ inline llvm::StringRef stringifyRVVMeasurementAxis(RVVMeasurementAxis axis) {
   return "";
 }
 
-// A single UNIFIED offline-profile measurement HIT: the memoized argmin winner for a
+// One offline-profile measurement hit: the memoized winner for a
 // (declared_instance_hash, kernel, axis) key, carried as a BOUNDED variant TOKEN (the
 // stringify* output of the axis's variant enum). std::nullopt at the lookup site => a
-// MISS => cold start. The thin typed wrappers (lookupTilingMeasurement /
-// lookupLoopOrderMeasurement) map `winner` back to their axis's typed variant enum, so
-// each selector's signature stays byte-identical.
+// MISS => cold start. Typed wrappers map `winner` to the axis enum.
 struct RVVMeasurementHit {
   RVVMeasurementAxis axis;
   llvm::StringRef winner; // a bounded variant token (the schema `selected` variant).
 };
 
-// [SEL-3 T-SEL3-3] Consult the offline-profile measurement cache for the memoized argmin
-// winner of the (declared_instance_hash, kernel, variant_axis) key -- the SINGLE axis-
-// parameterized generalization of the former per-axis lookups. The versioned
-// schema/measurement-memory.v1 JSON is the OFFLINE authority (a harness on `ssh rvv` /
-// `ssh k1` fills it past the byte-exact gate); the compiler holds this in-memory VIEW of
-// it and consults it BEFORE the cold-start prior. Kept a PURE in-tree lookup (never
-// parses JSON in-tree, [NG-3]/I4: a measured timing is a cache fact, never a
-// correctness/cost authority in `lib/`).
-//
-// ★★ BYTE-EXACT CAVEAT (选择回归命门): this view returns the PRE-COMPUTED argmin winner
-// -- the schema `selected==true` variant, MIRRORED here as the hardcoded seed token --
-// and NEVER re-derives the argmin from `cold_median` at compile time. The schema's
-// `cold_median` is a per-GROUP A/B ratio (e.g. q4_K's two sp4 rows SHARE 1.96), so a
-// naive "best cold_median among candidates" recompute would TIE and fall to the
-// decision_rule's "更简单者胜 = plain", REGRESSING q4_K/q2_K/q5_K from S6Tiled to Plain
-// (a severe selection regression). The winner mapping is FIXED and mirrors the retired
-// per-axis kSeeded[] hardcode + the schema `selected` flag: q4_K/q2_K/q5_K -> s6_tiled,
-// q6_K/q3_K -> plain (SP4); q4_K -> col_outer (loop-order). The decision_rule's "best
-// cold_median" is an OFFLINE-derived narrative (it folds the register_cliff_reached
-// STRUCTURAL gate + the marginal-non-cliff no-flip rule, e.g. q3_K tiled +8% is
-// non-cliff so plain still wins) -- it is NOT a runtime recompute.
-//
-// [SEL-1] T3 SEED: seeded from the REAL T8 rvv/VLEN128 board (the
-// experiments .../T8_winloss_gap_ledger.csv [XFER-1] rows, migrated into
-// schema/measurement-memory.v1.json), keyed on the @rvv declared-instance hash
-// (3cd23a4e...) the fixture kernels expand to.
-//   - SP4 axis (byte-exact-gated + A/B profiled): min-fold register-cliff family
-//     q4_K / q2_K / q5_K => s6_tiled (S6 reaches the <=32-vreg cliff [spill->0],
-//     1.884 / 1.413 / 2.193x vs the ggml block-dot); weight-reconstruction-bound
-//     no-min family q6_K / q3_K => plain (S6 is a NULL lever -- the MEASURED weight-
-//     bound fallback, NOT a blind default; measurement itself says "do not tile here").
-//   - LoopOrder axis: q4_K => col_outer (the M1b-board paired-cold A/B 2.47x, both legs
-//     ours-clang, byte-exact hot core => compiler-SYMMETRIC, SURVIVES [CASE-COMPILER-
-//     ASYMMETRY]; NEVER the vs-gcc-shipped absolutes 1.87 / 1.33, disclosure-only).
-// Every OTHER (hash, kernel, axis) -- q4_0, iq4_nl/iq4_xs, an un-profiled board, or the
-// un-seeded loop-order / strip-width slots -- is a MISS => nullopt => the caller's
-// cold-start [XFER-1] prior (reason=prior).
+// Consult the qualified offline view for a precomputed bounded winner. This code never
+// parses timing rows or derives a cost. The only live seed in this slice is q4_K
+// loop-order col_outer on the rvv/VLEN128 declared instance; every other key misses and
+// uses the selector's cold-start formula.
 inline std::optional<RVVMeasurementHit>
 lookupMeasurement(llvm::StringRef declaredInstanceHash, llvm::StringRef kernel,
                   RVVMeasurementAxis axis) {
@@ -263,16 +211,8 @@ lookupMeasurement(llvm::StringRef declaredInstanceHash, llvm::StringRef kernel,
   // compute). A different board => a different hash => a MISS => the prior.
   static constexpr llvm::StringLiteral kBoardInstanceHash =
       "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7";
-  // ONE axis-tagged seed table (the unified store). Winners MIRROR the schema
-  // `selected` flag -- they are NOT re-derived from cold_median (see the CAVEAT above).
+  // Bounded winner view. Qualification/freshness is owned by the A5 winner-view layer.
   const SeededMeasurement kSeeded[] = {
-      // SP4 output-tiling axis (5 K-quant): the min-fold register-cliff winners + the
-      // weight-bound measured NULL fallbacks.
-      {kBoardInstanceHash, "q4_K", RVVMeasurementAxis::SP4Tiling, "s6_tiled"},
-      {kBoardInstanceHash, "q2_K", RVVMeasurementAxis::SP4Tiling, "s6_tiled"},
-      {kBoardInstanceHash, "q5_K", RVVMeasurementAxis::SP4Tiling, "s6_tiled"},
-      {kBoardInstanceHash, "q6_K", RVVMeasurementAxis::SP4Tiling, "plain"},
-      {kBoardInstanceHash, "q3_K", RVVMeasurementAxis::SP4Tiling, "plain"},
       // Loop-order axis (q4_K col-outer 2.47x A/B, compiler-symmetric).
       {kBoardInstanceHash, "q4_K", RVVMeasurementAxis::LoopOrder, "col_outer"},
   };
@@ -285,74 +225,23 @@ lookupMeasurement(llvm::StringRef declaredInstanceHash, llvm::StringRef kernel,
   return std::nullopt;
 }
 
-// [SEL-3 T-SEL3-3] Thin typed WRAPPER over the axis-parameterized lookupMeasurement for
-// the SP4 output-tiling axis: maps the unified variant TOKEN back to the typed
-// RVVRepackTilingVariant so selectRepackTilingVariant's signature is UNCHANGED (and the
-// production call site RVVLowerQuantContraction stampTilingSelection needs no change).
-// The token is the schema `selected` variant (byte-exact mirror of the retired SP4
-// kSeeded[]); the only SP4 tokens are {plain, s6_tiled}, so a non-"s6_tiled" token maps
-// to Plain. The selector then demonstrates BOTH paths: measured argmin (the 5 seeded
-// K-quant) and prior cold-start (q4_0 + the codebook pair, which MISS => nullopt).
-inline std::optional<RVVTilingMeasurementHit>
-lookupTilingMeasurement(llvm::StringRef declaredInstanceHash,
-                        llvm::StringRef kernel) {
-  std::optional<RVVMeasurementHit> hit = lookupMeasurement(
-      declaredInstanceHash, kernel, RVVMeasurementAxis::SP4Tiling);
-  if (!hit)
-    return std::nullopt;
-  RVVRepackTilingVariant winner = hit->winner == "s6_tiled"
-                                      ? RVVRepackTilingVariant::S6Tiled
-                                      : RVVRepackTilingVariant::Plain;
-  return RVVTilingMeasurementHit{winner};
-}
-
-// The two-stage [SEL-1] SP4 selection (see the file block comment). PURE + COST-
-// MODEL-FREE: f(shape, vlenBits, vregCount, measurement). Stage-1 legality prunes the
-// bounded set; Stage-2 ranks: a still-feasible offline-profile hit => memoized argmin
-// (reason=measured); else the [XFER-1] capability prior keyed on the bottleneck SHAPE
-// (reason=prior). An empty feasible set (no capability fact) falls back to the shape's
-// default variant with reason=static_order (HONESTLY not a prior; must not appear on
-// a capability-afforded board).
-inline RVVRepackTilingChoice
+// SP4 selection is now exactly legality over realized bodies. There is no measured
+// ranking when only one distinct implementation exists. Historical A/B rows remain
+// evidence, but cannot act as a compiled winner over a fake alternative.
+inline std::optional<RVVRepackTilingChoice>
 selectRepackTilingVariant(RVVTilingBottleneckShape shape, std::int64_t vlenBits,
-                          std::int64_t vregCount,
-                          std::optional<RVVTilingMeasurementHit> measurement) {
+                          std::int64_t vregCount) {
   llvm::SmallVector<RVVRepackTilingVariant, 2> feasible =
-      tilingVariantFeasibleSet(vlenBits, vregCount);
+      tilingVariantFeasibleSet(shape, vlenBits, vregCount);
 
-  // Fail-safe: no guaranteed capability fact => no capability-keyed decision. Return
-  // the shape's byte-exact-preserving default, HONESTLY labelled static_order.
-  //
-  // [SEL-1-T5] INERT on the PRODUCTION dispatch path: the front-door pass
-  // (RVVLowerQuantContraction stampTilingSelection) only reaches this selector from
-  // the repack GEMM builders, which lowerOne gates behind `isRepack && halfLanes !=
-  // 0` (deriveRepackHalfLanes == 0 for minVLEN < 128). So a WIRED leaf always calls
-  // in with vlenBits >= 128 and vregCount == 32 => a non-empty feasible set => this
-  // branch never fires. It is retained purely as an honest fail-safe; NO reachable
-  // path today exercises it (the pass gates it away, and no direct-call unit test
-  // supplies vlenBits < 128), so it is fully INERT. The call site asserts the
-  // returned reason is never StaticOrder, so a future un-gated wiring cannot
-  // silently regress the "生产 dispatch 路径零 static_order" invariant.
+  // No capability fact means no legal body and therefore no selection. Callers must
+  // fail closed; returning a byte-preserving default here would recreate a second,
+  // compatibility-only authority path.
   if (feasible.empty())
-    return {priorTilingVariantForShape(shape),
-            RVVTilingSelectionReason::StaticOrder};
+    return std::nullopt;
 
-  // Exactly one feasible variant => no capability choice was made.
-  if (feasible.size() == 1)
-    return {feasible.front(), RVVTilingSelectionReason::OnlyFeasible};
-
-  // Stage-2a: a memoized offline-profile winner, IF it is still feasible (fail-
-  // closed-revalidate: a stale/now-infeasible measurement is discarded, falling
-  // through to the prior).
-  if (measurement) {
-    for (RVVRepackTilingVariant v : feasible)
-      if (v == measurement->winner)
-        return {measurement->winner, RVVTilingSelectionReason::Measured};
-  }
-
-  // Stage-2b: the [XFER-1] cold-start capability prior (keyed on bottleneck SHAPE,
-  // NEVER the format name).
-  return {priorTilingVariantForShape(shape), RVVTilingSelectionReason::Prior};
+  return RVVRepackTilingChoice{feasible.front(),
+                               RVVTilingSelectionReason::OnlyFeasible};
 }
 
 // [D-4] the SP4 tiling-selection attribution record. A canonical-JSON line mirroring
@@ -437,10 +326,17 @@ inline llvm::StringRef stringifyRVVRepackLoopOrder(RVVRepackLoopOrder order) {
   return "";
 }
 
-// The loop-order LAYOUT KEY -- the SINGLE SOURCE of the stride fact, shared by the
-// front-door selector Stage-2b prior AND the EmitC emitter's byte-exact fallback
-// (RVVToEmitCBlockQuantLinear emitRepackKQuantGemmBodyQ4K), so the two never carry
-// divergent copies of the rule (the "同源同事实" invariant -- no double logic).
+inline std::optional<RVVRepackLoopOrder>
+parseRVVRepackLoopOrder(llvm::StringRef token) {
+  if (token == "row_outer")
+    return RVVRepackLoopOrder::RowOuter;
+  if (token == "col_outer")
+    return RVVRepackLoopOrder::ColOuter;
+  return std::nullopt;
+}
+
+// The loop-order layout formula is used by selection and by pre-emission validation.
+// EmitC never calls it: emission consumes the validated selected enum mechanically.
 // col-outer <=> the repacked WEIGHT col-group panel is the >= (larger-or-equal)
 // DRAM stream. A cacheline / L1d-SIZE board capability is a known GAP; once plumbed
 // this ">=" tightens to a "weight col-group panel <= L1d" residency test. Absent it,
@@ -456,8 +352,7 @@ struct RVVRepackLoopOrderChoice {
 };
 
 // A single offline-profile loop-order A/B measurement HIT (the memoized argmin
-// winner for a (declared_instance_hash, kernel) key). Parallel to
-// RVVTilingMeasurementHit; std::nullopt at the call site => cold start.
+// winner for a (declared_instance_hash, kernel) key). std::nullopt => cold start.
 struct RVVLoopOrderMeasurementHit {
   RVVRepackLoopOrder winner;
 };
@@ -467,8 +362,7 @@ struct RVVLoopOrderMeasurementHit {
 // loop-interchange-board.md): q4_K col-outer wins 2.47x throughput over row-outer. BOTH
 // legs are OURS-clang, byte-exact hot core => compiler-SYMMETRIC, so this A/B ratio
 // is a VALID kernel-account selection input that SURVIVES [CASE-COMPILER-ASYMMETRY]
-// (exactly like the SP4 axis's ab_wall_ratio_tiled_over_untiled; NEVER the
-// system-account vs-gcc-shipped absolutes 1.87x / 1.33x, which the selector never
+// (NEVER the system-account vs-gcc-shipped absolutes 1.87x / 1.33x, which the selector never
 // keys on). Keyed on the SAME @rvv declared-instance hash (3cd23a4e...). Only q4_K
 // carries a loop-order seed (the SOLE leaf A/B loop-interchange-profiled this round);
 // every OTHER (hash, kernel) MISSES => the caller's cold-start layout prior
@@ -492,17 +386,25 @@ lookupLoopOrderMeasurement(llvm::StringRef declaredInstanceHash,
   return RVVLoopOrderMeasurementHit{winner};
 }
 
+inline llvm::SmallVector<RVVRepackLoopOrder, 2>
+loopOrderFeasibleSet(bool isPrefillGemm, std::int64_t vlenBits,
+                     std::int64_t vregCount) {
+  if (!isPrefillGemm || vlenBits < 128 || vregCount <= 0)
+    return {};
+  return {RVVRepackLoopOrder::RowOuter, RVVRepackLoopOrder::ColOuter};
+}
+
 // The two-stage [SEL-1] loop-order selection (parallel to selectRepackTilingVariant).
 // PURE + COST-MODEL-FREE: f(strides, regime, vlenBits, vregCount, measurement).
 // Stage-1 legality: the axis is a lever ONLY for the two-group PREFILL GEMM on a
 // capability-afforded board; a DECODE GEVM (single row group) or a degenerate board
-// (no VLEN / vreg fact) affords NO schedule choice => the byte-exact layout default,
-// HONESTLY labelled OnlyFeasible (not a prior). Stage-2a: a memoized offline-profile
+// (no VLEN / vreg fact) affords NO schedule choice and therefore returns nullopt.
+// Stage-2a: a memoized offline-profile
 // A/B winner (reason=measured; the M1b q4_K col-outer seed) -- both nests are always
 // feasible for the prefill GEMM (pure schedule, no legality difference), so no
 // fail-closed-revalidate is needed. Stage-2b: the cold-start capability prior keyed
 // on the layout STRIDE fact (reason=prior).
-inline RVVRepackLoopOrderChoice
+inline std::optional<RVVRepackLoopOrderChoice>
 selectRepackLoopOrder(std::int64_t weightStride, std::int64_t activationStride,
                       bool isPrefillGemm, std::int64_t vlenBits,
                       std::int64_t vregCount,
@@ -512,16 +414,19 @@ selectRepackLoopOrder(std::int64_t weightStride, std::int64_t activationStride,
           ? RVVRepackLoopOrder::ColOuter
           : RVVRepackLoopOrder::RowOuter;
 
-  // Stage-1: no two-group GEMM / no capability fact => no schedule choice.
-  if (!isPrefillGemm || vlenBits < 128 || vregCount <= 0)
-    return {layoutPrior, RVVTilingSelectionReason::OnlyFeasible};
+  llvm::SmallVector<RVVRepackLoopOrder, 2> feasible =
+      loopOrderFeasibleSet(isPrefillGemm, vlenBits, vregCount);
+  if (feasible.empty())
+    return std::nullopt;
 
   // Stage-2a: the memoized offline-profile A/B winner.
   if (measurement)
-    return {measurement->winner, RVVTilingSelectionReason::Measured};
+    return RVVRepackLoopOrderChoice{measurement->winner,
+                                    RVVTilingSelectionReason::Measured};
 
   // Stage-2b: the cold-start capability prior keyed on the layout STRIDE fact.
-  return {layoutPrior, RVVTilingSelectionReason::Prior};
+  return RVVRepackLoopOrderChoice{layoutPrior,
+                                  RVVTilingSelectionReason::Prior};
 }
 
 // [D-4] the loop-order selection attribution record (canonical-JSON line parallel to

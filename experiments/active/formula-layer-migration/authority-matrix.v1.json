@@ -204,23 +204,21 @@
         "vreg_count"
       ],
       "omega": [
-        "lookupMeasurement hard-coded in-memory winner mirror keyed by declared_instance_hash, kernel and axis"
+        "none: historical SP4 A/B rows are evidence-only while each shape has one realized candidate"
       ],
       "provider": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h :: selectRepackTilingVariant",
-      "legal_set": "tilingVariantFeasibleSet returns both Plain and S6Tiled on every afforded board, even though min-fold Plain has no emitter realization",
-      "selection": "feasible measured winner, otherwise bottleneck-shape prior; static_order only for an empty set and asserted unreachable in production",
-      "stamp": "weft_rvv.tiling_variant, reason and attribution record are stamped once by stampScheduleSelections",
-      "consumer": "emitTypedRepackGemmLoopBody reads an optional string attr",
-      "emission": "missing stamp silently realizes S6Tiled; min-fold Plain is rejected only at emission",
+      "legal_set": "tilingVariantFeasibleSet(shape,c) returns exactly the implemented body for that shape on an afforded target: min-fold S6Tiled, dual-plane/already-lean Plain",
+      "selection": "the singleton legal value is selected with only_feasible; an empty capability set produces no choice and the frontdoor fails closed",
+      "stamp": "stampScheduleSelections constructs loop-order plus optional SP4 plan in locals, then writes the complete attrs in one mutation phase",
+      "consumer": "readAndVerifyRVVRepackSchedulePlan is shared by module preflight and emitTypedRepackGemmLoopBody",
+      "emission": "missing/partial/unknown/inconsistent stamps fail before emission; min-fold mechanically maps S6Tiled and classified non-minfold shapes map Plain",
       "classification": [
-        "analytic",
-        "measured",
-        "fallback"
+        "analytic"
       ],
       "tests": [
         "test/Conversion/RVV/rvv-sel1-t3-tiling-rollout-gate7.mlir",
-        "test/Conversion/RVV/rvv-sel3-generalized-measurement-view-byte-exact.mlir",
-        "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir"
+        "test/Conversion/RVV/rvv-repack-schedule-stamp-fail-closed.mlir",
+        "test/Conversion/RVV/rvv-repack-schedule-selected-realized.mlir"
       ]
     },
     {
@@ -241,9 +239,9 @@
       "provider": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h :: selectRepackLoopOrder",
       "legal_set": "both loop orders are considered feasible for an afforded prefill GEMM",
       "selection": "measurement hit wins; otherwise the stride layout prior chooses row_outer or col_outer",
-      "stamp": "weft_rvv.loop_order, reason and attribution record are stamped once by stampLoopOrderSelection",
-      "consumer": "emitTypedRepackGemmLoopBody has two optional-attr read sites",
-      "emission": "q4_K recomputes the stride prior when the stamp is missing; siblings override col_outer/prior to row_outer and honor only col_outer/measured",
+      "stamp": "stampScheduleSelections writes loop-order together with the complete optional SP4 plan after both decisions are constructed",
+      "consumer": "readAndVerifyRVVRepackSchedulePlan is the one bounded-enum reader used by preflight and emission",
+      "emission": "all q4_K and sibling paths consume selectedColGroupOuter; reason never changes realization and no stride fallback remains",
       "classification": [
         "analytic",
         "measured",
@@ -251,8 +249,9 @@
       ],
       "tests": [
         "test/Conversion/RVV/rvv-ternary-gemm-loop-order-stamp-frontdoor.mlir",
-        "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-override.mlir",
-        "test/Conversion/RVV/rvv-sel3-generalized-measurement-view-byte-exact.mlir"
+        "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-realized.mlir",
+        "test/Conversion/RVV/rvv-repack-schedule-selected-realized.mlir",
+        "test/Conversion/RVV/rvv-repack-schedule-stamp-fail-closed.mlir"
       ]
     }
   ],
@@ -280,7 +279,7 @@
     {
       "name": "remaining non-codebook dequant selected plans are transient",
       "issue": "ISSUE-122",
-      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "owner_task": ".trellis/tasks/07-21-a4b-dequant-plan-stamping",
       "retire": [
         "Nibble/KQuant/Grid/Ternary provider invocation inside emitTypedDequantizeRowLoopBody",
         "their unstamped selected plan state; Codebook is already complete and forged-stamp checked"
@@ -290,7 +289,7 @@
     {
       "name": "GridLookup legality has a second decode_model registry head",
       "issue": "ISSUE-122",
-      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
+      "owner_task": ".trellis/tasks/07-21-a4b-dequant-plan-stamping",
       "retire": [
         "gridLookupPlanFromFacts direct lookupGridDecodePlan(decodeModel) for the dequant slice"
       ],
@@ -305,45 +304,6 @@
         "lookupMeasurement local kSeeded table"
       ],
       "killing_test": "A deterministically generated qualified view must reproduce winners; stale/hash/key/illegal-winner mutations must miss to prior."
-    },
-    {
-      "name": "SP4 legal set admits an unrealizable min-fold Plain candidate",
-      "issue": "ISSUE-125",
-      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
-      "retire": [
-        "unconditional {Plain,S6Tiled} feasibility for min-fold when Plain has no body",
-        "emission-time deferred-Plain rejection as a substitute for legality"
-      ],
-      "killing_test": "A forged Plain winner must be filtered before selection, or Plain must gain a real body; selector must never return a candidate the emitter rejects."
-    },
-    {
-      "name": "SP4 missing stamp silently realizes S6Tiled",
-      "issue": "ISSUE-125",
-      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
-      "retire": [
-        "optional tiling_variant read with ABSENT => S6Tiled"
-      ],
-      "killing_test": "Strip tiling_variant from an otherwise selected body and require verifier/emitter failure before any S6 code is emitted."
-    },
-    {
-      "name": "loop-order selected result is overridden or recomputed during emission",
-      "issue": "ISSUE-125",
-      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
-      "retire": [
-        "sibling reason==measured override gate",
-        "q4_K missing-stamp repackColGroupOuterForLayout recomputation",
-        "optional loop_order reads"
-      ],
-      "killing_test": "The current prior-override fixture must be inverted: selected col_outer/prior realizes col_outer; stripping the stamp fails closed."
-    },
-    {
-      "name": "schedule stamps are outside ODS/verifier authority",
-      "issue": "ISSUE-125",
-      "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
-      "retire": [
-        "discardable string-only tiling/loop-order attrs with no verifier contract"
-      ],
-      "killing_test": "Unknown token, missing stamp and stamp inconsistent with the legal set must all fail verification."
     }
   ],
   "test_contracts": [
@@ -439,9 +399,9 @@
       ]
     },
     {
-      "path": "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-override.mlir",
+      "path": "test/Conversion/RVV/rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-realized.mlir",
       "needles": [
-        "selector=col_outer/prior realized=row_outer",
+        "CHECK-NOT: weft_emitc.loop_order_override",
         "loop_order_selection_reason = \"prior\""
       ]
     }
@@ -609,27 +569,27 @@
     },
     {
       "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
-      "needle": "selectRepackTilingVariant(*shape",
+      "needle": "tilingChoice = pluginrvv::selectRepackTilingVariant(",
       "count": 1
     },
     {
       "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
-      "needle": "loop->setAttr(kTilingVariantAttr",
+      "needle": "kTilingVariantAttr,",
       "count": 1
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
-      "needle": "\"weft_rvv.tiling_variant\"))",
+      "needle": "readAndVerifyRVVRepackSchedulePlan(loopBody)",
       "count": 1
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
       "needle": "ABSENT => S6Tiled",
-      "count": 1
+      "count": 0
     },
     {
       "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
-      "needle": "selectRepackLoopOrder(weightStride",
+      "needle": "pluginrvv::selectRepackLoopOrder(",
       "count": 1
     },
     {
@@ -640,17 +600,37 @@
     {
       "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
       "needle": "\"weft_rvv.loop_order\"))",
-      "count": 2
+      "count": 0
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
       "needle": "loopOrderReason.getValue() == \"measured\"",
-      "count": 1
+      "count": 0
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp",
       "needle": "repackColGroupOuterForLayout(",
-      "count": 1
+      "count": 0
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVRepackScheduleMaterialization.cpp",
+      "needle": "readAndVerifyRVVRepackSchedulePlan(",
+      "count": 2
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h",
+      "needle": "SP4Tiling",
+      "count": 0
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVRepackTilingSelection.h",
+      "needle": "RVVTilingSelectionReason::StaticOrder",
+      "count": 0
+    },
+    {
+      "path": "lib/Plugin/RVV/FrontDoor/RVVLowerQuantContraction.cpp",
+      "needle": "stampScheduleSelections(builder, loop, \"lane_wise_vector_scale\"",
+      "count": 0
     },
     {
       "path": "lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp",

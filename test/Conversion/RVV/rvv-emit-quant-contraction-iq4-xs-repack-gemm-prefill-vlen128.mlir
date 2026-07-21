@@ -74,10 +74,10 @@ module {
 // CHECK: emitc.func @weft_emitc_ggml_repack_gemm_iq4_xs_q8_K_kernel_ggml_repack_gemm_iq4_xs_q8_K(
 // The RECONSTRUCTED 16-entry non-linear int8 codebook decl.
 // CHECK: verbatim "static const int8_t weft_iq4_xs_repack_kvalues[16] = {-127, -104
-// The interleaved activation base vy + y*nb*1168 (block_q8_Kx4) and weight base vx +
-// x*nb*2176 (block_iq4_xsx16).
-// CHECK: literal "1168"
+// The selected col_outer schedule forms the weight-group base first, then the
+// activation-row-group base inside it.
 // CHECK: literal "2176"
+// CHECK: literal "1168"
 // The per-column f32m2 accumulators (columnsPerPass == 4 folded in one pass).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
 // The SHARED weight d strip is widened ONCE (vfwcvt) at the top of the block loop, reused

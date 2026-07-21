@@ -4,6 +4,7 @@
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
 #include "Weft/Conversion/RVV/RVVCodebookGatherPlanMaterialization.h"
+#include "Weft/Conversion/RVV/RVVRepackScheduleMaterialization.h"
 #include "RVVToEmitCInternal.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
@@ -5821,7 +5822,9 @@ public:
 
   llvm::LogicalResult
   prepareForConversion(mlir::ModuleOp module) const override {
-    return materializeRVVCodebookGatherPlans(module);
+    if (mlir::failed(materializeRVVCodebookGatherPlans(module)))
+      return mlir::failure();
+    return verifyRVVRepackSchedulePlans(module);
   }
 
   void
