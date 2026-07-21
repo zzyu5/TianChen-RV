@@ -2749,33 +2749,6 @@ getRVVCodebookGatherAnchorLMUL(std::int64_t minimumVLEN, std::int64_t sew,
 }
 
 //===----------------------------------------------------------------------===//
-// DequantMechanismPlan FormulaProvider (§〇 formula-layer home): the small 16-entry
-// codebook family's CodebookGather MechanismPlan producer (phase-4, the SECOND landed
-// mechanism after nibble). Declaration only -- defined in RVVToEmitCSupport.cpp so this
-// header stays free of the Dialect facts include.
-//===----------------------------------------------------------------------===//
-
-/// The FormulaProvider f(g, c) for the small codebook dequant family (iq4_nl / iq4_xs /
-/// mxfp4 / nvfp4): produce the CodebookGather MechanismPlan (weft::CodebookGatherPlan,
-/// Support) from the stamped decode_core descriptor facts `g` (qk / stride / quant byte
-/// offset -- the SAME facts the construction table stamps), the per-format `scaleModel`
-/// (the block-type's structural scale ABI, derived once from the format identity at the
-/// gate, NOT an execution key), and the minimum-VLEN capability `c`. Phase-4 is
-/// REPRODUCE-CURRENT: it re-packages the codebook geometry byte-for-byte and pins the
-/// gather anchor (loadLMUL) + strip (stripLanes) to the FIXED ggml-ABI codebook shape.
-/// `minimumVLEN` is the phase-3-codebook c-driving seam (phase-3 selects loadLMUL =
-/// getRVVCodebookGatherAnchorLMUL(VLEN, 8, codebookEntries), unlocking the VLEN256 mf2
-/// narrowing behind kCodebookByteExactMinVLEN); this cut's derivation is VLEN-independent.
-/// The codebook emitter reads plan.* INSTEAD of re-deriving the geometry from the format
-/// name. [K-10]: this returns the CodebookGather plan ONLY; it never selects among the
-/// five mechanisms by a discriminant (each mechanism gets its own FormulaProvider + plan
-/// struct).
-weft::CodebookGatherPlan
-codebookGatherPlanFromFacts(const weft::rvv::DequantizeRowStreamFacts &facts,
-                           weft::CodebookScaleModel scaleModel,
-                           std::int64_t minimumVLEN);
-
-//===----------------------------------------------------------------------===//
 // DequantMechanismPlan FormulaProvider (§〇 formula-layer home): the QK_K=256 K-quant
 // super-block family's KQuantScaleMin MechanismPlan producer (phase-4, the THIRD landed
 // mechanism after nibble + codebook). Declaration only -- defined in RVVToEmitCSupport.cpp

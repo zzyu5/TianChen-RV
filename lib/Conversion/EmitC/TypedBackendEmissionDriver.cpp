@@ -24,6 +24,12 @@ bool convertModuleWithBackendEmitter(
   // callers. Loading is idempotent.
   context->loadDialect<mlir::emitc::EmitCDialect>();
 
+  // The one lifecycle hook shared by direct conversion, pass conversion and
+  // registry clone conversion. A backend that requires selected typed stamps
+  // must finish them here, before lowering patterns can create EmitC.
+  if (mlir::failed(driver.prepareForConversion(module)))
+    return false;
+
   mlir::TypeConverter typeConverter;
   // Identity for any type the backend conversions do not rewrite, so the
   // harness never illegalizes unrelated IR.

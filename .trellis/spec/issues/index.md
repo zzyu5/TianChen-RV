@@ -301,7 +301,7 @@
 | ISSUE-119 | ForwardElementwise dequant-row 格式几何描述符化 | 待裁 | 发射器与架构 |
 | ISSUE-120 | iq2_xs/iq2_s VLEN256 byte-broken 已修 | RESOLVED | 发射器与架构 |
 | ISSUE-121 | 4 个 I8 证据线属性零消费的去留 | 待裁 | 发射器与架构 |
-| ISSUE-122 | DequantMechanismPlan verifier 从公式独立重算 | 待裁 | 发射器与架构 |
+| ISSUE-122 | DequantMechanismPlan pre-emission 重算/验证（Codebook 已落，其余待续） | 部分落地 | 发射器与架构 |
 | ISSUE-123 | evidence 地图从旧 C2/C3′ 标签重索引 | 待施工 | canon与措辞 |
 | ISSUE-124 | q4_0 monolith 保留依据未闭合（abstract contraction 无真实 producer） | 待裁 | 发射器与架构 |
 | ISSUE-125 | SP4 / loop-order selected stamp 与真实 emission 分裂 | 待施工 | 发射器与架构 |

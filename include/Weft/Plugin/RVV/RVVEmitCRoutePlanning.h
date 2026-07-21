@@ -8,6 +8,7 @@
 #include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
+#include "Weft/Plugin/RVV/RVVSelectedTargetCapability.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/RuntimeABIContract.h"
 
@@ -596,27 +597,6 @@ struct RVVSelectedBodyTypedConfigFacts {
 
   bool hasFacts() const { return !factsID.empty(); }
 };
-
-struct RVVSelectedTargetCapabilityFacts {
-  std::string selectedProviderSymbol;
-  std::string selectedProviderID;
-  std::string selectedProviderKind;
-  std::string rvvSatisfactionKind;
-  std::string supportedSEW;
-  std::string supportedLMUL;
-  std::string requiredTailPolicy;
-  std::string requiredMaskPolicy;
-  std::string providerMirror;
-  std::string legalityMirror;
-
-  bool hasFacts() const { return !selectedProviderSymbol.empty(); }
-};
-
-llvm::Expected<RVVSelectedTargetCapabilityFacts>
-collectRVVSelectedTargetCapabilityFacts(
-    weft::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
-    llvm::StringRef context);
 
 llvm::Error verifyRVVSelectedTargetCapabilityForTypedConfig(
     RVVSelectedTargetCapabilityFacts &facts,

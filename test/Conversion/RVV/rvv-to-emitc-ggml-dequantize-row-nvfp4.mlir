@@ -6,24 +6,27 @@
 // weft_rvv.dequantize_row (format="nvfp4") is FRONT-DOOR CONSTRUCTED --
 // constructOrEmitGgmlDequantizeRow rewrites it into the typed
 // weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core
-// (decode_model "nvfp4", qk=64, stride=36); typed_dequantize_row_loop_yield } and lowers it
-// (the emission is DRIVEN by the typed region op-identity + decode_model, [L-6]/[L-8]
-// construction, NOT the abstract format string). It lowers via the OWNED REAL-VECTOR body
+// (decode_model "nvfp4", qk=64, stride=36); typed_dequantize_row_loop_yield } and lowers
+// it. Source format/decode_model carry construction identity, coherence, and provenance
+// only; post-construction emission is driven by typed mechanism/scale g plus the complete
+// selected codebook-gather stamp, NOT the abstract format string. It lowers via the OWNED REAL-VECTOR body
 // emitDequantizeRowCodebookVectorBody (B线批2 tiny-codebook fan-out): byte-exact-vs-ggml-
 // reference dequantize_row_nvfp4 by CONSTRUCTION (NOT byte-identical to the scalar monolith
 // -- the CONSTRUCTED path now emits OWNED __riscv_v intrinsics, the dispatch-wired monolith
 // keeps the scalar emitGgmlDequantizeRowExtended): the four per-16-element UE4M3 sub-block
 // scales (ggml_ue4m3_to_fp32 via ldexpf, HALF form) in SCALAR C, then per sub the FP4
-// codebook (shared with mxfp4, broadcast into ONE i8m1 vreg) GATHERED by the two nibble
+// codebook (shared with mxfp4, broadcast into the i8m1 anchor selected for this fixture's
+// VLEN128 c) GATHERED by the two nibble
 // index lanes (vrgather_vv_i8m1 -- a REGISTER-RESIDENT codebook gather, NOT a vluxei memory
 // gather, so NO HW-gather wall), sign-extended (vsext_vf4), int->float (vfcvt), scaled by
 // the sub scale in ONE vfmul (single-mul, no fp-contraction ambiguity), stored (vse32). The
-// codebook + UE4M3 scale are DERIVED at emit. ISSUE-001 reverse; closes the ISSUE-002
+// codebook + UE4M3 structure is selected/stamped before emission; the emitter
+// mechanically materializes it. ISSUE-001 reverse; closes the ISSUE-002
 // codegen-lottery for nvfp4 dequant.
 
 module {
   weft.exec.kernel @dequant_nvfp4_kernel {
-    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available", minimum_vlen = 128 : i64, rvv_version = "1.0", supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8", supported_sew = "8,16,32,64"}
     weft.exec.variant @dequant_nvfp4 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
       %k = weft_rvv.runtime_abi_value {c_name = "k", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
@@ -42,7 +45,8 @@ module {
 // token proves the abstract op went THROUGH weft_rvv.typed_dequantize_row_loop_body).
 // CHECK: route_source_op=weft_rvv.typed_dequantize_row_loop_body
 // The FP4 codebook table decl (kvalues_mxfp4, reused by nvfp4), above the loop, then
-// broadcast into ONE i8m1 vreg (register-resident, reused by every vrgather).
+// broadcast into the selected i8m1 vreg for this VLEN128 fixture (register-resident,
+// reused by every vrgather).
 // CHECK: static const int8_t weft_dequant_mxfp4_kvalues
 // CHECK: call_opaque "__riscv_vle8_v_i8m1"
 // The block count nb = k / 64 and the block loop.

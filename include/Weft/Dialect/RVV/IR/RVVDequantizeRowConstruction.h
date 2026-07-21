@@ -28,6 +28,7 @@
 #define WEFT_DIALECT_RVV_IR_RVVDEQUANTIZEROWCONSTRUCTION_H
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Support/CodebookGatherPlan.h"
 
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
@@ -64,6 +65,9 @@ struct DequantizeRowStreamFacts {
   std::int64_t scaleByteOffset;
   std::int64_t quantByteOffset;
   std::int64_t codebookEntryLanes;
+  /// Canonical mechanism-local scale ABI for production small-codebook leaves;
+  /// nullopt for every other dequant mechanism.
+  std::optional<::weft::CodebookScaleModel> codebookScaleModel;
   // The flat nibble-family decode-mechanism descriptor (phase-1): the carrier leaf
   // selector + the 4-bit nibble decode facts. carrier == NotNibbleFamily leaves ALL of
   // these unstamped (every non-nibble leaf). For the nibble family:

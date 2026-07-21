@@ -10025,12 +10025,34 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
 mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
+  auto parentLoop = llvm::dyn_cast_or_null<TypedDequantizeRowLoopBodyOp>(
+      op->getParentOp());
+  if (!parentLoop)
+    return emitOpError()
+           << "must be directly nested in "
+              "weft_rvv.typed_dequantize_row_loop_body";
+  if (parentLoop.getDecodeModel() != getDecodeModel())
+    return emitOpError()
+           << "requires parent/core decode_model construction coherence; parent "
+              "carries '"
+           << parentLoop.getDecodeModel() << "' while the core carries '"
+           << getDecodeModel() << "'";
+
   // Bounded mirror attrs (I4): the decode_model leaf key + the ggml ABI block
   // layout facts. A forbidden dataflow attr or an unexpected name fails closed (I7).
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "decode_model" || name == "qk" ||
            name == "weight_block_stride" || name == "scale_byte_offset" ||
-           name == "quant_byte_offset" || name == "codebook_entry_lanes" ||
+           name == "quant_byte_offset" || name == "dequant_mechanism" ||
+           name == "codebook_scale_model" ||
+           name == "codebook_gather_table" ||
+           name == "codebook_gather_entries" ||
+           name == "codebook_gather_strip_lanes" ||
+           name == "codebook_gather_load_lmul" ||
+           name == "codebook_gather_minimum_vlen" ||
+           name == "codebook_gather_provider" ||
+           name == "codebook_gather_selection_reason" ||
+           name == "codebook_entry_lanes" ||
            name == "carrier_kind" || name == "nibble_bias" ||
            name == "min_byte_offset" || name == "qh_byte_offset";
   };
@@ -10044,7 +10066,10 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (!isAllowedAttr(attrName))
       return emitOpError()
              << "only accepts the bounded {decode_model, qk, weight_block_stride, "
-                "scale_byte_offset, quant_byte_offset, codebook_entry_lanes, "
+                "scale_byte_offset, quant_byte_offset, dequant_mechanism, "
+                "codebook_scale_model, codebook_gather_{table,entries,strip_lanes,"
+                "load_lmul,minimum_vlen,provider,selection_reason}, "
+                "codebook_entry_lanes, "
                 "carrier_kind, nibble_bias, min_byte_offset, qh_byte_offset} "
                 "attributes; unexpected attribute '"
              << attr.getName() << "'";
@@ -10100,6 +10125,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   // (律2). Fail closed here at verify time (never value_or self-supplied) if a consuming
   // leaf is missing it; every other decode leaf leaves the OptionalAttr absent.
   llvm::StringRef dm = getDecodeModel();
+  std::optional<DequantizeRowStreamFacts> tableFacts =
+      lookupDequantizeRowStreamFacts(dm);
   bool consumesEntryLanes = dm == "iq3_s" || dm == "iq2_xs" || dm == "iq1_m" ||
                             dm == "iq2_xxs" || dm == "iq2_s" || dm == "iq1_s";
   if (consumesEntryLanes && !getCodebookEntryLanesAttr())
@@ -10109,6 +10136,80 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
               "codebook_entry_lanes descriptor (the grid ENTRY byte-width g-axis "
               "geometry); it must be stamped by the dequant-stream front door, never "
               "baked into the mechanism body or value_or self-supplied";
+
+  // A3 codebook selected-plan stamp. Construction owns the canonical mechanism
+  // + scale-model g; the pre-emission materializer owns the complete selected
+  // plan stamp. The verifier enforces all-or-none and its bounded internal/core-g
+  // consistency. Capability recomputation remains in the materializer, not here.
+  auto mechanism = getDequantMechanismAttr();
+  auto scaleModel = getCodebookScaleModelAttr();
+  bool codebookFamily =
+      mechanism && mechanism.getValue() == "codebook-gather";
+  bool provenanceNamesCodebook =
+      tableFacts && tableFacts->codebookScaleModel.has_value();
+  auto table = getCodebookGatherTableAttr();
+  auto entries = getCodebookGatherEntriesAttr();
+  auto stripLanes = getCodebookGatherStripLanesAttr();
+  auto loadLMUL = getCodebookGatherLoadLmulAttr();
+  auto minimumVLEN = getCodebookGatherMinimumVlenAttr();
+  auto provider = getCodebookGatherProviderAttr();
+  auto selectionReason = getCodebookGatherSelectionReasonAttr();
+  bool carriesAnySelectedCodebookStamp =
+      table || entries || stripLanes || loadLMUL || minimumVLEN || provider ||
+      selectionReason;
+  bool carriesAllSelectedCodebookStamp =
+      table && entries && stripLanes && loadLMUL && minimumVLEN && provider &&
+      selectionReason;
+  bool carriesAnyCodebookStamp =
+      mechanism || scaleModel || carriesAnySelectedCodebookStamp;
+  if (provenanceNamesCodebook != codebookFamily)
+    return emitOpError()
+           << "codebook construction coherence requires decode_model provenance "
+              "and typed dequant_mechanism=\"codebook-gather\" to agree";
+  if (codebookFamily) {
+    llvm::StringRef expectedScale = ::weft::stringifyCodebookScaleModel(
+        *tableFacts->codebookScaleModel);
+    if (!scaleModel || scaleModel.getValue() != expectedScale)
+      return emitOpError()
+             << "codebook dequant requires construction-owned typed g "
+                "dequant_mechanism=\"codebook-gather\" and "
+                "codebook_scale_model=\""
+             << expectedScale
+             << "\" coherent with construction provenance; post-construction "
+                "selection uses the typed fields, not decode_model";
+    if (carriesAnySelectedCodebookStamp && !carriesAllSelectedCodebookStamp)
+      return emitOpError()
+             << "codebook pre-emission selection must carry either none or all "
+                "of {table, entries, strip_lanes, load_lmul, minimum_vlen, "
+                "provider, selection_reason}; partial stamps are invalid";
+
+    // The dialect owns only the bounded shape of a complete selected stamp.
+    // Exact formula/capability consistency (including stale or forged values) is
+    // recomputed by the unique backend preparation materializer before emission.
+    if (carriesAllSelectedCodebookStamp) {
+      if (!::weft::parseCodebookTable(table.getValue()))
+        return emitOpError()
+               << "codebook_gather_table must name a recognized table; got '"
+               << table.getValue() << "'";
+      if (entries.getInt() <= 0 || stripLanes.getInt() <= 0)
+        return emitOpError()
+               << "codebook selected-plan entries and strip_lanes must be positive";
+      if (loadLMUL.getValue() != "mf2" && loadLMUL.getValue() != "m1" &&
+          loadLMUL.getValue() != "m2")
+        return emitOpError()
+               << "codebook_gather_load_lmul must be one of {mf2,m1,m2}; got '"
+               << loadLMUL.getValue() << "'";
+      if (minimumVLEN.getInt() <= 0 || provider.getValue().empty() ||
+          selectionReason.getValue().empty())
+        return emitOpError()
+               << "codebook selected-plan stamp requires positive minimum_vlen "
+                  "and non-empty provider/selection_reason mirrors";
+    }
+  } else if (carriesAnyCodebookStamp) {
+    return emitOpError()
+           << "non-codebook dequant mechanism must not carry any A3 codebook "
+              "mechanism/selected-plan stamp";
+  }
   // Phase-1 nibble-family descriptor legality (fail-closed, I7; the SAME consuming-leaf
   // pattern as codebook_entry_lanes above). The flat nibble family MUST carry the
   // carrier_kind leaf selector so the carrier-keyed emit dispatch never silently falls
@@ -10116,8 +10217,6 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   // bare_int8 carrier (q8_0, a bare signed-int8 scale) MUST NOT carry any 4-bit nibble
   // decode fact. nibbleFamily is DERIVED from the same facts table (not a re-baked name
   // list) so it tracks the descriptor family membership.
-  std::optional<DequantizeRowStreamFacts> tableFacts =
-      lookupDequantizeRowStreamFacts(dm);
   bool nibbleFamily =
       tableFacts && tableFacts->carrier != NibbleCarrierKind::NotNibbleFamily;
   mlir::StringAttr carrier = getCarrierKindAttr();

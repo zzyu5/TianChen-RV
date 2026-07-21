@@ -1,4 +1,4 @@
 {"file": ".trellis/spec/architecture/index.md", "reason": "架构质量检查"}
 {"file": ".trellis/spec/canon/正确性与证书.md", "reason": "byte exact与反空心"}
-{"file": ".trellis/spec/issues/index.md", "reason": "ISSUE117 118 119映射"}
+{"file": ".trellis/spec/issues/index.md", "reason": "ISSUE117 119 122映射"}
 {"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

@@ -1,5 +1,6 @@
 add_mlir_library(WeftConversionRVV
   RVVToEmitC.cpp
+  RVVCodebookGatherPlanMaterialization.cpp
   RVVToEmitCBlockQuantLinear.cpp
   RVVToEmitCCodebookFp4.cpp
   RVVToEmitCDeferredDequant.cpp
@@ -18,6 +19,7 @@ add_mlir_library(WeftConversionRVV
   WeftConversionEmitC
   WeftRVVDialect
   WeftExecDialect
+  WeftSupport
   MLIREmitCDialect
   MLIRIR
   MLIRPass

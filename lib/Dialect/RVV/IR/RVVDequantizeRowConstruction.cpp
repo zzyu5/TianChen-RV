@@ -41,6 +41,7 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
   // Phase-1 nibble-family decode-mechanism descriptor (unset == NotNibbleFamily /
   // absent for every non-nibble leaf; the flat nibble arms below set them).
   NibbleCarrierKind carrier = NibbleCarrierKind::NotNibbleFamily;
+  std::optional<::weft::CodebookScaleModel> codebookScaleModel;
   std::optional<std::int64_t> nibbleBias, minOff, qhOff;
   if (format == "q8_0") {
     stride = 34; qsOff = 2; carrier = NibbleCarrierKind::BareInt8;
@@ -102,17 +103,15 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
     // (2048-entry iq1s_grid): each grid entry = 8 contiguous ternary grid bytes.
     qk = 256; stride = 56; dOff = 0; qsOff = 0; entryLanes = 8;
   } else if (format == "iq4_nl") {
-    // block_iq4_nl: fp16 d @0, qs[16] @2 (flat QK4_NL=32 non-linear codebook).
-    qk = 32; stride = 18; dOff = 0; qsOff = 2;
+    // Source identity selects only the scale ABI; the shared typed layout row
+    // below owns every fixed small-codebook geometry field.
+    codebookScaleModel = ::weft::CodebookScaleModel::Fp16Flat;
   } else if (format == "iq4_xs") {
-    // block_iq4_xs: fp16 d @0, scales_h u16 @2, scales_l[4] @4, qs[128] @8.
-    qk = 256; stride = 136; dOff = 0; qsOff = 8;
+    codebookScaleModel = ::weft::CodebookScaleModel::Signed6SuperBlock;
   } else if (format == "mxfp4") {
-    // block_mxfp4: E8M0 exponent byte @0, qs[16] @1 (QK_MXFP4=32 FP4 codebook).
-    qk = 32; stride = 17; dOff = 0; qsOff = 1;
+    codebookScaleModel = ::weft::CodebookScaleModel::E8M0SharedExp;
   } else if (format == "nvfp4") {
-    // block_nvfp4: four UE4M3 sub-block scale bytes @0, qs[32] @4 (QK_NVFP4=64).
-    qk = 64; stride = 36; dOff = 0; qsOff = 4;
+    codebookScaleModel = ::weft::CodebookScaleModel::UE4M3SubBlock;
   } else if (format == "tq1_0") {
     // block_tq1_0: qs[48] @0 (base-3 packed, 5 elems/byte), qh[4] @48, fp16 d @52
     // (the ternary {-1,0,+1} TriLM super-block; scale is at the END, not @0).
@@ -126,8 +125,27 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
     // unrecognized format falls through to the dispatch-wired monolith.
     return std::nullopt;
   }
-  return DequantizeRowStreamFacts{qk,         stride, dOff,      qsOff,   entryLanes,
-                                  carrier, nibbleBias, minOff, qhOff};
+
+  if (codebookScaleModel) {
+    std::optional<::weft::CodebookGatherLayoutFacts> layout =
+        ::weft::lookupCodebookGatherLayoutFacts(*codebookScaleModel);
+    if (!layout)
+      return std::nullopt;
+    qk = layout->qk;
+    stride = layout->weightBlockStride;
+    dOff = layout->scaleByteOffset;
+    qsOff = layout->quantByteOffset;
+  }
+  return DequantizeRowStreamFacts{qk,
+                                  stride,
+                                  dOff,
+                                  qsOff,
+                                  entryLanes,
+                                  codebookScaleModel,
+                                  carrier,
+                                  nibbleBias,
+                                  minOff,
+                                  qhOff};
 }
 
 mlir::LogicalResult
@@ -174,6 +192,18 @@ constructTypedDequantizeRowLoopBody(mlir::RewriterBase &rewriter,
                            rewriter.getI64IntegerAttr(facts.scaleByteOffset));
     coreState.addAttribute("quant_byte_offset",
                            rewriter.getI64IntegerAttr(facts.quantByteOffset));
+    // A3 codebook g: construction owns the mechanism + scale ABI facts.  They
+    // are absent for every other dequant mechanism and are never recreated from
+    // decode_model by the emitter.
+    if (facts.codebookScaleModel) {
+      coreState.addAttribute("dequant_mechanism",
+                             rewriter.getStringAttr("codebook-gather"));
+      coreState.addAttribute(
+          "codebook_scale_model",
+          rewriter.getStringAttr(
+              ::weft::stringifyCodebookScaleModel(
+                  *facts.codebookScaleModel)));
+    }
     // The g-axis grid geometry descriptor is stamped ONLY for the three owned
     // grid-codebook decode leaves (codebookEntryLanes != 0); every flat / K-quant /
     // non-grid leaf leaves it unstamped so the OptionalAttr stays absent there.

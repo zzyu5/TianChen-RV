@@ -3,10 +3,13 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
+#include "Weft/Conversion/RVV/RVVCodebookGatherPlanMaterialization.h"
 #include "RVVToEmitCInternal.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVSelectedTargetCapability.h"
+#include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/Passes.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -192,27 +195,17 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
     // Capability config gate (family-generic, I1-honoring). The selected
     // variant's `requires` names the RVV capability provider; that provider is a
     // queryable weft.exec.capability / weft.exec.target MLIR object that may
-    // declare `supported_sew` / `supported_lmul`. If present and they EXCLUDE
-    // the typed body's (sew, lmul), the capability gates this body out -- the
-    // legacy route-family path rejects it ("supported_sew fact ... does not
-    // include typed body SEW"). The conversion must respect that legality gate
-    // and fall back, not materialize C the capability forbids. Reading the attrs
-    // straight off the provider op keeps capability the authority (no string
-    // model). When the provider declares no restriction the gate is silent.
+    // declare `supported_sew` / `supported_lmul`. The direct converter projects
+    // that object through the SAME canonical TargetCapabilitySet + unique RVV
+    // selected-provider collector as registry planning and Formula selection;
+    // there is no local first-provider scan or alternate list parser. A present
+    // restriction that excludes the typed body's (sew, lmul) gates the body out;
+    // an absent restriction is silent.
     {
       unsigned bodySEW = static_cast<unsigned>(preLoopSetVL.getSew());
       llvm::StringRef bodyLMUL = preLoopSetVL.getLmul();
-      // The typed body requires the ratified RVV1.0 tail/mask-agnostic (ta/ma)
-      // policy iff its setvl policy is agnostic on both axes -- the form this
-      // converter renders into the agnostic `_v` intrinsic spelling. That form
-      // is illegal on the RVV0.7 ISA generation (xtheadvector / C920), so the
-      // version gate reasons over this fact below.
-      bool bodyRequiresAgnosticPolicy =
-          policy.getTail() == weftrvv::TailPolicy::Agnostic &&
-          policy.getMask() == weftrvv::MaskPolicy::Agnostic;
       if (mlir::failed(checkCapabilityConfigGate(
-              rewriter, variant, kernel, bodySEW, bodyLMUL,
-              bodyRequiresAgnosticPolicy)))
+              rewriter, variant, kernel, bodySEW, bodyLMUL, policy)))
         return mlir::failure();
     }
 
@@ -233,26 +226,23 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
     // monolith op was retired at the nvfp4 flip). ONLY these bodies add the header
     // -- every other (quant-dot / elementwise) kernel keeps the original
     // three-header list byte-identical (additivity).
-    bool hasNvfp4CodebookCore = false;
+    bool needsUE4M3CodebookMath = false;
     scope.getBody().walk(
         [&](weftrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp) {
-          hasNvfp4CodebookCore = true;
+          needsUE4M3CodebookMath = true;
         });
-    // The CONSTRUCTED nvfp4 dequantize_row leaf (B线批2 tiny-codebook OWNED vrgather
-    // body, emitDequantizeRowCodebookVectorBody) reconstructs the four UE4M3 sub-block
-    // scales via ldexpf (ggml_ue4m3_to_fp32), so it needs <math.h>. The front-door
-    // construction into the typed loop body happens DURING this variant's lowering, so
-    // at include-emit time the scope still carries the ABSTRACT weft_rvv.dequantize_row
-    // (format "nvfp4"); detect both the abstract op and the constructed typed body. The
+    // The CONSTRUCTED UE4M3 small-codebook dequant leaf reconstructs four sub-block
+    // scales via ldexpf (ggml_ue4m3_to_fp32), so it needs <math.h>. Backend
+    // preparation has already constructed the typed core before this emission step;
+    // its typed scale ABI, never source format/decode_model, owns this include. The
     // other three codebook leaves (mxfp4 E8M0 bit-construction / iq4_nl / iq4_xs fp16
     // seams) call NO libm, so they keep the three-header list byte-identical (additivity).
-    scope.getBody().walk([&](weftrvv::GgmlDequantizeRowOp deq) {
-      if (deq.getFormat() == "nvfp4")
-        hasNvfp4CodebookCore = true;
-    });
-    scope.getBody().walk([&](weftrvv::TypedDequantizeRowLoopBodyOp lb) {
-      if (lb.getDecodeModel() == "nvfp4")
-        hasNvfp4CodebookCore = true;
+    scope.getBody().walk([&](weftrvv::DequantizeRowDecodeCoreOp core) {
+      mlir::StringAttr mechanism = core.getDequantMechanismAttr();
+      mlir::StringAttr scaleModel = core.getCodebookScaleModelAttr();
+      if (mechanism && mechanism.getValue() == "codebook-gather" &&
+          scaleModel && scaleModel.getValue() == "ue4m3-sub-block")
+        needsUE4M3CodebookMath = true;
     });
     // rms_norm (now CONSTRUCTED through the reduce-model scaffold) still calls
     // scalar libm (1/sqrtf(mean+eps)), so its constructed body -- a
@@ -281,7 +271,7 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         if (prec.getValue() == "f16lut")
           hasGeluF16Lut = true;
     });
-    if (hasRmsNormReduceCore || hasRopeRotateCore || hasNvfp4CodebookCore ||
+    if (hasRmsNormReduceCore || hasRopeRotateCore || needsUE4M3CodebookMath ||
         hasGeluF16Lut)
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
@@ -2238,76 +2228,69 @@ VariantToEmitCFunc::checkCapabilityConfigGate(mlir::ConversionPatternRewriter &r
                           weft::exec::VariantOp variant,
                           weft::exec::KernelOp kernel, unsigned bodySEW,
                           llvm::StringRef bodyLMUL,
-                          bool bodyRequiresAgnosticPolicy) const {
-    auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-    if (!requiresAttr)
-      return mlir::success();
-    std::string bodySEWToken = llvm::Twine(bodySEW).str();
-    // The provider property is a comma-separated allow-list (e.g. "32,64").
-    auto listIncludes = [](llvm::StringRef list, llvm::StringRef token) {
-      llvm::SmallVector<llvm::StringRef, 4> entries;
-      list.split(entries, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      for (llvm::StringRef entry : entries)
-        if (entry.trim() == token)
-          return true;
-      return false;
-    };
-    for (mlir::Attribute entry : requiresAttr) {
-      auto symbolRef = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(entry);
-      if (!symbolRef)
-        continue;
-      // Resolve the requires symbol to a provider op in the kernel body. The
-      // provider is a capability or target op carrying the optional supported_*
-      // allow-lists.
-      mlir::Operation *provider = nullptr;
-      for (mlir::Operation &op : kernel.getBody().front()) {
-        auto sym = op.getAttrOfType<mlir::StringAttr>(
-            mlir::SymbolTable::getSymbolAttrName());
-        if (sym && sym.getValue() == symbolRef.getValue()) {
-          provider = &op;
-          break;
-        }
-      }
-      if (!provider)
-        continue;
-      if (auto supportedSEW =
-              provider->getAttrOfType<mlir::StringAttr>("supported_sew")) {
-        llvm::StringRef value = supportedSEW.getValue().trim();
-        if (!value.empty() && !listIncludes(value, bodySEWToken))
-          return rewriter.notifyMatchFailure(
-              variant, "capability provider supported_sew excludes typed body "
-                       "SEW (capability gates this body out)");
-      }
-      if (auto supportedLMUL =
-              provider->getAttrOfType<mlir::StringAttr>("supported_lmul")) {
-        llvm::StringRef value = supportedLMUL.getValue().trim();
-        if (!value.empty() && !listIncludes(value, bodyLMUL))
-          return rewriter.notifyMatchFailure(
-              variant, "capability provider supported_lmul excludes typed body "
-                       "LMUL (capability gates this body out)");
-      }
-      // RVV ISA-generation gate (the deepest N1 divergence axis). The
-      // tail/mask-agnostic (ta/ma) vector policy is a RATIFIED RVV1.0 feature
-      // that RVV0.7 (xtheadvector / C920) does NOT have. So a body that requires
-      // the agnostic policy is RVV1.0-only: if the resolved provider declares
-      // `rvv_version` = "0.7", the capability gates this body out, exactly as the
-      // supported_sew/lmul allow-lists gate an unsupported (sew, lmul). This is
-      // gated on the version CAPABILITY FACT read off the provider op (I3: no
-      // family-name / march-string branch in the gate). The gate is silent when
-      // the provider declares no `rvv_version` or declares "1.0" (the agnostic
-      // policy is legal there) -- so rv64gcv behaviour is byte-identical.
-      if (bodyRequiresAgnosticPolicy) {
-        if (auto rvvVersion =
-                provider->getAttrOfType<mlir::StringAttr>("rvv_version")) {
-          if (rvvVersion.getValue().trim() == "0.7")
-            return rewriter.notifyMatchFailure(
-                variant,
-                "capability provider rvv_version=0.7 lacks the ratified "
-                "tail/mask-agnostic policy the typed body requires (RVV0.7 "
-                "ISA generation gates this body out)");
-        }
-      }
+                          weftrvv::PolicyAttr bodyPolicy) const {
+    llvm::Expected<::weft::support::TargetCapabilitySet> capabilities =
+        ::weft::support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities) {
+      std::string error = llvm::toString(capabilities.takeError());
+      return rewriter.notifyMatchFailure(variant, error);
     }
+
+    llvm::Expected<::weft::plugin::rvv::RVVSelectedTargetCapabilityFacts>
+        selected =
+            ::weft::plugin::rvv::collectRVVSelectedTargetCapabilityFacts(
+                variant, *capabilities, "direct typed RVV conversion");
+    if (!selected) {
+      std::string error = llvm::toString(selected.takeError());
+      return rewriter.notifyMatchFailure(variant, error);
+    }
+
+    std::string bodySEWToken = llvm::Twine(bodySEW).str();
+    if (!selected->supportedSEW.empty() &&
+        !::weft::plugin::rvv::rvvCapabilityPropertyListContains(
+            selected->supportedSEW, bodySEWToken))
+      return rewriter.notifyMatchFailure(
+          variant, "selected RVV capability supported_sew excludes typed body "
+                   "SEW (capability gates this body out)");
+
+    if (!selected->supportedLMUL.empty() &&
+        !::weft::plugin::rvv::rvvCapabilityPropertyListContains(
+            selected->supportedLMUL, bodyLMUL))
+      return rewriter.notifyMatchFailure(
+          variant, "selected RVV capability supported_lmul excludes typed body "
+                   "LMUL (capability gates this body out)");
+
+    llvm::StringRef bodyTailPolicy =
+        weftrvv::stringifyTailPolicy(bodyPolicy.getTail());
+    llvm::StringRef bodyMaskPolicy =
+        weftrvv::stringifyMaskPolicy(bodyPolicy.getMask());
+    if (!selected->requiredTailPolicy.empty() &&
+        llvm::StringRef(selected->requiredTailPolicy) != bodyTailPolicy)
+      return rewriter.notifyMatchFailure(
+          variant,
+          "selected RVV capability required_tail_policy does not match typed "
+          "body tail policy (capability gates this body out)");
+
+    if (!selected->requiredMaskPolicy.empty() &&
+        llvm::StringRef(selected->requiredMaskPolicy) != bodyMaskPolicy)
+      return rewriter.notifyMatchFailure(
+          variant,
+          "selected RVV capability required_mask_policy does not match typed "
+          "body mask policy (capability gates this body out)");
+
+    // Tail/mask-agnostic policy is ratified RVV1.0 behavior; an explicitly
+    // selected RVV0.7 provider cannot legalize this typed body. Missing version
+    // remains an honest absent restriction, matching the prior gate semantics.
+    bool bodyRequiresAgnosticPolicy =
+        bodyPolicy.getTail() == weftrvv::TailPolicy::Agnostic &&
+        bodyPolicy.getMask() == weftrvv::MaskPolicy::Agnostic;
+    if (bodyRequiresAgnosticPolicy && selected->rvvVersion == "0.7")
+      return rewriter.notifyMatchFailure(
+          variant,
+          "selected RVV capability rvv_version=0.7 lacks the ratified "
+          "tail/mask-agnostic policy the typed body requires (RVV0.7 ISA "
+          "generation gates this body out)");
+
     return mlir::success();
   }
 
@@ -5835,6 +5818,11 @@ class RVVBackendEmissionDriver final
     : public ::weft::conversion::emitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "rvv"; }
+
+  llvm::LogicalResult
+  prepareForConversion(mlir::ModuleOp module) const override {
+    return materializeRVVCodebookGatherPlans(module);
+  }
 
   void
   populateTypeConversions(mlir::TypeConverter &typeConverter) const override {

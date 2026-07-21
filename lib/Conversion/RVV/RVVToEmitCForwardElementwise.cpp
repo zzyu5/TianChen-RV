@@ -1,6 +1,5 @@
 #include "RVVToEmitCInternal.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
-#include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
@@ -4393,8 +4392,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowTernaryDecodeBodyShared
 // The OWNED REAL-VECTOR tiny-codebook (16-entry) dequantize_row body (B线批2, the FP4 /
 // non-linear codebook fan-out over the q8_0/nibble non-grid precedent · de-lottery [L-8]
 // · ISSUE-001 reverse · closes the ISSUE-002 codegen-lottery exposure per format). The
-// 16-entry int8 codebook is broadcast into ONE i8m1 vreg ONCE; every group's two nibble
-// index lanes are gathered through it (vrgather_vv_i8m1 -- a REGISTER-RESIDENT gather,
+// 16-entry int8 codebook is broadcast into one selected i8{mf2|m1|m2} vreg ONCE;
+// every group's two nibble index lanes are gathered through it (a REGISTER-RESIDENT gather,
 // NOT a vluxei memory gather -> NO HW-gather wall), sign-extended, int->float, scaled by
 // the per-group float scale in ONE vfmul (== ggml's single `d*kv` mul -> no
 // fp-contraction ambiguity), and stored. The integer nibble/codebook/scale decode
@@ -4414,14 +4413,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowCodebookVectorBody(
   const bool isNl = plan.scaleModel == ::weft::CodebookScaleModel::Fp16Flat;
   const bool isNv = plan.scaleModel == ::weft::CodebookScaleModel::UE4M3SubBlock;
   const bool isXs = plan.scaleModel == ::weft::CodebookScaleModel::Signed6SuperBlock;
-  // Super-block geometry re-packaged by the FormulaProvider (byte-exact ggml block_qX AoS
-  // facts, NOT knobs): qk / stride / the base qs byte offset ride the PLAN.
+  // Super-block geometry carried by the pre-emission selected stamp (byte-exact ggml
+  // block_qX AoS facts, NOT knobs): qk / stride / base qs offset ride the PLAN.
   const int64_t qk = plan.superBlockElements;
   const int64_t stride = plan.weightBlockStride;
   const int64_t qsBase = plan.codebookByteOffset;
   const int64_t stripLanes = plan.stripLanes;
-  // The i8 codebook-gather anchor LMUL rides the PLAN (phase-4: m1, reproduce-current;
-  // phase-3-codebook c-drives it f(VLEN)); the widened i32/f32 chain is DERIVED from it
+  // The i8 codebook-gather anchor LMUL rides the selected PLAN; the widened i32/f32
+  // chain is mechanically DERIVED from it
   // via deriveWideningChain (the SAME single-source-of-truth the vec_dot codebook body
   // uses), so a plan.loadLMUL change re-shapes every codebook intrinsic. i8 -> i32 (vf4)
   // is two LMUL doublings, so the widened rung is the chain's l32.
@@ -4870,26 +4869,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed dequantize_row loop body missing the op");
 
-  // Bounded decode_model surface gate (I7): the constructed streaming family is
-  // {q8_0 (family-head), q4_0/q4_1/q5_0/q5_1 (flat nibble leaves), the
-  // q2_K/q3_K/q4_K/q5_K/q6_K QK_K=256 super-block leaves, the
-  // iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s QK_K=256 IQ grid-table super-block leaves,
-  // and the remaining codebook / ternary-grid extended leaves iq1_s/iq1_m (ternary
-  // iq1s_grid + delta), iq4_nl/iq4_xs (16-entry non-linear codebook), and mxfp4/nvfp4
-  // (FP4 e2m1 codebook, E8M0 / UE4M3 scales)}. The verifier already gates
-  // decode_model; this fails the emit closed if a not-yet-lowered decode leaf slips a
-  // valid-verify region here.
-  // Phase-1: the constructed-decode_model surface gate (I7) is DERIVED from the single
-  // construction facts table (lookupDequantizeRowStreamFacts) -- the ONE source of the
-  // constructed dequantize_row family. Adding a format's descriptor row auto-extends
-  // this gate; no per-format emitter arm. Fail-closed (unknown == no facts).
+  // The still-unmigrated dequant mechanisms retain their bounded decode_model
+  // surface gate below. CodebookGather deliberately bypasses that post-construction
+  // provenance gate: its typed mechanism/g/stamp contract is authoritative.
   llvm::StringRef decodeModel = loopBody.getDecodeModel();
-  if (!weftrvv::lookupDequantizeRowStreamFacts(decodeModel))
-    return rewriter.notifyMatchFailure(
-        loopBody, "typed dequantize_row loop body only lowers a CONSTRUCTED "
-                  "dequantize_row decode_model (one carried by the shared "
-                  "RVVDequantizeRowConstruction facts table); an unconstructed "
-                  "decode_model stays dispatch-wired via the abstract monolith");
 
   weftrvv::DequantizeRowDecodeCoreOp coreOp;
   weftrvv::TypedDequantizeRowLoopYieldOp yieldOp;
@@ -4909,6 +4892,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     return rewriter.notifyMatchFailure(
         loopBody, "typed dequantize_row body region must carry exactly the "
                   "block_index induction variable");
+  bool isCodebookMechanism =
+      coreOp.getDequantMechanismAttr() &&
+      coreOp.getDequantMechanismAttr().getValue() == "codebook-gather";
+  if (!isCodebookMechanism &&
+      !weftrvv::lookupDequantizeRowStreamFacts(decodeModel))
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed dequantize_row loop body only lowers a CONSTRUCTED "
+                  "dequantize_row decode_model (one carried by the shared "
+                  "RVVDequantizeRowConstruction facts table); an unconstructed "
+                  "decode_model stays dispatch-wired via the abstract monolith");
   mlir::Value blockIndex = coreBlock.getArgument(0);
   if (coreOp.getBlockIndex() != blockIndex)
     return rewriter.notifyMatchFailure(
@@ -4987,56 +4980,64 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
       return emitDequantizeRowNibbleVectorBody(rewriter, loc, weightBase, output,
                                                avlArg, sizeType, opName, role, plan);
   }
-  // Phase-4 (DequantMechanismPlan family #2): the small 16-entry codebook family
-  // (iq4_nl/iq4_xs/mxfp4/nvfp4) decode is assembled into a CodebookGather MechanismPlan
-  // (weft::CodebookGatherPlan) by the FormulaProvider codebookGatherPlanFromFacts
-  // (RVVGearboxSchedule.h -- the §〇 formula-layer home) from the stamped decode_core
-  // geometry facts + the per-format scale model, and the codebook emitter READS plan.* --
-  // NOT the format name (the per-format qk/stride/qs-offset/table/LMUL re-derivation is
-  // RETIRED into the plan). The dispatch tests plan.mechanism == CodebookGather ([F-1]:
-  // name AS DATA, not an execution key); format survives only as plan.provenanceFormat.
-  // Byte-exact reproduce-current: loadLMUL/stripLanes are pinned to the FIXED ggml-ABI
-  // codebook geometry (phase-3-codebook c-drives loadLMUL = f(VLEN)). [K-10]:
-  // CodebookGatherPlan is the CodebookGather mechanism's OWN plan (the 2nd of 5); the four
-  // formats parametrize the ONE shared vrgather codebook body via plan.scaleModel /
-  // plan.codebookTable -- a PARAMETRIC leaf shape, NOT a plan-internal mechanism switch.
-  // The scale model is derived once here from the block-type identity (the SAME
-  // format->ABI-facts mapping the construction table performs; a front-door scale-model
-  // stamp is the phase-1-equivalent follow-up). The ternary iq1s_grid / tq leaves
-  // (iq1_s/iq1_m/tq1_0/tq2_0) are a DIFFERENT mechanism (TernaryDecode) and keep their
-  // decode_model routing below -- NOT folded into this plan ([K-10]).
-  std::optional<::weft::CodebookScaleModel> codebookScaleModel =
-      llvm::StringSwitch<std::optional<::weft::CodebookScaleModel>>(decodeModel)
-          .Case("mxfp4", ::weft::CodebookScaleModel::E8M0SharedExp)
-          .Case("iq4_nl", ::weft::CodebookScaleModel::Fp16Flat)
-          .Case("nvfp4", ::weft::CodebookScaleModel::UE4M3SubBlock)
-          .Case("iq4_xs", ::weft::CodebookScaleModel::Signed6SuperBlock)
-          .Default(std::nullopt);
-  if (codebookScaleModel) {
-    // Rebuild the descriptor facts `g` the front door stamped, then run the provider.
-    weftrvv::DequantizeRowStreamFacts codebookFacts{};
-    codebookFacts.qk = coreOp.getQkAttr().getInt();
-    codebookFacts.weightBlockStride = coreOp.getWeightBlockStrideAttr().getInt();
-    codebookFacts.scaleByteOffset = coreOp.getScaleByteOffsetAttr().getInt();
-    codebookFacts.quantByteOffset = coreOp.getQuantByteOffsetAttr().getInt();
-    ::weft::CodebookGatherPlan plan =
-        ::weft::plugin::rvv::codebookGatherPlanFromFacts(codebookFacts,
-                                                         *codebookScaleModel,
-                                                         /*minimumVLEN=*/128);
-    plan.provenanceFormat = decodeModel; // diagnostic only (name AS DATA, [F-1])
-    // Reproduce-current gather-anchor gate (fail-closed, the GridDecodePlan discipline):
-    // phase-4 realizes ONLY the legal m1 anchor; an illegal / non-m1 plan fail-CLOSES
-    // here rather than silently emitting a gather whose high nibble indices read 0.
-    if (!plan.legality.isLegal || plan.loadLMUL != "m1")
+  // A3 (DequantMechanismPlan family #2): selection is already complete. The
+  // construction-owned mechanism tag identifies this slice; the emitter only
+  // projects the complete typed stamp into the transient plan. It does not
+  // resolve capabilities, call a formula, or use decode_model as a strategy key.
+  if (isCodebookMechanism) {
+    mlir::StringAttr scaleModelAttr = coreOp.getCodebookScaleModelAttr();
+    mlir::StringAttr tableAttr = coreOp.getCodebookGatherTableAttr();
+    mlir::IntegerAttr entriesAttr = coreOp.getCodebookGatherEntriesAttr();
+    mlir::IntegerAttr stripAttr = coreOp.getCodebookGatherStripLanesAttr();
+    mlir::StringAttr loadLMULAttr = coreOp.getCodebookGatherLoadLmulAttr();
+    mlir::IntegerAttr minimumVLENAttr =
+        coreOp.getCodebookGatherMinimumVlenAttr();
+    mlir::StringAttr providerAttr = coreOp.getCodebookGatherProviderAttr();
+    mlir::StringAttr reasonAttr =
+        coreOp.getCodebookGatherSelectionReasonAttr();
+    if (!scaleModelAttr || !tableAttr || !entriesAttr || !stripAttr ||
+        !loadLMULAttr || !minimumVLENAttr || !providerAttr || !reasonAttr)
       return rewriter.notifyMatchFailure(
-          loopBody, llvm::Twine("codebook gather plan [") +
-                        ::weft::dequantMechanismName(plan.mechanism) + " " +
-                        plan.reason + "] for format '" + plan.provenanceFormat +
-                        "' pins the reproduce-current m1 gather anchor; a non-m1 "
-                        "loadLMUL is phase-3-codebook (c-driven) and not yet realized");
-    // [K-10] dispatch on plan.mechanism == CodebookGather (NOT the format name).
+          loopBody,
+          "codebook gather emitter requires the complete pre-emission selected "
+          "plan stamp; missing fields never trigger local reconstruction");
+
+    std::optional<::weft::CodebookScaleModel> scaleModel =
+        ::weft::parseCodebookScaleModel(scaleModelAttr.getValue());
+    std::optional<::weft::CodebookTable> table =
+        ::weft::parseCodebookTable(tableAttr.getValue());
+    if (!scaleModel || !table)
+      return rewriter.notifyMatchFailure(
+          loopBody,
+          "codebook gather selected stamp carries an unknown scale model/table");
+
+    ::weft::CodebookGatherPlan plan{};
+    plan.mechanism = ::weft::DequantMechanism::CodebookGather;
+    plan.scaleModel = *scaleModel;
+    plan.codebookTable = *table;
+    plan.codebookEntries = entriesAttr.getInt();
+    plan.codebookByteOffset = coreOp.getQuantByteOffsetAttr().getInt();
+    plan.superBlockElements = coreOp.getQkAttr().getInt();
+    plan.weightBlockStride = coreOp.getWeightBlockStrideAttr().getInt();
+    plan.loadLMUL = loadLMULAttr.getValue();
+    plan.stripLanes = stripAttr.getInt();
+    plan.legality.isLegal = true;
+    plan.reason = reasonAttr.getValue();
+    plan.provenanceFormat = decodeModel; // diagnostic mirror only ([F-1])
+
+    // Mechanical boundary validation, not reselection. minimum_vlen/provider
+    // are required trace fields even though intrinsic spelling reads only the
+    // selected plan. The two-widen ceiling bounds the accepted anchor set.
+    if (plan.codebookEntries != 16 || plan.stripLanes <= 0 ||
+        minimumVLENAttr.getInt() <= 0 || providerAttr.getValue().empty() ||
+        (plan.loadLMUL != "mf2" && plan.loadLMUL != "m1" &&
+         plan.loadLMUL != "m2"))
+      return rewriter.notifyMatchFailure(
+          loopBody, "codebook gather selected stamp fails the mechanical "
+                    "emission boundary contract");
     return emitDequantizeRowCodebookVectorBody(rewriter, loc, weightBase, output,
-                                               avlArg, sizeType, opName, role, plan);
+                                               avlArg, sizeType, opName, role,
+                                               plan);
   }
   // Phase-4 (DequantMechanismPlan family #3): the QK_K=256 K-quant super-block family
   // (q2_K/q3_K/q4_K/q5_K/q6_K) decode is assembled into a KQuantScaleMin MechanismPlan
@@ -5194,10 +5195,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
 // {q2_K/q3_K/q4_K/q5_K/q6_K}): CONSTRUCT the typed
 // weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
 // typed_dequantize_row_loop_yield } in place of the abstract weft_rvv.dequantize_row,
-// then LOWER it via emitTypedDequantizeRowLoopBody. The construction is a genuine IR
-// rewrite (the emission is DRIVEN by the typed region op-identity + decode_model, not
-// the abstract format string), so these formats are CONSTRUCTED ([L-6]/[L-8]), not
-// dispatch-wired. Plus the QK_K=256 IQ grid-table super-block family
+// then LOWER it via emitTypedDequantizeRowLoopBody. The abstract format is consulted
+// only by the construction lookup; typed op identity drives the common lowering. The
+// small-codebook mechanism is then driven by its typed mechanism/scale g and complete
+// selected stamp, while KQuant/Grid/Ternary still retain decode_model leaf-selection
+// debt. Thus these formats are CONSTRUCTED ([L-6]/[L-8]), not dispatch-wired. Plus the
+// QK_K=256 IQ grid-table super-block family
 // {iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s} (the fp16 d seam + the grid-of-N codebook
 // gather + the per-format sign plane -- signs64/signs256/ksigns/per-lane sign bytes)
 // and the remaining codebook / ternary-grid extended leaves {iq1_s/iq1_m (ternary
@@ -5230,9 +5233,10 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
 
   // CONSTRUCT the typed weft_rvv.typed_dequantize_row_loop_body region in place of
   // the abstract deqOp (the SAME construction the pre-emitc front door runs), then
-  // LOWER it -- the emission is DRIVEN by the typed region op-identity + decode_model
-  // ([L-6]/[L-8] construction), byte-exact to the retired monolith modulo only the
-  // source-op provenance token.
+  // LOWER it. The abstract format has ended at construction: typed op identity drives
+  // common lowering, and the small-codebook branch consumes typed mechanism/scale g plus
+  // its complete selected stamp. decode_model remains source provenance/coherence there;
+  // KQuant/Grid/Ternary still carry their explicitly bounded leaf-selection debt.
   if (mlir::failed(weftrvv::constructTypedDequantizeRowLoopBody(rewriter, deqOp,
                                                                *facts)))
     return mlir::failure();

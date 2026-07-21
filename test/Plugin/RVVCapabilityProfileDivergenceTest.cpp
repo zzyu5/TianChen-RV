@@ -26,6 +26,7 @@
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Support/CapabilityModel.h"
 
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "llvm/ADT/StringRef.h"
@@ -100,6 +101,13 @@ int runFullVProfileDerivesSEW64() {
   const CapabilityDescriptor *rvv = lookupRVV(*capabilities);
   if (!rvv)
     return fail("full-V capability set missing the RVV preferred capability");
+
+  auto minimumVLEN = llvm::dyn_cast_if_present<mlir::IntegerAttr>(
+      rvv->getPropertyAttribute("minimum_vlen"));
+  if (!minimumVLEN || !minimumVLEN.getType().isSignlessInteger(64) ||
+      minimumVLEN.getInt() != 128)
+    return fail("full-V minimum_vlen must remain a typed i64=128 capability "
+                "property from the production probe projection");
 
   llvm::StringRef supportedSEW = rvv->getProperty("supported_sew");
   if (supportedSEW != "8,16,32,64")

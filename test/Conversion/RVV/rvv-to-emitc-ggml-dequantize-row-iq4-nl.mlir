@@ -6,24 +6,27 @@
 // (format="iq4_nl") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
 // it into the typed weft_rvv.typed_dequantize_row_loop_body region {
 // dequantize_row_decode_core (decode_model "iq4_nl", qk=32, stride=18);
-// typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the typed
-// region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
-// string). It lowers via the OWNED REAL-VECTOR body emitDequantizeRowCodebookVectorBody
+// typed_dequantize_row_loop_yield } and lowers it. Source format/decode_model carry
+// construction identity, coherence, and provenance only; post-construction emission is
+// driven by typed mechanism/scale g plus the complete selected codebook-gather stamp, NOT
+// the abstract format string. It lowers via the OWNED REAL-VECTOR body emitDequantizeRowCodebookVectorBody
 // (B线批2 tiny-codebook fan-out): byte-exact-vs-ggml-reference dequantize_row_iq4_nl by
 // CONSTRUCTION (NOT byte-identical to the scalar monolith -- the CONSTRUCTED path now emits
 // OWNED __riscv_v intrinsics, the dispatch-wired monolith keeps the scalar
 // emitGgmlDequantizeRowExtended): the fp16 d via the (float)*(const _Float16 *) seam, then
-// the 16-entry non-linear codebook broadcast into ONE i8m1 vreg (vle8_v_i8m1, 16) and the
+// for this fixture's VLEN128 c, pre-emission selection chooses i8m1 and the emitter
+// broadcasts the 16-entry non-linear codebook there (vle8_v_i8m1, 16); the
 // two nibble index lanes (vand 0x0F / vsrl 0x04) GATHERED through it (vrgather_vv_i8m1 -- a
 // REGISTER-RESIDENT codebook gather, NOT a vluxei memory gather, so NO HW-gather wall),
 // sign-extended (vsext_vf4), int->float (vfcvt), scaled by d in ONE vfmul (single-mul, no
-// fp-contraction ambiguity), stored (vse32). The codebook is DERIVED at emit as a
-// function-local static. ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery for
+// fp-contraction ambiguity), stored (vse32). Table/scale structure is selected and
+// stamped before emission; the emitter mechanically materializes its function-local
+// static. ISSUE-001 reverse; closes the ISSUE-002 codegen-lottery for
 // iq4_nl dequant.
 
 module {
   weft.exec.kernel @dequant_iq4_nl_kernel {
-    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available", minimum_vlen = 128 : i64, rvv_version = "1.0", supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8", supported_sew = "8,16,32,64"}
     weft.exec.variant @dequant_iq4_nl attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
       %k = weft_rvv.runtime_abi_value {c_name = "k", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
@@ -42,7 +45,8 @@ module {
 // token proves the abstract op went THROUGH weft_rvv.typed_dequantize_row_loop_body).
 // CHECK: route_source_op=weft_rvv.typed_dequantize_row_loop_body
 // The 16-entry non-linear codebook table decl, emitted once above the loop, then
-// broadcast into ONE i8m1 vreg (register-resident, reused by every vrgather).
+// broadcast into the selected i8m1 vreg for this VLEN128 fixture (register-resident,
+// reused by every vrgather).
 // CHECK: static const int8_t weft_dequant_iq4nl_kvalues
 // CHECK: call_opaque "__riscv_vle8_v_i8m1"
 // CHECK: div

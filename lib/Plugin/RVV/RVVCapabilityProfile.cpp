@@ -174,44 +174,35 @@ llvm::Error addAvailableCapability(mlir::MLIRContext &context,
                                                          implies,
                                                          /*conflicts=*/{});
   }
+  // Synthetic probe capabilities preserve the same typed-property contract as
+  // IR-projected descriptors. String facts remain StringAttr; the one numeric
+  // capability consumed as typed c is an i64. This avoids a lossy string-only
+  // seam when a canonical probe set is passed to the shared selected-provider
+  // collector.
+  std::map<std::string, mlir::Attribute> propertyAttributes;
+  for (const auto &[name, value] : properties) {
+    if (name == "minimum_vlen") {
+      std::int64_t parsed = 0;
+      if (llvm::StringRef(value).getAsInteger(10, parsed))
+        return makeRVVCapabilityProfileError(
+            llvm::Twine("synthetic minimum_vlen is not an integer: '") +
+            value + "'");
+      propertyAttributes.emplace(
+          name, mlir::IntegerAttr::get(mlir::IntegerType::get(&context, 64),
+                                      parsed));
+    } else {
+      propertyAttributes.emplace(name,
+                                 mlir::StringAttr::get(&context, value));
+    }
+  }
   return capabilities.tryAddCapability(support::CapabilityDescriptor(
       symbolName, id, kind, kAvailableStatus,
       support::CapabilityAvailability::Available, std::move(properties),
-      relations),
+      relations, std::move(propertyAttributes)),
       "RVV probe capability construction");
 }
 
 } // namespace
-
-// Exported ISA-evidence predicate (declared in RVVCapabilityProfile.h): true iff
-// the hint string names concrete RVV vector evidence. This is the single
-// plugin-local authority both the probe->capability validation
-// (validateRVVProbeCapabilityFacts, below) and the EmitC route-planning
-// capability-property gate reason over, so the RVV vector-hint tokenization lives
-// in ONE place (core-invariants I1/I3).
-bool hasRVVVectorHint(llvm::StringRef hints) {
-  std::string lower = hints.lower();
-  llvm::StringRef normalized(lower);
-  if (normalized.contains("zve") || normalized.contains("zvl") ||
-      normalized.contains("zvfh") || normalized.contains("gcv") ||
-      normalized.contains("xtheadvector"))
-    return true;
-
-  std::size_t position = lower.find("rv64");
-  while (position != std::string::npos) {
-    std::size_t end = position;
-    while (end < lower.size()) {
-      unsigned char byte = static_cast<unsigned char>(lower[end]);
-      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
-        break;
-      ++end;
-    }
-    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
-      return true;
-    position = lower.find("rv64", position + 4);
-  }
-  return false;
-}
 
 // Derives the RVV element-width (SEW) SUPPORT allow-list from the validated ISA
 // evidence (selected -march plus the probed isa/vector hint string). This is a
@@ -760,6 +751,9 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   CapabilityProperties rvvProperties = {
       {"architecture", normalizeFactString(facts.architecture)},
       {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}};
+  if (facts.vlenbBytes)
+    rvvProperties["minimum_vlen"] =
+        std::to_string(facts.vlenbBytes * 8);
   // Derive the SEW / LMUL SUPPORT allow-lists from the validated ISA evidence so
   // a real probed RVV capability carries the divergence axes the legality gate
   // queries (supported_sew / supported_lmul). These are target-capability facts

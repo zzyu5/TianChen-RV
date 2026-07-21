@@ -832,31 +832,27 @@ private:
   static bool isComputedMaskMaskedStoreBody(weftrvv::WithVLOp scope);
 
   /// Capability config gate (I1-honoring). The selected variant's `requires`
-  /// symbols resolve to weft.exec.capability / weft.exec.target provider ops in
-  /// the kernel; those are queryable MLIR objects that may declare
-  /// `supported_sew` / `supported_lmul` as a comma-separated allow-list. If a
-  /// resolved provider declares one of these and it does NOT include the typed
-  /// body's (sew, lmul), the capability gates this body out: fail the match so
-  /// the body falls back to the legacy validator (which rejects it with the
-  /// "supported_sew fact ... does not include typed body SEW" diagnostic).
-  /// Reading the attrs straight off the provider op keeps the capability the
-  /// legality authority -- no string capability model is imported. The gate is
-  /// silent when a provider declares no restriction (the common case).
+  /// symbols resolve through the canonical TargetCapabilitySet. The shared RVV
+  /// selected-provider projection enforces one available, non-conflicting RVV
+  /// provider and supplies validated `supported_sew`, `supported_lmul`,
+  /// RVV-version and policy facts projected from the canonical object. This
+  /// direct gate only compares those shared facts with the typed body; it does
+  /// not scan providers or parse capability token lists independently. A
+  /// missing/empty `requires` selection therefore fails closed, while an absent
+  /// optional restriction remains silent.
   ///
-  /// `bodyRequiresAgnosticPolicy` carries the typed body's ISA-generation
-  /// requirement: a tail/mask-agnostic (ta/ma) policy is a RATIFIED RVV1.0
-  /// feature absent on RVV0.7 (xtheadvector / C920). If the resolved provider
-  /// declares `rvv_version` = "0.7" and the body requires the agnostic policy,
-  /// the capability gates this body out the same way -- this is the N1
-  /// ISA-generation divergence, gated on the version CAPABILITY FACT (I3: no
-  /// family-name / march-string branch). The gate is silent when the provider
-  /// declares no `rvv_version` or declares "1.0".
+  /// `bodyPolicy` remains typed through the comparison. In addition to exact
+  /// `required_tail_policy` / `required_mask_policy` matching, a fully
+  /// tail/mask-agnostic body carries the RATIFIED RVV1.0 requirement absent on
+  /// RVV0.7 (xtheadvector / C920). That ISA-generation divergence is gated only
+  /// on the selected provider's `rvv_version` fact (I3: no family-name or
+  /// march-string branch). An absent version fact remains non-restrictive.
   mlir::LogicalResult
   checkCapabilityConfigGate(mlir::ConversionPatternRewriter &rewriter,
                             weft::exec::VariantOp variant,
                             weft::exec::KernelOp kernel, unsigned bodySEW,
                             llvm::StringRef bodyLMUL,
-                            bool bodyRequiresAgnosticPolicy) const;
+                            weftrvv::PolicyAttr bodyPolicy) const;
 
   /// load(%abi, %vl) -> ptr = base + i; __riscv_vle<sew>_v_<dtype><lmul>(ptr, vl)
   /// When `extraOffset` is set, a SECOND pointer add is emitted after the
@@ -5189,26 +5185,28 @@ private:
   ///   iq4_nl : fp16 d flat scale,              qk=32  stride=18  qsOff=2  kvalues_iq4nl
   ///   nvfp4  : four UE4M3 sub-block scales,    qk=64  stride=36  qsOff=4  kvalues_mxfp4
   ///   iq4_xs : fp16 d + signed-6 sub scale,    qk=256 stride=136 qsOff=8  kvalues_iq4nl
-  /// The 16-entry int8 codebook is broadcast into ONE i8m1 vreg ONCE
-  /// (vle8_v_i8m1, 16); every group's two nibble index lanes (vand 0x0F / vsrl 0x04,
-  /// u8m1) are gathered through it (vrgather_vv_i8m1 -> signed-i8 codebook lanes -- a
+  /// The 16-entry int8 codebook is broadcast into ONE selected i8<LMUL> vreg ONCE;
+  /// every group's two nibble index lanes (vand 0x0F / vsrl 0x04 at that LMUL)
+  /// are gathered through it (vrgather_vv_i8<LMUL> -> signed-i8 codebook lanes -- a
   /// REGISTER-RESIDENT codebook gather, NOT a vluxei memory gather, so NO HW-gather
-  /// wall), sign-extended (vsext_vf4 -> i32m4), int->float (vfcvt -> f32m4), scaled by
+  /// wall), directly sign-extended (vsext_vf4 -> i32<4*LMUL>), int->float converted,
+  /// scaled by
   /// the per-group float scale (vfmul_vf, ONE rounding == ggml's single `d*kv` mul ->
   /// no fp-contraction ambiguity), and stored (vse32). N = 16 (mxfp4/iq4_nl/iq4_xs
-  /// half-group) or 8 (nvfp4 sub-half); the i8m1 / i32m4 / f32m4 LMULs are DERIVED from
-  /// the fixed group width (VLEN128: i8m1 VLMAX 16 >= the 16-entry codebook AND the
-  /// 16-lane half-group; i32m4 VLMAX 16). The integer nibble/codebook/scale decode
+  /// half-group) or 8 (nvfp4 sub-half). Capability c selects the narrowest complete
+  /// emitted chain: VLEN64 uses i8m2 -> i32m8/f32m8, VLEN128 uses
+  /// i8m1 -> i32m4/f32m4, while VLEN256 with explicit fractional support uses
+  /// i8mf2 -> i32m2/f32m2. The integer nibble/codebook/scale decode
   /// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte. Byte-exact to
   /// ggml's dequantize_row_{mxfp4,nvfp4,iq4_nl,iq4_xs} by construction. Streaming
   /// sibling of emitDequantizeRowQ8_0VectorBody (no accumulator).
   ///
   /// Phase-4 (DequantMechanismPlan family #2): the per-format geometry (qk / stride /
   /// qs offset / table / scale model / gather anchor LMUL / strip lanes) is READ from the
-  /// CodebookGather MechanismPlan (weft::CodebookGatherPlan) the FormulaProvider
-  /// codebookGatherPlanFromFacts produced, INSTEAD of re-derived from the format name.
-  /// Byte-exact reproduce-current; the plan pins loadLMUL/stripLanes to the FIXED
-  /// ggml-ABI codebook geometry (phase-3-codebook c-drives loadLMUL = f(VLEN)).
+  /// CodebookGather MechanismPlan (weft::CodebookGatherPlan) selected and stamped by
+  /// the pre-emission formula materializer, INSTEAD of re-derived from the format name.
+  /// The emitter is mechanical: it reads the complete stamp; c drives loadLMUL through
+  /// table VLMAX plus the actually emitted direct-vf4 destination LMUL contract.
   mlir::LogicalResult emitDequantizeRowCodebookVectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,

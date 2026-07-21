@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "snapshot": {
-    "scope": "A1 authority baseline updated after the A2 typed-decision cutover",
+    "scope": "A1 authority baseline updated after the A3 small-codebook selected-plan cutover",
     "rule": "This is a HEAD characterization, not the target architecture. Every debt row is bound to a Trellis task and issue.",
     "decision_count": 8
   },
@@ -44,31 +44,38 @@
     },
     {
       "id": "dequant.codebook",
-      "actual_owner": "weft::plugin::rvv::codebookGatherPlanFromFacts",
+      "actual_owner": "weft::plugin::rvv::decideCodebookGather plus the unique RVV backend pre-conversion materializer",
       "g": [
-        "DequantizeRowStreamFacts.{qk,weightBlockStride,quantByteOffset}",
-        "CodebookScaleModel supplied by an emitter-local decode_model StringSwitch"
+        "construction-owned DequantizeRowDecodeCoreOp.{dequant_mechanism,codebook_scale_model,qk,weightBlockStride,scaleByteOffset,quantByteOffset}",
+        "the four production layouts consume one shared CodebookGatherLayoutFacts canonical row from both construction and formula; table cardinality is the structural constant 16"
       ],
       "c": [
-        "minimumVLEN argument is supplied as literal 128 and ignored",
-        "getRVVCodebookGatherAnchorLMUL exists but is not used by this plan provider"
+        "direct conversion and registry planning share the canonical capability set, unique selected available non-conflicting RVV provider collector, and one token predicate; the provider supplies typed minimum_vlen",
+        "supported_sew restricts SEW8/32 and supported_lmul covers both the emitted i8 anchor and direct-vf4 i32/f32 destination; absent lists use the base-V contract while explicit empty/unknown facts reject",
+        "fractional mf2 requires an explicit token or RVV1.0 positive evidence",
+        "optional required_tail_policy and required_mask_policy are typed single-value enums; explicit empty, wrong type, and unknown values reject"
       ],
       "omega": [
-        "honest-null: no measurement participates"
+        "CodebookGatherNoStaticContext: explicit honest-null; no measurement participates"
       ],
-      "provider": "lib/Conversion/RVV/RVVToEmitCSupport.cpp :: codebookGatherPlanFromFacts",
-      "legal_set": "legality.isLegal is only !constant-m1.empty(); it is not a capability-derived gather-span check",
-      "selection": "decode_model StringSwitch selects CodebookScaleModel inside the emitter",
-      "stamp": "layout g is stamped; selected CodebookGatherPlan/loadLMUL is not stamped",
+      "provider": "include/Weft/Plugin/RVV/RVVFormulaDecision.h :: decideCodebookGather; lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp projects c and stamps once",
+      "legal_set": "bounded declared {mf2,m1,m2}; VLMAX_e8 must cover 16 entries, SEW8/32 must be supported, and the actual direct-vf4 destination LMUL must be supported and no wider than m8",
+      "selection": "the narrowest legal anchor inside the declared realized set is selected: m2 at VLEN64, m1 at VLEN128, mf2 at VLEN256 with fractional evidence",
+      "stamp": "construction g is stamped first; backend preparation writes all seven selected fields atomically or verifies an existing full stamp against recomputed g+c; partial/stale/forged stamps reject",
       "consumer": "emitDequantizeRowCodebookVectorBody",
-      "emission": "plan geometry is load-bearing; capability input is not",
+      "emission": "the emitter reads only typed mechanism/scale plus the complete selected stamp and mechanically derives intrinsic names; it does not resolve c, invoke the formula, or map decode_model to a leaf; parent/core provenance must agree but does not control the emission gate or math-header side effect",
       "classification": [
         "analytic",
         "constant",
         "honest-null"
       ],
       "tests": [
-        "test/Conversion/RVV/rvv-dequantize-row-codebook-gather-plan-load-bearing.mlir"
+        "test/Plugin/rvv-formula-decision.test",
+        "test/Plugin/rvv-capability-profile-divergence.test",
+        "test/Conversion/RVV/rvv-target-capability-direct-registry-parity.mlir",
+        "test/Conversion/RVV/rvv-dequantize-row-codebook-gather-plan-load-bearing.mlir",
+        "test/Conversion/RVV/rvv-dequantize-row-codebook-capability-decisive.mlir",
+        "test/Conversion/RVV/rvv-dequantize-row-codebook-capability-negative.mlir"
       ]
     },
     {
@@ -251,32 +258,32 @@
   ],
   "debts": [
     {
-      "name": "dequant c seam is decorative",
+      "name": "remaining non-codebook dequant c seams are decorative or honest-null-but-untyped",
       "issue": "ISSUE-117",
-      "owner_task": ".trellis/tasks/07-20-a3-dequant-c-driven-plans",
+      "owner_task": ".trellis/tasks/07-20-a8-baked-g-convergence",
       "retire": [
-        "four remaining (void)minimumVLEN bodies (Codebook/KQuant/Grid/Ternary)",
-        "four remaining /*minimumVLEN=*/128 emitter calls for the declared c-driven slice"
+        "three remaining (void)minimumVLEN bodies (KQuant/Grid/Ternary)",
+        "three remaining /*minimumVLEN=*/128 emitter calls outside the completed Codebook slice"
       ],
-      "killing_test": "Add a VLEN128/VLEN256 plan-field or legal-set mutation whose emitted consumer changes, plus missing/conflicting capability fail-closed."
+      "killing_test": "For each remaining mechanism, either prove and type a real c-driven fork or remove the decorative seam as honest-null without manufacturing a capability axis."
     },
     {
       "name": "dequant mechanism leaf is selected again from decode_model in the emitter",
       "issue": "ISSUE-119",
       "owner_task": ".trellis/tasks/07-20-a8-baked-g-convergence",
       "retire": [
-        "four emitter-local StringSwitch<optional plan leaf> mappings",
-        "emitter reconstruction of DequantizeRowStreamFacts"
+        "three remaining emitter-local StringSwitch<optional plan leaf> mappings for KQuant/Grid/Ternary",
+        "remaining emitter reconstruction of non-codebook mechanism facts"
       ],
       "killing_test": "A synthetic typed-g leaf must reach an existing mechanism without adding an emitter format branch; forged/missing typed g must fail closed."
     },
     {
-      "name": "dequant selected plans are transient and verifier cannot reject a stale selected result",
+      "name": "remaining non-codebook dequant selected plans are transient",
       "issue": "ISSUE-122",
       "owner_task": ".trellis/tasks/07-20-a4-single-authority-stamping",
       "retire": [
-        "provider invocation inside emitTypedDequantizeRowLoopBody",
-        "unstamped selected plan state"
+        "Nibble/KQuant/Grid/Ternary provider invocation inside emitTypedDequantizeRowLoopBody",
+        "their unstamped selected plan state; Codebook is already complete and forged-stamp checked"
       ],
       "killing_test": "Forge a selected plan/stamp inconsistent with typed g+c and require verifier rejection before emission."
     },
@@ -358,8 +365,27 @@
     {
       "path": "test/Conversion/RVV/rvv-dequantize-row-codebook-gather-plan-load-bearing.mlir",
       "needles": [
-        "MUTQS",
-        "MUTSTRIP"
+        "BADG",
+        "rejected-invalid-geometry"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-codebook-capability-decisive.mlir",
+      "needles": [
+        "check-prefix=V256",
+        "__riscv_vle8_v_i8mf2",
+        "check-prefix=M2",
+        "__riscv_vsext_vf4_i32m8",
+        "check-prefix=BASE256",
+        "--weft-materialize-emitc-lowerable-routes"
+      ]
+    },
+    {
+      "path": "test/Conversion/RVV/rvv-dequantize-row-codebook-capability-negative.mlir",
+      "needles": [
+        "AMBIGUOUS",
+        "PARTIAL",
+        "FORGED"
       ]
     },
     {
@@ -422,6 +448,11 @@
   ],
   "source_contracts": [
     {
+      "path": "test/Plugin/RVVCapabilityProfileDivergenceTest.cpp",
+      "needle": "getPropertyAttribute(\"minimum_vlen\")",
+      "count": 1
+    },
+    {
       "path": "include/Weft/Plugin/RVV/RVVFormulaDecision.h",
       "needle": "inline NibbleDecodeDecision decideNibbleDecode(",
       "count": 1
@@ -432,19 +463,24 @@
       "count": 1
     },
     {
+      "path": "include/Weft/Plugin/RVV/RVVFormulaDecision.h",
+      "needle": "inline CodebookGatherDecision decideCodebookGather(",
+      "count": 1
+    },
+    {
       "path": "lib/Conversion/RVV/RVVToEmitCSupport.cpp",
       "needle": "(void)minimumVLEN;",
-      "count": 4
+      "count": 3
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
       "needle": "/*minimumVLEN=*/128",
-      "count": 4
+      "count": 3
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
       "needle": "StringSwitch<std::optional<::weft::",
-      "count": 4
+      "count": 3
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
@@ -464,7 +500,37 @@
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
       "needle": "::weft::plugin::rvv::codebookGatherPlanFromFacts",
+      "count": 0
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVGearboxSchedule.h",
+      "needle": "codebookGatherPlanFromFacts",
+      "count": 0
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCSupport.cpp",
+      "needle": "codebookGatherPlanFromFacts",
+      "count": 0
+    },
+    {
+      "path": "include/Weft/Plugin/RVV/RVVGearboxSchedule.h",
+      "needle": "getRVVCodebookGatherAnchorLMUL(",
       "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVToEmitCCodebookFp4.cpp",
+      "needle": "getRVVCodebookGatherAnchorLMUL(",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp",
+      "needle": "pluginrvv::decideCodebookGather(",
+      "count": 1
+    },
+    {
+      "path": "lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp",
+      "needle": "lookupDequantizeRowStreamFacts(core.getDecodeModel())",
+      "count": 0
     },
     {
       "path": "lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp",
