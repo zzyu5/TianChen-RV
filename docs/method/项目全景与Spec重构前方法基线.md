@@ -400,7 +400,7 @@ Issue 记录真实缺口和反例；task 只在后续具体、多阶段工作需
 
 ## 10. 第一轮真正重构什么
 
-第一轮不重写整个 compiler，也不只围绕 q5_1。它应完成一个代表性的纵向切片，使后续维护者第一次能清楚回答：公式在哪里、消费什么、产生什么、覆盖哪些行为，以及旧的重复 authority 如何退出。
+第一轮不是挑一个特性做纵向样板，也不是再迁移少数公式后把其余留给“后续”。它必须横向建立完整、干净的 formula/construction layer：对当前所有承重解析决策做一次全域盘点，并把每一项迁入新结构、判定为非公式后归回正确 owner，或删除。任务结束时不能存在“新层覆盖五个公式、旧层继续承载其余公式”的双轨状态。
 
 目标结构是：
 
@@ -418,16 +418,18 @@ typed operator / format facts g
 
 第一轮 task 必须同时做到：
 
-1. 选定一条真实 production family slice，而不是 test-only fixture；
-2. 把 `g`、`c`、`ω` 作为独立 typed 输入，证明各自被真实消费；
-3. 建立小而清楚的 family-local formula 集合和唯一调用位置，不建 global Formula service；
-4. formula 输出必须改变真实 candidate、typed body 参数、resource/legality requirement 或 analytic prior；
-5. 给公式集合建立行为覆盖：每条公式至少有适用、边界/拒绝和关键输入变化测试，不用源码行数或伪字段充数；
-6. 清退该 slice 中被证明错误的 late decision、planner replay、mirror state、selector/emitter 双重 authority 和只服务旧 campaign 的机制；
-7. 保留真正的 IR/ABI/ISA safety verifier、fallback、oracle 和 backend lowering；
-8. 更新相关 architecture/spec，使新增公式、能力和 residual 的位置可由维护者直接找到。
+1. **完整公式 census 后立即收敛**：枚举当前全部 production analytic/formula decisions、真实 caller、`g/c/ω` 输入、typed 输出和下游 consumer；census 是迁移清单，不是长期治理仪式。
+2. **一次建立公共最小契约**：所有 formula 采用同一套轻量输入/结果语义和调用阶段；具体实现与知识继续 family-local，不建 global Formula IR、表达式 DSL 或深层 provider hierarchy。
+3. **`g/c/ω` 真正解耦**：格式/operator facts、canonical capability 与 bounded context 独立建模；公式只声明和消费真实需要的字段，不用预烘焙 tuple、board 名或 format-specific winner 伪装解耦。
+4. **完整公式集合可见**：建立维护者可直接查看的 formula catalog/index，列出每个公式的 owner、输入轴、输出、适用域和 production caller；catalog 由真实注册/代码结构产生或与其同源，不能成为第二份 authority。
+5. **所有当前公式一次迁完**：盘点出的每个公式要么进入新层并由 production path 消费，要么明确归为 mechanism、boundary、selector/residual 或 backend lowering 并退出“公式”名义；不得留下兼容旧入口和未迁公式债务。
+6. **输出真实承重**：formula 结果必须改变 candidate、mechanism composition、typed body 参数、resource/legality requirement、layout/schedule 或 analytic prior；reason、stamp、provenance 和 optional field 不能冒充公式结果。
+7. **错误机制横向退出**：清退所有与公式层重叠的 late decision、planner replay、mirror state、selector/emitter 二次决策、只为 selected-stamp 生命周期服务的 materializer/reader，以及旧 campaign 的兼容双轨；同一决定只保留一个 owner。
+8. **覆盖率一次闭合**：对完整公式集合建立行为覆盖，而非只统计文件/函数。每个公式至少覆盖适用、边界/拒绝、关键 `g/c/ω` 变化和 downstream code/IR effect；同时报告 production caller coverage 与未覆盖项，任务完成时未覆盖公式为零。
+9. **安全边界不误删**：保留真正的 IR/ABI/ISA verifier、fallback、reference oracle 和 backend lowering；它们保护语义与实现，但不重算公式。
+10. **文档与扩展入口同步完成**：architecture/spec 必须让维护者直接知道新增 operator/format、capability、mechanism、formula、residual 和 backend 分别写在哪里，并给出一个完整扩展示例。
 
-flat repack/q5_1、Codebook/KQuant 和 IME 仍是后续代表性证据候选，分别检验格式组合、不同 mechanism topology 和 backend family 扩展；第一轮具体选择以当前源码中能形成最小完整 production 纵向闭环的 slice 为准。
+flat repack/q5_1、Codebook/KQuant、IME 等不再是分期迁移批次，而是横向公式层完成后用于证明不同知识拓扑、operation 和 backend family 都已经接入同一干净结构的代表性检查点。
 
 ## 11. 收束
 
