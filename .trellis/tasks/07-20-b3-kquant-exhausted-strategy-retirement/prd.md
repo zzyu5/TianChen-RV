@@ -55,15 +55,15 @@
 
 ## Acceptance Criteria
 
-- [ ] active production roots 中四个 exact sentinel 的 producer/propagator/consumer/helper 为 0。
-- [ ] active positive-enable tests 为 0；旧 sentinel 输入由通用 verifier fail-closed。
-- [ ] `integer_core_lmul` 合法域唯一为 `{mf2,m1,m2}`，无兼容 alias。
-- [ ] canonical q4_K 与 q5_K emitted C 在删除前后 byte-identical。
-- [ ] q4_K min-active 与 q5_K qh 等 focused correctness 仍通过。
-- [ ] clean build、focused lit 与全量 `check-weft` 无新增失败。
-- [ ] live bench/profile/env 中不存在四策略 setter；历史 archive/issue 仍可追溯。
-- [ ] ISSUE-109 明确标为 exact campaign 已证伪并退役，且不声称性能问题被修复。
-- [ ] master、性能数字、板册、分母和科研主张零改动。
+- [x] active production roots 中四个 exact sentinel 的 producer/propagator/consumer/helper 为 0。
+- [x] active positive-enable tests 为 0；旧 sentinel 输入由通用 verifier fail-closed。
+- [x] `integer_core_lmul` 合法域唯一为 `{mf2,m1,m2}`，无兼容 alias。
+- [x] canonical q4_K 与 q5_K emitted C 在删除前后 byte-identical。
+- [x] q4_K min-active 与 q5_K qh 等 focused correctness 仍通过。
+- [x] clean build、focused lit 与全量 `check-weft` 无新增失败。
+- [x] live bench/profile/env 中不存在四策略 setter；历史 archive/issue 仍可追溯。
+- [x] ISSUE-109 明确标为 exact campaign 已证伪并退役，且不声称性能问题被修复。
+- [x] master、性能数字、板册、分母和科研主张零改动。
 
 ## Verification
 
