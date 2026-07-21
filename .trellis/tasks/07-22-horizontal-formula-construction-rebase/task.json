@@ -1,0 +1,33 @@
+{
+  "id": "horizontal-formula-construction-rebase",
+  "name": "horizontal-formula-construction-rebase",
+  "title": "横向公式/构造层重基",
+  "description": "一次性把所有当前可达 operator construction entry 迁入唯一 family-local typed formula/construction authority，闭合 g/c/ω 消费与动态覆盖门，并删除旧双 authority。",
+  "status": "in_progress",
+  "dev_type": "refactor",
+  "scope": "project-wide-architecture",
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-07-22",
+  "completedAt": null,
+  "branch": "refactor/full-refactor-m1",
+  "base_branch": "refactor/full-refactor-m1",
+  "worktree_path": "/home/kingdom/phdworks/TianchenRV",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/architecture/公式层与覆盖.md",
+    ".trellis/spec/architecture/变体流水线.md",
+    ".trellis/spec/architecture/退役与原子合入.md"
+  ],
+  "notes": "本任务是 RET-F 横向原子迁移；不得按公式、format 或 backend 拆成可合入的纵向半成品。",
+  "meta": {
+    "cutover": "RET-F",
+    "baseline_commit": "ed630e720e69e11fb35d5704e1b0911211d61d5f"
+  }
+}

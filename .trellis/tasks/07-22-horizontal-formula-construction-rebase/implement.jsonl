@@ -1,0 +1,14 @@
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"横向 scope、formula 定义、g/c/ω 与四类覆盖的稳定契约"}
+{"file":"include/Weft/Plugin/ExtensionPlugin.h","reason":"薄 descriptor/catalog 与 source/proposal/cost owner 关联"}
+{"file":"lib/Plugin/ExtensionPlugin.cpp","reason":"registry 收集、唯一性和 production linkage"}
+{"file":"lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp","reason":"所有 builtin plugin 的 catalog 枚举入口"}
+{"file":"include/Weft/Plugin/RVV/RVVFormulaDecision.h","reason":"RVV family-local typed formulas 与 formula/selector 分离"}
+{"file":"include/Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h","reason":"dequant 全 mechanism 的 typed construction facts/plan"}
+{"file":"lib/Dialect/RVV/IR/RVVDequantizeRowConstruction.cpp","reason":"从 g/c/ω 构造完整 mechanism/leaf facts"}
+{"file":"lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp","reason":"推广为全 dequant emission 前 plan materialization"}
+{"file":"lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp","reason":"删除 emitter-side formula/redecision，只消费 typed selected plan"}
+{"file":"lib/Plugin/RVV/RVVLowerQuantContraction.cpp","reason":"direct route、contraction 与 repack formula/measurement selector 分离"}
+{"file":"include/Weft/Plugin/RVV/RVVGearboxSchedule.h","reason":"登记并收口 schedule/resource/tiling/numerics authority"}
+{"file":"lib/Plugin/RVV/RVVSelectedBodyRealization.cpp","reason":"selected typed body 的唯一 realization consumer"}
+{"file":"experiments/active/formula-layer-migration/","reason":"退役不完整的 8-row active authority matrix"}
+

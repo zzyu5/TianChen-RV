@@ -1,0 +1,5 @@
+{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"builtin registry、catalog、entry/caller linkage 与动态覆盖门"}
+{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"g/c/ω edge、honest-null、formula/selector 分离"}
+{"file":"test/Conversion/RVV/","reason":"全 dequant mechanism plan、missing/illegal stamp 与 emitter consumption"}
+{"file":"test/Scripts/","reason":"旧 authority/caller denylist、core family branch 与 hidden target read"}
+{"file":"build/weft","reason":"focused unit/lit 与完整 check-weft"}
