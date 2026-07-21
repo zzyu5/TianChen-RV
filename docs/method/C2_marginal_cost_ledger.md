@@ -1,5 +1,7 @@
 # C3′ 模式库构造经济学 ledger — block-quant decode 格式 typed 构造
 
+> **历史参考，不是当前方法或 C2 正本。** 本文件保留旧扩展接入、复用与构造成本材料；2026-07-21 的第一性原理重构裁决与 A/B 双线交接见 [README.md](./README.md)。其中旧贡献编号、gate、byte-exact 门和 family demo 不能覆盖新裁决。
+
 > **贡献归属(2026-07-10 正名)**:本 ledger 属 **C3′(能力键控优化模式库)的构造经济学 /
 > 成熟编译器覆盖轴**,量的是 **decode 格式**(q4_K/q5_K/…/iq*)从 monolith→constructed 的
 > **构造边际成本**。**这不是 C2**:C2 = 独立 **extension family**(RVV/IME/scalar/zvfh)的
