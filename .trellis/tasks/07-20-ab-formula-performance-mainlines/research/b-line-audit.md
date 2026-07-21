@@ -2,7 +2,7 @@
 
 ## Verified Current State
 
-- official runner 与三目的地已建，self-test 11/11。
+- official runner 与三目的地已建，B2 后 bench tooling self-test 17/17；该数字只证明 route/parser/runner contract，不是板上性能通过数。
 - 现有 cell harness：dequantize_row、vec_dot、gemm_tile、product_reduce、scalar_vec_dot。
 - T3 两张板源表 disposition recon 为 119/119、86/86 全分类；`perf_covered_metrics.py report` 当前快照为 9/83 且三源一致。
 - deployed ggml、代表性 strong opponent 与 e2e 都已有资产，三者证明不同性质，必须保留并分账。
@@ -12,7 +12,7 @@
 
 1. B1：measurement control plane——资产矩阵、master ownership、regime/reader 默认、qualification/T-N。
 2. B2：bench cell coverage 与 correctness hardening——q2/q3/q5 K-quant vec_dot、k1、q4_K min-term、scalar/product_reduce 路由。
-3. B3：K-quant vec_dot 强对手攻坚——承接 ISSUE-109，先做跨 super-block MLP/真实瓶颈，不复试已证伪杠杆。
+3. B3：K-quant 已证伪策略退役——07-18 MLP campaign 已完成但结果为负，ISSUE-109 明确 STOP；删除仍在 production 的 `fused`/`vwredsum`/`minterm-vec`/`mlp` sentinel 与专属实现，负证据留 archive/issue/Git。
 4. B4：dequant grid/codebook 性能边界——承接 ISSUE-107/100，区分公式墙与 compiler/gather 脾气墙。
 5. B5：GEMM/shape/deployed ggml 路——候选、合法性、实际派发与 strong opponent 分列。
 6. B6：e2e 传导与 A 线重构前后 paired regression——正向收益和 wash 同权。
@@ -20,12 +20,12 @@
 ## DAG
 
 ~~~text
-B1 → B2 ─┬→ B3 ─┐
-         ├→ B4 ─┼→ B6
-         └→ B5 ─┘
+B1 → B2 ─┬→ B3(retirement)
+         ├→ B4 ─┐
+         └→ B5 ─┴→ B6
 ~~~
 
-B3/B4/B5 的分析和代码可并行；同一真板由单 owner 串行打包。B6 等待至少一个候选族闭环和 A 线对应切片落地。
+B3 与 A3 touch set 不相交，可用独立 worktree 并行；B4/B5 的分析和代码也可分片，但同一真板由单 owner 串行打包。B6 等待至少一个真实候选族闭环和 A 线对应切片落地。MLP 不再属于 pending 实验。
 
 ## Guardrails
 

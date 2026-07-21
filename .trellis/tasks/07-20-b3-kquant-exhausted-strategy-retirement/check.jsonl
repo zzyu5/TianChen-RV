@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查 producer/consumer/bridge/dormant branch 为零"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "检查 canonical semantics 与 fail-closed"}
+{"file": ".trellis/spec/measurement/正确性门.md", "reason": "q4 MIN/q5 qh 与 CORE==PROD 回归"}
+{"file": ".trellis/spec/evidence/工件与实验参照.md", "reason": "负证据保留且不误改 master/claim"}
+{"file": ".trellis/spec/issues/index.md", "reason": "issue 状态与唯一登记一致"}

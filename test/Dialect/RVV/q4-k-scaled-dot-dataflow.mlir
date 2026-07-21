@@ -54,20 +54,38 @@ module {
 
 // -----
 
-// Accept the ISSUE-109 "vwredsum" integer_core_lmul anchor (the aux8-free
-// per-sub-block independent vwredsum.vs reduce lever, q4_K non-qh only). It must
-// roundtrip unchanged.
-// CHECK-LABEL: weft.exec.kernel @q4_k_scaled_dot_accepts_vwredsum_anchor
+// The retired ISSUE-109 "fused" strategy token is an ordinary unknown value:
+// no compatibility alias or dormant dispatch path remains.
 module {
-  weft.exec.kernel @q4_k_scaled_dot_accepts_vwredsum_anchor {
+  weft.exec.kernel @q4_k_scaled_dot_rejects_retired_fused {
     weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %aux8 = weft_rvv.runtime_abi_value {c_name = "aux8", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-unpacked", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %scales = weft_rvv.runtime_abi_value {c_name = "scales", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-scales", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_accepts_vwredsum_anchor", status = "selected-lowering-boundary"} {
-        // CHECK: integer_core_lmul = "vwredsum"
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_retired_fused", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2"}}}
+        %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "fused", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+      } : !weft_rvv.vl
+    }
+  }
+}
+
+// -----
+
+// The retired ISSUE-109 "vwredsum" strategy token is an ordinary unknown value:
+// no compatibility alias or dormant dispatch path remains.
+module {
+  weft.exec.kernel @q4_k_scaled_dot_rejects_retired_vwredsum {
+    weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %aux8 = weft_rvv.runtime_abi_value {c_name = "aux8", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-unpacked", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %scales = weft_rvv.runtime_abi_value {c_name = "scales", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-scales", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
+      %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_retired_vwredsum", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2"}}}
         %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "vwredsum", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }
@@ -76,20 +94,18 @@ module {
 
 // -----
 
-// Accept the ISSUE-109 "minterm-vec" integer_core_lmul anchor (the aux8-free
-// vwredsum block-dot PLUS the wide-LMUL vectorized MIN-term reduction, q4_K
-// non-qh only). It must roundtrip unchanged.
-// CHECK-LABEL: weft.exec.kernel @q4_k_scaled_dot_accepts_minterm_vec_anchor
+// The retired ISSUE-109 "minterm-vec" strategy token is an ordinary unknown value:
+// no compatibility alias or dormant dispatch path remains.
 module {
-  weft.exec.kernel @q4_k_scaled_dot_accepts_minterm_vec_anchor {
+  weft.exec.kernel @q4_k_scaled_dot_rejects_retired_minterm_vec {
     weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %aux8 = weft_rvv.runtime_abi_value {c_name = "aux8", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-unpacked", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %scales = weft_rvv.runtime_abi_value {c_name = "scales", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-scales", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_accepts_minterm_vec_anchor", status = "selected-lowering-boundary"} {
-        // CHECK: integer_core_lmul = "minterm-vec"
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_retired_minterm_vec", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2"}}}
         %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "minterm-vec", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }
@@ -98,21 +114,18 @@ module {
 
 // -----
 
-// Accept the ISSUE-109 "mlp" integer_core_lmul anchor (the memory-scheduling lever:
-// the "minterm-vec" register-resident dataflow STACKED with intra-super-block WIDE
-// MULTI-STREAM register-resident loads, q4_K non-qh only). It must roundtrip
-// unchanged.
-// CHECK-LABEL: weft.exec.kernel @q4_k_scaled_dot_accepts_mlp_anchor
+// The retired ISSUE-109 "mlp" strategy token is an ordinary unknown value:
+// no compatibility alias or dormant dispatch path remains.
 module {
-  weft.exec.kernel @q4_k_scaled_dot_accepts_mlp_anchor {
+  weft.exec.kernel @q4_k_scaled_dot_rejects_retired_mlp {
     weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %aux8 = weft_rvv.runtime_abi_value {c_name = "aux8", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "q4-unpacked", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %scales = weft_rvv.runtime_abi_value {c_name = "scales", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-scales", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_accepts_mlp_anchor", status = "selected-lowering-boundary"} {
-        // CHECK: integer_core_lmul = "mlp"
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_retired_mlp", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2"}}}
         %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "mlp", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }
@@ -257,13 +270,9 @@ module {
 
 // -----
 
-// Reject an illegal integer_core_lmul value. The legal set is {"mf2","m1","m2",
-// "fused","vwredsum","minterm-vec","mlp"} (the base LMUL of the i8 -> i16 -> i32
-// integer-MAC chain, plus the ISSUE-109 "fused" register-resident aux8-free
-// anchor, the "vwredsum" per-sub-block independent-reduce anchor, the
-// "minterm-vec" vectorized-min-term anchor, and the "mlp" wide multi-stream
-// register-resident load anchor; "m4" would need an illegal i32m16
-// product). Fail-closed (I7).
+// Reject an illegal integer_core_lmul value. The legal deployment domain is
+// exactly {"mf2","m1","m2"}; "m4" would require an illegal i32m16 product.
+// Fail-closed (I7).
 module {
   weft.exec.kernel @q4_k_scaled_dot_rejects_illegal_lmul {
     weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
@@ -273,7 +282,7 @@ module {
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_illegal_lmul", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2", "fused", "vwredsum", "minterm-vec", "mlp"}}}
+        // expected-error @+1 {{requires integer_core_lmul in {"mf2", "m1", "m2"}}}
         %d = weft_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "m4", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }

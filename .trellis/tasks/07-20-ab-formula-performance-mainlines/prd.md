@@ -61,7 +61,7 @@ ab-formula-performance-mainlines
 └── b-real-performance-progress
     ├── b1-measurement-control-plane
     ├── b2-bench-cell-coverage
-    ├── b3-kquant-vecdot-strong-opponent
+    ├── b3-kquant-exhausted-strategy-retirement
     ├── b4-dequant-grid-codebook-attack
     ├── b5-gemm-deployed-path
     └── b6-e2e-transduction-regression
@@ -74,9 +74,9 @@ A1 → A2 → A3 → A4 ─┬→ A5
  │     └────→ A8    └→ A6
  └──────────→ A7
 
-B1 → B2 ─┬→ B3 ─┐
-         ├→ B4 ─┼→ B6
-         └→ B5 ─┘
+B1 → B2 ─┬→ B3(retirement)
+         ├→ B4 ─┐
+         └→ B5 ─┴→ B6
 
 B1 → A5
 A3/A4 → B6 paired regression
@@ -93,9 +93,9 @@ A6 → B5/B6 的 IME 证据入口
 
 ## Recommended Multi-Agent Waves
 
-1. **Wave 1**：A1、B1 与 A7 分独立 worktree；A7 与 B3 的 K-quant emitter 修改严格串行。A8 只做 HEAD census/classification，不改共享 contract。
+1. **Wave 1**：A1、B1 与 A7 分独立 worktree；A8 只做 HEAD census/classification，不改共享 contract。
 2. **Wave 2**：A2 与 B2 施工；B3/B4 只做瓶颈和对手只读分析。
-3. **Wave 3**：A3 与 A8 按不相交文件串行/分片施工；B3/B4/B5 按不同 emitter/harness 分片施工，真板由单 owner 串行。A5 只准备 B1 view 的 selector adapter，不另建 reader。
+3. **Wave 3**：A3 与 B3 按不相交的 codebook-dequant / K-quant-retirement 文件在独立 worktree 并行；B4/B5 按不同 emitter/harness 分片施工，真板由单 owner 串行。A5 只准备 B1 view 的 selector adapter，不另建 reader。
 4. **Wave 4**：A4 统一收口共享 authority；随后 A5/A6 与已稳定的 B5 按 touch set 并行。
 5. **Wave 5**：B6 汇总 A 线前后 paired regression 与 e2e 传导。
 
