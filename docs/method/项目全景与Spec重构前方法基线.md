@@ -1,19 +1,33 @@
 # Weft-RV 项目全景与 Spec 重构前方法基线
 
-> **性质**：2026-07-21 的内部长期维护方法文档；已吸收 [ARS 完整审计与编辑裁决](../执行知识因式分解完整审计与收敛设计-2026-07-21/phase4_review/05-编辑裁决与收敛修订.md)，以及取得正式论文后的 [QIGen 全文再审](../执行知识因式分解完整审计与收敛设计-2026-07-21/phase5_reaudit/06-QIGen全文差分与最终再收敛.md)。
+> **性质**：内部长期维护方法文档，也是下一轮 spec 与代码重构的核心理解基线。它以用户重新确认的项目出发点、[《高级ai思想2》](./高级ai思想2.md)及本文的纠偏综合为主。
 >
-> **边界**：不替代同目录的 [原接手文档](./README.md)，不修改两柱、六律或论文贡献，不是 task，也不规定一套新的开发流程。
+> **参考关系**：[ARS 完整审计](../执行知识因式分解完整审计与收敛设计-2026-07-21/README.md)继续提供 prior、源码反例、QIGen 差分和证据压力，但不是项目类别或重构架构的核心标准；不能用一个近邻下的最窄差分实验反向定义整个 Weft。
+>
+> **边界**：不替代同目录的 [原接手文档](./README.md)，不由工程 agent 直接修改两柱、六律或贡献编号。它规定理解和重构方向，不建立新的全局 Formula IR、universal verifier 或日常审批流程。
 
 ## 1. 这份文档解决什么
 
 Weft-RV 目前同时有论文侧材料、项目侧统一公式、复杂 compiler 实现、历史 census、实验记录和多轮 agent 施工。接下来重构 spec，首先要恢复这些对象之间的正确关系，而不是重新定义项目。
 
-本文只固定四件事：
+本文固定六件事：
 
 1. 科研主线由用户和论文 agent 决定，工程 agent 不改律、不重排贡献；
 2. 项目侧公式已经完成统一，早期论文公式不是当前完整版本；
-3. Weft-RV 是完整的 execution-layer compiler，公式是其核心知识构造机制，但不是整个 compiler；
-4. 历史文档、census、issue 和 task 都是辅助材料，不是限制代码演进的手续。
+3. Weft 是面向生态扩展的 MLIR operator compiler / execution-layer software stack；RISC-V 量化推理是旗舰 reference realization，不是系统类别的上界；
+4. 两柱共同回答“变化能否局部接入”与“可扩展架构能否仍产生专家级或有竞争力的专化实现”；
+5. 公式是 execution knowledge 构造 kernel candidate 的核心，不是整个 compiler；Knowledge Factorization 是两柱之间“分开变化轴、重新专化”的设计桥梁，不是第三柱或系统身份；
+6. 历史文档、census、issue、task 和局部审计都只是辅助材料，不是限制代码演进的手续。
+
+必须始终区分三个层次：
+
+| 层次 | 稳定含义 |
+|---|---|
+| 系统身份 | 可扩展的 MLIR operator compiler / execution-layer software stack |
+| 旗舰实现 | 复杂、碎片化 RISC-V 上的 ggml/llama.cpp 风格量化推理栈 |
+| 当前证据 | 各 plugin、operator、公式、硬件与部署路径已经实际完成和验证到哪里 |
+
+当前证据的范围可以限制结果措辞，不能反向缩小系统身份；系统身份也不能把目标态冒充成已经跨任意 operator 和硬件得到验证。
 
 还必须固定一个过去容易混淆的时态：
 
@@ -32,6 +46,8 @@ Weft-RV 目前同时有论文侧材料、项目侧统一公式、复杂 compiler
 - 因为 compiler 很复杂，就反过来弱化公式的科研主体地位。
 
 当前代码和测试决定“现在实现了什么”；论文侧决定“科研主张是什么”；spec 的工作是准确连接两者。
+
+项目出发点已经由用户再次明确：Weft 首先是一个生态友好、可扩展的 MLIR 算子 compiler/software stack。后续 spec 不得再用“当前主要在 RISC-V 上测量”把它改写成 RISC-V 专用量化 compiler，也不得用 QIGen 的局部 prior 把它改写成 microkernel-leaf-below factorization 系统。
 
 ## 3. 已确定的公式主次
 
@@ -162,19 +178,21 @@ K_{\sigma_M(g,c;\omega),\omega}(g,c),
 
 项目侧当前 [变体流水线](../../.trellis/spec/architecture/变体流水线.md)已经包含这套统一方向。后续只需检查 qualification 是否喧宾夺主，以及 formula、boundary、selector、emitter 是否重复承权；不再发明新公式。
 
-## 4. 公式在完整 compiler 中的位置
+## 4. 公式在完整 operator compiler 中的位置
 
-Weft-RV 是 high-level MLIR 之后、面向 ggml/llama.cpp 风格量化推理 kernel 的 execution-layer compiler。它不新增通用 tensor/tile IR，但具备完整的 compiler 层次：
+Weft 是 high-level MLIR 之后承接 operator execution 的可扩展 MLIR compiler/software stack。它不以新增通用 tensor/tile IR 为目标，而是为 operator、format/layout、capability、execution family 和 backend 提供局部 typed 扩展与完整编译链。当前最完整、最具挑战性的实例是 RISC-V 量化推理，但 stack 的 extension contract、typed ownership 和 construction pipeline 不应由 RVV 或 GGML 名称定义。
+
+完整 compiler 层次是：
 
 ```text
-kernel-level input
+MLIR operator / kernel-level input
   → source front door 与 extension discovery
-  → typed construction / family dialect body
-  → capability 与静态事实
+  → operator / format / layout typed facts
+  → canonical capability 与有限静态 context
   → 解析构造公式、schedule、legality 与薄选择
   → selected typed body / 跨 pass 表示
-  → body realization 与 conversion
-  → RVV / IME / Scalar 等 family backend
+  → plugin-local body realization 与 conversion
+  → RVV / IME / Scalar / Offload / future family backend
   → EmitC、bundle、ABI 与 toolchain
   → runtime integration、correctness 与硬件 evidence
 ```
@@ -187,6 +205,12 @@ kernel-level input
 - emitter 应避免重新选择，但仍承载大量 target lowering、vector code shape、ABI 和 runtime 细节；
 - measurement 验证并修正有限残差，不能成为 compute authority；
 - plugin、dialect、pass、backend、测试和部署都属于两柱落地所需的 compiler 本体。
+
+两柱的共同机制可以概括为：
+
+> **沿独立变化轴分开表示，以获得扩展局部性；再由 capability- and context-conditioned executable knowledge 在编译时重组，以产生专化实现。**
+
+Knowledge Factorization 只描述这座桥：它既不能吞掉整个 software stack，也不能把所有新语义强迫拆成“零 leaf”。完整 point implementation 不应是默认扩展单位；真正不可复用的新语义仍可增加最小 mechanism。
 
 ## 5. 当前实现应怎样理解
 
@@ -235,7 +259,7 @@ independent format facts + real capability + bounded static context
   → mechanical family realization/emission
 ```
 
-删除某个完整 point implementation 后，如果 downstream 还能按 format 名、leaf enum、完整 plan row、测试 fixture、winner row或 emitter switch 选回原 body，就不算重建。
+删除某个完整 point implementation 后，如果 downstream 还能按 format 名、leaf enum、完整 plan row、测试 fixture、winner row 或 emitter switch 选回原 body，就不算重建。
 
 允许保留：
 
@@ -293,27 +317,43 @@ A1–A4a、B1–B3 campaign 包含 formula authority matrix、集中 decision、
 
 QIGen 2026 全文进一步确认：它从非均匀量化模型与 CPU 特征出发，枚举 `(M,K,g,b)`，为 unique tuple 生成并调优 GEVM/GEPM LLVM microkernel，再按每层 group 序列组合 implementation。它不是 monolithic whole-matrix leaf lookup。因此，family generation、cross-combination、GEMV/GEMM regime、解析模型加有限搜索和 CPU retargeting 都不是明显空白。
 
-QIGen 的实际生成边界也给出了更精确的剩余问题：其 group/microkernel 组合是真实构造，但 microkernel 内部仍用 2/3/4/5/6/8 位 `switch` 保存完整 unpack/shift/mask/dot body。Weft 不能据此声称 QIGen“没有 factorization”；只能研究能否把因式分解继续推进到完整 per-bit/per-format microkernel leaf 以下。
+QIGen 的实际生成边界仍是重要事实：其 group/microkernel 组合是真实构造，microkernel 内部则用 2/3/4/5/6/8 位 `switch` 保存完整 unpack/shift/mask/dot body。它限制的是柱二“量化 GEVM/GEPM construction”切片上的宽泛 novelty，而不是 Weft 的系统类别。
 
-当前只保留一个待验证的窄假说：
+Weft 的整体研究命题应恢复为：
 
-> Weft-RV 能否在 high-level MLIR 之后的 RISC-V execution layer 中，把异质 GGML block-quant 的编码拓扑、scale/bias/layout 语义、能力、静态上下文和可复用 typed mechanisms 放进真实 compiler authority chain，由既定解析公式在显式合法域内构造多个 operation/backend 的 typed implementation；在删除完整 point authority 后仍保持正确、可部署且有竞争力，而 measurement 只修正稀疏的合法性能残差。
+> **一个面向生态扩展的 MLIR operator compiler，能否让 operator/format、hardware capability 与 backend family 的变化主要落在各自 typed owner，同时由 `g/c/ω` 条件化的可执行专家知识构造专化、合法且具有专家级质量或竞争性能的 kernel？**
 
-这是未来要用代码和实验成立的 novelty hypothesis，不是本文宣称已经完成的贡献。`M/F/B/R` 是解释语言，不自动构成新理论。
+这项系统命题包含两个必须联合验证的方面：
 
-### 7.1 新六律候选的 ARS 审查结论
+1. **扩展局部性**：增加 operator、格式、能力、mechanism 或 backend 时，不重新形成跨轴笛卡尔积手写；
+2. **性能因果性**：语义、能力、资源、场景和有限 residual 如何真实改变 constructed typed body 与最终性能。
 
-《高级ai思想》提出的“变化归位、知识因式分解、族先于点、公式构成、解析主导测量修残、证据回流”与两柱总体相容，可以作为后续严格评审的候选方向；本轮不直接把它们写入 canon。
+QIGen microkernel leaf 以下的 mechanism reconstruction、q5_1 authority erasure、Codebook/KQuant topology、IME authority cleanup 和 residual density 都是辨识这些方面的实验工具，不是 Weft 的定义或唯一生存条件。
 
-定稿前只需做三类微调，不应整体换义：
+`M/F/B/R` 与 Knowledge Factorization 是工程解释语言，不自动构成新理论。最终 novelty 只能来自该 software stack 的具体 architecture、局部扩展行为、可执行 construction 因果链，以及真实实例上的联合系统证据。
 
-- “族先于点”约束的是完整逐点 implementation 与逐点 performance winner；格式不可约语义、真正新增的最小 primitive 和安全 negative boundary 仍可逐点存在，不能一律叫 empirical residual。
-- “公式构成”继续以原构造式为中心：formula 产生候选、机制组合、`θ`、资源要求和 prior；显式 boundary 对适用性与合法性作判定。二者不能在 provider/verifier/emitter 中重复承权。
-- “解析主导、测量修残”要求 analytic-only 已能构造正确候选；measurement 只能改变合法 winner，不能携带 decode、scale、offset、body ID 或完整 plan。
+### 7.1 Knowledge Factorization 与六律的关系
 
-“证据回流”是把失败归因到 mechanism、formula、capability、context、boundary、residual、compiler/HW wall 或 e2e wash，不是建立新的 verification framework。
+《高级ai思想2》的核心纠偏应吸收为两柱之间的设计方法：
 
-在 reconstruction 尚未实现前，六律和论文 headline 都必须使用“目标是”“研究能否”之类目标态语气，不能写成系统已经具备 family reconstruction。
+```text
+operator / format / layout facts
++ capability facts
++ reusable mechanisms
++ analytic construction
++ applicability / legality
++ optional empirical residual
+→ specialized typed implementation
+```
+
+但它不能由工程 agent 直接“定稿新六律”。当前 canon 中受管 measurement、经验点征税、变量充分、fallback 和 falsifier 等约束不能因改名而丢失。后续若论文 agent 修改六律，应把以下解释合入而不是整体换义：
+
+- 知识沿变化轴分开，是变化归位与和积扩展的直观目标；
+- formula 必须真实改变 mechanism、typed 参数、resource shape、legal requirements、layout/schedule 或 analytic prior；
+- construction、legality、selection、typed body 与 emission 保持单向 authority；
+- 不要求全仓零 leaf；新语义允许新增最小 mechanism，已有机制可表达的组合不应继续复制完整 point implementation；
+- measurement 只修正解析构造后的合法 residual；
+- 证据回流用于修正知识及其适用范围，不建立新的治理框架。
 
 ## 8. 资产与结构问题的朴素判断
 
@@ -340,11 +380,11 @@ QIGen 的实际生成边界也给出了更精确的剩余问题：其 group/micr
 
 ### Canon
 
-只承载论文 agent 批准的两柱、六律、贡献和稳定边界。工程 agent 不在这里提出新科研解释。本轮对《高级ai思想》中新六律只提出语义血缘和微调意见，不直接覆盖 canon。
+只承载论文 agent 批准的两柱、六律、贡献和稳定边界。下一轮需要恢复“可扩展 MLIR operator compiler/software stack；RISC-V 是旗舰实例”的系统类别，不能把当前验证域或 QIGen 差分写成架构上界。工程 agent 不直接定稿六律。
 
 ### Architecture
 
-讲清完整 compiler：dialect、plugin、capability、construction、核心公式、thin selection、typed body、pass、backend、EmitC、ABI 与 runtime 边界。目标是让开发者理解系统，而不是把某轮迁移 protocol 写成永恒架构。
+讲清完整 operator compiler：source/operator front door、dialect、plugin、typed owner、capability、family-local formula/construction、thin selection、typed body、pass、backend、EmitC、ABI 与 runtime 边界。必须回答新增 operator、format、capability、mechanism、formula、residual 和 backend 分别写在哪里；目标是让开发者理解系统，而不是把某轮迁移 protocol 写成永恒架构。
 
 ### Measurement
 
@@ -358,35 +398,43 @@ QIGen 的实际生成边界也给出了更精确的剩余问题：其 group/micr
 
 Issue 记录真实缺口和反例；task 只在后续具体、多阶段工作需要查看时再建。它们都不定义科研主线。
 
-## 10. 当前真正要做什么
+## 10. 第一轮真正重构什么
 
-现在还不急着改代码或建立 task。首先用这份理解检查现有 spec：
+第一轮不重写整个 compiler，也不只围绕 q5_1。它应完成一个代表性的纵向切片，使后续维护者第一次能清楚回答：公式在哪里、消费什么、产生什么、覆盖哪些行为，以及旧的重复 authority 如何退出。
 
-1. 两柱、六律和贡献有没有被工程 agent 改写；
-2. 核心构造公式是否仍然是主体，thin selection 是否喧宾夺主；
-3. spec 是否把完整 compiler 缩成 formula/stamp pipeline；
-4. 是否把后来 Codex campaign 的临时结构写成了稳定 contract；
-5. 是否低估了已有 dialect、plugin、lowering、backend、ABI、测试和性能资产。
+目标结构是：
 
-查清后只做微创更新：删除错误/历史状态，区分 current、substrate、target 和 evidence，恢复完整 compiler 全景，并补入 reconstruction 目标。遇到科研含义交论文 agent；普通架构和代码问题由实现本身裁决，不再制造额外流程。
+```text
+typed operator / format facts g
+  + canonical capability c
+  + bounded context ω
+  → family-local analytic formula collection
+  → candidate / mechanism parameters / resource requirements / prior
+  → applicability and legality
+  → optional bounded winner selection
+  → selected typed body
+  → plugin-local realization / emission
+```
 
-第一条后续代码路线仍应集中在 flat repack，而不是大修整个 compiler。它的作用是让项目先学会真正删除完整 point authority，不是用 q5_1 单点承担论文 novelty：
+第一轮 task 必须同时做到：
 
-1. 把 q4/q5 的格式事实拆成独立语义轴；
-2. 抽出 low-nibble、optional high-bit plane、bias policy、affine scale/offset fold 等真实 mechanisms；
-3. 用现有构造公式的工程展开同时生成 GEMV/GEMM typed body；
-4. 移除 `lowerToRepackGemvQ51`、`lowerToRepackGemmQ51` 及等价 Q51 authority；
-5. 先证明 analytic-only correctness，再评价 bounded residual；
-6. 用重构后的正式硬件 campaign 比较旧 point baseline。
+1. 选定一条真实 production family slice，而不是 test-only fixture；
+2. 把 `g`、`c`、`ω` 作为独立 typed 输入，证明各自被真实消费；
+3. 建立小而清楚的 family-local formula 集合和唯一调用位置，不建 global Formula service；
+4. formula 输出必须改变真实 candidate、typed body 参数、resource/legality requirement 或 analytic prior；
+5. 给公式集合建立行为覆盖：每条公式至少有适用、边界/拒绝和关键输入变化测试，不用源码行数或伪字段充数；
+6. 清退该 slice 中被证明错误的 late decision、planner replay、mirror state、selector/emitter 双重 authority 和只服务旧 campaign 的机制；
+7. 保留真正的 IR/ABI/ISA safety verifier、fallback、oracle 和 backend lowering；
+8. 更新相关 architecture/spec，使新增公式、能力和 residual 的位置可由维护者直接找到。
 
-q5_1 因为旧实现已经被团队看过，而且 QIGen 已覆盖 5-bit 仿射 group、GEVM/GEPM 与 group composition，应称为 **首个 point-authority-erasure 实现里程碑与本地结构重建证人**。它能证明“删除完整 leaf 后仍可重建”，但不能单独证明方法超越 QIGen、整个异质 domain 已被因式分解或 unseen generalization。
-
-q5_1 完成后，确认性证据必须跨出 flat affine q4/q5：至少覆盖一种不同的真实语义拓扑，例如 KQuant 的量化 scale/min superblock、codebook/grid 或 ternary/q1，并增加语义不同的 operation 或 backend 因果链。只有论文明确主张 unseen/generalization 时，才额外需要机制/公式冻结后的 prospective witness；它不是普通重构的开工手续。
+flat repack/q5_1、Codebook/KQuant 和 IME 仍是后续代表性证据候选，分别检验格式组合、不同 mechanism topology 和 backend family 扩展；第一轮具体选择以当前源码中能形成最小完整 production 纵向闭环的 slice 为准。
 
 ## 11. 收束
 
-Weft-RV 的准确形状是：
+Weft 的准确形状是：
 
-> 一个完整的 capability-driven MLIR execution-layer compiler；其目标是以解析构造公式把独立格式/能力/上下文知识与可复用 mechanisms 变成候选、typed 参数、合法实现和解析 prior，外层 measurement 只对有限残差作薄修正。dialect、plugin、pass、backend、ABI、runtime、测试与硬件 evidence 共同让这套知识真正可执行和可验证。
+> **一个面向生态扩展的 MLIR operator compiler / execution-layer software stack。它以 typed owner 局部吸收 operator、format/layout、capability、mechanism 与 backend family 的变化，再由 `g/c/ω` 条件化的可执行专家知识构造专化 kernel。RISC-V 量化推理是当前旗舰实现和主要压力场，不是系统定义的上界。**
 
-当前已经存在的是复杂 compiler、统一公式和局部 construction substrate；尚未存在的是无完整 point authority 的 family reconstruction 证据。重构 spec 的任务是把这两者准确分开，而不是发明新的主线、扩大 selector 的地位，也不是用 census、task 或迁移纪律把后续代码修改限制死。
+当前已经存在的是复杂 compiler stack、通用 plugin/capability/typed-body 基础、统一公式方向、多个 backend family、部署与实验资产；仍需完成的是让代表性 production path 的变化局部性和性能知识因果链真正清楚、模块化且可扩展。
+
+重构 spec 与代码的任务不是发明新的主线，也不是把项目缩成 factorization 或验证框架，而是让这个 operator compiler 的生态接口、formula ownership、`g/c/ω` consumption、typed construction、backend realization 和证据边界与其原始目标一致。
