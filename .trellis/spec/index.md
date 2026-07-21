@@ -26,7 +26,7 @@ task、旧 goal、旧简报和历史报告不能覆盖当前代码事实，也�
 
 ## 项目定位
 
-Weft-RV 是 high-level MLIR 之后的、能力驱动的可扩展 execution-layer 参考模板。它以 RISC-V ggml/llama.cpp 风格量化推理 kernel 为当前负载域，目标是把碎片化的格式、ISA、板卡、工具链与性能知识组织成可扩展、可验证、可部署的系统。
+Weft 是 high-level MLIR 之后的、能力驱动且可扩展的 MLIR operator compiler / execution-layer software stack。它让 operator、format/layout、target capability、execution mechanism 与 backend family 通过局部 typed extension 接入，再由可执行专家知识构造专化 kernel。RISC-V ggml/llama.cpp 风格量化推理是当前旗舰 reference realization 和主要压力域，不是系统类别的上界。
 
 它不是：
 
@@ -70,10 +70,10 @@ qualified measurement 可以在解析合法域内修正排序，但不能创造 
 ## 软件主链
 
 ~~~text
-kernel-level input
+MLIR operator / kernel-level input
   → plugin-local typed facts g + bounded context ω
   → canonical capability c
-  → plugin-local formula / decision provider
+  → catalogued plugin-local formula / construction
       · typed candidate or plan
       · legality/resource bounds
       · analytic prior
@@ -87,7 +87,7 @@ kernel-level input
   → real hardware evidence when claimed
 ~~~
 
-这个主链是对现有 Construction、Selection、Schedule、BodyRealization 和 EmitC 部件的责任整理，不要求建立大一统 Formula IR，也不要求八个新的物理子系统。
+所有 production operator entry 都必须经过该主链；只有一个确定实现的路径采用 deterministic single-candidate construction 和 honest-null 轴，不得静默绕过。这个主链不要求大一统 Formula IR，也不要求每个职责成为独立物理子系统。公式集合、横向 cutover 与覆盖正本见 [architecture · 公式层与覆盖](./architecture/公式层与覆盖.md)。
 
 ## 六个 spec layer
 
@@ -166,14 +166,17 @@ tools/bench/bench --self-test
 
 ## 当前工程推进方向
 
-1. 收拢五类 dequant plan、LMUL、SP4 和 loop-order 的 decision authority。
-2. 让 g/c/ω 只在 plugin-local formula/selection 边界相遇。
-3. 清除 selector 与 emitter 的二次决策和 GridLookup 双 authority。
-4. 统一 measurement schema、qualification、compiled winner view。
-5. 补 ELEN、typed SEW、cacheline、IME tile 和 per-board capability。
-6. 补剩余 strong construction，特别是 GEMM。
-7. 让第二 extension family 使用同一最小 formula/decision contract。
-8. 持续保护 deployed ggml，并提高少量代表性强对手和 e2e 成色。
+当前首先完成一次横向 formula/construction layer rebase：
+
+1. 闭合全部 production operator entries、analytic/construction authorities 与 callers；
+2. 一次建立轻量公共 descriptor/catalog 与 family-local typed formula 实现；
+3. 让全部 current production path 统一消费分型 `g/c/ω`，无公式选择的路径显式 deterministic/honest-null；
+4. 清除所有与公式决定重叠的 late decision、planner/verifier replay、mirror authority、selector/emitter 二次决策与 compatibility bridge；
+5. 使 catalog、production entry、dependency edge 与 semantic case coverage 全部达到完整当前分母；
+6. 同步更新 plugin 扩展入口，使新增 operator、format、capability、formula、residual 和 backend 位置清晰；
+7. 在统一路径上继续 capability、measurement、strong construction、deployed ggml、强对手和 e2e 工作。
+
+该 rebase 不能按五类 dequant、单一 operator 或第二 family 后补的方式局部结项；未完成时保持 task/worktree in-progress，不合入双轨中间态。
 
 当前进度与数字不写入根 spec；以代码、formula migration ledger、master/result tables 和 issues 为准。
 

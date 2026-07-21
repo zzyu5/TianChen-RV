@@ -1,8 +1,8 @@
 # Weft-RV MLIR
 
-Weft-RV is a capability-driven, extensible MLIR execution layer for heterogeneous RISC-V inference targets. Its current workload domain is kernel-level ggml/llama.cpp-style quantized inference.
+Weft is an extensible MLIR operator compiler and execution-layer software stack. It lets operators, formats/layouts, target capabilities, execution mechanisms and backend families enter through local typed extensions, then uses capability- and context-conditioned executable knowledge to construct specialized kernels. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain, not the upper bound of the compiler category.
 
-The project is not a general-purpose tensor compiler and does not introduce a new high-level tensor/tile IR. It organizes low-level format, capability, scheduling, legality, selection and emission knowledge so new formats, target capabilities and extension families can be integrated without returning to per-format × per-board handwritten backends.
+The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-high-level-MLIR operator execution layer: construction, legality, selection, typed bodies, backend realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
 
 ## Research direction: two pillars
 
@@ -30,10 +30,10 @@ The current two-pillar, six-law research framing lives in [canon/暂定-科研�
 ## Core design
 
 ~~~text
-kernel-level input
+MLIR operator / kernel-level input
   → plugin-local typed facts g + bounded static context ω
   → canonical capability c
-  → plugin-local formula / decision provider
+  → catalogued plugin-local formula / construction
       · typed candidate or plan
       · legality/resource bounds
       · analytic prior
@@ -46,7 +46,7 @@ kernel-level input
   → common EmitC / target artifact
 ~~~
 
-This is an incremental organization of existing Construction, Selection, Schedule, BodyRealization and EmitC code. It is not a new Formula IR, a universal expression DSL or a runtime autotuner.
+Every production operator entry follows this path, including deterministic single-candidate construction with honest-null axes. Quantize, dequantize, contraction, elementwise, reduction and different backend families do not keep separate hidden decision worlds. This is not a new Formula IR, a universal expression DSL or a runtime autotuner.
 
 ## Current project assets
 
@@ -62,15 +62,7 @@ The repository already contains:
 - deployed ggml, representative strong-opponent and end-to-end result ledgers;
 - an official bench runner, master table and run lineage directories.
 
-These assets do not mean the project is finished. The main remaining engineering work is:
-
-- centralize scattered g/c/ω decisions behind a small plugin-local decision contract;
-- remove selector/emitter double authority;
-- unify measurement schema, qualification and compiled winner views;
-- complete capability fields and per-board instances;
-- close remaining strong-construction gaps;
-- make a second extension family use the same minimal formula/selection contract;
-- continue representative strong-opponent and end-to-end performance work.
+These assets do not mean the project is finished. The current architecture rebase is horizontal: enumerate every production construction/formula authority and operator entry, put all of them behind one lightweight catalogued formula stage with family-local typed implementations, prove real `g/c/ω` consumption, and remove every legacy/late/duplicate authority in the same cutover. Formula catalog, production-entry, dependency-edge and semantic-case coverage must all close over the complete current set; there is no “five formulas now, the rest later” completion state.
 
 The live migration record is [formula-layer-migration/LEDGER.md](experiments/active/formula-layer-migration/LEDGER.md).
 
@@ -150,7 +142,7 @@ A family supplies the five-piece acceptance set:
 4. tests/falsifiers;
 5. ledger/docs/evidence.
 
-If the family uses analytic or measured performance knowledge, it also supplies the corresponding decision contract:
+Every production family also supplies a catalogued formula/construction contract. A family with no choice uses a deterministic single-candidate construction and honest-null axes; it does not bypass the stage:
 
 ~~~text
 typed g/c/ω inputs
@@ -163,6 +155,8 @@ selected typed result
 ~~~
 
 Reference family: lib/Plugin/Template/.
+
+The stable formula-layer and coverage contract is in [architecture/公式层与覆盖.md](.trellis/spec/architecture/公式层与覆盖.md).
 
 ## Measurement
 
