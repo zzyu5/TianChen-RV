@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "上岗顺序与六层边界"}
+{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "RET-1 原子退役、禁止兼容中间态"}
+{"file": ".trellis/spec/architecture/变体流水线.md", "reason": "candidate/legality/emission 唯一 authority"}
+{"file": ".trellis/spec/canon/核心不变量.md", "reason": "I1-I9 fail-closed 与证据边界"}
+{"file": ".trellis/spec/issues/发射器与架构.md", "reason": "ISSUE-109 最新 STOP 与历史负证据"}
+{"file": ".trellis/tasks/archive/2026-07/07-18-q4k-mlp-attack-q4-k-vec-dot-stack-lever-load-issue-109-lever-d-a67e-intra-super-block-byte-exact-clang-mlp-5/prd.md", "reason": "已完成 MLP campaign 的不可变来源"}
