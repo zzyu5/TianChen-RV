@@ -102,9 +102,16 @@ module {
 // CONSTRUCT-SAME: half_lanes = 16 : i64
 // CONSTRUCT-SAME: integer_core_lmul = "m1"
 // CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
+// The same front door constructs both schedule choices before one mutation phase.
+// weight stride 288 >= activation stride 136 selects col_outer by the layout
+// prior; the AlreadyLean fold has exactly one realized Plain tiling body.
+// CONSTRUCT-SAME: weft_rvv.loop_order = "col_outer"
+// CONSTRUCT-SAME: weft_rvv.loop_order_selection_reason = "prior"
 // CONSTRUCT-SAME: weft_rvv.path_materialization = "realized"
 // CONSTRUCT-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
 // CONSTRUCT-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
+// CONSTRUCT-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CONSTRUCT-SAME: weft_rvv.tiling_variant = "plain"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 288 : i64
 // CONSTRUCT: weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot
@@ -118,11 +125,8 @@ module {
 // stores.
 // EMIT-NOT: unrealized_conversion_cast
 // EMIT: emitc.func @weft_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel_ggml_gemm_q4_0_q8_0_repack_gemm(
-// EMIT: literal "136"
 // EMIT: literal "288"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
+// EMIT: literal "136"
 // EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
 // EMIT: call_opaque "__riscv_vle8_v_i8m1"
 // EMIT: call_opaque "__riscv_vwmacc_vx_i16m2"

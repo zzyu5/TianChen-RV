@@ -1,4 +1,4 @@
-# 公式 authority matrix（A1 基线，A3 后 HEAD 真实链）
+# 公式 authority matrix（A1 基线，A4a 后 HEAD 真实链）
 
 > 机器正本：[`authority-matrix.v1.json`](./authority-matrix.v1.json)；门：
 > `test/Scripts/formula-authority-matrix.test`。
@@ -37,17 +37,19 @@
   typed decision，18 个互斥 builder 只消费 selected result，reason/key 由一个
   helper 盖章；旧 selector、choice struct 和 18 个独立盖章点已退役。实测表仍是
   生产 C++ 手工镜像，归 A5。
-- SP4/loop-order 已经有两阶段选择与 IR stamp，但 emission 还不是机械消费：
-  SP4 legal set 会放入当前根本没有 emitter body 的 min-fold `plain`；缺 stamp
-  会静默落到 `S6Tiled`；loop-order 对 sibling 会把已选择的 `col_outer/prior`
-  改回 `row_outer`，q4_K 缺 stamp 时会重新计算 stride prior。
+- A4a 已关闭 RVV repack schedule 的 `selected != realized`：SP4 只保留已有真实 body
+  的 singleton legal set；loop-order 的两个候选均有真实 body。二者在 frontdoor 先
+  完整构造，再于单一 mutation phase 落 required stamp；共享 bounded C++ plan reader
+  在 emission 前 fail closed，emitter 只消费 validated enum，不再读 reason、补默认或
+  重算 prior。这里的 complete/atomic 指完整构造后统一变异，不宣称事务 rollback；
+  `measured` 的 lineage/freshness 仍归 A5。
 
 所以，当前的准确表述不是“公式层没有”，也不是“公式层已经完成”，而是：
 
-> 五类机制 plan、三个机制专属 typed decision 与首个完整 c-driven dequant
-> vertical slice 已是可复用资产；尚缺的是把 contract 推广到其余真实轴、关闭
-> Grid/schedule 的 legality/selection 双头，并让剩余 selected result 落印、emitter
-> 收口为纯 realization。
+> 五类机制 plan、三个机制专属 typed decision、首个完整 c-driven dequant
+> vertical slice，以及首个完整 repack schedule slice 已是可复用资产；尚缺的是把
+> complete-plan contract 推广到 KQuant/Grid/Ternary、关闭 Grid 的双头、用 qualified
+> winner view 接管 measurement，并继续把剩余 selected result 收口为纯 realization。
 
 ## 2. 状态词
 
@@ -202,20 +204,18 @@ A5 负责替换手工 winner mirror，不回滚本 contract。
 ```text
 fold_model → bottleneck shape g
 + {minimum_vlen, vreg_count} c
-+ lookupMeasurement(hash,kernel,SP4) ω
   → tilingVariantFeasibleSet
   → selectRepackTilingVariant
-  → tiling_variant/reason/record stamp
-  → emitTypedRepackGemmLoopBody
+  → complete tiling_variant/reason stamp
+  → readAndVerifyRVVRepackSchedulePlan
+  → mechanical emitTypedRepackGemmLoopBody realization
 ```
 
-已经成立的部分：bounded enum、capability feasibility、measured-first/prior-second、
-production 零 `static_order`、同一 declared-instance hash attribution。
-
-但当前 legal set 与 realization 不一致：`tilingVariantFeasibleSet` 在能力充分时
-无条件返回 `{Plain,S6Tiled}`；min-fold emitter 明确没有 Plain body，选到 Plain
-只会在 emission 阶段失败。另一个缺口是 `tiling_variant` 不在 ODS/verifier 中，
-缺 stamp 会静默实现 S6Tiled。故不能把它写成“formula→legalize→select 已闭环”。
+本 slice 已闭环：shape 与 typed resource facts 只产生真实 body。min-fold 的集合为
+`{S6Tiled}`，dual-plane/already-lean 为 `{Plain}`，因此 reason 为
+`only_feasible`。历史 SP4 A/B 行保留为性能证据，不再作为假二选一的编译器
+winner；C++ `RVVMeasurementAxis` 也已退役 SP4 成员。缺失、partial、错类型、unknown、
+wrong-shape 与错 reason 均由共享的逐 op verifier 在 emission 前拒绝。
 
 ### 4.3 Loop order
 
@@ -224,22 +224,16 @@ production 零 `static_order`、同一 declared-instance hash attribution。
 + {minimum_vlen,vreg_count} c
 + lookupMeasurement(hash,kernel,LoopOrder) ω
   → selectRepackLoopOrder
-  → loop_order/reason/record stamp
-  → two emitter read sites
+  → complete loop_order/reason stamp
+  → readAndVerifyRVVRepackSchedulePlan
+  → one selectedColGroupOuter consumer
 ```
 
-selector 本身清晰：measured hit 优先，否则用 layout stride prior。问题发生在
-realization：
-
-- q4_K 缺 stamp 时再调用 `repackColGroupOuterForLayout` 重算；
-- sibling 即使 stamp 为 `col_outer/prior`，也只在 reason=`measured` 时实现
-  col_outer，否则写 override comment 后实际实现 row_outer；
-- 该 attr 同样不受 ODS/verifier 约束。
-
-这不是普通 provenance 差异，而是 `selected != realized`。现有
-`rvv-to-emitc-repack-gemm-q6-K-q8-K-col-outer-prior-override.mlir` 正在把这项
-分裂钉成当前行为；A4 完成后，该测试必须反转为“选择什么就实现什么”，而不是
-继续保留 override 兼容逻辑。
+selector 保留两个真实 body：measured hit 可选任一合法顺序，否则用 layout-stride
+prior。`prior` 必须与当前 typed strides 一致；`only_feasible`/`static_order` 在已选的
+prefill GEMM body 上被拒绝。q4_K 与所有 sibling 现在只消费同一个 bounded enum，
+reason 不影响 artifact，缺 stamp 不回算 stride prior。旧 override fixture 已更名反转为
+`col-outer-prior-realized`，并有反 prior measured 的真实循环嵌套 killing test。
 
 ## 5. 后续施工切割面
 
@@ -247,12 +241,9 @@ realization：
 |---|---|---|---|
 | KQuant/Grid/Ternary 仍带 literal c seam | A8 / ISSUE-117 | 三个 literal-128 call 与 ignored seam；按 decisive 或 honest-null 分类，不制造假轴 | decisive 轴有 capability mutation；honest-null 轴删除参数而非伪翻转 |
 | emitter 用 decode_model 再造 leaf/facts | A8 / ISSUE-119 | KQuant/Grid/Ternary 三段 StringSwitch 与 emitter facts reconstruction | 新 typed-g leaf 不改 emitter branch；missing/forged g 转红 |
-| Nibble/KQuant/Grid/Ternary selected plan 不落印 | A4 / ISSUE-122 | 对应 emission 内 provider invocation/transient plan | stale/forged stamp 在 emitter 前被拒；Codebook 作为 reference regression |
-| GridLookup 再查 GridDecodePlan | A4 / ISSUE-122 | dequant slice 的 direct registry lookup | 单 row 变异同时支配 verifier/selector，无第二编辑点 |
+| Nibble/KQuant/Grid/Ternary selected plan 不落印 | A4b / ISSUE-122 | 对应 emission 内 provider invocation/transient plan | stale/forged stamp 在 emitter 前被拒；Codebook 作为 reference regression |
+| GridLookup 再查 GridDecodePlan | A4b / ISSUE-122 | dequant slice 的 direct registry lookup | 单 row 变异同时支配 verifier/selector，无第二编辑点 |
 | 手工 measurement mirrors | A5 / ISSUE-117 | LMUL table 与 `kSeeded[]` | generated qualified view 可复建；stale/key/illegal winner miss |
-| SP4 legal candidate 不可实现 | A4 / ISSUE-125 | unconditional feasible set 或缺失的 Plain body 二选一闭合 | selector 永不返回 emitter 会拒的候选 |
-| SP4 缺 stamp→S6 | A4 / ISSUE-125 | optional read/default | strip stamp 必须 fail closed |
-| loop selected→emit override/recompute | A4 / ISSUE-125 | reason-measured gate、q4 recompute、optional read | prior col_outer 真实现 col_outer；缺 stamp fail closed |
 
 ## 6. 机器测试冻结
 
@@ -269,9 +260,11 @@ realization：
   实际 `i8m2→i32m8/f32m8`、`i8m1→i32m4/f32m4` 与
   `i8mf2→i32m2/f32m2` intrinsic chain；
 - LMUL 另有 VLEN/provider 判断、measured/default 分叉和 missing-stamp fail-close；
-- SP4 有 measured/prior/shape-isolation 与生产零 static-order；
-- loop-order 有 ternary 全格 stamp guard，也有当前 selected→realized override 的
-  反例 characterization；
+- SP4 有 singleton-real-body、shape isolation、空合法集 fail-closed，以及
+  missing/partial/错类型/unknown/wrong-shape/reason negatives；生产 schedule 决定中
+  不再存在 `static_order` compatibility state；
+- loop-order 有两个真实 body、prior 与反-prior measured killing tests，并证明
+  `col_outer/prior` 被真实发射；q4_K 与 sibling 共用同一 validated consumer；
 - missing capability 由 stage-B selection 的默认空 march/VLEN0 路径钉住。
 
 `check-formula-authority-matrix.py --self-test` 在内存中分别删除一个 decision、
@@ -284,8 +277,9 @@ realization：
    同 slice 旧入口、旧 selector 和独立盖章点已删除。
 2. A3 已让 codebook anchor 成为首个完整 `f(g,c)` selected-plan vertical slice，
    不强迫 grid/ternary 的 honest-null 轴伪装成 c-driven。
-3. A4 原子关闭其余 selected-stamp、legality 与 emitter redecision 缺口；优先处理
-   ISSUE-125，因为它已经存在 `selected != realized`。
+3. A4a 已原子关闭 ISSUE-125 的 SP4/loop-order selected-stamp、legality 与 emitter
+   redecision 缺口；A4b 接着迁移 KQuant/Grid/Ternary complete plan，并关闭 Grid
+   的 registry/provider 双头。
 4. A5 用 B1 生成的 qualified winner view 取代手工表；measurement 只能从合法
    候选中选，不能创造 mechanism/candidate。
 5. A8 再做 baked-g 全量收敛；结构常量按 [K-10] 保留，真实 g 迁入 typed owner，

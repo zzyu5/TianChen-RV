@@ -1497,9 +1497,9 @@ private:
       // ORTHOGONAL to colGroupOuter (the loop-order axis) -- both coexist.
       bool rolledMainTerm,
       // [M1c] the REALIZED outer group-loop order (col-outer vs row-outer): the
-      // SEL-1 loop-order schedule axis the caller resolves from the stamped
-      // weft_rvv.loop_order attr, falling back to the SAME repackColGroupOuterForLayout
-      // predicate the selector keys on (so both sides carry one stride fact).
+      // SEL-1 loop-order schedule axis the caller obtains from the shared
+      // validated plan. No reason gate, stride fallback, or emitter-local
+      // recomputation is permitted.
       bool colGroupOuter) const;
 
   /// FAMILY-A (symmetric, full-int8) block-as-lane sibling of

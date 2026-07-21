@@ -1,34 +1,23 @@
 // RUN: weft-opt %s -split-input-file --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s
 // RUN: weft-opt %s -split-input-file --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=NOSTATIC
 
-// [SEL-3 T-SEL3-3] GENERALIZATION ZERO-REGRESSION FALSIFIER: the two former per-axis
-// lookups (lookupTilingMeasurement / lookupLoopOrderMeasurement) are now thin wrappers
-// over ONE axis-parameterized in-memory view lookupMeasurement(hash, kernel, axis) with a
-// SINGLE axis-tagged seed table. This file pins that the generalization is BYTE-EXACT: the
-// memoized-argmin winner stamped on EVERY seeded leaf is IDENTICAL to the pre-generalization
-// hardcode. It asserts the exact winner mapping the CAVEAT locks (the view returns the
-// schema `selected` variant, NEVER a runtime cold_median re-derivation):
-//
-//   SP4 output-tiling axis (reason=measured on all 5 seeded K-quant):
-//     q4_K / q2_K / q5_K  (fold_model "kquant_dmin_bsums_min",   min-fold cliff)   -> s6_tiled
-//     q6_K / q3_K         (fold_model "kquant_single_scale_no_min", weight-bound)  -> plain
-//   Loop-order axis (only q4_K carries an A/B seed):
-//     q4_K -> col_outer, reason=measured
-//
-// A tie-recompute bug (best cold_median among the group's shared 1.96 ratio -> 更简单者胜
-// = plain) would REGRESS q4_K/q2_K/q5_K to plain and TRIP this test; the fixed `selected`
-// mirror keeps them s6_tiled. NO wired leaf ever stamps static_order (every leaf sits on a
-// capability-afforded board VLEN128/32-vreg).
+// [SEL-3 / A4a] Measurement-boundary falsifier. Historical SP4 A/B rows still exist as
+// evidence, but SP4 no longer performs measured ranking because each shape currently has
+// one real body. These five formerly seeded leaves must therefore stamp only_feasible and
+// the shape-realizable singleton. The independent loop-order axis remains a genuine
+// two-body choice: q4_K still receives col_outer/reason=measured from the qualified-view
+// seed. This catches both regressions: reviving an SP4 fake candidate, or accidentally
+// deleting the real loop-order measurement path. No wired leaf stamps static_order.
 // NOSTATIC-NOT: static_order
 
-// ===================== q4_K: MEASURED -> s6_tiled + col_outer ========================
+// ===================== q4_K: singleton s6_tiled + measured col_outer =================
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q4_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
 // CHECK-SAME: weft_rvv.loop_order = "col_outer"
 // CHECK-SAME: weft_rvv.loop_order_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q4_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q4_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
 module {
   weft.exec.kernel @ggml_repack_gemm_q4_K_q8_K_kernel {
@@ -49,12 +38,12 @@ module {
 
 // -----
 
-// ===================== q2_K: MEASURED -> s6_tiled (min-fold register cliff) ==========
+// ===================== q2_K: singleton s6_tiled (min-fold register cliff) =============
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q2_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q2_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q2_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
 module {
   weft.exec.kernel @ggml_repack_gemm_q2_K_q8_K_kernel {
@@ -75,12 +64,12 @@ module {
 
 // -----
 
-// ===================== q5_K: MEASURED -> s6_tiled (min-fold survives qh plane) =======
+// ===================== q5_K: singleton s6_tiled (min-fold survives qh plane) ===========
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q5_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q5_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q5_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
 module {
   weft.exec.kernel @ggml_repack_gemm_q5_K_q8_K_kernel {
@@ -101,12 +90,12 @@ module {
 
 // -----
 
-// ===================== q6_K: MEASURED -> plain (weight-bound honest NULL) ============
+// ===================== q6_K: singleton plain (weight-bound body) ======================
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q6_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"
 module {
   weft.exec.kernel @ggml_repack_gemm_q6_K_q8_K_kernel {
@@ -127,17 +116,14 @@ module {
 
 // -----
 
-// ===================== q3_K: MEASURED -> plain ([XFER-1] weight-bound NULL) ==========
-// The [XFER-1] validation#1 cell: the tiled body shaves +8% wall but never reaches the
-// register cliff, so the MEASURED winner stays plain (更简单者胜 / marginal-non-cliff
-// no-flip). This is the seed most at risk of a naive cold_median tie-recompute regressing
-// to (or spuriously flipping) the winner, so pinning it plain=measured is the falsifier's
-// core assertion.
+// ===================== q3_K: singleton plain (weight-bound body) ======================
+// The historical +8% tiled observation remains a null-lever evidence row; it does not
+// make an unrealized tiled body a compiler candidate.
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q3_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q3_K{{.*}}reason{{.*}}measured
+// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
+// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q3_K{{.*}}reason{{.*}}only_feasible
 // CHECK-SAME: weft_rvv.tiling_variant = "plain"
 module {
   weft.exec.kernel @ggml_repack_gemm_q3_K_q8_K_kernel {

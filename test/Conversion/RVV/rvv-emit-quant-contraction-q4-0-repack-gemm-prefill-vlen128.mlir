@@ -48,10 +48,10 @@ module {
 // CHECK-NOT: weft_rvv.q4_0_q8_0_block_dot
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @weft_emitc_ggml_gemm_q4_0_q8_0_kernel_ggml_gemm_q4_0_q8_0(
-// The per-group activation base vy + y*nb*136 (block_q8_0x4 stride 136) and the
-// per-group weight base vx + x*nb*288 (block_q4_0x16 stride 288).
-// CHECK: literal "136"
+// The selected col_outer schedule forms the weight-group base first, then the
+// activation-row-group base inside it.
 // CHECK: literal "288"
+// CHECK: literal "136"
 // The 16-lane f32m4 accumulator set (r51g m1 flip; mf2 default was 4x8 f32m2, columnsPerPass 4).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"

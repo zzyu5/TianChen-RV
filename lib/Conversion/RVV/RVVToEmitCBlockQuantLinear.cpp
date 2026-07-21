@@ -1,4 +1,5 @@
 #include "RVVToEmitCInternal.h"
+#include "Weft/Conversion/RVV/RVVRepackScheduleMaterialization.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -3189,9 +3190,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 //      main term resolves to the UNROLLED default => BYTE-EXACT with the pre-[ROLL]
 //      shipped emit; every existing no-stamp fixture stays green.
 //
-// This mirrors the loop-order siblingColGroupOuter gate (activate only on
-// reason=="measured") and the full-LMUL[B] decideRepackAccumulatorLMUL gate (default
-// mf2, flip only on a board measurement): DEFAULT UNCHANGED, activate only on measured.
+// This is an independent rolled-vs-unrolled policy. It must not be copied to the
+// selected schedule-plan consumer: SP4/loop-order realization never gates on reason.
 //
 // The register-budget axis is NOT binding for the S6-tiled body (peak-live is already
 // <=32 vreg by construction), so the DISCRIMINANT capability fact is code volume vs
@@ -3232,8 +3232,7 @@ static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
   int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
   int64_t unrolledMainTermVwmacc = numHalves * nSuperHalves * /*mHalves*/ 2 *
                                    /*mGroup*/ 16 * columnsPerPass * /*lanes*/ 4;
-  // [ROLL] MEASURED-GATE producer (mirrors the loop-order siblingColGroupOuter gate and
-  // the full-LMUL[B] decideRepackAccumulatorLMUL gate): the code-volume-vs-I-cache
+  // [ROLL] MEASURED-GATE producer: the code-volume-vs-I-cache
   // budget predicate is ONE (NECESSARY) leg -- it identifies the roll-ELIGIBLE
   // super-block family whose per-position decode storm would not sit in the hot I-cache
   // window -- but rolling is gated on a SECOND leg: a per-(shape x board) MEASUREMENT
@@ -3283,47 +3282,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed repack GEMM loop body missing the op");
 
-  // ---- [loop-order REALIZE 铺面] SIBLING prefill-GEMM col-group-outer schedule
-  // resolution (parallel to the q4_K min-fold arm's own resolution below). The
-  // col-group-OUTER nest is a BYTE-EXACT loop-interchange of the fixed row-group-
-  // outer nest the sibling leaves currently emit: every out[y,x] is a PRIVATE
-  // K-accumulation, so swapping the two INDEPENDENT group loops leaves the hot
-  // inner core, the per-block fold order and every stored value bit-identical (the
-  // same invariant proven for q4_K's M1b two-arm body). The sibling DEPLOYED default
-  // stays the M1-committed row-group-outer single nest; col_outer is REALIZED here as
-  // a CAPABILITY but SELECTED only when the front-door stamps a MEASURED col_outer
-  // winner (Stage-3 board A/B, mirroring the q4_K measured seed). The UNMEASURED
-  // layout-PRIOR stamp -- weft_rvv.loop_order = "col_outer" with reason "prior", which
-  // EVERY K-quant sibling carries because its repacked weight col-group panel stride
-  // is >= the activation panel stride -- does NOT flip the shipped nest, so this
-  // REALIZE adds the capability while keeping the emitted C byte-identical until a
-  // measurement is seeded. (q4_K, resolved separately in its own arm below, keeps its
-  // M1b stride-prior fallback; its measured seed already ships col_outer.)
-  bool siblingColGroupOuter = false;
-  if (auto loopOrder =
-          loopBody->getAttrOfType<mlir::StringAttr>("weft_rvv.loop_order")) {
-    if (auto loopOrderReason = loopBody->getAttrOfType<mlir::StringAttr>(
-            "weft_rvv.loop_order_selection_reason")) {
-      if (loopOrder.getValue() == "col_outer" &&
-          loopOrderReason.getValue() == "measured")
-        siblingColGroupOuter = true;
-      else if (loopOrder.getValue() == "col_outer") {
-        // [档 C#8 override record] The front-door SELECTED col_outer but on an
-        // UNMEASURED reason (prior / only_feasible). The emitter measured-gate (same
-        // discipline as full-LMUL[B] decideRepackAccumulatorLMUL and [ROLL]
-        // resolveRepackMainTermRolled) does NOT flip the shipped sibling nest on an
-        // unmeasured selection, so the REALIZED order is the byte-exact row_outer
-        // default. Emit the override record so the EMIT side carries the
-        // "selector=col_outer/<reason> -> realized row_outer" fact -- closing the
-        // log-vs-realized divergence (the loop_order_selection_record attr alone would
-        // read as a shipped col_outer). No behavior change: row_outer already ships.
-        rewriter.create<emitc::VerbatimOp>(
-            loc, std::string("// weft_emitc.loop_order_override selector=col_outer/") +
-                     loopOrderReason.getValue().str() +
-                     " realized=row_outer gate=measured-gate-blocks-unmeasured");
-      }
-    }
+  llvm::Expected<RVVRepackSchedulePlan> selectedSchedule =
+      readAndVerifyRVVRepackSchedulePlan(loopBody);
+  if (!selectedSchedule) {
+    std::string error = llvm::toString(selectedSchedule.takeError());
+    return rewriter.notifyMatchFailure(
+        loopBody, "selected repack schedule read failed after pre-emission "
+                  "verification: " +
+                      error);
   }
+  // REALIZE consumes the selected bounded enum exactly once. Selection reason is
+  // provenance checked by the pre-emission verifier; it never changes which
+  // already-legal body is emitted.
+  const bool selectedColGroupOuter =
+      selectedSchedule->loopOrder ==
+      ::weft::plugin::rvv::RVVRepackLoopOrder::ColOuter;
 
   // ---- TERNARY front-door dispatch (the retired emitRepackGem{m}TQ{20,10}Q8K
   // direct emitters, now CONSTRUCTED through this typed-region front door). Gate on
@@ -3382,7 +3355,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     // tq1_0 base-3: the base-3 decode reads a SECOND weight plane (qh), whose
     // repacked byte offset rides on the loop body op's OPTIONAL weight_qh_byte_offset
     // attr (the tq2_0 single-plane fold does not carry it).
@@ -3403,7 +3376,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     }
     return rewriter.notifyMatchFailure(
         coreBrick, "ternary repack GEMM decode_model not recognized (expected "
@@ -3505,7 +3478,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*nSub), coreBrick.getCodebook(),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     }
     // The mxfp4 FLAT E8M0 sibling: the SAME codebook gather + i32 dot AMORTIZED across the
     // 4 interleaved block_q8_0x4 columns, but the per-column weight scale is the E8M0
@@ -3523,7 +3496,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           coreBrick.getCodebook(),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     return emitRepackCodebookGemmBodyIq4Nl(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3535,7 +3508,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         coreBrick.getCodebook(),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+        static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
   }
 
   // ---- GRID front-door dispatch (the retired emitRepackGemmIq2XxsQ8K direct emitter,
@@ -3630,7 +3603,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(coreBrick.getNSubblocks()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     }
     // C4a-3: iq1_m (the GEMM sibling -- see the GEVM arm for why fold arith must be
     // consulted BEFORE ls arity: iq1_m's arity IS Dual, so without this arm it would
@@ -3656,7 +3629,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(coreBrick.getNSubblocks()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     }
     // C4a-4: iq3_xxs, the prefill half of the GEVM arm's argument -- entryWidth is tested
     // BEFORE ls arity because iq3_xxs is Single-ls and would otherwise be silently
@@ -3681,7 +3654,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(coreBrick.getNSubblocks()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     }
     if (gridPlan->lsArity == weft::GridLsArity::Single)
       return emitRepackGridGemmBodyIq2Xxs(
@@ -3697,7 +3670,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(coreBrick.getNSubblocks()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
     return emitRepackGemmIq2DualScaleQ8K(
         rewriter, loc, *gridPlan, weightBase, activationBase, output, rowCount,
         columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3711,7 +3684,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(coreBrick.getNSubblocks()),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()), siblingColGroupOuter);
+        static_cast<int64_t>(loopBody.getHalfLanes()), selectedColGroupOuter);
   }
 
   // ---- K-QUANT front-door dispatch (the retired emitRepackGemmQ4KQ8K direct
@@ -3793,27 +3766,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
         static_cast<int64_t>(loopBody.getHalfLanes()));
-    // [G3 主线C / SEL-1] T3: the min-fold (q4_K/q2_K/q5_K) SP4 output-tiling PURE
-    // REALIZE gate. The front-door selection pass stamped weft_rvv.tiling_variant on
-    // this loop-body op from capability facts + the offline-profile measurement
-    // library; the emitter is a pure REALIZE that reads it. ABSENT => S6Tiled (the
-    // byte-exact default that keeps the hand-authored emitter fixtures bit-identical);
-    // "s6_tiled" => the register-cliff stack-panel body the three min-fold decode arms
-    // below emit (all three min-fold leaves memoized-argmin to s6_tiled, so this is the
-    // measured winner). "plain" is a REGISTERED, legality-filtered SP4 variant whose
-    // untiled min-fold GEMM body is DEFERRED -- fail-closed (I7) for the WHOLE min-fold
-    // family (not just q4_K) rather than silently emit the tiled body under a "plain"
-    // label; the measured min-fold winner is never plain, so this arm is not taken in
-    // production.
-    if (auto tilingVariant = loopBody->getAttrOfType<mlir::StringAttr>(
-            "weft_rvv.tiling_variant")) {
-      if (tilingVariant.getValue() == "plain")
-        return rewriter.notifyMatchFailure(
-            loopBody,
-            "the min-fold (q4_K/q2_K/q5_K) \"plain\" (untiled) SP4 tiling variant is a "
-            "registered, legality-filtered [SEL-1] variant whose untiled GEMM body is "
-            "deferred; the measured min-fold winner is s6_tiled");
-    }
+    // SP4 is a mechanical selected->realized mapping. Min-fold has exactly one
+    // implemented/legal body in this slice: S6Tiled. Missing, forged, or Plain
+    // stamps have already failed the common pre-emission verifier; retain this
+    // local assertion so no future caller can bypass that authority boundary.
+    if (!selectedSchedule->tiling ||
+        *selectedSchedule->tiling !=
+            ::weft::plugin::rvv::RVVRepackTilingVariant::S6Tiled)
+      return rewriter.notifyMatchFailure(
+          loopBody,
+          "min-fold repack GEMM realization requires the selected s6_tiled plan");
     // q5_K (4-bit nibble + qh 5th bit): the S6-tiled q4_K GEMM body WITH the qh inject.
     // Requires the weight_qh_byte_offset attr (the qh 5th-bit plane, the SHARED slot on a
     // MIN fold). RE-EMITs the byte-exact S6-tiled q5_K GEMM body.
@@ -3836,7 +3798,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm,
+          selectedColGroupOuter);
     }
     if (coreBrick.getDecodeModel() == "q2_K") {
       // [ROLL] schedule resolved ABOVE for the whole min-fold family (rolledMainTerm).
@@ -3852,38 +3815,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm,
+          selectedColGroupOuter);
     }
-    // q4_K: the min-fold family default arm (the s6_tiled PURE REALIZE was gated for
-    // the WHOLE min-fold family above). RE-EMITs the byte-exact S6-tiled q4_K GEMM body.
-    // [M1c] Resolve the loop-order schedule axis: PREFER the front-door SEL-1 stamp
-    // (weft_rvv.loop_order = "col_outer" | "row_outer"), else fall back to the SAME
-    // repackColGroupOuterForLayout stride predicate the selector keys on -- so the stamp
-    // and the emitter carry ONE stride fact and an un-stamped (emitter-direct) fixture
-    // stays byte-identical to the M1b-committed behavior.
-    //
-    // [档 C#8 / 核查 ④ pre-existing M1c 留档] UNLIKE the sibling gate above, this q4_K arm
-    // honors ANY col_outer stamp with NO reason gate. This is NOT a [ROLL]-style
-    // pre-enablement: col_outer is q4_K's M1b-COMMITTED byte-exact default -- BOTH the
-    // measured seed (lookupLoopOrderMeasurement q4_K col_outer, board hash 3cd23a4e,
-    // reason=measured, the 2.47x M1b A/B) AND the repackColGroupOuterForLayout stride
-    // fallback (q4_K weight panel stride >= activation panel stride) yield col_outer. So
-    // honoring col_outer/prior re-affirms the SAME committed nest; it never ships an
-    // UNMEASURED DIVERGENT nest (log==emit, no divergence, no override record needed).
-    // The absent reason gate is pre-existing M1c, byte-exact-neutral, OUT of this
-    // round's scope (the sibling gate above IS reason-gated, per Roll/full-LMUL[B]
-    // discipline). If a future q4_K key ever made col_outer differ from the committed
-    // default, this arm would need the sibling gate's reason==measured predicate.
-    bool colGroupOuter = weft::plugin::rvv::repackColGroupOuterForLayout(
-        static_cast<int64_t>(loopBody.getWeightBlockStride()),
-        static_cast<int64_t>(loopBody.getActivationBlockStride()));
-    if (auto loopOrder = loopBody->getAttrOfType<mlir::StringAttr>(
-            "weft_rvv.loop_order")) {
-      if (loopOrder.getValue() == "col_outer")
-        colGroupOuter = true;
-      else if (loopOrder.getValue() == "row_outer")
-        colGroupOuter = false;
-    }
+    // q4_K consumes the same selected loop-order plan as every sibling. There is
+    // no emitter-local stride prior and no reason gate.
     return emitRepackKQuantGemmBodyQ4K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3897,7 +3833,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
         static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm,
-        colGroupOuter);
+        selectedColGroupOuter);
   }
 
   // ---- K-QUANT q6_K NO-MIN front-door dispatch (the retired emitRepackGemmQ6KQ8K
@@ -4010,7 +3946,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(*nSub),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
-          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
+          static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm,
+          selectedColGroupOuter);
     return emitRepackKQuantGemmBodyQ6K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -4023,7 +3960,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(*nSub),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm, siblingColGroupOuter);
+        static_cast<int64_t>(loopBody.getHalfLanes()), rolledMainTerm,
+        selectedColGroupOuter);
   }
 
   // ---- Shape facts (the *how* -- LMUL / strip width / spill-avoiding
@@ -4270,7 +4208,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // The activation ROW-GROUP loop (nr/4) and the weight COLUMN-GROUP loop (nc/16)
   // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
   // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
-  // Which loop is OUTER is a SCHEDULE axis resolved ABOVE (siblingColGroupOuter)
+  // Which loop is OUTER is the selected schedule axis resolved above
   // from the front-door weft_rvv.loop_order stamp (row-group-OUTER == the
   // M1-committed flat default; col-group-OUTER holds the DRAM-dominant repacked
   // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
@@ -4435,7 +4373,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
       }
   };  // end emitTile (byte-identical body for both loop orders)
 
-  if (siblingColGroupOuter) {
+  if (selectedColGroupOuter) {
     // col-group WEIGHT panel OUTER; row groups sweep INSIDE (weight-resident).
     auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
                                                  sizeLit(1),
@@ -8584,11 +8522,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     // on a LAYOUT/cache FACT (NOT a hardcoded constant). Under M1b this predicate was
     // INLINED here (`weightStride >= activationStride`); under M1c it is LIFTED to the
     // first-class SEL-1 loop-order selector (RVVRepackTilingSelection selectRepackLoopOrder,
-    // stamped as weft_rvv.loop_order) and this emitter degenerates to a PURE REALIZE:
-    // `colGroupOuter` is resolved by the caller from the stamped attr, falling back to
-    // the SAME repackColGroupOuterForLayout stride predicate the selector keys on -- so
-    // the front-door selection and the emitter carry ONE stride fact (同源同事实), never
-    // two divergent copies. Key rationale (unchanged): hold the DRAM-DOMINANT repacked
+    // stamped as weft_rvv.loop_order). The caller passes the validated selected enum;
+    // this body never reads attrs, reasons, measurements, or strides to select again.
+    // Key rationale (unchanged): hold the DRAM-DOMINANT repacked
     // stream cache-resident across the hot inner sweep and restream the SMALLER one. For
     // the K-quant prefill GEMM the per-block weight panel (block_q4_Kx16 stride =
     // weightStride, 2304 B) is the larger stream vs the activation panel (block_q8_Kx4

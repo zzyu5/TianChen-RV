@@ -40,10 +40,10 @@ module {
 // CHECK-NOT: weft_rvv.repack_gemm_q5_1_q8_1 %
 // CHECK-NOT: weft_rvv.typed_repack_gemm_loop_body
 // CHECK: emitc.func @weft_emitc_ggml_gemm_q5_1_q8_1_kernel_ggml_gemm_q5_1_q8_1(
-// The per-group activation base vy + y*nb*144 (block_q8_1x4 stride 144) and the
-// per-group weight base vx + x*nb*384 (block_q5_1x16 stride 384).
-// CHECK: literal "144"
+// The selected col_outer schedule forms the weight-group base first, then the
+// activation-row-group base inside it.
 // CHECK: literal "384"
+// CHECK: literal "144"
 // The 4x8 f32m2 accumulator set (columnsPerPass == 4 columns folded in ONE pass).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
 // The q5_1 UNSIGNED-nibble load + lane-wise vwmacc + lo/hi combine.

@@ -3,10 +3,9 @@
 // [loop-order REALIZE 铺面] col_outer byte-exact fixture for the FLAT-family prefill-GEMM
 // leaf (the emitTypedRepackGemmLoopBody flat fall-through, fold_model
 // "lane_wise_vector_scale": q4_0/q4_1/q5_0/q8_0). The loop-body op is stamped
-// weft_rvv.loop_order = "col_outer" with selection_reason "measured" -- the ONLY
-// combination the flat path honors (siblingColGroupOuter); an unmeasured layout-prior
-// stamp keeps the M1-committed row_outer default (pinned byte-identical by the existing
-// row_outer fixture). Under the MEASURED col_outer stamp the flat path REALIZES the
+// weft_rvv.loop_order = "col_outer" with selection_reason "measured". The emitter
+// consumes the selected enum directly; the reason is provenance only. Under this
+// col_outer stamp the flat path realizes the
 // loop-interchange: the weight-column-GROUP loop is hoisted OUTER and the
 // activation-row-GROUP loop sweeps INSIDE it. PURE loop-interchange -- the per-(y,x)
 // tile is emitted by the SAME emitTile lambda as the row_outer arm, so every
@@ -25,7 +24,7 @@ module {
       %bs = weft_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_repack_gemm, sew = 32 : i64, source_kernel = "rvv_repack_gemm_kernel", status = "selected-lowering-boundary"} {
-        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "lane_wise_vector_scale", weft_rvv.loop_order = "col_outer", weft_rvv.loop_order_selection_reason = "measured"} {
+        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "lane_wise_vector_scale", weft_rvv.loop_order = "col_outer", weft_rvv.loop_order_selection_reason = "measured", weft_rvv.tiling_variant = "plain", weft_rvv.tiling_selection_reason = "only_feasible"} {
         ^bb0(%block_index: index, %roff: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">, %acc2: !weft_rvv.vector<f32, "m2">, %acc3: !weft_rvv.vector<f32, "m2">):
           // FOUR per-column i32m2 sumi from ONE integer-core brick (variadic
           // results: one per interleaved activation column of ONE runtime strip),

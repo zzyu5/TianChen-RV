@@ -2,7 +2,7 @@
 
 // [loop-order REALIZE 铺面] col_outer byte-exact fixture for the tq2-0 prefill-GEMM leaf
 // (emitRepackTernaryGemmBodyTQ20). The loop-body op is stamped weft_rvv.loop_order = "col_outer" with
-// selection_reason "measured" -- the ONLY combination the sibling emitter honors
+// selection_reason "measured"; reason is attribution and does not gate realization
 // (an unmeasured layout-prior stamp keeps the M1-committed row_outer default, which
 // the existing row_outer fixture pins byte-identical). Under the MEASURED col_outer
 // stamp the emitter REALIZES the loop-interchange: the weight-column-GROUP loop is

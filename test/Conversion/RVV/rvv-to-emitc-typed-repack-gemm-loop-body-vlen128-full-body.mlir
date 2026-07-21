@@ -21,7 +21,8 @@
 // block_index + strip_row_offset anti-bypass, on EACH fold brick's block_index +
 // strip + base + sumi(result c) + acc(region arg 2+c) dataflow tie, and on the yield
 // naming the folds' acc_next, then wraps the region's inner block loop in the SAME
-// four outer loops the monolith emits (row-group / column-group / runtime strip /
+// four outer loops selected by the complete schedule plan (column-group / row-group /
+// runtime strip /
 // column pass) and drives the CORE + FOLD from the SHARED
 // emitRepackGemmQ4LaneWiseIntegerCore / emitRepackGemmDualFp16ScaleFold leaves --
 // byte-identical to emitRepackGemmQ4_0Q8_0's kernel body by construction.
@@ -40,7 +41,7 @@ module {
       %bs = weft_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_repack_gemm, sew = 32 : i64, source_kernel = "rvv_repack_gemm_kernel", status = "selected-lowering-boundary"} {
-        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "lane_wise_vector_scale"} {
+        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "lane_wise_vector_scale", weft_rvv.loop_order = "col_outer", weft_rvv.loop_order_selection_reason = "prior", weft_rvv.tiling_variant = "plain", weft_rvv.tiling_selection_reason = "only_feasible"} {
         ^bb0(%block_index: index, %roff: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">, %acc2: !weft_rvv.vector<f32, "m2">, %acc3: !weft_rvv.vector<f32, "m2">):
           // FOUR per-column i32m2 sumi from ONE integer-core brick (variadic
           // results: one per interleaved activation column of ONE runtime strip),
@@ -70,13 +71,16 @@ module {
 // CHECK: div
 // CHECK: div
 
-// The OUTER activation-row-GROUP loop over nr/4; per-group activation base
-// (block_q8_0x4 stride 136).
-// CHECK: for %[[Y:.*]] = %{{.*}} to %{{.*}} step
-// CHECK: literal "136"
-// The weight-column-GROUP loop over nc/16; per-group weight base (stride 288).
+// The layout prior selects the OUTER weight-column-GROUP loop over nc/16;
+// per-group weight base (stride 288) is hoisted above the row sweep.
 // CHECK: for %[[X:.*]] = %{{.*}} to %{{.*}} step
+// CHECK-NEXT: verbatim "{{.*}}callee=weight_group_base"
 // CHECK: literal "288"
+// The activation-row-GROUP loop over nr/4 is inside it; per-group activation
+// base uses the block_q8_0x4 stride 136.
+// CHECK: for %[[Y:.*]] = %{{.*}} to %{{.*}} step
+// CHECK-NEXT: verbatim "{{.*}}callee=act_group_base"
+// CHECK: literal "136"
 // The RUNTIME strip loop over the numHalves == 2 disjoint 8-lane strips.
 // CHECK: for %[[H:.*]] = %{{.*}} to %{{.*}} step
 

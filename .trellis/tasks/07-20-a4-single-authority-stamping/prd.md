@@ -10,7 +10,7 @@ typed schedule facts/capability/context
   → formula/provider constructs bounded candidates
   → legality keeps only realizable candidates
   → selector chooses one legal value
-  → complete required typed schedule stamp
+  → complete required bounded schedule stamp
   → pre-emission verification/materialization
   → mechanical realization/emission
 ~~~
@@ -36,15 +36,19 @@ typed schedule facts/capability/context
 - 为本 declared slice 明确真实、有限且均可 realization 的 candidate set；若不在本
   任务实现 `Plain` real body，就从 SP4 legal set 删除 `Plain`。
 - 让 SP4/loop-order 的 code-affecting selected fields 成为 emission 前 required、
-  typed、all-or-none 的 complete stamp；reason/provenance 仅作 mirror。
+  bounded、all-or-none 的 complete stamp；共享 reader 将字符串属性解析为 C++ enum
+  plan 并做语义验证。这里不虚构已新增 ODS typed schedule attribute；reason/provenance
+  仅作 mirror。
 - 复用现有 canonical capability/selection/preparation 基础设施；不得在 schedule
   emitter 内建立第二 capability parser、winner reader 或 stamp writer。
-- pre-emission 层拒绝 missing、partial、错类型、unknown、forged、stale 或与当前
-  typed inputs 不一致的 stamp；不得修正成另一个值。
+- pre-emission 层拒绝 missing、partial、错类型、unknown、forged、结构性 stale 或与
+  当前 typed inputs 不一致的 stamp；不得修正成另一个值。`measured` 的 ledger lineage、
+  freshness 与 qualification 明确属于 A5，不在 A4a 伪装解决。
 - emitter 对所有合法 selected values 机械 realization，不再看 reason、format、
   board/march 或 measurement 决定是否兑现。
-- direct wrapper、registry clone 与 artifact/deployed route 必须经过同一 preparation
-  入口；不得新增 benchmark-only bypass。
+- direct wrapper、registry clone 与标准 target-artifact export route 必须经过同一
+  preparation 入口；不得新增 benchmark-only bypass。真硬件 deployed runtime 是后续
+  correctness/performance campaign，不由本地 route 测试代替。
 - 更新或删除固化旧错误行为的 fixture，并把它们变成 killing tests。
 
 ## Explicit Retirement Set
@@ -54,6 +58,7 @@ typed schedule facts/capability/context
 - sibling `reason == measured` override gate 与 override comment；
 - q4_K missing-stamp `repackColGroupOuterForLayout` 重算；
 - optional string-only schedule attr 与任何 silent/default/compat reader；
+- `static_order` code-affecting compatibility reason；空合法集不得制造选择；
 - 同一 schedule decision 的第二 selector、第二 writer、shadow route 与旧 overload。
 
 不保留 legacy/deprecated/compat alias，也不把旧 fixture 数量当保留理由。无法迁完
@@ -65,7 +70,7 @@ typed schedule facts/capability/context
 
 1. implementation/authority agent 负责 formula、legality、complete stamp 与 emitter
    退役集；
-2. adversarial/parity agent 独立设计反例、追踪 direct/registry/artifact/deployed
+2. adversarial/parity agent 独立设计反例、追踪 direct/registry/target-artifact
    路由，并审查实现 agent 的 diff；
 3. root/integration owner 负责共享 worktree、touch-set 冲突裁决、强制重链、全量
    验证、spec/issue/ledger 同步与唯一合入。
@@ -79,7 +84,7 @@ agent 可按不相交文件并行，但共享接口只有一个 integration owne
   `lib/Plugin/RVV/FrontDoor/` 中与 SP4/loop-order 直接相关的 symbols；
 - selected body/stamp verifier/materializer；
 - `lib/Conversion/RVV/` 中 min-fold、sibling loop-order 与 q4_K 的实际 consumer；
-- direct/registry/artifact parity 与 focused lit/C++ tests；
+- direct/registry/target-artifact parity 与 focused lit/C++ tests；
 - ISSUE-125、formula migration ledger 与 authority matrix。
 
 禁止顺手迁移其它 dequant plan、改 measurement winner、建立 Formula IR 或改真板
@@ -94,30 +99,33 @@ agent 可按不相交文件并行，但共享接口只有一个 integration owne
 
 ## Acceptance Criteria
 
-- [ ] SP4/loop-order 的每个 legal candidate 都有真实 body；selector 不可能返回
+- [x] SP4/loop-order 的每个 legal candidate 都有真实 body；selector 不可能返回
       emitter 才拒绝的值。
-- [ ] 合法 selected value 的 realization 与 reason 无关；`col_outer/prior` 真正产生
+- [x] 合法 selected value 的 realization 与 reason 无关；`col_outer/prior` 真正产生
       col-outer 实现。
-- [ ] 删除 SP4 或 loop-order stamp 会在 emission 前 fail closed；不落回默认/重算。
-- [ ] partial、错类型、unknown、forged、stale/inconsistent stamp 各有独立负例。
-- [ ] `ABSENT→S6Tiled`、`reason==measured` override、q4_K missing-stamp recompute
+- [x] 删除 SP4 或 loop-order stamp 会在 emission 前 fail closed；不落回默认/重算。
+- [x] partial、错类型、unknown、forged、结构性 stale/inconsistent stamp 各有独立负例；
+      measurement lineage/freshness 明确留给 A5。
+- [x] `ABSENT→S6Tiled`、`reason==measured` override、q4_K missing-stamp recompute
       与 unrealizable-Plain 假候选在 production tree 中为零。
-- [ ] direct、registry、artifact/deployed 路由共享 preparation，并对相同输入产生
-      同一 complete stamp / 同一 emitted schedule。
-- [ ] measurement 只能在 legal candidates 内选择；不能创造 candidate、绕过
+- [x] direct、registry、target-artifact 路由共享 preparation；公共 hook 提供架构覆盖，
+      q4_0 full-pipeline object export 给出代表性结构证据。不把它外推为全格式逐项验证，
+      也不把本地 artifact export 冒充板上执行。
+- [x] measurement 只能在 legal candidates 内选择；不能创造 candidate、绕过
       legality 或借 reason 改 compute。
-- [ ] A3 Codebook 的 formula、capability collector、unique materializer 与 parity
+- [x] A3 Codebook 的 formula、capability collector、unique materializer 与 parity
       tests 无回归，且本任务没有复制它们。
-- [ ] 合法现役 fixtures 的 emitted C / byte-exact 行为保持；无新增 RVV suite 失败。
-- [ ] authority census 证明已迁移 slice 的旧 caller、compat bridge、第二 selector/
+- [x] 合法现役 fixtures 的 compute 语义与 inner body 保持；schedule-sensitive goldens
+      按真实 selected order 有意更新；无新增 RVV suite 失败。
+- [x] authority census 证明已迁移 slice 的旧 caller、compat bridge、第二 selector/
       writer/dispatcher 和 code-affecting silent default 均为零。
 
 ## Verification
 
 - focused formula/selector/verifier/emission lit 与必要 C++ unit；
-- direct/registry/artifact parity；
-- mutation-style killing tests 覆盖 missing/forged/stale/reason override/illegal
-  candidate；
+- direct/registry/target-artifact parity；
+- mutation-style killing tests 覆盖 missing/forged/structural-stale/reason
+  override/illegal candidate；
 - `formula-authority-matrix.test` 与无截断 `rg` census；
 - 修改 Conversion/Target 后删除工具并强制重链；若改共享 header/struct layout，执行
   clean build，再跑相关 RVV/EmitC suite 与全量 baseline；
@@ -131,6 +139,47 @@ agent 可按不相交文件并行，但共享接口只有一个 integration owne
 - 实现新的 `Plain` 候选（除非审计证明删除会破坏合法 production 语义并在同一
   原子切换内交付完整 real body）；
 - Formula dialect、通用 schedule IR、在线 tuning、runtime sparse/MoE。
+
+## Authority Boundary
+
+- code-affecting authority 只来自 bounded `tiling_variant` / `loop_order` plan；reason
+  经一致性验证，但永不改变 realization。
+- `*_selection_record` 是非权威 diagnostic mirror。emitter 与 legality 均不读取它；
+  A5 负责从 qualified ledger view 重建或校验其 lineage/freshness。在 A5 完成前，record
+  不能独立作为性能或 provenance 证据。
+- 标准 direct pass、registry clone 与 target-artifact export 都调用共享 backend
+  conversion harness，进而调用同一个 RVV `prepareForConversion`；emitter 再逐 op 调用
+  同一 validated-plan reader，防止 preflight 后突变绕过。
+
+## Outcome（2026-07-21）
+
+- selector 现在以 `std::optional` 表达空合法集；frontdoor 在无可实现 schedule 或缺失
+  target resource facts 时 fail closed，不制造 compatibility choice。
+- SP4 的合法集与真实 body 对齐：min-fold=`S6Tiled`，dual-plane/already-lean=`Plain`，
+  均为 `only_feasible`；`RVVMeasurementAxis::SP4Tiling` 与 `static_order` 兼容状态退役。
+- loop-order 保留两个真实 body；q4_K 与 siblings 只消费一次解析后的
+  `selectedColGroupOuter`。旧 reason gate、q4_K stride 重算与 prior override 为零。
+- 新增共享 `RVVRepackSchedulePlan` reader/verifier；它把 string attrs 解析为 bounded
+  C++ enums 并验证 shape、reason 与 layout prior。它不是 ODS typed attribute，也不承担
+  A5 的 measurement lineage/freshness 资格判断。
+- flat q4_0/q4_1/q5_1 等 builder 用 loop body 的真实 `fold_model` 构造 g，消除了前门
+  以硬编码 `lane_wise_vector_scale` 覆盖 q4_1/q5_1 真实 fold identity 的 authority split。
+- 37 份 direct typed-body fixture 已迁到 complete stamp；新增 selected→realized 与
+  fail-closed killing tests；q4_0 target-object 代表测试证明标准 artifact route 进入同一
+  preparation/consumer 链。没有据此声称 deployed runtime、真机性能或 artifact replay。
+- 本任务采用多人同题交叉审查：两个独立 adversarial reviewer 在最终实现上分别检查
+  authority 绕过与证据过度外推，结论均为 GO，且共同保留 A5 边界。
+
+### Reproducible verification
+
+- clean default build：304/304 targets 成功；最后的文案清理后完成依赖重链。
+- focused schedule/formula/target tests：4/4；受 flat-fold 修正影响的 frontdoor tests：
+  7/7；`Conversion/RVV`：305/305。
+- `formula-authority-matrix` checker 与 self-test：通过；issue census：125 条、零缺号、
+  零重号；`git diff --check`：通过。
+- 正式全仓入口 `cmake --build build/weft --target check-weft -j2`：980/983 通过。
+  仅余三项既存 `Scripts/rvv-generated-bundle-abi-e2e-*` 失败，与历史 baseline 完全同名；
+  本任务未修改其 Python/target domain，且无新增失败。
 
 ## Issue Mapping
 
