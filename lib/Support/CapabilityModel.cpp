@@ -98,6 +98,19 @@ collectCapabilityProperties(mlir::Operation *op) {
   return properties;
 }
 
+std::map<std::string, mlir::Attribute>
+collectCapabilityPropertyAttributes(mlir::Operation *op) {
+  std::map<std::string, mlir::Attribute> properties;
+  for (mlir::NamedAttribute namedAttribute : op->getAttrs()) {
+    llvm::StringRef attrName = namedAttribute.getName().getValue();
+    if (isCoreCapabilityAttribute(attrName) ||
+        isCapabilityRelationAttribute(attrName))
+      continue;
+    properties.try_emplace(attrName.str(), namedAttribute.getValue());
+  }
+  return properties;
+}
+
 // Scan a typed relation list for `id`. Normalization (trim + ignore empty
 // entries) moves from intern-time to query-time: the CapabilityRelationsAttr
 // verifier is hygiene-only and does not require trimming, while the previous
@@ -180,7 +193,8 @@ CapabilityDescriptor makeDescriptor(mlir::Operation *op,
       TargetCapabilitySet::availabilityFromStatus(status),
       collectCapabilityProperties(op),
       op->getAttrOfType<weft::exec::CapabilityRelationsAttr>(
-          kRelationsAttrName));
+          kRelationsAttrName),
+      collectCapabilityPropertyAttributes(op));
 }
 
 llvm::Error makeCapabilitySetError(llvm::Twine message) {
@@ -212,16 +226,24 @@ CapabilityDescriptor::CapabilityDescriptor(
     llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,
     llvm::StringRef status, CapabilityAvailability availability,
     std::map<std::string, std::string> properties,
-    weft::exec::CapabilityRelationsAttr relations)
+    weft::exec::CapabilityRelationsAttr relations,
+    std::map<std::string, mlir::Attribute> propertyAttributes)
     : symbolName(symbolName.str()), id(id.str()), kind(kind.str()),
       status(status.str()), availability(availability),
-      properties(std::move(properties)), relations(relations) {}
+      properties(std::move(properties)), relations(relations),
+      propertyAttributes(std::move(propertyAttributes)) {}
 
 llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
   auto it = properties.find(name.str());
   if (it == properties.end())
     return {};
   return it->second;
+}
+
+mlir::Attribute
+CapabilityDescriptor::getPropertyAttribute(llvm::StringRef name) const {
+  auto it = propertyAttributes.find(name.str());
+  return it == propertyAttributes.end() ? mlir::Attribute() : it->second;
 }
 
 // --- [S-1]/[S-2] relation-type table (code-side landing of the schema's

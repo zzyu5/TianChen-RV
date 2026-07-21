@@ -1,4 +1,4 @@
-# 公式 authority matrix（A1 基线，A2 后 HEAD 真实链）
+# 公式 authority matrix（A1 基线，A3 后 HEAD 真实链）
 
 > 机器正本：[`authority-matrix.v1.json`](./authority-matrix.v1.json)；门：
 > `test/Scripts/formula-authority-matrix.test`。
@@ -20,12 +20,19 @@
   load-bearing mutation test。
 - Nibble 已完成 A2 typed-decision cutover：`NibbleDecodeGeometryFacts` 是显式 g，
   c/ω 用空的具名类型表达 honest-null，旧 `nibbleDecodePlanFromFacts`、假
-  `minimumVLEN` 参数与 literal-128 caller 均为 0。其余四类 provider 仍各有一个
-  literal-128/ignored seam。五类 selected plan 仍只存在于 emission 期间的 C++
-  栈对象，没有 emission 前的 typed stamp；这部分仍归 A4。
-- dequant 的 g 已部分结构化，但 codebook/K-quant/grid/ternary 的 leaf 仍由
-  emitter 内四段 `decode_model → enum` `StringSwitch` 再选一次；GridLookup 的
-  legality 又直接查第二个 `GridDecodePlan` registry head。
+  `minimumVLEN` 参数与 literal-128 caller 均为 0。
+- Codebook 已完成 A3 vertical cutover：canonical typed g 与 selected-provider c
+  进入 `decideCodebookGather`；formula 在 bounded declared `{mf2,m1,m2}` realization
+  set 内给出 legality 与最窄合法 anchor；ω honest-null。唯一 backend preparation
+  materializer 在 emission 前写/核 complete stamp，direct 与 registry 路共用；
+  emitter 只机械消费。旧 provider、literal-128/ignored seam 与 emitter-local
+  codebook `decode_model → scale model` mapping 均为 0。
+  四种 fixed ABI tuple 只有一张 shared layout row；direct/registry capability gate
+  也共用 canonical set、唯一 collector 与 token predicate，无第二 parser/first-wins。
+- K-quant/grid/ternary 的 leaf 仍由 emitter 内三段 `decode_model → enum`
+  `StringSwitch` 再选一次；GridLookup 的 legality 又直接查第二个
+  `GridDecodePlan` registry head。Nibble/KQuant/Grid/Ternary 的 selected plan 仍是
+  transient，不能把 Codebook 的闭环外推成五类闭环。
 - repack accumulator LMUL 也已完成 A2 cutover：`lowerOne` 每个请求只构造一次
   typed decision，18 个互斥 builder 只消费 selected result，reason/key 由一个
   helper 盖章；旧 selector、choice struct 和 18 个独立盖章点已退役。实测表仍是
@@ -37,9 +44,10 @@
 
 所以，当前的准确表述不是“公式层没有”，也不是“公式层已经完成”，而是：
 
-> 五类机制 plan 与首个最小 typed decision contract 已经是可复用资产；尚缺的
-> 是把该 contract 推广到真实 c-driven dequant、关闭其余 legality/selection
-> 双头、让 selected result 落印，并把 emitter 收口为纯 realization。
+> 五类机制 plan、三个机制专属 typed decision 与首个完整 c-driven dequant
+> vertical slice 已是可复用资产；尚缺的是把 contract 推广到其余真实轴、关闭
+> Grid/schedule 的 legality/selection 双头，并让剩余 selected result 落印、emitter
+> 收口为纯 realization。
 
 ## 2. 状态词
 
@@ -55,26 +63,25 @@
 
 ### 3.1 共同链
 
-五类共享的真实上游是：
+五类共享的 construction 上游是：
 
 ```text
 GgmlDequantizeRowOp.format
   → lookupDequantizeRowStreamFacts(format)
   → constructTypedDequantizeRowLoopBody
   → DequantizeRowDecodeCoreOp（落 g）
-  → emitTypedDequantizeRowLoopBody
-  → mechanism-specific typed decision/provider（临时 selected plan）
-  → mechanism-specific emitter body
 ```
 
-这条链证明“plan 真消费”已经成立；它也暴露未闭环点：decision/provider 仍在
-`emitTypedDequantizeRowLoopBody` 内调用。Nibble 已明确为 honest-null c/ω；其余四类
-仍没有从 capability provider 随 selected body 获得 c，而是传字面量 128。
+此后 Codebook 走
+`backend prepare → typed g/c formula → complete selected stamp → mechanical emit`；
+Nibble/KQuant/Grid/Ternary 仍在 `emitTypedDequantizeRowLoopBody` 内构造 transient
+plan。Nibble 已明确为 honest-null c/ω；Grid/Ternary 当前 c 也 honest-null；不能因
+Codebook 有真实 capability 分叉就给其它机制制造假 c。
 
 | plan | defined | g stamped | provider consumed | selected plan stamped | emitted | mutation tested | c 真消费 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | NibbleDecodePlan | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | honest-null（typed 空轴；无假 VLEN seam） |
-| CodebookGatherPlan | ✓ | ✓（部分） | ✓ | ✗ | ✓ | ✓ | ✗（128 + ignored） |
+| CodebookGatherPlan | ✓ | ✓ canonical | ✓ | ✓ complete | ✓ mechanical | ✓ | ✓（minimum VLEN、SEW8/32、emitted LMUL chain） |
 | KQuantScaleMinPlan | ✓ | ✓（primary g） | ✓ | ✗ | ✓ | ✓ | ✗（128 + ignored） |
 | GridLookupPlan | ✓ | ✓（entry lanes） | ✓ | ✗ | ✓ | ✓ | honest-null，但参数仍为假 seam |
 | TernaryDecodePlan | ✓ | ✓（iq1 entry lanes） | ✓ | ✗ | ✓ | ✓ | honest-null，但参数仍为假 seam |
@@ -95,15 +102,37 @@ GgmlDequantizeRowOp.format
 
 ### 3.3 CodebookGather
 
-- **当前实际 owner**：`codebookGatherPlanFromFacts`。
-- **g**：qk、stride、quant offset 来自 typed core；`CodebookScaleModel` 却由
-  emitter 的 `decode_model` `StringSwitch` 产生。
-- **公式资产**：`getRVVCodebookGatherAnchorLMUL(VLEN, SEW, entries)` 已存在，
-  但本 provider 没有调用它；当前 `loadLMUL = m1`，legality 仅为
-  `!loadLMUL.empty()`。
-- **消费证据**：quant offset 与 `qk/2` strip mutation 都能改变 emitted C。
-- **缺口**：这是 A3 最适合的首个真 `g+c` slice——不是再写一个公式，而是让
-  已有 closed form 接管 plan/legal set，并在 emission 前落印。
+- **当前实际 owner**：`decideCodebookGather`；production projection 与完整 stamp
+  唯一住 `materializeRVVCodebookGatherPlans`。
+- **g**：`CodebookGatherGeometryFacts`=
+  `{scaleModel,qk,weightBlockStride,scaleByteOffset,quantByteOffset}`，全部来自
+  construction-owned typed core；post-construction formula invocation 由 typed
+  `dequant_mechanism=codebook-gather` 分类，不由 `decode_model` 再选机制。四种固定
+  ABI geometry 只住 `CodebookGatherLayoutFacts` 一张 row：construction 与 formula
+  共同读取，避免同一 tuple 双写。
+- **c/ω**：`CodebookGatherCapabilityFacts`=
+  `{minimumVLEN,SEW8/32 support,MF2/M1/M2/M4/M8 support}`，由 selected RVV provider
+  的 typed properties 唯一投影；ω=`CodebookGatherNoStaticContext` honest-null。
+  allow-list absent 是既有 base-V silent gate，explicit empty/坏类型/未知 token
+  reject；fractional LMUL 需显式 token 或 RVV1.0 正证；可选 tail/mask policy 是
+  typed 单值 enum，显式空、错类型、未知值均拒绝。
+- **公式/合法域**：candidate set 是已有 realization 的 `{mf2,m1,m2}`；每个 anchor
+  必须满足 `VLMAX_e8 >= 16`，且 emitter 实际直接 `vsext_vf4` 的目的 LMUL
+  `{m2,m4,m8}` 可用。selector 取该声明集内最窄合法 anchor；VLEN64→m2、
+  VLEN128→m1、VLEN256+fractional→mf2。该声明不覆盖未来所有理论 fractional LMUL，也没有用
+  未证实 register-pressure 数字充当 correctness legality。
+- **stamp/consumer**：backend preparation 写或核
+  `{table,entries,strip_lanes,load_lmul,minimum_vlen,provider,selection_reason}`；partial、
+  forged、stale stamp fail closed。emitter 不查 capability、不调 formula，只把完整
+  stamp 机械投影为 `CodebookGatherPlan`。parent/core source provenance 必须一致，但
+  `decode_model` 不再控制 Codebook emission gate 或头文件副作用。
+- **证据与剩余域**：direct/registry VLEN64/128/256 decisive tests、capability/stamp
+  negatives、现役 VLEN128 byte-exact goldens已覆盖。真实速度 disposition 归 B4；
+  formula-independent 全家 verifier 与其它 dequant slice 不属于 A3。
+- **同名资产边界**：`getRVVCodebookGatherAnchorLMUL` 仍服务
+  `RVVToEmitCCodebookFp4.cpp` 的 block-dot/loop realization，并有独立 unit test；
+  A3 退役的是 dequant-row 的 `codebookGatherPlanFromFacts` 与 emission-period caller，
+  不是越界删除另一条已部署路径的 helper。
 
 ### 3.4 KQuantScaleMin
 
@@ -216,16 +245,16 @@ realization：
 
 | 真实断点 | 后续 owner | 必须删除的旧点 | 杀死旧点的验收 |
 |---|---|---|---|
-| 四类 dequant 仍 c=128 且 provider ignore c | A3 / ISSUE-117 | Codebook/KQuant/Grid/Ternary 的四个 literal-128 call 与 ignored seam | VLEN/capability mutation 真翻 plan/legal set；missing/conflict fail closed |
-| emitter 用 decode_model 再造 leaf/facts | A8 / ISSUE-119 | 四段 StringSwitch 与 emitter facts reconstruction | 新 typed-g leaf 不改 emitter branch；missing/forged g 转红 |
-| selected dequant plan 不落印 | A4 / ISSUE-122 | emission 内 provider invocation | stale/forged stamp 在 emitter 前被拒 |
+| KQuant/Grid/Ternary 仍带 literal c seam | A8 / ISSUE-117 | 三个 literal-128 call 与 ignored seam；按 decisive 或 honest-null 分类，不制造假轴 | decisive 轴有 capability mutation；honest-null 轴删除参数而非伪翻转 |
+| emitter 用 decode_model 再造 leaf/facts | A8 / ISSUE-119 | KQuant/Grid/Ternary 三段 StringSwitch 与 emitter facts reconstruction | 新 typed-g leaf 不改 emitter branch；missing/forged g 转红 |
+| Nibble/KQuant/Grid/Ternary selected plan 不落印 | A4 / ISSUE-122 | 对应 emission 内 provider invocation/transient plan | stale/forged stamp 在 emitter 前被拒；Codebook 作为 reference regression |
 | GridLookup 再查 GridDecodePlan | A4 / ISSUE-122 | dequant slice 的 direct registry lookup | 单 row 变异同时支配 verifier/selector，无第二编辑点 |
 | 手工 measurement mirrors | A5 / ISSUE-117 | LMUL table 与 `kSeeded[]` | generated qualified view 可复建；stale/key/illegal winner miss |
 | SP4 legal candidate 不可实现 | A4 / ISSUE-125 | unconditional feasible set 或缺失的 Plain body 二选一闭合 | selector 永不返回 emitter 会拒的候选 |
 | SP4 缺 stamp→S6 | A4 / ISSUE-125 | optional read/default | strip stamp 必须 fail closed |
 | loop selected→emit override/recompute | A4 / ISSUE-125 | reason-measured gate、q4 recompute、optional read | prior col_outer 真实现 col_outer；缺 stamp fail closed |
 
-## 6. A1 的测试冻结
+## 6. 机器测试冻结
 
 本轮没有复制已有的大量 MLIR fixture，而是把真正承重的现有测试列为机器契约，
 并新增一个 matrix gate：
@@ -233,6 +262,12 @@ realization：
 - 五类 dequant 各自已有至少两个字段 mutation 或 missing-field negative；
 - A2 unit test 直接覆盖 Nibble honest-null、LMUL g/c/ω 决定性、illegal winner
   no-flip、missing capability 与 empty legal set reject；
+- A3 unit/integration test 覆盖 Codebook canonical g、bounded candidate legality、
+  VLEN64→m2、VLEN128→m1、VLEN256+fractional→mf2、base-V absent allow-list、direct/registry
+  同路、preselection 无 selected stamp、partial/forged/capability failure；
+- 四个现役 VLEN128 Codebook golden fixture 保持 byte-exact，decisive fixture 检查
+  实际 `i8m2→i32m8/f32m8`、`i8m1→i32m4/f32m4` 与
+  `i8mf2→i32m2/f32m2` intrinsic chain；
 - LMUL 另有 VLEN/provider 判断、measured/default 分叉和 missing-stamp fail-close；
 - SP4 有 measured/prior/shape-isolation 与生产零 static-order；
 - loop-order 有 ternary 全格 stamp guard，也有当前 selected→realized override 的
@@ -247,9 +282,9 @@ realization：
 
 1. A2 已建立最小 typed decision contract，并完整迁入 Nibble 与 LMUL 两个 slice；
    同 slice 旧入口、旧 selector 和独立盖章点已删除。
-2. A3 让 codebook anchor 成为首个真实 `f(g,c)`，不强迫 grid/ternary 的
-   honest-null 轴伪装成 c-driven。
-3. A4 原子关闭 selected-stamp、legality 与 emitter redecision 缺口；优先处理
+2. A3 已让 codebook anchor 成为首个完整 `f(g,c)` selected-plan vertical slice，
+   不强迫 grid/ternary 的 honest-null 轴伪装成 c-driven。
+3. A4 原子关闭其余 selected-stamp、legality 与 emitter redecision 缺口；优先处理
    ISSUE-125，因为它已经存在 `selected != realized`。
 4. A5 用 B1 生成的 qualified winner view 取代手工表；measurement 只能从合法
    候选中选，不能创造 mechanism/candidate。

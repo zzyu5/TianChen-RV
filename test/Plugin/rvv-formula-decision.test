@@ -1,5 +1,6 @@
 # RUN: weft-rvv-formula-decision-test | FileCheck %s
 
 # CHECK: A2 nibble decision: typed g decisive, c/omega honest-null, invalid geometry rejects
+# CHECK: A3 codebook decision: fixed production 16-entry g, VLEN64 m2/VLEN128 m1/VLEN256 mf2, SEW8+32, missing and widening ceiling reject
 # CHECK: A2 repack LMUL decision: g/c/omega decisive, legal measured winner bounded, miss-to-prior, empty set rejects
 # CHECK: RVV formula decision contract tests passed

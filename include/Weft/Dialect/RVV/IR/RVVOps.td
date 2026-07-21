@@ -9081,10 +9081,20 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     gather), "mxfp4"/"nvfp4" (the 16-entry FP4 e2m1 kvalues_mxfp4 codebook nibble
     gather + the E8M0 / UE4M3 scale), and "tq1_0"/"tq2_0" (the base-3 pow3 / 2-bit
     unpack of the {-1,0,+1} ternary weights + the fp16 super-block scale): the
-    per-format scale seam + the codebook / grid / ternary
-    gather (all DERIVED at emit as function-local statics), folded d*scale*value. The
-    block-layout facts (qk, weight_block_stride, scale_byte_offset, quant_byte_offset)
-    are the ggml ABI constants; decode_model pins WHICH decode leaf. The OPTIONAL
+    per-format scale seam + the codebook / grid / ternary gather, folded
+    d*scale*value. The block-layout facts (qk, weight_block_stride,
+    scale_byte_offset, quant_byte_offset) are the ggml ABI constants. For the
+    small-codebook subset "iq4_nl"/"iq4_xs"/"mxfp4"/"nvfp4", construction writes
+    `dequant_mechanism = "codebook-gather"` and `codebook_scale_model` as typed g.
+    Backend preparation projects typed c from the unique selected RVV provider, runs
+    Formula -> legality -> selector, and writes the complete seven-field
+    `codebook_gather_*` stamp (table, entries, strip lanes, load LMUL, minimum VLEN,
+    provider, selection reason). All seven fields may be absent before selection or
+    must all be present after selection; a partial stamp is invalid. Small-codebook
+    emission reads only this typed mechanism/g/stamp contract. Its `decode_model` is
+    source identity/coherence/provenance, not a post-construction formula classifier
+    or input. KQuant/Grid/Ternary currently retain their decode_model-selected leaf
+    debt; this small-codebook contract does not claim those paths are migrated. The OPTIONAL
     codebook_entry_lanes descriptor carries the per-format codebook grid ENTRY
     byte-width (the g-axis geometry: grid-of-4 uint32 = 4 lanes for iq3_s, grid-of-8
     uint64 = 8 lanes for iq2_xs/iq1_m) so the owned narrow-per-entry grid dequant
@@ -9109,10 +9119,12 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,
-    not super-block-0. The op owns no dtype/route authority; emission is determined
-    by op identity + decode_model + the layout facts, never inferred from
-    candidate-mirror metadata, route ids, ABI strings, artifact names, status
-    fields, or exact intrinsic spellings.
+    not super-block-0. The op owns no dtype/route authority. Typed op identity drives
+    common lowering; for small-codebook emission, typed mechanism/g plus the complete
+    selected stamp are authoritative and decode_model remains provenance/coherence.
+    The bounded KQuant/Grid/Ternary decode_model leaf debt above remains explicit.
+    Emission is never inferred from candidate-mirror metadata, route ids, ABI strings,
+    artifact names, status fields, or exact intrinsic spellings.
   }];
 
   let arguments = (ins
@@ -9124,6 +9136,15 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     I64Attr:$weight_block_stride,
     I64Attr:$scale_byte_offset,
     I64Attr:$quant_byte_offset,
+    OptionalAttr<StrAttr>:$dequant_mechanism,
+    OptionalAttr<StrAttr>:$codebook_scale_model,
+    OptionalAttr<StrAttr>:$codebook_gather_table,
+    OptionalAttr<I64Attr>:$codebook_gather_entries,
+    OptionalAttr<I64Attr>:$codebook_gather_strip_lanes,
+    OptionalAttr<StrAttr>:$codebook_gather_load_lmul,
+    OptionalAttr<I64Attr>:$codebook_gather_minimum_vlen,
+    OptionalAttr<StrAttr>:$codebook_gather_provider,
+    OptionalAttr<StrAttr>:$codebook_gather_selection_reason,
     OptionalAttr<I64Attr>:$codebook_entry_lanes,
     OptionalAttr<StrAttr>:$carrier_kind,
     OptionalAttr<I64Attr>:$nibble_bias,

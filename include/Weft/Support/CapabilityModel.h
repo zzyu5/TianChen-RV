@@ -94,7 +94,9 @@ public:
                        llvm::StringRef kind, llvm::StringRef status,
                        CapabilityAvailability availability,
                        std::map<std::string, std::string> properties = {},
-                       weft::exec::CapabilityRelationsAttr relations = {});
+                       weft::exec::CapabilityRelationsAttr relations = {},
+                       std::map<std::string, mlir::Attribute>
+                           propertyAttributes = {});
 
   llvm::StringRef getSymbolName() const { return symbolName; }
   llvm::StringRef getID() const { return id; }
@@ -105,6 +107,11 @@ public:
     return availability == CapabilityAvailability::Available;
   }
   llvm::StringRef getProperty(llvm::StringRef name) const;
+  /// Return the original typed property attribute when this descriptor was
+  /// projected from IR.  This keeps consumers that require an i64/StringAttr
+  /// contract from reparsing the lossy diagnostic string projection. Synthetic
+  /// descriptors may supply equivalent owned typed attributes explicitly.
+  mlir::Attribute getPropertyAttribute(llvm::StringRef name) const;
   const std::map<std::string, std::string> &getProperties() const {
     return properties;
   }
@@ -143,6 +150,10 @@ private:
   // (null == no relations). This is the single source of truth for relation
   // resolution; the descriptor holds the very attribute the IR holds.
   weft::exec::CapabilityRelationsAttr relations;
+  // Typed property handles interned in the source MLIRContext, with the same
+  // lifetime model as `relations`.  Keeping the attributes avoids a raw source-op
+  // pointer and preserves type information across TargetCapabilitySet copies.
+  std::map<std::string, mlir::Attribute> propertyAttributes;
 };
 
 struct CapabilityConflict {

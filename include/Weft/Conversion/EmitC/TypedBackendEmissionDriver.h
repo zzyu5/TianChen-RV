@@ -33,6 +33,15 @@ public:
   /// Stable backend identity (e.g. "rvv"). Used for registry diagnostics.
   virtual llvm::StringRef getBackendName() const = 0;
 
+  /// Family-owned preparation that must complete before any conversion pattern
+  /// can emit backend code (for example formula selection + typed-plan
+  /// materialization). The shared harness calls this for every entry path,
+  /// including registry clone conversion. Default: no-op.
+  virtual llvm::LogicalResult
+  prepareForConversion(mlir::ModuleOp module) const {
+    return llvm::success();
+  }
+
   /// Registers the type conversions mapping this backend's typed dataflow types
   /// to the emitc C types they lower to. Runs AFTER the harness installs an
   /// identity conversion, so unrelated types are never illegalized.
@@ -65,8 +74,9 @@ public:
 };
 
 /// Runs the shared RVV/RVM-style typed-body->emitc DialectConversion harness IN
-/// PLACE on `module` using `driver`: loads the emitc dialect, builds an
-/// identity TypeConverter plus the driver's type conversions, configures the
+/// PLACE on `module` using `driver`: loads the emitc dialect,
+/// calls `driver.prepareForConversion`, builds an identity TypeConverter plus
+/// the driver's type conversions, configures the
 /// ConversionTarget via the driver, installs the driver's patterns, runs
 /// `applyPartialConversion`, then runs `driver.postConversionCleanup`.
 ///

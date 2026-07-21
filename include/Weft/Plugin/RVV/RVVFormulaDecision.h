@@ -1,6 +1,6 @@
 //===- RVVFormulaDecision.h - Plugin-local typed formula decisions --------===//
 //
-// Two deliberately mechanism-specific vertical slices of the Weft-RV decision
+// Three deliberately mechanism-specific vertical slices of the Weft-RV decision
 // contract.  This is not a generic Formula IR, descriptor bag, or cross-plugin
 // ABI.  Each decision owns typed g/c/omega projections, constructs a bounded
 // legal set (or one typed plan), applies an analytic prior, and returns the
@@ -12,6 +12,7 @@
 #define WEFT_PLUGIN_RVV_RVVFORMULADECISION_H
 
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Support/CodebookGatherPlan.h"
 #include "Weft/Support/NibbleDecodePlan.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -104,6 +105,218 @@ inline NibbleDecodeDecision decideNibbleDecode(
   decision.selectedPlan = plan;
   decision.isLegal = true;
   decision.reason = "analytic-single-plan";
+  return decision;
+}
+
+//===----------------------------------------------------------------------===//
+// Small-codebook dequant: fixed 16-entry geometry, capability-legal anchor.
+//===----------------------------------------------------------------------===//
+
+/// Production geometry for the four existing small-codebook dequant leaves.
+/// The table cardinality is intentionally not a field: all four shipped layouts
+/// use the same 16-entry table, so exposing 8/32 as a purported production g
+/// axis would manufacture a capability knob that the input dialect does not own.
+struct CodebookGatherGeometryFacts {
+  weft::CodebookScaleModel scaleModel =
+      weft::CodebookScaleModel::E8M0SharedExp;
+  std::int64_t qk = 0;
+  std::int64_t weightBlockStride = 0;
+  std::int64_t scaleByteOffset = 0;
+  std::int64_t quantByteOffset = 0;
+};
+
+/// Typed capability projection for the dequant gather anchor.  minimumVLEN is
+/// mandatory.  Per-anchor support is projected from the selected provider's
+/// supported_lmul/RVV-version facts before entering the decision; unknown is
+/// therefore distinguishable from false and cannot silently enable a rung.
+struct CodebookGatherCapabilityFacts {
+  std::optional<std::int64_t> minimumVLEN;
+  std::optional<bool> supportsSEW8;
+  std::optional<bool> supportsSEW32;
+  std::optional<bool> supportsMF2;
+  std::optional<bool> supportsM1;
+  std::optional<bool> supportsM2;
+  std::optional<bool> supportsM4;
+  std::optional<bool> supportsM8;
+};
+
+/// This analytic dequant slice has no measurement/regime-dependent choice.
+struct CodebookGatherNoStaticContext {};
+
+enum class CodebookGatherAnchorCandidate { MF2, M1, M2 };
+
+inline llvm::StringRef
+stringifyCodebookGatherAnchorCandidate(CodebookGatherAnchorCandidate value) {
+  switch (value) {
+  case CodebookGatherAnchorCandidate::MF2:
+    return "mf2";
+  case CodebookGatherAnchorCandidate::M1:
+    return "m1";
+  case CodebookGatherAnchorCandidate::M2:
+    return "m2";
+  }
+  return "";
+}
+
+struct CodebookGatherCandidateVerdict {
+  CodebookGatherAnchorCandidate candidate =
+      CodebookGatherAnchorCandidate::MF2;
+  std::int64_t gatherVLMAX = 0;
+  bool isSupported = false;
+  bool isLegal = false;
+};
+
+enum class CodebookGatherReason {
+  AnalyticNarrowestLegalDeclaredAnchor,
+  RejectedMissingCapability,
+  RejectedInvalidGeometry,
+  RejectedEmptyLegalSet,
+};
+
+inline llvm::StringRef
+stringifyCodebookGatherReason(CodebookGatherReason reason) {
+  switch (reason) {
+  case CodebookGatherReason::AnalyticNarrowestLegalDeclaredAnchor:
+    return "analytic-narrowest-legal-declared-anchor";
+  case CodebookGatherReason::RejectedMissingCapability:
+    return "rejected-missing-capability";
+  case CodebookGatherReason::RejectedInvalidGeometry:
+    return "rejected-invalid-geometry";
+  case CodebookGatherReason::RejectedEmptyLegalSet:
+    return "rejected-empty-legal-set";
+  }
+  return "";
+}
+
+enum class CodebookGatherFallback { Reject };
+
+struct CodebookGatherDecision {
+  std::array<CodebookGatherCandidateVerdict, 3> candidates{};
+  std::optional<weft::CodebookGatherPlan> selectedPlan;
+  RVVDecisionAxisUse geometryUse = RVVDecisionAxisUse::Decisive;
+  RVVDecisionAxisUse capabilityUse = RVVDecisionAxisUse::Decisive;
+  RVVDecisionAxisUse contextUse = RVVDecisionAxisUse::HonestNull;
+  CodebookGatherReason reason =
+      CodebookGatherReason::RejectedMissingCapability;
+  CodebookGatherFallback fallback = CodebookGatherFallback::Reject;
+  llvm::StringRef domain = "rvv.dequant.small-codebook";
+  std::optional<llvm::StringRef> measurementKey;
+
+  bool isLegal() const { return selectedPlan.has_value(); }
+};
+
+namespace detail {
+
+inline llvm::StringRef
+codebookPlanReason(weft::CodebookScaleModel scaleModel) {
+  switch (scaleModel) {
+  case weft::CodebookScaleModel::E8M0SharedExp:
+    return "CodebookGather/fp4_e2m1/e8m0_shared_exp/analytic";
+  case weft::CodebookScaleModel::Fp16Flat:
+    return "CodebookGather/non_linear/fp16_flat/analytic";
+  case weft::CodebookScaleModel::UE4M3SubBlock:
+    return "CodebookGather/fp4_e2m1/ue4m3_sub_block/analytic";
+  case weft::CodebookScaleModel::Signed6SuperBlock:
+    return "CodebookGather/non_linear/signed6_super_block/analytic";
+  }
+  return "CodebookGather/rejected";
+}
+
+inline std::optional<bool> codebookCandidateChainSupport(
+    const CodebookGatherCapabilityFacts &c,
+    CodebookGatherAnchorCandidate candidate) {
+  // The emitter spells one direct vsext_vf4 i8 -> i32. An anchor is supported
+  // only when both the actually emitted i8 anchor and its 4x i32 result LMUL
+  // are available; an un-emitted conceptual i16 midpoint is not a fake c axis.
+  switch (candidate) {
+  case CodebookGatherAnchorCandidate::MF2:
+    if (!c.supportsMF2 || !c.supportsM2)
+      return std::nullopt;
+    return *c.supportsMF2 && *c.supportsM2;
+  case CodebookGatherAnchorCandidate::M1:
+    if (!c.supportsM1 || !c.supportsM4)
+      return std::nullopt;
+    return *c.supportsM1 && *c.supportsM4;
+  case CodebookGatherAnchorCandidate::M2:
+    if (!c.supportsM2 || !c.supportsM8)
+      return std::nullopt;
+    return *c.supportsM2 && *c.supportsM8;
+  }
+  return std::nullopt;
+}
+
+} // namespace detail
+
+/// Construct the small-codebook dequant plan from real typed g and c.  The
+/// current production domain has one structural table cardinality (16), while
+/// capability c changes the narrowest legal anchor inside A3's finite declared
+/// {mf2,m1,m2} realization set: m2 at a Zve32f VLEN64 profile, m1 at VLEN128,
+/// and mf2 at VLEN256 when fractional LMUL is explicitly supported. This is deliberately
+/// not a claim over every theoretical fractional LMUL at future VLEN512/1024
+/// profiles; adding candidates requires owned realization + integration evidence.
+/// The declared set ends at m2 on the wide side because direct `vsext_vf4` from
+/// i8m4 would require an unrepresentable i32m16 destination.
+inline CodebookGatherDecision decideCodebookGather(
+    const CodebookGatherGeometryFacts &g,
+    const CodebookGatherCapabilityFacts &c,
+    CodebookGatherNoStaticContext) {
+  CodebookGatherDecision decision;
+  decision.candidates[0].candidate = CodebookGatherAnchorCandidate::MF2;
+  decision.candidates[1].candidate = CodebookGatherAnchorCandidate::M1;
+  decision.candidates[2].candidate = CodebookGatherAnchorCandidate::M2;
+
+  if (!c.minimumVLEN || *c.minimumVLEN <= 0 || !c.supportsSEW8 ||
+      !c.supportsSEW32)
+    return decision;
+  std::optional<weft::CodebookGatherLayoutFacts> layout =
+      weft::lookupCodebookGatherLayoutFacts(g.scaleModel);
+  if (!layout || g.qk != layout->qk ||
+      g.weightBlockStride != layout->weightBlockStride ||
+      g.scaleByteOffset != layout->scaleByteOffset ||
+      g.quantByteOffset != layout->quantByteOffset) {
+    decision.reason = CodebookGatherReason::RejectedInvalidGeometry;
+    return decision;
+  }
+
+  constexpr std::int64_t kGatherSEW = 8;
+  std::optional<CodebookGatherAnchorCandidate> selected;
+  for (CodebookGatherCandidateVerdict &verdict : decision.candidates) {
+    llvm::StringRef lmul =
+        stringifyCodebookGatherAnchorCandidate(verdict.candidate);
+    verdict.gatherVLMAX =
+        getRVVStripVLMAXElements(lmul, kGatherSEW, *c.minimumVLEN);
+    std::optional<bool> supported =
+        detail::codebookCandidateChainSupport(c, verdict.candidate);
+    verdict.isSupported = supported.value_or(false);
+    verdict.isLegal = *c.supportsSEW8 && *c.supportsSEW32 &&
+                      verdict.isSupported &&
+                      verdict.gatherVLMAX >= layout->codebookEntries;
+    if (!selected && verdict.isLegal)
+      selected = verdict.candidate;
+  }
+
+  if (!selected) {
+    decision.reason = CodebookGatherReason::RejectedEmptyLegalSet;
+    return decision;
+  }
+
+  weft::CodebookGatherPlan plan{};
+  plan.mechanism = weft::DequantMechanism::CodebookGather;
+  plan.scaleModel = g.scaleModel;
+  plan.codebookTable = layout->codebookTable;
+  plan.codebookEntries = layout->codebookEntries;
+  plan.codebookByteOffset = layout->quantByteOffset;
+  plan.superBlockElements = layout->qk;
+  plan.weightBlockStride = layout->weightBlockStride;
+  plan.loadLMUL = stringifyCodebookGatherAnchorCandidate(*selected);
+  plan.stripLanes = layout->stripLanes;
+  plan.legality.isLegal = true;
+  plan.reason = detail::codebookPlanReason(g.scaleModel);
+  plan.provenanceFormat = llvm::StringRef();
+
+  decision.selectedPlan = plan;
+  decision.reason =
+      CodebookGatherReason::AnalyticNarrowestLegalDeclaredAnchor;
   return decision;
 }
 

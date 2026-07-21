@@ -9,6 +9,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -309,7 +310,29 @@ std::int64_t resolveRVVVectorRegisterBudget(mlir::ModuleOp module);
 // so the EmitC route-planning capability-property gate reasons over the ONE
 // tokenization instead of re-splitting the march string locally (core-invariants
 // I1/I3: single ISA-evidence parse). The match is case-insensitive.
-bool hasRVVVectorHint(llvm::StringRef isaVectorHints);
+inline bool hasRVVVectorHint(llvm::StringRef isaVectorHints) {
+  std::string lower = isaVectorHints.lower();
+  llvm::StringRef normalized(lower);
+  if (normalized.contains("zve") || normalized.contains("zvl") ||
+      normalized.contains("zvfh") || normalized.contains("gcv") ||
+      normalized.contains("xtheadvector"))
+    return true;
+
+  std::size_t position = lower.find("rv64");
+  while (position != std::string::npos) {
+    std::size_t end = position;
+    while (end < lower.size()) {
+      unsigned char byte = static_cast<unsigned char>(lower[end]);
+      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
+        break;
+      ++end;
+    }
+    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
+      return true;
+    position = lower.find("rv64", position + 4);
+  }
+  return false;
+}
 
 // Builds the probe-fact capability set. Relations (currently only `provides`)
 // are minted as interned CapabilityRelationsAttr from `context`; the returned

@@ -82,6 +82,12 @@ public:
         return;
       }
     }
+
+    // Deliberately stop after construction-owned typed g.  Capability selection
+    // is the RVV backend preparation hook's responsibility, shared by the direct
+    // wrapper and registry/artifact entry points.  Keeping it out of this plugin
+    // front door avoids a Plugin -> Conversion dependency and leaves preselection
+    // typed IR inspectable without pretending that an emission target was chosen.
   }
 };
 
