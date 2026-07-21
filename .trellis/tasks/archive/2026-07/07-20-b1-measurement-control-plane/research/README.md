@@ -7,7 +7,7 @@
 ~~~bash
 python3 .trellis/scripts/measurement_asset_matrix.py --summary
 python3 .trellis/scripts/measurement_asset_matrix.py --csv > \
-  .trellis/tasks/07-20-b1-measurement-control-plane/research/measurement-asset-matrix.csv
+  .trellis/tasks/archive/2026-07/07-20-b1-measurement-control-plane/research/measurement-asset-matrix.csv
 python3 tools/bench/tn_qualify.py --self-test
 ~~~
 

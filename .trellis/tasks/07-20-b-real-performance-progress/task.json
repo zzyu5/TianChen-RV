@@ -19,9 +19,6 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "07-20-b1-measurement-control-plane",
-    "07-20-b2-bench-cell-coverage",
-    "07-20-b3-kquant-exhausted-strategy-retirement",
     "07-20-b4-dequant-grid-codebook-attack",
     "07-20-b5-gemm-deployed-path",
     "07-20-b6-e2e-transduction-regression"
