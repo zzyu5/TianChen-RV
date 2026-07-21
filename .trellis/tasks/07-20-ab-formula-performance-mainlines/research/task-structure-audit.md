@@ -21,7 +21,7 @@ ab-formula-performance-mainlines
 └── b-real-performance-progress
     ├── b1-measurement-control-plane
     ├── b2-bench-cell-coverage
-    ├── b3-kquant-vecdot-strong-opponent
+    ├── b3-kquant-exhausted-strategy-retirement
     ├── b4-dequant-grid-codebook-attack
     ├── b5-gemm-deployed-path
     └── b6-e2e-transduction-regression

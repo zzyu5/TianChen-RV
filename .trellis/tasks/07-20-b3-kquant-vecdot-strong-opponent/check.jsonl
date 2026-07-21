@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/measurement/index.md", "reason": "测量质量检查"}
-{"file": ".trellis/spec/evidence/工件与实验参照.md", "reason": "禁止错误性能解释"}
-{"file": ".trellis/spec/issues/index.md", "reason": "ISSUE109 112 114"}
-{"file": ".trellis/spec/architecture/退役与原子合入.md", "reason": "检查旧 caller、bridge、双 writer/dispatch 为零"}

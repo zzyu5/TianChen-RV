@@ -5861,65 +5861,21 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
              << attr.getName() << "'";
   }
 
-  // The optional integer_core_lmul anchors the per-sub-block integer-MAC widening
-  // chain i8 -> i16 -> i32 (the *how*, never the *what*; the integer accumulation
-  // order is untouched). Only three anchors are legal, bounded on TWO independent
-  // grounds (I7, fail-closed):
-  //   * absent / "mf2" -- today's fractional chain (i8mf2 -> i16m1 -> i32m2, NO
-  //     fold-back).
-  //   * "m1" -- the whole-LMUL chain one notch up (i8m1 -> i16m2 -> i32m4, the
-  //     16-lane aux32 folded back to 8).
-  //   * "m2" -- the hard ceiling (i8m2 -> i16m4 -> i32m8): i8m2 == 32 elements ==
-  //     exactly ONE sub-block under ONE scalar scale (32-lane aux32 folded back).
-  //     A wider "m4" base would need an illegal i32m16 product AND would fold TWO
-  //     sub-blocks under one scalar -- rejected.
-  //   * "fused" (ISSUE-109 register-fusion, q4_K non-qh only) -- the m2 widening
-  //     chain (32-lane aux32) but with the unpacked weight nibble KEPT IN REGISTER
-  //     instead of spilled to aux8[256] and reloaded: the structural fusion of the
-  //     Region-A unpack and this Region-C dot that eliminates the board-tested
-  //     weight-reconstruction store->load round-trip. The emitted per-lane integer
-  //     sums are identical to "m2" (associative regroup), so byte-exact holds.
-  //   * "vwredsum" (ISSUE-109 vwredsum.vs lever, q4_K non-qh only) -- also aux8-free
-  //     at the m2 unpack, but REPLACES the serial i32m8 vwmacc accumulator with 8
-  //     INDEPENDENT per-sub-block vwredsum.vs reduces + a scalar isum fold (breaking
-  //     the board-tested latency/dependency wall + the m8 register-cliff, matching
-  //     the deployed vl128 hand-tuned dataflow). The integer dot is associative/
-  //     order-free (int32 zero-rounding), so byte-exact holds under the int-mode
-  //     fp fold.
-  //   * "minterm-vec" (ISSUE-109 min-term vectorization lever, q4_K non-qh only) --
-  //     the "vwredsum" aux8-free block-dot PLUS a WIDE-LMUL vectorized MIN-term
-  //     bsums.mins reduction (vle16 the 16 bsums, vrgather-broadcast the 8 mins,
-  //     ONE vwmul i16m2 -> i32m4, ONE vredsum.vs), eliminating the remaining
-  //     board-tested scalar-heavy floor (16 lh + 16 scalar mul) and matching the
-  //     deployed vl128 hand-tuned dataflow that vectorizes BOTH the dot and the
-  //     min term. The integer product/sum is associative/order-free (int32 zero-
-  //     rounding), so byte-exact holds.
-  //   * "mlp" (ISSUE-109 memory-scheduling lever, q4_K non-qh only) -- STACKS
-  //     "minterm-vec"'s register-resident dataflow (register-resident weight +
-  //     independent vwredsum.vs reduce + vectorized MIN-term) with the ONE untried
-  //     axis: intra-super-block WIDE MULTI-STREAM register-resident loads. All 12
-  //     wide loads (4 packed-weight u8m2 chunks + 8 q8 i8m2 strips) are emitted
-  //     BEFORE any consumer into independent registers, the 8 sub-block reduces are
-  //     mutually independent (no running accumulator), and the 8 scaled dots are
-  //     combined with an order-free scalar add tree -- mirroring the deployed vl128
-  //     hand-tuned MLP that overlaps DRAM latency by keeping many outstanding wide
-  //     loads in flight. The per-super-block integer sum is identical to "vwredsum"/
-  //     "minterm-vec" (associative regroup, int32 zero-rounding), so byte-exact holds.
+  // The optional integer_core_lmul anchors the per-sub-block integer-MAC
+  // widening chain i8 -> i16 -> i32. The legal deployment domain is the
+  // bounded resource set {mf2, m1, m2}: m2 is the ceiling because a wider base
+  // would require an illegal i32m16 product and span more than one 32-element
+  // sub-block under a scalar scale. Retired experimental strategy tokens are
+  // ordinary unknown values and follow this same fail-closed diagnostic.
   if (getIntegerCoreLmul().has_value()) {
     llvm::StringRef coreLmul = *getIntegerCoreLmul();
-    if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2" &&
-        coreLmul != "fused" && coreLmul != "vwredsum" &&
-        coreLmul != "minterm-vec" && coreLmul != "mlp")
+    if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2")
       return emitOpError()
-             << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\", "
-                "\"fused\", \"vwredsum\", \"minterm-vec\", \"mlp\"} (the base LMUL "
-                "of the i8 -> i16 -> i32 integer-MAC chain; \"m2\" is the ceiling at "
-                "one sub-block == 32 elements per scalar scale; \"fused\" is the m2 "
-                "chain with the register-resident aux8-free unpack; \"vwredsum\" "
-                "is the aux8-free per-sub-block independent vwredsum.vs reduce; "
-                "\"minterm-vec\" adds the wide-LMUL vectorized MIN-term reduction; "
-                "\"mlp\" stacks the wide multi-stream register-resident loads) "
-                "for the q4_K/q5_K Region-C scaled-dot route; got \""
+             << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\"} "
+                "(the bounded base LMUL of the i8 -> i16 -> i32 integer-MAC "
+                "chain; \"m2\" is the ceiling at one sub-block == 32 elements "
+                "per scalar scale) for the q4_K/q5_K Region-C scaled-dot route; "
+                "got \""
              << coreLmul << "\"";
   }
 

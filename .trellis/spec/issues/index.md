@@ -116,7 +116,6 @@
 | ISSUE-041 | C7 扇出台账三行重出/追认 | [发射器与架构](./发射器与架构.md) |
 | ISSUE-042 | registry status enum 改名与 `partial` 退役 | [发射器与架构](./发射器与架构.md) |
 | ISSUE-043 | 主发射器分阶段重构方案（只读审计已出账，红线轴 gated on ISSUE-031） | [发射器与架构](./发射器与架构.md) |
-| ISSUE-109 | K-quant vec_dot weight-reconstruction floor 翻 0.8 的 register-fusion lever（独立大构造·待施工·≠架构不可达） | [发射器与架构](./发射器与架构.md) |
 | ISSUE-124 | q4_0 monolith 保留依据未闭合：abstract contraction 仅有 lit 作者、无真实 producer | [发射器与架构](./发射器与架构.md) |
 | ISSUE-125 | SP4 / loop-order selected stamp 与真实 emission 分裂 | [发射器与架构](./发射器与架构.md) |
 
@@ -168,7 +167,7 @@
 | [门与工具](./门与工具.md) | 门体清算（054–060）· runner 与工具挂载（067–069 · 082 · 083 · 085 · 087 · 090–094）· bench 通道与 harness（096–099 · 104 · 105 · 114）· 工具默认失锚（108）· T-X≠S1（110） | 28 |
 | [spec树与治理](./spec树与治理.md) | 登记簿治理（066）· spec 树自身的缺口（070–074 · 086 · 089）· 旧强制治理裁决（075–080）· 旧 goal 退役与 T-X 归属（095 · 103） | 16 |
 
-**总条数 = 125**（ISSUE-001..ISSUE-125，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 60 · RESOLVED 22 · 待施工 16 · 已就绪 8 · 阻塞 8 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=125）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-20 机算刷新；后续禁止手抄沿用。
+**总条数 = 125**（ISSUE-001..ISSUE-125，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 60 · RESOLVED 23 · 待施工 15 · 已就绪 8 · 阻塞 8 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=125）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-21 机算刷新；后续禁止手抄沿用。
 
 > **计数谓词（机算 · 禁手写小计）**：按 `### ISSUE-NNN` 切块、取每块最后一个 `- **状态**：` 行统计（子块内的重复状态行不重复计）。2026-07-17 §七③ `docs/` 归档轮收官实测：总数 **94** / 零缺号 / 零重号；分布 **待裁 58 · 待施工 14 · 阻塞 10 · 已就绪 9 · 已裁·已落地 2 · 已退役 1**。〔本轮 +1 = ISSUE-094（`--drift` 漂移门），经用户裁后**已退役**、不占待裁额。同轮并行写入者新增 090–093 并结清 2 条，故前几行的「93 / 60·14·10·9」是彼时口径、非漂移 —— **本行数字禁手抄，一律按上述谓词现算**。〕**同轮订正三处既存漂移**：ISSUE-089 在 [§三 全册索引](#三全册索引) **缺行**（本层自称「唯一入口索引」却查不到该号）· canon与措辞 条数 10→11（088 未计）· spec树与治理 条数 13→14（089 未计）。
 
@@ -288,7 +287,7 @@
 | ISSUE-106 | ★dequant「PASS」多是 lottery-PASS·R线 de-lottery 用 owned 真测替换会降 census PASS（诚实代价·§四.1） | APPLIED-DEFAULT | 性能与测量 |
 | ISSUE-107 | ★grid-codebook dequant owned 真向量(HW-gather) 天花板·grid 族通用·标量门这些格到不了 PASS（非架构不可达·有标量-load lever gated 调度成熟） | 待裁 | 性能与测量 |
 | ISSUE-108 | recon_t3_disposition.py 默认 reader 已切到 experiments/master | RESOLVED | 门与工具 |
-| ISSUE-109 | K-quant vec_dot weight-reconstruction floor 翻 0.8 的 register-fusion lever（独立大构造·≠架构不可达） | 待施工 | 发射器与架构 |
+| ISSUE-109 | q4_K vec_dot exact experimental campaign 已证伪并退役；性能格仍为具名-X | RESOLVED | 发射器与架构 |
 | ISSUE-110 | T-X enablement 与 S1 scalar 性能账已裁准拆分 | 裁准拆分 | 门与工具 |
 | ISSUE-111 | 数值口径松绑: headline 取最快变体+ULP 界·oracle §5 作废（补充令二§二·量税证数值非perf杠杆） | 待裁 | canon与措辞 |
 | ISSUE-112 | 11 格 NEEDS-LEVER 具名-X 缺口 | 待施工 | 性能与测量 |
