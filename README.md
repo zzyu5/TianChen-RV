@@ -21,8 +21,8 @@ The project is not a general-purpose graph/tensor compiler and does not introduc
 - legality and resource bounds are checked before selection;
 - capability/context rules provide an analytic prior;
 - qualified offline measurements may correct ranking only inside the legal candidate set;
-- the selected result is stamped into a typed body;
-- route providers and emitters mechanically realize that body;
+- the selected result is constructed as the final typed body;
+- plugin-local realization and emitters mechanically realize that body;
 - misses, stale data, unsupported inputs and negative results have named behavior.
 
 The current two-pillar, six-law research framing lives in [canon/暂定-科研主张.md](.trellis/spec/canon/暂定-科研主张.md). The executable formula and selector contract lives in [architecture/变体流水线.md](.trellis/spec/architecture/变体流水线.md).
@@ -42,7 +42,7 @@ MLIR operator / kernel-level input
       · qualified measured winner if still legal
       · otherwise analytic prior or named fallback
   → selected typed extension body
-  → plugin route provider
+  → plugin-local realization / route lowering
   → common EmitC / target artifact
 ~~~
 
@@ -54,17 +54,39 @@ The repository already contains:
 
 - RVV, IME, Scalar, Offload, Template and other plugin families;
 - typed construction and extension bodies;
-- five dequant mechanism plans: Nibble, Codebook, KQuant, GridLookup and Ternary;
+- seven dequant mechanism formulas: Int8Scale, NibbleDecode, BinarySign,
+  KQuantScaleMin, CodebookGather, GridLookup and TernaryDecode;
 - capability consumption for VLEN, RVV version and register-count-related decisions;
-- measured selection paths for selected LMUL, SP4 and loop-order decisions;
+- measured selection paths for selected LMUL and loop-order decisions, with
+  deterministic singleton construction where SP4 has only one real body;
 - clean-room reuse-emitter and own-emitter integration records;
 - physical no-V Scalar evidence;
 - deployed ggml, representative strong-opponent and end-to-end result ledgers;
 - an official bench runner, master table and run lineage directories.
 
-These assets do not mean the project is finished. The current architecture rebase is horizontal: enumerate every production construction/formula authority and operator entry, put all of them behind one lightweight catalogued formula stage with family-local typed implementations, prove real `g/c/ω` consumption, and remove every legacy/late/duplicate authority in the same cutover. Formula catalog, production-entry, dependency-edge and semantic-case coverage must all close over the complete current set; there is no “five formulas now, the rest later” completion state.
+These assets do not mean the project is finished. The common authority foundation
+now enumerates registered/direct construction entries in one lightweight catalog
+while keeping evaluation in family-local typed formulas. Quantize/dequantize final
+bodies, repack loop-order/main-term schedules and interface-discovered tunable RVV
+schedules are constructed before emission. A complete explicit schedule is validated,
+an absent schedule is constructed, and a partial or illegal tuple is rejected;
+emitters do not fill schedule defaults. The obsolete repack strip-width materializer
+has exited the public pipeline.
 
-The live migration record is [formula-layer-migration/LEDGER.md](experiments/active/formula-layer-migration/LEDGER.md).
+One public construction surface is still under the same horizontal audit: the
+low-precision Gearbox/pre-realized-body pass still materializes candidate, selection
+and audit mirrors before selected-body realization. Until that surface is either
+reduced to formula construction plus mechanical realization or retired, the whole
+compiler must not be described as having a single construction authority.
+
+Even after that authority boundary closes, catalog coverage is not strong
+reconstruction. Entries marked `ConstructedWeak` still depend on complete mechanical
+leaves and must not be counted as passing the delete-leaf reconstruction criterion.
+
+The current contract is the registry-derived formula catalog plus
+[formula/construction architecture](.trellis/spec/architecture/公式层与覆盖.md).
+The former eight-row migration ledger is retained only as
+[archived investigation](experiments/archive/formula-layer-migration-2026-07-22/LEDGER.md).
 
 ## Repository layout
 

@@ -1,8 +1,11 @@
 # Evidence Specs —— 证据层
 
-**版本**: v4
+**版本**: v5
 
 > **v4**（2026-07-20·B1）：测量记忆证据链补齐 structured T-N、唯一 master publisher 与 control-plane gate 的活锚；旧 design draft/generator 不再作为证据入口。
+> **v5**（2026-07-22）：旧六态/C_construct/provenance 工件降为历史 inventory；当前
+> formula authority 由 catalog/call graph/behavior tests 证明，strong construction 由
+> delete-leaf reconstruction 证明，两者与 correctness/performance 分账。
 
 > 当前贡献组织已更新为两柱下的 C1 模板、C2 公式系统、C3 性能/系统验证。现有“三贡献证据地图”仍包含旧 C2 边际成本与 C3′ 标签，暂作为工件 inventory 使用，不再定义贡献；重索引登记为 ISSUE-123。
 
@@ -23,12 +26,16 @@
 | 成色的随行标注（诚实边界与工件不可分割） | 成色的评判：不判高低、不升格、不降级 |
 | 负结果的**结论正本**（自足、不依赖任何报告可达） | 负结果的量值：倍数 / 格数 / 胜负计数 → 主表行 + run-id |
 
-**定义正本不在本层**：三贡献的主张措辞、成色词汇、[F-1..F-6] 判据、[K-4] 六态、[COV-2] 四覆盖率、[L-\*] / [PERF-1] 各条 → [canon](../canon/index.md)。本层对它们只用**标号 + 短标签**指认，不展开、不改写。
+**定义正本不在本层**：三贡献的主张措辞、成色词汇、[F-1..F-6] 判据、[K-4]
+构造强度、[COV-2] 分账边界、[L-\*] / [PERF-1] 各条 →
+[canon](../canon/index.md)。本层对它们只用**标号 + 短标签**指认，不展开、不改写。
 
 ## 使用规则（五条，读本层任何文件前必须知道）
 
 1. **定义在别处**。三贡献名与定义 = **【暂定·随论文侧更新】**，正本住 [canon](../canon/index.md) 论文侧节。本层引用其标号，**禁在此改写、发明、"改进"任何科研主张**。映射本身（工件 ↔ 路径）= 现行法。
-2. **数字不住地图**。引用数字 = 引用主表行字段 + run-id，或由 recon / 度量脚本**现算**。**人工转抄数字非法**——分母与占比类数字（覆盖率、perf-covered、C_construct）一律指向机算源，本层不落任何数值。
+2. **数字不住地图**。引用性能/正确性数字 = 引用主表行字段 + run-id，或由相应工具
+   **现算**。旧 `C_construct` 等历史口径若被解释也只引用其原始机算工件；当前 formula
+   authority 和 strong reconstruction 不靠手填比例，本层不落任何数值。
 3. **路径即事实**。表内每条路径已核实存在。核实**不存在**者、**待裁去向**者，只出现在 [三贡献证据地图 §六 缺口](./三贡献证据地图.md#六缺口本节是地图的诚实边界)，不进正文。
 4. **成色随行**。带诚实标注的工件（honest-missing / DORMANT / 归因锁 / 边界 caveat），其标注是**登记档不可分割的部分**——引用该工件必带其 caveat，**禁只取结论丢边界**。
 5. **门的锚点 = 脚本本体路径，不是 CI job 名**。机检门以其脚本文件定位。
@@ -43,8 +50,10 @@
 - [ ] 你要引的路径，`test -e` 过吗？不存在的路径只能进 §六 缺口（规则 3）。
 - [ ] 这个实验是**验证既有系统契约**，还是在反向定义结构？后者违 [canon · 核心不变量](../canon/核心不变量.md) I9。
 - [ ] RVV 证据绑到 `ssh rvv` 或另一具名 profile 了吗（I8）？本地 build / lit 只是编译器工具链证据，不是硬件证据。
-- [ ] 强义 / 弱义 constructed 的判断，是由 provenance 清单**机检**给的，还是你用散文断的？后者违 [canon · 成色与措辞](../canon/成色与措辞.md) [L-8]。
-- [ ] 覆盖率数按 [COV-2] 四口径报了吗（`C_construct` 只计强义）？
+- [ ] 强义 / 弱义 constructed 的判断有 delete-leaf reconstruction 或等价直接构造
+  证据吗？Catalog/provenance 清单不能替代 [L-8]。
+- [ ] Formula authority、strong reconstruction、correctness 和 performance 是否分别
+  报告，未从其中一项互推另一项（[COV-2]）？
 - [ ] micro → e2e 传导主张带 Amdahl 四列了吗？带宽受限内核以 **parity 为零假设**（[canon](../canon/index.md) 传导会计）。
 - [ ] 性能格标了状态枚举、且**同会话配对**了吗（跨会话不比）？
 - [ ] 要写"击败"吗？[PERF-1] 全绿前**任何"击败"措辞不存在**（[NG-4]）。

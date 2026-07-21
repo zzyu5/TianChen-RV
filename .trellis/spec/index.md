@@ -60,7 +60,7 @@ Weft 是 high-level MLIR 之后的、能力驱动且可扩展的 MLIR operator c
 - legality 与资源边界；
 - capability/context prior；
 - 有限合法候选中的选择；
-- typed stamping 与 mechanical emission；
+- final typed body construction 与 mechanical emission；
 - 负结果、fallback 和适用域。
 
 qualified measurement 可以在解析合法域内修正排序，但不能创造 candidate、扩大合法域或定义 compute。runtime data profile 只有在 observer、开销、策略和真实 workload 都存在时才进入；当前属于 future。
@@ -166,19 +166,34 @@ tools/bench/bench --self-test
 
 ## 当前工程推进方向
 
-当前首先完成一次横向 formula/construction layer rebase：
+当前已经建立 formula/construction authority 的公共底座：production construction
+entries 由 registry-derived catalog 关联 family-local typed owner。RVV
+quantize/dequantize final body、repack loop-order/main-term schedule 与通过
+`TunableScheduleOpInterface` 发现的通用 schedule 均在 emission 前完成构造；已有完整
+tuple 只接受合法性校验，缺失 tuple 才构造，partial/illegal tuple 直接拒绝。emitter 不补
+schedule default，旧 repack strip-width materializer 已退出。
 
-1. 闭合全部 production operator entries、analytic/construction authorities 与 callers；
-2. 一次建立轻量公共 descriptor/catalog 与 family-local typed formula 实现；
-3. 让全部 current production path 统一消费分型 `g/c/ω`，无公式选择的路径显式 deterministic/honest-null；
-4. 清除所有与公式决定重叠的 late decision、planner/verifier replay、mirror authority、selector/emitter 二次决策与 compatibility bridge；
-5. 使 catalog、production entry、dependency edge 与 semantic case coverage 全部达到完整当前分母；
-6. 同步更新 plugin 扩展入口，使新增 operator、format、capability、formula、residual 和 backend 位置清晰；
-7. 在统一路径上继续 capability、measurement、strong construction、deployed ggml、强对手和 e2e 工作。
+这仍不是 project-wide authority cutover 已完成的证明。当前尚有一个公开可执行的
+low-precision Gearbox/pre-realized-body surface：它会先写 candidate、selection、resource 与
+审计镜像，再由 selected-body realization 解释。即使默认 front door 暂无 caller，只要该
+pass 与 IR 仍是公开接受面，就必须在本轮横向重构中归入同一 formula → legality → thin
+selector → final typed body 链，或明确退役；不能用“测试/手工入口”排除在分母外。
 
-该 rebase 不能按五类 dequant、单一 operator 或第二 family 后补的方式局部结项；未完成时保持 task/worktree in-progress，不合入双轨中间态。
+公共底座与上述切换也不表示每个 `ConstructedWeak` leaf 已经完成强义重建。关闭剩余
+公开 authority inversion 后，应在同一横向结构上推进：
 
-当前进度与数字不写入根 spec；以代码、formula migration ledger、master/result tables 和 issues 为准。
+1. 横向审查现有 leaf 中仍未提升为 mechanism、typed parameter 或 formula 的知识；
+2. 让更多实例通过 delete-leaf reconstruction，而不是继续增加 opaque leaf；
+3. 补足 decisive `g/c/ω` 的因果测试、真实 capability transfer 和 semantic boundary；
+4. 保持新增 operator、format、capability、mechanism、formula、residual 与 backend 的
+   owner/入口清楚，不重新形成双 authority；
+5. 在统一路径上继续 deployed ggml、代表性强对手、e2e 与正负性能证据。
+
+强 reconstruction 可以按真实 mechanism 逐步增强，但 formula authority 不能退回按五类
+dequant、单一 operator 或第二 family 分裂的新旧双轨。
+
+当前进度与数字不写入根 spec；实现事实以代码和测试为准，性能事实以
+master/result tables 和 run lineage 为准。
 
 ## 入口文件
 

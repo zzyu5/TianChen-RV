@@ -230,22 +230,55 @@ Knowledge Factorization 只描述这座桥：它既不能吞掉整个 software s
 
 不能把这些资产压缩成“五个 Plan + 一个 emitter”。
 
-### 5.2 当前 construction 的诚实状态
+### 5.2 当前实现：主要生产入口已切换，公开 Gearbox 面与强重建须诚实区分
 
-完整源码审计得到的保守结论是：
+截至 2026-07-22，当前登记的 production construction entry 已经接入公共 catalog，
+quantize/dequantize、repack schedule 与通用 tunable schedule 已完成
+compute-authority 切换：
 
-| 路径 | 当前可信状态 | 不能写成什么 |
+1. registry-derived catalog 把入口关联到唯一 family-local typed formula/construction
+   owner，但 catalog 本身不执行 compute；
+2. 在已切换域，formula 在 emission 前求值，construction stage 一次性创建 final typed
+   body；
+3. 这些域的 emitter 只机械消费该 body，不再从 format、encode/decode model、provider
+   或 measurement 重新决定算法；
+4. 这些域的 verifier 只守护 IR/类型/闭集/ABI/ISA 结构，不重放公式，也不补写 compute；
+5. measurement 不能创造 candidate、扩大合法域或改变 `θ`。
+
+RVV quantize 已使用 typed `QuantizeRowLeaf` 构造 q8_0、q8_1、q8_K 的 layout；RVV
+dequant 已把 Int8Scale、NibbleDecode、BinarySign、KQuantScaleMin、CodebookGather、
+GridLookup 与 TernaryDecode 纳入同一 closed construction。只有当前确实需要 target
+capability 的机制消费 `c`，其余轴诚实为空。旧 formula provider、per-mechanism
+materializer、none/partial/forged stamp 生命周期以及 quantize emitter-side construction
+不再是这些域的 production compute authority。
+
+repack 的 loop-order/main-term 已由 family-local formula 构造候选、合法域、prior 与受限
+winner；SP4 伪单例轴、reason/record/replay 与 emitter default 已退出。通用 schedule 由
+`TunableScheduleOpInterface` 发现，complete tuple 只验证，absent tuple 才构造，partial 或
+illegal tuple fail-closed；production IR 不再保存 candidate/cost/reason 等 audit mirror。
+旧 repack strip-width materializer 也已退出。
+
+但当前复核发现公开 low-precision Gearbox/pre-realized-body surface 仍保留同类错误机制：
+公开 pass 写入 candidate、selected value、resource、remediation 与 audit mirrors，后续
+realizer 再解释。它虽已在 catalog 具名，却尚未形成单一 final-body authority。因此仍
+不能写成 project-wide authority 已完成；该公开面必须在本轮横向收口或退役，不能留作
+“后续某个纵向特性”，也不能因默认 front door 暂无 caller 而排除。
+
+| 层面 | 当前可信状态 | 不能推出 |
 |---|---|---|
-| RVV dequant nibble/codebook | 参数构造较强；Codebook 中 `c` 真实影响合法 gather/LMUL | 已经从共享机制重建整个 dequant family |
-| KQuant/Grid/Ternary/q1_0 | 主要仍是 typed leaf/full-body selection | provider/typed op 存在即真实 construction |
-| flat repack GEMV/GEMM | 有真实 typed brick/body construction；family 仍有完整逐格式 builders | 整个 family 已完成无 point-leaf construction |
-| selected-body realization | realization 阶段能构造真实 operation graph | test-authored入口即可证明 production block-quant reconstruction |
-| IME | 真实第二 compute backend，有局部 typed region construction | 已经是第二个完成 reconstruction 的 family |
-| Scalar | 真实 fallback/reference backend | 为了形式对称而算作 construction family |
+| catalog/front-door ownership | 已显式关联，catalog 只读 | catalog 数量不等于公式强度 |
+| quantize construction | typed formula outcome 直接进入 final body | leaf 内 compute 不再手写 |
+| dequantize construction | 七类机制进入统一 closed construction | 每类都可删 leaf 重建 |
+| repack/contraction | accumulator-LMUL、algorithm、loop-order、main-term 已分权并进入统一 formula/selection 链 | 全 family 已无逐格式 body |
+| generic tunable schedule | interface 发现；complete 校验、absent 构造、partial/illegal 拒绝 | 已完成强义 leaf reconstruction |
+| low-precision Gearbox | catalog 已具名，但公开 pass/realizer 仍有候选与审计镜像双阶段 | project-wide authority 已收敛 |
+| emitter | 受审 schedule 不重新决定公式或补默认 | emitter 中不存在机械 leaf implementation |
+| verifier | 已切换域只守结构/完整性；Gearbox realizer 仍待收口 | verifier 天然就是公式证明器或 compute owner |
+| IME / Scalar 等 family | 属于同一 plugin/compiler stack | 已达到 RVV 同等级 strong reconstruction 或性能成熟度 |
 
-因此，项目不是“只有 metadata”，也不是“已经完成 knowledge factorization”。更准确的状态是：
+因此，项目不是“只有 metadata”，也不是“已经完成 knowledge factorization”。准确状态是：
 
-> **复杂 compiler 和局部 construction substrate 已经存在；主 block-quant family 的 compute authority 仍散落在逐格式 builder、provider 和 emitter 大分支中。**
+> **复杂 compiler stack 与统一 construction authority 的公共结构已经存在；主要生产入口已切换，Gearbox 公开构造面仍在本轮收敛。即使 authority 切换全部完成，若干公式仍只构造完整手写 leaf，属于 `ConstructedWeak`，尚未普遍通过 delete-leaf reconstruction。**
 
 ### 5.3 后续目标的因果定义
 
@@ -431,12 +464,33 @@ typed operator / format facts g
 
 flat repack/q5_1、Codebook/KQuant、IME 等不再是分期迁移批次，而是横向公式层完成后用于证明不同知识拓扑、operation 和 backend family 都已经接入同一干净结构的代表性检查点。
 
+### 10.1 2026-07-22 落地状态
+
+上述第一轮已经落地的是 **authority convergence 的公共结构，以及
+quantize/dequantize、repack 与通用 tunable schedule 切换**：catalog、family-local
+formula evaluation 和 final typed-body construction 已形成可用路径。当前仍须在本轮
+退出的是公开 low-precision Gearbox/pre-realized-body 的 candidate/selection/audit mirror
+与 realizer 再解释；在此之前不报告 project-wide convergence。
+
+尚未落地的是 **strong reconstruction convergence**：若干 formula outcome 仍是
+`ConstructedWeak` leaf。后续不是继续迁“剩余几个 provider”，也不是再建一个纵向
+feature demo，而是横向审查所有现有 leaf，把可复用的执行知识提升为 mechanism、typed
+parameter 与 formula，并用 delete-leaf reconstruction 直接验收。
+
 ## 11. 收束
 
 Weft 的准确形状是：
 
 > **一个面向生态扩展的 MLIR operator compiler / execution-layer software stack。它以 typed owner 局部吸收 operator、format/layout、capability、mechanism 与 backend family 的变化，再由 `g/c/ω` 条件化的可执行专家知识构造专化 kernel。RISC-V 量化推理是当前旗舰实现和主要压力场，不是系统定义的上界。**
 
-当前已经存在的是复杂 compiler stack、通用 plugin/capability/typed-body 基础、统一公式方向、多个 backend family、部署与实验资产；仍需完成的是让代表性 production path 的变化局部性和性能知识因果链真正清楚、模块化且可扩展。
+当前已经存在的是复杂 compiler stack、通用 plugin/capability/typed-body 基础、统一
+formula construction 的公共结构、多个 backend family、部署与实验资产。当前先闭合
+Gearbox 这一仍公开的平行构造 authority；之后主要问题才是统一入口承载的知识是否足够强：每个现有 leaf 中
+还有哪些 compute 决定尚未提升为 mechanism/parameter/formula；删除 leaf 后能否由
+`g/c/ω + mechanisms + formula` 重建同一 typed body 与合法域；这些参数变化是否真实
+改变产物；correctness、reconstruction 与 performance evidence 是否分别成立。
+
+在旧 authority 全部退出前，只能主张公共结构和已切换域；退出后也只能主张
+construction authority 统一，不能据此主张执行知识已经完成强因式分解。
 
 重构 spec 与代码的任务不是发明新的主线，也不是把项目缩成 factorization 或验证框架，而是让这个 operator compiler 的生态接口、formula ownership、`g/c/ω` consumption、typed construction、backend realization 和证据边界与其原始目标一致。

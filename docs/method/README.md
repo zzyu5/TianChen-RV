@@ -2,7 +2,17 @@
 
 本文写给下一位接手 Weft-RV 的 agent。它记录最近一次方向纠偏：发生了什么、A/B 两条线最初要解决什么、当前已经裁决的第一性原理、哪些旧材料仍有价值，以及接下来怎样修正代码与 spec。
 
-本文不是 Trellis task，不建立新流程，也不要求先创建计划、任务树、角色或工作流状态。`.trellis/spec/` 继续作为项目更新文档与历史参考库；`.trellis/tasks/` 只保留历史记录，不再驱动工作。接手者读完本文后即可检查当前代码并直接行动。
+本文不是 Trellis task，不建立新流程，也不要求普通改动先创建计划、任务树、角色或工作流状态。`.trellis/spec/` 继续作为项目更新文档与历史参考库；`.trellis/tasks/` 只在用户要求或跨层工作确实需要恢复上下文时记录实施，不定义科研主线或架构。接手者读完本文后即可检查当前代码并直接行动。
+
+> **2026-07-22 状态说明**：本文保留此前对双重 authority、provider/materializer 和
+> 伪 formula 化的诊断。当前代码已经建立公共 formula catalog/construction cut，并完成
+> quantize/dequantize final body、repack schedule 与通用 tunable schedule 的 authority
+> 切换；complete tuple 只验证，absent tuple 才构造，partial/illegal tuple 拒绝，emitter
+> 不补 schedule default。仍须在本轮处理的是公开 low-precision
+> Gearbox/pre-realized-body surface，其 pass 仍写 candidate/selection/audit mirrors 并由
+> realizer 再解释。它收口前不能写成 project-wide cutover 完成。即使全部 authority
+> 收敛，也仍不等于 strong
+> reconstruction；`ConstructedWeak` leaf 与 delete-leaf 目标必须继续分开。
 
 ## 一、发生了什么
 
@@ -105,6 +115,17 @@ Weft-RV 的核心问题是：格式、机制、目标能力和性能知识怎样
 
 A 线仍然存在，但含义已经恢复为最初的架构主线，而不是 stamp 主线。
 
+统一 construction authority 的底座已经落地，quantize/dequantize、repack schedule 与
+通用 tunable schedule 已完成横向切换。A 线当前先把仍公开可执行的 Gearbox 构造面收回
+同一 authority 或退役，不增加新的迁移 slice；随后横向把现有 leaf 中仍手写的执行知识
+提升为 mechanism、typed parameter 和 formula，直至代表性实例能够通过 delete-leaf
+reconstruction。
+
+这里必须分开两种覆盖：production entry 是否链接唯一 owner、是否不存在第二计算路径，
+属于 **entry/authority coverage**；已有 mechanism 与 formula 是否足以在删除逐点 leaf 后
+重建同一实例，属于 **mechanism/reconstruction coverage**。前者的闭合不能作为后者的
+证据。
+
 ### A 线目标
 
 把当前所有影响代码生成的 `g`、`c` 和公式消费集中起来，形成一个清楚、模块化、可阅读的算法层；然后让 typed body 与 emitter 直接消费最终结果。
@@ -191,28 +212,33 @@ A4a implementation `09efd477c`、A3 implementation `33421d40f`、A2 implementati
 - B1/B2 的 runner、measurement control 与真实 correctness/route coverage；
 - 正负硬件证据和 run lineage。
 
-## 六、怎样修正现有 spec
+## 六、当前稳定 spec 已固定什么
 
-当前 `.trellis/spec/` 不是要删除的工作流系统，而是项目的更新文档库。但其中关于公式层的若干内容已经落后于最新裁决，下一位 agent 应主动改写，而不是服从旧文档。
+`.trellis/spec/` 是项目更新文档库，不是工作流系统。当前稳定契约已经按本次裁决收敛为：
 
-需要重点修正：
+- formula 构造 candidate、typed parameter、plan 与 final typed body；
+- legality 只限定公式构造出的合法域；
+- selector 只可在完整合法 candidate 中选择，不能创造实现或修改 `θ`；
+- emitter 机械实现 final typed body；
+- verifier 只检查 IR/类型/闭集/ABI/ISA 结构，不重放 formula；
+- provenance、route provider 与 measurement 都不能成为 compute authority；
+- production formula authority 必须横向唯一，但该覆盖不自动证明 strong reconstruction。
 
-- `README.md`：删除“小型 plugin-local decision contract”“第二 extension family 使用同一最小 contract”作为主要剩余目标的表述；把主目标改为集中、可阅读的公式与 capability 消费层，以及单一最终 Plan/body。
-- `.trellis/spec/index.md`：删除 legality-first、typed stamping、fallback/stale 等作为软件主链中心的表述；明确 Trellis 是参考文档库，不是任务或 agent 工作流。
-- `.trellis/spec/architecture/index.md`：重写当前主改造方向和 pre-development 提示，避免旧提示再次把实现吸向 verifier、atomic migration protocol 和第二 family demo。
-- `.trellis/spec/architecture/变体流水线.md`：这是最需要重写的文件。把核心改为 `g + c + real context -> readable formula -> final Plan/body -> emitter`；移除 complete stamp、pre-emission recomputation、forged/stale、fallback 分类和每个 slice 的迁移门。
-- `.trellis/spec/architecture/退役与原子合入.md`：保留“最终只存在一条生产路径”和大胆删除旧路的精神，删除为渐进迁移、兼容桥和 verifier 矩阵服务的程序化负担。
-- `.trellis/spec/canon/暂定-科研主张.md`：突出显式算法知识、集中能力消费、模块化公式和真实高性能；不要把 typed stamping 或第二 family demo写成贡献核心。
-- `.trellis/spec/governance/思维准则.md`：保留“抵抗枝节、删除死镜像”的判断；去掉会强制 agent 进入 Trellis/task、legality/verifier 或 gate-first 路径的内容。
-- `.trellis/spec/issues/发射器与架构.md`：将 ISSUE-122/125 的旧解法标为被本次第一性原理裁决取代；问题事实可保留，complete-stamp/verifier 解法不得继续作为待施工项。
-
-更新原则：先以当前用户裁决和重构后的代码形态为准，再让 spec 描述稳定事实。不要为了保持旧文档自洽而保留旧代码。
+两柱、六律和贡献组织仍由 canon/论文侧维护，本次工程收敛没有重新定义它们。当前实现
+与目标态必须分开：公共底座及 quantize/dequantize、repack、通用 schedule 切换已落地，
+Gearbox 公开构造面仍阻塞 project-wide authority cutover；delete-leaf reconstruction
+尚未完成。
 
 ## 七、旧 task 和 Trellis 的地位
 
 2026-07-21，本轮 A/B active task 已全部移动到 `.trellis/tasks/archive/2026-07/`，`.trellis/.current-task` 已清空。
 
 归档工具会机械地把 task JSON 写成 `completed`；这里的真实含义是“旧任务组织已终止并归档”，不是其 acceptance criteria 已完成。下一位 agent 不应恢复这些 task，也不需要创建替代 task。
+
+在本方法文档与稳定 spec 收敛之后，用户要求建立的
+`07-22-horizontal-formula-construction-rebase` 只用于记录这次横向实现与验收，不能反向
+修改本文件、两柱六律或 formula 架构。正确顺序始终是先确定方法/spec，再让 task 引用
+它们，而不是由 task acceptance criteria 发明项目定义。
 
 Trellis 仍可用于查找：
 
@@ -223,7 +249,9 @@ Trellis 仍可用于查找：
 
 它不是开工许可、上下文注入器、队列或 agent 定位系统。
 
-`experiments/active/formula-layer-migration/` 目前也只剩历史调查价值。下一位 agent 在吸收其中仍有效的 caller/owner 事实后，应把它移出 `active`；不要继续追加“迁移完成度”或用它恢复旧公式层路线。
+旧 formula-layer migration 资产已经移至
+`experiments/archive/formula-layer-migration-2026-07-22/`，只保留历史调查价值；
+不要继续追加“迁移完成度”或用它恢复旧公式层路线。
 
 ## 八、有价值的既有材料在哪里
 
@@ -231,15 +259,23 @@ Trellis 仍可用于查找：
 
 ### 当前代码与项目入口
 
-- `README.md`：项目定位、构建、测试和测量入口；其中公式层目标待按本文修正。
+- `README.md`：项目定位、构建、测试和测量入口。
 - `.trellis/spec/index.md`：现有 spec 地图；作为参考库入口，不是自动工作流。
-- `include/Weft/Plugin/RVV/RVVFormulaDecision.h`：本轮已抽出的部分公式，适合辨认可保留的真实算法和需要删除的协议包装。
-- `lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp` 与 `lib/Conversion/RVV/RVVRepackScheduleMaterialization.cpp`：本次偏航的代表性实现，适合作为删除和反例审查对象。
+- `include/Weft/Plugin/FormulaCatalog.h` 与
+  `include/Weft/Plugin/RVV/RVVFormulaCatalog.h`：只读 catalog 契约和 RVV 公式集合。
+- `include/Weft/Plugin/RVV/RVVQuantizeFormula.h`、`RVVDequantFormula.h`、
+  `RVVFormulaDecision.h` 与 `RVVGearboxSchedule.h`：family-local typed 公式与解析知识。
+- `include/Weft/Conversion/RVV/RVVFormulaConstruction.h` 与
+  `lib/Conversion/RVV/RVVFormulaConstruction.cpp`：emission 前一次创建 final typed body
+  的统一 construction cut。
+- `test/Plugin/FormulaCatalogTest.cpp` 与
+  `test/Scripts/formula-construction-authority.test`：catalog/entry 关联和旧 authority
+  denylist。这些工件证明统一权威路径，不单独证明 strong reconstruction。
 
 ### 公式层历史调查
 
-- `experiments/active/formula-layer-migration/AUTHORITY-MATRIX.md`：旧 caller/owner 盘点；只用作查找线索。
-- `experiments/active/formula-layer-migration/LEDGER.md`：迁移历史；不作为目标架构。
+- `experiments/archive/formula-layer-migration-2026-07-22/AUTHORITY-MATRIX.md`：旧 caller/owner 盘点；只用作查找线索。
+- `experiments/archive/formula-layer-migration-2026-07-22/LEDGER.md`：迁移历史；不作为目标架构。
 - `.trellis/tasks/archive/2026-07/07-20-ab-formula-performance-mainlines/research/a-line-audit.md`：A 线启动时的代码事实；其中 recommended modules 已被本次裁决否定。
 - `.trellis/tasks/archive/2026-07/07-20-ab-formula-performance-mainlines/research/b-line-audit.md`：B 线已有资产与剩余性能问题的摘要。
 - `docs/method/C2_marginal_cost_ledger.md`：旧的接入成本材料，可用于了解历史扩展与复用，但不再定义当前 C2 或重构方法。
@@ -262,21 +298,22 @@ Trellis 仍可用于查找：
 
 仓库中没有发现一份独立、现行的外部论文/网页参考清单。上述“外部资料”指位于当前 spec 之外、但仍值得参考的历史方法与报告。若后续引入新的外部论文，应建立简洁的来源索引，不把论文摘录复制成新的规则系统。
 
-## 九、下一位 agent 如何开始
+## 九、后续 agent 如何继续
 
-不需要启动 Trellis，不需要创建 task，不需要恢复 `.current-task`，也不需要先证明自己遵循某个流程。
+不要重新引入 selected-stamp 生命周期、provider-driven compute、formula-replay verifier
+或 emitter-side construction。后续重点是审计所有现有 leaf 中仍手写的知识，并横向提升
+reconstruction strength：
 
-直接执行：
+1. 找出能够从 `g/c/ω` 推导、但仍封装在完整 leaf 中的 mechanism、参数和资源决定；
+2. 将其提升到 family-local formula，保持 final typed body 是唯一生产状态；
+3. 用参数因果测试和 delete-leaf reconstruction 分别验证“公式承重”和“强重建”；
+4. 分开报告 catalog/front-door ownership、authority uniqueness、formula causal coverage、
+   reconstruction coverage、semantic correctness 与 performance evidence；
+5. 稳定路径的性能仍由 B 线按相同输入、对手和真板做 paired regression。
 
-1. 阅读本文并检查当前工作树、代码和近期提交。
-2. 先修正会误导后续工作的 README/spec 核心方向。
-3. 从当前生产树删除 stamp/materializer/reader/compat 多状态，保留真实 `g`、`c` 与公式价值。
-4. 重新组织公式层，使人能在少数地方读懂代码生成决策。
-5. 把所有调用者切到唯一最终 Plan/body，删除旧路径，不留回退。
-6. 代码走不通时根据真实失败修正设计，不预建 legality/verifier 框架。
-7. A 线稳定一段真实路径后，让 B 线做 paired correctness/performance；B 线的独立测量工作可以同时继续。
-
-不要把本文再拆成十个任务。它表达的是项目方向，不是任务生成器。
+authority 公共基础已经具备，但剩余旧生产链必须先退出；公式因果只有部分证据；
+delete-leaf reconstruction 尚未完成；correctness 与性能必须由各自测试和实验独立证明。无需为这些工作恢复旧 task
+队列或把本文拆成多个纵向迁移任务。
 
 ## 十、完成后的项目应是什么样
 
@@ -293,3 +330,9 @@ Trellis 仍可用于查找：
 - B 线仍能用真实硬件证据判断这些公式是否产生有竞争力的代码。
 
 这才是本轮“第一性原理重构”的含义。
+
+当前已经具备“单一 construction authority”的公共结构，quantize/dequantize、repack
+schedule 与通用 tunable schedule 已完成切换；剩余的是仍公开可执行的 Gearbox 构造面，
+不是“其余几个公式”纵向迁移。即使该面完成收口，项目仍未达到“删除逐点 leaf 仍可
+重建”的最终状态。不要把 catalog/entry authority coverage 重新解释成 mechanism/
+reconstruction coverage。
