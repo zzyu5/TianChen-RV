@@ -1,0 +1,35 @@
+{
+  "id": "unified-formula-construction-lifecycle",
+  "name": "unified-formula-construction-lifecycle",
+  "title": "横向统一公式构造生命周期纠偏",
+  "description": "纠正旧横向 task 的过度完成声明：一次性关闭 schedule、composite、front-door 双编排、emitter replay 与 reason mirror 旁路，使所有 current production entry 原子进入唯一 typed formula/construction owner。",
+  "status": "in_progress",
+  "dev_type": "refactor",
+  "scope": "project-wide-architecture",
+  "package": null,
+  "priority": "P0",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-07-22",
+  "completedAt": null,
+  "branch": "refactor/full-refactor-m1",
+  "base_branch": "refactor/full-refactor-m1",
+  "worktree_path": "/home/kingdom/phdworks/TianchenRV",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/architecture/公式层与覆盖.md",
+    ".trellis/spec/architecture/变体流水线.md",
+    ".trellis/spec/architecture/退役与原子合入.md",
+    ".trellis/spec/issues/发射器与架构.md"
+  ],
+  "notes": "这是 RET-F 的纠偏横向原子迁移。实现可以按依赖编辑，但不得提交 schedule-only、composite-only 或 formula-id-only 的中间生产世界。",
+  "meta": {
+    "cutover": "RET-F",
+    "baseline_commit": "df4e9b2fa",
+    "corrects_task": "horizontal-formula-construction-rebase"
+  }
+}

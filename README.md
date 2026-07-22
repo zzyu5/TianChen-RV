@@ -66,19 +66,20 @@ The repository already contains:
 
 These assets do not mean the project is finished. The common authority foundation
 now enumerates registered/direct construction entries in one lightweight catalog
-while keeping evaluation in family-local typed formulas. Quantize/dequantize final
-bodies, repack loop-order/main-term schedules, interface-discovered tunable RVV
-schedules and low-precision selected-body resource plans are constructed before
-emission. A complete explicit schedule is validated, an absent schedule is
-constructed, and a partial or illegal tuple is rejected; emitters do not fill
-schedule defaults. The obsolete repack strip-width materializer, Gearbox pass,
-resource-selection mirrors and composite resource replay have exited the public
-pipeline.
+while keeping evaluation in family-local typed formulas. The row quantize/dequantize
+cut and several resource formulas are real, but the project-wide authority boundary
+is still under active horizontal closure: the generic schedule owner is not yet
+called by every direct/lower-quant entry, Q40/GEMM compatibility schedule passes are
+still public, lower-quant can emit an incomplete schedule tuple, and composite body
+construction still has a registry-bypassing special branch. See
+[formula/construction architecture](.trellis/spec/architecture/公式层与覆盖.md) and
+[ISSUE-128](.trellis/spec/issues/发射器与架构.md).
 
-The current production surface therefore has one construction authority boundary:
-formula construction creates the typed result, route/realization consumes it, and
-emission is mechanical. This is an authority convergence result, not a claim that
-every complete leaf already passes delete-leaf reconstruction.
+The target remains one formula → legality → thin selector → final typed body path;
+the current foundation must not be described as having already achieved it. Even
+after that authority boundary closes, catalog coverage is not strong reconstruction.
+Entries marked `ConstructedWeak` still depend on complete mechanical leaves and must
+not be counted as passing the delete-leaf reconstruction criterion.
 
 Even after that authority boundary closes, catalog coverage is not strong
 reconstruction. Entries marked `ConstructedWeak` still depend on complete mechanical

@@ -1,0 +1,16 @@
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"目标契约、真实实现基线与横向 coverage 判据"}
+{"file":".trellis/spec/architecture/变体流水线.md","reason":"主公式、authority 顺序与 final typed body 原子性"}
+{"file":".trellis/spec/issues/发射器与架构.md","reason":"ISSUE-126/128 的真实缺口与关闭条件"}
+{"file":"include/Weft/Plugin/RVV/RVVFormulaConstruction.h","reason":"可复用的 RVV domain construction lifecycle API"}
+{"file":"lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp","reason":"quant/dequant/schedule 的 project-level 单一编排"}
+{"file":"include/Weft/Plugin/RVV/RVVScheduleFormula.h","reason":"generic schedule candidate、legality、prior 与 bounded winner owner"}
+{"file":"lib/Plugin/RVV/Schedule/","reason":"删除 subset compatibility pass，仅保留真实 schedule owner/可选显式 tuning front door"}
+{"file":"lib/Plugin/RVV/FrontDoor/","reason":"复用 domain formula owner，原子构造 complete contraction/source typed body"}
+{"file":"include/Weft/Plugin/RVV/RVVSelectedBodyRealization.h","reason":"selected-body registry 与 composite live owner contract"}
+{"file":"lib/Plugin/RVV/BodyRealization/","reason":"composite/low-precision typed formula result 到机械 realization"}
+{"file":"lib/Plugin/RVV/RVVExtensionPlugin.cpp","reason":"catalog axis/case/entry 与 live evaluator/registry 同源"}
+{"file":"include/Weft/Transforms/Passes.td","reason":"删除 compatibility schedule public surface 与过时 stage/stamp 语义"}
+{"file":"include/Weft/Transforms/Passes.h","reason":"删除 compatibility schedule API"}
+{"file":"tools/weft-opt/weft-opt.cpp","reason":"删除 compatibility registration"}
+{"file":"lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp","reason":"删除 reason/provenance allowlist，不重放 formula"}
+{"file":"lib/Conversion/RVV/","reason":"把 compute descriptor 决定前移，emitter 机械消费 final typed plan"}

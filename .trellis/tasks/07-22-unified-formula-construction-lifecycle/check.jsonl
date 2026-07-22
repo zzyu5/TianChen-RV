@@ -1,0 +1,8 @@
+{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"catalog、live owner registry、production caller 与 dependency truth"}
+{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"typed formula candidate/legality/selector 与 g/c/ω 因果性"}
+{"file":"test/Conversion/RVV/","reason":"真实 front door、complete schedule、mechanical emission 与 missing/partial/illegal 负例"}
+{"file":"test/Target/RVV/","reason":"selected-body/composite/route/artifact/ABI end-to-end"}
+{"file":"test/Scripts/formula-construction-authority.test","reason":"compatibility pass、special branch、reason attrs、emitter replay 与 hidden default denylist"}
+{"file":"scripts/rvv_generated_bundle_abi_e2e.py","reason":"bundle ABI 自检"}
+{"file":"scripts/rvv_generated_bundle_same_target_measure.py","reason":"same-target measurement 工具自检，不让 measurement 成为 compute authority"}
+{"file":"build/weft","reason":"增量重链、focused lit/unit 与完整 check-weft"}
