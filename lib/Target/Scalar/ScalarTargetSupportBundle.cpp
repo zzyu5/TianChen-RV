@@ -1,8 +1,9 @@
 #include "Weft/Target/Scalar/ScalarTargetSupportBundle.h"
 
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
-#include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -33,10 +34,28 @@ llvm::Error exportScalarEmitCToCpp(mlir::ModuleOp module,
                                    const plugin::ExtensionPluginRegistry &plugins,
                                    llvm::raw_ostream &os) {
   mlir::OwningOpRef<mlir::ModuleOp> constructed(module.clone());
-  if (mlir::failed(
-          plugin::scalar::constructScalarFinalPlans(*constructed)))
+  weft::exec::VariantOp selectedVariant;
+  unsigned scalarVariants = 0;
+  constructed->walk([&](weft::exec::VariantOp variant) {
+    auto origin = variant->getAttrOfType<mlir::StringAttr>("origin");
+    if (!origin || origin.getValue() != "scalar-plugin")
+      return;
+    selectedVariant = variant;
+    ++scalarVariants;
+  });
+  if (scalarVariants != 1)
     return makeScalarTargetRouteError(
-        "Scalar family construction rejected the selected typed body");
+        "requires exactly one bound scalar variant before translation");
+  plugin::FamilyConstructionResult construction;
+  if (llvm::Error error = plugins.constructFormulaPlansForVariant(
+          *constructed, selectedVariant, construction))
+    return makeScalarTargetRouteError(
+        llvm::Twine("Scalar family construction rejected the selected typed "
+                    "body: ") +
+        llvm::toString(std::move(error)));
+  if (!construction.hasFinalBody())
+    return makeScalarTargetRouteError(
+        "selected scalar variant has no executable final typed body");
   mlir::OwningOpRef<mlir::ModuleOp> emitcModule =
       conversion::emitc::
           tryConvertConstructedModuleWithRegisteredBackend(*constructed);

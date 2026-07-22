@@ -563,14 +563,20 @@ llvm::Error TensorExtLiteExtensionPlugin::constructFormulaPlans(
   if (llvm::Error error =
           materializeTensorExtLiteSelectedRoleSequenceIfNeeded(bodyRequest))
     return error;
-  if (mlir::succeeded(
-          tensorext_lite::constructTensorExtLiteFinalBody(
-              request.getModule()))) {
-    out = FamilyConstructionResult::getFinalBody();
-    return llvm::Error::success();
-  }
-  return makeTensorExtLitePluginError(
-      "artifact-neutral TensorExtLite final-body construction failed");
+  construction::SelectedExecutableRoleSequenceSpec spec =
+      getTensorExtLiteSelectedRoleSequenceSpec(bodyRequest);
+  llvm::Expected<construction::SelectedExecutableRoleSequenceInspection>
+      inspection = construction::inspectSelectedExecutableRoleSequence(spec);
+  if (!inspection)
+    return inspection.takeError();
+  if (!inspection->complete() || inspection->steps.empty() ||
+      !inspection->steps.front().operation)
+    return makeTensorExtLitePluginError(
+        "family construction produced no complete selected typed role "
+        "sequence");
+  out = FamilyConstructionResult::getFinalBody(
+      inspection->steps.front().operation);
+  return llvm::Error::success();
 }
 
 void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(

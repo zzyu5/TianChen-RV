@@ -383,13 +383,14 @@ llvm::Error DemoExtensionPlugin::constructFormulaPlans(
   VariantLoweringBoundaryRequest bodyRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole(), builder);
-  (void)materializeDemoComputeSkeletonBoundary(bodyRequest);
-  if (mlir::succeeded(demo_ext::constructDemoFinalBody(request.getModule()))) {
-    out = FamilyConstructionResult::getFinalBody();
-    return llvm::Error::success();
-  }
-  return makeDemoPluginError(
-      "artifact-neutral Demo final-body construction failed");
+  mlir::Operation *body = materializeDemoComputeSkeletonBoundary(bodyRequest);
+  VariantLoweringBoundaryValidationRequest validation(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), body);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validation))
+    return error;
+  out = FamilyConstructionResult::getFinalBody(body);
+  return llvm::Error::success();
 }
 
 void DemoExtensionPlugin::collectFormulaDescriptors(
@@ -711,11 +712,11 @@ llvm::Error DemoExtensionPlugin::validateSelectedLoweringBoundary(
         "Demo compute_skeleton role_order must match the construction "
         "typed-role realization");
 
-  if (llvm::Error error = demo_ext::verifyDemoComputeRoleOpInterface(
-          demo_ext::getDemoConstructionManifest(),
-          demo_ext::getDemoTypedRoleGraphRealization(),
+  if (!llvm::isa<conversion::emitc::WEFTEmitCLowerableOpInterface>(
           boundary.getOperation()))
-    return error;
+    return makeDemoPluginError(
+        "weft_demo.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface");
 
   return llvm::Error::success();
 }

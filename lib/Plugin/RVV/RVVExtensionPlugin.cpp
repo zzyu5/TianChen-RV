@@ -476,7 +476,7 @@ llvm::Error RVVExtensionPlugin::constructFormulaPlans(
     if (hasPreRealizedBody)
       return makeRVVPluginError(
           "family construction found both pre-realized and final RVV bodies");
-    out = FamilyConstructionResult::getFinalBody();
+    out = FamilyConstructionResult::getFinalBody(boundary->getOperation());
     return llvm::Error::success();
   }
 
@@ -494,7 +494,7 @@ llvm::Error RVVExtensionPlugin::constructFormulaPlans(
       realizePreRealizedRVVSelectedBody(bodyRequest);
   if (!realized)
     return realized.takeError();
-  out = FamilyConstructionResult::getFinalBody();
+  out = FamilyConstructionResult::getFinalBody(realized->getOperation());
   return llvm::Error::success();
 }
 

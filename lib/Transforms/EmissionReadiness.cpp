@@ -1,6 +1,5 @@
 #include "Weft/Transforms/EmissionReadiness.h"
 
-#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "Weft/Support/ArtifactMetadata.h"
 #include "Weft/Transforms/Passes.h"
@@ -59,8 +58,6 @@ using weft::exec::diagnostic::kStatusAttrName;
 using weft::exec::diagnostic::kTargetAttrName;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
-constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
 using weft::plugin::ExtensionPluginRegistry;
@@ -81,9 +78,7 @@ using weft::exec::VariantOp;
 struct EmissionReference {
   VariantOp variant;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
-  bool acceptsLoweringBoundary = false;
-  bool requiresLoweringBoundary = false;
-  mlir::Operation *loweringBoundary = nullptr;
+  FamilyConstructionResult construction;
 };
 
 llvm::Error makeEmissionPathError(KernelOp kernel, llvm::Twine message) {
@@ -189,7 +184,7 @@ llvm::Error routeVariantEmissionPlan(
 }
 
 llvm::Error constructEmissionReferences(
-    KernelOp kernel, llvm::ArrayRef<EmissionReference> references,
+    KernelOp kernel, llvm::MutableArrayRef<EmissionReference> references,
     const ExtensionPluginRegistry &registry, llvm::StringRef consumer) {
   auto module = kernel ? kernel->getParentOfType<mlir::ModuleOp>()
                        : mlir::ModuleOp();
@@ -197,7 +192,7 @@ llvm::Error constructEmissionReferences(
     return makeEmissionPathError(
         kernel, "family construction requires an enclosing module");
 
-  for (const EmissionReference &reference : references) {
+  for (EmissionReference &reference : references) {
     FamilyConstructionResult result;
     if (llvm::Error error = registry.constructFormulaPlansForVariant(
             module, reference.variant, result, reference.role)) {
@@ -212,6 +207,7 @@ llvm::Error constructEmissionReferences(
               weft::plugin::stringifyVariantEmissionRole(reference.role) +
               ": " + cause);
     }
+    reference.construction = result;
     // Unsupported is a complete, explicit construction outcome. Emission
     // readiness/plan routing below owns the corresponding fail-closed
     // diagnostic; no fake body is invented here.
@@ -304,14 +300,8 @@ llvm::Error collectSelectedMarkerEmissionReference(
           kernel, diagnostic, directVariants, directSymbols, variant))
     return error;
 
-  auto selectionKind =
-      diagnostic->getAttrOfType<mlir::StringAttr>(kSelectionKindAttrName);
-  bool needsBoundary =
-      selectionKind.getValue() != kFallbackOnlySelectionKindValue;
-  references.push_back(EmissionReference{variant,
-                                         VariantEmissionRole::DirectVariant,
-                                         /*acceptsLoweringBoundary=*/needsBoundary,
-                                         /*requiresLoweringBoundary=*/needsBoundary});
+  references.push_back(
+      EmissionReference{variant, VariantEmissionRole::DirectVariant});
   return llvm::Error::success();
 }
 
@@ -399,9 +389,7 @@ llvm::Error collectDispatchEmissionReferences(
               seenTargets, variant))
         return error;
       caseReferences.push_back(
-          EmissionReference{variant, VariantEmissionRole::DispatchCase,
-                            /*acceptsLoweringBoundary=*/true,
-                            /*requiresLoweringBoundary=*/false});
+          EmissionReference{variant, VariantEmissionRole::DispatchCase});
       continue;
     }
 
@@ -414,9 +402,7 @@ llvm::Error collectDispatchEmissionReferences(
               directSymbols, seenTargets, variant))
         return error;
       fallbackReferences.push_back(
-          EmissionReference{variant, VariantEmissionRole::DispatchFallback,
-                            /*acceptsLoweringBoundary=*/false,
-                            /*requiresLoweringBoundary=*/false});
+          EmissionReference{variant, VariantEmissionRole::DispatchFallback});
       continue;
     }
 
@@ -492,92 +478,10 @@ llvm::Error collectKernelEmissionReferences(
     if (!variant)
       continue;
 
-    references.push_back(EmissionReference{
-        variant, VariantEmissionRole::DirectVariant,
-        /*acceptsLoweringBoundary=*/false,
-        /*requiresLoweringBoundary=*/false});
+    references.push_back(
+        EmissionReference{variant, VariantEmissionRole::DirectVariant});
   }
 
-  return llvm::Error::success();
-}
-
-std::string makeBoundaryKey(llvm::StringRef variantSymbol,
-                            llvm::StringRef role) {
-  std::string key;
-  llvm::raw_string_ostream stream(key);
-  stream << variantSymbol << "\n" << role;
-  stream.flush();
-  return key;
-}
-
-std::string makeBoundaryKey(const EmissionReference &reference) {
-  VariantOp variant = reference.variant;
-  return makeBoundaryKey(
-      variant ? variant.getSymName() : "<missing>",
-      weft::plugin::stringifyVariantEmissionRole(reference.role));
-}
-
-llvm::Error makeBoundaryValidationError(KernelOp kernel, llvm::Twine message) {
-  return makeEmissionPathError(
-      kernel, llvm::Twine("selected lowering-boundary validation failed "
-                          "before plugin emission routing: ") +
-                  message);
-}
-
-llvm::StringRef getBoundaryName(mlir::Operation *op) {
-  return op ? op->getName().getStringRef() : llvm::StringRef("<missing>");
-}
-
-bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
-  if (!op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName))
-    return false;
-
-  if (op.getName().getStringRef().ends_with(".lowering_boundary"))
-    return true;
-
-  if (llvm::isa<weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(
-          op))
-    return true;
-
-  if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op)) {
-    auto reason = diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
-    return reason && reason.getValue().contains("lowering-boundary");
-  }
-
-  return false;
-}
-
-llvm::Error collectSelectedBoundaryCandidate(
-    KernelOp kernel, mlir::Operation &op,
-    llvm::SmallVectorImpl<mlir::Operation *> &out) {
-  if (!isSelectedLoweringBoundaryCandidate(op))
-    return llvm::Error::success();
-
-  if (op.getParentOp() != kernel.getOperation())
-    return llvm::Error::success();
-
-  auto sourceKernel = op.getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
-  if (!sourceKernel || sourceKernel.getValue().trim().empty())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("boundary '") + getBoundaryName(&op) +
-                    "' requires non-empty string attribute '" +
-                    kSourceKernelAttrName + "'");
-
-  if (sourceKernel.getValue() != kernel.getSymName())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("boundary '") + getBoundaryName(&op) +
-                    "' source_kernel '" + sourceKernel.getValue() +
-                    "' does not match enclosing kernel @" +
-                    kernel.getSymName());
-
-  auto role = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-  if (!role || role.getValue().trim().empty())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("boundary '") + getBoundaryName(&op) +
-                    "' requires non-empty string attribute '" + kRoleAttrName +
-                    "'");
-
-  out.push_back(&op);
   return llvm::Error::success();
 }
 
@@ -593,169 +497,18 @@ bool arrayContainsSymbol(mlir::ArrayAttr array, llvm::StringRef symbol) {
   return false;
 }
 
-llvm::Error validateBoundaryRequiredCapabilities(KernelOp kernel,
-                                                 VariantOp variant,
-                                                 mlir::Operation *boundary) {
-  auto variantRequires =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!variantRequires)
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("selected variant @") + variant.getSymName() +
-                    " requires structured array attribute '" +
-                    kRequiresAttrName + "'");
-
-  auto boundaryRequires =
-      boundary->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  if (!boundaryRequires || boundaryRequires.empty())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("boundary '") + getBoundaryName(boundary) +
-                    "' for selected variant @" + variant.getSymName() +
-                    " requires non-empty array attribute '" +
-                    kRequiredCapabilitiesAttrName + "'");
-
-  for (mlir::Attribute requiredCapability : boundaryRequires) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return makeBoundaryValidationError(
-          kernel, llvm::Twine("boundary '") + getBoundaryName(boundary) +
-                      "' required_capabilities must contain only capability "
-                      "symbol references");
-
-    if (!arrayContainsSymbol(variantRequires, symbolRef.getValue()))
-      return makeBoundaryValidationError(
-          kernel, llvm::Twine("boundary '") + getBoundaryName(boundary) +
-                      "' required_capabilities must be a safe subset of "
-                      "selected variant @" +
-                      variant.getSymName() + " requires metadata");
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Error validateBoundaryOrigin(KernelOp kernel, VariantOp variant,
-                                   mlir::Operation *boundary) {
-  auto variantOrigin =
-      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!variantOrigin || variantOrigin.getValue().trim().empty())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("selected variant @") + variant.getSymName() +
-                    " requires non-empty string attribute '" +
-                    kOriginAttrName + "'");
-
-  auto boundaryOrigin =
-      boundary->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!boundaryOrigin || boundaryOrigin.getValue().trim().empty())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("boundary '") + getBoundaryName(boundary) +
-                    "' for selected variant @" + variant.getSymName() +
-                    " requires non-empty string attribute '" +
-                    kOriginAttrName + "'");
-
-  if (boundaryOrigin.getValue() != variantOrigin.getValue())
-    return makeBoundaryValidationError(
-        kernel, llvm::Twine("boundary '") + getBoundaryName(boundary) +
-                    "' origin '" + boundaryOrigin.getValue() +
-                    "' does not match selected variant @" +
-                    variant.getSymName() + " origin '" +
-                    variantOrigin.getValue() + "'");
-
-  return llvm::Error::success();
-}
-
-llvm::Error validateSelectedLoweringBoundaries(
+llvm::Error validateConstructedFamilyOperations(
     KernelOp kernel, llvm::SmallVectorImpl<EmissionReference> &references,
     const TargetCapabilitySet &capabilities,
     const ExtensionPluginRegistry &registry) {
-  llvm::StringMap<unsigned> selectedReferenceByKey;
-  for (auto [index, reference] : llvm::enumerate(references)) {
-    std::string key = makeBoundaryKey(reference);
-    if (!selectedReferenceByKey.try_emplace(key, index).second)
-      return makeBoundaryValidationError(
-          kernel,
-          llvm::Twine("duplicate selected path reference for variant @") +
-              reference.variant.getSymName() + " as " +
-              weft::plugin::stringifyVariantEmissionRole(
-                  reference.role));
-  }
-
-  if (references.empty())
-    return llvm::Error::success();
-
-  if (!hasKernelBody(kernel))
-    return makeBoundaryValidationError(
-        kernel, "requires kernel to have a materialized body block");
-
-  llvm::SmallVector<mlir::Operation *, 4> boundaryCandidates;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    if (llvm::Error error =
-            collectSelectedBoundaryCandidate(kernel, op, boundaryCandidates))
-      return error;
-  }
-
-  llvm::StringSet<> seenBoundaryKeys;
-  for (mlir::Operation *boundary : boundaryCandidates) {
-    auto selectedVariant =
-        boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
-            kSelectedVariantAttrName);
-    auto role = boundary->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-    std::string key = makeBoundaryKey(selectedVariant.getValue(),
-                                      role.getValue());
-
-    if (!seenBoundaryKeys.insert(key).second)
-      return makeBoundaryValidationError(
-          kernel, llvm::Twine("duplicate competing lowering boundaries for "
-                              "selected path @") +
-                      selectedVariant.getValue() + " as " + role.getValue());
-
-    auto selectedIt = selectedReferenceByKey.find(key);
-    if (selectedIt == selectedReferenceByKey.end())
-      return makeBoundaryValidationError(
-          kernel, llvm::Twine("stale lowering boundary '") +
-                      getBoundaryName(boundary) + "' selected_variant @" +
-                      selectedVariant.getValue() + " as " + role.getValue() +
-                      " is not selected by the current dispatch or selected "
-                      "diagnostic surface");
-
-    EmissionReference &reference = references[selectedIt->getValue()];
-    if (!reference.acceptsLoweringBoundary)
-      return makeBoundaryValidationError(
-          kernel, llvm::Twine("selected path @") +
-                      reference.variant.getSymName() + " as " +
-                      weft::plugin::stringifyVariantEmissionRole(
-                          reference.role) +
-                      " does not accept a materialized plugin lowering "
-                      "boundary");
-    reference.loweringBoundary = boundary;
-
-    if (llvm::Error error =
-            validateBoundaryOrigin(kernel, reference.variant, boundary))
-      return error;
-    if (llvm::Error error = validateBoundaryRequiredCapabilities(
-            kernel, reference.variant, boundary))
-      return error;
-  }
-
   for (const EmissionReference &reference : references) {
-    if (!reference.requiresLoweringBoundary || reference.loweringBoundary)
-      continue;
-
-    VariantOp variant = reference.variant;
-    return makeBoundaryValidationError(
-        kernel,
-        llvm::Twine("selected path @") + variant.getSymName() +
-            " as " +
-            weft::plugin::stringifyVariantEmissionRole(reference.role) +
-            " requires one materialized plugin lowering boundary before "
-            "emission planning");
-  }
-
-  for (const EmissionReference &reference : references) {
-    if (!reference.loweringBoundary)
+    mlir::Operation *constructedOperation =
+        reference.construction.getOperation();
+    if (!constructedOperation)
       continue;
     VariantLoweringBoundaryValidationRequest request(
         reference.variant, kernel, capabilities, reference.role,
-        reference.loweringBoundary);
+        constructedOperation);
     if (llvm::Error error =
             registry.validateSelectedLoweringBoundary(request))
       return error;
@@ -1240,8 +993,8 @@ llvm::Error checkKernelEmissionPaths(
                                       "variant emission readiness check"))
     return error;
   if (llvm::Error error =
-          validateSelectedLoweringBoundaries(kernel, references, capabilities,
-                                             registry))
+          validateConstructedFamilyOperations(kernel, references, capabilities,
+                                              registry))
     return error;
 
   for (const EmissionReference &reference : references) {
@@ -1278,14 +1031,14 @@ llvm::Error collectKernelEmissionPlans(
                                       "variant emission plan collection"))
     return error;
   if (llvm::Error error =
-          validateSelectedLoweringBoundaries(kernel, references, capabilities,
-                                             registry))
+          validateConstructedFamilyOperations(kernel, references, capabilities,
+                                              registry))
     return error;
 
   for (const EmissionReference &reference : references) {
     if (llvm::Error error = routeVariantEmissionPlan(
             kernel, reference.variant, capabilities, registry, reference.role,
-            reference.loweringBoundary, out))
+            reference.construction.getOperation(), out))
       return error;
   }
 

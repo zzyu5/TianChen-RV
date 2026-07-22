@@ -1,6 +1,5 @@
 add_mlir_library(WeftDemoConstructionProtocol
   DemoConstructionProtocol.cpp
-  DemoFinalBodyConstruction.cpp
   DemoVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED

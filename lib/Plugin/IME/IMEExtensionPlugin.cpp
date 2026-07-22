@@ -735,13 +735,18 @@ llvm::Error IMEExtensionPlugin::constructFormulaPlans(
     if (llvm::Error error = constructSelectedFinalBody(bodyRequest, bodyResult))
       return error;
   }
-  if (mlir::succeeded(constructIMEFormulaPlans(request.getModule()))) {
-    out = FamilyConstructionResult::getFinalBody();
-    return llvm::Error::success();
-  }
-  return llvm::createStringError(
-      llvm::inconvertibleErrorCode(),
-      "IME formula-construction cut rejected the module");
+  mlir::Operation *body = findSelectedIMEFinalBody(request.getVariant());
+  if (!body)
+    return makeIMEPluginError(
+        "family construction produced no selected IME final body");
+  if (mlir::failed(constructIMEFormulaPlan(
+          body, request.getVariant(), request.getKernel(),
+          request.getCapabilities())))
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "IME formula construction rejected the bound typed body");
+  out = FamilyConstructionResult::getFinalBody(body);
+  return llvm::Error::success();
 }
 
 void IMEExtensionPlugin::collectFormulaDescriptors(

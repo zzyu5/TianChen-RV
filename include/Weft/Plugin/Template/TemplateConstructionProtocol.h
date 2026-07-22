@@ -24,9 +24,6 @@ class TargetCapabilitySet;
 
 namespace weft::plugin::template_ext {
 
-/// Artifact-neutral construction/qualification for the Template final body.
-mlir::LogicalResult constructTemplateFinalBody(mlir::ModuleOp module);
-
 /// Verifies that a selected Template variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest
 /// conformance (incl. the `emitc_route_mapping` eligibility declaration). Shared

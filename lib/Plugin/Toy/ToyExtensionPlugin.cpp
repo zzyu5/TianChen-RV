@@ -402,13 +402,14 @@ llvm::Error ToyExtensionPlugin::constructFormulaPlans(
   VariantLoweringBoundaryRequest bodyRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole(), builder);
-  (void)materializeToyComputeSkeletonBoundary(bodyRequest);
-  if (mlir::succeeded(toy::constructToyFinalBody(request.getModule()))) {
-    out = FamilyConstructionResult::getFinalBody();
-    return llvm::Error::success();
-  }
-  return makeToyPluginError(
-      "artifact-neutral Toy final-body construction failed");
+  mlir::Operation *body = materializeToyComputeSkeletonBoundary(bodyRequest);
+  VariantLoweringBoundaryValidationRequest validation(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), body);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validation))
+    return error;
+  out = FamilyConstructionResult::getFinalBody(body);
+  return llvm::Error::success();
 }
 
 void ToyExtensionPlugin::collectFormulaDescriptors(
@@ -742,10 +743,11 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
         "Toy compute_skeleton role_order must match the construction "
         "typed-role realization");
 
-  if (llvm::Error error = toy::verifyToyComputeRoleOpInterface(
-          toy::getToyConstructionManifest(),
-          toy::getToyTypedRoleGraphRealization(), boundary.getOperation()))
-    return error;
+  if (!llvm::isa<conversion::emitc::WEFTEmitCLowerableOpInterface>(
+          boundary.getOperation()))
+    return makeToyPluginError(
+        "weft_toy.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface");
 
   return llvm::Error::success();
 }

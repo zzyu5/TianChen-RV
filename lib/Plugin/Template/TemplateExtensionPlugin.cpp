@@ -383,14 +383,15 @@ llvm::Error TemplateExtensionPlugin::constructFormulaPlans(
   VariantLoweringBoundaryRequest bodyRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole(), builder);
-  (void)materializeTemplateComputeSkeletonBoundary(bodyRequest);
-  if (mlir::succeeded(
-          template_ext::constructTemplateFinalBody(request.getModule()))) {
-    out = FamilyConstructionResult::getFinalBody();
-    return llvm::Error::success();
-  }
-  return makeTemplatePluginError(
-      "artifact-neutral Template final-body construction failed");
+  mlir::Operation *body =
+      materializeTemplateComputeSkeletonBoundary(bodyRequest);
+  VariantLoweringBoundaryValidationRequest validation(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), body);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validation))
+    return error;
+  out = FamilyConstructionResult::getFinalBody(body);
+  return llvm::Error::success();
 }
 
 void TemplateExtensionPlugin::collectFormulaDescriptors(
@@ -712,11 +713,11 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
         "Template compute_skeleton role_order must match the construction "
         "typed-role realization");
 
-  if (llvm::Error error = template_ext::verifyTemplateComputeRoleOpInterface(
-          template_ext::getTemplateConstructionManifest(),
-          template_ext::getTemplateTypedRoleGraphRealization(),
+  if (!llvm::isa<conversion::emitc::WEFTEmitCLowerableOpInterface>(
           boundary.getOperation()))
-    return error;
+    return makeTemplatePluginError(
+        "weft_template.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface");
 
   return llvm::Error::success();
 }

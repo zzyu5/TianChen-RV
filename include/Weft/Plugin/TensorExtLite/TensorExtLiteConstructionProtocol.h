@@ -26,10 +26,6 @@ class TargetCapabilitySet;
 
 namespace weft::plugin::tensorext_lite {
 
-/// Artifact-neutral construction/qualification for the complete typed role
-/// sequence.  EmitC route data is neither an input nor a completion condition.
-mlir::LogicalResult constructTensorExtLiteFinalBody(mlir::ModuleOp module);
-
 /// Verifies that a selected TensorExtLite variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest
 /// conformance (incl. the `emitc_route_mapping` eligibility declaration). This

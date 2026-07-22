@@ -385,10 +385,12 @@ void OffloadExtensionPlugin::registerDialects(
 llvm::Error OffloadExtensionPlugin::constructFormulaPlans(
     const FamilyConstructionRequest &request,
     FamilyConstructionResult &out) const {
-  if (findSelectedOffloadDelegationPlan(request.getVariant(),
-                                        request.getRole())) {
+  if (weft::offload::LoweringBoundaryOp existing =
+          findSelectedOffloadDelegationPlan(request.getVariant(),
+                                            request.getRole())) {
     out = FamilyConstructionResult::getUnsupported(
-        "offload delegation plan has no executable implementation");
+        "offload delegation plan has no executable implementation",
+        existing.getOperation());
     return llvm::Error::success();
   }
 
@@ -428,9 +430,10 @@ llvm::Error OffloadExtensionPlugin::constructFormulaPlans(
       builder.getStringAttr(
           "family-constructed delegation plan; no executable external "
           "implementation is currently bound"));
-  builder.create(state);
+  mlir::Operation *delegationPlan = builder.create(state);
   out = FamilyConstructionResult::getUnsupported(
-      "offload delegation plan has no executable implementation");
+      "offload delegation plan has no executable implementation",
+      delegationPlan);
   return llvm::Error::success();
 }
 

@@ -12,6 +12,10 @@ namespace mlir {
 class Operation;
 } // namespace mlir
 
+namespace weft::support {
+class TargetCapabilitySet;
+}
+
 namespace weft::plugin::ime {
 
 /// Compile-time inventory and conversion-local plan keys. Formula evaluation
@@ -44,13 +48,13 @@ struct IMEQuantComputationPlan : IMEMatMulComputationPlan {
   int64_t wideVRegFloor = 0;
 };
 
-/// Complete the IME family's typed computation plans.  This is the sole owner
-/// of IME formula evaluation; artifact lowerers may only consume its result.
-mlir::LogicalResult constructIMEFormulaPlans(mlir::ModuleOp module);
-
-/// Existence query used by the family-bound construction lifecycle.  It does
-/// not replay construction or legality.
-bool hasIMEConstructedFinalBody(weft::exec::VariantOp variant);
+/// Complete one explicitly bound IME final body's computation plan.  This is
+/// the sole owner of IME formula evaluation; it never scans another variant or
+/// rebuilds the target capability set.
+mlir::LogicalResult constructIMEFormulaPlan(
+    mlir::Operation *body, weft::exec::VariantOp variant,
+    weft::exec::KernelOp kernel,
+    const weft::support::TargetCapabilitySet &capabilities);
 
 /// Typed consumers for the family-owned final-plan schema.  They reject a
 /// missing/wrong-owner/partial plan without exposing its DictionaryAttr layout

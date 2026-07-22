@@ -56,7 +56,7 @@
 # PIPELINE-CONSTRUCTION: constructEmissionReferences(kernel, references, registry,
 # TARGET-ORDER: constructFormulaPlansForVariant
 # TARGET-ORDER: tryConvertConstructedModuleWithRegisteredBackend
-# SCALAR-TRANSLATE-ORDER: constructScalarFinalPlans
+# SCALAR-TRANSLATE-ORDER: constructFormulaPlansForVariant
 # SCALAR-TRANSLATE-ORDER: tryConvertConstructedModuleWithRegisteredBackend
 # RVV-DIRECT-ORDER: constructRVVFormulaBodies
 # RVV-DIRECT-ORDER: convertConstructedModuleWithBackendEmitter

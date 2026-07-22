@@ -90,9 +90,10 @@ public:
   bool isEnabled() const override { return enabled; }
 
   llvm::Error constructFormulaPlans(
-      const FamilyConstructionRequest &,
+      const FamilyConstructionRequest &request,
       weft::plugin::FamilyConstructionResult &out) const override {
-    out = weft::plugin::FamilyConstructionResult::getFinalBody();
+    out = weft::plugin::FamilyConstructionResult::getFinalBody(
+        request.getVariant().getOperation());
     return llvm::Error::success();
   }
 
@@ -1469,71 +1470,6 @@ module {
       return result;
     if (int result = expect(plugin.getPlanCalls() == 0,
                             "missing dispatch target fails before planning"))
-      return result;
-  }
-
-  {
-    constexpr llvm::StringLiteral source = R"mlir(
-module {
-  weft.exec.kernel @stale_boundary_with_existing_plan {
-    weft.exec.capability @base {
-      id = "generic.base",
-      kind = "generic"
-    }
-    weft.exec.variant @fast attributes {
-      origin = "mock-emitter",
-      requires = [@base]
-    } {
-    }
-    weft.exec.variant @old_fast attributes {
-      origin = "mock-emitter",
-      requires = [@base]
-    } {
-    }
-    weft.exec.diagnostic {
-      message = "fast selected by generic planner",
-      reason = "variant-selected",
-      selection_kind = "static-variant",
-      target = @fast
-    }
-    weft.exec.diagnostic {
-      message = "stale mock boundary",
-      origin = "mock-emitter",
-      reason = "mock-lowering-boundary",
-      required_capabilities = [@base],
-      role = "direct variant",
-      selected_variant = @old_fast,
-      source_kernel = "stale_boundary_with_existing_plan",
-      status = "no-active-route"
-    }
-    weft.exec.diagnostic {
-      message = "existing unsupported plan",
-      origin = "mock-emitter",
-      reason = "emission_plan",
-      required_capabilities = [@base],
-      role = "direct variant",
-      runtime_abi_kind = "mock-runtime-abi-kind",
-      runtime_abi_name = "mock.runtime.abi.v1",
-      runtime_glue_role = "mock-runtime-glue-role",
-      status = "unsupported",
-      target = @fast
-    }
-  }
-}
-)mlir";
-    EmissionPlugin plugin("mock-emitter");
-    ExtensionPluginRegistry registry;
-    if (int result = expectSuccess(registry.registerPlugin(plugin),
-                                   "register stale boundary plugin"))
-      return result;
-    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
-            context, source, registry,
-            {"stale lowering boundary", "selected_variant @old_fast",
-             "not selected by the current dispatch"},
-            1))
-      return result;
-    if (int result = expect(plugin.getPlanCalls() == 0,
-                            "stale boundary fails before planning"))
       return result;
   }
 

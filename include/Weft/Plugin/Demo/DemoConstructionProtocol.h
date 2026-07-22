@@ -24,9 +24,6 @@ class TargetCapabilitySet;
 
 namespace weft::plugin::demo_ext {
 
-/// Artifact-neutral construction/qualification for the Demo final typed body.
-mlir::LogicalResult constructDemoFinalBody(mlir::ModuleOp module);
-
 /// Verifies that a selected Demo variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest
 /// conformance (incl. the `emitc_route_mapping` eligibility declaration). Shared

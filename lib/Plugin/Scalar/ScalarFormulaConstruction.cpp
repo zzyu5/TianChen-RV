@@ -42,9 +42,8 @@ mlir::DictionaryAttr makeScalarPlan(
   return mlir::DictionaryAttr::get(context, attrs);
 }
 
-mlir::LogicalResult constructScalarComputePlan(mlir::ModuleOp module) {
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::scalar::ComputeSkeletonOp compute) {
+mlir::LogicalResult
+constructScalarComputePlan(weft::scalar::ComputeSkeletonOp compute) {
     auto immediate =
         compute->getAttrOfType<mlir::IntegerAttr>("scalar_immediate");
     auto sourceKernel =
@@ -54,35 +53,29 @@ mlir::LogicalResult constructScalarComputePlan(mlir::ModuleOp module) {
     if (!immediate || !sourceKernel || !variant ||
         sourceKernel.getValue().trim().empty() ||
         variant.getValue().trim().empty()) {
-      result = compute->emitError()
-               << "scalar compute construction requires source_kernel, "
-                  "selected_variant and scalar_immediate";
-      return;
+      return compute->emitError()
+             << "scalar compute construction requires source_kernel, "
+                "selected_variant and scalar_immediate";
     }
     llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 1> fields = {
         {"scalar_immediate", immediate.getInt()}};
-    if (mlir::failed(attachScalarFinalPlan(
-            compute.getOperation(),
-            makeScalarPlan(compute.getContext(),
-                           kScalarFallbackConstructionFormulaID, fields),
-            kScalarFallbackConstructionFormulaID)))
-      result = mlir::failure();
-  });
-  return result;
+  return attachScalarFinalPlan(
+      compute.getOperation(),
+      makeScalarPlan(compute.getContext(),
+                     kScalarFallbackConstructionFormulaID, fields),
+      kScalarFallbackConstructionFormulaID);
 }
 
-mlir::LogicalResult constructScalarTernaryPlan(mlir::ModuleOp module) {
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::scalar::TernaryQ2Q8BlockDotOp dot) {
+mlir::LogicalResult
+constructScalarTernaryPlan(weft::scalar::TernaryQ2Q8BlockDotOp dot) {
     if (dot.getQk() != 256 || dot.getWeightBlockStride() != 66 ||
         dot.getActivationBlockStride() != 292 ||
         dot.getWeightDByteOffset() != 64 ||
         dot.getActivationDByteOffset() != 0 ||
         dot.getActivationQuantByteOffset() != 4) {
-      result = dot->emitError()
-               << "tq2_0 x q8_K construction only admits the canonical "
-                  "qk/stride/offset geometry";
-      return;
+      return dot->emitError()
+             << "tq2_0 x q8_K construction only admits the canonical "
+                "qk/stride/offset geometry";
     }
     llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 14> fields = {
         {"qk", dot.getQk()},
@@ -99,26 +92,21 @@ mlir::LogicalResult constructScalarTernaryPlan(mlir::ModuleOp module) {
         {"field_mask", 3},
         {"decode_zero_point", 1},
         {"activation_plane_stride", 4}};
-    if (mlir::failed(attachScalarFinalPlan(
-            dot.getOperation(),
-            makeScalarPlan(dot.getContext(), kScalarTernaryBlockDotFormulaID,
-                           fields),
-            kScalarTernaryBlockDotFormulaID)))
-      result = mlir::failure();
-  });
-  return result;
+  return attachScalarFinalPlan(
+      dot.getOperation(),
+      makeScalarPlan(dot.getContext(), kScalarTernaryBlockDotFormulaID,
+                     fields),
+      kScalarTernaryBlockDotFormulaID);
 }
 
-mlir::LogicalResult constructScalarQ40DequantPlan(mlir::ModuleOp module) {
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::scalar::DequantizeRowQ4Op dequant) {
+mlir::LogicalResult
+constructScalarQ40DequantPlan(weft::scalar::DequantizeRowQ4Op dequant) {
     if (dequant.getQk() != 32 || dequant.getWeightBlockStride() != 18 ||
         dequant.getWeightDByteOffset() != 0 ||
         dequant.getWeightQuantByteOffset() != 2) {
-      result = dequant->emitError()
-               << "q4_0 dequant construction only admits the canonical "
-                  "qk/stride/offset geometry";
-      return;
+      return dequant->emitError()
+             << "q4_0 dequant construction only admits the canonical "
+                "qk/stride/offset geometry";
     }
     llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 8> fields = {
         {"qk", dequant.getQk()},
@@ -129,65 +117,77 @@ mlir::LogicalResult constructScalarQ40DequantPlan(mlir::ModuleOp module) {
         {"field_bits", 4},
         {"field_mask", 15},
         {"decode_zero_point", 8}};
-    if (mlir::failed(attachScalarFinalPlan(
-            dequant.getOperation(),
-            makeScalarPlan(dequant.getContext(),
-                           kScalarQ40DequantizeRowFormulaID, fields),
-            kScalarQ40DequantizeRowFormulaID)))
-      result = mlir::failure();
-  });
-  return result;
+  return attachScalarFinalPlan(
+      dequant.getOperation(),
+      makeScalarPlan(dequant.getContext(), kScalarQ40DequantizeRowFormulaID,
+                     fields),
+      kScalarQ40DequantizeRowFormulaID);
+}
+
+bool isSelectedForVariant(mlir::Operation *op,
+                          weft::exec::VariantOp variant) {
+  auto selected =
+      op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+  return selected && selected.getValue() == variant.getSymName();
 }
 
 } // namespace
 
-mlir::LogicalResult constructScalarFinalPlans(mlir::ModuleOp module) {
-  mlir::LogicalResult contextStatus = mlir::success();
-  module.walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() !=
-        weft::scalar::WEFTScalarDialect::getDialectNamespace())
-      return mlir::WalkResult::advance();
+llvm::Expected<mlir::Operation *> constructScalarFinalPlan(
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities) {
+  if (!variant || !kernel || variant->getParentOp() != kernel.getOperation())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "scalar construction requires one directly bound variant/kernel");
+
+  const support::CapabilityDescriptor *scalarCapability =
+      capabilities.lookupProviderByID("scalar.fallback");
+  if (!scalarCapability || !scalarCapability->isAvailable())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "scalar construction requires available canonical capability id "
+        "'scalar.fallback'");
+
+  mlir::Operation *body = nullptr;
+  unsigned matches = 0;
+  kernel.walk([&](mlir::Operation *op) {
     if (!llvm::isa<weft::scalar::ComputeSkeletonOp,
                    weft::scalar::TernaryQ2Q8BlockDotOp,
-                   weft::scalar::DequantizeRowQ4Op>(op)) {
-      op->emitError("scalar direct construction has no formula owner for this "
-                    "typed operation");
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    auto kernel = op->getParentOfType<weft::exec::KernelOp>();
-    auto sourceKernel = op->getAttrOfType<mlir::StringAttr>("source_kernel");
-    if (!kernel || !sourceKernel ||
-        sourceKernel.getValue() != kernel.getSymName()) {
-      op->emitError("scalar direct construction requires source_kernel to "
-                    "match an enclosing weft.exec.kernel");
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    llvm::Expected<support::TargetCapabilitySet> capabilities =
-        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-    if (!capabilities) {
-      op->emitError() << llvm::toString(capabilities.takeError());
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    const support::CapabilityDescriptor *scalarCapability =
-        capabilities->lookupProviderByID("scalar.fallback");
-    if (!scalarCapability || !scalarCapability->isAvailable()) {
-      op->emitError("scalar direct construction requires available canonical "
-                    "capability id 'scalar.fallback'");
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    return mlir::WalkResult::advance();
+                   weft::scalar::DequantizeRowQ4Op>(op) ||
+        !isSelectedForVariant(op, variant))
+      return;
+    body = op;
+    ++matches;
   });
-  if (mlir::failed(contextStatus))
-    return mlir::failure();
-  if (mlir::failed(constructScalarComputePlan(module)) ||
-      mlir::failed(constructScalarTernaryPlan(module)) ||
-      mlir::failed(constructScalarQ40DequantPlan(module)))
-    return mlir::failure();
-  return mlir::success();
+  if (matches > 1)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "scalar construction found multiple typed bodies for variant @%s",
+        variant.getSymName().str().c_str());
+  if (!body)
+    return static_cast<mlir::Operation *>(nullptr);
+
+  auto sourceKernel = body->getAttrOfType<mlir::StringAttr>("source_kernel");
+  if (!sourceKernel || sourceKernel.getValue() != kernel.getSymName())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "scalar construction requires source_kernel to match the bound "
+        "kernel");
+
+  mlir::LogicalResult status = mlir::failure();
+  if (auto compute = llvm::dyn_cast<weft::scalar::ComputeSkeletonOp>(body))
+    status = constructScalarComputePlan(compute);
+  else if (auto dot =
+               llvm::dyn_cast<weft::scalar::TernaryQ2Q8BlockDotOp>(body))
+    status = constructScalarTernaryPlan(dot);
+  else if (auto dequant =
+               llvm::dyn_cast<weft::scalar::DequantizeRowQ4Op>(body))
+    status = constructScalarQ40DequantPlan(dequant);
+  if (mlir::failed(status))
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "scalar formula rejected typed body");
+  return body;
 }
 
 } // namespace weft::plugin::scalar

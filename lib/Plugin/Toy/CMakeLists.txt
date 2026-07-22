@@ -1,6 +1,5 @@
 add_mlir_library(WeftToyConstructionProtocol
   ToyConstructionProtocol.cpp
-  ToyFinalBodyConstruction.cpp
   ToyVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED

@@ -94,19 +94,11 @@ mlir::FailureOr<int64_t> readPlanInteger(mlir::DictionaryAttr plan,
   return value.getInt();
 }
 
-mlir::FailureOr<int64_t> readIMEConstructionVlenBits(mlir::Operation *tile) {
-  auto kernel = tile->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return tile->emitError(
-        "IME construction requires an enclosing weft.exec.kernel");
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!capabilities) {
-    tile->emitError() << llvm::toString(capabilities.takeError());
-    return mlir::failure();
-  }
+mlir::FailureOr<int64_t> readIMEConstructionVlenBits(
+    mlir::Operation *tile,
+    const support::TargetCapabilitySet &capabilities) {
   const support::CapabilityDescriptor *imeCapability =
-      capabilities->lookupProviderByID(getIMEExtensionCapabilityID());
+      capabilities.lookupProviderByID(getIMEExtensionCapabilityID());
   if (!imeCapability || !imeCapability->isAvailable())
     return tile->emitError(
         "IME construction requires an available canonical IME capability");
@@ -175,7 +167,8 @@ mlir::LogicalResult constructIMESimplePlan(mlir::Operation *op) {
 }
 
 template <typename TileOp>
-mlir::LogicalResult constructIMEQuantTilePlan(TileOp tile) {
+mlir::LogicalResult constructIMEQuantTilePlan(
+    TileOp tile, const support::TargetCapabilitySet &capabilities) {
   mlir::Block &body = tile.getBody().front();
   auto macLeaves = body.template getOps<weft::ime::VmadotMacLeafOp>();
   if (macLeaves.empty())
@@ -187,7 +180,8 @@ mlir::LogicalResult constructIMEQuantTilePlan(TileOp tile) {
   const int64_t fragmentCount = macK > 0 ? tile.getMatK() / macK : 1;
   const bool macBatched = fragmentCount >= 2;
 
-  auto vlenBits = readIMEConstructionVlenBits(tile.getOperation());
+  auto vlenBits =
+      readIMEConstructionVlenBits(tile.getOperation(), capabilities);
   if (mlir::failed(vlenBits))
     return mlir::failure();
   IMEWideComputationDecision wide = constructWideVmadotPlan(
@@ -210,121 +204,63 @@ mlir::LogicalResult constructIMEQuantTilePlan(TileOp tile) {
 }
 
 mlir::LogicalResult validateIMEConstructionContext(
-    mlir::Operation *op, const IMEExtensionPlugin &plugin) {
-  auto kernel = op->getParentOfType<weft::exec::KernelOp>();
+    mlir::Operation *op, weft::exec::VariantOp variant,
+    weft::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities) {
   auto sourceKernel = op->getAttrOfType<mlir::StringAttr>("source_kernel");
-  if (!kernel || !sourceKernel ||
+  if (!variant || !kernel || !sourceKernel ||
       sourceKernel.getValue() != kernel.getSymName())
     return op->emitError(
         "IME construction requires source_kernel to match an enclosing "
         "weft.exec.kernel");
 
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!capabilities) {
-    op->emitError() << llvm::toString(capabilities.takeError());
-    return mlir::failure();
-  }
   const support::CapabilityDescriptor *imeCapability =
-      capabilities->lookupProviderByID(getIMEExtensionCapabilityID());
+      capabilities.lookupProviderByID(getIMEExtensionCapabilityID());
   if (!imeCapability || !imeCapability->isAvailable())
     return op->emitError(
         "IME construction requires an available canonical IME capability");
 
   auto selectedVariant =
       op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-  weft::exec::VariantOp variant;
-  unsigned matches = 0;
-  if (selectedVariant) {
-    kernel.walk([&](weft::exec::VariantOp candidate) {
-      if (candidate.getSymName() == selectedVariant.getValue()) {
-        variant = candidate;
-        ++matches;
-      }
-    });
-  }
-  if (!selectedVariant || matches != 1)
+  if (!selectedVariant || selectedVariant.getValue() != variant.getSymName())
     return op->emitError(
-        "IME construction requires selected_variant to resolve exactly once "
-        "in the enclosing kernel");
-
-  VariantLegalityRequest legality(variant, kernel, *capabilities);
-  if (llvm::Error error = plugin.verifyVariantLegality(legality)) {
-    op->emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
+        "IME construction body must name the explicitly bound selected "
+        "variant");
   return mlir::success();
 }
 
 } // namespace
 
-mlir::LogicalResult constructIMEFormulaPlans(mlir::ModuleOp module) {
-  static const IMEExtensionPlugin plugin;
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](mlir::Operation *op) {
-    if (mlir::failed(result))
-      return mlir::WalkResult::interrupt();
+mlir::LogicalResult constructIMEFormulaPlan(
+    mlir::Operation *op, weft::exec::VariantOp variant,
+    weft::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities) {
+  if (!op || !isIMEFinalBody(op))
+    return mlir::failure();
+  if (mlir::failed(
+          validateIMEConstructionContext(op, variant, kernel, capabilities)))
+    return mlir::failure();
 
-    if (isIMEFinalBody(op) &&
-        mlir::failed(validateIMEConstructionContext(op, plugin))) {
-      result = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-
-    if (llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
-                  weft::ime::MMASUOp, weft::ime::MMAUSOp,
-                  weft::ime::MMASlideOp>(op)) {
-      result = constructIMESimplePlan(op);
-    } else if (auto matmul = llvm::dyn_cast<weft::ime::MatMulOp>(op)) {
-      llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 3> fields = {
-          {"mat_m", matmul.getMatM()},
-          {"mat_n", matmul.getMatN()},
-          {"mat_k", matmul.getMatK()},
-      };
-      result = attachIMEFinalPlan(
-          op, makeIMEFinalPlan(matmul.getContext(), fields));
-    } else if (auto tile = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(op)) {
-      result = constructIMEQuantTilePlan(tile);
-    } else if (auto tile = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(op)) {
-      result = constructIMEQuantTilePlan(tile);
-    } else if (auto tile = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(op)) {
-      result = constructIMEQuantTilePlan(tile);
-    } else if (op->getName().getDialectNamespace() ==
-               weft::ime::WEFTIMEDialect::getDialectNamespace()) {
-      // Region bricks are mechanisms owned by a final quantized tile.  A
-      // standalone brick is not a construction-complete body.
-      if (!op->getParentOfType<weft::ime::Q40MatMulTileOp>() &&
-          !op->getParentOfType<weft::ime::Q80MatMulTileOp>() &&
-          !op->getParentOfType<weft::ime::Q4KMatMulTileOp>()) {
-        op->emitError(
-            "standalone IME mechanism op has no final construction owner");
-        result = mlir::failure();
-      }
-    }
-    return mlir::failed(result) ? mlir::WalkResult::interrupt()
-                                : mlir::WalkResult::advance();
-  });
-  return result;
-}
-
-bool hasIMEConstructedFinalBody(weft::exec::VariantOp variant) {
-  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return false;
-  bool found = false;
-  kernel.walk([&](mlir::Operation *op) {
-    if (!isIMEFinalBody(op) ||
-        !isOperationSelectedForVariant(op, variant))
-      return mlir::WalkResult::advance();
-    auto plan = op->getAttrOfType<mlir::DictionaryAttr>(kIMEFinalPlanAttrName);
-    auto formula = plan ? plan.getAs<mlir::StringAttr>("formula_id")
-                        : mlir::StringAttr();
-    if (!formula || formula.getValue() != kIMEConstructionFormulaID)
-      return mlir::WalkResult::advance();
-    found = true;
-    return mlir::WalkResult::interrupt();
-  });
-  return found;
+  if (llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
+                weft::ime::MMASUOp, weft::ime::MMAUSOp,
+                weft::ime::MMASlideOp>(op))
+    return constructIMESimplePlan(op);
+  if (auto matmul = llvm::dyn_cast<weft::ime::MatMulOp>(op)) {
+    llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 3> fields = {
+        {"mat_m", matmul.getMatM()},
+        {"mat_n", matmul.getMatN()},
+        {"mat_k", matmul.getMatK()},
+    };
+    return attachIMEFinalPlan(
+        op, makeIMEFinalPlan(matmul.getContext(), fields));
+  }
+  if (auto tile = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(op))
+    return constructIMEQuantTilePlan(tile, capabilities);
+  if (auto tile = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(op))
+    return constructIMEQuantTilePlan(tile, capabilities);
+  if (auto tile = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(op))
+    return constructIMEQuantTilePlan(tile, capabilities);
+  return mlir::failure();
 }
 
 mlir::LogicalResult requireIMESimpleComputationPlan(mlir::Operation *op) {

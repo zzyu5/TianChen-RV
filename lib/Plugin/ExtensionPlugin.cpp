@@ -1385,6 +1385,15 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
     return makePluginRegistryError(
         llvm::Twine("bound family construction for origin '") + origin +
         "' returned no lifecycle outcome");
+  if (out.hasFinalBody() && !out.getOperation())
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' returned FinalBody without a typed operation");
+  if (out.getOperation() &&
+      !isNestedUnder(out.getOperation(), kernel.getOperation()))
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' returned an operation outside the bound kernel");
   if (out.isUnsupported() && out.getReason().trim().empty())
     return makePluginRegistryError(
         llvm::Twine("bound family construction for origin '") + origin +

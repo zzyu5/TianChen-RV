@@ -181,15 +181,19 @@ enum class FamilyConstructionStatus {
 /// only carrier of compute semantics.
 class FamilyConstructionResult {
 public:
-  static FamilyConstructionResult getFinalBody() {
+  static FamilyConstructionResult getFinalBody(mlir::Operation *body) {
     FamilyConstructionResult result;
     result.status = FamilyConstructionStatus::FinalBody;
+    result.operation = body;
     return result;
   }
-  static FamilyConstructionResult getUnsupported(llvm::StringRef reason) {
+  static FamilyConstructionResult
+  getUnsupported(llvm::StringRef reason,
+                 mlir::Operation *diagnosticCarrier = nullptr) {
     FamilyConstructionResult result;
     result.status = FamilyConstructionStatus::Unsupported;
     result.reason = reason.str();
+    result.operation = diagnosticCarrier;
     return result;
   }
 
@@ -202,10 +206,17 @@ public:
   bool isUnsupported() const {
     return status == FamilyConstructionStatus::Unsupported;
   }
+  /// Exact family-local typed operation produced by this invocation.  For a
+  /// FinalBody outcome this is the executable construction root.  An
+  /// Unsupported family may optionally return a non-executable typed carrier
+  /// (for example an explicit delegation plan).  Common orchestration may
+  /// check ownership/existence, but must never interpret its compute fields.
+  mlir::Operation *getOperation() const { return operation; }
   llvm::StringRef getReason() const { return reason; }
 
 private:
   FamilyConstructionStatus status = FamilyConstructionStatus::Unknown;
+  mlir::Operation *operation = nullptr;
   std::string reason;
 };
 

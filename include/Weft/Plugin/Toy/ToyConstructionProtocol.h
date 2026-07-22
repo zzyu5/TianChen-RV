@@ -24,9 +24,6 @@ class TargetCapabilitySet;
 
 namespace weft::plugin::toy {
 
-/// Artifact-neutral construction/qualification for the Toy final typed body.
-mlir::LogicalResult constructToyFinalBody(mlir::ModuleOp module);
-
 /// Verifies that a selected Toy variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest
 /// conformance (incl. the `emitc_route_mapping` eligibility declaration). Shared

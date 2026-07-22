@@ -1,6 +1,5 @@
 add_mlir_library(WeftTemplateConstructionProtocol
   TemplateConstructionProtocol.cpp
-  TemplateFinalBodyConstruction.cpp
   TemplateVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED
