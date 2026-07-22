@@ -2,7 +2,6 @@
 
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
-#include "Weft/Plugin/Toy/ToyEmitCRouteProvider.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 
 #include "llvm/ADT/StringRef.h"

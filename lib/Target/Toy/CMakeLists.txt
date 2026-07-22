@@ -8,7 +8,6 @@ add_mlir_library(WeftToyTarget
   WeftSupport
   WeftTarget
   WeftToyConstructionProtocol
-  WeftToyEmitCRouteProvider
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

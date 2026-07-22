@@ -1,10 +1,10 @@
 #include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Toy/IR/ToyDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
-#include "Weft/Plugin/Toy/ToyEmitCRouteProvider.h"
 #include "Weft/Plugin/Toy/ToySourceFrontDoor.h"
 #include "Weft/Target/Toy/ToyTargetSupportBundle.h"
 
@@ -282,6 +282,28 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
   return llvm::Error::success();
 }
 
+llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance>
+getToyConstructedSource(const VariantEmissionRequest &request) {
+  auto compute = llvm::dyn_cast_if_present<weft::toy::ComputeSkeletonOp>(
+      request.getConstructedOperation());
+  if (!compute)
+    return makeToyPluginError(
+        "artifact query requires the exact constructed "
+        "weft_toy.compute_skeleton result");
+  auto lowerable = llvm::dyn_cast<
+      conversion::emitc::WEFTEmitCLowerableOpInterface>(
+      compute.getOperation());
+  if (!lowerable)
+    return makeToyPluginError(
+        "constructed weft_toy.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface");
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
+  source.opName = lowerable.getWEFTEmitCLowerableSourceOpName().str();
+  source.role = lowerable.getWEFTEmitCLowerableSourceRole().str();
+  source.opInterface = "WEFTEmitCLowerableOpInterface";
+  return source;
+}
+
 const toy::ToyExtensionPlugin &getBuiltinToyExtensionPlugin() {
   static const toy::ToyExtensionPlugin plugin;
   return plugin;
@@ -555,13 +577,10 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::WEFTEmitCSourceOpProvenance source;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          toy::validateToyTemplateEmitCRouteReadiness(routeRequest, source)) {
-    std::string diagnostic = llvm::toString(std::move(error));
+  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
+      getToyConstructedSource(request);
+  if (!source) {
+    std::string diagnostic = llvm::toString(source.takeError());
     out = VariantEmissionStatus::getUnsupported(
         kToyPluginName, request.getVariant().getSymName(), diagnostic);
     return llvm::Error::success();
@@ -593,13 +612,10 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::WEFTEmitCSourceOpProvenance source;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          toy::validateToyTemplateEmitCRouteReadiness(routeRequest, source))
-    return error;
+  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
+      getToyConstructedSource(request);
+  if (!source)
+    return source.takeError();
 
   const toy::ToyConstructionManifest &manifest =
       toy::getToyConstructionManifest();
@@ -622,10 +638,10 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
   out.addRuntimeABIParameters(toy::getToyTemplateRuntimeABIParameters());
   out.addArtifactMetadata(kToyRouteArtifactMetadataKey,
                           constructionRoute.routeID);
-  out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source.opName);
-  out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source.role);
+  out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source->opName);
+  out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source->role);
   out.addArtifactMetadata(kToySourceOpInterfaceArtifactMetadataKey,
-                          source.opInterface);
+                          source->opInterface);
   out.addArtifactMetadata(kToyConstructionProtocolArtifactMetadataKey,
                           manifest.protocolVersion);
   out.addArtifactMetadata(kToyConstructionArchetypeArtifactMetadataKey,

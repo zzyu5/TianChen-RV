@@ -9,7 +9,6 @@ add_mlir_library(WeftTensorExtLiteTarget
   WeftTarget
   WeftTensorExtLiteDialect
   WeftTensorExtLiteConstructionProtocol
-  WeftTensorExtLiteEmitCRouteProvider
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

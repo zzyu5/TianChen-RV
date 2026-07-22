@@ -1,10 +1,10 @@
 #include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
 
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Template/IR/TemplateDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
-#include "Weft/Plugin/Template/TemplateEmitCRouteProvider.h"
 #include "Weft/Target/Template/TemplateTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -258,6 +258,28 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
         "' does not match expected selected-path value '" + expectedValue +
         "'");
   return llvm::Error::success();
+}
+
+llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance>
+getTemplateConstructedSource(const VariantEmissionRequest &request) {
+  auto compute = llvm::dyn_cast_if_present<weft::template_ext::ComputeSkeletonOp>(
+      request.getConstructedOperation());
+  if (!compute)
+    return makeTemplatePluginError(
+        "artifact query requires the exact constructed "
+        "weft_template.compute_skeleton result");
+  auto lowerable = llvm::dyn_cast<
+      conversion::emitc::WEFTEmitCLowerableOpInterface>(
+      compute.getOperation());
+  if (!lowerable)
+    return makeTemplatePluginError(
+        "constructed weft_template.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface");
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
+  source.opName = lowerable.getWEFTEmitCLowerableSourceOpName().str();
+  source.role = lowerable.getWEFTEmitCLowerableSourceRole().str();
+  source.opInterface = "WEFTEmitCLowerableOpInterface";
+  return source;
 }
 
 mlir::Operation *materializeTemplateComputeSkeletonBoundary(
@@ -522,14 +544,10 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::WEFTEmitCSourceOpProvenance source;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          template_ext::validateTemplateComputeSkeletonEmitCRouteReadiness(
-              routeRequest, source)) {
-    std::string diagnostic = llvm::toString(std::move(error));
+  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
+      getTemplateConstructedSource(request);
+  if (!source) {
+    std::string diagnostic = llvm::toString(source.takeError());
     out = VariantEmissionStatus::getUnsupported(
         kTemplatePluginName, request.getVariant().getSymName(), diagnostic);
     return llvm::Error::success();
@@ -561,14 +579,10 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::WEFTEmitCSourceOpProvenance source;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          template_ext::validateTemplateComputeSkeletonEmitCRouteReadiness(
-              routeRequest, source))
-    return error;
+  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
+      getTemplateConstructedSource(request);
+  if (!source)
+    return source.takeError();
 
   const template_ext::TemplateConstructionManifest &manifest =
       template_ext::getTemplateConstructionManifest();
@@ -593,12 +607,12 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
       template_ext::getTemplateEmitCRouteMappingMetadataName(),
       constructionRoute.routeID);
   out.addArtifactMetadata(template_ext::getTemplateSourceOpMetadataName(),
-                          source.opName);
+                          source->opName);
   out.addArtifactMetadata(template_ext::getTemplateSourceRoleMetadataName(),
-                          source.role);
+                          source->role);
   out.addArtifactMetadata(
       template_ext::getTemplateSourceOpInterfaceMetadataName(),
-      source.opInterface);
+      source->opInterface);
   out.addArtifactMetadata(
       template_ext::getTemplateConstructionProtocolMetadataName(),
       manifest.protocolVersion);

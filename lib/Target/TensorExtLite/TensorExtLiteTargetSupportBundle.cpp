@@ -2,7 +2,6 @@
 
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 #include "Weft/Target/TargetArtifactExport.h"
 #include "Weft/Target/TargetTranslateRegistration.h"

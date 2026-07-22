@@ -1,10 +1,10 @@
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
 #include "Weft/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
@@ -326,17 +326,8 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
             .semanticRoleGraph);
 
   if (inspection->complete()) {
-    if (llvm::Error error =
-            construction::verifySelectedExecutableRoleSequenceComplete(
-                spec, *inspection))
-      return error;
-    llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
-    VariantEmitCLowerableRequest routeRequest(
-        request.getVariant(), request.getKernel(), request.getCapabilities(),
-        request.getRole());
-    return tensorext_lite::
-        validateTensorExtLiteFragmentMmaEmitCRouteReadiness(routeRequest,
-                                                            sources);
+    return construction::verifySelectedExecutableRoleSequenceComplete(
+        spec, *inspection);
   }
 
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -358,12 +349,11 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
       return error;
   }
 
-  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  return tensorext_lite::validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
-      routeRequest, sources);
+  inspection = construction::inspectSelectedExecutableRoleSequence(spec);
+  if (!inspection)
+    return inspection.takeError();
+  return construction::verifySelectedExecutableRoleSequenceComplete(
+      spec, *inspection);
 }
 
 bool isSelectedTensorExtLiteLoweringBoundary(
@@ -450,6 +440,43 @@ std::string joinTensorExtLiteRouteSourceOps(
   }
   stream.flush();
   return joined;
+}
+
+llvm::Expected<
+    llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4>>
+getTensorExtLiteConstructedSources(const VariantEmissionRequest &request) {
+  auto config = llvm::dyn_cast_if_present<
+      weft::tensorext_lite::ConfigSkeletonOp>(
+      request.getConstructedOperation());
+  if (!config)
+    return makeTensorExtLitePluginError(
+        "artifact query requires the exact constructed "
+        "weft_tensorext_lite.config_skeleton sequence root");
+
+  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4>
+      sources;
+  mlir::Operation *current = config.getOperation();
+  for (const tensorext_lite::TensorExtLiteFragmentMmaRoleStep &step :
+       tensorext_lite::getTensorExtLiteFragmentMmaRoleSteps()) {
+    if (!current || current->getName().getStringRef() != step.operationName ||
+        !isOperationSelectedForVariant(current, request.getVariant()))
+      return makeTensorExtLitePluginError(
+          "constructed TensorExtLite sequence does not match its typed "
+          "family-local role order");
+    auto lowerable = llvm::dyn_cast<
+        conversion::emitc::WEFTEmitCLowerableOpInterface>(current);
+    if (!lowerable)
+      return makeTensorExtLitePluginError(
+          "constructed TensorExtLite role op must implement "
+          "WEFTEmitCLowerableOpInterface");
+    conversion::emitc::WEFTEmitCSourceOpProvenance source;
+    source.opName = lowerable.getWEFTEmitCLowerableSourceOpName().str();
+    source.role = lowerable.getWEFTEmitCLowerableSourceRole().str();
+    source.opInterface = "WEFTEmitCLowerableOpInterface";
+    sources.push_back(std::move(source));
+    current = current->getNextNode();
+  }
+  return sources;
 }
 
 std::string joinTensorExtLiteRouteSourceRoles(
@@ -726,14 +753,9 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          tensorext_lite::validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
-              routeRequest, sources)) {
-    std::string diagnostic = llvm::toString(std::move(error));
+  auto sources = getTensorExtLiteConstructedSources(request);
+  if (!sources) {
+    std::string diagnostic = llvm::toString(sources.takeError());
     out = VariantEmissionStatus::getUnsupported(
         kTensorExtLitePluginName, request.getVariant().getSymName(),
         diagnostic);
@@ -767,14 +789,9 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4> sources;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          tensorext_lite::validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
-              routeRequest, sources))
-    return error;
+  auto sources = getTensorExtLiteConstructedSources(request);
+  if (!sources)
+    return sources.takeError();
 
   const tensorext_lite::TensorExtLiteConstructionManifest &manifest =
       tensorext_lite::getTensorExtLiteConstructionManifest();
@@ -807,12 +824,12 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
       manifest.semanticRoleGraph));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
-      joinTensorExtLiteRouteSourceOps(sources)));
+      joinTensorExtLiteRouteSourceOps(*sources)));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
-      joinTensorExtLiteRouteSourceRoles(sources)));
+      joinTensorExtLiteRouteSourceRoles(*sources)));
   llvm::Expected<std::string> sourceOpInterface =
-      getTensorExtLiteRouteSourceOpInterface(sources);
+      getTensorExtLiteRouteSourceOpInterface(*sources);
   if (!sourceOpInterface)
     return sourceOpInterface.takeError();
   artifactMetadata.push_back(support::ArtifactMetadataEntry(

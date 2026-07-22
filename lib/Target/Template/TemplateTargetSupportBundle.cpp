@@ -2,7 +2,6 @@
 
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
-#include "Weft/Plugin/Template/TemplateEmitCRouteProvider.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
 

@@ -841,9 +841,10 @@ module {
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(templateVariant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
+                                     VariantEmissionRole::DirectVariant,
+                                     computeRole.getOperation()),
               status),
-          "Template emission readiness is checked through route builder"))
+          "Template emission readiness consumes exact construction result"))
     return result;
   const auto &constructionRoute =
       weft::plugin::template_ext::getTemplateEmitCConstructionRoute();
@@ -862,7 +863,8 @@ module {
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
               VariantEmissionRequest(templateVariant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
+                                     VariantEmissionRole::DirectVariant,
+                                     computeRole.getOperation()),
               emissionPlan),
           "Template emission plan is plugin-owned"))
     return result;

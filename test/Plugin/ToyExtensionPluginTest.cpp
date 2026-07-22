@@ -621,9 +621,10 @@ module {
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(toyVariant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
+                                     VariantEmissionRole::DirectVariant,
+                                     computeRole.getOperation()),
               status),
-          "Toy emission readiness routes through active EmitC provider"))
+          "Toy emission readiness consumes exact construction result"))
     return result;
   const auto &routeSpec =
       weft::plugin::toy::getToyTemplateEmitCConstructionRoute();
@@ -637,7 +638,8 @@ module {
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
               VariantEmissionRequest(toyVariant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
+                                     VariantEmissionRole::DirectVariant,
+                                     computeRole.getOperation()),
               emissionPlan),
           "Toy emission plan is plugin-owned"))
     return result;

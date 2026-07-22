@@ -12,21 +12,6 @@ add_mlir_library(WeftToyConstructionProtocol
   MLIRSupport
 )
 
-add_mlir_library(WeftToyEmitCRouteProvider
-  ToyEmitCRouteProvider.cpp
-
-  PARTIAL_SOURCES_INTENDED
-
-  LINK_LIBS PUBLIC
-  WeftConversionEmitC
-  WeftPlugin
-  WeftToyConstructionProtocol
-  WeftSupport
-  WeftToyDialect
-  MLIRIR
-  MLIRSupport
-)
-
 add_mlir_library(WeftToyBackendEmitter
   ToyBackendEmissionDriver.cpp
 
@@ -56,7 +41,6 @@ add_mlir_library(WeftToyPlugin
   WeftSupport
   WeftToyConstructionProtocol
   WeftToyDialect
-  WeftToyEmitCRouteProvider
   WeftToyTarget
   MLIRFuncDialect
   MLIRIR

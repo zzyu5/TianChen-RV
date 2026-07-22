@@ -1,10 +1,10 @@
 #include "Weft/Plugin/Demo/DemoExtensionPlugin.h"
 
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableInterface.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Demo/IR/DemoDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/Demo/DemoConstructionProtocol.h"
-#include "Weft/Plugin/Demo/DemoEmitCRouteProvider.h"
 #include "Weft/Target/Demo/DemoTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -258,6 +258,28 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
         "' does not match expected selected-path value '" + expectedValue +
         "'");
   return llvm::Error::success();
+}
+
+llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance>
+getDemoConstructedSource(const VariantEmissionRequest &request) {
+  auto compute = llvm::dyn_cast_if_present<weft::demo_ext::ComputeSkeletonOp>(
+      request.getConstructedOperation());
+  if (!compute)
+    return makeDemoPluginError(
+        "artifact query requires the exact constructed "
+        "weft_demo.compute_skeleton result");
+  auto lowerable = llvm::dyn_cast<
+      conversion::emitc::WEFTEmitCLowerableOpInterface>(
+      compute.getOperation());
+  if (!lowerable)
+    return makeDemoPluginError(
+        "constructed weft_demo.compute_skeleton must implement "
+        "WEFTEmitCLowerableOpInterface");
+  conversion::emitc::WEFTEmitCSourceOpProvenance source;
+  source.opName = lowerable.getWEFTEmitCLowerableSourceOpName().str();
+  source.role = lowerable.getWEFTEmitCLowerableSourceRole().str();
+  source.opInterface = "WEFTEmitCLowerableOpInterface";
+  return source;
 }
 
 mlir::Operation *materializeDemoComputeSkeletonBoundary(
@@ -521,14 +543,10 @@ llvm::Error DemoExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::WEFTEmitCSourceOpProvenance source;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          demo_ext::validateDemoComputeSkeletonEmitCRouteReadiness(
-              routeRequest, source)) {
-    std::string diagnostic = llvm::toString(std::move(error));
+  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
+      getDemoConstructedSource(request);
+  if (!source) {
+    std::string diagnostic = llvm::toString(source.takeError());
     out = VariantEmissionStatus::getUnsupported(
         kDemoPluginName, request.getVariant().getSymName(), diagnostic);
     return llvm::Error::success();
@@ -560,14 +578,10 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::WEFTEmitCSourceOpProvenance source;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          demo_ext::validateDemoComputeSkeletonEmitCRouteReadiness(
-              routeRequest, source))
-    return error;
+  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
+      getDemoConstructedSource(request);
+  if (!source)
+    return source.takeError();
 
   const demo_ext::DemoConstructionManifest &manifest =
       demo_ext::getDemoConstructionManifest();
@@ -592,12 +606,12 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
       demo_ext::getDemoEmitCRouteMappingMetadataName(),
       constructionRoute.routeID);
   out.addArtifactMetadata(demo_ext::getDemoSourceOpMetadataName(),
-                          source.opName);
+                          source->opName);
   out.addArtifactMetadata(demo_ext::getDemoSourceRoleMetadataName(),
-                          source.role);
+                          source->role);
   out.addArtifactMetadata(
       demo_ext::getDemoSourceOpInterfaceMetadataName(),
-      source.opInterface);
+      source->opInterface);
   out.addArtifactMetadata(
       demo_ext::getDemoConstructionProtocolMetadataName(),
       manifest.protocolVersion);

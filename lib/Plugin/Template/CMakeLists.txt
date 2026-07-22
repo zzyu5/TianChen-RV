@@ -12,21 +12,6 @@ add_mlir_library(WeftTemplateConstructionProtocol
   MLIRSupport
 )
 
-add_mlir_library(WeftTemplateEmitCRouteProvider
-  TemplateEmitCRouteProvider.cpp
-
-  PARTIAL_SOURCES_INTENDED
-
-  LINK_LIBS PUBLIC
-  WeftConversionEmitC
-  WeftPlugin
-  WeftSupport
-  WeftTemplateConstructionProtocol
-  WeftTemplateDialect
-  MLIRIR
-  MLIRSupport
-)
-
 add_mlir_library(WeftTemplateBackendEmitter
   TemplateBackendEmissionDriver.cpp
 
@@ -55,7 +40,6 @@ add_mlir_library(WeftTemplatePlugin
   WeftSupport
   WeftTemplateConstructionProtocol
   WeftTemplateDialect
-  WeftTemplateEmitCRouteProvider
   WeftTemplateTarget
   MLIRIR
   MLIRSupport

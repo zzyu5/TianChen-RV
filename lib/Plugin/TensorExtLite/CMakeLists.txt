@@ -11,7 +11,6 @@ add_mlir_library(WeftTensorExtLitePlugin
   WeftSupport
   WeftTensorExtLiteConstructionProtocol
   WeftTensorExtLiteDialect
-  WeftTensorExtLiteEmitCRouteProvider
   WeftTensorExtLiteTarget
   MLIRIR
   MLIRPass
