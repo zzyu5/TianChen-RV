@@ -23,6 +23,7 @@
 
 using weft::plugin::ExtensionPluginRegistry;
 using weft::plugin::ExtensionBundleRegistry;
+using weft::plugin::FamilyConstructionResult;
 using weft::plugin::PluginCapability;
 using weft::plugin::VariantCostEstimate;
 using weft::plugin::VariantCostRequest;
@@ -88,9 +89,9 @@ int expectScalarUnsupportedEmissionPlan(
                     emissionPlan.getEmissionKind() ==
                         "scalar-fallback-unsupported-emission" &&
                     emissionPlan.getLoweringPipeline() ==
-                        "scalar-fallback-no-materialized-emitc-route" &&
+                        "scalar-no-constructed-body-route" &&
                     emissionPlan.getRuntimeABI() ==
-                        "scalar-fallback-no-runtime-abi" &&
+                        "scalar-no-constructed-body-abi" &&
                     emissionPlan.getRuntimeABIKind() ==
                         "unsupported-plugin-runtime-abi" &&
                     emissionPlan.getRuntimeABIName() ==
@@ -100,7 +101,7 @@ int expectScalarUnsupportedEmissionPlan(
                     emissionPlan.getArtifactKind() ==
                         "unsupported-emission-diagnostic" &&
                     emissionPlan.getDiagnostic().contains(
-                        "no materialized extension-family body") &&
+                        "exact constructed final typed body") &&
                     emissionPlan.getRuntimeABIParameters().empty() &&
                     emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                     emissionPlan.getRequiredCapabilitySymbols().front() ==
@@ -470,21 +471,19 @@ module {
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToEnd(&kernel.getBody().front());
-    if (int result = expectErrorContains(
+    if (int result = expectSuccess(
             registry.materializeSelectedLoweringBoundary(
                 VariantLoweringBoundaryRequest(
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            {"scalar-plugin",
-             "reported unsupported lowering-boundary materialization",
-             "no longer materializes a legacy metadata selected lowering "
-             "boundary"}))
+            "Scalar construction requires no separate lowering boundary"))
       return result;
   }
   if (int result =
-          expect(!hasScalarLoweringBoundary(kernel),
-                 "scalar fallback does not materialize a lowering boundary"))
+          expect(boundaryResult.isNoBoundary() &&
+                     !hasScalarLoweringBoundary(kernel),
+                 "scalar fallback reports no metadata lowering boundary"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
@@ -498,7 +497,7 @@ module {
                                      VariantEmissionRole::DirectVariant),
               status),
           {"scalar-plugin", "reported unsupported emission path",
-           "no active EmitC lowering", "legacy metadata emission route"}))
+           "exact constructed final typed body", "not emittable"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -520,6 +519,195 @@ module {
     return result;
 
   return 0;
+}
+
+int runTypedFinalBodyConstructionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  weft.exec.kernel @scalar_immediate {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_immediate_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    weft_scalar.compute_skeleton {source_kernel = "scalar_immediate", selected_variant = @scalar_immediate_variant, scalar_immediate = 7 : i64}
+  }
+  weft.exec.kernel @scalar_tq2 {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_tq2_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    weft_scalar.tq2_0_q8_k_vec_dot {source_kernel = "scalar_tq2", selected_variant = @scalar_tq2_variant, qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64}
+  }
+  weft.exec.kernel @scalar_q4 {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_q4_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    weft_scalar.dequantize_row_q4_0 {source_kernel = "scalar_q4", selected_variant = @scalar_q4_variant, qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse Scalar typed-body construction module");
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          weft::plugin::registerScalarExtensionPlugin(registry),
+          "register Scalar plugin for typed-body construction"))
+    return result;
+
+  auto construct = [&](llvm::StringRef kernelName,
+                       llvm::StringRef variantName,
+                       FamilyConstructionResult &result) -> int {
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    if (int status = expect(kernel && variant,
+                            "typed-body construction anchors exist"))
+      return status;
+    return expectSuccess(registry.constructFormulaPlansForVariant(
+                             *module, variant, result),
+                         "construct exact Scalar final typed body");
+  };
+
+  FamilyConstructionResult immediateResult;
+  if (int result = construct("scalar_immediate", "scalar_immediate_variant",
+                             immediateResult))
+    return result;
+  auto immediate = llvm::dyn_cast_if_present<weft::scalar::ImmediateCallBodyOp>(
+      immediateResult.getOperation());
+  if (int result = expect(
+          immediateResult.hasFinalBody() && immediate &&
+              immediate.getScalarImmediate() == 7,
+          "compute_skeleton is consumed into an exact immediate_call_body"))
+    return result;
+
+  FamilyConstructionResult tq2Result;
+  if (int result =
+          construct("scalar_tq2", "scalar_tq2_variant", tq2Result))
+    return result;
+  auto tq2 = llvm::dyn_cast_if_present<weft::scalar::PackedTernaryDotBodyOp>(
+      tq2Result.getOperation());
+  if (int result = expect(
+          tq2Result.hasFinalBody() && tq2 && tq2.getQk() == 256 &&
+              tq2.getPackedWeightBytes() == 64 && tq2.getPlanes() == 4 &&
+              tq2.getPlaneLanes() == 32 && tq2.getFieldBits() == 2 &&
+              tq2.getFieldMask() == 3 && tq2.getDecodeZeroPoint() == 1,
+          "tq2 source is consumed into the complete packed ternary body"))
+    return result;
+
+  FamilyConstructionResult q4Result;
+  if (int result = construct("scalar_q4", "scalar_q4_variant", q4Result))
+    return result;
+  auto q4 = llvm::dyn_cast_if_present<weft::scalar::PackedAffineDequantBodyOp>(
+      q4Result.getOperation());
+  if (int result = expect(
+          q4Result.hasFinalBody() && q4 && q4.getQk() == 32 &&
+              q4.getHalfWidth() == 16 && q4.getFieldBits() == 4 &&
+              q4.getFieldMask() == 15 && q4.getDecodeZeroPoint() == 8,
+          "q4 source is consumed into the complete paired-dequant body"))
+    return result;
+
+  unsigned sourceCount = 0;
+  module->walk([&](mlir::Operation *op) {
+    if (llvm::isa<weft::scalar::ComputeSkeletonOp,
+                  weft::scalar::TernaryQ2Q8BlockDotOp,
+                  weft::scalar::DequantizeRowQ4Op>(op))
+      ++sourceCount;
+  });
+  if (int result = expect(sourceCount == 0,
+                          "Scalar source problems do not survive construction"))
+    return result;
+
+  KernelOp tq2Kernel = findKernel(*module, "scalar_tq2");
+  VariantOp tq2Variant = findVariant(tq2Kernel, "scalar_tq2_variant");
+  TargetCapabilitySet tq2Capabilities =
+      TargetCapabilitySet::buildFromKernel(tq2Kernel);
+  VariantEmissionRequest emissionRequest(
+      tq2Variant, tq2Kernel, tq2Capabilities,
+      VariantEmissionRole::DirectVariant, tq2.getOperation());
+  VariantEmissionStatus status;
+  if (int result = expectSuccess(
+          registry.checkVariantEmissionReadiness(emissionRequest, status),
+          "exact Scalar typed body is emission-ready"))
+    return result;
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(emissionRequest, plan),
+          "build exact Scalar typed-body artifact plan"))
+    return result;
+  if (int result = expect(
+          status.isSupported() && plan.isSupported() &&
+              plan.getRuntimeABI() == "scalar-tq2-q8-block-dot-c-abi.v1" &&
+              plan.getRuntimeABIParameters().size() == 4 &&
+              plan.getLoweringBoundaryOpName() ==
+                  weft::scalar::PackedTernaryDotBodyOp::getOperationName(),
+          "artifact planning consumes the exact body and reports its real ABI"))
+    return result;
+
+  FamilyConstructionResult repeated;
+  if (int result = construct("scalar_tq2", "scalar_tq2_variant", repeated))
+    return result;
+  if (int result = expect(
+          repeated.getOperation() == tq2.getOperation(),
+          "bound Scalar construction is idempotent on its exact final body"))
+    return result;
+
+  return expect(mlir::succeeded(mlir::verify(*module)),
+                "Scalar typed-body construction module verifies");
+}
+
+int runInvalidTernaryGeometryConstructionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  weft.exec.kernel @scalar_tq2_invalid {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_tq2_invalid_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    weft_scalar.tq2_0_q8_k_vec_dot {source_kernel = "scalar_tq2_invalid", selected_variant = @scalar_tq2_invalid_variant, qk = 255 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64}
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse invalid Scalar ternary geometry module");
+
+  KernelOp kernel = findKernel(*module, "scalar_tq2_invalid");
+  VariantOp variant = findVariant(kernel, "scalar_tq2_invalid_variant");
+  if (int result = expect(kernel && variant,
+                          "invalid ternary construction anchors exist"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          weft::plugin::registerScalarExtensionPlugin(registry),
+          "register Scalar plugin for invalid ternary construction"))
+    return result;
+
+  FamilyConstructionResult construction;
+  if (int result = expectErrorContains(
+          registry.constructFormulaPlansForVariant(*module, variant,
+                                                   construction),
+          {"canonical qk/stride/offset geometry"}))
+    return result;
+
+  unsigned sourceCount = 0;
+  unsigned finalBodyCount = 0;
+  kernel.walk([&](mlir::Operation *op) {
+    if (llvm::isa<weft::scalar::TernaryQ2Q8BlockDotOp>(op))
+      ++sourceCount;
+    if (llvm::isa<weft::scalar::PackedTernaryDotBodyOp>(op))
+      ++finalBodyCount;
+  });
+  if (int result = expect(
+          sourceCount == 1 && finalBodyCount == 0 &&
+              !construction.getOperation(),
+          "invalid ternary geometry preserves the source problem and creates "
+          "no final body"))
+    return result;
+
+  return expect(mlir::succeeded(mlir::verify(*module)),
+                "invalid ternary source remains structurally valid after "
+                "formula rejection");
 }
 
 int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
@@ -973,6 +1161,10 @@ int main() {
   if (int result = runProposalGatingTest(context))
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
+    return result;
+  if (int result = runTypedFinalBodyConstructionTest(context))
+    return result;
+  if (int result = runInvalidTernaryGeometryConstructionTest(context))
     return result;
   if (int result = runBoundaryMaterializationRejectionTest(context))
     return result;

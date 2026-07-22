@@ -12,8 +12,10 @@
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
@@ -186,6 +188,37 @@ int main() {
     if (!byID.count(id))
       return fail(llvm::Twine("unclassified RVV construction authority: ") +
                   id);
+  }
+
+  struct ScalarFormulaExpectation {
+    llvm::StringRef id;
+    FormulaResultKind resultKind;
+    llvm::StringRef constructionEntry;
+  };
+  const ScalarFormulaExpectation scalarFormulaExpectations[] = {
+      {scalar::kScalarFallbackConstructionFormulaID,
+       FormulaResultKind::CandidateSet,
+       "construction:scalar-immediate-call-body"},
+      {scalar::kScalarTernaryBlockDotFormulaID, FormulaResultKind::TypedPlan,
+       "construction:scalar-packed-ternary-dot-body"},
+      {scalar::kScalarQ40DequantizeRowFormulaID,
+       FormulaResultKind::TypedPlan,
+       "construction:scalar-packed-affine-dequant-body"},
+  };
+  for (const ScalarFormulaExpectation &expected : scalarFormulaExpectations) {
+    const FormulaDescriptor *formula = byID.lookup(expected.id);
+    if (!formula || formula->getOwnerPlugin() != "scalar-plugin" ||
+        formula->getResultKind() != expected.resultKind ||
+        formula->getConstructionStrength() !=
+            FormulaConstructionStrength::ConstructedWeak ||
+        formula->getCapabilityAxis().getUse() != FormulaAxisUse::Decisive ||
+        formula->getStaticContextAxis().getUse() != FormulaAxisUse::HonestNull)
+      return fail(llvm::Twine("Scalar formula catalog contract is incomplete: ") +
+                  expected.id);
+    if (!llvm::is_contained(formula->getProductionEntries(),
+                            expected.constructionEntry.str()))
+      return fail(llvm::Twine("Scalar formula lost typed-body construction entry: ") +
+                  expected.id);
   }
 
   const FormulaDescriptor *flatFormula =

@@ -1,22 +1,20 @@
 // RUN: weft-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="metadata-diagnostic" --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="int main"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="metadata-diagnostic" --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="int main"
 
 // X-SCALAR tracer bullet (line D, step 2): a hand-written portable-scalar
-// source kernel flows through the generic capability/variant planning passes
-// (check-capability-requires -> materialize-plugin-variants ->
-// verify-plugin-variant-legality -> select-variants) and then the scalar
-// backend emission driver lowers the selected weft_scalar.compute_skeleton
-// boundary directly to a standalone EmitC module that the
+// source problem is bound to an explicit scalar variant. Family construction
+// consumes weft_scalar.compute_skeleton and creates an immediate_call_body;
+// the scalar backend emission driver lowers only that final body to a
+// standalone EmitC module that the
 // --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++ (no __riscv_
 // intrinsics). The second RUN proves the translate route is self-contained on
 // the same source (byte-identical output).
 //
 // This is a TRIVIAL compute boundary (step 3 lands a real kernel). The
 // construction is typed-input-driven, not vacuous: the family formula consumes
-// source_kernel + selected_variant + scalar_immediate and records the exported
-// symbol, callee, and immediate in the conversion-local final plan. The emitter
-// only materializes that plan.
+// source_kernel + selected_variant + scalar_immediate and constructs a distinct
+// typed body. The body identity fixes the call topology; the emitter projects
+// its ABI and immediate mechanically.
 //
 // NOTE: --weft-materialize-emission-plans is intentionally NOT in the pipe. That
 // pass gates on the origin plugin reporting a SUPPORTED emission readiness
@@ -32,6 +30,11 @@
 module {
   weft.exec.kernel @scalar_kernel {
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_fallback_first_slice attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
     weft_scalar.compute_skeleton {source_kernel = "scalar_kernel", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
   }
 }

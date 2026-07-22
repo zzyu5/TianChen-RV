@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdint.h>
 extern "C" void weft_emitc_q4_0_dequant_kernel_scalar_fallback_first_slice(int v1, float* v2, const uint8_t* v3) {
   // weft_emitc.route_source_op=weft_scalar.dequantize_row_q4_0 role=compute op_interface=WEFTEmitCLowerableOpInterface

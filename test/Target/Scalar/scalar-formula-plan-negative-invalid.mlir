@@ -5,6 +5,11 @@
 module {
   weft.exec.kernel @bad_scalar_geometry {
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_fallback_first_slice attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
     weft_scalar.dequantize_row_q4_0 {
       source_kernel = "bad_scalar_geometry",
       selected_variant = @scalar_fallback_first_slice,

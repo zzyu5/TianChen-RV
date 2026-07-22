@@ -4,8 +4,6 @@
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
-#include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
-#include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -26,29 +24,10 @@ namespace {
 namespace emitc = ::mlir::emitc;
 namespace weftemitc = ::weft::conversion::emitc;
 
-using scalar::kScalarFinalPlanAttrName;
-
-mlir::FailureOr<mlir::DictionaryAttr>
-requireScalarPlan(mlir::Operation *op, llvm::StringRef formulaID) {
-  auto plan = op->getAttrOfType<mlir::DictionaryAttr>(kScalarFinalPlanAttrName);
-  if (!plan)
-    return op->emitError() << "scalar emitter requires the final plan produced by "
-                           << formulaID;
-  auto formula = plan.getAs<mlir::StringAttr>("formula_id");
-  if (!formula || formula.getValue() != formulaID)
-    return op->emitError() << "scalar final plan has the wrong formula owner";
-  return plan;
-}
-
-mlir::FailureOr<int64_t> scalarPlanInt(mlir::DictionaryAttr plan,
-                                       llvm::StringRef name,
-                                       mlir::Operation *op) {
-  auto value = plan.getAs<mlir::IntegerAttr>(name);
-  if (!value)
-    return op->emitError() << "scalar final plan is missing integer field '"
-                           << name << "'";
-  return value.getInt();
-}
+constexpr llvm::StringLiteral kScalarSkeletonCallee(
+    "weft_scalar_compute_skeleton");
+constexpr llvm::StringLiteral kEmitCLowerableInterfaceName(
+    "WEFTEmitCLowerableOpInterface");
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role,
                                llvm::StringRef opInterface) {
@@ -80,7 +59,8 @@ std::string kernelStepComment(llvm::StringRef opName, llvm::StringRef role,
   return text;
 }
 
-/// Lowers a selected `weft_scalar.compute_skeleton` boundary into a standalone
+/// Mechanically lowers a constructed `weft_scalar.immediate_call_body` into a
+/// standalone
 /// top-level, pure-scalar EmitC function:
 ///   #include <stdint.h>
 ///   int32_t weft_scalar_compute_skeleton(int32_t);
@@ -92,59 +72,46 @@ std::string kernelStepComment(llvm::StringRef opName, llvm::StringRef role,
 /// The exported function name is derived from the selected kernel+variant and
 /// the emitted constant is the op's `scalar_immediate`, so the emission is
 /// operand-driven and carries no __riscv_ intrinsics.
-class ScalarComputeSkeletonToEmitCFunc final
-    : public mlir::OpConversionPattern<weft::scalar::ComputeSkeletonOp> {
+class ScalarImmediateCallBodyToEmitCFunc final
+    : public mlir::OpConversionPattern<weft::scalar::ImmediateCallBodyOp> {
 public:
   using mlir::OpConversionPattern<
-      weft::scalar::ComputeSkeletonOp>::OpConversionPattern;
+      weft::scalar::ImmediateCallBodyOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(weft::scalar::ComputeSkeletonOp compute, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::scalar::ImmediateCallBodyOp body,
+                  OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    mlir::Location loc = compute.getLoc();
+    mlir::Location loc = body.getLoc();
 
-    auto variant =
-        compute->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    auto sourceKernel =
-        compute->getAttrOfType<mlir::StringAttr>("source_kernel");
+    auto variant = body.getSelectedVariantAttr();
+    auto sourceKernel = body.getSourceKernelAttr();
     if (!variant || !sourceKernel)
       return rewriter.notifyMatchFailure(
-          compute, "compute_skeleton requires selected_variant and "
-                   "source_kernel attributes");
+          body, "immediate_call_body requires selected_variant and "
+                "source_kernel attributes");
 
-    auto planOr = requireScalarPlan(compute.getOperation(),
-                                    kScalarFallbackConstructionFormulaID);
-    if (mlir::failed(planOr))
-      return rewriter.notifyMatchFailure(
-          compute, "scalar compute final plan was not constructed");
-    auto immediateOr =
-        scalarPlanInt(*planOr, "scalar_immediate", compute.getOperation());
-    if (mlir::failed(immediateOr))
-      return rewriter.notifyMatchFailure(compute,
-                                         "scalar compute final plan is partial");
-    int64_t immediate = *immediateOr;
+    int64_t immediate = body.getScalarImmediate();
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
     auto lowerable =
         llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
-            compute.getOperation());
+            body.getOperation());
     if (!lowerable)
       return rewriter.notifyMatchFailure(
-          compute, "weft_scalar.compute_skeleton must implement "
-                   "WEFTEmitCLowerableOpInterface");
+          body, "weft_scalar.immediate_call_body must implement "
+                "WEFTEmitCLowerableOpInterface");
     llvm::StringRef sourceOpName =
         lowerable.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
 
-    const ScalarEmitCConstructionRoute &route =
-        getScalarEmitCConstructionRoute();
-    llvm::StringRef callee = route.callee;
+    llvm::StringRef callee = kScalarSkeletonCallee;
 
-    auto module = compute->getParentOfType<mlir::ModuleOp>();
+    auto module = body->getParentOfType<mlir::ModuleOp>();
     if (!module)
-      return rewriter.notifyMatchFailure(compute, "compute has no module");
+      return rewriter.notifyMatchFailure(body, "body has no module");
 
     mlir::Type i32 = rewriter.getI32Type();
 
@@ -181,9 +148,11 @@ public:
 
     // Provenance: route_source_op comment, then the source_op step comment.
     rewriter.create<emitc::VerbatimOp>(
-        loc, routeSourceComment(sourceOpName, sourceRole, route.opInterface));
+        loc, routeSourceComment(sourceOpName, sourceRole,
+                                kEmitCLowerableInterfaceName));
     rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(sourceOpName, sourceRole, route.opInterface,
+        loc, stepComment(sourceOpName, sourceRole,
+                         kEmitCLowerableInterfaceName,
                          callee));
 
     // Operand-driven body: materialize the op's immediate as a scalar constant
@@ -196,14 +165,16 @@ public:
 
     rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
 
-    rewriter.eraseOp(compute);
+    rewriter.eraseOp(body);
     return mlir::success();
   }
 };
 
-/// Lowers a selected `weft_scalar.tq2_0_q8_k_vec_dot` boundary into a standalone
-/// top-level, pure-scalar EmitC function that IS the ggml tq2_0 x q8_K ternary
+/// Mechanically lowers a constructed `weft_scalar.packed_ternary_dot_body`
+/// into a standalone pure-scalar EmitC function that implements its typed
+/// block-traversal/decode/MAC/fold semantics:
 /// vec_dot:
+///   #include <stddef.h>
 ///   #include <stdint.h>
 ///   extern "C" void weft_emitc_<kernel>_<variant>(
 ///       int n, float *s, const uint8_t *vx, const int8_t *vy) {
@@ -232,14 +203,15 @@ public:
 /// loop bounds and address arithmetic, so the emission is operand-driven. The
 /// ternary decode is a pure int8xint8 MAC -- NO XOR-popcount, NO __riscv_
 /// intrinsics, NO vector machinery.
-class ScalarTernaryQ2Q8BlockDotToEmitCFunc final
-    : public mlir::OpConversionPattern<weft::scalar::TernaryQ2Q8BlockDotOp> {
+class ScalarPackedTernaryDotBodyToEmitCFunc final
+    : public mlir::OpConversionPattern<weft::scalar::PackedTernaryDotBodyOp> {
 public:
   using mlir::OpConversionPattern<
-      weft::scalar::TernaryQ2Q8BlockDotOp>::OpConversionPattern;
+      weft::scalar::PackedTernaryDotBodyOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(weft::scalar::TernaryQ2Q8BlockDotOp dot, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::scalar::PackedTernaryDotBodyOp dot,
+                  OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = dot.getLoc();
     mlir::MLIRContext *ctx = rewriter.getContext();
@@ -249,74 +221,33 @@ public:
     auto sourceKernel = dot->getAttrOfType<mlir::StringAttr>("source_kernel");
     if (!variant || !sourceKernel)
       return rewriter.notifyMatchFailure(
-          dot, "tq2_0_q8_k_vec_dot requires selected_variant and source_kernel "
-               "attributes");
+          dot, "packed_ternary_dot_body requires selected_variant and "
+               "source_kernel attributes");
 
     auto lowerable =
         llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
             dot.getOperation());
     if (!lowerable)
       return rewriter.notifyMatchFailure(
-          dot, "tq2_0_q8_k_vec_dot must implement WEFTEmitCLowerableOpInterface");
+          dot, "packed_ternary_dot_body must implement "
+               "WEFTEmitCLowerableOpInterface");
     llvm::StringRef opName = lowerable.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = lowerable.getWEFTEmitCLowerableSourceRole();
 
-    auto planOr = requireScalarPlan(dot.getOperation(),
-                                    kScalarTernaryBlockDotFormulaID);
-    if (mlir::failed(planOr))
-      return rewriter.notifyMatchFailure(
-          dot, "tq2_0 x q8_K final plan was not constructed");
-    mlir::DictionaryAttr plan = *planOr;
-    auto qkOr = scalarPlanInt(plan, "qk", dot.getOperation());
-    auto weightStrideOr =
-        scalarPlanInt(plan, "weight_block_stride", dot.getOperation());
-    auto activationStrideOr =
-        scalarPlanInt(plan, "activation_block_stride", dot.getOperation());
-    auto weightDOffsetOr =
-        scalarPlanInt(plan, "weight_d_byte_offset", dot.getOperation());
-    auto activationDOffsetOr =
-        scalarPlanInt(plan, "activation_d_byte_offset", dot.getOperation());
-    auto q8OffsetOr = scalarPlanInt(
-        plan, "activation_quant_byte_offset", dot.getOperation());
-    auto qsBytesOr =
-        scalarPlanInt(plan, "packed_weight_bytes", dot.getOperation());
-    auto numPlanesOr = scalarPlanInt(plan, "planes", dot.getOperation());
-    auto planeLanesOr =
-        scalarPlanInt(plan, "plane_lanes", dot.getOperation());
-    auto chunkBytesOr =
-        scalarPlanInt(plan, "plane_group_stride", dot.getOperation());
-    auto fieldBitsOr =
-        scalarPlanInt(plan, "field_bits", dot.getOperation());
-    auto fieldMaskOr =
-        scalarPlanInt(plan, "field_mask", dot.getOperation());
-    auto decodeZeroPointOr =
-        scalarPlanInt(plan, "decode_zero_point", dot.getOperation());
-    auto activationPlaneStrideOr =
-        scalarPlanInt(plan, "activation_plane_stride", dot.getOperation());
-    if (mlir::failed(qkOr) || mlir::failed(weightStrideOr) ||
-        mlir::failed(activationStrideOr) || mlir::failed(weightDOffsetOr) ||
-        mlir::failed(activationDOffsetOr) || mlir::failed(q8OffsetOr) ||
-        mlir::failed(qsBytesOr) || mlir::failed(numPlanesOr) ||
-        mlir::failed(planeLanesOr) || mlir::failed(chunkBytesOr) ||
-        mlir::failed(fieldBitsOr) || mlir::failed(fieldMaskOr) ||
-        mlir::failed(decodeZeroPointOr) ||
-        mlir::failed(activationPlaneStrideOr))
-      return rewriter.notifyMatchFailure(dot,
-                                         "tq2_0 x q8_K final plan is partial");
-    int64_t qk = *qkOr;
-    int64_t weightStride = *weightStrideOr;
-    int64_t activationStride = *activationStrideOr;
-    int64_t weightDOffset = *weightDOffsetOr;
-    int64_t activationDOffset = *activationDOffsetOr;
-    int64_t q8Offset = *q8OffsetOr;
-    int64_t qsBytes = *qsBytesOr;
-    int64_t numPlanes = *numPlanesOr;
-    int64_t planeLanes = *planeLanesOr;
-    int64_t chunkBytes = *chunkBytesOr;
-    int64_t fieldBits = *fieldBitsOr;
-    int64_t fieldMask = *fieldMaskOr;
-    int64_t decodeZeroPoint = *decodeZeroPointOr;
-    int64_t activationPlaneStride = *activationPlaneStrideOr;
+    int64_t qk = dot.getQk();
+    int64_t weightStride = dot.getWeightBlockStride();
+    int64_t activationStride = dot.getActivationBlockStride();
+    int64_t weightDOffset = dot.getWeightDByteOffset();
+    int64_t activationDOffset = dot.getActivationDByteOffset();
+    int64_t q8Offset = dot.getActivationQuantByteOffset();
+    int64_t qsBytes = dot.getPackedWeightBytes();
+    int64_t numPlanes = dot.getPlanes();
+    int64_t planeLanes = dot.getPlaneLanes();
+    int64_t chunkBytes = dot.getPlaneGroupStride();
+    int64_t fieldBits = dot.getFieldBits();
+    int64_t fieldMask = dot.getFieldMask();
+    int64_t decodeZeroPoint = dot.getDecodeZeroPoint();
+    int64_t activationPlaneStride = dot.getActivationPlaneStride();
 
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
@@ -338,12 +269,12 @@ public:
     mlir::Type floatPtrType = emitc::PointerType::get(floatType);
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    // #include <stdint.h> at module start.
+    // Standalone C size/integer declarations at module start.
     {
       mlir::OpBuilder::InsertionGuard g(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
-      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
-                                        /*is_standard_include=*/true);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, "#include <stddef.h>\n#include <stdint.h>");
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
@@ -633,8 +564,10 @@ public:
   }
 };
 
-/// Lowers a selected `weft_scalar.dequantize_row_q4_0` boundary into a standalone
-/// top-level, pure-scalar EmitC function that IS the ggml q4_0 dequantize_row:
+/// Mechanically lowers a constructed
+/// `weft_scalar.packed_affine_dequant_body` into a standalone pure-scalar
+/// EmitC function implementing its typed block/decode/paired-scatter semantics:
+///   #include <stddef.h>
 ///   #include <stdint.h>
 ///   extern "C" void weft_emitc_<kernel>_<variant>(
 ///       int n, float *y, const uint8_t *vx) {
@@ -658,14 +591,16 @@ public:
 /// bounds and address arithmetic, so the emission is operand-driven. The nibble
 /// decode is pure integer arithmetic -- NO XOR-popcount, NO __riscv_ intrinsics,
 /// NO vector machinery.
-class ScalarDequantizeRowQ4ToEmitCFunc final
-    : public mlir::OpConversionPattern<weft::scalar::DequantizeRowQ4Op> {
+class ScalarPackedAffineDequantBodyToEmitCFunc final
+    : public mlir::OpConversionPattern<
+          weft::scalar::PackedAffineDequantBodyOp> {
 public:
   using mlir::OpConversionPattern<
-      weft::scalar::DequantizeRowQ4Op>::OpConversionPattern;
+      weft::scalar::PackedAffineDequantBodyOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(weft::scalar::DequantizeRowQ4Op dequant, OpAdaptor /*adaptor*/,
+  matchAndRewrite(weft::scalar::PackedAffineDequantBodyOp dequant,
+                  OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = dequant.getLoc();
     mlir::MLIRContext *ctx = rewriter.getContext();
@@ -676,7 +611,7 @@ public:
         dequant->getAttrOfType<mlir::StringAttr>("source_kernel");
     if (!variant || !sourceKernel)
       return rewriter.notifyMatchFailure(
-          dequant, "dequantize_row_q4_0 requires selected_variant and "
+          dequant, "packed_affine_dequant_body requires selected_variant and "
                    "source_kernel attributes");
 
     auto lowerable =
@@ -684,47 +619,19 @@ public:
             dequant.getOperation());
     if (!lowerable)
       return rewriter.notifyMatchFailure(
-          dequant,
-          "dequantize_row_q4_0 must implement WEFTEmitCLowerableOpInterface");
+          dequant, "packed_affine_dequant_body must implement "
+                   "WEFTEmitCLowerableOpInterface");
     llvm::StringRef opName = lowerable.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = lowerable.getWEFTEmitCLowerableSourceRole();
 
-    auto planOr = requireScalarPlan(dequant.getOperation(),
-                                    kScalarQ40DequantizeRowFormulaID);
-    if (mlir::failed(planOr))
-      return rewriter.notifyMatchFailure(
-          dequant, "q4_0 dequant final plan was not constructed");
-    mlir::DictionaryAttr plan = *planOr;
-    auto qkOr = scalarPlanInt(plan, "qk", dequant.getOperation());
-    auto weightStrideOr =
-        scalarPlanInt(plan, "weight_block_stride", dequant.getOperation());
-    auto weightDOffsetOr =
-        scalarPlanInt(plan, "weight_d_byte_offset", dequant.getOperation());
-    auto weightQuantOffsetOr = scalarPlanInt(
-        plan, "weight_quant_byte_offset", dequant.getOperation());
-    auto halfOr =
-        scalarPlanInt(plan, "half_width", dequant.getOperation());
-    auto fieldBitsOr =
-        scalarPlanInt(plan, "field_bits", dequant.getOperation());
-    auto fieldMaskOr =
-        scalarPlanInt(plan, "field_mask", dequant.getOperation());
-    auto decodeZeroPointOr =
-        scalarPlanInt(plan, "decode_zero_point", dequant.getOperation());
-    if (mlir::failed(qkOr) || mlir::failed(weightStrideOr) ||
-        mlir::failed(weightDOffsetOr) || mlir::failed(weightQuantOffsetOr) ||
-        mlir::failed(halfOr) || mlir::failed(fieldBitsOr) ||
-        mlir::failed(fieldMaskOr) ||
-        mlir::failed(decodeZeroPointOr))
-      return rewriter.notifyMatchFailure(dequant,
-                                         "q4_0 dequant final plan is partial");
-    int64_t qk = *qkOr;
-    int64_t weightStride = *weightStrideOr;
-    int64_t weightDOffset = *weightDOffsetOr;
-    int64_t weightQuantOffset = *weightQuantOffsetOr;
-    int64_t half = *halfOr;
-    int64_t fieldBits = *fieldBitsOr;
-    int64_t fieldMask = *fieldMaskOr;
-    int64_t decodeZeroPoint = *decodeZeroPointOr;
+    int64_t qk = dequant.getQk();
+    int64_t weightStride = dequant.getWeightBlockStride();
+    int64_t weightDOffset = dequant.getWeightDByteOffset();
+    int64_t weightQuantOffset = dequant.getWeightQuantByteOffset();
+    int64_t half = dequant.getHalfWidth();
+    int64_t fieldBits = dequant.getFieldBits();
+    int64_t fieldMask = dequant.getFieldMask();
+    int64_t decodeZeroPoint = dequant.getDecodeZeroPoint();
 
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
@@ -742,12 +649,12 @@ public:
     mlir::Type floatPtrType = emitc::PointerType::get(floatType);
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    // #include <stdint.h> at module start.
+    // Standalone C size/integer declarations at module start.
     {
       mlir::OpBuilder::InsertionGuard g(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
-      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
-                                        /*is_standard_include=*/true);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, "#include <stddef.h>\n#include <stdint.h>");
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
@@ -925,17 +832,20 @@ public:
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
     target.addIllegalOp<weft::scalar::ComputeSkeletonOp,
                         weft::scalar::TernaryQ2Q8BlockDotOp,
-                        weft::scalar::DequantizeRowQ4Op>();
+                        weft::scalar::DequantizeRowQ4Op,
+                        weft::scalar::ImmediateCallBodyOp,
+                        weft::scalar::PackedTernaryDotBodyOp,
+                        weft::scalar::PackedAffineDequantBodyOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
   void
   populateLoweringPatterns(mlir::TypeConverter &typeConverter,
                            mlir::RewritePatternSet &patterns) const override {
-    patterns.add<ScalarComputeSkeletonToEmitCFunc,
-                 ScalarTernaryQ2Q8BlockDotToEmitCFunc,
-                 ScalarDequantizeRowQ4ToEmitCFunc>(typeConverter,
-                                                   patterns.getContext());
+    patterns.add<ScalarImmediateCallBodyToEmitCFunc,
+                 ScalarPackedTernaryDotBodyToEmitCFunc,
+                 ScalarPackedAffineDequantBodyToEmitCFunc>(
+        typeConverter, patterns.getContext());
   }
 
   llvm::LogicalResult postConversionCleanup(mlir::ModuleOp module) const override;

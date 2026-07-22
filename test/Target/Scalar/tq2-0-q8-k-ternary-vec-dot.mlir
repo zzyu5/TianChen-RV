@@ -1,13 +1,13 @@
 // RUN: weft-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | diff %S/tq2-0-q8-k-ternary-vec-dot.golden.c -
 
 // X-SCALAR family #3: a REAL ternary 2-bit vec_dot scalar kernel (replaces the
-// tracer-bullet trivial compute op). A hand-written portable-scalar
-// weft_scalar.tq2_0_q8_k_vec_dot boundary flows through the generic
-// capability/variant planning passes and then the scalar backend emission
-// driver lowers it to a standalone EmitC module that the
+// tracer-bullet trivial compute op). A portable-scalar
+// weft_scalar.tq2_0_q8_k_vec_dot source problem is bound to an explicit family
+// variant; Scalar formula construction consumes it and creates a distinct
+// packed_ternary_dot_body. The scalar backend emission driver lowers only that
+// final body to a standalone EmitC module that the
 // --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
 // `ggml_vec_dot_tq2_0_q8_K` contraction as nested C loops. NO __riscv_
 // intrinsics, NO XOR-popcount codebook, NO vector machinery -- the ternary
@@ -17,10 +17,9 @@
 //
 // The construction is typed-input-driven, NOT vacuous: the family formula
 // consumes source_kernel + selected_variant and the canonical block-format
-// facts (qk=256, strides 66/292, offsets 64/0/4), then records the complete
-// final computation plan, including the loop/decode geometry. The emitter only
-// materializes that plan. The negative scalar-formula-plan tests prove that a
-// noncanonical input or a partial/forged final plan fails closed.
+// facts (qk=256, strides 66/292, offsets 64/0/4), then constructs the typed
+// mechanism body containing the loop/decode geometry. The emitter cannot match
+// the source op and only projects the final body's defined semantics.
 //
 // The last RUN is a strict byte-exact gate versus the captured golden C
 // (the ggml scalar ternary reference), sibling tq2-0-q8-k-ternary-vec-dot.golden.c.
@@ -36,6 +35,11 @@
 module {
   weft.exec.kernel @tq2_0_kernel {
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_fallback_first_slice attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
     weft_scalar.tq2_0_q8_k_vec_dot {
       source_kernel = "tq2_0_kernel",
       selected_variant = @scalar_fallback_first_slice,

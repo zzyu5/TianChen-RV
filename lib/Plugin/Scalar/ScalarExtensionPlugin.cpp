@@ -9,6 +9,7 @@
 #include "llvm/Support/Errc.h"
 
 #include <string>
+#include <optional>
 #include <utility>
 
 namespace weft::plugin {
@@ -28,6 +29,64 @@ constexpr llvm::StringLiteral kScalarCostFormulaID(
     "weft.scalar.fallback.analytic-prior");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+
+enum class ScalarFinalBodyKind {
+  ImmediateCall,
+  PackedTernaryDot,
+  PackedAffineDequant,
+};
+
+std::optional<ScalarFinalBodyKind>
+classifyScalarFinalBody(mlir::Operation *operation) {
+  if (llvm::isa_and_present<weft::scalar::ImmediateCallBodyOp>(operation))
+    return ScalarFinalBodyKind::ImmediateCall;
+  if (llvm::isa_and_present<weft::scalar::PackedTernaryDotBodyOp>(operation))
+    return ScalarFinalBodyKind::PackedTernaryDot;
+  if (llvm::isa_and_present<weft::scalar::PackedAffineDequantBodyOp>(operation))
+    return ScalarFinalBodyKind::PackedAffineDequant;
+  return std::nullopt;
+}
+
+llvm::StringRef scalarRuntimeABI(ScalarFinalBodyKind kind) {
+  switch (kind) {
+  case ScalarFinalBodyKind::ImmediateCall:
+    return "scalar-immediate-call-c-abi.v1";
+  case ScalarFinalBodyKind::PackedTernaryDot:
+    return "scalar-tq2-q8-block-dot-c-abi.v1";
+  case ScalarFinalBodyKind::PackedAffineDequant:
+    return "scalar-q4-0-dequant-row-c-abi.v1";
+  }
+  llvm_unreachable("unknown Scalar final-body kind");
+}
+
+void addScalarRuntimeABIParameters(ScalarFinalBodyKind kind,
+                                   VariantEmissionPlan &plan) {
+  using support::RuntimeABIParameter;
+  using support::RuntimeABIParameterOwnership;
+  using support::RuntimeABIParameterRole;
+  constexpr RuntimeABIParameterOwnership ownership =
+      RuntimeABIParameterOwnership::TargetExportABIOwned;
+
+  if (kind == ScalarFinalBodyKind::ImmediateCall)
+    return;
+
+  plan.addRuntimeABIParameter(RuntimeABIParameter(
+      "n", "int", RuntimeABIParameterRole::RuntimeElementCount, ownership));
+  plan.addRuntimeABIParameter(RuntimeABIParameter(
+      "out", "float *", RuntimeABIParameterRole::OutputBuffer, ownership));
+  if (kind == ScalarFinalBodyKind::PackedTernaryDot) {
+    plan.addRuntimeABIParameter(RuntimeABIParameter(
+        "weights", "const uint8_t *",
+        RuntimeABIParameterRole::DotLHSInputBuffer, ownership));
+    plan.addRuntimeABIParameter(RuntimeABIParameter(
+        "activations", "const int8_t *",
+        RuntimeABIParameterRole::DotRHSInputBuffer, ownership));
+    return;
+  }
+  plan.addRuntimeABIParameter(RuntimeABIParameter(
+      "weights", "const uint8_t *", RuntimeABIParameterRole::SourceInputBuffer,
+      ownership));
+}
 
 llvm::Error makeScalarPluginError(llvm::Twine message);
 
@@ -141,7 +200,7 @@ llvm::Error ScalarExtensionPlugin::constructFormulaPlans(
     const FamilyConstructionRequest &request,
     FamilyConstructionResult &out) const {
   llvm::Expected<mlir::Operation *> constructed =
-      scalar::constructScalarFinalPlan(
+      scalar::constructScalarFinalBody(
           request.getVariant(), request.getKernel(),
           request.getCapabilities());
   if (!constructed)
@@ -174,7 +233,7 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-available-single-candidate");
   construction.addSemanticCase("capability-unavailable-not-applicable");
   construction.addProductionEntry("plugin:variant-proposal");
-  construction.addProductionEntry("construction:scalar-compute-plan");
+  construction.addProductionEntry("construction:scalar-immediate-call-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor ternaryBlockDot(
@@ -196,7 +255,7 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
   ternaryBlockDot.addSemanticCase("canonical-tq2-0-q8-k");
   ternaryBlockDot.addSemanticCase("unsupported-layout-reject");
   ternaryBlockDot.addProductionEntry(
-      "construction:scalar-tq2-q8-block-dot-plan");
+      "construction:scalar-packed-ternary-dot-body");
   out.push_back(std::move(ternaryBlockDot));
 
   FormulaDescriptor q40Dequant(
@@ -216,7 +275,7 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
   q40Dequant.addSemanticCase("canonical-q4-0-row");
   q40Dequant.addSemanticCase("unsupported-layout-reject");
   q40Dequant.addProductionEntry(
-      "construction:scalar-q4-0-dequantize-row-plan");
+      "construction:scalar-packed-affine-dequant-body");
   out.push_back(std::move(q40Dequant));
 
   FormulaDescriptor cost(
@@ -316,10 +375,28 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
     return makeScalarPluginError(
         "emission readiness requires a materialized weft.exec.variant");
 
-  out = VariantEmissionStatus::getUnsupported(
+  if (!request.getKernel())
+    return makeScalarPluginError(
+        "emission readiness requires an enclosing weft.exec.kernel");
+
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  std::optional<ScalarFinalBodyKind> kind =
+      classifyScalarFinalBody(request.getConstructedOperation());
+  if (!kind) {
+    out = VariantEmissionStatus::getUnsupported(
+        kScalarPluginName, request.getVariant().getSymName(),
+        "scalar artifact query requires the exact constructed final typed "
+        "body; a fallback envelope or source problem is not emittable");
+    return llvm::Error::success();
+  }
+
+  out = VariantEmissionStatus::getSupported(
       kScalarPluginName, request.getVariant().getSymName(),
-      "scalar fallback first slice has no active EmitC lowering, runtime ABI, "
-      "target artifact route, or legacy metadata emission route");
+      target::scalar_ext::getScalarEmitCToCppTranslateRouteID());
   return llvm::Error::success();
 }
 
@@ -333,19 +410,47 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     return makeScalarPluginError(
         "emission planning requires an enclosing weft.exec.kernel");
 
-  out = VariantEmissionPlan::getUnsupported(
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  std::optional<ScalarFinalBodyKind> kind =
+      classifyScalarFinalBody(request.getConstructedOperation());
+  if (!kind) {
+    out = VariantEmissionPlan::getUnsupported(
+        kScalarPluginName, request.getKernel().getSymName(),
+        request.getVariant().getSymName(), request.getRole(),
+        "scalar artifact planning requires the exact constructed final typed "
+        "body; a fallback envelope or source problem has no artifact plan");
+    out.setEmissionKind("scalar-fallback-unsupported-emission");
+    out.setLoweringPipeline("scalar-no-constructed-body-route");
+    out.setRuntimeABI("scalar-no-constructed-body-abi");
+    out.setRuntimeABIKind("unsupported-plugin-runtime-abi");
+    out.setRuntimeABIName("unsupported-emission-runtime-abi");
+    out.setRuntimeGlueRole("no-runtime-glue-unsupported");
+    out.setArtifactKind("unsupported-emission-diagnostic");
+    if (llvm::Error error =
+            out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+      return error;
+    return llvm::Error::success();
+  }
+
+  llvm::StringRef runtimeABI = scalarRuntimeABI(*kind);
+  out = VariantEmissionPlan::getSupported(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "scalar fallback first slice has no materialized extension-family body, "
-      "EmitC lowering, runtime ABI, target artifact route, or legacy metadata "
-      "emission route");
-  out.setEmissionKind("scalar-fallback-unsupported-emission");
-  out.setLoweringPipeline("scalar-fallback-no-materialized-emitc-route");
-  out.setRuntimeABI("scalar-fallback-no-runtime-abi");
-  out.setRuntimeABIKind("unsupported-plugin-runtime-abi");
-  out.setRuntimeABIName("unsupported-emission-runtime-abi");
-  out.setRuntimeGlueRole("no-runtime-glue-unsupported");
-  out.setArtifactKind("unsupported-emission-diagnostic");
+      "scalar-typed-body-emitc",
+      target::scalar_ext::getScalarEmitCToCppTranslateRouteID(), runtimeABI,
+      "compiler-emission-plan",
+      "the exact Scalar final typed body is mechanically lowered to EmitC "
+      "and rendered through the registered scalar C++ translate route");
+  out.setRuntimeABIKind("scalar-final-body-c-abi");
+  out.setRuntimeABIName(runtimeABI);
+  out.setRuntimeGlueRole("scalar-generated-c-wrapper");
+  out.setLoweringBoundaryOpName(
+      request.getConstructedOperation()->getName().getStringRef());
+  addScalarRuntimeABIParameters(*kind, out);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -375,11 +480,11 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  out = VariantLoweringBoundaryResult::getUnsupported(
+  out = VariantLoweringBoundaryResult::getNoBoundary(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "scalar fallback first slice no longer materializes a legacy metadata "
-      "selected lowering boundary");
+      "Scalar construction returns the exact final typed body directly; no "
+      "separate metadata lowering boundary is materialized");
   return llvm::Error::success();
 }
 

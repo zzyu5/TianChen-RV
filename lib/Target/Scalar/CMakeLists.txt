@@ -4,7 +4,6 @@ add_mlir_library(WeftScalarTarget
   LINK_LIBS PUBLIC
   WeftConversionEmitC
   WeftConversionEmitCBuiltin
-  WeftScalarEmitCRouteProvider
   WeftScalarFormulaConstruction
   WeftTarget
   MLIREmitCDialect

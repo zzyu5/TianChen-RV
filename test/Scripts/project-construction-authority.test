@@ -35,10 +35,12 @@
 # RUN: rg -n 'moduleHasForeignEmitCLowerableBody' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=DIRECT-MIXED
 # RUN: rg -n 'no registered backend emission driver fully legalizes' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp %S/../../lib/Target/TargetArtifactExport.cpp %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=FAIL-CLOSED
 
-# Scalar and IME computation plans contain computation facts only.  Artifact
-# spellings are projected mechanically inside their EmitC drivers.
+# Scalar and IME final bodies/plans contain computation facts only.  Artifact
+# spellings are projected mechanically inside their EmitC drivers; Scalar has
+# no route/construction provider.
 # RUN: not rg -n 'callee|EmitCConstructionRoute' %S/../../lib/Plugin/Scalar/ScalarFormulaConstruction.cpp
-# RUN: rg -n 'llvm::StringRef callee = route.callee' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-PROJECTION
+# RUN: not rg -n 'ScalarEmitCRouteProvider|ScalarEmitCConstructionRoute|getScalarEmitCConstructionRoute' %S/../../include %S/../../lib
+# RUN: rg -n 'llvm::StringRef callee = kScalarSkeletonCallee' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-PROJECTION
 # RUN: not rg -n 'emit_helper|mac_helper' %S/../../lib/Plugin/IME/IMEFormulaConstruction.cpp %S/../../include/Weft/Plugin/IME/IMEFormulaConstruction.h
 # RUN: rg -n 'projectIME(SimpleMAC|MatMul|Quant)Artifact' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-PROJECTION
 
@@ -74,7 +76,7 @@
 # FAIL-CLOSED: no registered backend emission driver fully legalizes
 # FAIL-CLOSED: no registered backend emission driver fully legalizes
 # FAIL-CLOSED: no registered backend emission driver fully legalizes
-# SCALAR-PROJECTION: llvm::StringRef callee = route.callee
+# SCALAR-PROJECTION: llvm::StringRef callee = kScalarSkeletonCallee
 # IME-PROJECTION: projectIMESimpleMACArtifact
 # IME-PROJECTION: projectIMEMatMulArtifact
 # IME-PROJECTION: projectIMEQuantArtifact

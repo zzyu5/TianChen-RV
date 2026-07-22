@@ -29,13 +29,12 @@ inline constexpr llvm::StringLiteral kScalarTernaryBlockDotFormulaID(
 inline constexpr llvm::StringLiteral kScalarQ40DequantizeRowFormulaID(
     "weft.scalar.q4-0.dequantize-row.construct");
 
-inline constexpr llvm::StringLiteral kScalarFinalPlanAttrName(
-    "weft.scalar.final_plan");
-
-/// Evaluate the Scalar formula for one explicitly bound variant and return its
-/// exact final typed operation.  A null operation is an honest unsupported
-/// fallback envelope.  This entry never scans or mutates an unrelated kernel.
-llvm::Expected<mlir::Operation *> constructScalarFinalPlan(
+/// Evaluate the Scalar formula for one explicitly bound variant, consume its
+/// typed source problem, and return the distinct final family-local body.  A
+/// null operation is an honest unsupported fallback envelope.  Formula IDs
+/// remain catalog inventory keys; they are never copied into the IR or read by
+/// artifact lowering.
+llvm::Expected<mlir::Operation *> constructScalarFinalBody(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const weft::support::TargetCapabilitySet &capabilities);
 

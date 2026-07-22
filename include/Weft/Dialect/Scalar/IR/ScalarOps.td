@@ -43,21 +43,18 @@ def WEFT_Scalar_Dialect : Dialect {
 class WEFTScalar_Op<string mnemonic, list<Trait> traits = []>
     : Op<WEFT_Scalar_Dialect, mnemonic, traits>;
 
-def ComputeSkeletonOp : WEFTScalar_Op<"compute_skeleton",
-    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface>]> {
-  let summary = "minimal portable-scalar ODS compute role-op boundary";
+def ComputeSkeletonOp : WEFTScalar_Op<"compute_skeleton", []> {
+  let summary = "minimal portable-scalar source problem";
   let description = [{
     Records the minimal scalar extension-family compute role op in ODS. The op
     proves that the portable scalar fallback family can materialize a typed
-    MLIR role operation implementing the generated EmitC-lowerable provenance
-    interface and have the scalar backend emission driver consume that IR
-    identity to emit a pure-scalar (no __riscv_) EmitC module.
+    MLIR source problem from which family construction creates a typed final
+    body. The source problem itself is not EmitC-lowerable.
 
     Family-local formula construction consumes `source_kernel`,
-    `selected_variant`, and `scalar_immediate` and records the complete
-    conversion-local final plan (exported symbol, callee, and immediate). The
-    emitter only materializes that plan; it does not reinterpret the source
-    attributes. This is a TRIVIAL tracer-bullet boundary: it does not model
+    `selected_variant`, and `scalar_immediate` and creates a distinct
+    `immediate_call_body`. Artifact lowering accepts only that final typed
+    body. This is a TRIVIAL tracer-bullet source problem: it does not model
     tensor/tile computation, runtime ABI values, generated objects,
     correctness, or performance.
   }];
@@ -71,28 +68,20 @@ def ComputeSkeletonOp : WEFTScalar_Op<"compute_skeleton",
   let assemblyFormat = "attr-dict";
 }
 
-def TernaryQ2Q8BlockDotOp : WEFTScalar_Op<"tq2_0_q8_k_vec_dot",
-    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface>]> {
-  let summary = "portable-scalar tq2_0 x q8_K ternary 2-bit vec_dot boundary";
+def TernaryQ2Q8BlockDotOp : WEFTScalar_Op<"tq2_0_q8_k_vec_dot", []> {
+  let summary = "portable-scalar tq2_0 x q8_K source problem";
   let description = [{
     Records a REAL portable-scalar ternary 2-bit vec_dot compute role op: the
-    ggml `ggml_vec_dot_tq2_0_q8_K` contraction expressed as a typed MLIR
-    boundary. Each super-block holds QK_K ternary weights packed 2-bit
-    (four weights per byte); the scalar backend emission driver lowers this op
-    to a standalone pure-scalar nested-loop C kernel that, for every
-    super-block, decodes each 2-bit field to the signed ternary value
-    `((qs >> shift) & 3) - 1` in {-1,0,+1(,2)}, multiply-accumulates it against
-    the matching int8 q8_K activation into a scalar int32 `sumi`, then folds
-    `sumf += (float)sumi * (y.d * fp16(x.d))`. It is a pure int8xint8 MAC over
-    plain C loops -- NO XOR-popcount codebook, NO __riscv_ intrinsics, NO
-    vector machinery.
+    ggml `ggml_vec_dot_tq2_0_q8_K` contraction expressed as a typed MLIR source
+    problem. Each super-block holds QK_K ternary weights packed 2-bit (four
+    weights per byte). The source records external geometry only; it is not an
+    artifact-lowerable computation body.
 
     The typed attributes are formula inputs. Family-local construction
-    qualifies the supported canonical layout and records a complete
-    conversion-local final computation plan, including all loop geometry,
-    decode constants, strides, and offsets. The emitter consumes that plan
-    mechanically; it neither derives geometry nor accepts an unqualified
-    layout. This boundary models the numeric kernel only; it does not model
+    qualifies the supported canonical layout and creates a distinct
+    `packed_ternary_dot_body` containing all loop geometry, decode constants,
+    strides, and offsets. Artifact lowering accepts only that body. This source
+    problem models the numeric kernel only; it does not model
     target object export, runtime ABI values, or performance.
   }];
 
@@ -110,27 +99,21 @@ def TernaryQ2Q8BlockDotOp : WEFTScalar_Op<"tq2_0_q8_k_vec_dot",
   let assemblyFormat = "attr-dict";
 }
 
-def DequantizeRowQ4Op : WEFTScalar_Op<"dequantize_row_q4_0",
-    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface>]> {
-  let summary = "portable-scalar q4_0 4-bit nibble dequantize_row boundary";
+def DequantizeRowQ4Op : WEFTScalar_Op<"dequantize_row_q4_0", []> {
+  let summary = "portable-scalar q4_0 dequantize-row source problem";
   let description = [{
     Records a REAL portable-scalar 4-bit dequantize compute role op: the ggml
-    `dequantize_row_q4_0` block expansion expressed as a typed MLIR boundary.
+    `dequantize_row_q4_0` block expansion expressed as a typed MLIR source
+    problem.
     Each block holds `qk` weights packed 4-bit (two nibbles per byte) after a
-    leading fp16 block scale; the scalar backend emission driver lowers this op
-    to a standalone pure-scalar nested-loop C kernel that, for every block,
-    reads the fp16 scale `d`, decodes each byte's low nibble `(qs[j] & 0x0F) - 8`
-    and high nibble `(qs[j] >> 4) - 8`, and scatters `x0*d` and `x1*d` into the
-    two halves of the output row (`y[j]` and `y[j + qk/2]`), exactly the ggml
-    reference layout. It is pure nibble arithmetic over plain C loops -- NO
-    XOR-popcount codebook, NO __riscv_ intrinsics, NO vector machinery.
+    leading fp16 block scale. The source records external block geometry only;
+    it is not an artifact-lowerable computation body.
 
     The typed attributes are formula inputs. Family-local construction
-    qualifies the supported canonical layout and records a complete
-    conversion-local final computation plan, including the block geometry,
-    nibble decode constants, strides, and offsets. The emitter consumes that
-    plan mechanically; it neither reconstructs `qk/2` nor accepts an
-    unqualified layout. This boundary models the numeric kernel only; it does
+    qualifies the supported canonical layout and creates a distinct
+    `packed_affine_dequant_body` containing the block geometry, decode
+    constants, strides, and offsets. Artifact lowering accepts only that body.
+    This source problem models the numeric kernel only; it does
     not model target object export, runtime ABI values, or performance.
   }];
 
@@ -143,6 +126,100 @@ def DequantizeRowQ4Op : WEFTScalar_Op<"dequantize_row_q4_0",
     I64Attr:$weight_quant_byte_offset
   );
 
+  let assemblyFormat = "attr-dict";
+}
+
+def ImmediateCallBodyOp : WEFTScalar_Op<"immediate_call_body",
+    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
+      ["getWEFTEmitCLowerableSourceOpName",
+       "getWEFTEmitCLowerableSourceRole"]>]> {
+  let summary = "constructed scalar immediate-call body";
+  let description = [{
+    Final typed body constructed from compute_skeleton. The artifact lowerer
+    consumes the exact operation and projects the fixed
+    `i32 weft_scalar_compute_skeleton(i32)` call ABI plus the typed immediate.
+    The body identity owns that call topology; no source-op or route provider
+    participates in lowering.
+  }];
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    I64Attr:$scalar_immediate
+  );
+  let assemblyFormat = "attr-dict";
+}
+
+def PackedTernaryDotBodyOp : WEFTScalar_Op<"packed_ternary_dot_body",
+    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
+      ["getWEFTEmitCLowerableSourceOpName",
+       "getWEFTEmitCLowerableSourceRole"]>]> {
+  let summary = "constructed packed ternary scalar dot body";
+  let description = [{
+    Final family-local computation body for the tq2_0 x q8_K topology. Its
+    semantics are a block loop over `n/qk`; within each block it traverses
+    packed weight groups, 2-bit planes, and lanes in that order, decodes
+    `((weight >> (plane*field_bits)) & field_mask) - decode_zero_point`, maps
+    the activation index as
+    `group*activation_plane_stride + plane*plane_lanes + lane`, accumulates in
+    signed i32, loads the weight scale as fp16 and activation scale as f32,
+    folds `(float)sumi * (activation_scale * weight_scale)` into an f32 sum,
+    and stores that sum at output element zero. The external ABI is fixed to
+    `(int n, float *s, const uint8_t *weights, const int8_t *activations)`.
+    Attributes contain every variable bound/stride/offset/decode constant;
+    operation identity contains the fixed loop topology, types, maps, fold
+    association, and store semantics. Artifact lowering does not read or
+    reinterpret the tq2_0 source problem.
+  }];
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$packed_weight_bytes,
+    I64Attr:$planes,
+    I64Attr:$plane_lanes,
+    I64Attr:$plane_group_stride,
+    I64Attr:$field_bits,
+    I64Attr:$field_mask,
+    I64Attr:$decode_zero_point,
+    I64Attr:$activation_plane_stride
+  );
+  let assemblyFormat = "attr-dict";
+}
+
+def PackedAffineDequantBodyOp : WEFTScalar_Op<"packed_affine_dequant_body",
+    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
+      ["getWEFTEmitCLowerableSourceOpName",
+       "getWEFTEmitCLowerableSourceRole"]>]> {
+  let summary = "constructed packed affine scalar dequant body";
+  let description = [{
+    Final family-local computation body for q4_0 paired-nibble dequantization.
+    Its semantics are a block loop over `n/qk`; each block loads one fp16 scale,
+    visits `half_width` packed bytes, decodes the low field and high field using
+    `field_mask`, `field_bits`, and `decode_zero_point`, converts each signed
+    value to f32, multiplies by the block scale, and scatters the pair to
+    `block*qk+j` and `block*qk+j+half_width`. The external ABI is fixed to
+    `(int n, float *output, const uint8_t *weights)`. Attributes contain every
+    variable bound/stride/offset/decode constant; operation identity contains
+    the fixed loop topology, types, paired index map, and stores. Artifact
+    lowering does not read or reinterpret the q4_0 source problem.
+  }];
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$half_width,
+    I64Attr:$field_bits,
+    I64Attr:$field_mask,
+    I64Attr:$decode_zero_point
+  );
   let assemblyFormat = "attr-dict";
 }
 

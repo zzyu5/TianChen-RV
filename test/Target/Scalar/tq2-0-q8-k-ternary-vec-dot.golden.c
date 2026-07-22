@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdint.h>
 extern "C" void weft_emitc_tq2_0_kernel_scalar_fallback_first_slice(int v1, float* v2, const uint8_t* v3, const int8_t* v4) {
   // weft_emitc.route_source_op=weft_scalar.tq2_0_q8_k_vec_dot role=compute op_interface=WEFTEmitCLowerableOpInterface

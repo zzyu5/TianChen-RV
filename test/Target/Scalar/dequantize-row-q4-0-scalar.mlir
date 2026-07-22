@@ -1,13 +1,13 @@
 // RUN: weft-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | diff %S/dequantize-row-q4-0-scalar.golden.c -
 // RUN: sed 's/id = "scalar.fallback"/id = "scalar.other"/' %s | not weft-translate --weft-scalar-emitc-to-cpp 2>&1 | FileCheck %s --check-prefix=MISSING-CAPABILITY
 
 // X-SCALAR family #4: a REAL 4-bit nibble dequantize scalar fallback kernel. A
-// hand-written portable-scalar weft_scalar.dequantize_row_q4_0 boundary flows
-// through the generic capability/variant planning passes and then the scalar
-// backend emission driver lowers it to a standalone EmitC module that the
+// portable-scalar weft_scalar.dequantize_row_q4_0 source problem is bound to an
+// explicit family variant; Scalar formula construction consumes it and creates
+// a distinct packed_affine_dequant_body. The scalar backend emission driver
+// lowers only that final body to a standalone EmitC module that the
 // --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
 // `dequantize_row_q4_0` block expansion as nested C loops. NO __riscv_
 // intrinsics, NO XOR-popcount codebook, NO vector machinery -- each packed byte
@@ -16,10 +16,9 @@
 //
 // The construction is typed-input-driven, NOT vacuous: the family formula
 // consumes source_kernel + selected_variant and the canonical q4_0 block facts
-// (qk=32, stride 18, offsets 0/2), then records the complete final computation
-// plan, including qk/2=16 and the nibble decode constants. The emitter only
-// materializes that plan. The negative scalar-formula-plan tests prove that a
-// noncanonical input or a partial/forged final plan fails closed.
+// (qk=32, stride 18, offsets 0/2), then constructs the typed mechanism body,
+// including qk/2=16 and the nibble decode constants. The emitter cannot match
+// the source op and only projects the final body's defined semantics.
 //
 // The last RUN is a strict byte-exact gate versus the captured golden C (the
 // ggml scalar q4_0 reference), sibling dequantize-row-q4-0-scalar.golden.c.
@@ -31,11 +30,16 @@
 
 // HELP: --weft-scalar-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter
-// MISSING-CAPABILITY: scalar direct construction requires available canonical capability id 'scalar.fallback'
+// MISSING-CAPABILITY: materialized scalar fallback variant requires an available capability id 'scalar.fallback'
 
 module {
   weft.exec.kernel @q4_0_dequant_kernel {
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_fallback_first_slice attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
     weft_scalar.dequantize_row_q4_0 {
       source_kernel = "q4_0_dequant_kernel",
       selected_variant = @scalar_fallback_first_slice,

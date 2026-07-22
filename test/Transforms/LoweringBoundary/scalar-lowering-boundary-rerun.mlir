@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s
 
 module {
   weft.exec.kernel @scalar_boundary_deleted {
@@ -15,7 +15,7 @@ module {
     } {
     }
     weft.exec.diagnostic {
-      message = "scalar fallback direct selected path is unsupported",
+      message = "scalar fallback direct selected path has no source problem",
       reason = "variant-selected",
       selection_kind = "static-variant",
       severity = "note",
@@ -25,6 +25,6 @@ module {
   }
 }
 
-// CHECK: Weft-RV selected lowering-boundary materialization failed
-// CHECK-SAME: origin plugin 'scalar-plugin' reported unsupported lowering-boundary materialization
-// CHECK-SAME: no longer materializes a legacy metadata selected lowering boundary
+// CHECK: weft.exec.kernel @scalar_boundary_deleted
+// CHECK: weft.exec.variant @scalar_fallback_first_slice
+// CHECK-NOT: weft_scalar.lowering_boundary

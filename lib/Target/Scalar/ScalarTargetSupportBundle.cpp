@@ -3,7 +3,6 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
-#include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -16,6 +15,12 @@
 
 namespace weft::target::scalar_ext {
 namespace {
+
+constexpr llvm::StringLiteral kScalarEmitCToCppRouteID(
+    "weft-scalar-emitc-to-cpp");
+constexpr llvm::StringLiteral kScalarEmitCToCppRouteDescription(
+    "export the selected portable-scalar materialized EmitC module through "
+    "the MLIR EmitC C/C++ emitter");
 
 llvm::Error makeScalarTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -73,17 +78,15 @@ llvm::Error exportScalarEmitCToCpp(mlir::ModuleOp module,
 } // namespace
 
 llvm::StringRef getScalarEmitCToCppTranslateRouteID() {
-  return plugin::scalar::getScalarEmitCConstructionRoute().translateRouteID;
+  return kScalarEmitCToCppRouteID;
 }
 
 llvm::Error registerScalarTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  const plugin::scalar::ScalarEmitCConstructionRoute &route =
-      plugin::scalar::getScalarEmitCConstructionRoute();
-  if (registry.lookup(route.translateRouteID))
+  if (registry.lookup(kScalarEmitCToCppRouteID))
     return llvm::Error::success();
   return registry.registerRoute(TargetTranslateRoute(
-      route.translateRouteID, route.translateRouteDescription,
+      kScalarEmitCToCppRouteID, kScalarEmitCToCppRouteDescription,
       exportScalarEmitCToCpp));
 }
 
