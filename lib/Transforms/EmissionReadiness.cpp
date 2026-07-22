@@ -64,6 +64,7 @@ constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
 using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::FamilyConstructionResult;
 using weft::plugin::VariantEmissionPlan;
 using weft::plugin::VariantEmissionRequest;
 using weft::plugin::VariantEmissionRole;
@@ -184,6 +185,37 @@ llvm::Error routeVariantEmissionPlan(
     plan.setLoweringBoundaryOpName(
         loweringBoundary->getName().getStringRef());
   out.push_back(plan);
+  return llvm::Error::success();
+}
+
+llvm::Error constructEmissionReferences(
+    KernelOp kernel, llvm::ArrayRef<EmissionReference> references,
+    const ExtensionPluginRegistry &registry, llvm::StringRef consumer) {
+  auto module = kernel ? kernel->getParentOfType<mlir::ModuleOp>()
+                       : mlir::ModuleOp();
+  if (!module)
+    return makeEmissionPathError(
+        kernel, "family construction requires an enclosing module");
+
+  for (const EmissionReference &reference : references) {
+    FamilyConstructionResult result;
+    if (llvm::Error error = registry.constructFormulaPlansForVariant(
+            module, reference.variant, result, reference.role)) {
+      VariantOp variant = reference.variant;
+      std::string cause = llvm::toString(std::move(error));
+      return makeEmissionPathError(
+          kernel,
+          llvm::Twine(consumer) +
+              " failed during family construction for variant @" +
+              (variant ? variant.getSymName() : llvm::StringRef("<missing>")) +
+              " as " +
+              weft::plugin::stringifyVariantEmissionRole(reference.role) +
+              ": " + cause);
+    }
+    // Unsupported is a complete, explicit construction outcome. Emission
+    // readiness/plan routing below owns the corresponding fail-closed
+    // diagnostic; no fake body is invented here.
+  }
   return llvm::Error::success();
 }
 
@@ -1154,13 +1186,6 @@ public:
                                                         : other.registry) {}
 
   void runOnOperation() override {
-    if (llvm::Error error = registry->constructFormulaPlans(getOperation())) {
-      getOperation()->emitError()
-          << "formula construction failed before emission planning: "
-          << llvm::toString(std::move(error));
-      signalPassFailure();
-      return;
-    }
     llvm::SmallVector<KernelOp, 4> kernels;
     getOperation()->walk([&](KernelOp kernel) { kernels.push_back(kernel); });
 
@@ -1211,6 +1236,10 @@ llvm::Error checkKernelEmissionPaths(
   if (llvm::Error error = collectKernelEmissionReferences(kernel, references))
     return error;
   if (llvm::Error error =
+          constructEmissionReferences(kernel, references, registry,
+                                      "variant emission readiness check"))
+    return error;
+  if (llvm::Error error =
           validateSelectedLoweringBoundaries(kernel, references, capabilities,
                                              registry))
     return error;
@@ -1243,6 +1272,10 @@ llvm::Error collectKernelEmissionPlans(
     const ExtensionPluginRegistry &registry) {
   llvm::SmallVector<EmissionReference, 4> references;
   if (llvm::Error error = collectKernelEmissionReferences(kernel, references))
+    return error;
+  if (llvm::Error error =
+          constructEmissionReferences(kernel, references, registry,
+                                      "variant emission plan collection"))
     return error;
   if (llvm::Error error =
           validateSelectedLoweringBoundaries(kernel, references, capabilities,

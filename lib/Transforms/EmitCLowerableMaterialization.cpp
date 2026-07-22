@@ -255,13 +255,18 @@ private:
     // Bind P=(S,g,omega) to this selected variant's origin family and finish
     // its typed final body before choosing any artifact projection.  The
     // backend registry below is intentionally construction-blind.
-    if (llvm::Error error =
-            registry->constructFormulaPlansForVariant(module,
-                                                      target->variant))
+    plugin::FamilyConstructionResult construction;
+    if (llvm::Error error = registry->constructFormulaPlansForVariant(
+            module, target->variant, construction))
       return makeEmitCMaterializationPassError(
           llvm::Twine("selected family construction failed before EmitC "
                       "artifact projection: ") +
           llvm::toString(std::move(error)));
+    if (!construction.hasFinalBody())
+      return makeEmitCMaterializationPassError(
+          llvm::Twine("selected family construction is unsupported before "
+                      "EmitC artifact projection: ") +
+          construction.getReason());
 
     // Stage 3 换心 decouple (PATH R, emitc-lowerable-route materialization).
     // Attempt the real typed-body->emitc DialectConversion on a CLONE of the

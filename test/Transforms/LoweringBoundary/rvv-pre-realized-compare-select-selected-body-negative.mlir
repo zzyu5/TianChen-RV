@@ -162,7 +162,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{pre-realized RVV selected body must not be mixed with an already realized setvl/with_vl body before route construction}}
+  // expected-error@+1 {{family construction found both pre-realized and final RVV bodies}}
   weft.exec.kernel @pre_realized_cmp_select_reject_mixed_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}

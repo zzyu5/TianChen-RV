@@ -28,8 +28,8 @@ public:
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;
   llvm::Error constructFormulaPlans(
-      const FamilyConstructionRequest &request) const override;
-  bool hasConstructedFinalBody(weft::exec::VariantOp variant) const override;
+      const FamilyConstructionRequest &request,
+      FamilyConstructionResult &out) const override;
   void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;
@@ -52,6 +52,8 @@ public:
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const override;
+  llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const override;
   llvm::Error
   configureTargetSupportExtensionBundle(ExtensionBundle &bundle)
       const override;

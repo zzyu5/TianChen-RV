@@ -561,12 +561,24 @@ module {
 
   LoweringBoundaryOp offloadBoundary =
       findOffloadBoundary(kernel, offloadVariant.getSymName());
-  if (int result =
-          expect(!offloadBoundary,
-                 "offload selected path does not materialize a route boundary"))
+  if (int result = expect(
+          offloadBoundary &&
+              offloadBoundary.getSourceKernel() == kernel.getSymName() &&
+              offloadBoundary.getOrigin() ==
+                  weft::plugin::offload::getOffloadExtensionPluginName() &&
+              offloadBoundary.getRole() == "direct variant" &&
+              offloadBoundary.getStatus() == "no-active-route" &&
+              offloadBoundary.getRuntimeAbi() ==
+                  weft::plugin::offload::getOffloadExpectedRuntimeABI() &&
+              offloadBoundary.getHandoffKind() == "runtime-offload" &&
+              offloadBoundary.getHandoffReason().has_value() &&
+              offloadBoundary.getHandoffReason()->contains(
+                  "no executable external implementation"),
+          "offload family construction materializes a typed, explicitly "
+          "non-executable delegation plan"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "offload no-boundary module verifies"))
+                          "offload delegation-plan module verifies"))
     return result;
 
   VariantEmissionStatus status;
@@ -608,11 +620,27 @@ module {
                  "route"))
     return result;
 
-  if (int result = expectErrorContains(
+  if (int result = expectSuccess(
           weft::transforms::materializeKernelEmissionPlanDiagnostics(
               kernel, capabilities, registry),
-          {"requires one materialized plugin lowering boundary",
-           "before emission planning"}))
+          "materialize fail-closed offload emission diagnostic"))
+    return result;
+  bool foundUnsupportedOffloadPlan = false;
+  kernel.walk([&](DiagnosticOp diagnostic) {
+    auto reason =
+        diagnostic->getAttrOfType<mlir::StringAttr>("reason");
+    auto status =
+        diagnostic->getAttrOfType<mlir::StringAttr>("status");
+    auto target = diagnostic->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
+    if (reason && reason.getValue() == "emission_plan" && status &&
+        status.getValue() == "unsupported" && target &&
+        target.getValue() == offloadVariant.getSymName())
+      foundUnsupportedOffloadPlan = true;
+  });
+  if (int result = expect(
+          foundUnsupportedOffloadPlan,
+          "offload delegation plan routes to an explicit unsupported "
+          "emission diagnostic"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
                           "offload emission-plan module verifies"))

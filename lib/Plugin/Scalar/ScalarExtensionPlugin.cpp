@@ -138,19 +138,17 @@ void ScalarExtensionPlugin::registerDialects(
 }
 
 llvm::Error ScalarExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &request) const {
-  if (mlir::succeeded(
-          scalar::constructScalarFinalPlans(request.getModule())))
-    return llvm::Error::success();
-  return makeScalarPluginError(
-      "artifact-neutral Scalar final-plan construction failed");
-}
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  if (mlir::failed(scalar::constructScalarFinalPlans(request.getModule())))
+    return makeScalarPluginError(
+        "artifact-neutral Scalar final-plan construction failed");
 
-bool ScalarExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp variant) const {
+  weft::exec::VariantOp variant = request.getVariant();
   auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
   if (!kernel)
-    return false;
+    return makeScalarPluginError(
+        "scalar construction requires an enclosing kernel");
   bool found = false;
   kernel.walk([&](mlir::Operation *op) {
     if (llvm::isa<weft::scalar::ComputeSkeletonOp,
@@ -159,7 +157,12 @@ bool ScalarExtensionPlugin::hasConstructedFinalBody(
         isOperationSelectedForVariant(op, variant))
       found = true;
   });
-  return found;
+  out = found
+            ? FamilyConstructionResult::getFinalBody()
+            : FamilyConstructionResult::getUnsupported(
+                  "scalar fallback variant has no typed source problem/body; "
+                  "no computation is invented");
+  return llvm::Error::success();
 }
 
 void ScalarExtensionPlugin::collectFormulaDescriptors(

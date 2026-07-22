@@ -1,8 +1,8 @@
-// RUN: not weft-opt %s --split-input-file --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: weft-opt %s --split-input-file --weft-materialize-emitc-lowerable-routes | FileCheck %s
 
-// Pre-realized RVV selected bodies must pass through the public selected
-// lowering-boundary materialization producer before provider route
-// construction. The retired direct route-entry fallback must fail closed here.
+// A pre-realized RVV source body is an input to family construction.  The
+// family realizes its final setvl/with_vl body before the construction-blind
+// EmitC backend consumes it; no route/provider fallback participates.
 
 module {
   weft.exec.kernel @pre_route_add_kernel {
@@ -17,5 +17,8 @@ module {
   }
 }
 
-// CHECK: bound family construction for origin 'rvv-plugin' produced no family-typed final body in variant @rvv_pre_route_add
-// CHECK-NOT: emitc.func
+// CHECK-LABEL: emitc.func @weft_emitc_pre_route_add_kernel_rvv_pre_route_add
+// CHECK: call_opaque "__riscv_vsetvl_e32m1"
+// CHECK: call_opaque "__riscv_vadd_vv_i32m1"
+// CHECK: call_opaque "__riscv_vse32_v_i32m1"
+// CHECK-NOT: typed_binary_pre_realized_body

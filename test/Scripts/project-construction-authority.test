@@ -1,10 +1,9 @@
-# Family construction is a required plugin contract.  There is no successful
-# base implementation, while every current plugin makes an explicit choice
-# (Offload explicitly reports no final body).
+# Family construction is a required plugin contract. There is no successful
+# base implementation, while every current plugin returns an explicit
+# FinalBody/Unsupported lifecycle outcome from the same bound request.
 # RUN: sed -n '/ExtensionPlugin::constructFormulaPlans/,/^}/p' %S/../../lib/Plugin/ExtensionPlugin.cpp | FileCheck %s --check-prefix=FAIL-CLOSED-BASE
-# RUN: sed -n '/ExtensionPlugin::hasConstructedFinalBody/,/^}/p' %S/../../lib/Plugin/ExtensionPlugin.cpp | FileCheck %s --check-prefix=NO-BODY-BASE
 # RUN: rg -l 'ExtensionPlugin::constructFormulaPlans\(' %S/../../lib/Plugin/*/*ExtensionPlugin.cpp | wc -l | FileCheck %s --check-prefix=PLUGIN-COUNT
-# RUN: rg -l 'ExtensionPlugin::hasConstructedFinalBody\(' %S/../../lib/Plugin/*/*ExtensionPlugin.cpp | wc -l | FileCheck %s --check-prefix=PLUGIN-COUNT
+# RUN: not rg -n 'hasConstructedFinalBody' %S/../../include %S/../../lib
 
 # EmitC drivers are artifact consumers only.  The retired construction hook and
 # backend-owned formula inventory must not return anywhere in production code.
@@ -18,7 +17,7 @@
 # The selected-variant materialization path binds origin/capabilities and runs
 # construction before entering the construction-blind artifact registry.
 # RUN: sed -n '/llvm::Error runMaterialization/,/ExtensionPluginRegistry ownedRegistry/p' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp | FileCheck %s --check-prefix=BOUND-ORDER
-# RUN: rg -n 'registry->constructFormulaPlans\(getOperation\(\)\)' %S/../../lib/Transforms/EmissionReadiness.cpp | FileCheck %s --check-prefix=PIPELINE-CONSTRUCTION
+# RUN: rg -n 'constructEmissionReferences\(kernel, references, registry,' %S/../../lib/Transforms/EmissionReadiness.cpp | FileCheck %s --check-prefix=PIPELINE-CONSTRUCTION
 # RUN: sed -n '/^materializeSelectedEmitCArtifactModule(/,/^}/p' %S/../../lib/Target/TargetArtifactExport.cpp | FileCheck %s --check-prefix=TARGET-ORDER
 # RUN: sed -n '/exportScalarEmitCToCpp/,/^}/p' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=SCALAR-TRANSLATE-ORDER
 # RUN: sed -n '/bool convertRVVModuleToEmitC/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-DIRECT-ORDER
@@ -49,13 +48,12 @@
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)'
 
 # FAIL-CLOSED-BASE: extension plugin has no artifact-neutral construction implementation
-# NO-BODY-BASE: return false
 # PLUGIN-COUNT: 8
 # ONE-CONVERSION: lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp:{{[0-9]+}}:          mlir::applyPartialConversion
 # ONE-CONVERSION-COUNT: 1
 # BOUND-ORDER: constructFormulaPlansForVariant
 # BOUND-ORDER: tryConvertConstructedModuleWithRegisteredBackend
-# PIPELINE-CONSTRUCTION: registry->constructFormulaPlans(getOperation())
+# PIPELINE-CONSTRUCTION: constructEmissionReferences(kernel, references, registry,
 # TARGET-ORDER: constructFormulaPlansForVariant
 # TARGET-ORDER: tryConvertConstructedModuleWithRegisteredBackend
 # SCALAR-TRANSLATE-ORDER: constructScalarFinalPlans

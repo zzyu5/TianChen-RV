@@ -1,4 +1,7 @@
-// RUN: not weft-opt %s --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
+// RUN: weft-opt %s --weft-materialize-emitc-lowerable-routes | FileCheck %s
+
+// The input deliberately omits the typed compute body.  Family construction
+// must rebuild it before the construction-blind EmitC backend consumes it.
 
 module {
   weft.exec.kernel @template_missing_compute_boundary {
@@ -26,4 +29,5 @@ module {
   }
 }
 
-// CHECK: bound family construction for origin 'template-plugin' produced no family-typed final body in variant @template_zero_core_first_slice
+// CHECK-LABEL: emitc.func @weft_emitc_template_missing_compute_boundary_template_zero_core_first_slice
+// CHECK: call_opaque "weft_template_compute_skeleton"

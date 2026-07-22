@@ -262,6 +262,18 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
 
 mlir::Operation *materializeTemplateComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
+  llvm::StringRef expectedRole =
+      stringifyVariantEmissionRole(request.getRole());
+  if (!request.getKernel().getBody().empty()) {
+    for (mlir::Operation &op : request.getKernel().getBody().front()) {
+      auto body = llvm::dyn_cast<weft::template_ext::ComputeSkeletonOp>(op);
+      auto role = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+      if (body && role && role.getValue() == expectedRole &&
+          isOperationSelectedForVariant(&op, request.getVariant()))
+        return &op;
+    }
+  }
+
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::MLIRContext *context = builder.getContext();
   weft::exec::VariantOp variant = request.getVariant();
@@ -364,25 +376,21 @@ void TemplateExtensionPlugin::registerDialects(
 }
 
 llvm::Error TemplateExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &request) const {
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  mlir::OpBuilder builder(request.getModule().getContext());
+  builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
+  VariantLoweringBoundaryRequest bodyRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), builder);
+  (void)materializeTemplateComputeSkeletonBoundary(bodyRequest);
   if (mlir::succeeded(
-          template_ext::constructTemplateFinalBody(request.getModule())))
+          template_ext::constructTemplateFinalBody(request.getModule()))) {
+    out = FamilyConstructionResult::getFinalBody();
     return llvm::Error::success();
+  }
   return makeTemplatePluginError(
       "artifact-neutral Template final-body construction failed");
-}
-
-bool TemplateExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp variant) const {
-  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return false;
-  bool found = false;
-  kernel.walk([&](weft::template_ext::ComputeSkeletonOp body) {
-    if (isOperationSelectedForVariant(body.getOperation(), variant))
-      found = true;
-  });
-  return found;
 }
 
 void TemplateExtensionPlugin::collectFormulaDescriptors(

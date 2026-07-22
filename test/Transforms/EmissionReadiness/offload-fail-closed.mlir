@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --split-input-file --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans | FileCheck %s --check-prefix=CHECK
 
 module {
   weft.exec.kernel @offload_selected_missing_boundary {
@@ -27,12 +27,19 @@ module {
   }
 }
 
-// CHECK: selected lowering-boundary validation failed before plugin emission routing
-// CHECK-SAME: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary
+// CHECK-LABEL: weft.exec.kernel @offload_selected_missing_boundary
+// CHECK: weft_offload.lowering_boundary
+// CHECK-SAME: handoff_reason = "family-constructed delegation plan; no executable external implementation is currently bound"
+// CHECK-SAME: selected_variant = @offload_runtime_first_slice
+// CHECK-SAME: status = "no-active-route"
+// CHECK: weft.exec.diagnostic
+// CHECK-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
+// CHECK-SAME: status = "unsupported"
 
 // -----
 
 module {
+  // expected-error@+1 {{bound family construction for origin 'offload-plugin' rejected selected variant legality: Weft-RV runtime-offload extension plugin first slice failed: materialized runtime-offload variant @offload_runtime_first_slice requires non-empty string 'weft_offload.runtime_abi' metadata}}
   weft.exec.kernel @offload_selected_missing_runtime_abi {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -68,12 +75,10 @@ module {
   }
 }
 
-// CHECK: selected runtime-offload variant @offload_runtime_first_slice failed plugin legality before emission planning
-// CHECK-SAME: weft_offload.runtime_abi
-
 // -----
 
 module {
+  // expected-error@+1 {{bound family construction for origin 'offload-plugin' rejected selected variant legality: Weft-RV runtime-offload extension plugin first slice failed: capability id 'offload.runtime' kind must be 'runtime-offload'}}
   weft.exec.kernel @offload_custom_isa_misclassification {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -110,12 +115,10 @@ module {
   }
 }
 
-// CHECK: selected runtime-offload variant @offload_runtime_first_slice failed plugin legality before emission planning
-// CHECK-SAME: kind must be 'runtime-offload'
-
 // -----
 
 module {
+  // expected-error@+1 {{bound family construction cannot bind unknown origin 'offload-unregistered-plugin'}}
   weft.exec.kernel @unknown_offload_origin_generic_registry_failure {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -131,6 +134,3 @@ module {
     }
   }
 }
-
-// CHECK: formula construction failed before emission planning
-// CHECK-SAME: formula construction cannot bind unknown origin 'offload-unregistered-plugin'

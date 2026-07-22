@@ -25,7 +25,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{selected path @rvv_missing_boundary_path as direct variant requires one materialized plugin lowering boundary before emission planning}}
+  // expected-error@+1 {{bound family construction for origin 'rvv-plugin' rejected selected variant legality: Weft-RV RVV extension plugin first slice failed: materialized RVV variant requires explicit typed RVV extension-family body}}
   weft.exec.kernel @missing_rvv_boundary {
     weft.exec.capability @rvv {
       id = "rvv",

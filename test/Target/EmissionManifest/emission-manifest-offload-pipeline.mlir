@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --weft-execution-planning-pipeline 2>&1 | FileCheck %s
+// RUN: weft-opt %s --weft-execution-planning-pipeline | FileCheck %s
 
 module @offload_manifest_inputs {
   weft.exec.kernel @pipeline_offload_manifest {
@@ -51,6 +51,11 @@ module @offload_manifest_inputs {
   }
 }
 
-// CHECK: Weft-RV emission path check failed for kernel @pipeline_offload_manifest
-// CHECK-SAME: selected lowering-boundary validation failed before plugin emission routing
-// CHECK-SAME: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning
+// CHECK-LABEL: weft.exec.kernel @pipeline_offload_manifest
+// CHECK: weft_offload.lowering_boundary
+// CHECK-SAME: handoff_reason = "family-constructed delegation plan; no executable external implementation is currently bound"
+// CHECK-SAME: selected_variant = @offload_runtime_first_slice
+// CHECK-SAME: status = "no-active-route"
+// CHECK: weft.exec.diagnostic
+// CHECK-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
+// CHECK-SAME: status = "unsupported"

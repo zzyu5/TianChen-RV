@@ -39,6 +39,7 @@ constexpr llvm::StringLiteral kMatKAttrName("mat_k");
 constexpr llvm::StringLiteral kSlideAttrName("slide");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
+constexpr llvm::StringLiteral kIMEFinalPlanAttrName("weft.ime.final_plan");
 
 constexpr llvm::StringLiteral kIMEPluginName("ime-plugin");
 constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
@@ -142,7 +143,8 @@ bool isAllowedMMAAttr(llvm::StringRef attrName) {
          attrName == kIMEOpAttrName || attrName == kElemInBitsAttrName ||
          attrName == kAccumBitsAttrName || attrName == kMacMAttrName ||
          attrName == kMacNAttrName || attrName == kMacKAttrName ||
-         attrName == kAvailableHartsAttrName || attrName == kIMEReasonAttrName;
+         attrName == kAvailableHartsAttrName || attrName == kIMEReasonAttrName ||
+         attrName == kIMEFinalPlanAttrName;
 }
 
 // The tiled whole-matrix op admits the same envelope PLUS the problem dims.

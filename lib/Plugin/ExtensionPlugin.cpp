@@ -365,9 +365,10 @@ VariantLegalityRequest::VariantLegalityRequest(
 FamilyConstructionRequest::FamilyConstructionRequest(
     mlir::ModuleOp module, weft::exec::VariantOp variant,
     weft::exec::KernelOp kernel,
-    const support::TargetCapabilitySet &capabilities)
+    const support::TargetCapabilitySet &capabilities,
+    VariantEmissionRole role)
     : module(module), variant(variant), kernel(kernel),
-      capabilities(capabilities) {}
+      capabilities(capabilities), role(role) {}
 
 VariantCostRequest::VariantCostRequest(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
@@ -614,15 +615,10 @@ void ExtensionPlugin::collectFormulaDescriptors(
 }
 
 llvm::Error ExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &) const {
+    const FamilyConstructionRequest &, FamilyConstructionResult &) const {
   return llvm::createStringError(
       llvm::inconvertibleErrorCode(),
       "extension plugin has no artifact-neutral construction implementation");
-}
-
-bool ExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp) const {
-  return false;
 }
 
 llvm::Error ExtensionPlugin::proposeVariants(
@@ -1328,60 +1324,9 @@ llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
   return llvm::Error::success();
 }
 
-llvm::Error
-ExtensionPluginRegistry::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (!module)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "formula construction requires a module");
-
-  // Bind every materialized variant explicitly. Family construction remains
-  // responsible for idempotence when several variants share one module; the
-  // registry never collapses distinct g/c bindings into one representative.
-  llvm::SmallVector<weft::exec::VariantOp, 8> variants;
-  module.walk([&](weft::exec::VariantOp variant) { variants.push_back(variant); });
-  for (weft::exec::VariantOp variant : variants) {
-    auto originAttr =
-        variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-    if (!originAttr || originAttr.getValue().trim().empty())
-      return makePluginRegistryError(
-          llvm::Twine("formula construction requires variant @") +
-          variant.getSymName() + " to name a non-empty origin family");
-    llvm::StringRef origin = originAttr.getValue();
-    const ExtensionPlugin *plugin = lookupPlugin(origin);
-    if (!plugin)
-      return makePluginRegistryError(
-          llvm::Twine("formula construction cannot bind unknown origin '") +
-          origin + "'");
-    if (!plugin->isEnabled())
-      return makePluginRegistryError(
-          llvm::Twine("formula construction cannot bind disabled origin '") +
-          origin + "'");
-
-    auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
-    if (!kernel)
-      return makePluginRegistryError(
-          llvm::Twine("formula construction requires variant @") +
-          variant.getSymName() + " to have an enclosing kernel");
-    llvm::Expected<support::TargetCapabilitySet> capabilities =
-        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-    if (!capabilities)
-      return makePluginRegistryError(
-          llvm::Twine("formula construction for origin '") + origin +
-          "' rejected target/profile capability projection: " +
-          llvm::toString(capabilities.takeError()));
-    FamilyConstructionRequest request(module, variant, kernel, *capabilities);
-    if (llvm::Error error = plugin->constructFormulaPlans(request))
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(),
-          "plugin '%s' formula construction failed: %s",
-          plugin->getName().str().c_str(),
-          llvm::toString(std::move(error)).c_str());
-  }
-  return llvm::Error::success();
-}
-
 llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
-    mlir::ModuleOp module, weft::exec::VariantOp variant) const {
+    mlir::ModuleOp module, weft::exec::VariantOp variant,
+    FamilyConstructionResult &out, VariantEmissionRole role) const {
   if (!module || !variant)
     return makePluginRegistryError(
         "bound family construction requires a module and selected variant");
@@ -1429,16 +1374,21 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
         "' rejected selected variant legality: " +
         llvm::toString(std::move(error)));
 
-  FamilyConstructionRequest request(module, variant, kernel, *capabilities);
-  if (llvm::Error error = plugin->constructFormulaPlans(request))
+  FamilyConstructionRequest request(module, variant, kernel, *capabilities,
+                                    role);
+  out = FamilyConstructionResult();
+  if (llvm::Error error = plugin->constructFormulaPlans(request, out))
     return makePluginRegistryError(
         llvm::Twine("bound family construction for origin '") + origin +
         "' failed: " + llvm::toString(std::move(error)));
-  if (!plugin->hasConstructedFinalBody(variant))
+  if (!out.hasStatus())
     return makePluginRegistryError(
         llvm::Twine("bound family construction for origin '") + origin +
-        "' produced no family-typed final body in variant @" +
-        variant.getSymName());
+        "' returned no lifecycle outcome");
+  if (out.isUnsupported() && out.getReason().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' returned unsupported without a reason");
   return llvm::Error::success();
 }
 

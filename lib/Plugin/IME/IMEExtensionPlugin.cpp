@@ -557,6 +557,29 @@ llvm::StringRef singleFragmentBoundaryOpForVariant(weft::exec::VariantOp variant
   return weft::ime::MMAOp::getOperationName();
 }
 
+mlir::Operation *findSelectedIMEFinalBody(weft::exec::VariantOp variant) {
+  if (!variant)
+    return nullptr;
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return nullptr;
+
+  mlir::Operation *found = nullptr;
+  kernel.walk([&](mlir::Operation *op) {
+    if (llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
+                  weft::ime::MMASUOp, weft::ime::MMAUSOp,
+                  weft::ime::MMASlideOp, weft::ime::MatMulOp,
+                  weft::ime::Q40MatMulTileOp, weft::ime::Q80MatMulTileOp,
+                  weft::ime::Q4KMatMulTileOp>(op) &&
+        isOperationSelectedForVariant(op, variant)) {
+      found = op;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return found;
+}
+
 llvm::Expected<VariantProposal>
 buildIMEProposal(const VariantProposalRequest &request) {
   const support::CapabilityDescriptor *capability =
@@ -700,17 +723,25 @@ void IMEExtensionPlugin::registerDialects(
 }
 
 llvm::Error IMEExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &request) const {
-  if (mlir::succeeded(constructIMEFormulaPlans(request.getModule())))
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  if (!findSelectedIMEFinalBody(request.getVariant())) {
+    mlir::OpBuilder builder(request.getModule().getContext());
+    builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
+    VariantLoweringBoundaryRequest bodyRequest(
+        request.getVariant(), request.getKernel(), request.getCapabilities(),
+        request.getRole(), builder);
+    VariantLoweringBoundaryResult bodyResult;
+    if (llvm::Error error = constructSelectedFinalBody(bodyRequest, bodyResult))
+      return error;
+  }
+  if (mlir::succeeded(constructIMEFormulaPlans(request.getModule()))) {
+    out = FamilyConstructionResult::getFinalBody();
     return llvm::Error::success();
+  }
   return llvm::createStringError(
       llvm::inconvertibleErrorCode(),
       "IME formula-construction cut rejected the module");
-}
-
-bool IMEExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp variant) const {
-  return hasIMEConstructedFinalBody(variant);
 }
 
 void IMEExtensionPlugin::collectFormulaDescriptors(
@@ -1027,7 +1058,7 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
   return llvm::Error::success();
 }
 
-llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
+llvm::Error IMEExtensionPlugin::constructSelectedFinalBody(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out) const {
   weft::exec::VariantOp variant = request.getVariant();
@@ -1581,6 +1612,26 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   out = VariantLoweringBoundaryResult::getMaterialized(
       kIMEPluginName, kernel.getSymName(), variant.getSymName(),
       request.getRole(), boundary);
+  return llvm::Error::success();
+}
+
+llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
+    const VariantLoweringBoundaryRequest &request,
+    VariantLoweringBoundaryResult &out) const {
+  mlir::Operation *body = findSelectedIMEFinalBody(request.getVariant());
+  if (!body)
+    return makeIMEPluginError(
+        "selected IME final body was not produced by family construction");
+
+  VariantLoweringBoundaryValidationRequest validationRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), body);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))
+    return error;
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
+      kIMEPluginName, request.getKernel().getSymName(),
+      request.getVariant().getSymName(), request.getRole(), body);
   return llvm::Error::success();
 }
 

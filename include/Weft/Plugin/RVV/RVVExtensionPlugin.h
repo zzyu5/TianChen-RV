@@ -31,8 +31,8 @@ public:
   void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const override;
   llvm::Error constructFormulaPlans(
-      const FamilyConstructionRequest &request) const override;
-  bool hasConstructedFinalBody(weft::exec::VariantOp variant) const override;
+      const FamilyConstructionRequest &request,
+      FamilyConstructionResult &out) const override;
   llvm::Error registerSourceFrontDoorPasses(
       const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;

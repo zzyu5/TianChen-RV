@@ -1,9 +1,13 @@
-// RUN: not weft-opt %s --split-input-file --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE
+// RUN: weft-opt %s --split-input-file --weft-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
 
 module {
-  // PIPE: Weft-RV emission path check failed for kernel @pipeline_offload_plus_scalar
-  // PIPE-SAME: selected lowering-boundary validation failed before plugin emission routing
-  // PIPE-SAME: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning
+  // PIPE-LABEL: weft.exec.kernel @pipeline_offload_plus_scalar
+  // PIPE: weft_offload.lowering_boundary
+  // PIPE-SAME: selected_variant = @offload_runtime_first_slice
+  // PIPE-SAME: status = "no-active-route"
+  // PIPE: weft.exec.diagnostic
+  // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
+  // PIPE-SAME: status = "unsupported"
   weft.exec.kernel @pipeline_offload_plus_scalar {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -58,9 +62,13 @@ module {
 // -----
 
 module {
-  // PIPE: Weft-RV emission path check failed for kernel @pipeline_profile_offload_plus_scalar
-  // PIPE-SAME: selected lowering-boundary validation failed before plugin emission routing
-  // PIPE-SAME: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning
+  // PIPE-LABEL: weft.exec.kernel @pipeline_profile_offload_plus_scalar
+  // PIPE: weft_offload.lowering_boundary
+  // PIPE-SAME: selected_variant = @offload_runtime_first_slice
+  // PIPE-SAME: status = "no-active-route"
+  // PIPE: weft.exec.diagnostic
+  // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
+  // PIPE-SAME: status = "unsupported"
   weft.exec.target @module_offload_scalar_profile {
     id = "profile.offload.scalar",
     target_kind = "profile",

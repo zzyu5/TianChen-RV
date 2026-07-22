@@ -24,5 +24,6 @@ module {
 }
 
 // CHECK: Weft-RV selected lowering-boundary materialization failed
-// CHECK-SAME: origin plugin 'rvv-plugin' failed lowering-boundary materialization
-// CHECK: materialized RVV variant requires explicit typed RVV extension-family body
+// CHECK-SAME: family construction failed before selected body exposure
+// CHECK-SAME: rejected selected variant legality
+// CHECK-SAME: materialized RVV variant requires explicit typed RVV extension-family body

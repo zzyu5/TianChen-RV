@@ -1,4 +1,7 @@
-// RUN: not weft-opt %s --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
+// RUN: weft-opt %s --weft-materialize-emitc-lowerable-routes | FileCheck %s
+
+// The source variant contains no role sequence.  Family construction rebuilds
+// the complete typed sequence before the EmitC backend projects it.
 
 module {
   weft.exec.kernel @tensorext_lite_missing_body {
@@ -26,4 +29,8 @@ module {
   }
 }
 
-// CHECK: bound family construction for origin 'tensorext-lite-plugin' produced no family-typed final body in variant @tensorext_lite_tile_mma_first_slice
+// CHECK-LABEL: emitc.func @weft_emitc_tensorext_lite_missing_body_tensorext_lite_tile_mma_first_slice
+// CHECK: call_opaque "weft_tensorext_lite_config"
+// CHECK: call_opaque "weft_tensorext_lite_load_frag"
+// CHECK: call_opaque "weft_tensorext_lite_tile_mma"
+// CHECK: call_opaque "weft_tensorext_lite_store_frag"

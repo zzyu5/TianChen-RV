@@ -289,6 +289,18 @@ const toy::ToyExtensionPlugin &getBuiltinToyExtensionPlugin() {
 
 mlir::Operation *materializeToyComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
+  llvm::StringRef expectedRole =
+      stringifyVariantEmissionRole(request.getRole());
+  if (!request.getKernel().getBody().empty()) {
+    for (mlir::Operation &op : request.getKernel().getBody().front()) {
+      auto body = llvm::dyn_cast<weft::toy::ComputeSkeletonOp>(op);
+      auto role = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+      if (body && role && role.getValue() == expectedRole &&
+          isOperationSelectedForVariant(&op, request.getVariant()))
+        return &op;
+    }
+  }
+
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::MLIRContext *context = builder.getContext();
   weft::exec::VariantOp variant = request.getVariant();
@@ -383,24 +395,20 @@ void ToyExtensionPlugin::registerDialects(
 }
 
 llvm::Error ToyExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &request) const {
-  if (mlir::succeeded(toy::constructToyFinalBody(request.getModule())))
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  mlir::OpBuilder builder(request.getModule().getContext());
+  builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
+  VariantLoweringBoundaryRequest bodyRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), builder);
+  (void)materializeToyComputeSkeletonBoundary(bodyRequest);
+  if (mlir::succeeded(toy::constructToyFinalBody(request.getModule()))) {
+    out = FamilyConstructionResult::getFinalBody();
     return llvm::Error::success();
+  }
   return makeToyPluginError(
       "artifact-neutral Toy final-body construction failed");
-}
-
-bool ToyExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp variant) const {
-  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return false;
-  bool found = false;
-  kernel.walk([&](weft::toy::ComputeSkeletonOp body) {
-    if (isOperationSelectedForVariant(body.getOperation(), variant))
-      found = true;
-  });
-  return found;
 }
 
 void ToyExtensionPlugin::collectFormulaDescriptors(

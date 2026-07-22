@@ -461,25 +461,41 @@ void RVVExtensionPlugin::registerDialects(
 }
 
 llvm::Error RVVExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &request) const {
-  if (mlir::succeeded(constructRVVFormulaBodies(request.getModule())))
-    return llvm::Error::success();
-  return llvm::createStringError(
-      llvm::inconvertibleErrorCode(),
-      "RVV formula-construction cut rejected the module");
-}
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  if (mlir::failed(constructRVVFormulaBodies(request.getModule())))
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "RVV formula-construction cut rejected the module");
 
-bool RVVExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp variant) const {
-  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return false;
-  bool found = false;
-  kernel.walk([&](weft::rvv::WithVLOp body) {
-    if (isOperationSelectedForVariant(body.getOperation(), variant))
-      found = true;
-  });
-  return found;
+  llvm::Expected<weft::rvv::WithVLOp> boundary =
+      findSelectedRVVSelectedBodyBoundary(request.getVariant());
+  bool hasPreRealizedBody =
+      variantContainsPreRealizedRVVSelectedBody(request.getVariant());
+  if (boundary) {
+    if (hasPreRealizedBody)
+      return makeRVVPluginError(
+          "family construction found both pre-realized and final RVV bodies");
+    out = FamilyConstructionResult::getFinalBody();
+    return llvm::Error::success();
+  }
+
+  llvm::Error boundaryError = boundary.takeError();
+  if (!hasPreRealizedBody)
+    return boundaryError;
+  llvm::consumeError(std::move(boundaryError));
+
+  mlir::OpBuilder builder(request.getModule().getContext());
+  builder.setInsertionPointToEnd(&request.getVariant().getBody().front());
+  VariantLoweringBoundaryRequest bodyRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), builder);
+  llvm::Expected<weft::rvv::WithVLOp> realized =
+      realizePreRealizedRVVSelectedBody(bodyRequest);
+  if (!realized)
+    return realized.takeError();
+  out = FamilyConstructionResult::getFinalBody();
+  return llvm::Error::success();
 }
 
 void RVVExtensionPlugin::collectFormulaDescriptors(
@@ -1159,18 +1175,11 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 
   llvm::Expected<weft::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
-  if (!boundary) {
-    llvm::Error boundaryError = boundary.takeError();
-    if (!variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
-      return boundaryError;
-    llvm::consumeError(std::move(boundaryError));
-    boundary = realizePreRealizedRVVSelectedBody(request);
-    if (!boundary)
-      return boundary.takeError();
-  } else if (variantContainsPreRealizedRVVSelectedBody(request.getVariant())) {
+  if (!boundary)
+    return boundary.takeError();
+  if (variantContainsPreRealizedRVVSelectedBody(request.getVariant())) {
     return makeRVVPluginError(
-        "pre-realized RVV selected body must not be mixed with an already "
-        "realized setvl/with_vl body before route construction");
+        "selected RVV final body exposure found a leftover pre-realized body");
   }
 
   VariantLoweringBoundaryValidationRequest validationRequest(

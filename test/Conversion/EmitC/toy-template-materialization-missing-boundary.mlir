@@ -1,4 +1,7 @@
-// RUN: not weft-opt %s --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
+// RUN: weft-opt %s --weft-materialize-emitc-lowerable-routes | FileCheck %s
+
+// The input deliberately omits the typed compute body.  It is reconstructed by
+// the Toy family, not synthesized by the artifact backend.
 
 module {
   weft.exec.kernel @toy_missing_compute_boundary {
@@ -26,4 +29,5 @@ module {
   }
 }
 
-// CHECK: bound family construction for origin 'toy-plugin' produced no family-typed final body in variant @toy_template_first_slice
+// CHECK-LABEL: emitc.func @weft_emitc_toy_missing_compute_boundary_toy_template_first_slice
+// CHECK: call_opaque "weft_toy_template_compute"

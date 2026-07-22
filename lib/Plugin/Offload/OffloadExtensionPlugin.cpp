@@ -292,6 +292,27 @@ const offload::OffloadExtensionPlugin &getBuiltinOffloadExtensionPlugin() {
   return plugin;
 }
 
+weft::offload::LoweringBoundaryOp findSelectedOffloadDelegationPlan(
+    weft::exec::VariantOp variant, VariantEmissionRole role) {
+  weft::offload::LoweringBoundaryOp found;
+  auto kernel = variant
+                    ? variant->getParentOfType<weft::exec::KernelOp>()
+                    : weft::exec::KernelOp();
+  if (!kernel)
+    return found;
+  llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
+  kernel.walk([&](weft::offload::LoweringBoundaryOp boundary) {
+    auto roleAttr = boundary->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+    if (roleAttr && roleAttr.getValue() == expectedRole &&
+        isOperationSelectedForVariant(boundary.getOperation(), variant)) {
+      found = boundary;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return found;
+}
+
 } // namespace
 
 namespace offload {
@@ -362,18 +383,55 @@ void OffloadExtensionPlugin::registerDialects(
 }
 
 llvm::Error OffloadExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &) const {
-  // Offload is deliberately a fail-closed metadata handoff placeholder in the
-  // current system.  It has no executable kernel construction family yet.
-  // Keeping this override explicit prevents the base class from silently
-  // treating absence of construction as success while still allowing planning
-  // to report the existing unsupported route diagnostic.
-  return llvm::Error::success();
-}
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  if (findSelectedOffloadDelegationPlan(request.getVariant(),
+                                        request.getRole())) {
+    out = FamilyConstructionResult::getUnsupported(
+        "offload delegation plan has no executable implementation");
+    return llvm::Error::success();
+  }
 
-bool OffloadExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp) const {
-  return false;
+  llvm::Expected<OffloadRuntimeCapabilityView> capability =
+      buildOffloadRuntimeCapabilityView(request.getCapabilities());
+  if (!capability)
+    return capability.takeError();
+  auto requires = request.getVariant()->getAttrOfType<mlir::ArrayAttr>(
+      kRequiresAttrName);
+  if (!requires || requires.empty())
+    return makeOffloadPluginError(
+        "delegation construction requires non-empty capability references");
+
+  mlir::OpBuilder builder(request.getModule().getContext());
+  builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
+  mlir::OperationState state(request.getVariant().getLoc(),
+                             weft::offload::LoweringBoundaryOp::getOperationName());
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(request.getKernel().getSymName()));
+  state.addAttribute(
+      kSelectedVariantAttrName,
+      mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                   request.getVariant().getSymName()));
+  state.addAttribute(kOriginAttrName, builder.getStringAttr(kOffloadPluginName));
+  state.addAttribute(kRoleAttrName, builder.getStringAttr(
+                                        stringifyVariantEmissionRole(
+                                            request.getRole())));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kNoActiveRouteStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
+  state.addAttribute(kRuntimeABIAttrName,
+                     builder.getStringAttr(capability->runtimeABI));
+  state.addAttribute(kHandoffKindAttrName,
+                     builder.getStringAttr(capability->handoffKind));
+  state.addAttribute(
+      "handoff_reason",
+      builder.getStringAttr(
+          "family-constructed delegation plan; no executable external "
+          "implementation is currently bound"));
+  builder.create(state);
+  out = FamilyConstructionResult::getUnsupported(
+      "offload delegation plan has no executable implementation");
+  return llvm::Error::success();
 }
 
 void OffloadExtensionPlugin::collectFormulaDescriptors(
@@ -394,6 +452,7 @@ void OffloadExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("runtime-capability-applicable");
   construction.addSemanticCase("capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
+  construction.addProductionEntry("construction:offload-delegation-plan");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(
@@ -591,10 +650,56 @@ llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  out = VariantLoweringBoundaryResult::getNoBoundary(
+  weft::offload::LoweringBoundaryOp boundary =
+      findSelectedOffloadDelegationPlan(variant, request.getRole());
+  if (!boundary)
+    return makeOffloadPluginError(
+        "selected offload delegation plan was not produced by family "
+        "construction");
+  VariantLoweringBoundaryValidationRequest validationRequest(
+      variant, kernel, request.getCapabilities(), request.getRole(),
+      boundary.getOperation());
+  if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))
+    return error;
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
       kOffloadPluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(),
-      "runtime-offload has no active selected lowering-boundary route");
+      request.getRole(), boundary.getOperation());
+  return llvm::Error::success();
+}
+
+llvm::Error OffloadExtensionPlugin::validateSelectedLoweringBoundary(
+    const VariantLoweringBoundaryValidationRequest &request) const {
+  auto boundary = llvm::dyn_cast_if_present<weft::offload::LoweringBoundaryOp>(
+      request.getBoundary());
+  if (!boundary)
+    return makeOffloadPluginError(
+        "selected offload path requires a typed delegation plan");
+  if (mlir::failed(boundary.verify()))
+    return makeOffloadPluginError("typed offload delegation plan is invalid");
+
+  auto selected = boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
+      kSelectedVariantAttrName);
+  auto source = boundary->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
+  auto origin = boundary->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  auto role = boundary->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+  auto status = boundary->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
+  if (!selected || selected.getValue() != request.getVariant().getSymName() ||
+      !source || source.getValue() != request.getKernel().getSymName() ||
+      !origin || origin.getValue() != kOffloadPluginName || !role ||
+      role.getValue() != stringifyVariantEmissionRole(request.getRole()) ||
+      !status || status.getValue() != kNoActiveRouteStatusValue)
+    return makeOffloadPluginError(
+        "typed offload delegation plan does not match its bound request");
+
+  llvm::Expected<OffloadRuntimeCapabilityView> capability =
+      buildOffloadRuntimeCapabilityView(request.getCapabilities());
+  if (!capability)
+    return capability.takeError();
+  if (boundary.getRuntimeAbi() != capability->runtimeABI ||
+      boundary.getHandoffKind() != capability->handoffKind)
+    return makeOffloadPluginError(
+        "typed offload delegation plan does not match bound capability");
   return llvm::Error::success();
 }
 

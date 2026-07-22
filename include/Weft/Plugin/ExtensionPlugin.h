@@ -138,12 +138,21 @@ private:
 /// construction may project a narrower typed c_f and recover its typed source
 /// problem from the bound kernel/variant, but it must not rediscover family
 /// identity from artifact routes or scan for an unrelated variant.
+enum class VariantEmissionRole {
+  DirectVariant,
+  DispatchCase,
+  DispatchFallback,
+};
+
+llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role);
+
 class FamilyConstructionRequest {
 public:
   FamilyConstructionRequest(
       mlir::ModuleOp module, weft::exec::VariantOp variant,
       weft::exec::KernelOp kernel,
-      const support::TargetCapabilitySet &capabilities);
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role = VariantEmissionRole::DirectVariant);
 
   mlir::ModuleOp getModule() const { return module; }
   weft::exec::VariantOp getVariant() const { return variant; }
@@ -151,12 +160,53 @@ public:
   const support::TargetCapabilitySet &getCapabilities() const {
     return capabilities;
   }
+  VariantEmissionRole getRole() const { return role; }
 
 private:
   mlir::ModuleOp module;
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
   const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+};
+
+enum class FamilyConstructionStatus {
+  Unknown,
+  FinalBody,
+  Unsupported,
+};
+
+/// Direct outcome of one family construction invocation. This is lifecycle
+/// state, not a universal computation plan: family-local typed IR remains the
+/// only carrier of compute semantics.
+class FamilyConstructionResult {
+public:
+  static FamilyConstructionResult getFinalBody() {
+    FamilyConstructionResult result;
+    result.status = FamilyConstructionStatus::FinalBody;
+    return result;
+  }
+  static FamilyConstructionResult getUnsupported(llvm::StringRef reason) {
+    FamilyConstructionResult result;
+    result.status = FamilyConstructionStatus::Unsupported;
+    result.reason = reason.str();
+    return result;
+  }
+
+  bool hasStatus() const {
+    return status != FamilyConstructionStatus::Unknown;
+  }
+  bool hasFinalBody() const {
+    return status == FamilyConstructionStatus::FinalBody;
+  }
+  bool isUnsupported() const {
+    return status == FamilyConstructionStatus::Unsupported;
+  }
+  llvm::StringRef getReason() const { return reason; }
+
+private:
+  FamilyConstructionStatus status = FamilyConstructionStatus::Unknown;
+  std::string reason;
 };
 
 class VariantCostRequest {
@@ -176,14 +226,6 @@ private:
   weft::exec::KernelOp kernel;
   const support::TargetCapabilitySet &capabilities;
 };
-
-enum class VariantEmissionRole {
-  DirectVariant,
-  DispatchCase,
-  DispatchFallback,
-};
-
-llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role);
 
 enum class VariantFallbackRole {
   None,
@@ -712,12 +754,8 @@ public:
   /// and bounded selection remain family-local. This is a required
   /// production-family contract; the base implementation fails closed.
   virtual llvm::Error
-  constructFormulaPlans(const FamilyConstructionRequest &request) const;
-  /// True only when `variant` carries this family's construction-qualified
-  /// typed final body/carrier.  This is an existence query, not a verifier or
-  /// a formula replay; the family remains the sole compute authority.
-  virtual bool
-  hasConstructedFinalBody(weft::exec::VariantOp variant) const;
+  constructFormulaPlans(const FamilyConstructionRequest &request,
+                        FamilyConstructionResult &out) const;
   virtual llvm::Error registerSourceFrontDoorPasses(
       const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
@@ -808,12 +846,13 @@ public:
                                 VariantEmissionStatus &out) const;
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const;
-  llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;
   /// Bind one selected variant to its origin family and typed target
   /// capability set, then invoke that family's artifact-neutral construction
   /// lifecycle.  Artifact kind/backend identity is intentionally absent.
   llvm::Error constructFormulaPlansForVariant(
-      mlir::ModuleOp module, weft::exec::VariantOp variant) const;
+      mlir::ModuleOp module, weft::exec::VariantOp variant,
+      FamilyConstructionResult &out,
+      VariantEmissionRole role = VariantEmissionRole::DirectVariant) const;
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const;

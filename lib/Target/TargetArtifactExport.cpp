@@ -1969,14 +1969,22 @@ materializeSelectedEmitCArtifactModule(
   if (!target)
     return target.takeError();
 
+  plugin::FamilyConstructionResult construction;
   if (llvm::Error error = plugins.constructFormulaPlansForVariant(
-          *constructedModule, target->variant))
+          *constructedModule, target->variant, construction))
     return makeSelectedEmitCArtifactError(
         config.routeDescription.empty() ? config.routeID
                                         : config.routeDescription,
         llvm::Twine("selected family construction failed before artifact "
-                    "projection: ") +
+            "projection: ") +
             llvm::toString(std::move(error)));
+  if (!construction.hasFinalBody())
+    return makeSelectedEmitCArtifactError(
+        config.routeDescription.empty() ? config.routeID
+                                        : config.routeDescription,
+        llvm::Twine("selected family construction is unsupported before "
+                    "artifact projection: ") +
+            construction.getReason());
 
   // The exported function name/signature handoff identity is derived from the
   // selected kernel+variant (and an optional config override), independent of

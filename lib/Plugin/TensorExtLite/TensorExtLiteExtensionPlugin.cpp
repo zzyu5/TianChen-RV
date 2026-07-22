@@ -554,26 +554,23 @@ void TensorExtLiteExtensionPlugin::registerDialects(
 }
 
 llvm::Error TensorExtLiteExtensionPlugin::constructFormulaPlans(
-    const FamilyConstructionRequest &request) const {
+    const FamilyConstructionRequest &request,
+    FamilyConstructionResult &out) const {
+  mlir::OpBuilder builder(request.getModule().getContext());
+  VariantLoweringBoundaryRequest bodyRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), builder);
+  if (llvm::Error error =
+          materializeTensorExtLiteSelectedRoleSequenceIfNeeded(bodyRequest))
+    return error;
   if (mlir::succeeded(
           tensorext_lite::constructTensorExtLiteFinalBody(
-              request.getModule())))
+              request.getModule()))) {
+    out = FamilyConstructionResult::getFinalBody();
     return llvm::Error::success();
+  }
   return makeTensorExtLitePluginError(
       "artifact-neutral TensorExtLite final-body construction failed");
-}
-
-bool TensorExtLiteExtensionPlugin::hasConstructedFinalBody(
-    weft::exec::VariantOp variant) const {
-  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return false;
-  bool found = false;
-  kernel.walk([&](weft::tensorext_lite::ConfigSkeletonOp body) {
-    if (isOperationSelectedForVariant(body.getOperation(), variant))
-      found = true;
-  });
-  return found;
 }
 
 void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(

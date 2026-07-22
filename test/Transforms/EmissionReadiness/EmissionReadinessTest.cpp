@@ -90,7 +90,9 @@ public:
   bool isEnabled() const override { return enabled; }
 
   llvm::Error constructFormulaPlans(
-      const FamilyConstructionRequest &) const override {
+      const FamilyConstructionRequest &,
+      weft::plugin::FamilyConstructionResult &out) const override {
+    out = weft::plugin::FamilyConstructionResult::getFinalBody();
     return llvm::Error::success();
   }
 
@@ -1326,7 +1328,8 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
     if (int result = expectMaterializationErrorLeavesDiagnosticCount(
             context, getDirectKernelSource(), registry,
             {"variant emission plan collection failed",
-             "unknown origin plugin 'mock-emitter'"},
+             "bound family construction cannot bind unknown origin "
+             "'mock-emitter'"},
             0))
       return result;
   }
@@ -1339,7 +1342,9 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
       return result;
     if (int result = expectMaterializationErrorLeavesDiagnosticCount(
             context, getDirectKernelSource(), registry,
-            {"origin plugin 'mock-emitter' is disabled"}, 0))
+            {"bound family construction cannot bind disabled origin "
+             "'mock-emitter'"},
+            0))
       return result;
   }
 

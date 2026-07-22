@@ -402,6 +402,18 @@ llvm::Error materializeSelectedLoweringBoundaries(
   builder.setInsertionPointToEnd(&body);
 
   for (const SelectedLoweringBoundaryReference &reference : references) {
+    auto module = kernel->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return makeSelectedLoweringBoundaryError(
+          kernel, "selected family construction requires an enclosing module");
+    FamilyConstructionResult construction;
+    if (llvm::Error error = registry.constructFormulaPlansForVariant(
+            module, reference.variant, construction, reference.role))
+      return makeSelectedLoweringBoundaryError(
+          kernel, llvm::Twine("family construction failed before selected "
+                              "body exposure: ") +
+                      llvm::toString(std::move(error)));
+
     VariantLoweringBoundaryResult result;
     VariantLoweringBoundaryRequest request(reference.variant, kernel,
                                            capabilities, reference.role,

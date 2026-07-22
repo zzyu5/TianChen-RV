@@ -30,8 +30,8 @@ public:
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;
   llvm::Error constructFormulaPlans(
-      const FamilyConstructionRequest &request) const override;
-  bool hasConstructedFinalBody(weft::exec::VariantOp variant) const override;
+      const FamilyConstructionRequest &request,
+      FamilyConstructionResult &out) const override;
   void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;
@@ -58,6 +58,9 @@ public:
       const VariantLoweringBoundaryValidationRequest &request) const override;
 
 private:
+  llvm::Error constructSelectedFinalBody(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const;
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 

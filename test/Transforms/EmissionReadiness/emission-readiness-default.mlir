@@ -14,6 +14,7 @@ module {
   }
 }
 
-// CHECK: Weft-RV variant emission readiness check failed
-// CHECK-SAME: variant @fast in kernel @public_unknown_origin as direct variant
-// CHECK: unknown origin plugin 'mock-emitter'
+// CHECK: Weft-RV emission path check failed for kernel @public_unknown_origin:
+// CHECK-SAME: variant emission readiness check failed during family construction
+// CHECK-SAME: for variant @fast as direct variant:
+// CHECK-SAME: bound family construction cannot bind unknown origin 'mock-emitter'

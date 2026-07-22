@@ -32,4 +32,4 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_i32_add body to EmitC
+// CHECK: selected RVV body config/VL structure requires weft_rvv.with_vl to consume the visible weft_rvv.setvl result
