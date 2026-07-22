@@ -10,6 +10,9 @@
 # RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Template/TemplateBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TEMPLATE
 # RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TENSOR
 # RUN: rg -n 'constructRVVFormulaBodies\(module\)' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-CALL
+# RUN: sed -n '/constructRVVFormulaBodies(mlir::ModuleOp module)/,/return mlir::success()/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
+# RUN: rg -n 'validateRVVConstructedTypedBodies\(module\)' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-QUALIFICATION
+# RUN: not rg -n 'Ggml(QuantizeRowQ80|QuantizeRowQ81|QuantizeRowQ8K|DequantizeRow)Op' %S/../../lib/Conversion/RVV
 # RUN: rg -n 'return constructDemoFinalBody\(module\)' %S/../../lib/Plugin/Demo/DemoBackendEmissionDriver.cpp | FileCheck %s --check-prefix=DEMO-CALL
 # RUN: rg -n 'return constructIMEFinalPlans\(module\)' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-CALL
 # RUN: rg -n 'return constructScalarFinalPlans\(module\)' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-CALL
@@ -29,6 +32,17 @@
 # RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Target/TargetArtifactExport.cpp | FileCheck %s --check-prefix=ARTIFACT-REGISTRY
 # RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=TRANSLATE-REGISTRY
 # RUN: rg -n 'no registered backend emission driver fully legalizes' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp %S/../../lib/Target/TargetArtifactExport.cpp %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=FAIL-CLOSED
+
+# Raw conversion machinery is implementation-private.  Across production
+# include/lib/tools, the only MLIR conversion application lives in the shared
+# harness that calls prepareForConversion first; callers cannot assemble a
+# parallel RVV pattern pipeline from a public header.
+# RUN: not rg -n 'populateRVV(ToEmitCTypeConversions|ElementwiseToEmitCPatterns)' %S/../../include
+# RUN: rg -n 'mlir::apply(Full|Partial|Analysis)Conversion' %S/../../include %S/../../lib %S/../../tools | FileCheck %s --check-prefix=ONE-CONVERSION
+# RUN: rg -n 'apply(Full|Partial|Analysis)Conversion[[:space:]]*\(' %S/../../include %S/../../lib %S/../../tools | wc -l | FileCheck %s --check-prefix=ONE-CONVERSION-COUNT
+# RUN: not rg -n 'mlir::apply(Full|Analysis)Conversion' %S/../../include %S/../../lib %S/../../tools
+# RUN: rg -n 'hasCompetingBackendBody' %S/../../lib/Conversion/EmitC/BackendEmissionRegistry.cpp | FileCheck %s --check-prefix=MIXED-BACKEND
+# RUN: rg -n 'moduleHasForeignEmitCLowerableBody' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=DIRECT-MIXED
 
 # Scalar and IME decisions happen in their construction owners.  Pattern code
 # may only parse/consume the final plan; it cannot call the old selectors or
@@ -54,6 +68,9 @@
 # TEMPLATE: getConstructionEntryNames() const override
 # TENSOR: getConstructionEntryNames() const override
 # RVV-CALL: constructRVVFormulaBodies(module)
+# RVV-DIRECTION-SYMMETRY: constructRVVQuantizeRowFormulaBodies(module)
+# RVV-DIRECTION-SYMMETRY-NEXT: mlir::failed(constructRVVDequantizeRowFormulaBodies(module))
+# RVV-QUALIFICATION: validateRVVConstructedTypedBodies(module)
 # DEMO-CALL: return constructDemoFinalBody(module)
 # IME-CALL: return constructIMEFinalPlans(module)
 # SCALAR-CALL: return constructScalarFinalPlans(module)
@@ -80,3 +97,7 @@
 # IME-CONSUME: readIMEQuantPlan
 # IME-HELPER: emitHelper
 # FLAT: readFinalFlatBlockDotComputePlan
+# ONE-CONVERSION: lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp:{{[0-9]+}}:          mlir::applyPartialConversion
+# ONE-CONVERSION-COUNT: 1
+# MIXED-BACKEND: hasCompetingBackendBody
+# DIRECT-MIXED: moduleHasForeignEmitCLowerableBody

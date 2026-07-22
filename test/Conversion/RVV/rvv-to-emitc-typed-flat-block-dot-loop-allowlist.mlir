@@ -1,6 +1,7 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's|// R1 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 // RUN: sed 's|// R2 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT-NESTED
+// RUN: sed 's|// R1 ||' %s | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=REGISTRY-REJECT
 // RUN: sed 's|kind = "typed_flat_block_dot_loop_body"|weft_rvv.flat_body_family = "shared", kind = "typed_flat_block_dot_loop_body"|' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=PARTIAL-PLAN
 // RUN: sed 's|kind = "typed_flat_block_dot_loop_body"|weft_rvv.flat_body_family = "shared", weft_rvv.flat_decode_primitive = "offset-binary-nibble", weft_rvv.flat_fold_model = "left-associative", weft_rvv.flat_block_length = 16 : i64, weft_rvv.flat_activation_quant_byte_offset = 2 : i64, weft_rvv.flat_weight_scale_source = "fp16", weft_rvv.flat_codebook_table_name = "", weft_rvv.flat_offset_bias = "none", kind = "typed_flat_block_dot_loop_body"|' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=FORGED-PLAN
 
@@ -83,6 +84,10 @@ module {
 // non-recursive single-block blocklist could not see one level deeper). This is
 // the literal [L-8] opaque-helper leak the strong-form gate exists to catch.
 // REJECT-NESTED: 'weft_rvv.q4_0_q8_0_block_dot' op is not in the M-FLAT typed flat block-dot loop-body allowlist
+
+// Registry-backed materialization runs the same preparation/qualification cut;
+// it cannot bypass the recursive allowlist through the artifact path.
+// REGISTRY-REJECT: no registered backend emission driver fully legalizes the selected variant @rvv_flat_loop_allowlist body to EmitC
 
 // A caller cannot supply a partial final plan, nor forge a complete plan that
 // conflicts with the concrete typed mechanism body. Formula construction owns

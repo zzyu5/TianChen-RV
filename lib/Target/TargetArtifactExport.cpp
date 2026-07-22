@@ -1962,10 +1962,9 @@ materializeSelectedEmitCArtifactModule(
   if (!target)
     return target.takeError();
 
-  // The exported function name/signature handoff identity. It is derived from
-  // the selected kernel+variant (and an optional config override), independent
-  // of any string route — both the conversion path and the legacy string path
-  // produce a function with this exact name.
+  // The exported function name/signature handoff identity is derived from the
+  // selected kernel+variant (and an optional config override), independent of
+  // route metadata or any retired string implementation.
   std::string functionName =
       config.functionNameFn
           ? config.functionNameFn(target->kernel, target->variant)
@@ -2017,10 +2016,8 @@ llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
     return target.takeError();
 
   // The exported function name is derived directly from the selected
-  // kernel+variant (or a configured override) — it does NOT require building
-  // the string route. Both the conversion path and the legacy string path name
-  // the function this way, so deriving it here keeps the function name free of
-  // the per-family string-route machinery.
+  // kernel+variant (or a configured override); it does not require route
+  // metadata or per-family string machinery.
   if (config.functionNameFn)
     return config.functionNameFn(target->kernel, target->variant);
   return makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);

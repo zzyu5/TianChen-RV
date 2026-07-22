@@ -3,6 +3,7 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TunableScheduleOpInterface.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
 #include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 #include "RVVToEmitCInternal.h"
@@ -32,6 +33,10 @@
 
 namespace weft {
 namespace transforms {
+
+// Defined below beside the recursive typed-body allowlist. The RVV backend
+// preparation hook and the public pass both call this one qualification cut.
+mlir::LogicalResult validateRVVConstructedTypedBodies(mlir::ModuleOp module);
 
 #define GEN_PASS_DEF_RVVLOWERTOEMITC
 #include "Weft/Transforms/Passes.h.inc"
@@ -71,9 +76,11 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
                 mlir::ConversionPatternRewriter &rewriter) const {
     mlir::MLIRContext *context = variant.getContext();
 
-    // Only the selected lowering boundary (a variant carrying a with_vl scope)
-    // is a beachhead body. Variants without a with_vl scope (e.g. the scalar
-    // fallback) are left for the legacy path / other families.
+    // Only the selected RVV lowering boundary (a variant carrying a with_vl
+    // scope) belongs to this pattern. Other-family variants stay legal inside
+    // this family conversion; the registry rejects mixed-family standalone
+    // materialization before conversion, and the full gate rejects RVV
+    // remnants rather than handing them to another implementation path.
     weftrvv::WithVLOp scope;
     for (mlir::Operation &op : variant.getBody().front()) {
       if (auto withVL = llvm::dyn_cast<weftrvv::WithVLOp>(op)) {
@@ -2693,7 +2700,8 @@ VariantToEmitCFunc::emitWideningProduct(mlir::ConversionPatternRewriter &rewrite
     // The signed rung emits vwmul; the unsigned low-precision rung (ui8 source ->
     // ui16 result, kind=unsigned_widening_product) emits vwmulu, byte-identical
     // to the legacy unsigned widening-product oracle. Both must agree: a signed
-    // kind on unsigned vectors (or vice versa) is a malformed body -> fall back.
+    // kind on unsigned vectors (or vice versa) is a malformed body and makes
+    // the construction-qualified conversion fail closed.
     const bool unsignedProduct =
         product.getKind() == "unsigned_widening_product";
     if (product.getKind() != "signed_widening_product" && !unsignedProduct)
@@ -4016,8 +4024,8 @@ VariantToEmitCFunc::emitMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Lo
       return rewriter.notifyMatchFailure(macc, "macc result not typed vector");
     // Layout/kind contract guard (mirrors MAccOp::verify + the plain-macc
     // route-family plan): only the bounded add / separate-vector-accumulator /
-    // output-store slice is convertible. A body with another kind/layout falls
-    // back unchanged rather than being mislowered as a plain fused macc.
+    // output-store slice is convertible. A body with another kind/layout is
+    // rejected rather than being mislowered as a plain fused macc.
     if (macc.getKind() != "add")
       return rewriter.notifyMatchFailure(macc, "unsupported macc kind");
     std::optional<llvm::StringRef> accumulatorLayout =
@@ -4030,8 +4038,8 @@ VariantToEmitCFunc::emitMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Lo
       return rewriter.notifyMatchFailure(
           macc, "macc accumulator/result layout outside the convertible slice");
     // The fused vmacc intrinsic is SEW32-only in the legacy derivation; an i64
-    // (or any non-i32) macc has no __riscv_vmacc_vv_i64* form and must fall back
-    // unchanged instead of emitting a non-existent intrinsic.
+    // (or any non-i32) macc has no __riscv_vmacc_vv_i64* form and must be
+    // rejected instead of emitting a non-existent intrinsic.
     if (!vectorType.getElementType().isSignlessInteger(32))
       return rewriter.notifyMatchFailure(
           macc, "macc only lowers the SEW32 fused vmacc slice");
@@ -4397,7 +4405,7 @@ VariantToEmitCFunc::emitSegment2Store(mlir::ConversionPatternRewriter &rewriter,
     // Field-binding guard: the interleave field0/field1 operands must bind the
     // field0/field1 input loads (structural authority via the load buffer role).
     // A body that swaps them (segment2_store %dst, %field1, %field0) is the
-    // operand-binding negative the legacy provider rejects -- fall back so it is
+    // operand-binding negative and must fail the sole conversion route so it is
     // not silently mislowered.
     if (!fieldVectorBindsLoadRole(segStore.getField0(),
                                   segStore.getField0Role()) ||
@@ -5503,7 +5511,8 @@ std::optional<llvm::StringRef> VariantToEmitCFunc::maskAndMnemonic(llvm::StringR
 // that visibility for this TU's rvv-scope code.
 using namespace detail;
 
-void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
+static void
+populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
   // !weft_rvv.vl -> emitc.opaque<"size_t"> (the RVV vector-length token is the
   // C size_t produced by __riscv_vsetvl_*).
   typeConverter.addConversion(
@@ -5670,9 +5679,60 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
       });
 }
 
-void populateRVVElementwiseToEmitCPatterns(mlir::TypeConverter &typeConverter,
-                                           mlir::RewritePatternSet &patterns) {
+static void
+populateRVVElementwiseToEmitCPatterns(mlir::TypeConverter &typeConverter,
+                                      mlir::RewritePatternSet &patterns) {
   patterns.add<detail::VariantToEmitCFunc>(typeConverter, patterns.getContext());
+}
+
+static bool moduleHasRVVBody(mlir::ModuleOp module) {
+  auto isRVVType = [](mlir::Type type) {
+    return type.getDialect().getNamespace() ==
+           weftrvv::WEFTRVVDialect::getDialectNamespace();
+  };
+  bool hasRVV = false;
+  module.walk([&](mlir::Operation *op) {
+    bool hasRVVBlockArgument = false;
+    for (mlir::Region &region : op->getRegions()) {
+      for (mlir::Block &block : region) {
+        for (mlir::BlockArgument argument : block.getArguments()) {
+          if (isRVVType(argument.getType())) {
+            hasRVVBlockArgument = true;
+            break;
+          }
+        }
+        if (hasRVVBlockArgument)
+          break;
+      }
+      if (hasRVVBlockArgument)
+        break;
+    }
+    if (op->getName().getDialectNamespace() ==
+            weftrvv::WEFTRVVDialect::getDialectNamespace() ||
+        llvm::any_of(op->getOperandTypes(), isRVVType) ||
+        llvm::any_of(op->getResultTypes(), isRVVType) ||
+        hasRVVBlockArgument) {
+      hasRVV = true;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return hasRVV;
+}
+
+static bool moduleHasForeignEmitCLowerableBody(mlir::ModuleOp module) {
+  bool found = false;
+  module.walk([&](mlir::Operation *op) {
+    if (!llvm::isa<::weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(
+            op))
+      return mlir::WalkResult::advance();
+    if (op->getName().getDialectNamespace() ==
+        weftrvv::WEFTRVVDialect::getDialectNamespace())
+      return mlir::WalkResult::advance();
+    found = true;
+    return mlir::WalkResult::interrupt();
+  });
+  return found;
 }
 
 //===----------------------------------------------------------------------===//
@@ -5705,6 +5765,13 @@ public:
     if (mlir::failed(::weft::plugin::rvv::constructRVVFormulaBodies(module)))
       return mlir::failure();
 
+    // Structural qualification is part of the same family construction cut.
+    // Keeping it here makes the public pass, registry clone conversion,
+    // translate and artifact paths enforce the identical recursive allowlist.
+    if (mlir::failed(
+            ::weft::transforms::validateRVVConstructedTypedBodies(module)))
+      return mlir::failure();
+
     // Emitters consume final schedule fields mechanically.  The schedule
     // formula pass must have constructed (or validated) every tunable source op
     // before this boundary; emission is not a fallback selector.
@@ -5731,8 +5798,8 @@ public:
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
     // A weft.exec.variant that carries a weft_rvv.with_vl selected-lowering
     // boundary is illegal and must be converted into an emitc.func. Variants
-    // without a with_vl scope (e.g. scalar fallbacks) stay legal so unconverted
-    // families fall through unchanged.
+    // without an RVV with_vl scope stay legal to this family-specific pattern;
+    // the registry ownership gate prevents mixed-family standalone conversion.
     target.addDynamicallyLegalOp<weft::exec::VariantOp>(
         [](weft::exec::VariantOp variant) {
           for (mlir::Operation &op : variant.getBody().front())
@@ -5754,25 +5821,8 @@ public:
   llvm::LogicalResult postConversionCleanup(mlir::ModuleOp module) const override;
 
   bool moduleHasBackendBody(mlir::ModuleOp module) const override {
-    // The module carries an RVV body if any op is a weft_rvv op OR still carries
-    // a weft_rvv-typed operand/result (a half-converted op). This is both the
-    // registry pre-check and the harness's per-backend "no RVV leftover" gate.
-    auto isRVVType = [](mlir::Type type) {
-      return type.getDialect().getNamespace() ==
-             weftrvv::WEFTRVVDialect::getDialectNamespace();
-    };
-    bool hasRVV = false;
-    module.walk([&](mlir::Operation *op) {
-      if (op->getName().getDialectNamespace() ==
-              weftrvv::WEFTRVVDialect::getDialectNamespace() ||
-          llvm::any_of(op->getOperandTypes(), isRVVType) ||
-          llvm::any_of(op->getResultTypes(), isRVVType)) {
-        hasRVV = true;
-        return mlir::WalkResult::interrupt();
-      }
-      return mlir::WalkResult::advance();
-    });
-    return hasRVV;
+    // Also serves as the post-conversion no-half-converted-remnant gate.
+    return moduleHasRVVBody(module);
   }
 };
 
@@ -5781,9 +5831,9 @@ RVVBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
   // The beachhead conversion lowers the selected variant body into a
   // standalone emitc.func + headers. Once a function was produced, drop the
   // now-emptied weft.exec scaffolding (kernel/capability/dispatch) for that
-  // kernel so the module is a clean, translatable EmitC module matching the
-  // legacy materializer's output shape. Kernels that still carry a weft_rvv
-  // body (unconverted families) are left untouched.
+  // kernel so the module is a clean, translatable standalone EmitC module.
+  // Kernels that still carry a weft_rvv body are preserved so the shared full
+  // legalization gate can reject the result.
   bool producedFunc = false;
   module.walk([&](mlir::emitc::FuncOp) { producedFunc = true; });
   if (producedFunc) {
@@ -5799,16 +5849,15 @@ RVVBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
 
     // Module-level weft.exec capability/target scaffolding (e.g. a
     // `weft.exec.target @rvv_profile` provider declared at module scope and
-    // referenced by the kernel's `target = @...`) is description-source IR the
-    // legacy materializer discarded when it built its fresh emitc-only module.
-    // Once the converted kernel(s) are drained it dangles, and a leftover
-    // non-emitc top-level op makes the export handoff reject the module as
-    // not-clean and fall back to the (now-retired) string route. Drop any
+    // referenced by the kernel's `target = @...`) is description-source IR,
+    // not part of the standalone EmitC handoff. Once the converted kernel(s)
+    // are drained it dangles, and a leftover non-emitc top-level op would make
+    // the export handoff reject the module as not-clean. Drop any
     // top-level weft.exec op that carries NO RVV body (the same drain criterion
     // used for kernels), so the materialized module is the clean emitc-only
     // shape the handoff expects. A top-level weft.exec op that still carries a
-    // with_vl boundary (an unconverted family) is preserved so the
-    // fullyConverted walk still reports a partial conversion.
+    // with_vl boundary is preserved so the full gate reports an incomplete
+    // conversion.
     llvm::SmallVector<mlir::Operation *, 1> drainedExecOps;
     for (mlir::Operation &op : module.getBody()->getOperations()) {
       if (op.getName().getDialectNamespace() !=
@@ -5824,19 +5873,15 @@ RVVBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
     for (mlir::Operation *op : drainedExecOps)
       op->erase();
 
-    // The materialized artifact is a STANDALONE emitc module (the legacy string
-    // route built a fresh emitc-only module from scratch and discarded the
-    // source IR). The source-front-door families (e.g. the bounded vector
+    // The materialized artifact is a STANDALONE emitc module. The
+    // source-front-door families (e.g. the bounded vector
     // source) leave a top-level non-RVV `func.func` source alongside the
     // converted kernel; the conversion correctly never touches it (it is not
     // RVV), but it must NOT ride along in the materialized emitc module — a
     // leftover non-emitc op makes the export handoff / `translateToCpp` reject
-    // the module as not-clean and fall back to the (now-retired) legacy string
-    // route. Drop the source body ops (anything that is neither an emitc op nor
-    // a weft op) so the materialized module matches the legacy materializer's
-    // clean emitc-only output. weft leftovers are deliberately preserved so the
-    // fullyConverted walk below can still detect a genuinely partial conversion
-    // and report a fall-back.
+    // the module as not-clean. Drop source body ops (anything that is neither
+    // an emitc op nor a weft op). Weft leftovers are deliberately preserved so
+    // the full gate below detects and rejects a genuinely partial conversion.
     llvm::SmallVector<mlir::Operation *, 2> drainedSourceOps;
     for (mlir::Operation &op : module.getBody()->getOperations()) {
       llvm::StringRef dialect = op.getName().getDialectNamespace();
@@ -5849,7 +5894,7 @@ RVVBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
       op->erase();
   }
 
-  // The strangler-fig success gate (producedFunc + no RVV leftover op/type + no
+  // The full-legalization gate (producedFunc + no RVV leftover op/type + no
   // unrealized_conversion_cast) is owned by the shared harness
   // (convertModuleWithBackendEmitter): `producedFunc` and the unrealized-cast
   // check are dialect-agnostic, and the RVV-leftover check is supplied by this
@@ -5868,6 +5913,19 @@ void registerRVVBackendEmitter(
 }
 
 bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
+  // This RVV-specific in-place API is also used by the public pass and route
+  // probe. It may not consume a mixed-family module: RVV cleanup builds one
+  // standalone handoff and therefore must never erase another family's final
+  // lowerable body. The registry performs the broader driver-ownership check;
+  // this interface-based guard protects the direct RVV entry without naming
+  // any sibling family.
+  if (moduleHasForeignEmitCLowerableBody(module)) {
+    module.emitError()
+        << "RVV construction-before-emission refuses a module carrying a "
+           "different family's final EmitC-lowerable body";
+    return false;
+  }
+
   // The RVV->emitc conversion is now the shared `TypedBackendEmissionDriver`
   // harness parameterized by the RVV driver. The `--weft-rvv-lower-to-emitc`
   // pass and the plugin route probe still call this entry point directly (they
@@ -6208,68 +6266,53 @@ llvm::LogicalResult validateTypedElementwiseLoopBodyAllowlist(
   return validateLoopBodyAllowlist(loopBody.getBody(), "elementwise");
 }
 
+} // namespace
+
+mlir::LogicalResult
+validateRVVConstructedTypedBodies(mlir::ModuleOp module) {
+  bool rejected = false;
+  module.walk([&](weft::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
+    if (mlir::failed(validateTypedFlatBlockDotLoopBodyAllowlist(loopBody)))
+      rejected = true;
+  });
+  module.walk([&](weft::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
+    if (mlir::failed(
+            validateTypedSuperBlockBlockDotLoopBodyAllowlist(loopBody)))
+      rejected = true;
+  });
+  module.walk([&](weft::rvv::TypedElementwiseLoopBodyOp loopBody) {
+    if (mlir::failed(validateTypedElementwiseLoopBodyAllowlist(loopBody)))
+      rejected = true;
+  });
+  return rejected ? mlir::failure() : mlir::success();
+}
+
+namespace {
+
 class RVVLowerToEmitCPass final
     : public impl::RVVLowerToEmitCBase<RVVLowerToEmitCPass> {
 public:
   void runOnOperation() override {
     mlir::ModuleOp module = getOperation();
 
-    // M-FLAT step 4/6: run the loop-aware allowlist recursive validator on every
-    // typed flat block-dot loop body BEFORE the conversion driver. This is the
-    // real, always-firing call site for the strong-form gate: the loop op flows
-    // through THIS lowering pass (it never reaches the pre-realized realization
-    // owner -- it is not a pre-realized cluster op and already lives inside a
-    // with_vl), so the honest post-realization validation seam is here at the
-    // pass boundary (the blueprint's "new walk / new post-realization check", not
-    // an extension of an existing realization-owner call site). Running it before
-    // the applyPartialConversion driver keeps the fail-closed diagnostic outside
-    // the conversion's rolled-back attempt, so it reaches stderr reliably. The
-    // walk only fires on the loop op_kind, so the single-block strong paths are
-    // untouched (zero structural regression).
-    bool allowlistRejected = false;
-    module.walk([&](weft::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
-      if (mlir::failed(validateTypedFlatBlockDotLoopBodyAllowlist(loopBody)))
-        allowlistRejected = true;
-    });
-    // W4: the same strong-form [L-8] gate on the q4_K/q5_K DUAL-accumulator
-    // super-block loop body. The walk only fires on the super-block op_kind, so
-    // the flat + single-block strong paths are untouched (zero regression).
-    module.walk([&](weft::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
-      if (mlir::failed(
-              validateTypedSuperBlockBlockDotLoopBodyAllowlist(loopBody)))
-        allowlistRejected = true;
-    });
-    // M-FLAT forward-elementwise scaffold: the SAME strong-form [L-8] gate on the
-    // typed elementwise strip-loop body. The walk only fires on the elementwise
-    // op_kind, so the flat + super-block + single-block strong paths are untouched
-    // (zero regression).
-    module.walk([&](weft::rvv::TypedElementwiseLoopBodyOp loopBody) {
-      if (mlir::failed(validateTypedElementwiseLoopBodyAllowlist(loopBody)))
-        allowlistRejected = true;
-    });
-    if (allowlistRejected) {
-      signalPassFailure();
+    // A genuinely unrelated module is the only valid no-op. Once RVV ops or
+    // types are present, this public lowering surface must either complete the
+    // same construction-qualified conversion as registry/artifact paths or
+    // fail; leaving an unchanged RVV body would be a production middle path.
+    if (!conversion::rvv::moduleHasRVVBody(module))
       return;
-    }
 
     // Run the single shared conversion driver (the same one the live
-    // artifact-export materialization seam calls). It runs the
-    // TypeConverter/ConversionTarget/patterns + applyPartialConversion and
-    // drains the emptied weft.exec scaffolding for converted kernels.
+    // artifact-export materialization seam calls). Its preparation hook owns
+    // formula construction, schedules and recursive typed-body qualification.
     if (conversion::rvv::convertRVVModuleToEmitC(module))
       return;
 
-    // The driver returns false either for a clean structural no-op (an
-    // unconverted family whose ops the target keeps legal and which the patterns
-    // leave untouched) or for a real conversion failure that left an illegal
-    // with_vl-carrying variant behind. Only the latter is a pass failure.
-    bool unlegalizedScopeRemains = false;
-    module.walk([&](weft::rvv::WithVLOp) {
-      unlegalizedScopeRemains = true;
-      return mlir::WalkResult::interrupt();
-    });
-    if (unlegalizedScopeRemains)
-      signalPassFailure();
+    module.emitError()
+        << "RVV construction-before-emission did not fully legalize every "
+           "RVV op/type; no unchanged or compatibility lowering path is "
+           "permitted";
+    signalPassFailure();
   }
 };
 

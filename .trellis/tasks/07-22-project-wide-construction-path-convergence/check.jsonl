@@ -5,3 +5,9 @@
 {"command":"cmake --build build/weft --target check-weft -j2","result":"PASS 979/979","evidence":"完整 lit、plugin/unit、target artifact、runtime ABI 与 authority tests 全绿"}
 {"command":"git diff --check","result":"PASS","evidence":"无 whitespace/error marker"}
 {"command":"jq empty task.json and per-line jq for implement.jsonl/check.jsonl","result":"PASS","evidence":"task metadata 与 JSONL 均为有效 JSON"}
+{"command":"rg -n 'mlir::apply(Full|Partial|Analysis)Conversion' include lib tools","result":"PASS: exactly one production application","evidence":"唯一命中为 lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp 的 applyPartialConversion；该 harness 先调用 pure-virtual prepareForConversion"}
+{"command":"lit -v . --filter='(rvv-to-emitc-pass-shell|project-construction-authority|mixed-backend-materialization-rejected|rvv-to-emitc-unowned-rvv-body-rejected)'","result":"PASS 4/4","evidence":"public RVV fail-open、direct foreign-body erase、registry mixed-owner 与 source authority denylist 均触发"}
+{"command":"build/weft/bin/weft-formula-catalog-test","result":"PASS","evidence":"live backend inventory、backend:* catalog 与 registered source front door owner 仍双向唯一；Offload 不成为 emitter"}
+{"command":"cmake --build build/weft --target check-weft -j2","result":"PASS 981/981","evidence":"最终代码、quant/dequant construct-from-abstract、all backend、translate/artifact、mixed-owner 与 recursive qualification tests 全绿"}
+{"command":"rg -n 'apply(Full|Partial|Analysis)Conversion[[:space:]]*\\(' include lib tools | wc -l","result":"PASS: 1","evidence":"不依赖 mlir:: 全限定名的反向枚举仍只有 shared TypedBackendEmissionDriver harness；静态测试同时锁定计数"}
+{"command":"git diff --check && jq empty task.json && per-line jq implement.jsonl/check.jsonl","result":"PASS","evidence":"最终差异无 whitespace error，task 与 JSONL 结构有效"}

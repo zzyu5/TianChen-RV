@@ -3,7 +3,7 @@
   "name": "project-wide-construction-path-convergence",
   "title": "全项目 production construction path 统一",
   "description": "根据公式层与覆盖、变体流水线和当前 direct backend 审计，关闭非 RVV backend 与直接 translate/artifact 入口绕过 family-local construction 的缺口；量化、反量化以及所有当前 production operator path 必须在同一 construction-before-emission contract 下收敛，不保留兼容中间路径。",
-  "status": "completed",
+  "status": "in_progress",
   "dev_type": "refactor",
   "scope": "project-wide-architecture",
   "package": null,
@@ -11,11 +11,11 @@
   "creator": "codex",
   "assignee": "codex",
   "createdAt": "2026-07-22",
-  "completedAt": "2026-07-22",
+  "completedAt": null,
   "branch": "refactor/full-refactor-m1",
   "base_branch": "refactor/full-refactor-m1",
   "worktree_path": "/home/kingdom/phdworks/TianchenRV",
-  "commit": "ba252b0f5e7ce2ab26f0b35d46cfaf4740d83802",
+  "commit": null,
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -31,6 +31,8 @@
   "meta": {
     "cutover": "RET-F-PROJECT",
     "audit_baseline": "459645ae0670e64cb7f8f532e5299df98b515d83",
-    "supersedes_claim": "previous RVV-only horizontal cutover did not prove non-RVV direct backend entries"
+    "supersedes_claim": "previous RVV-only horizontal cutover did not prove non-RVV direct backend entries",
+    "reopened_from": "4a8bb191c5e3e1a3c650f3e8dc0bd9233f9c9167",
+    "reopen_reason": "completion audit found the public RVV lowering pass could still succeed with unconverted RVV IR, the recursive typed-body allowlist was outside the shared backend preparation hook, and raw RVV EmitC population APIs remained public"
   }
 }

@@ -18,6 +18,21 @@ BackendEmissionRegistry::tryConvertModuleClone(mlir::ModuleOp source) const {
     if (!driver->moduleHasBackendBody(source))
       continue;
 
+    // A single standalone materialization may have exactly one backend owner.
+    // Reject mixed-family modules before any family cleanup can erase a body it
+    // does not own and accidentally turn a partial conversion into success.
+    bool hasCompetingBackendBody = false;
+    for (const TypedBackendEmissionDriver *other : drivers) {
+      if (other == driver)
+        continue;
+      if (other->moduleHasBackendBody(source)) {
+        hasCompetingBackendBody = true;
+        break;
+      }
+    }
+    if (hasCompetingBackendBody)
+      continue;
+
     // The conversion is SPECULATIVE and runs IN PLACE: a family the backend's
     // patterns do not fully cover legally fails `applyPartialConversion` (an
     // illegal carrier op survives), which is a fail-closed ownership decline.

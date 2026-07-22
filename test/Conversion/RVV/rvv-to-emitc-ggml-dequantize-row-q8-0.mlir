@@ -14,11 +14,11 @@
 // single 32-lane vle8 (the 32 signed int8 quants) + vsext_vf4 (int8->int32) + vfcvt_f_x_v
 // (int32->f32) + vfmul_vf (the runtime `d` scale) + vse32 (contiguous 32-float store)
 // pipeline per block, NO gather (q8_0 is non-grid: no codebook, no sign plane, no nibble
-// unpack). The leaf now emits OWNED __riscv_v intrinsics (the ISSUE-001 reverse: the
-// vector content is the emitter's, not host-autovec codegen-lottery), NOT the scalar
-// per-element loop the dispatch-wired monolith fallback (emitDequantizeRowQ8_0BodyShared)
-// still runs. The other 22 dequantize_row formats keep their existing (scalar / grid)
-// leaves. The dedicated typed-region -> C lowering contract (+ verifier fail-closed) is
+// unpack). The leaf emits OWNED __riscv_v intrinsics (the ISSUE-001 reverse: the
+// vector content is the emitter's, not host-autovec codegen-lottery), and no parallel
+// dispatch-wired monolith remains. The other dequantize_row formats use their typed
+// mechanism plans through the same construction cut. The dedicated typed-region -> C
+// lowering contract (+ verifier fail-closed) is
 // locked in rvv-to-emitc-typed-dequantize-row-loop-body.mlir. Byte-exact-vs-ggml-reference
 // dequantize_row_q8_0 by construction: the fp16 d seam is the SAME (float)*(const _Float16 *)
 // read, the signed i8 quants sign-extend exactly, and vfmul_vf(qf, d) == the scalar

@@ -70,6 +70,23 @@ construction-protocol manifest 已登记就视为 final body construction 已统
 - [x] spec/issues 只在上述事实成立后更新，task 固定主体实现 commit，收口提交后工作区干净；
 - [x] `ConstructedWeak` 与 delete-leaf strong reconstruction 的边界继续诚实保留。
 
+## 2026-07-22 completion audit 重开项
+
+`ba252b0f5` 建立了七个 backend 的统一 construction hook，但随后从公开 pass/API
+反向枚举时发现，下面三项仍会让“全项目路径统一”的结论过早。它们属于本 task 原范围，
+不是新增特性，也不改变公式、两柱或六律：
+
+- [x] `--weft-rvv-lower-to-emitc` 对任何实际携带 RVV op/type、但不能完整转换的输入都
+  fail closed；只有完全不含 RVV body 的模块才允许真正 no-op；
+- [x] flat/super-block/elementwise typed-body recursive allowlist 进入 RVV backend 的共享
+  `prepareForConversion`，pass、registry clone、translate 与 artifact 不再各走不同检查；
+- [x] raw RVV type/pattern population helper 不再作为公共 API 暴露；仓内所有
+  `mlir::apply*Conversion` 只能位于调用 construction hook 的共享 harness；
+- [x] registry 对同时携带多个 backend body 的模块 fail closed，不能由先命中的 backend
+  cleanup 擦掉另一 family 后仍报告完整转换；
+- [x] quantize/dequantize 的 construct-from-abstract 正例、unsupported/forged 负例、公开
+  pass/API authority 静态门及完整 `check-weft` 全部通过后，才重新固定完成 commit。
+
 ## 明确不是完成证明的东西
 
 - 公式 descriptor 数量、catalog case 数量或源码行数；

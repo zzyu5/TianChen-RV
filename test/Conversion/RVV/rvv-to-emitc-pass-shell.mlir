@@ -1,4 +1,5 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's|// FOREIGN ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=FOREIGN
 
 // The --weft-rvv-lower-to-emitc pass now runs the real DialectConversion
 // harness (TypeConverter + ConversionTarget + OpConversionPattern +
@@ -41,6 +42,7 @@ module {
         weft_rvv.store %out_ptr, %sum, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
       } : !weft_rvv.vl
     }
+    // FOREIGN weft_scalar.compute_skeleton {source_kernel = "rvv_generic_add_kernel", selected_variant = @rvv_generic_add, scalar_immediate = 7 : i64}
   }
 }
 
@@ -54,3 +56,7 @@ module {
 // CHECK: call_opaque "__riscv_vle32_v_i32m1"
 // CHECK: call_opaque "__riscv_vadd_vv_i32m1"
 // CHECK: call_opaque "__riscv_vse32_v_i32m1"
+
+// A direct RVV conversion cannot erase a sibling family's final body while
+// packaging the RVV body as a standalone module.
+// FOREIGN: RVV construction-before-emission refuses a module carrying a different family's final EmitC-lowerable body

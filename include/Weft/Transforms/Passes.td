@@ -458,17 +458,13 @@ def RVVLowerToEmitC
     : Pass<"weft-rvv-lower-to-emitc", "::mlir::ModuleOp"> {
   let summary = "Lower selected generic weft_rvv dataflow bodies to MLIR EmitC via DialectConversion";
   let description = [{
-    Stands up the real MLIR DialectConversion infrastructure (TypeConverter +
-    ConversionTarget + RewritePatternSet + applyPartialConversion) over the
-    existing generic typed weft_rvv dataflow ops, the typed-IR replacement for
-    the legacy RVV emitted-C string machine.
-
-    In this initial state the pass is an additive structural no-op: it builds
-    the beachhead !weft_rvv.* -> emitc C-type conversions, marks the emitc
-    dialect legal, marks every op (including weft_rvv ops) legal, and registers
-    zero conversion patterns. Running it on any module leaves the IR unchanged.
-    Real per-op conversion patterns for the unit-stride elementwise add
-    beachhead family land in a subsequent step.
+    Runs the same RVV family construction-before-emission cut used by registry,
+    translate and target artifact materialization: typed formula construction,
+    complete schedule construction, recursive final-body qualification and the
+    RVV-to-EmitC DialectConversion. A module with no RVV op/type is a true no-op;
+    once an RVV body is present, anything short of complete legalization is a
+    pass failure. The pass never leaves an unchanged RVV body as a compatibility
+    or deferred lowering path.
 
     The pass is plugin-neutral conversion scaffolding. It does not print C/C++,
     export target artifacts, compile objects, run hardware, prove correctness,

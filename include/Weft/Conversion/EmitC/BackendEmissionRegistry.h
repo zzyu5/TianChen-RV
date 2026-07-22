@@ -33,7 +33,9 @@ public:
   /// Iterates the registered backends, skipping those whose
   /// `moduleHasBackendBody(source)` is false, and tries
   /// `convertModuleWithBackendEmitter` on a CLONE of `source` for each
-  /// candidate. Returns the converted clone on the FIRST full conversion; the
+  /// candidate. A module claimed by more than one registered backend is
+  /// rejected before conversion: one backend cleanup may not discard another
+  /// family's body. Returns the converted clone on the FIRST full conversion; the
   /// caller decides whether to replace/return/validate it. Returns a null
   /// OwningOpRef when no registered backend fully converts the module. `source`
   /// is never mutated.

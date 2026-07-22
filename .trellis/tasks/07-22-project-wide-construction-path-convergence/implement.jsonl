@@ -24,3 +24,10 @@
 {"file":".trellis/spec/architecture/变体流水线.md","reason":"保持主公式/薄 selector 不变，补充 direct backend construction-before-emission 单向链和 flat_* 最终 plan 纪律"}
 {"file":".trellis/spec/issues/发射器与架构.md","reason":"以 ISSUE-129 记录并关闭非 RVV direct backend 绕过、Demo 缺 driver、Scalar/IME emitter 重决策缺口"}
 {"file":"README.md","reason":"更新项目全景：Weft 是可扩展 MLIR operator compiler，RISC-V 是旗舰实例；当前受支持 backend 已统一 construction hook"}
+{"file":"include/Weft/Conversion/RVV/RVVToEmitC.h","reason":"退役公开 raw type/pattern population API，只保留强制执行完整 construction-before-emission 的 RVV in-place 入口"}
+{"file":"lib/Conversion/RVV/RVVToEmitC.cpp","reason":"把 recursive flat/super-block/elementwise qualification 移入 RVV backend preparation；公开 pass 对含 RVV 而未完整 legalize 的模块 fail closed，并拒绝擦除 foreign final body"}
+{"file":"lib/Conversion/EmitC/BackendEmissionRegistry.cpp","reason":"standalone clone conversion 在任何 cleanup 前拒绝被多个 live backend 同时 claim 的模块，避免先命中 family 丢弃另一 family body"}
+{"file":"test/Conversion/RVV/rvv-to-emitc-unowned-rvv-body-rejected.mlir","reason":"行为证明公开 RVV pass 不再成功保留无可转换 carrier 的 RVV op/type"}
+{"file":"test/Conversion/EmitC/mixed-backend-materialization-rejected.mlir","reason":"行为证明 mixed Toy/Scalar final body 在 registry conversion 前 fail closed"}
+{"file":"test/Conversion/RVV/rvv-to-emitc-pass-shell.mlir","reason":"行为证明 direct RVV pass 不能在 standalone cleanup 中擦除 sibling family final body"}
+{"file":"test/Scripts/project-construction-authority.test","reason":"反向锁住唯一 applyPartialConversion 住 shared harness、raw RVV population 不公开、quant/dequant 同一 construction cut、recursive qualification 与 mixed-owner 门"}

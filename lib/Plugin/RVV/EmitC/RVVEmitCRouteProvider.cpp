@@ -53,11 +53,10 @@ bool rvvSelectedBodyFullyConvertsToEmitC(
     return false;
 
   // Probe a clone so the live IR is never mutated: convertRVVModuleToEmitC
-  // rewrites in place and, on a not-yet-covered family, fails partway. The
-  // speculative failure is the normal strangler-fig fall-back signal, so
-  // swallow its diagnostics rather than leak a spurious "failed to legalize"
-  // to stderr; the real conversion seam (and the --weft-rvv-lower-to-emitc
-  // pass) still surface diagnostics normally.
+  // rewrites in place and may fail partway on an unsupported or malformed
+  // body. A failed probe means there is no legal RVV materialization route;
+  // swallow speculative diagnostics here while the real conversion seam and
+  // --weft-rvv-lower-to-emitc surface failures normally.
   mlir::OwningOpRef<mlir::ModuleOp> probe(module.clone());
   mlir::ScopedDiagnosticHandler quietTry(
       probe->getContext(),

@@ -148,10 +148,9 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     const TargetArtifactCandidate &candidate,
     llvm::StringRef selectedBodyRouteID,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  // Stage 3 换心 decouple (C2): `selectedBodyRouteID` is the selected body's
-  // EmitC route id. For the legacy string path it is the rebuilt route's
-  // `getRouteID()`; for the converted path it is `description.emitCRouteID` —
-  // the SAME value the route is constructed from
+  // `selectedBodyRouteID` is the selected body's EmitC route id. It is
+  // `description.emitCRouteID`, the same value the mechanical route projection
+  // is constructed from
   // (RVVEmitCRouteProvider.cpp builds the route id from
   // `analysis.description.emitCRouteID`), so this mirror check is identical
   // either way and no longer needs the owner-built string route.
