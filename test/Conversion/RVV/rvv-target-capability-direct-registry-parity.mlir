@@ -59,5 +59,5 @@ module {
 
 // POSITIVE: emitc.func @weft_emitc_capability_parity_kernel_vector
 // MISSING-REQ: requires structured array attribute 'requires' containing capability symbol references
-// DIRECT-REJECT: failed to legalize operation 'weft.exec.variant'
+// DIRECT-REJECT: {{(RVV selected target-capability gate failed|failed to legalize operation 'weft.exec.variant')}}
 // REGISTRY-REJECT: Weft-RV EmitC lowerable materialization failed:

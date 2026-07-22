@@ -27,6 +27,11 @@ constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineDescription(
     "generic legality, capability, emission-plan, and execution-plan coherence "
     "checks so bounded source inputs reach selected emission diagnostics "
     "before any supported target artifact export");
+constexpr llvm::StringLiteral kRVVLowerToEmitCPipelineName(
+    "weft-rvv-lower-to-emitc");
+constexpr llvm::StringLiteral kRVVLowerToEmitCPipelineDescription(
+    "Compose bound RVV formula construction with construction-blind EmitC "
+    "artifact projection");
 
 } // namespace
 
@@ -111,6 +116,17 @@ void registerSourceArtifactFrontDoorPipeline(
        &registry, &targetExporters](mlir::OpPassManager &pm) {
         buildSourceArtifactFrontDoorPipeline(
             pm, capturedSourceFrontDoorPasses, registry, targetExporters);
+      });
+  (void)registration;
+}
+
+void registerRVVLowerToEmitCPipeline(
+    const plugin::ExtensionPluginRegistry &registry) {
+  mlir::PassPipelineRegistration<> registration(
+      kRVVLowerToEmitCPipelineName, kRVVLowerToEmitCPipelineDescription,
+      [&registry](mlir::OpPassManager &pm) {
+        pm.addPass(createConstructRVVFormulaPlansPass(registry));
+        pm.addPass(createRVVLowerToEmitCPass());
       });
   (void)registration;
 }

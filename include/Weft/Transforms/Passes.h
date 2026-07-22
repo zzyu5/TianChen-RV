@@ -44,6 +44,8 @@ void registerSourceArtifactFrontDoorPipeline(
         sourceFrontDoorPasses,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
+void registerRVVLowerToEmitCPipeline(
+    const plugin::ExtensionPluginRegistry &registry);
 
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
 std::unique_ptr<::mlir::Pass> createCheckHartParallelCapabilitiesPass();
@@ -70,6 +72,9 @@ createMaterializeSelectedLoweringBoundariesPass(
     const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createMaterializeRVVProbedCapabilityAxesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVSchedulePass();
+std::unique_ptr<::mlir::Pass> createConstructRVVFormulaPlansPass();
+std::unique_ptr<::mlir::Pass> createConstructRVVFormulaPlansPass(
+    const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(
     const plugin::ExtensionPluginRegistry &registry);

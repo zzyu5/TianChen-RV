@@ -63,9 +63,8 @@ module {
         weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 144 : i64, activation_block_stride = 292 : i64, fold_model = "super_block_two_level_scale_min", integer_core_lmul = "m2"} {
         ^bb0(%super_block_index: index, %sums: !weft_rvv.vector<f32, "m2">, %sumf: f32):
           // R1 %r1 = arith.constant 0.0 : f32
-          // R2 %r2vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
-          // R2 weft_rvv.with_vl %r2vl attributes {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} {
-          // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %r2vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4", multi_block_factor = 1 : i64, strip_elision = "robust"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          // R2 weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+          // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4", multi_block_factor = 1 : i64, strip_elision = "robust"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
           // R2 } : !weft_rvv.vl
           // BRICK 1: plain 4-bit nibble unpack -> aux8[256] scratch (Region A).
           // The `block %super_block_index` operand (W5) makes the weight base
@@ -166,11 +165,9 @@ module {
 // rejected (the allowlist default is deny, naming the offending op).
 // REJECT: 'arith.constant' op is not in the M-FLAT typed super-block block-dot loop-body allowlist
 
-// A hand-written monolithic *_block_dot helper NESTED inside an allowlisted
-// with_vl inside the super-block loop region is fail-closed rejected ONLY because
-// the allowlist walk is RECURSIVE -- the literal [L-8] opaque-helper leak the
-// strong-form gate exists to catch.
-// REJECT-NESTED: 'weft_rvv.q4_0_q8_0_block_dot' op is not in the M-FLAT typed super-block block-dot loop-body allowlist
+// A second nested with_vl cannot become an alternate point authority inside the
+// final super-block body; construction requires one exact vector-control root.
+// REJECT-NESTED: selected RVV typed lowering boundary requires exactly one weft_rvv.with_vl op
 
 // The bounded surface is fail-closed on the loop kind, the W2 fold_model fact, and
 // the integer_core_lmul scheduling knob (I7). The DUAL-accumulator region/yield

@@ -5,6 +5,7 @@ add_mlir_library(WeftTransforms
   EmissionReadiness.cpp
   ExecutionPlanCoherence.cpp
   ExecutionPlanningPipeline.cpp
+  FamilyConstruction.cpp
   HartParallelCapabilities.cpp
   LoweringBoundary.cpp
   PluginVariantLegality.cpp

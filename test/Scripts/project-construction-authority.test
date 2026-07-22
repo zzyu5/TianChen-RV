@@ -22,6 +22,9 @@
 # RUN: sed -n '/exportScalarEmitCToCpp/,/^}/p' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=SCALAR-TRANSLATE-ORDER
 # RUN: sed -n '/bool convertRVVModuleToEmitC/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-DIRECT-ORDER
 # RUN: sed -n '/bool convertRVVModuleToEmitC/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | not rg 'constructRVV|constructFormula'
+# RUN: sed -n '/void registerRVVLowerToEmitCPipeline/,/^}/p' %S/../../lib/Transforms/ExecutionPlanningPipeline.cpp | FileCheck %s --check-prefix=RVV-PHASE-ORDER
+# RUN: sed -n '/void runOnOperation() override/,/^  }/p' %S/../../lib/Transforms/FamilyConstruction.cpp | FileCheck %s --check-prefix=RVV-BOUND-CONSTRUCTION
+# RUN: rg -n 'Pass<"weft-rvv-project-to-emitc"' %S/../../include/Weft/Transforms/Passes.td | FileCheck %s --check-prefix=RVV-PROJECTION-PASS
 
 # Construction, formula and artifact inventories are separate.  Formula
 # descriptors name construction entries; artifact drivers name only backends.
@@ -62,6 +65,11 @@
 # SCALAR-TRANSLATE-ORDER: constructFormulaPlansForVariant
 # SCALAR-TRANSLATE-ORDER: tryConvertConstructedModuleWithRegisteredBackend
 # RVV-DIRECT-ORDER: convertConstructedModuleWithBackendEmitter
+# RVV-PHASE-ORDER: createConstructRVVFormulaPlansPass(registry)
+# RVV-PHASE-ORDER: createRVVLowerToEmitCPass()
+# RVV-BOUND-CONSTRUCTION: constructFormulaPlansForVariant
+# RVV-BOUND-CONSTRUCTION: result.hasFinalBody()
+# RVV-PROJECTION-PASS: Pass<"weft-rvv-project-to-emitc"
 # CONSTRUCTION-INVENTORY: addProductionEntry("construction:
 # TABLE: rvv::registerRVVBackendEmitter
 # TABLE: ::weft::plugin::demo_ext::registerDemoBackendEmitter

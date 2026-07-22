@@ -29,10 +29,9 @@
 //   body passes formula construction and the validator, then lowers.
 // - `sed 's|// R1 ||'` injects a TOP-LEVEL opaque emitc.verbatim into the loop
 //   region -> fail-closed reject (REJECT).
-// - `sed 's|// R2 ||'` injects an opaque emitc.verbatim NESTED inside an
-//   allowlisted with_vl inside the loop region -> fail-closed reject that ONLY
-//   the RECURSIVE walk can catch (the non-recursive single-block blocklist could
-//   not) (REJECT-NESTED).
+// - `sed 's|// R2 ||'` injects a second nested with_vl/point body. The bound
+//   family construction gate rejects the competing control root before the
+//   recursive body allowlist is even needed (REJECT-NESTED).
 
 module {
   weft.exec.kernel @rvv_flat_loop_allowlist_kernel {
@@ -48,9 +47,8 @@ module {
         weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", multi_block_factor = 1 : i64, strip_elision = "elided", fold_structure = "per-block", numerics_tier = "strict"} {
         ^bb0(%block_index: index, %acc: f32):
           // R1 %r1 = arith.constant 0.0 : f32
-          // R2 %r2vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
-          // R2 weft_rvv.with_vl %r2vl attributes {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} {
-          // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %r2vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4", multi_block_factor = 1 : i64, strip_elision = "robust"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          // R2 weft_rvv.with_vl %vl attributes {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} {
+          // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4", multi_block_factor = 1 : i64, strip_elision = "robust"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
           // R2 } : !weft_rvv.vl
           %dd = weft_rvv.block_fp16_scale_product %vx, %vy block %block_index : index {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
           %wv = weft_rvv.load %vx, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
@@ -77,13 +75,9 @@ module {
 // is deny (naming the offending op).
 // REJECT: 'arith.constant' op is not in the M-FLAT typed flat block-dot loop-body allowlist
 
-// The hand-written monolithic *_block_dot helper (whose own verifier requires it
-// to live directly inside a with_vl body -- exactly the constructed-strong body's
-// vector-core scope) NESTED inside an allowlisted with_vl inside the loop region
-// is fail-closed rejected ONLY because the validator walk is RECURSIVE (the
-// non-recursive single-block blocklist could not see one level deeper). This is
-// the literal [L-8] opaque-helper leak the strong-form gate exists to catch.
-// REJECT-NESTED: 'weft_rvv.q4_0_q8_0_block_dot' op is not in the M-FLAT typed flat block-dot loop-body allowlist
+// A second nested with_vl cannot become an alternate point authority inside the
+// final body; construction requires one exact vector-control root.
+// REJECT-NESTED: selected RVV typed lowering boundary requires exactly one weft_rvv.with_vl op
 
 // Registry-backed materialization runs the same preparation/qualification cut;
 // it cannot bypass the recursive allowlist through the artifact path.

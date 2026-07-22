@@ -80,6 +80,9 @@ llvm::Error registerWeftOptPasses(
     return weft::transforms::createMaterializeRVVSchedulePass();
   });
   mlir::registerPass([&plugins] {
+    return weft::transforms::createConstructRVVFormulaPlansPass(plugins);
+  });
+  mlir::registerPass([&plugins] {
     return weft::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);
   });
@@ -106,6 +109,7 @@ llvm::Error registerWeftOptPasses(
   });
   weft::transforms::registerSourceArtifactFrontDoorPipeline(
       sourceFrontDoorPasses, plugins, targetExporters);
+  weft::transforms::registerRVVLowerToEmitCPipeline(plugins);
   weft::transforms::registerExecutionPlanningPipeline(plugins,
                                                             targetExporters);
   return llvm::Error::success();

@@ -454,21 +454,43 @@ def CheckExecutionPlanCoherence
   ];
 }
 
-def RVVLowerToEmitC
-    : Pass<"weft-rvv-lower-to-emitc", "::mlir::ModuleOp"> {
-  let summary = "Lower selected generic weft_rvv dataflow bodies to MLIR EmitC via DialectConversion";
+def ConstructRVVFormulaPlans
+    : Pass<"weft-rvv-construct-formula-plans", "::mlir::ModuleOp"> {
+  let summary = "Run bound RVV family construction before artifact projection";
   let description = [{
-    Runs the same RVV family construction-before-emission cut used by registry,
-    translate and target artifact materialization: typed formula construction,
-    complete schedule construction, recursive final-body qualification and the
-    RVV-to-EmitC DialectConversion. A module with no RVV op/type is a true no-op;
-    once an RVV body is present, anything short of complete legalization is a
-    pass failure. The pass never leaves an unchanged RVV body as a compatibility
-    or deferred lowering path.
+    Binds every explicitly owned RVV variant to its enclosing kernel and typed
+    target capability set, then invokes the RVV family construction contract.
+    Formula construction produces final schedules and computation plans such as
+    `flat_*`, and returns the exact final typed root. This pass does not inspect
+    artifact routes, emit EmitC, or infer a body from kind/format metadata.
 
-    The pass is plugin-neutral conversion scaffolding. It does not print C/C++,
-    export target artifacts, compile objects, run hardware, prove correctness,
-    or claim performance.
+    An RVV operation without an owning `rvv-plugin` variant is not adopted by
+    this pass; the subsequent artifact projection therefore rejects it. This is
+    a lifecycle stage, not a compatibility repair path.
+  }];
+  let constructor =
+      "::weft::transforms::createConstructRVVFormulaPlansPass()";
+  let dependentDialects = [
+    "::weft::exec::WEFTExecDialect",
+    "::weft::rvv::WEFTRVVDialect"
+  ];
+}
+
+def RVVLowerToEmitC
+    : Pass<"weft-rvv-project-to-emitc", "::mlir::ModuleOp"> {
+  let summary = "Project construction-qualified weft_rvv bodies to MLIR EmitC";
+  let description = [{
+    Mechanically lowers an already construction-qualified RVV typed body to
+    EmitC. Formula construction and schedule selection are deliberately absent
+    from this pass: `flat_*` and all other final computation plans must already
+    exist, and the emitter consumes them directly. A module with no RVV op/type
+    is a true no-op; once an RVV body is present, anything short of complete
+    legalization is a pass failure.
+
+    The user-facing `weft-rvv-lower-to-emitc` pipeline composes the separate
+    bound construction pass with this artifact-only projection. This pass does
+    not print C/C++, export target artifacts, compile objects, run hardware,
+    prove correctness, or claim performance.
   }];
   let constructor =
       "::weft::transforms::createRVVLowerToEmitCPass()";

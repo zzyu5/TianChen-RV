@@ -42,7 +42,7 @@ module {
         weft_rvv.store %out_ptr, %sum, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vector<i32, "m1">, !weft_rvv.vl
       } : !weft_rvv.vl
     }
-    // FOREIGN weft_scalar.compute_skeleton {source_kernel = "rvv_generic_add_kernel", selected_variant = @rvv_generic_add, scalar_immediate = 7 : i64}
+    // FOREIGN weft_scalar.immediate_call_body {source_kernel = "rvv_generic_add_kernel", selected_variant = @rvv_generic_add, scalar_immediate = 7 : i64}
   }
 }
 
@@ -59,4 +59,4 @@ module {
 
 // A direct RVV conversion cannot erase a sibling family's final body while
 // packaging the RVV body as a standalone module.
-// FOREIGN: RVV construction-before-emission refuses a module carrying a different family's final EmitC-lowerable body
+// FOREIGN: RVV artifact lowering refuses a module carrying a different family's final EmitC-lowerable body
