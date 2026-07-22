@@ -516,9 +516,7 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
-      getTemplateConstructedSource(request);
-  if (!source)
+  if (auto source = getTemplateConstructedSource(request); !source)
     return source.takeError();
 
   const template_ext::TemplateArtifactRoute &artifactRoute =
@@ -538,16 +536,6 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
   out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(
       template_ext::getTemplateRuntimeABIParameters());
-  out.addArtifactMetadata(
-      template_ext::getTemplateArtifactRouteMetadataName(),
-      artifactRoute.routeID);
-  out.addArtifactMetadata(template_ext::getTemplateSourceOpMetadataName(),
-                          source->opName);
-  out.addArtifactMetadata(template_ext::getTemplateSourceRoleMetadataName(),
-                          source->role);
-  out.addArtifactMetadata(
-      template_ext::getTemplateSourceOpInterfaceMetadataName(),
-      source->opInterface);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

@@ -27,12 +27,6 @@ constexpr llvm::StringLiteral kResultName("demo_compute_sentinel");
 constexpr llvm::StringLiteral kResultCType("int32_t");
 constexpr llvm::StringLiteral kTranslateRouteID("weft-demo-emitc-to-cpp");
 
-constexpr llvm::StringLiteral kRouteMetadataName("demo_emitc_route");
-constexpr llvm::StringLiteral kSourceOpMetadataName("demo_source_op");
-constexpr llvm::StringLiteral kSourceRoleMetadataName("demo_source_role");
-constexpr llvm::StringLiteral kSourceInterfaceMetadataName(
-    "demo_source_op_interface");
-
 const DemoArtifactRoute kRoute = {
     kRouteID,          kEmissionKind,      kArtifactKind,
     kBodyOpName,       kRuntimeABI,        kRuntimeABIKind,
@@ -47,20 +41,6 @@ const DemoArtifactRoute &getDemoArtifactRoute() { return kRoute; }
 
 llvm::ArrayRef<support::RuntimeABIParameter> getDemoRuntimeABIParameters() {
   return {};
-}
-
-llvm::StringRef getDemoArtifactRouteMetadataName() {
-  return kRouteMetadataName;
-}
-
-llvm::StringRef getDemoSourceOpMetadataName() { return kSourceOpMetadataName; }
-
-llvm::StringRef getDemoSourceRoleMetadataName() {
-  return kSourceRoleMetadataName;
-}
-
-llvm::StringRef getDemoSourceOpInterfaceMetadataName() {
-  return kSourceInterfaceMetadataName;
 }
 
 } // namespace weft::plugin::demo_ext

@@ -22,14 +22,6 @@ namespace weft::target::toy {
 namespace {
 
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
-constexpr llvm::StringLiteral kToyRouteMetadataKey(
-    "toy_emitc_lowerable_route");
-constexpr llvm::StringLiteral kToySourceOpMetadataKey("toy_source_op");
-constexpr llvm::StringLiteral kToySourceRoleMetadataKey("toy_source_role");
-constexpr llvm::StringLiteral kToySourceOpInterfaceMetadataKey(
-    "toy_source_op_interface");
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "WEFTEmitCLowerableOpInterface");
 
 struct ScopedTempPath {
   llvm::SmallString<128> path;
@@ -82,17 +74,6 @@ llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
 
 ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
-  static const MaterializedEmitCHeaderArtifactMetadataEvidence
-      kMetadataEvidence[] = {
-          {"emitc_lowerable_route", kToyRouteMetadataKey,
-           plugin::toy::getToyArtifactRoute().routeID},
-          {"source_op", kToySourceOpMetadataKey,
-           plugin::toy::getToyArtifactRoute()
-               .loweringBoundaryOpName},
-          {"source_role", kToySourceRoleMetadataKey, "compute"},
-          {"source_op_interface", kToySourceOpInterfaceMetadataKey,
-           kEmitCLowerableOpInterfaceName},
-      };
 
   const auto &route = getToyRoute();
 
@@ -116,7 +97,6 @@ ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
   config.runtimeGlueRole = route.runtimeGlueRole;
   config.runtimeABIParameters =
       plugin::toy::getToyRuntimeABIParameters();
-  config.metadataEvidence = kMetadataEvidence;
   config.componentGroup = route.bundleComponentGroup;
   config.externalABIName = route.runtimeABIName;
   config.handoffKind = route.objectHandoffKind;

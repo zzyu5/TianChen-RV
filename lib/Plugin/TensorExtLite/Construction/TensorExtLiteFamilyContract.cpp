@@ -37,15 +37,6 @@ constexpr llvm::StringLiteral kLoadCallee("weft_tensorext_lite_load_frag");
 constexpr llvm::StringLiteral kComputeCallee("weft_tensorext_lite_tile_mma");
 constexpr llvm::StringLiteral kStoreCallee("weft_tensorext_lite_store_frag");
 
-constexpr llvm::StringLiteral kRouteMetadataName(
-    "tensorext_lite_emitc_route");
-constexpr llvm::StringLiteral kSourceOpsMetadataName(
-    "tensorext_lite_source_ops");
-constexpr llvm::StringLiteral kSourceRolesMetadataName(
-    "tensorext_lite_source_roles");
-constexpr llvm::StringLiteral kSourceInterfaceMetadataName(
-    "tensorext_lite_source_op_interface");
-
 const TensorExtLiteArtifactRoute kRoute = {
     kRouteID,          kEmissionKind,     kArtifactKind,
     kRuntimeABI,       kRuntimeABIKind,   kRuntimeABI,
@@ -68,22 +59,6 @@ const TensorExtLiteArtifactRoute &getTensorExtLiteArtifactRoute() {
 llvm::ArrayRef<support::RuntimeABIParameter>
 getTensorExtLiteRuntimeABIParameters() {
   return {};
-}
-
-llvm::StringRef getTensorExtLiteArtifactRouteMetadataName() {
-  return kRouteMetadataName;
-}
-
-llvm::StringRef getTensorExtLiteSourceOpsMetadataName() {
-  return kSourceOpsMetadataName;
-}
-
-llvm::StringRef getTensorExtLiteSourceRolesMetadataName() {
-  return kSourceRolesMetadataName;
-}
-
-llvm::StringRef getTensorExtLiteSourceOpInterfaceMetadataName() {
-  return kSourceInterfaceMetadataName;
 }
 
 } // namespace weft::plugin::tensorext_lite

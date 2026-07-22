@@ -18,13 +18,8 @@ module attributes {
 // BOUNDARY-SAME: origin = "toy-plugin"
 // BOUNDARY-SAME: requires = [@toy_template]
 // BOUNDARY: weft_toy.compute_skeleton {
-// BOUNDARY-SAME: origin = "toy-plugin"
-// BOUNDARY-SAME: role = "direct variant"
-// BOUNDARY-SAME: role_order = 2 : i64
 // BOUNDARY-SAME: selected_variant = @toy_template_first_slice
 // BOUNDARY-SAME: source_kernel = "toy_header_export"
-// BOUNDARY-SAME: source_role = "compute"
-// BOUNDARY-SAME: status = "role-op-boundary"
 // BOUNDARY-SAME: template_reason = "toy-source-front-door-template-compute"
 // BOUNDARY: weft.exec.diagnostic
 // BOUNDARY-SAME: message = "selected Toy source front-door route"
@@ -40,10 +35,6 @@ module attributes {
 // PLAN-SAME: reason = "variant-selected"
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "toy_emitc_lowerable_route", value = "toy-template-compute-emitc-route"}
-// PLAN-SAME: {key = "toy_source_op", value = "weft_toy.compute_skeleton"}
-// PLAN-SAME: {key = "toy_source_role", value = "compute"}
-// PLAN-SAME: {key = "toy_source_op_interface", value = "WEFTEmitCLowerableOpInterface"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-toy-template-module"
 // PLAN-SAME: lowering_boundary = "weft_toy.compute_skeleton"
 // PLAN-SAME: lowering_pipeline = "toy-template-compute-emitc-route"

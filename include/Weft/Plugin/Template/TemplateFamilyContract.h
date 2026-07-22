@@ -44,11 +44,6 @@ struct TemplateArtifactRoute {
 const TemplateArtifactRoute &getTemplateArtifactRoute();
 llvm::ArrayRef<support::RuntimeABIParameter> getTemplateRuntimeABIParameters();
 
-llvm::StringRef getTemplateArtifactRouteMetadataName();
-llvm::StringRef getTemplateSourceOpMetadataName();
-llvm::StringRef getTemplateSourceRoleMetadataName();
-llvm::StringRef getTemplateSourceOpInterfaceMetadataName();
-
 } // namespace weft::plugin::template_ext
 
 #endif // WEFT_PLUGIN_TEMPLATE_TEMPLATEFAMILYCONTRACT_H

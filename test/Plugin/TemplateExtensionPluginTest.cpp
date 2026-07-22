@@ -520,26 +520,6 @@ module {
               emissionPlan),
           "Template emission plan is plugin-owned"))
     return result;
-  bool sawRouteMetadata = false;
-  bool sawSourceOpMetadata = false;
-  bool sawSourceInterfaceMetadata = false;
-  for (const auto &metadata : emissionPlan.getArtifactMetadata()) {
-    if (metadata.key ==
-            weft::plugin::template_ext::
-                getTemplateArtifactRouteMetadataName() &&
-        metadata.value == constructionRoute.routeID)
-      sawRouteMetadata = true;
-    if (metadata.key ==
-            weft::plugin::template_ext::
-                getTemplateSourceOpMetadataName() &&
-        metadata.value == constructionRoute.loweringBoundaryOpName)
-      sawSourceOpMetadata = true;
-    if (metadata.key ==
-            weft::plugin::template_ext::
-                getTemplateSourceOpInterfaceMetadataName() &&
-        metadata.value == "WEFTEmitCLowerableOpInterface")
-      sawSourceInterfaceMetadata = true;
-  }
   if (int result =
           expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
@@ -564,10 +544,9 @@ module {
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          weft::plugin::template_ext::
                              getTemplateExtensionPreferredCapabilitySymbol() &&
-                     sawRouteMetadata && sawSourceOpMetadata &&
-                     sawSourceInterfaceMetadata,
-                 "Template emission plan carries materialized EmitC route "
-                 "metadata"))
+                     emissionPlan.getArtifactMetadata().empty(),
+                 "Template emission plan derives artifact identity directly "
+                 "from the exact typed body and route contract"))
     return result;
 
   return 0;

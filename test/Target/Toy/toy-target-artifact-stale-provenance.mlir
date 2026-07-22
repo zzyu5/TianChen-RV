@@ -1,4 +1,4 @@
-// RUN: not weft-translate --weft-export-target-header-artifact %s 2>&1 | FileCheck %s --check-prefix=STALE
+// RUN: weft-translate --weft-export-target-header-artifact %s | FileCheck %s --check-prefix=IGNORED --implicit-check-not="stale-toy-route"
 
 module {
   weft.exec.kernel @toy_stale_header_export {
@@ -13,17 +13,10 @@ module {
       origin = "toy-plugin",
       requires = [@toy_template],
       weft_toy.template_abi = "toy-metadata-boundary.v1",
-      weft_toy.handoff_kind = "toy-lowering-template",
-      weft_toy.construction_protocol = "extension-family-construction-protocol.v1",
-      weft_toy.archetype = "custom-riscv-extension-minimal",
-      weft_toy.semantic_role_graph = "configure->load->compute->store",
-      weft_toy.common_interface_realization = "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+WEFTEmitCLowerableInterface;load=WEFTExtensionOpInterface+WEFTMemoryOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface;compute=WEFTExtensionOpInterface+WEFTComputeOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface;store=WEFTExtensionOpInterface+WEFTMemoryOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
-      weft_toy.typed_role_realization = "configure:toy.role.configure.config_skeleton:weft_toy.config_skeleton:WEFTConfigOpInterface:WEFTEmitCLowerableInterface;load:toy.role.load.load_skeleton:weft_toy.load_skeleton:WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;compute:toy.role.compute.compute_skeleton:weft_toy.compute_skeleton:WEFTComputeOpInterface:WEFTEmitCLowerableInterface;store:toy.role.store.store_skeleton:weft_toy.store_skeleton:WEFTMemoryOpInterface:WEFTEmitCLowerableInterface",
-      weft_toy.emitc_route_mapping = "toy-template-compute-emitc-route",
-      weft_toy.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|generated_cpp_compile"
+      weft_toy.handoff_kind = "toy-lowering-template"
     } {
     }
-    weft_toy.compute_skeleton {origin = "toy-plugin", required_capabilities = [@toy_template], role = "direct variant", role_order = 2 : i64, role_specific_interface = "WEFTComputeOpInterface", selected_variant = @toy_template_first_slice, source_kernel = "toy_stale_header_export", source_role = "compute", status = "role-op-boundary", typed_role = "toy.role.compute.compute_skeleton"}
+    weft_toy.compute_skeleton {selected_variant = @toy_template_first_slice, source_kernel = "toy_stale_header_export"}
     weft.exec.diagnostic {
       message = "selected Toy route",
       reason = "variant-selected",
@@ -35,13 +28,7 @@ module {
     weft.exec.diagnostic {
       artifact_kind = "riscv-elf-relocatable-object",
       artifact_metadata = [
-        {key = "toy_emitc_lowerable_route", value = "stale-toy-route"},
-        {key = "toy_source_op", value = "weft_toy.compute_skeleton"},
-        {key = "toy_source_role", value = "compute"},
-        {key = "toy_source_op_interface", value = "WEFTEmitCLowerableOpInterface"},
-        {key = "toy_construction_protocol", value = "extension-family-construction-protocol.v1"},
-        {key = "toy_semantic_role_graph", value = "configure->load->compute->store"},
-        {key = "toy_typed_role_realization", value = "configure:toy.role.configure.config_skeleton:weft_toy.config_skeleton:WEFTConfigOpInterface:WEFTEmitCLowerableInterface;load:toy.role.load.load_skeleton:weft_toy.load_skeleton:WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;compute:toy.role.compute.compute_skeleton:weft_toy.compute_skeleton:WEFTComputeOpInterface:WEFTEmitCLowerableInterface;store:toy.role.store.store_skeleton:weft_toy.store_skeleton:WEFTMemoryOpInterface:WEFTEmitCLowerableInterface"}
+        {key = "toy_emitc_lowerable_route", value = "stale-toy-route"}
       ],
       emission_kind = "materialized-emitc-cpp-toy-template-module",
       lowering_boundary = "weft_toy.compute_skeleton",
@@ -66,5 +53,5 @@ module {
   }
 }
 
-// STALE: toy_emitc_lowerable_route
-// STALE-SAME: toy-template-compute-emitc-route
+// IGNORED: weft.toy.selected_route: toy-template-compute-emitc-route
+// IGNORED: void weft_emitc_toy_stale_header_export_toy_template_first_slice(size_t toy_value_count);

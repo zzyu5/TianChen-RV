@@ -345,9 +345,6 @@ llvm::Error validateConstructionTemplateArtifactAdapterConfig(
           requireNonEmpty("selected object description",
                           config.selectedObjectDescription))
     return error;
-  if (config.metadataEvidence.empty())
-    return makeConstructionTemplateAdapterError(
-        "requires construction metadata evidence entries");
   if (llvm::Error error = validateSelectedLoweringBoundaryConfig(config))
     return error;
 

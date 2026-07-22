@@ -175,24 +175,6 @@ getTensorExtLiteSelectedEmitCArtifactConfig(bool validateCandidate) {
 ConstructionTemplateArtifactAdapterConfig
 getTensorExtLiteArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
-  static const MaterializedEmitCHeaderArtifactMetadataEvidence
-      kMetadataEvidence[] = {
-          {"emitc_lowerable_route",
-           plugin::tensorext_lite::getTensorExtLiteArtifactRouteMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteArtifactRoute().routeID},
-          {"source_ops",
-           plugin::tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
-           "weft_tensorext_lite.config_skeleton->"
-           "weft_tensorext_lite.load_frag_skeleton->"
-           "weft_tensorext_lite.tile_mma_skeleton->"
-           "weft_tensorext_lite.store_frag_skeleton"},
-          {"source_roles",
-           plugin::tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
-           "configure->load_frag->tile_mma->store_frag"},
-          {"source_op_interface",
-           plugin::tensorext_lite::getTensorExtLiteSourceOpInterfaceMetadataName(),
-           "WEFTEmitCLowerableOpInterface"},
-      };
 
   const auto &route = getTensorExtLiteRoute();
 
@@ -219,7 +201,6 @@ getTensorExtLiteArtifactAdapterConfig() {
   config.runtimeGlueRole = route.runtimeGlueRole;
   config.runtimeABIParameters =
       plugin::tensorext_lite::getTensorExtLiteRuntimeABIParameters();
-  config.metadataEvidence = kMetadataEvidence;
   config.componentGroup = route.bundleComponentGroup;
   config.externalABIName = route.runtimeABIName;
   config.handoffKind = route.objectHandoffKind;

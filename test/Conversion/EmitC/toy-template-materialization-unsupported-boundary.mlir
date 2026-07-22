@@ -1,53 +1,9 @@
-// RUN: not weft-opt %s --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
+// RUN: not weft-opt %s 2>&1 | FileCheck %s
 
+// The metadata-only boundary surface is retired. Formula construction must
+// produce weft_toy.compute_skeleton directly; no route may revive this op.
 module {
-  weft.exec.kernel @toy_legacy_lowering_boundary {
-    weft.exec.capability @toy_template {
-      id = "toy.template",
-      kind = "extension-template",
-      status = "available",
-      template_abi = "toy-metadata-boundary.v1",
-      handoff_kind = "toy-lowering-template"
-    }
-    weft.exec.variant @toy_template_first_slice attributes {
-      origin = "toy-plugin",
-      requires = [@toy_template],
-      weft_toy.template_abi = "toy-metadata-boundary.v1",
-      weft_toy.handoff_kind = "toy-lowering-template",
-      weft_toy.construction_protocol = "extension-family-construction-protocol.v1",
-      weft_toy.archetype = "custom-riscv-extension-minimal",
-      weft_toy.semantic_role_graph = "configure->load->compute->store",
-      weft_toy.common_interface_realization = "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+WEFTEmitCLowerableInterface;load=WEFTExtensionOpInterface+WEFTMemoryOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface;compute=WEFTExtensionOpInterface+WEFTComputeOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface;store=WEFTExtensionOpInterface+WEFTMemoryOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
-      weft_toy.typed_role_realization = "configure:toy.role.configure.config_skeleton:weft_toy.config_skeleton:WEFTConfigOpInterface:WEFTEmitCLowerableInterface;load:toy.role.load.load_skeleton:weft_toy.load_skeleton:WEFTMemoryOpInterface:WEFTEmitCLowerableInterface;compute:toy.role.compute.compute_skeleton:weft_toy.compute_skeleton:WEFTComputeOpInterface:WEFTEmitCLowerableInterface;store:toy.role.store.store_skeleton:weft_toy.store_skeleton:WEFTMemoryOpInterface:WEFTEmitCLowerableInterface",
-      weft_toy.emitc_route_mapping = "toy-template-compute-emitc-route",
-      weft_toy.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|generated_cpp_compile"
-    } {
-    }
-    weft_toy.lowering_boundary {
-      handoff_kind = "toy-lowering-template",
-      origin = "toy-plugin",
-      required_capabilities = [@toy_template],
-      role = "direct variant",
-      selected_variant = @toy_template_first_slice,
-      source_kernel = "toy_legacy_lowering_boundary",
-      status = "no-active-route",
-      template_abi = "toy-metadata-boundary.v1"
-    }
-    // A valid compute sibling must not let cleanup erase the unsupported body
-    // and report a false full conversion.
-    weft_toy.compute_skeleton {
-      origin = "toy-plugin",
-      required_capabilities = [@toy_template],
-      role = "direct variant",
-      role_order = 2 : i64,
-      role_specific_interface = "WEFTComputeOpInterface",
-      selected_variant = @toy_template_first_slice,
-      source_kernel = "toy_legacy_lowering_boundary",
-      source_role = "compute",
-      status = "role-op-boundary",
-      typed_role = "toy.role.compute.compute_skeleton"
-    }
-  }
+  weft_toy.lowering_boundary
 }
 
-// CHECK: Toy direct construction only accepts its final typed compute body
+// CHECK: custom op 'weft_toy.lowering_boundary' is unknown

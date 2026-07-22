@@ -22,8 +22,6 @@
 namespace weft::target::demo_ext {
 namespace {
 
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "WEFTEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 
 struct ScopedTempPath {
@@ -78,22 +76,6 @@ getDemoSelectedEmitCArtifactConfig(bool validateCandidate) {
 ConstructionTemplateArtifactAdapterConfig
 getDemoArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
-  static const MaterializedEmitCHeaderArtifactMetadataEvidence
-      kMetadataEvidence[] = {
-          {"emitc_lowerable_route",
-           plugin::demo_ext::getDemoArtifactRouteMetadataName(),
-           plugin::demo_ext::getDemoArtifactRoute().routeID},
-          {"source_op",
-           plugin::demo_ext::getDemoSourceOpMetadataName(),
-           plugin::demo_ext::getDemoArtifactRoute()
-               .loweringBoundaryOpName},
-          {"source_role",
-           plugin::demo_ext::getDemoSourceRoleMetadataName(),
-           "compute"},
-          {"source_op_interface",
-           plugin::demo_ext::getDemoSourceOpInterfaceMetadataName(),
-           kEmitCLowerableOpInterfaceName},
-      };
 
   const auto &route = getDemoRoute();
 
@@ -117,7 +99,6 @@ getDemoArtifactAdapterConfig() {
   config.runtimeGlueRole = route.runtimeGlueRole;
   config.runtimeABIParameters =
       plugin::demo_ext::getDemoRuntimeABIParameters();
-  config.metadataEvidence = kMetadataEvidence;
   config.componentGroup = route.bundleComponentGroup;
   config.externalABIName = route.runtimeABIName;
   config.handoffKind = route.objectHandoffKind;

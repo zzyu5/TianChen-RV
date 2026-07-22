@@ -53,15 +53,6 @@ constexpr llvm::StringLiteral kToyTemplateGuard(
     "plugin_local_toy_template_metadata");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kToyRouteArtifactMetadataKey(
-    "toy_emitc_lowerable_route");
-constexpr llvm::StringLiteral kToySourceOpArtifactMetadataKey(
-    "toy_source_op");
-constexpr llvm::StringLiteral kToySourceRoleArtifactMetadataKey(
-    "toy_source_role");
-constexpr llvm::StringLiteral kToySourceOpInterfaceArtifactMetadataKey(
-    "toy_source_op_interface");
-
 struct ToyTemplateCapabilityView {
   std::string templateABI;
   std::string handoffKind;
@@ -537,9 +528,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
-      getToyConstructedSource(request);
-  if (!source)
+  if (auto source = getToyConstructedSource(request); !source)
     return source.takeError();
 
   const toy::ToyArtifactRoute &artifactRoute = toy::getToyArtifactRoute();
@@ -558,12 +547,6 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeGlueRole(artifactRoute.runtimeGlueRole);
   out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(toy::getToyRuntimeABIParameters());
-  out.addArtifactMetadata(kToyRouteArtifactMetadataKey,
-                          artifactRoute.routeID);
-  out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source->opName);
-  out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source->role);
-  out.addArtifactMetadata(kToySourceOpInterfaceArtifactMetadataKey,
-                          source->opInterface);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

@@ -515,9 +515,7 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance> source =
-      getDemoConstructedSource(request);
-  if (!source)
+  if (auto source = getDemoConstructedSource(request); !source)
     return source.takeError();
 
   const demo_ext::DemoArtifactRoute &artifactRoute =
@@ -537,15 +535,6 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
   out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(
       demo_ext::getDemoRuntimeABIParameters());
-  out.addArtifactMetadata(
-      demo_ext::getDemoArtifactRouteMetadataName(), artifactRoute.routeID);
-  out.addArtifactMetadata(demo_ext::getDemoSourceOpMetadataName(),
-                          source->opName);
-  out.addArtifactMetadata(demo_ext::getDemoSourceRoleMetadataName(),
-                          source->role);
-  out.addArtifactMetadata(
-      demo_ext::getDemoSourceOpInterfaceMetadataName(),
-      source->opInterface);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

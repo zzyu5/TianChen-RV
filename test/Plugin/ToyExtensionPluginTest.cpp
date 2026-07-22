@@ -601,13 +601,13 @@ module {
                          emissionPlan.getRuntimeABIParameters(),
                          weft::plugin::toy::
                              getToyRuntimeABIParameters()) &&
-                     emissionPlan.getArtifactMetadata().size() == 4 &&
+                     emissionPlan.getArtifactMetadata().empty() &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          weft::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
-                 "Toy emission plan advertises the plugin-local "
-                 "materialized object/header/bundle artifact bridge"))
+                 "Toy emission plan derives artifact identity directly from "
+                 "the exact typed body and route contract"))
     return result;
 
   return 0;

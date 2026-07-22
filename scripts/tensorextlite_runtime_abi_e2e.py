@@ -39,21 +39,8 @@ DEFAULT_TIMEOUT_SECONDS = 60
 INDEX_FILE_NAME = "weft-target-artifact-bundle.index"
 EXPECTED_SELECTED_VARIANT = "tensorext_lite_tile_mma_first_slice"
 EXPECTED_ORIGIN_PLUGIN = "tensorext-lite-plugin"
-EXPECTED_CONSTRUCTION_PROTOCOL = "extension-family-construction-protocol.v1"
-EXPECTED_EXTENSION_ARCHETYPE = "fragment-mma-like"
-EXPECTED_SEMANTIC_ROLE_GRAPH = "configure->load_frag->tile_mma->store_frag"
-EXPECTED_COMMON_INTERFACE_REALIZATION = (
-    "configure=WEFTExtensionOpInterface+WEFTConfigOpInterface+"
-    "WEFTEmitCLowerableInterface;load_frag=WEFTExtensionOpInterface+"
-    "WEFTMemoryOpInterface+WEFTResourceOpInterface+WEFTEmitCLowerableInterface;"
-    "tile_mma=WEFTExtensionOpInterface+WEFTComputeOpInterface+"
-    "WEFTResourceOpInterface+WEFTEmitCLowerableInterface;store_frag="
-    "WEFTExtensionOpInterface+WEFTMemoryOpInterface+WEFTResourceOpInterface+"
-    "WEFTEmitCLowerableInterface"
-)
-EXPECTED_EVIDENCE_PROFILE = (
-    "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping|materialized_emitc_module"
+EXPECTED_TYPED_BODY_SEQUENCE = (
+    "config_skeleton,load_frag_skeleton,tile_mma_skeleton,store_frag_skeleton"
 )
 EXPECTED_EMITC_ROUTE = "tensorext-lite-fragment-mma-emitc-route"
 EXPECTED_HEADER_ROUTE = "tensorext-lite-fragment-mma-emitc-route.header"
@@ -240,10 +227,7 @@ int main() {{
       \"PASS weft.tensorext_lite.runtime_abi_e2e \"
       \"selected_variant={EXPECTED_SELECTED_VARIANT} \"
       \"origin_plugin={EXPECTED_ORIGIN_PLUGIN} \"
-      \"construction_protocol={EXPECTED_CONSTRUCTION_PROTOCOL} \"
-      \"extension_archetype={EXPECTED_EXTENSION_ARCHETYPE} \"
       \"emitc_route={EXPECTED_EMITC_ROUTE} \"
-      \"evidence_profile={EXPECTED_EVIDENCE_PROFILE} \"
       \"runtime_abi_name={EXPECTED_RUNTIME_ABI} \"
       \"runtime_abi_parameter_count=0 \"
       \"component_group={EXPECTED_COMPONENT_GROUP} \"
@@ -262,11 +246,6 @@ def validate_generated_header(path: Path) -> None:
     require_contains(text, f"@{EXPECTED_SELECTED_VARIANT}", "generated header")
     require_contains(text, EXPECTED_EMITC_ROUTE, "generated header")
     require_contains(text, EXPECTED_RUNTIME_ABI, "generated header")
-    require_contains(text, EXPECTED_CONSTRUCTION_PROTOCOL, "generated header")
-    require_contains(text, EXPECTED_EXTENSION_ARCHETYPE, "generated header")
-    require_contains(text, EXPECTED_SEMANTIC_ROLE_GRAPH, "generated header")
-    require_contains(text, EXPECTED_COMMON_INTERFACE_REALIZATION, "generated header")
-    require_contains(text, EXPECTED_EVIDENCE_PROFILE, "generated header")
     for token in FORBIDDEN_HEADER_TOKENS:
         require_not_contains(text, token, "generated header")
 
@@ -287,11 +266,6 @@ def validate_bundle_index(path: Path) -> None:
         EXPECTED_RUNTIME_ABI,
         EXPECTED_RUNTIME_ABI_KIND,
         "runtime_abi_parameter_count: 0",
-        EXPECTED_CONSTRUCTION_PROTOCOL,
-        EXPECTED_EXTENSION_ARCHETYPE,
-        EXPECTED_SEMANTIC_ROLE_GRAPH,
-        EXPECTED_COMMON_INTERFACE_REALIZATION,
-        EXPECTED_EVIDENCE_PROFILE,
     ):
         require_contains(text, expected, "bundle index")
     for token in ("descriptor", "direct-C", "source-export", "int main", "__riscv_"):
@@ -485,12 +459,6 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     harness_output = harness_stdout.read_text(encoding="utf-8")
     require_contains(harness_output, "PASS weft.tensorext_lite.runtime_abi_e2e", "harness")
     require_contains(harness_output, f"selected_variant={EXPECTED_SELECTED_VARIANT}", "harness")
-    require_contains(
-        harness_output, f"extension_archetype={EXPECTED_EXTENSION_ARCHETYPE}", "harness"
-    )
-    require_contains(
-        harness_output, f"evidence_profile={EXPECTED_EVIDENCE_PROFILE}", "harness"
-    )
     require_contains(harness_output, f"native_call_trace={EXPECTED_CALL_TRACE}", "harness")
 
     stale_stderr = negative_dir / "stale_source_front_door.stderr.txt"
@@ -545,11 +513,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
         "status": "PASS",
         "selected_variant": EXPECTED_SELECTED_VARIANT,
         "origin_plugin": EXPECTED_ORIGIN_PLUGIN,
-        "construction_protocol": EXPECTED_CONSTRUCTION_PROTOCOL,
-        "extension_archetype": EXPECTED_EXTENSION_ARCHETYPE,
-        "semantic_role_graph": EXPECTED_SEMANTIC_ROLE_GRAPH,
-        "common_interface_realization": EXPECTED_COMMON_INTERFACE_REALIZATION,
-        "evidence_profile": EXPECTED_EVIDENCE_PROFILE,
+        "typed_body_sequence": EXPECTED_TYPED_BODY_SEQUENCE,
         "emitc_route": EXPECTED_EMITC_ROUTE,
         "runtime_abi_name": EXPECTED_RUNTIME_ABI,
         "runtime_abi_kind": EXPECTED_RUNTIME_ABI_KIND,
@@ -612,10 +576,7 @@ def main(argv: list[str]) -> int:
     print(f"evidence_dir: {summary['evidence_dir']}")
     print(f"selected_variant: {summary['selected_variant']}")
     print(f"origin_plugin: {summary['origin_plugin']}")
-    print(f"construction_protocol: {summary['construction_protocol']}")
-    print(f"extension_archetype: {summary['extension_archetype']}")
-    print(f"semantic_role_graph: {summary['semantic_role_graph']}")
-    print(f"evidence_profile: {summary['evidence_profile']}")
+    print(f"typed_body_sequence: {summary['typed_body_sequence']}")
     print(f"emitc_route: {summary['emitc_route']}")
     print(f"runtime_abi_name: {summary['runtime_abi_name']}")
     print(f"runtime_abi_parameter_count: {summary['runtime_abi_parameter_count']}")

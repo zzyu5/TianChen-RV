@@ -13,9 +13,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Errc.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <string>
@@ -316,19 +314,6 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
   return llvm::Error::success();
 }
 
-std::string joinTensorExtLiteRouteSourceOps(
-    llvm::ArrayRef<conversion::emitc::WEFTEmitCSourceOpProvenance> sources) {
-  std::string joined;
-  llvm::raw_string_ostream stream(joined);
-  for (auto [index, source] : llvm::enumerate(sources)) {
-    if (index != 0)
-      stream << "->";
-    stream << source.opName;
-  }
-  stream.flush();
-  return joined;
-}
-
 llvm::Expected<
     llvm::SmallVector<conversion::emitc::WEFTEmitCSourceOpProvenance, 4>>
 getTensorExtLiteConstructedSources(const VariantEmissionRequest &request) {
@@ -364,40 +349,6 @@ getTensorExtLiteConstructedSources(const VariantEmissionRequest &request) {
     current = current->getNextNode();
   }
   return sources;
-}
-
-std::string joinTensorExtLiteRouteSourceRoles(
-    llvm::ArrayRef<conversion::emitc::WEFTEmitCSourceOpProvenance> sources) {
-  std::string joined;
-  llvm::raw_string_ostream stream(joined);
-  for (auto [index, source] : llvm::enumerate(sources)) {
-    if (index != 0)
-      stream << "->";
-    stream << source.role;
-  }
-  stream.flush();
-  return joined;
-}
-
-llvm::Expected<std::string> getTensorExtLiteRouteSourceOpInterface(
-    llvm::ArrayRef<conversion::emitc::WEFTEmitCSourceOpProvenance> sources) {
-  if (sources.empty())
-    return makeTensorExtLitePluginError(
-        "TensorExtLite target artifact emission plan requires route "
-        "source-op provenance before artifact export");
-
-  llvm::StringRef first = sources.front().opInterface;
-  if (first.empty())
-    return makeTensorExtLitePluginError(
-        "TensorExtLite target artifact emission plan requires non-empty "
-        "source op-interface provenance");
-  if (!llvm::all_of(sources, [&](const auto &source) {
-        return source.opInterface == first;
-      }))
-    return makeTensorExtLitePluginError(
-        "TensorExtLite target artifact emission plan requires one stable "
-        "source op-interface provenance value");
-  return first.str();
 }
 
 const tensorext_lite::TensorExtLiteExtensionPlugin &getBuiltinTensorExtLiteExtensionPlugin() {
@@ -672,8 +623,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  auto sources = getTensorExtLiteConstructedSources(request);
-  if (!sources)
+  if (auto sources = getTensorExtLiteConstructedSources(request); !sources)
     return sources.takeError();
 
   const tensorext_lite::TensorExtLiteArtifactRoute &artifactRoute =
@@ -694,25 +644,6 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
   out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(
       tensorext_lite::getTensorExtLiteRuntimeABIParameters());
-
-  llvm::SmallVector<support::ArtifactMetadataEntry, 4> artifactMetadata;
-  artifactMetadata.push_back(support::ArtifactMetadataEntry(
-      tensorext_lite::getTensorExtLiteArtifactRouteMetadataName(),
-      artifactRoute.routeID));
-  artifactMetadata.push_back(support::ArtifactMetadataEntry(
-      tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
-      joinTensorExtLiteRouteSourceOps(*sources)));
-  artifactMetadata.push_back(support::ArtifactMetadataEntry(
-      tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
-      joinTensorExtLiteRouteSourceRoles(*sources)));
-  llvm::Expected<std::string> sourceOpInterface =
-      getTensorExtLiteRouteSourceOpInterface(*sources);
-  if (!sourceOpInterface)
-    return sourceOpInterface.takeError();
-  artifactMetadata.push_back(support::ArtifactMetadataEntry(
-      tensorext_lite::getTensorExtLiteSourceOpInterfaceMetadataName(),
-      *sourceOpInterface));
-  out.addArtifactMetadataEntries(artifactMetadata);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

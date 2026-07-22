@@ -27,12 +27,6 @@ constexpr llvm::StringLiteral kResultName("template_compute_sentinel");
 constexpr llvm::StringLiteral kResultCType("int32_t");
 constexpr llvm::StringLiteral kTranslateRouteID("weft-template-emitc-to-cpp");
 
-constexpr llvm::StringLiteral kRouteMetadataName("template_emitc_route");
-constexpr llvm::StringLiteral kSourceOpMetadataName("template_source_op");
-constexpr llvm::StringLiteral kSourceRoleMetadataName("template_source_role");
-constexpr llvm::StringLiteral kSourceInterfaceMetadataName(
-    "template_source_op_interface");
-
 const TemplateArtifactRoute kRoute = {
     kRouteID,          kEmissionKind,      kArtifactKind,
     kBodyOpName,       kRuntimeABI,        kRuntimeABIKind,
@@ -48,22 +42,6 @@ const TemplateArtifactRoute &getTemplateArtifactRoute() { return kRoute; }
 llvm::ArrayRef<support::RuntimeABIParameter>
 getTemplateRuntimeABIParameters() {
   return {};
-}
-
-llvm::StringRef getTemplateArtifactRouteMetadataName() {
-  return kRouteMetadataName;
-}
-
-llvm::StringRef getTemplateSourceOpMetadataName() {
-  return kSourceOpMetadataName;
-}
-
-llvm::StringRef getTemplateSourceRoleMetadataName() {
-  return kSourceRoleMetadataName;
-}
-
-llvm::StringRef getTemplateSourceOpInterfaceMetadataName() {
-  return kSourceInterfaceMetadataName;
 }
 
 } // namespace weft::plugin::template_ext

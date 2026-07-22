@@ -48,11 +48,6 @@ struct DemoArtifactRoute {
 const DemoArtifactRoute &getDemoArtifactRoute();
 llvm::ArrayRef<support::RuntimeABIParameter> getDemoRuntimeABIParameters();
 
-llvm::StringRef getDemoArtifactRouteMetadataName();
-llvm::StringRef getDemoSourceOpMetadataName();
-llvm::StringRef getDemoSourceRoleMetadataName();
-llvm::StringRef getDemoSourceOpInterfaceMetadataName();
-
 } // namespace weft::plugin::demo_ext
 
 #endif // WEFT_PLUGIN_DEMO_DEMOFAMILYCONTRACT_H

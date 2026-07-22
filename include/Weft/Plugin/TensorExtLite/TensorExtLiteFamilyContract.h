@@ -55,11 +55,6 @@ const TensorExtLiteArtifactRoute &getTensorExtLiteArtifactRoute();
 llvm::ArrayRef<support::RuntimeABIParameter>
 getTensorExtLiteRuntimeABIParameters();
 
-llvm::StringRef getTensorExtLiteArtifactRouteMetadataName();
-llvm::StringRef getTensorExtLiteSourceOpsMetadataName();
-llvm::StringRef getTensorExtLiteSourceRolesMetadataName();
-llvm::StringRef getTensorExtLiteSourceOpInterfaceMetadataName();
-
 } // namespace weft::plugin::tensorext_lite
 
 #endif // WEFT_PLUGIN_TENSOREXTLITE_TENSOREXTLITEFAMILYCONTRACT_H

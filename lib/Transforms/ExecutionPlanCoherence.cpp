@@ -578,6 +578,13 @@ bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
   return false;
 }
 
+bool isExactTypedConstructionBody(mlir::Operation &op) {
+  return !op.getName().getStringRef().ends_with(".lowering_boundary") &&
+         !llvm::isa<DiagnosticOp>(op) &&
+         llvm::isa<
+             weft::conversion::emitc::WEFTEmitCLowerableOpInterface>(op);
+}
+
 bool arrayContainsSymbol(mlir::ArrayAttr array, llvm::StringRef symbol) {
   if (!array)
     return false;
@@ -691,12 +698,38 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
             requireFlatSymbolAttr(kernel, &op, kSelectedVariantAttrName,
                                   "selected lowering-boundary", selectedVariant))
       return error;
+    const bool exactTypedBody = isExactTypedConstructionBody(op);
     std::string role;
-    if (llvm::Error error =
-            requireStringAttr(kernel, &op, execDiagnostic::kRoleAttrName,
-                              "selected lowering-boundary", role))
-      return error;
-    std::string key = makePathKey(selectedVariant, role);
+    std::string key;
+    if (exactTypedBody) {
+      const SelectedPath *matchedPath = nullptr;
+      for (const SelectedPath &path : paths) {
+        if (path.variantSymbol != selectedVariant)
+          continue;
+        if (matchedPath)
+          return makeCoherenceError(
+              kernel, llvm::Twine("typed construction body '") +
+                          getOperationName(&op) + "' selected_variant @" +
+                          selectedVariant +
+                          " is ambiguous across multiple selected paths");
+        matchedPath = &path;
+      }
+      if (!matchedPath)
+        return makeCoherenceError(
+            kernel, llvm::Twine("stale typed construction body '") +
+                        getOperationName(&op) + "' selected_variant @" +
+                        selectedVariant +
+                        " is not selected by the current dispatch or "
+                        "selected diagnostic surface");
+      role = matchedPath->role;
+      key = makePathKey(*matchedPath);
+    } else {
+      if (llvm::Error error =
+              requireStringAttr(kernel, &op, execDiagnostic::kRoleAttrName,
+                                "selected lowering-boundary", role))
+        return error;
+      key = makePathKey(selectedVariant, role);
+    }
 
     if (!seenBoundaryKeys.insert(key).second)
       return makeCoherenceError(
@@ -721,33 +754,36 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
                       " does not accept a materialized plugin lowering "
                       "boundary");
 
-    std::string origin;
-    if (llvm::Error error =
-            requireStringAttr(kernel, &op, execDiagnostic::kOriginAttrName,
-                              "selected lowering-boundary", origin))
-      return error;
-    if (origin != path.origin)
-      return makeCoherenceError(
-          kernel, llvm::Twine("lowering-boundary '") + getOperationName(&op) +
-                      "' origin '" + origin +
-                      "' does not match selected variant @" +
-                      path.variantSymbol + " origin '" + path.origin +
-                      "'");
+    if (!exactTypedBody) {
+      std::string origin;
+      if (llvm::Error error =
+              requireStringAttr(kernel, &op, execDiagnostic::kOriginAttrName,
+                                "selected lowering-boundary", origin))
+        return error;
+      if (origin != path.origin)
+        return makeCoherenceError(
+            kernel, llvm::Twine("lowering-boundary '") +
+                        getOperationName(&op) + "' origin '" + origin +
+                        "' does not match selected variant @" +
+                        path.variantSymbol + " origin '" + path.origin +
+                        "'");
 
-    std::string status;
-    if (llvm::Error error =
-            requireStringAttr(kernel, &op, execDiagnostic::kStatusAttrName,
-                              "selected lowering-boundary", status))
-      return error;
+      std::string status;
+      if (llvm::Error error =
+              requireStringAttr(kernel, &op, execDiagnostic::kStatusAttrName,
+                                "selected lowering-boundary", status))
+        return error;
 
-    llvm::SmallVector<std::string, 4> requiredCapabilities;
-    if (llvm::Error error = collectRequiredCapabilitySymbols(
-            kernel, &op, "selected lowering-boundary", requiredCapabilities))
-      return error;
-    if (llvm::Error error = validateCapabilitySubset(
-            kernel, path.variant, requiredCapabilities,
-            "selected lowering-boundary"))
-      return error;
+      llvm::SmallVector<std::string, 4> requiredCapabilities;
+      if (llvm::Error error = collectRequiredCapabilitySymbols(
+              kernel, &op, "selected lowering-boundary",
+              requiredCapabilities))
+        return error;
+      if (llvm::Error error = validateCapabilitySubset(
+              kernel, path.variant, requiredCapabilities,
+              "selected lowering-boundary"))
+        return error;
+    }
 
     path.loweringBoundary = &op;
   }
@@ -1127,7 +1163,8 @@ llvm::Error validateEmissionPlans(
                                        "emission-plan diagnostic"))
         return error;
 
-      if (path.requiresLoweringBoundary && path.loweringBoundary) {
+      if (path.requiresLoweringBoundary && path.loweringBoundary &&
+          !isExactTypedConstructionBody(*path.loweringBoundary)) {
         llvm::SmallVector<std::string, 4> boundaryCapabilities;
         if (llvm::Error error = collectRequiredCapabilitySymbols(
                 kernel, path.loweringBoundary, "selected lowering-boundary",
